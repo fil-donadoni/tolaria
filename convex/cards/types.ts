@@ -5,13 +5,13 @@ export type Color = "W" | "U" | "B" | "R" | "G" | "C";
 export const colors: Color[] = ["W", "U", "B", "R", "G", "C"];
 
 type ManaCost = {
-    generic?: number;
-    white?: number;
-    blue?: number;
-    black?: number;
-    red?: number;
-    green?: number;
-    colorless?: number;
+    X?: number | string;
+    W?: number;
+    U?: number;
+    B?: number;
+    R?: number;
+    G?: number;
+    C?: number;
 };
 
 export type CardType =
@@ -35,15 +35,15 @@ export type CardSupertype =
 export interface Card {
     id: CardId;
     name: string;
-    manaCost: ManaCost;
+    manaCost?: ManaCost;
     types: CardType[];
-    subtypes: string[];
-    supertype: CardSupertype;
-    power: number;
-    toughness: number;
-    loyalty: number;
-    staticAbilities: string[];
-    activatedAbilities: string[];
-    triggeredAbilities: string[];
-    sbaMods: string[];
+    subtypes?: string[];
+    supertypes?: CardSupertype[];
+    power?: number;
+    toughness?: number;
+    loyalty?: number;
+    staticAbilities?: string[];
+    activatedAbilities?: string[];
+    triggeredAbilities?: string[];
+    sbaMods?: string[];
 }
