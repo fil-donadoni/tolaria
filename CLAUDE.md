@@ -8,12 +8,12 @@ Tolaria is an MTG (Magic: The Gathering) gameplay engine for study and experimen
 
 ## Tech Stack
 
-| Layer | Technology | Notes |
-|-------|-----------|-------|
-| Frontend | React 19 + TypeScript + Vite 8 | React Compiler enabled via `@rolldown/plugin-babel` + `babel-plugin-react-compiler` |
-| Backend/DB | Convex | Real-time reactive state, atomic transactional mutations |
-| Auth | Clerk | External auth provider |
-| Package manager | bun | |
+| Layer           | Technology                     | Notes                                                                               |
+| --------------- | ------------------------------ | ----------------------------------------------------------------------------------- |
+| Frontend        | React 19 + TypeScript + Vite 8 | React Compiler enabled via `@rolldown/plugin-babel` + `babel-plugin-react-compiler` |
+| Backend/DB      | Convex                         | Real-time reactive state, atomic transactional mutations                            |
+| Auth            | Clerk                          | External auth provider                                                              |
+| Package manager | bun                            |                                                                                     |
 
 - **TypeScript ~5.9** (strict, project references: `tsconfig.app.json` for src, `tsconfig.node.json` for config files)
 - **ESLint 9** flat config with `typescript-eslint`, `react-hooks`, and `react-refresh` plugins
@@ -48,6 +48,7 @@ The GRE is the core of the system, runs **server-side** in Convex mutations. The
 ### Data model
 
 Two main Convex tables:
+
 - `game_state` — Current snapshot (temporary cache, overwritten on each action). Deleted at end of game.
 - `game_events` — Append-only event log (source of truth for replays). Retained 30-90 days.
 

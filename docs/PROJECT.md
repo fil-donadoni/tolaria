@@ -68,19 +68,19 @@ Principi del GRE:
 ```typescript
 // Stato corrente — cache temporanea, si sovrascrive ad ogni azione
 defineTable("game_state", {
-  gameId: v.id("games"),
-  state: v.any(), // snapshot completo della partita
-  updatedAt: v.number(),
+    gameId: v.id("games"),
+    state: v.any(), // snapshot completo della partita
+    updatedAt: v.number(),
 });
 
 // Log eventi — append-only, permanente
 defineTable("game_events", {
-  gameId: v.id("games"),
-  seq: v.number(), // sequenza progressiva
-  type: v.string(), // es. "CAST_SPELL", "PASS_PRIORITY"
-  player: v.string(),
-  payload: v.any(), // dati specifici dell'evento
-  timestamp: v.number(),
+    gameId: v.id("games"),
+    seq: v.number(), // sequenza progressiva
+    type: v.string(), // es. "CAST_SPELL", "PASS_PRIORITY"
+    player: v.string(),
+    payload: v.any(), // dati specifici dell'evento
+    timestamp: v.number(),
 });
 ```
 
@@ -88,36 +88,36 @@ defineTable("game_events", {
 
 ```typescript
 interface GameState {
-  turn: number;
-  activePlayer: "player1" | "player2";
-  phase: Phase;
-  subphase: Subphase;
-  priority: "player1" | "player2";
-  stack: StackItem[];
-  battlefield: {
-    player1: Permanent[];
-    player2: Permanent[];
-  };
-  hand: {
-    player1: CardId[];
-    player2: CardId[];
-  };
-  library: {
-    player1: CardId[];
-    player2: CardId[];
-  };
-  graveyard: {
-    player1: CardId[];
-    player2: CardId[];
-  };
-  manaPool: {
-    player1: ManaPool;
-    player2: ManaPool;
-  };
-  life: {
-    player1: number;
-    player2: number;
-  };
+    turn: number;
+    activePlayer: "player1" | "player2";
+    phase: Phase;
+    subphase: Subphase;
+    priority: "player1" | "player2";
+    stack: StackItem[];
+    battlefield: {
+        player1: Permanent[];
+        player2: Permanent[];
+    };
+    hand: {
+        player1: CardId[];
+        player2: CardId[];
+    };
+    library: {
+        player1: CardId[];
+        player2: CardId[];
+    };
+    graveyard: {
+        player1: CardId[];
+        player2: CardId[];
+    };
+    manaPool: {
+        player1: ManaPool;
+        player2: ManaPool;
+    };
+    life: {
+        player1: number;
+        player2: number;
+    };
 }
 ```
 
@@ -170,9 +170,9 @@ Le carte dichiarano i loro trigger come **dati**, non come codice imperativo:
 
 ```typescript
 interface TriggerDefinition {
-  event: EventType[]; // quali eventi ascolta
-  condition: (event, state) => boolean; // quando si attiva
-  effect: (event, state) => Effect; // cosa fa quando risolve
+    event: EventType[]; // quali eventi ascolta
+    condition: (event, state) => boolean; // quando si attiva
+    effect: (event, state) => Effect; // cosa fa quando risolve
 }
 ```
 
@@ -237,14 +237,14 @@ ENDING
 
 ```typescript
 type StackItem = {
-  id: string;
-  type: "SPELL" | "ACTIVATED_ABILITY" | "TRIGGERED_ABILITY";
-  source: CardId;
-  controller: PlayerId;
-  effect: Effect;
-  targets: Target[];
-  status: "WAITING" | "RESOLVING";
-  requiresChoice?: ChoiceRequest; // se l'effetto ha bisogno di input
+    id: string;
+    type: "SPELL" | "ACTIVATED_ABILITY" | "TRIGGERED_ABILITY";
+    source: CardId;
+    controller: PlayerId;
+    effect: Effect;
+    targets: Target[];
+    status: "WAITING" | "RESOLVING";
+    requiresChoice?: ChoiceRequest; // se l'effetto ha bisogno di input
 };
 ```
 
@@ -261,8 +261,8 @@ Per i casi in cui un giocatore ha tempo limitato per rispondere:
 ```typescript
 // Schedula timeout se il giocatore non risponde
 await ctx.scheduler.runAfter(30_000, internal.game.handlePriorityTimeout, {
-  gameId,
-  expectedSeq: currentSeq, // per evitare false timeout se il giocatore ha già agito
+    gameId,
+    expectedSeq: currentSeq, // per evitare false timeout se il giocatore ha già agito
 });
 ```
 
@@ -352,58 +352,58 @@ type CardId = string;
 type PlayerId = "player1" | "player2";
 
 type ManaCost = {
-  generic?: number;
-  white?: number;
-  blue?: number;
-  black?: number;
-  red?: number;
-  green?: number;
-  colorless?: number;
+    generic?: number;
+    white?: number;
+    blue?: number;
+    black?: number;
+    red?: number;
+    green?: number;
+    colorless?: number;
 };
 
 type EventType =
-  | "SPELL_RESOLVED"
-  | "PERMANENT_ENTERED"
-  | "CREATURE_ENTERED"
-  | "CREATURE_DIED"
-  | "PLAYER_ATTACKED"
-  | "LAND_PLAYED"
-  | "DRAW_STEP_STARTED"
-  | "UPKEEP_STARTED"
-  | "END_STEP_STARTED";
+    | "SPELL_RESOLVED"
+    | "PERMANENT_ENTERED"
+    | "CREATURE_ENTERED"
+    | "CREATURE_DIED"
+    | "PLAYER_ATTACKED"
+    | "LAND_PLAYED"
+    | "DRAW_STEP_STARTED"
+    | "UPKEEP_STARTED"
+    | "END_STEP_STARTED";
 
 type StaticAbility =
-  | "FLYING"
-  | "TRAMPLE"
-  | "FIRST_STRIKE"
-  | "DOUBLE_STRIKE"
-  | "VIGILANCE"
-  | "HASTE"
-  | "REACH"
-  | "DEATHTOUCH"
-  | "LIFELINK"
-  | "INDESTRUCTIBLE"
-  | "HEXPROOF"
-  | "FLASH";
+    | "FLYING"
+    | "TRAMPLE"
+    | "FIRST_STRIKE"
+    | "DOUBLE_STRIKE"
+    | "VIGILANCE"
+    | "HASTE"
+    | "REACH"
+    | "DEATHTOUCH"
+    | "LIFELINK"
+    | "INDESTRUCTIBLE"
+    | "HEXPROOF"
+    | "FLASH";
 
 type Effect =
-  | { type: "ADD_MANA"; mana: ManaCost }
-  | { type: "DRAW_CARD"; amount: number }
-  | {
-      type: "DEAL_DAMAGE";
-      amount: number;
-      target: "player" | "any_creature" | "target";
-    }
-  | {
-      type: "DESTROY_PERMANENT";
-      target: "target_creature" | "target_artifact" | "any";
-    }
-  | { type: "GAIN_LIFE"; amount: number }
-  | { type: "TAP_PERMANENT"; target: "target" | "all_creatures_opponent" };
+    | { type: "ADD_MANA"; mana: ManaCost }
+    | { type: "DRAW_CARD"; amount: number }
+    | {
+          type: "DEAL_DAMAGE";
+          amount: number;
+          target: "player" | "any_creature" | "target";
+      }
+    | {
+          type: "DESTROY_PERMANENT";
+          target: "target_creature" | "target_artifact" | "any";
+      }
+    | { type: "GAIN_LIFE"; amount: number }
+    | { type: "TAP_PERMANENT"; target: "target" | "all_creatures_opponent" };
 
 type ChoiceRequest =
-  | { type: "SELECT_TARGET"; filter: "creature" | "player" | "any_permanent" }
-  | { type: "SELECT_MODE"; options: string[] };
+    | { type: "SELECT_TARGET"; filter: "creature" | "player" | "any_permanent" }
+    | { type: "SELECT_MODE"; options: string[] };
 ```
 
 ---
@@ -412,72 +412,76 @@ type ChoiceRequest =
 
 ```typescript
 interface CardDefinition {
-  id: CardId;
-  name: string;
-  cost: ManaCost;
+    id: CardId;
+    name: string;
+    cost: ManaCost;
 
-  // Tipo principale
-  type:
-    | "CREATURE"
-    | "INSTANT"
-    | "SORCERY"
-    | "ENCHANTMENT"
-    | "ARTIFACT"
-    | "LAND";
-  subtypes?: string[]; // es. ["Elf", "Druid"] o ["Forest"]
+    // Tipo principale
+    type:
+        | "CREATURE"
+        | "INSTANT"
+        | "SORCERY"
+        | "ENCHANTMENT"
+        | "ARTIFACT"
+        | "LAND";
+    subtypes?: string[]; // es. ["Elf", "Druid"] o ["Forest"]
 
-  // Solo per creature
-  power?: number;
-  toughness?: number;
+    // Solo per creature
+    power?: number;
+    toughness?: number;
 
-  // Solo per land
-  produces?: ManaCost; // mana che produce quando tappata
+    // Solo per land
+    produces?: ManaCost; // mana che produce quando tappata
 
-  // Keyword abilities statiche — il GRE le gestisce automaticamente
-  staticAbilities?: StaticAbility[];
+    // Keyword abilities statiche — il GRE le gestisce automaticamente
+    staticAbilities?: StaticAbility[];
 
-  // Activated abilities — il giocatore le attiva manualmente
-  activatedAbilities?: ActivatedAbility[];
+    // Activated abilities — il giocatore le attiva manualmente
+    activatedAbilities?: ActivatedAbility[];
 
-  // Triggered abilities — si attivano automaticamente su eventi
-  triggeredAbilities?: TriggeredAbility[];
+    // Triggered abilities — si attivano automaticamente su eventi
+    triggeredAbilities?: TriggeredAbility[];
 
-  // Modificatori alle SBA globali — solo per eccezioni (indestructible ecc.)
-  // Nella maggior parte dei casi questo campo è vuoto o assente
-  sbaMods?: SBAModifier[];
+    // Modificatori alle SBA globali — solo per eccezioni (indestructible ecc.)
+    // Nella maggior parte dei casi questo campo è vuoto o assente
+    sbaMods?: SBAModifier[];
 }
 
 interface ActivatedAbility {
-  id: string;
-  cost: {
-    tap?: boolean;
-    mana?: ManaCost;
-    sacrifice?: boolean; // sacrifica questa carta
-    discardCard?: boolean;
-  };
-  effect: Effect;
-  requiresTarget?: ChoiceRequest;
-  // Le mana abilities non usano lo stack — risolvono immediatamente
-  useStack: boolean;
+    id: string;
+    cost: {
+        tap?: boolean;
+        mana?: ManaCost;
+        sacrifice?: boolean; // sacrifica questa carta
+        discardCard?: boolean;
+    };
+    effect: Effect;
+    requiresTarget?: ChoiceRequest;
+    // Le mana abilities non usano lo stack — risolvono immediatamente
+    useStack: boolean;
 }
 
 interface TriggeredAbility {
-  // Gli eventi che questa ability ascolta
-  listenTo: EventType[];
-  // Condizione opzionale — se omessa, si attiva sempre
-  condition?: (event: GameEvent, state: GameState, self: Permanent) => boolean;
-  // Effetto quando risolve
-  effect: Effect;
-  requiresTarget?: ChoiceRequest;
-  // Quasi sempre true — solo le mana abilities hanno useStack: false
-  useStack: boolean;
+    // Gli eventi che questa ability ascolta
+    listenTo: EventType[];
+    // Condizione opzionale — se omessa, si attiva sempre
+    condition?: (
+        event: GameEvent,
+        state: GameState,
+        self: Permanent
+    ) => boolean;
+    // Effetto quando risolve
+    effect: Effect;
+    requiresTarget?: ChoiceRequest;
+    // Quasi sempre true — solo le mana abilities hanno useStack: false
+    useStack: boolean;
 }
 
 interface SBAModifier {
-  // "non muore per danno letale" (indestructible)
-  // "non muore per toughness 0" (si usa per Persist, Undying ecc.)
-  type: "IGNORE_LETHAL_DAMAGE" | "IGNORE_ZERO_TOUGHNESS" | "CUSTOM";
-  condition?: (state: GameState, self: Permanent) => boolean;
+    // "non muore per danno letale" (indestructible)
+    // "non muore per toughness 0" (si usa per Persist, Undying ecc.)
+    type: "IGNORE_LETHAL_DAMAGE" | "IGNORE_ZERO_TOUGHNESS" | "CUSTOM";
+    condition?: (state: GameState, self: Permanent) => boolean;
 }
 ```
 
@@ -488,90 +492,90 @@ interface SBAModifier {
 ```typescript
 // Livello 1 — vanilla, nessun comportamento
 export const grizzlyBears: CardDefinition = {
-  id: "grizzly_bears",
-  name: "Grizzly Bears",
-  cost: { generic: 1, green: 1 },
-  type: "CREATURE",
-  subtypes: ["Bear"],
-  power: 2,
-  toughness: 2,
+    id: "grizzly_bears",
+    name: "Grizzly Bears",
+    cost: { generic: 1, green: 1 },
+    type: "CREATURE",
+    subtypes: ["Bear"],
+    power: 2,
+    toughness: 2,
 };
 
 // Livello 1 — land base
 export const forest: CardDefinition = {
-  id: "forest",
-  name: "Forest",
-  cost: {},
-  type: "LAND",
-  subtypes: ["Forest"],
-  produces: { green: 1 }, // il GRE gestisce il tap automaticamente
+    id: "forest",
+    name: "Forest",
+    cost: {},
+    type: "LAND",
+    subtypes: ["Forest"],
+    produces: { green: 1 }, // il GRE gestisce il tap automaticamente
 };
 
 // Livello 2 — activated ability (mana ability)
 export const llanowarElves: CardDefinition = {
-  id: "llanowar_elves",
-  name: "Llanowar Elves",
-  cost: { green: 1 },
-  type: "CREATURE",
-  subtypes: ["Elf", "Druid"],
-  power: 1,
-  toughness: 1,
-  activatedAbilities: [
-    {
-      id: "tap_for_green",
-      cost: { tap: true },
-      effect: { type: "ADD_MANA", mana: { green: 1 } },
-      useStack: false, // mana ability — risolve immediatamente
-    },
-  ],
+    id: "llanowar_elves",
+    name: "Llanowar Elves",
+    cost: { green: 1 },
+    type: "CREATURE",
+    subtypes: ["Elf", "Druid"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "tap_for_green",
+            cost: { tap: true },
+            effect: { type: "ADD_MANA", mana: { green: 1 } },
+            useStack: false, // mana ability — risolve immediatamente
+        },
+    ],
 };
 
 // Livello 2 — triggered ability su evento
 export const elvishVisionary: CardDefinition = {
-  id: "elvish_visionary",
-  name: "Elvish Visionary",
-  cost: { generic: 1, green: 1 },
-  type: "CREATURE",
-  subtypes: ["Elf", "Shaman"],
-  power: 1,
-  toughness: 1,
-  triggeredAbilities: [
-    {
-      listenTo: ["PERMANENT_ENTERED"],
-      // Si attiva solo quando entra lei stessa
-      condition: (event, _state, self) => event.permanentId === self.id,
-      effect: { type: "DRAW_CARD", amount: 1 },
-      useStack: true,
-    },
-  ],
+    id: "elvish_visionary",
+    name: "Elvish Visionary",
+    cost: { generic: 1, green: 1 },
+    type: "CREATURE",
+    subtypes: ["Elf", "Shaman"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        {
+            listenTo: ["PERMANENT_ENTERED"],
+            // Si attiva solo quando entra lei stessa
+            condition: (event, _state, self) => event.permanentId === self.id,
+            effect: { type: "DRAW_CARD", amount: 1 },
+            useStack: true,
+        },
+    ],
 };
 
 // Livello 2 — static ability keyword
 export const airElemental: CardDefinition = {
-  id: "air_elemental",
-  name: "Air Elemental",
-  cost: { generic: 3, blue: 2 },
-  type: "CREATURE",
-  subtypes: ["Elemental"],
-  power: 4,
-  toughness: 4,
-  staticAbilities: ["FLYING"],
+    id: "air_elemental",
+    name: "Air Elemental",
+    cost: { generic: 3, blue: 2 },
+    type: "CREATURE",
+    subtypes: ["Elemental"],
+    power: 4,
+    toughness: 4,
+    staticAbilities: ["FLYING"],
 };
 
 // Livello 2 — instant con effetto e target
 export const lightningBolt: CardDefinition = {
-  id: "lightning_bolt",
-  name: "Lightning Bolt",
-  cost: { red: 1 },
-  type: "INSTANT",
-  // Nessun power/toughness, nessuna ability
-  // L'effetto è direttamente sulla carta
-  effect: {
-    type: "DEAL_DAMAGE",
-    amount: 3,
-    target: "target",
-  },
-  requiresTarget: { type: "SELECT_TARGET", filter: "any_permanent" },
+    id: "lightning_bolt",
+    name: "Lightning Bolt",
+    cost: { red: 1 },
+    type: "INSTANT",
+    // Nessun power/toughness, nessuna ability
+    // L'effetto è direttamente sulla carta
+    effect: {
+        type: "DEAL_DAMAGE",
+        amount: 3,
+        target: "target",
+    },
+    requiresTarget: { type: "SELECT_TARGET", filter: "any_permanent" },
 };
 ```
 
@@ -581,27 +585,27 @@ export const lightningBolt: CardDefinition = {
 
 ```typescript
 import {
-  grizzlyBears,
-  forest,
-  llanowarElves,
-  elvishVisionary,
-  airElemental,
-  lightningBolt,
+    grizzlyBears,
+    forest,
+    llanowarElves,
+    elvishVisionary,
+    airElemental,
+    lightningBolt,
 } from "./sets/alpha";
 
 const cardRegistry: Record<CardId, CardDefinition> = {
-  grizzly_bears: grizzlyBears,
-  forest: forest,
-  llanowar_elves: llanowarElves,
-  elvish_visionary: elvishVisionary,
-  air_elemental: airElemental,
-  lightning_bolt: lightningBolt,
+    grizzly_bears: grizzlyBears,
+    forest: forest,
+    llanowar_elves: llanowarElves,
+    elvish_visionary: elvishVisionary,
+    air_elemental: airElemental,
+    lightning_bolt: lightningBolt,
 };
 
 export function getCard(id: CardId): CardDefinition {
-  const card = cardRegistry[id];
-  if (!card) throw new Error(`Card not found: ${id}`);
-  return card;
+    const card = cardRegistry[id];
+    if (!card) throw new Error(`Card not found: ${id}`);
+    return card;
 }
 ```
 
@@ -614,26 +618,32 @@ Le State Based Actions sono **regole globali del gioco** che il GRE applica auto
 ```typescript
 // convex/gre/sba.ts
 export function checkSBAs(state: GameState): GameEvent[] {
-  const events: GameEvent[] = [];
+    const events: GameEvent[] = [];
 
-  for (const permanent of allCreatures(state)) {
-    const hasIndestructible = permanent.sbaMods?.some(
-      (m) => m.type === "IGNORE_LETHAL_DAMAGE",
-    );
-    if (!hasIndestructible) {
-      if (permanent.toughness <= 0 || permanent.damage >= permanent.toughness) {
-        events.push({ type: "CREATURE_DIED", permanentId: permanent.id });
-      }
+    for (const permanent of allCreatures(state)) {
+        const hasIndestructible = permanent.sbaMods?.some(
+            (m) => m.type === "IGNORE_LETHAL_DAMAGE"
+        );
+        if (!hasIndestructible) {
+            if (
+                permanent.toughness <= 0 ||
+                permanent.damage >= permanent.toughness
+            ) {
+                events.push({
+                    type: "CREATURE_DIED",
+                    permanentId: permanent.id,
+                });
+            }
+        }
     }
-  }
 
-  for (const player of ["player1", "player2"] as PlayerId[]) {
-    if (state.life[player] <= 0) {
-      events.push({ type: "PLAYER_LOSES", player });
+    for (const player of ["player1", "player2"] as PlayerId[]) {
+        if (state.life[player] <= 0) {
+            events.push({ type: "PLAYER_LOSES", player });
+        }
     }
-  }
 
-  return events;
+    return events;
 }
 ```
 

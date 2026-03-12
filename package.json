@@ -1,33 +1,39 @@
 {
-  "name": "tolaria",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "convex": "^1.32.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
-  },
-  "devDependencies": {
-    "@eslint/js": "^9.39.4",
-    "@rolldown/plugin-babel": "^0.2.0",
-    "@types/node": "^24.12.0",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.0",
-    "babel-plugin-react-compiler": "^1.0.0",
-    "eslint": "^9.39.4",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.5.2",
-    "globals": "^17.4.0",
-    "typescript": "~5.9.3",
-    "typescript-eslint": "^8.56.1",
-    "vite": "^8.0.0"
-  }
+    "name": "tolaria",
+    "private": true,
+    "version": "0.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc -b && vite build",
+        "lint": "eslint .",
+        "lint:fix": "eslint . --fix",
+        "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
+        "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
+        "check:ts": "tsc -b --noEmit",
+        "check:all": "bun run format && bun run lint && bun run check:ts && printf '\\033[32m✓ All checks passed\\033[0m\\n' || (printf '\\033[31m✗ Checks failed\\033[0m\\n' && exit 1)",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "convex": "^1.32.0",
+        "react": "^19.2.4",
+        "react-dom": "^19.2.4"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.39.4",
+        "@rolldown/plugin-babel": "^0.2.0",
+        "@types/node": "^24.12.0",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^6.0.0",
+        "babel-plugin-react-compiler": "^1.0.0",
+        "eslint": "^9.39.4",
+        "eslint-plugin-react-hooks": "^7.0.1",
+        "eslint-plugin-react-refresh": "^0.5.2",
+        "globals": "^17.4.0",
+        "prettier": "^3.8.1",
+        "typescript": "~5.9.3",
+        "typescript-eslint": "^8.56.1",
+        "vite": "^8.0.0"
+    }
 }
