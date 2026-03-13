@@ -113,6 +113,10 @@ Key types in `convex/gre/cards/types.ts`: `CardDefinition`, `ActivatedAbility`, 
 
 Mana abilities have `useStack: false` (resolve immediately). SBAs are global game rules in `sba.ts`; cards only declare `sbaMods` for exceptions (indestructible, etc.).
 
+## Collaboration Mode
+
+Claude acts as **assistant, tutor, and advisor**. The user drives all implementation — do NOT write or modify code autonomously unless explicitly told "procedi" or similar. Suggest steps, explain trade-offs, review code, but let the user execute.
+
 ## Out of Scope (initial)
 
 - Layer system for static effects (Anthem, Humility)
