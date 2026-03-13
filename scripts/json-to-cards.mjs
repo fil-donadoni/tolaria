@@ -77,15 +77,16 @@ function toSnakeId(name) {
         .toLowerCase();
 }
 
-
-
 function formatCost(manaCost) {
     if (!manaCost) return "{}";
     const parts = [];
     const order = ["X", "W", "U", "B", "R", "G", "C"];
     for (const k of order) {
         if (manaCost[k] !== undefined) {
-            const val = typeof manaCost[k] === "string" ? `"${manaCost[k]}"` : manaCost[k];
+            const val =
+                typeof manaCost[k] === "string"
+                    ? `"${manaCost[k]}"`
+                    : manaCost[k];
             parts.push(`${k}: ${val}`);
         }
     }
@@ -112,8 +113,8 @@ for (const card of cards) {
     let varName = toIdentifier(card.name);
     let id = toSnakeId(card.name);
 
-    const mtgjsonId = card.identifiers?.mtgjsonV4Id;
-    if (!mtgjsonId) continue;
+    const scryfallId = card.identifiers?.scryfallId;
+    if (!scryfallId) continue;
 
     // Deduplicate (some sets have multiple printings of basics, etc.)
     if (seenIds.has(varName)) continue;
@@ -128,7 +129,7 @@ for (const card of cards) {
         card.toughness !== undefined ? Number(card.toughness) : undefined;
 
     const fields = [];
-    fields.push(`    id: "${mtgjsonId}"`);
+    fields.push(`    id: "${scryfallId}"`);
     fields.push(`    name: "${card.name.replace(/"/g, '\\"')}"`);
     if (manaCost) fields.push(`    manaCost: ${formatCost(manaCost)}`);
     fields.push(`    types: ${formatArray(types)}`);
