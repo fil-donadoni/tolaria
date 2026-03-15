@@ -3,5 +3,6 @@ export function getImageUrl(id: string): string {
 }
 
 function getScryfallImageUrl(scryfallId: string): string {
-    return `https://cards.scryfall.io/png/front/${scryfallId[0]}/${scryfallId[1]}/${scryfallId}.png`;
+    return `https://cards.scryfall.io/border_crop/front/${scryfallId[0]}/${scryfallId[1]}/${scryfallId}.jpg`;
+    // return `https://cards.scryfall.io/png/front/${scryfallId[0]}/${scryfallId[1]}/${scryfallId}.png`;
 }

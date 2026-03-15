@@ -6,7 +6,9 @@ import Board from "./components/board/board";
 import { startingPlayers } from "./mocks/startingPlayers";
 
 function App() {
-    const [gameId, setGameId] = useState<Id<"games"> | null>(null);
+    const [gameId, setGameId] = useState<Id<"games"> | null>(
+        () => localStorage.getItem("tolaria:gameId") as Id<"games"> | null
+    );
     const initGame = useMutation(api.game.initGame);
 
     const handleNewGame = async () => {
@@ -19,6 +21,7 @@ function App() {
                 deck: p.deck,
             })),
         });
+        localStorage.setItem("tolaria:gameId", id);
         setGameId(id);
     };
 

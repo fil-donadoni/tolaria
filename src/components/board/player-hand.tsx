@@ -48,11 +48,7 @@ export default function PlayerHand({ player }: HandProps) {
         <div
             className={`absolute w-full h-1/3 p-4 ${player.id === "1" ? "top-0" : "bottom-0"}`}
         >
-            <div
-                className={`flex justify-center ${player.id === "1" ? "pb-16" : "pt-16"}`}
-            >
-                {cardsInHand}
-            </div>
+            <div className="flex justify-center">{cardsInHand}</div>
         </div>
     );
 }
