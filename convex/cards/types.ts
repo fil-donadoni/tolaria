@@ -4,7 +4,7 @@ export type Color = "W" | "U" | "B" | "R" | "G" | "C";
 
 export const colors: Color[] = ["W", "U", "B", "R", "G", "C"];
 
-type ManaCost = {
+export type ManaCost = {
     X?: number | string;
     W?: number;
     U?: number;
@@ -32,7 +32,8 @@ export type CardSupertype =
     | "Snow"
     | "World";
 
-export interface Card {
+/** Full card definition used by the GRE. */
+export interface CardDefinition {
     id: CardId;
     name: string;
     manaCost?: ManaCost;

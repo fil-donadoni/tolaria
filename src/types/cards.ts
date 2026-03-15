@@ -4,7 +4,7 @@ export type Color = "W" | "U" | "B" | "R" | "G" | "C";
 
 export const colors: Color[] = ["W", "U", "B", "R", "G", "C"];
 
-type ManaCost = {
+export type ManaCost = {
     X?: number | string;
     W?: number;
     U?: number;
@@ -32,6 +32,7 @@ export type CardSupertype =
     | "Snow"
     | "World";
 
+/** Display-only card type for the frontend. */
 export interface Card {
     id: CardId;
     name: string;
@@ -42,8 +43,4 @@ export interface Card {
     power?: number;
     toughness?: number;
     loyalty?: number;
-    staticAbilities?: string[];
-    activatedAbilities?: string[];
-    triggeredAbilities?: string[];
-    sbaMods?: string[];
 }
