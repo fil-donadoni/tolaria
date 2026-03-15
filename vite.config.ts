@@ -10,7 +10,7 @@ export default defineConfig({
         alias: {
             "~": path.resolve(__dirname, "src"),
             "@": path.resolve(__dirname, "src"),
-            "@data": path.resolve(__dirname, "data"),
+            "@convex": path.resolve(__dirname, "convex"),
         },
     },
     plugins: [

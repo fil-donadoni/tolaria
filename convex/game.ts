@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { getCardById } from "./cards";
 
 const STARTING_HAND_SIZE = 7;
@@ -76,6 +76,62 @@ function buildPlayerState(player: PlayerInput) {
         manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
     };
 }
+
+// --- Queries ---
+
+/** Public view: hides opponent's hand and all library contents. */
+export const getPublicState = query({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await ctx.db
+            .query("game_states")
+            .filter((q) => q.eq(q.field("gameId"), args.gameId))
+            .first();
+
+        if (!gameState) return null;
+
+        const state = gameState.state as {
+            players: Array<{
+                id: string;
+                hand: unknown[];
+                library: unknown[];
+                [key: string]: unknown;
+            }>;
+            [key: string]: unknown;
+        };
+
+        const players = state.players.map((player) => {
+            const isMe = player.id === args.playerId;
+            return {
+                ...player,
+                hand: isMe ? player.hand : player.hand.map(() => null),
+                library: { count: player.library.length },
+            };
+        });
+
+        return { ...state, players };
+    },
+});
+
+/** Debug-only: returns the full unfiltered game state. */
+export const getFullState = query({
+    args: {
+        gameId: v.id("games"),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await ctx.db
+            .query("game_states")
+            .filter((q) => q.eq(q.field("gameId"), args.gameId))
+            .first();
+
+        return gameState?.state ?? null;
+    },
+});
+
+// --- Mutations ---
 
 export const initGame = mutation({
     args: {
