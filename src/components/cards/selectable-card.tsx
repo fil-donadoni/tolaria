@@ -7,7 +7,7 @@ import {
 
 import type { CardAction, CardInstance } from "~/types/game";
 
-import CardImage from "../card-image";
+import CardImage from "./card-image";
 
 type SelectableCardProps = {
     cardInstance: CardInstance;

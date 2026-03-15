@@ -1,5 +1,5 @@
 import type { CardInstance, Player } from "~/types/game";
-import CardImage from "../card-image";
+import CardImage from "../cards/card-image";
 
 type BattlefieldProps = {
     player: Player;

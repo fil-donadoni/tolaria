@@ -1,5 +1,5 @@
 import type { CardAction, CardInstance, Player } from "~/types/game";
-import SelectableCard from "./SelectableCard";
+import SelectableCard from "../cards/selectable-card";
 
 type HandProps = {
     player: Player;
