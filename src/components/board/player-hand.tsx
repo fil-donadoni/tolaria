@@ -37,6 +37,7 @@ export default function PlayerHand({ player }: HandProps) {
                 >
                     <SelectableCard
                         cardInstance={cardInstance}
+                        playerId={player.id}
                         allowedActions={actionsFromHand}
                     />
                 </div>

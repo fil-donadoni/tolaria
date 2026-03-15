@@ -4,6 +4,9 @@ import {
     ContextMenuItem,
     ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { useMutation } from "convex/react";
+import { api } from "@convex/_generated/api";
+import { useGameContext } from "~/hooks/useGameContext";
 
 import type { CardAction, CardInstance } from "~/types/game";
 
@@ -11,38 +14,36 @@ import CardImage from "./card-image";
 
 type SelectableCardProps = {
     cardInstance: CardInstance;
+    playerId: string;
     allowedActions?: CardAction[];
 };
 
 export default function SelectableCard({
     cardInstance,
+    playerId,
     allowedActions = [],
 }: SelectableCardProps) {
-    // const { playCard, castCard, putCardToGraveyard, putCardToExile } =
-    //     useGameStore();
+    const { gameId } = useGameContext();
+    const playCard = useMutation(api.game.playCard);
 
     const onPlayClick = () => {
-        console.log(`Playing card ${cardInstance.id}`);
-
-        // playCard(cardInstance);
+        playCard({
+            gameId,
+            playerId,
+            cardInstanceId: cardInstance.id,
+        });
     };
 
     const onCastClick = () => {
         console.log(`Casting card ${cardInstance.id}`);
-
-        // castCard(cardInstance);
     };
 
     const onDiscardClick = () => {
         console.log(`Discarding card ${cardInstance.id}`);
-
-        // putCardToGraveyard(cardInstance);
     };
 
     const onExileClick = () => {
         console.log(`Exiling card ${cardInstance.id}`);
-
-        // putCardToExile(cardInstance);
     };
 
     return (

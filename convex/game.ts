@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getCardById } from "./cards";
+import { type GameState, getPlayer, moveCard } from "./gre/state";
 
 const STARTING_HAND_SIZE = 7;
 
@@ -194,5 +195,49 @@ export const initGame = mutation({
         });
 
         return gameId;
+    },
+});
+
+export const playCard = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await ctx.db
+            .query("game_states")
+            .filter((q) => q.eq(q.field("gameId"), args.gameId))
+            .first();
+        if (!gameState) throw new Error("Game not found");
+
+        const state = gameState.state as GameState;
+        const player = getPlayer(state, args.playerId);
+        const card = moveCard(player, args.cardInstanceId, "hand", "battlefield");
+
+        const now = Date.now();
+        await ctx.db.patch(gameState._id, { state, updatedAt: now });
+
+        // Get next seq number
+        const lastEvent = await ctx.db
+            .query("events")
+            .filter((q) => q.eq(q.field("gameId"), args.gameId))
+            .order("desc")
+            .first();
+        const seq = (lastEvent?.seq ?? -1) + 1;
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq,
+            type: "CARD_PLAYED",
+            player: args.playerId,
+            payload: {
+                cardInstanceId: card.id,
+                cardName: (card.card as { name?: string }).name,
+                from: "hand",
+                to: "battlefield",
+            },
+            timestamp: now,
+        });
     },
 });
