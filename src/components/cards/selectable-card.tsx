@@ -46,6 +46,12 @@ export default function SelectableCard({
         console.log(`Exiling card ${cardInstance.id}`);
     };
 
+    const hasActions = allowedActions.length > 0;
+
+    if (!hasActions) {
+        return <CardImage card={cardInstance.card} />;
+    }
+
     return (
         <ContextMenu>
             <ContextMenuTrigger className="flex items-center justify-center rounded-md border border-dashed text-sm">
@@ -53,31 +59,31 @@ export default function SelectableCard({
             </ContextMenuTrigger>
 
             <ContextMenuContent className="w-48">
-                {allowedActions?.includes("play") && (
+                {allowedActions.includes("play") && (
                     <ContextMenuItem inset onClick={onPlayClick}>
                         Play
                     </ContextMenuItem>
                 )}
 
-                {allowedActions?.includes("cast") && (
+                {allowedActions.includes("cast") && (
                     <ContextMenuItem inset onClick={onCastClick}>
                         Cast
                     </ContextMenuItem>
                 )}
 
-                {allowedActions?.includes("putToGraveyard") && (
+                {allowedActions.includes("putToGraveyard") && (
                     <ContextMenuItem inset onClick={onDiscardClick}>
                         Put to graveyard
                     </ContextMenuItem>
                 )}
 
-                {allowedActions?.includes("discard") && (
+                {allowedActions.includes("discard") && (
                     <ContextMenuItem inset onClick={onDiscardClick}>
                         Discard
                     </ContextMenuItem>
                 )}
 
-                {allowedActions?.includes("putToExile") && (
+                {allowedActions.includes("putToExile") && (
                     <ContextMenuItem inset onClick={onExileClick}>
                         Exile
                     </ContextMenuItem>

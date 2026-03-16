@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getCardById } from "./cards";
 import { type GameState, getPlayer, moveCard } from "./gre/state";
+import { assertLegalAction, getLegalActions } from "./gre/rules";
 
 const STARTING_HAND_SIZE = 7;
 
@@ -117,7 +118,7 @@ export const getPublicState = query({
     },
 });
 
-/** Debug-only: returns the full unfiltered game state. */
+/** Debug-only: returns the full unfiltered game state with legal actions. */
 export const getFullState = query({
     args: {
         gameId: v.id("games"),
@@ -128,7 +129,20 @@ export const getFullState = query({
             .filter((q) => q.eq(q.field("gameId"), args.gameId))
             .first();
 
-        return gameState?.state ?? null;
+        if (!gameState) return null;
+
+        const state = gameState.state as GameState;
+
+        return {
+            ...state,
+            players: state.players.map((player) => ({
+                ...player,
+                hand: player.hand.map((card) => ({
+                    ...card,
+                    legalActions: getLegalActions(state, player, card),
+                })),
+            })),
+        };
     },
 });
 
@@ -213,7 +227,20 @@ export const playCard = mutation({
 
         const state = gameState.state as GameState;
         const player = getPlayer(state, args.playerId);
-        const card = moveCard(player, args.cardInstanceId, "hand", "battlefield");
+
+        // Validate: card must be in hand and "play" must be legal
+        const cardInHand = player.hand.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!cardInHand) throw new Error("Card not in hand");
+        assertLegalAction(state, player, cardInHand, "play");
+
+        const card = moveCard(
+            player,
+            args.cardInstanceId,
+            "hand",
+            "battlefield"
+        );
 
         const now = Date.now();
         await ctx.db.patch(gameState._id, { state, updatedAt: now });

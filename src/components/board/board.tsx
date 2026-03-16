@@ -16,7 +16,7 @@ export default function Board({ gameId }: { gameId: Id<"games"> }) {
         );
     }
 
-    const players = state.players as Player[];
+    const players = state.players as unknown as Player[];
 
     return (
         <GameContext value={{ gameId }}>

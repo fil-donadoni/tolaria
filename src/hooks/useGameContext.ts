@@ -9,6 +9,9 @@ export const GameContext = createContext<GameContext | null>(null);
 
 export function useGameContext(): GameContext {
     const ctx = useContext(GameContext);
-    if (!ctx) throw new Error("useGameContext must be used within GameContext.Provider");
+    if (!ctx)
+        throw new Error(
+            "useGameContext must be used within GameContext.Provider"
+        );
     return ctx;
 }

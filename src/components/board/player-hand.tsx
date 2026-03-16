@@ -1,4 +1,4 @@
-import type { CardAction, CardInstance, Player } from "~/types/game";
+import type { CardInstance, Player } from "~/types/game";
 import SelectableCard from "../cards/selectable-card";
 
 type HandProps = {
@@ -6,14 +6,6 @@ type HandProps = {
 };
 
 export default function PlayerHand({ player }: HandProps) {
-    const actionsFromHand: CardAction[] = [
-        "play",
-        "cast",
-        "discard",
-        "putToExile",
-        "putToLibrary",
-    ];
-
     const cardsInHand = player.hand.map(
         (cardInstance: CardInstance, cardIndex) => {
             const centerIndex = (player.hand.length - 1) / 2;
@@ -31,14 +23,14 @@ export default function PlayerHand({ player }: HandProps) {
 
             return (
                 <div
-                    key={cardIndex}
+                    key={cardInstance.id}
                     className="w-32 mb-2 transition-all hover:-translate-y-8 hover:z-10"
                     style={style}
                 >
                     <SelectableCard
                         cardInstance={cardInstance}
                         playerId={player.id}
-                        allowedActions={actionsFromHand}
+                        allowedActions={cardInstance.legalActions ?? []}
                     />
                 </div>
             );

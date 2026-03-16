@@ -46,6 +46,7 @@ export interface CardInstance {
     ownerId: string;
     zone: Zone;
     isTapped: boolean;
+    legalActions?: CardAction[];
 }
 
 export type Zone =
