@@ -315,6 +315,48 @@ export const playCard = mutation({
     },
 });
 
+export const drawCard = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        const player = getPlayer(state, args.playerId);
+
+        if (player.library.length === 0) {
+            throw new Error("Library is empty");
+        }
+
+        const card = moveCard(player, player.library[0].id, "library", "hand");
+
+        const now = Date.now();
+        const nextSeq = gameState.seq + 1;
+
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            state,
+            updatedAt: now,
+        });
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            type: "CARD_DRAWN",
+            player: args.playerId,
+            payload: {
+                cardInstanceId: card.id,
+                cardName: (card.card as { name?: string }).name,
+            },
+            timestamp: now,
+        });
+    },
+});
+
 /** Debug: patch any value in the game state by dot-separated path. */
 export const debugPatchState = mutation({
     args: {
