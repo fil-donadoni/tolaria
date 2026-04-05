@@ -104,12 +104,18 @@ function App() {
         if (game && game.status === "playing") {
             return (
                 <div className="flex h-screen flex-col">
-                    <Board gameId={gameId} playerId={playerId} showAllCards={showAllCards} />
+                    <Board
+                        gameId={gameId}
+                        playerId={playerId}
+                        showAllCards={showAllCards}
+                    />
                     {import.meta.env.DEV && (
                         <DebugPanel
                             gameId={gameId}
                             showAllCards={showAllCards}
-                            onToggleShowAllCards={() => setShowAllCards((v) => !v)}
+                            onToggleShowAllCards={() =>
+                                setShowAllCards((v) => !v)
+                            }
                         />
                     )}
                 </div>

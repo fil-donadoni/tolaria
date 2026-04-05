@@ -36,7 +36,9 @@ export default function PlayerHand({ player }: HandProps) {
                     {canSeeCards ? (
                         <SelectableCard
                             cardInstance={cardInstance}
-                            allowedActions={isMe ? (cardInstance.legalActions ?? []) : []}
+                            allowedActions={
+                                isMe ? (cardInstance.legalActions ?? []) : []
+                            }
                         />
                     ) : (
                         <CardBack />

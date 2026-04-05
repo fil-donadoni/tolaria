@@ -52,7 +52,11 @@ type DebugPanelProps = {
     onToggleShowAllCards: () => void;
 };
 
-export default function DebugPanel({ gameId, showAllCards, onToggleShowAllCards }: DebugPanelProps) {
+export default function DebugPanel({
+    gameId,
+    showAllCards,
+    onToggleShowAllCards,
+}: DebugPanelProps) {
     const [isOpen, setIsOpen] = useState(false);
     const state = useQuery(api.game.getFullState, { gameId });
     const undo = useMutation(api.game.debugUndo);
