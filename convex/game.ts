@@ -498,10 +498,14 @@ export const tapUntap = mutation({
         if (manaColor) {
             if (!wasTapped) {
                 // Tapping: add mana
-                player.manaPool[manaColor] = (player.manaPool[manaColor] ?? 0) + 1;
+                player.manaPool[manaColor] =
+                    (player.manaPool[manaColor] ?? 0) + 1;
             } else {
                 // Untapping: remove mana (undo)
-                player.manaPool[manaColor] = Math.max(0, (player.manaPool[manaColor] ?? 0) - 1);
+                player.manaPool[manaColor] = Math.max(
+                    0,
+                    (player.manaPool[manaColor] ?? 0) - 1
+                );
             }
         }
 
