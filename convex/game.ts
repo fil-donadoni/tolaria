@@ -268,3 +268,35 @@ export const playCard = mutation({
         });
     },
 });
+
+/** Debug: patch any value in the game state by dot-separated path. */
+export const debugPatchState = mutation({
+    args: {
+        gameId: v.id("games"),
+        path: v.string(),
+        value: v.any(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await ctx.db
+            .query("game_states")
+            .filter((q) => q.eq(q.field("gameId"), args.gameId))
+            .first();
+        if (!gameState) throw new Error("Game not found");
+
+        const state = gameState.state as Record<string, unknown>;
+        const keys = args.path.split(".");
+        let target: Record<string, unknown> = state;
+
+        for (let i = 0; i < keys.length - 1; i++) {
+            target = target[keys[i]] as Record<string, unknown>;
+            if (!target) throw new Error(`Invalid path: ${args.path}`);
+        }
+
+        target[keys[keys.length - 1]] = args.value;
+
+        await ctx.db.patch(gameState._id, {
+            state,
+            updatedAt: Date.now(),
+        });
+    },
+});

@@ -3,6 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import Board from "./components/board/board";
+import DebugPanel from "./components/debug/debug-panel";
 import { startingPlayers } from "./mocks/startingPlayers";
 
 function App() {
@@ -41,6 +42,7 @@ function App() {
     return (
         <div className="flex h-screen flex-col">
             <Board gameId={gameId} />
+            {import.meta.env.DEV && <DebugPanel gameId={gameId} />}
         </div>
     );
 }
