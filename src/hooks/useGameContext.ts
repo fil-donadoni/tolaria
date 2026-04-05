@@ -5,6 +5,7 @@ type GameContext = {
     gameId: Id<"games">;
     playerId: string;
     showAllCards: boolean;
+    debugAllActions: boolean;
 };
 
 export const GameContext = createContext<GameContext | null>(null);

@@ -21,7 +21,7 @@ export default function SelectableCard({
     cardInstance,
     allowedActions = [],
 }: SelectableCardProps) {
-    const { gameId, playerId } = useGameContext();
+    const { gameId, playerId, debugAllActions } = useGameContext();
     const playCard = useMutation(api.game.playCard);
 
     const onPlayClick = () => {
@@ -29,6 +29,7 @@ export default function SelectableCard({
             gameId,
             playerId,
             cardInstanceId: cardInstance.id,
+            skipValidation: debugAllActions || undefined,
         });
     };
 

@@ -134,12 +134,14 @@ export const getPublicState = query({
 export const getFullState = query({
     args: {
         gameId: v.id("games"),
+        debugAllActions: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) return null;
 
         const state = gameState.state as GameState;
+        const allActions = args.debugAllActions ?? false;
 
         return {
             ...state,
@@ -148,7 +150,12 @@ export const getFullState = query({
                 ...player,
                 hand: player.hand.map((card) => ({
                     ...card,
-                    legalActions: getLegalActions(state, player, card),
+                    legalActions: getLegalActions(
+                        state,
+                        player,
+                        card,
+                        allActions
+                    ),
                 })),
             })),
         };
@@ -266,6 +273,7 @@ export const playCard = mutation({
         gameId: v.id("games"),
         playerId: v.string(),
         cardInstanceId: v.string(),
+        skipValidation: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -279,7 +287,9 @@ export const playCard = mutation({
             (c) => c.id === args.cardInstanceId
         );
         if (!cardInHand) throw new Error("Card not in hand");
-        assertLegalAction(state, player, cardInHand, "play");
+        if (!args.skipValidation) {
+            assertLegalAction(state, player, cardInHand, "play");
+        }
 
         const card = moveCard(
             player,
@@ -351,6 +361,96 @@ export const drawCard = mutation({
             payload: {
                 cardInstanceId: card.id,
                 cardName: (card.card as { name?: string }).name,
+            },
+            timestamp: now,
+        });
+    },
+});
+
+export const mill = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        const player = getPlayer(state, args.playerId);
+
+        if (player.library.length === 0) {
+            throw new Error("Library is empty");
+        }
+
+        const card = moveCard(
+            player,
+            player.library[0].id,
+            "library",
+            "graveyard"
+        );
+
+        const now = Date.now();
+        const nextSeq = gameState.seq + 1;
+
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            state,
+            updatedAt: now,
+        });
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            type: "CARD_MILLED",
+            player: args.playerId,
+            payload: {
+                cardInstanceId: card.id,
+                cardName: (card.card as { name?: string }).name,
+            },
+            timestamp: now,
+        });
+    },
+});
+
+export const exileFromLibrary = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        const player = getPlayer(state, args.playerId);
+
+        if (player.library.length === 0) {
+            throw new Error("Library is empty");
+        }
+
+        const card = moveCard(player, player.library[0].id, "library", "exile");
+
+        const now = Date.now();
+        const nextSeq = gameState.seq + 1;
+
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            state,
+            updatedAt: now,
+        });
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            type: "CARD_EXILED",
+            player: args.playerId,
+            payload: {
+                cardInstanceId: card.id,
+                cardName: (card.card as { name?: string }).name,
+                from: "library",
             },
             timestamp: now,
         });

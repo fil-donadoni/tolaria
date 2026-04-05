@@ -50,12 +50,16 @@ type DebugPanelProps = {
     gameId: Id<"games">;
     showAllCards: boolean;
     onToggleShowAllCards: () => void;
+    debugAllActions: boolean;
+    onToggleDebugAllActions: () => void;
 };
 
 export default function DebugPanel({
     gameId,
     showAllCards,
     onToggleShowAllCards,
+    debugAllActions,
+    onToggleDebugAllActions,
 }: DebugPanelProps) {
     const [isOpen, setIsOpen] = useState(false);
     const state = useQuery(api.game.getFullState, { gameId });
@@ -83,6 +87,9 @@ export default function DebugPanel({
                             )}
                             <DebugButton onClick={onToggleShowAllCards}>
                                 {showAllCards ? "Hide cards" : "Show all cards"}
+                            </DebugButton>
+                            <DebugButton onClick={onToggleDebugAllActions}>
+                                {debugAllActions ? "Rules on" : "All actions"}
                             </DebugButton>
                             <DebugButton
                                 onClick={() => resetGame({ gameId })}

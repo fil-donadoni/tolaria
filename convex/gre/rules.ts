@@ -9,12 +9,26 @@ export type CardAction =
     | "putToLibrary"
     | "putToHand";
 
+const ALL_HAND_ACTIONS: CardAction[] = [
+    "play",
+    "cast",
+    "discard",
+    "putToGraveyard",
+    "putToExile",
+    "putToLibrary",
+];
+
 /** Returns the list of legal actions for a card in a player's hand. */
 export function getLegalActions(
     _state: GameState,
     _player: PlayerState,
-    card: CardInstanceState
+    card: CardInstanceState,
+    debugAllActions = false
 ): CardAction[] {
+    if (debugAllActions) {
+        return [...ALL_HAND_ACTIONS];
+    }
+
     const actions: CardAction[] = [];
     const types = (card.card as { types?: string[] }).types ?? [];
 

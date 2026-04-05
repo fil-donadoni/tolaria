@@ -32,6 +32,7 @@ function App() {
         () => localStorage.getItem("tolaria:playerName") ?? ""
     );
     const [showAllCards, setShowAllCards] = useState(false);
+    const [debugAllActions, setDebugAllActions] = useState(false);
 
     const createGame = useMutation(api.game.createGame);
     const joinGame = useMutation(api.game.joinGame);
@@ -108,6 +109,7 @@ function App() {
                         gameId={gameId}
                         playerId={playerId}
                         showAllCards={showAllCards}
+                        debugAllActions={debugAllActions}
                     />
                     {import.meta.env.DEV && (
                         <DebugPanel
@@ -115,6 +117,10 @@ function App() {
                             showAllCards={showAllCards}
                             onToggleShowAllCards={() =>
                                 setShowAllCards((v) => !v)
+                            }
+                            debugAllActions={debugAllActions}
+                            onToggleDebugAllActions={() =>
+                                setDebugAllActions((v) => !v)
                             }
                         />
                     )}

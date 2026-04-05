@@ -9,10 +9,16 @@ type BoardProps = {
     gameId: Id<"games">;
     playerId: string;
     showAllCards: boolean;
+    debugAllActions: boolean;
 };
 
-export default function Board({ gameId, playerId, showAllCards }: BoardProps) {
-    const state = useQuery(api.game.getFullState, { gameId });
+export default function Board({
+    gameId,
+    playerId,
+    showAllCards,
+    debugAllActions,
+}: BoardProps) {
+    const state = useQuery(api.game.getFullState, { gameId, debugAllActions });
 
     if (!state) {
         return (
@@ -30,7 +36,9 @@ export default function Board({ gameId, playerId, showAllCards }: BoardProps) {
     const orderedPlayers = [opponent, me].filter(Boolean) as Player[];
 
     return (
-        <GameContext value={{ gameId, playerId, showAllCards }}>
+        <GameContext
+            value={{ gameId, playerId, showAllCards, debugAllActions }}
+        >
             <div className="flex h-full w-full flex-col">
                 {orderedPlayers.map((player) => (
                     <PlayerBoard key={player.id} player={player} />
