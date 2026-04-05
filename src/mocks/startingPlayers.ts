@@ -42,7 +42,7 @@ export const startingPlayers: Player[] = [
         library: [],
         graveyard: [],
         exile: [],
-        stack: [],
+
         battlefield: [],
         manaPool: emptyManaPool,
     },
@@ -56,7 +56,7 @@ export const startingPlayers: Player[] = [
         library: [],
         graveyard: [],
         exile: [],
-        stack: [],
+
         battlefield: [],
         manaPool: emptyManaPool,
     },

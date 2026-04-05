@@ -11,6 +11,8 @@
         "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
         "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
         "check:ts": "tsc -b --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
         "check:all": "bun run format && bun run lint && bun run check:ts && printf '\\033[32m✓ All checks passed\\033[0m\\n' || (printf '\\033[31m✗ Checks failed\\033[0m\\n' && exit 1)",
         "preview": "vite preview",
         "prepare": "husky"
@@ -47,6 +49,7 @@
         "prettier": "^3.8.1",
         "typescript": "~5.9.3",
         "typescript-eslint": "^8.56.1",
-        "vite": "^8.0.0"
+        "vite": "^8.0.0",
+        "vitest": "^4.1.2"
     }
 }

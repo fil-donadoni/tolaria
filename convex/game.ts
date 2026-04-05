@@ -5,9 +5,13 @@ import { mutation, query } from "./_generated/server";
 import { getCardById } from "./cards";
 import {
     type GameState,
+    type StackItem,
     getPlayer,
     moveCard,
+    removeFromZone,
     getBasicLandMana,
+    checkManaCost,
+    payManaCost,
 } from "./gre/state";
 import { assertLegalAction, getLegalActions } from "./gre/rules";
 
@@ -80,7 +84,6 @@ function buildPlayerState(player: PlayerInput) {
         library,
         graveyard: [],
         exile: [],
-        stack: [],
         battlefield: [],
         manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
     };
@@ -253,6 +256,7 @@ export const joinGame = mutation({
             seq: 0,
             state: {
                 players: playersState,
+                stack: [],
                 turn: 1,
                 activePlayerId: playersState[0].id,
                 phase: "BEGINNING",
@@ -324,6 +328,73 @@ export const playCard = mutation({
                 cardName: (card.card as { name?: string }).name,
                 from: "hand",
                 to: "battlefield",
+            },
+            timestamp: now,
+        });
+    },
+});
+
+export const castSpell = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        const player = getPlayer(state, args.playerId);
+
+        // Must have priority
+        if (state.activePlayerId !== args.playerId) {
+            throw new Error("You don't have priority");
+        }
+
+        const cardInHand = player.hand.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!cardInHand) throw new Error("Card not in hand");
+        assertLegalAction(state, player, cardInHand, "cast");
+
+        // Check mana cost
+        const manaCost = (
+            cardInHand.card as {
+                manaCost?: Record<string, number | string | undefined>;
+            }
+        ).manaCost;
+        if (manaCost) {
+            const missing = checkManaCost(player.manaPool, manaCost);
+            if (missing) {
+                throw new Error(`NOT_ENOUGH_MANA:${missing}`);
+            }
+            payManaCost(player.manaPool, manaCost);
+        }
+
+        // Move from hand to stack
+        const card = removeFromZone(player, args.cardInstanceId, "hand");
+        const stackItem: StackItem = { ...card, castById: args.playerId };
+        state.stack.push(stackItem);
+
+        const now = Date.now();
+        const nextSeq = gameState.seq + 1;
+
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            state,
+            updatedAt: now,
+        });
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            type: "SPELL_CAST",
+            player: args.playerId,
+            payload: {
+                cardInstanceId: card.id,
+                cardName: (card.card as { name?: string }).name,
             },
             timestamp: now,
         });

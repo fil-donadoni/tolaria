@@ -10,7 +10,6 @@ export interface Player {
     library: CardInstance[];
     graveyard: CardInstance[];
     exile: CardInstance[];
-    stack: CardInstance[];
     battlefield: CardInstance[];
     manaPool: ManaPool;
 }
@@ -56,6 +55,10 @@ export type Zone =
     | "graveyard"
     | "exile"
     | "stack";
+
+export interface StackItem extends CardInstance {
+    castById: string;
+}
 
 export type CardAction =
     | "discard"

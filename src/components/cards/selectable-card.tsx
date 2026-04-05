@@ -7,6 +7,7 @@ import {
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
+import { useCastError } from "~/hooks/useCastError";
 
 import type { CardAction, CardInstance } from "~/types/game";
 
@@ -23,6 +24,8 @@ export default function SelectableCard({
 }: SelectableCardProps) {
     const { gameId, playerId, debugAllActions } = useGameContext();
     const playCard = useMutation(api.game.playCard);
+    const castSpell = useMutation(api.game.castSpell);
+    const { showError } = useCastError();
 
     const onPlayClick = () => {
         playCard({
@@ -33,8 +36,20 @@ export default function SelectableCard({
         });
     };
 
-    const onCastClick = () => {
-        console.log(`Casting card ${cardInstance.id}`);
+    const onCastClick = async () => {
+        try {
+            await castSpell({
+                gameId,
+                playerId,
+                cardInstanceId: cardInstance.id,
+            });
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            if (msg.includes("NOT_ENOUGH_MANA:")) {
+                const manaCost = msg.split("NOT_ENOUGH_MANA:")[1];
+                showError(manaCost);
+            }
+        }
     };
 
     const onDiscardClick = () => {

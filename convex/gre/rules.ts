@@ -18,9 +18,16 @@ const ALL_HAND_ACTIONS: CardAction[] = [
     "putToLibrary",
 ];
 
+function hasInstantTiming(card: CardInstanceState): boolean {
+    const types = (card.card as { types?: string[] }).types ?? [];
+    if (types.includes("Instant")) return true;
+    // TODO: check for Flash keyword
+    return false;
+}
+
 /** Returns the list of legal actions for a card in a player's hand. */
 export function getLegalActions(
-    _state: GameState,
+    state: GameState,
     _player: PlayerState,
     card: CardInstanceState,
     debugAllActions = false
@@ -35,6 +42,14 @@ export function getLegalActions(
     // "Play" is for lands only (no mana cost, no stack)
     if (types.includes("Land")) {
         actions.push("play");
+    }
+
+    // "Cast" is for all non-land cards
+    if (!types.includes("Land")) {
+        // Sorcery-speed spells require empty stack
+        if (hasInstantTiming(card) || state.stack.length === 0) {
+            actions.push("cast");
+        }
     }
 
     return actions;
