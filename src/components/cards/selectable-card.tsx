@@ -14,16 +14,14 @@ import CardImage from "./card-image";
 
 type SelectableCardProps = {
     cardInstance: CardInstance;
-    playerId: string;
     allowedActions?: CardAction[];
 };
 
 export default function SelectableCard({
     cardInstance,
-    playerId,
     allowedActions = [],
 }: SelectableCardProps) {
-    const { gameId } = useGameContext();
+    const { gameId, playerId } = useGameContext();
     const playCard = useMutation(api.game.playCard);
 
     const onPlayClick = () => {

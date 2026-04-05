@@ -1,7 +1,7 @@
 import { times } from "~/lib/utils";
 import { emptyManaPool, type Deck, type Player } from "~/types/game";
 
-const player1Deck: Deck = {
+export const whiteWeenieDeck: Deck = {
     id: "deck-1",
     name: "White Weenie",
     format: "Freeform",
@@ -16,7 +16,7 @@ const player1Deck: Deck = {
     ],
 };
 
-const player2Deck: Deck = {
+export const monoredDeck: Deck = {
     id: "deck-2",
     name: "Monored",
     format: "Freeform",
@@ -37,7 +37,7 @@ export const startingPlayers: Player[] = [
         name: "Player 1",
         bgColor: "#4B5A6C",
         life: 20,
-        deck: player1Deck,
+        deck: whiteWeenieDeck,
         hand: [],
         library: [],
         graveyard: [],
@@ -51,7 +51,7 @@ export const startingPlayers: Player[] = [
         name: "Player 2",
         bgColor: "#63768D",
         life: 20,
-        deck: player2Deck,
+        deck: monoredDeck,
         hand: [],
         library: [],
         graveyard: [],

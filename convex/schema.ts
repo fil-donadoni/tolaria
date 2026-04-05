@@ -18,7 +18,29 @@ export default defineSchema({
     }),
     games: defineTable({
         name: v.string(),
-        players: v.array(v.string()),
+        status: v.union(
+            v.literal("waiting"),
+            v.literal("playing"),
+            v.literal("finished")
+        ),
+        players: v.array(
+            v.object({
+                id: v.string(),
+                name: v.string(),
+                bgColor: v.string(),
+                deck: v.object({
+                    id: v.string(),
+                    name: v.string(),
+                    format: v.string(),
+                    cards: v.array(
+                        v.object({
+                            cardId: v.string(),
+                            cardName: v.string(),
+                        })
+                    ),
+                }),
+            })
+        ),
         createdAt: v.number(),
         updatedAt: v.number(),
     }),

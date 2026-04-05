@@ -3,6 +3,8 @@ import type { Id } from "@convex/_generated/dataModel";
 
 type GameContext = {
     gameId: Id<"games">;
+    playerId: string;
+    showAllCards: boolean;
 };
 
 export const GameContext = createContext<GameContext | null>(null);

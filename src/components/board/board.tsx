@@ -5,7 +5,13 @@ import type { Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import PlayerBoard from "./player-board";
 
-export default function Board({ gameId }: { gameId: Id<"games"> }) {
+type BoardProps = {
+    gameId: Id<"games">;
+    playerId: string;
+    showAllCards: boolean;
+};
+
+export default function Board({ gameId, playerId, showAllCards }: BoardProps) {
     const state = useQuery(api.game.getFullState, { gameId });
 
     if (!state) {
@@ -16,13 +22,18 @@ export default function Board({ gameId }: { gameId: Id<"games"> }) {
         );
     }
 
-    const players = state.players as unknown as Player[];
+    const allPlayers = state.players as unknown as Player[];
+
+    // Opponent on top, local player on bottom
+    const opponent = allPlayers.find((p) => p.id !== playerId);
+    const me = allPlayers.find((p) => p.id === playerId);
+    const orderedPlayers = [opponent, me].filter(Boolean) as Player[];
 
     return (
-        <GameContext value={{ gameId }}>
+        <GameContext value={{ gameId, playerId, showAllCards }}>
             <div className="flex h-full w-full flex-col">
-                {players.map((player, index) => (
-                    <PlayerBoard key={index} player={player} />
+                {orderedPlayers.map((player) => (
+                    <PlayerBoard key={player.id} player={player} />
                 ))}
             </div>
         </GameContext>

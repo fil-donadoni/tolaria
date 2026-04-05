@@ -155,47 +155,89 @@ export const getFullState = query({
     },
 });
 
+/** Returns the game record (status, players). */
+export const getGame = query({
+    args: {
+        gameId: v.id("games"),
+    },
+    handler: async (ctx, args) => {
+        return await ctx.db.get(args.gameId);
+    },
+});
+
+/** Returns all games waiting for a second player. */
+export const listOpenGames = query({
+    handler: async (ctx) => {
+        const games = await ctx.db.query("games").collect();
+        return games.filter((g) => g.status === "waiting");
+    },
+});
+
 // --- Mutations ---
 
-export const initGame = mutation({
-    args: {
+const playerValidator = v.object({
+    id: v.string(),
+    name: v.string(),
+    bgColor: v.string(),
+    deck: v.object({
+        id: v.string(),
         name: v.string(),
-        players: v.array(
+        format: v.string(),
+        cards: v.array(
             v.object({
-                id: v.string(),
-                name: v.string(),
-                bgColor: v.string(),
-                deck: v.object({
-                    id: v.string(),
-                    name: v.string(),
-                    format: v.string(),
-                    cards: v.array(
-                        v.object({
-                            cardId: v.string(),
-                            cardName: v.string(),
-                        })
-                    ),
-                }),
+                cardId: v.string(),
+                cardName: v.string(),
             })
         ),
+    }),
+});
+
+export const createGame = mutation({
+    args: {
+        name: v.string(),
+        player: playerValidator,
     },
     handler: async (ctx, args) => {
         const now = Date.now();
 
-        // Create game record
         const gameId = await ctx.db.insert("games", {
             name: args.name,
-            players: args.players.map((p) => p.id),
+            status: "waiting",
+            players: [args.player],
             createdAt: now,
             updatedAt: now,
         });
 
-        // Build initial state for each player
-        const playersState = args.players.map(buildPlayerState);
+        return gameId;
+    },
+});
 
-        // Save initial game state
+export const joinGame = mutation({
+    args: {
+        gameId: v.id("games"),
+        player: playerValidator,
+    },
+    handler: async (ctx, args) => {
+        const game = await ctx.db.get(args.gameId);
+        if (!game) throw new Error("Game not found");
+        if (game.status !== "waiting") throw new Error("Game is not open");
+        if (game.players.length >= 2) throw new Error("Game is full");
+
+        const allPlayers = [...game.players, args.player];
+        const now = Date.now();
+
+        // Update game record
+        await ctx.db.patch(args.gameId, {
+            status: "playing",
+            players: allPlayers,
+            updatedAt: now,
+        });
+
+        // Build initial state for both players
+        const playersState = allPlayers.map(buildPlayerState);
+
         await ctx.db.insert("game_states", {
-            gameId,
+            gameId: args.gameId,
             seq: 0,
             state: {
                 players: playersState,
@@ -206,19 +248,16 @@ export const initGame = mutation({
             updatedAt: now,
         });
 
-        // Log init event
         await ctx.db.insert("events", {
-            gameId,
+            gameId: args.gameId,
             seq: 0,
             type: "GAME_INITIALIZED",
             player: "system",
             payload: {
-                playerIds: args.players.map((p) => p.id),
+                playerIds: allPlayers.map((p) => p.id),
             },
             timestamp: now,
         });
-
-        return gameId;
     },
 });
 

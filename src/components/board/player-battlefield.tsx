@@ -1,4 +1,5 @@
 import type { CardInstance, Player } from "~/types/game";
+import { useGameContext } from "~/hooks/useGameContext";
 import CardImage from "../cards/card-image";
 
 type BattlefieldProps = {
@@ -6,6 +7,9 @@ type BattlefieldProps = {
 };
 
 export default function PlayerBattlefield({ player }: BattlefieldProps) {
+    const { playerId } = useGameContext();
+    const isMe = player.id === playerId;
+
     const cardsOnTheBattlefield = player.battlefield.map(
         (cardInstance: CardInstance, cardIndex) => (
             <div key={cardIndex} className="w-32 mb-2">
@@ -16,7 +20,7 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
 
     return (
         <div
-            className={`absolute w-full h-2/3 p-4 ${player.id === "1" ? "bottom-0" : "top-0"}`}
+            className={`absolute w-full h-2/3 p-4 ${isMe ? "top-0" : "bottom-0"}`}
         >
             <div className="flex gap-2 justify-center">
                 {cardsOnTheBattlefield}

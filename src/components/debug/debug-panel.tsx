@@ -46,8 +46,14 @@ function DebugButton({
     );
 }
 
-export default function DebugPanel({ gameId }: { gameId: Id<"games"> }) {
-    const [isOpen, setIsOpen] = useState(true);
+type DebugPanelProps = {
+    gameId: Id<"games">;
+    showAllCards: boolean;
+    onToggleShowAllCards: () => void;
+};
+
+export default function DebugPanel({ gameId, showAllCards, onToggleShowAllCards }: DebugPanelProps) {
+    const [isOpen, setIsOpen] = useState(false);
     const state = useQuery(api.game.getFullState, { gameId });
     const undo = useMutation(api.game.debugUndo);
     const resetGame = useMutation(api.game.debugResetGame);
@@ -71,6 +77,9 @@ export default function DebugPanel({ gameId }: { gameId: Id<"games"> }) {
                                     Undo
                                 </DebugButton>
                             )}
+                            <DebugButton onClick={onToggleShowAllCards}>
+                                {showAllCards ? "Hide cards" : "Show all cards"}
+                            </DebugButton>
                             <DebugButton
                                 onClick={() => resetGame({ gameId })}
                                 variant="danger"
