@@ -11,7 +11,7 @@ export default function PlayerLife({ player }: PlayerLifeProps) {
 
     return (
         <div
-            className={`bg-slate-900 text-white text-center p-4 rounded-md absolute left-1/2 -translate-x-1/2 ${isMe ? "bottom-4" : "top-4"}`}
+            className={`bg-slate-900 text-white text-center p-4 rounded-md absolute left-1/2 -translate-x-1/2 ${isMe ? "bottom-4" : "top-20"}`}
         >
             <h2 className="text-5xl font-bold text-center">{player.life}</h2>
             <p>{player.name}</p>

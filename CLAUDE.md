@@ -117,6 +117,25 @@ Mana abilities have `useStack: false` (resolve immediately). SBAs are global gam
 
 Claude acts as **assistant, tutor, and advisor**. The user drives all implementation — do NOT write or modify code autonomously unless explicitly told "procedi" or similar. Suggest steps, explain trade-offs, review code, but let the user execute.
 
+## Chrome Browser Debug (via claude-in-chrome MCP)
+
+When debugging UI issues in the browser:
+
+1. `tabs_context_mcp(createIfEmpty: true)` — get or create a tab
+2. `navigate` to `http://localhost:5173` — load the app
+3. `read_console_messages(onlyErrors: true)` — check for JS errors (call before navigate to start tracking, then navigate again)
+4. `read_page(depth: 3)` — get accessibility tree to understand current UI state
+5. `find(query)` — locate specific buttons/elements by text
+6. `computer(action: left_click, ref)` — interact with elements by ref (preferred over coordinates)
+7. `computer(action: screenshot)` — visual verification
+8. `computer(action: zoom, region)` — inspect small UI areas
+9. `javascript_tool` — execute JS in page context (e.g. clear localStorage, check state)
+
+Tips:
+- Use `find` + click by `ref` instead of guessing coordinates
+- For multi-player testing: create a second tab with `tabs_create_mcp`, clear localStorage via `javascript_tool`, then join the game
+- Skip `wait` unless waiting for async navigation — check state directly instead
+
 ## Out of Scope (initial)
 
 - Layer system for static effects (Anthem, Humility)

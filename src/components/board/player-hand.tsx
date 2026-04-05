@@ -1,5 +1,6 @@
 import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
+import { getFanStyle, fanCardClassName } from "~/lib/card-layout";
 import SelectableCard from "../cards/selectable-card";
 import CardBack from "../cards/card-back";
 
@@ -14,23 +15,12 @@ export default function PlayerHand({ player }: HandProps) {
 
     const cardsInHand = player.hand.map(
         (cardInstance: CardInstance, cardIndex) => {
-            const centerIndex = (player.hand.length - 1) / 2;
-            const distanceFromCenter = cardIndex - centerIndex;
-
-            const rotation = distanceFromCenter * 4;
-            const marginTop = Math.abs(distanceFromCenter) * 8;
-
-            const style = {
-                transform: `rotate(${rotation}deg)`,
-                marginLeft: cardIndex === 0 ? "0" : "-3rem",
-                marginTop: `${marginTop}px`,
-                transformOrigin: "bottom center",
-            };
+            const style = getFanStyle(cardIndex, player.hand.length);
 
             return (
                 <div
                     key={cardInstance.id}
-                    className="w-32 mb-2 transition-all hover:-translate-y-8 hover:z-10"
+                    className={fanCardClassName}
                     style={style}
                 >
                     {canSeeCards ? (

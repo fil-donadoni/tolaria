@@ -5,7 +5,11 @@ export default function PlayerGraveyard({ player }: { player: Player }) {
     return (
         <div className="w-24 aspect-5/7">
             <div className="relative">
-                <CardsPile cards={player.graveyard} emptyLabel="Graveyard" />
+                <CardsPile
+                    cards={player.graveyard}
+                    emptyLabel="Graveyard"
+                    title="Graveyard"
+                />
             </div>
         </div>
     );

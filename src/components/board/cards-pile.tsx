@@ -1,7 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { CardInstance } from "~/types/game";
+import { getFanStyle, getFanWidth, fanCardClassName } from "~/lib/card-layout";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import CardBack from "../cards/card-back";
 import SelectableCard from "../cards/selectable-card";
+import CardImage from "../cards/card-image";
 
 function seededRandom(seed: number) {
     const x = Math.sin(seed + 1) * 10000;
@@ -12,29 +20,33 @@ type CardsPileProps = {
     cards: CardInstance[];
     isFaceDown?: boolean;
     emptyLabel?: string;
+    title?: string;
 };
 
 export default function CardsPile({
     cards,
     isFaceDown = false,
     emptyLabel,
+    title,
 }: CardsPileProps) {
+    const [isOpen, setIsOpen] = useState(false);
+
     const rotations = useMemo(
         () => cards.map((_, i) => seededRandom(i) * 4 - 2),
         [cards]
     );
+
     if (!cards.length) {
         return (
-            <div className="w-24 aspect-5/7 mb-2 flex justify-center items-center text-center p-2 border border-white/20 rounded-md">
+            <div className="w-24 aspect-5/7 mb-2 flex justify-center items-center text-center p-2 border border-white/20 rounded-md text-white/40 text-xs">
                 {emptyLabel || "No cards"}
             </div>
         );
     }
 
-    return cards.map((cardInstance: CardInstance, cardIndex) => {
-        const rotation = rotations[cardIndex];
+    const pileCards = cards.map((cardInstance: CardInstance, cardIndex) => {
         const cardStyle = {
-            transform: `rotate(${rotation}deg)`,
+            transform: `rotate(${rotations[cardIndex]}deg)`,
         };
 
         const image = isFaceDown ? (
@@ -56,4 +68,46 @@ export default function CardsPile({
             </div>
         );
     });
+
+    return (
+        <>
+            <div className="cursor-pointer" onClick={() => setIsOpen(true)}>
+                {pileCards}
+            </div>
+
+            <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                <DialogContent
+                    className="px-4 max-w-[90vw]"
+                    style={{
+                        width: `${getFanWidth(cards.length) + 32}px`,
+                    }}
+                >
+                    <DialogHeader>
+                        <DialogTitle>
+                            {title || "Cards"} ({cards.length})
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="flex justify-center overflow-hidden py-4">
+                        {cards.map((cardInstance, cardIndex) => {
+                            const style = getFanStyle(cardIndex, cards.length);
+
+                            return (
+                                <div
+                                    key={cardInstance.id}
+                                    className={fanCardClassName}
+                                    style={style}
+                                >
+                                    {isFaceDown ? (
+                                        <CardBack />
+                                    ) : (
+                                        <CardImage card={cardInstance.card} />
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </>
+    );
 }
