@@ -1,4 +1,6 @@
-import { v } from "convex/values";
+import { v, type GenericId } from "convex/values";
+import type { GenericQueryCtx } from "convex/server";
+import type { DataModel, Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { getCardById } from "./cards";
 import { type GameState, getPlayer, moveCard } from "./gre/state";
@@ -79,6 +81,20 @@ function buildPlayerState(player: PlayerInput) {
     };
 }
 
+// --- Helpers ---
+
+async function getLatestGameState(
+    ctx: Pick<GenericQueryCtx<DataModel>, "db">,
+    gameId: GenericId<"games">
+): Promise<Doc<"game_states"> | null> {
+    const states = await ctx.db
+        .query("game_states")
+        .filter((q) => q.eq(q.field("gameId"), gameId))
+        .collect();
+    if (states.length === 0) return null;
+    return states.reduce((a, b) => (a.seq > b.seq ? a : b));
+}
+
 // --- Queries ---
 
 /** Public view: hides opponent's hand and all library contents. */
@@ -88,11 +104,7 @@ export const getPublicState = query({
         playerId: v.string(),
     },
     handler: async (ctx, args) => {
-        const gameState = await ctx.db
-            .query("game_states")
-            .filter((q) => q.eq(q.field("gameId"), args.gameId))
-            .first();
-
+        const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) return null;
 
         const state = gameState.state as {
@@ -124,17 +136,14 @@ export const getFullState = query({
         gameId: v.id("games"),
     },
     handler: async (ctx, args) => {
-        const gameState = await ctx.db
-            .query("game_states")
-            .filter((q) => q.eq(q.field("gameId"), args.gameId))
-            .first();
-
+        const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) return null;
 
         const state = gameState.state as GameState;
 
         return {
             ...state,
+            seq: gameState.seq,
             players: state.players.map((player) => ({
                 ...player,
                 hand: player.hand.map((card) => ({
@@ -187,6 +196,7 @@ export const initGame = mutation({
         // Save initial game state
         await ctx.db.insert("game_states", {
             gameId,
+            seq: 0,
             state: {
                 players: playersState,
                 turn: 1,
@@ -219,13 +229,10 @@ export const playCard = mutation({
         cardInstanceId: v.string(),
     },
     handler: async (ctx, args) => {
-        const gameState = await ctx.db
-            .query("game_states")
-            .filter((q) => q.eq(q.field("gameId"), args.gameId))
-            .first();
+        const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
-        const state = gameState.state as GameState;
+        const state = structuredClone(gameState.state) as GameState;
         const player = getPlayer(state, args.playerId);
 
         // Validate: card must be in hand and "play" must be legal
@@ -243,19 +250,19 @@ export const playCard = mutation({
         );
 
         const now = Date.now();
-        await ctx.db.patch(gameState._id, { state, updatedAt: now });
+        const nextSeq = gameState.seq + 1;
 
-        // Get next seq number
-        const lastEvent = await ctx.db
-            .query("events")
-            .filter((q) => q.eq(q.field("gameId"), args.gameId))
-            .order("desc")
-            .first();
-        const seq = (lastEvent?.seq ?? -1) + 1;
+        // Insert new snapshot (don't overwrite previous)
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            state,
+            updatedAt: now,
+        });
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
-            seq,
+            seq: nextSeq,
             type: "CARD_PLAYED",
             player: args.playerId,
             payload: {
@@ -277,13 +284,13 @@ export const debugPatchState = mutation({
         value: v.any(),
     },
     handler: async (ctx, args) => {
-        const gameState = await ctx.db
-            .query("game_states")
-            .filter((q) => q.eq(q.field("gameId"), args.gameId))
-            .first();
+        const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
-        const state = gameState.state as Record<string, unknown>;
+        const state = structuredClone(gameState.state) as Record<
+            string,
+            unknown
+        >;
         const keys = args.path.split(".");
         let target: Record<string, unknown> = state;
 
@@ -294,9 +301,52 @@ export const debugPatchState = mutation({
 
         target[keys[keys.length - 1]] = args.value;
 
-        await ctx.db.patch(gameState._id, {
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
             state,
             updatedAt: Date.now(),
         });
+    },
+});
+
+/** Debug: undo last action by deleting the latest snapshot. */
+export const debugUndo = mutation({
+    args: {
+        gameId: v.id("games"),
+    },
+    handler: async (ctx, args) => {
+        const states = await ctx.db
+            .query("game_states")
+            .filter((q) => q.eq(q.field("gameId"), args.gameId))
+            .collect();
+
+        if (states.length <= 1) {
+            throw new Error("Nothing to undo");
+        }
+
+        // Find and delete the one with highest seq
+        const latest = states.reduce((a, b) => (a.seq > b.seq ? a : b));
+        await ctx.db.delete(latest._id);
+    },
+});
+
+/** Debug: reset game to initial state (seq 0). */
+export const debugResetGame = mutation({
+    args: {
+        gameId: v.id("games"),
+    },
+    handler: async (ctx, args) => {
+        const states = await ctx.db
+            .query("game_states")
+            .filter((q) => q.eq(q.field("gameId"), args.gameId))
+            .collect();
+
+        // Delete all except seq 0
+        for (const s of states) {
+            if (s.seq > 0) {
+                await ctx.db.delete(s._id);
+            }
+        }
     },
 });

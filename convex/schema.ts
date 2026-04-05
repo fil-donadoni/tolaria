@@ -12,6 +12,7 @@ export default defineSchema({
     }),
     game_states: defineTable({
         gameId: v.id("games"),
+        seq: v.number(),
         state: v.any(),
         updatedAt: v.number(),
     }),
