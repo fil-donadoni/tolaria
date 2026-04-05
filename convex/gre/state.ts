@@ -1,4 +1,27 @@
+import type { Color } from "../cards/types";
 import type { Zone } from "./types";
+
+/**
+ * Intrinsic mana abilities for basic land subtypes (rule 305.6).
+ * Any land with one of these subtypes has the corresponding mana ability.
+ */
+const LAND_SUBTYPE_MANA: Record<string, Color> = {
+    Plains: "W",
+    Island: "U",
+    Swamp: "B",
+    Mountain: "R",
+    Forest: "G",
+};
+
+/** Returns the mana color a land produces via basic land subtype, or null. */
+export function getBasicLandMana(card: CardInstanceState): Color | null {
+    const subtypes = (card.card as { subtypes?: string[] }).subtypes ?? [];
+    for (const subtype of subtypes) {
+        const color = LAND_SUBTYPE_MANA[subtype];
+        if (color) return color;
+    }
+    return null;
+}
 
 export type CardInstanceState = {
     id: string;

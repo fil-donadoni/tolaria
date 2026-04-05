@@ -3,7 +3,12 @@ import type { GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { getCardById } from "./cards";
-import { type GameState, getPlayer, moveCard } from "./gre/state";
+import {
+    type GameState,
+    getPlayer,
+    moveCard,
+    getBasicLandMana,
+} from "./gre/state";
 import { assertLegalAction, getLegalActions } from "./gre/rules";
 
 const STARTING_HAND_SIZE = 7;
@@ -453,6 +458,59 @@ export const exileFromLibrary = mutation({
                 from: "library",
             },
             timestamp: now,
+        });
+    },
+});
+
+export const tapUntap = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        const player = getPlayer(state, args.playerId);
+
+        // Must have priority (be the active player)
+        if (state.activePlayerId !== args.playerId) {
+            throw new Error("You don't have priority");
+        }
+
+        const card = player.battlefield.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!card) throw new Error("Card not on battlefield");
+
+        const types = (card.card as { types?: string[] }).types ?? [];
+        if (!types.includes("Land")) {
+            throw new Error("Only lands can be tapped/untapped manually");
+        }
+
+        const wasTapped = card.isTapped;
+        card.isTapped = !card.isTapped;
+
+        // Mana ability: basic land subtypes produce mana on tap, remove on untap
+        const manaColor = getBasicLandMana(card);
+        if (manaColor) {
+            if (!wasTapped) {
+                // Tapping: add mana
+                player.manaPool[manaColor] = (player.manaPool[manaColor] ?? 0) + 1;
+            } else {
+                // Untapping: remove mana (undo)
+                player.manaPool[manaColor] = Math.max(0, (player.manaPool[manaColor] ?? 0) - 1);
+            }
+        }
+
+        // Save updated state (tap/untap persists with the current snapshot)
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            state,
+            updatedAt: Date.now(),
         });
     },
 });

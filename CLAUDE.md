@@ -132,9 +132,14 @@ When debugging UI issues in the browser:
 9. `javascript_tool` — execute JS in page context (e.g. clear localStorage, check state)
 
 Tips:
+
 - Use `find` + click by `ref` instead of guessing coordinates
 - For multi-player testing: create a second tab with `tabs_create_mcp`, clear localStorage via `javascript_tool`, then join the game
 - Skip `wait` unless waiting for async navigation — check state directly instead
+
+## Rules Implementation Process
+
+When implementing a new MTG rule or card ability, always cross-reference the user's instruction with the official Magic: The Gathering Comprehensive Rules. Before writing code, discuss with the user any details not covered in their instruction — edge cases, interactions, timing — and decide together what to implement now vs defer.
 
 ## Out of Scope (initial)
 

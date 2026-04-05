@@ -6,6 +6,7 @@ import PlayerLibrary from "./player-library";
 import PlayerGraveyard from "./player-graveyard";
 import PlayerExile from "./player-exile";
 import { useGameContext } from "~/hooks/useGameContext";
+import PlayerManaPool from "./player-mana-pool";
 
 export default function PlayerBoard({ player }: { player: Player }) {
     const { playerId } = useGameContext();
@@ -19,6 +20,8 @@ export default function PlayerBoard({ player }: { player: Player }) {
             <PlayerHand player={player} />
 
             <PlayerLife player={player} />
+
+            <PlayerManaPool player={player} />
 
             <div
                 className={`absolute flex gap-2 ${isMe ? "bottom-4 right-4" : "flex-row-reverse top-4 left-4"}`}
