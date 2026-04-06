@@ -5,8 +5,12 @@ import type { PendingCast } from "~/types/game";
 type GameContext = {
     gameId: Id<"games">;
     playerId: string;
+    activePlayerId: string;
     priorityPlayerId: string;
+    phase: string;
+    turn: number;
     pendingCast?: PendingCast;
+    autoPassPlayers?: string[];
     showAllCards: boolean;
     debugAllActions: boolean;
 };

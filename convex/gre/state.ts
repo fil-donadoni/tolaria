@@ -1,5 +1,5 @@
 import type { Color } from "../cards/types";
-import type { Zone } from "./types";
+import type { Phase, Zone } from "./types";
 
 /**
  * Intrinsic mana abilities for basic land subtypes (rule 305.6).
@@ -69,9 +69,11 @@ export type GameState = {
     priorityPlayerId: string;
     /** Number of consecutive priority passes (resets on any action). Resolves top of stack at 2. */
     passCount: number;
-    phase: string;
+    phase: Phase;
     /** Active spell payment in progress (CR 601.2). */
     pendingCast?: PendingCast;
+    /** Player IDs that auto-pass priority for the rest of this turn. Resets on new turn. */
+    autoPassPlayers?: string[];
 };
 
 const PERMANENT_TYPES = [

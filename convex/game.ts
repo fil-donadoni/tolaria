@@ -18,6 +18,8 @@ import {
     isManaCostCovered,
 } from "./gre/state";
 import { assertLegalAction, getLegalActions } from "./gre/rules";
+import { advancePhase, drainAutoPasses } from "./gre/phases";
+import type { Phase } from "./gre/types";
 
 const STARTING_HAND_SIZE = 7;
 
@@ -255,18 +257,24 @@ export const joinGame = mutation({
         // Build initial state for both players
         const playersState = allPlayers.map(buildPlayerState);
 
+        // Build initial state and let the phase machine advance through
+        // auto-phases (UNTAP) to the first priority phase (UPKEEP).
+        const initialState: GameState = {
+            players: playersState,
+            stack: [],
+            turn: 1,
+            activePlayerId: playersState[0].id,
+            priorityPlayerId: playersState[0].id,
+            passCount: 0,
+            phase: "UNTAP" as Phase,
+        };
+        // UNTAP is auto → advances to UPKEEP (with entry actions along the way)
+        advancePhase(initialState);
+
         await ctx.db.insert("game_states", {
             gameId: args.gameId,
             seq: 0,
-            state: {
-                players: playersState,
-                stack: [],
-                turn: 1,
-                activePlayerId: playersState[0].id,
-                priorityPlayerId: playersState[0].id,
-                passCount: 0,
-                phase: "BEGINNING",
-            },
+            state: initialState,
             updatedAt: now,
         });
 
@@ -392,6 +400,7 @@ export const announceCast = mutation({
             state.stack.push(stackItem);
             state.passCount = 0;
             state.priorityPlayerId = getOpponentId(state, args.playerId);
+            drainAutoPasses(state);
         } else {
             // Enter payment phase for remaining mana
             state.pendingCast = {
@@ -484,6 +493,7 @@ export const tapForPayment = mutation({
             state.pendingCast = undefined;
             state.passCount = 0;
             state.priorityPlayerId = getOpponentId(state, args.playerId);
+            drainAutoPasses(state);
 
             const now = Date.now();
             await ctx.db.insert("game_states", {
@@ -632,57 +642,81 @@ export const passPriority = mutation({
 
         if (state.passCount >= 2 && state.stack.length > 0) {
             // Both players passed consecutively — resolve top of stack (CR 117.3d)
-            const resolved = resolveTopOfStack(state);
-
-            // After resolution, priority goes to active player (CR 117.3b)
+            resolveTopOfStack(state);
             state.priorityPlayerId = state.activePlayerId;
             state.passCount = 0;
-
-            const now = Date.now();
-            const nextSeq = gameState.seq + 1;
-
-            await ctx.db.insert("game_states", {
-                gameId: args.gameId,
-                seq: nextSeq,
-                state,
-                updatedAt: now,
-            });
-
-            await ctx.db.insert("events", {
-                gameId: args.gameId,
-                seq: nextSeq,
-                type: "SPELL_RESOLVED",
-                player: args.playerId,
-                payload: {
-                    cardInstanceId: resolved.id,
-                    cardName: (resolved.card as { name?: string }).name,
-                    destination: resolved.zone,
-                },
-                timestamp: now,
-            });
+        } else if (state.passCount >= 2 && state.stack.length === 0) {
+            // Both passed with empty stack → advance phase/step
+            advancePhase(state);
         } else {
             // Pass priority to opponent
             state.priorityPlayerId = getOpponentId(state, args.playerId);
-
-            const now = Date.now();
-            const nextSeq = gameState.seq + 1;
-
-            await ctx.db.insert("game_states", {
-                gameId: args.gameId,
-                seq: nextSeq,
-                state,
-                updatedAt: now,
-            });
-
-            await ctx.db.insert("events", {
-                gameId: args.gameId,
-                seq: nextSeq,
-                type: "PRIORITY_PASSED",
-                player: args.playerId,
-                payload: {},
-                timestamp: now,
-            });
         }
+
+        // If the new priority holder has autoPass, keep draining
+        drainAutoPasses(state);
+
+        const now = Date.now();
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            state,
+            updatedAt: now,
+        });
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            type: "PRIORITY_PASSED",
+            player: args.playerId,
+            payload: { phase: state.phase, turn: state.turn },
+            timestamp: now,
+        });
+    },
+});
+
+/** Set auto-pass: automatically pass priority for the rest of this turn. */
+export const endTurn = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+
+        if (state.priorityPlayerId !== args.playerId) {
+            throw new Error("You don't have priority");
+        }
+
+        // Add player to autoPass list
+        const autoPassPlayers = state.autoPassPlayers ?? [];
+        if (!autoPassPlayers.includes(args.playerId)) {
+            autoPassPlayers.push(args.playerId);
+        }
+        state.autoPassPlayers = autoPassPlayers;
+
+        // Immediately pass priority (and keep resolving as long as auto-pass applies)
+        drainAutoPasses(state);
+
+        const now = Date.now();
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            state,
+            updatedAt: now,
+        });
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            type: "AUTO_PASS_SET",
+            player: args.playerId,
+            payload: {},
+            timestamp: now,
+        });
     },
 });
 

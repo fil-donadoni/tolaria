@@ -1,4 +1,5 @@
 import type { CardInstanceState, GameState, PlayerState } from "./state";
+import { isSorceryTiming } from "./phases";
 
 export type CardAction =
     | "play"
@@ -39,15 +40,20 @@ export function getLegalActions(
     const actions: CardAction[] = [];
     const types = (card.card as { types?: string[] }).types ?? [];
 
-    // "Play" is for lands only (no mana cost, no stack)
+    // "Play" is for lands only — requires sorcery timing (main phase, empty stack, active player)
     if (types.includes("Land")) {
-        actions.push("play");
+        if (isSorceryTiming(state)) {
+            actions.push("play");
+        }
     }
 
     // "Cast" is for all non-land cards
     if (!types.includes("Land")) {
-        // Sorcery-speed spells require empty stack
-        if (hasInstantTiming(card) || state.stack.length === 0) {
+        if (hasInstantTiming(card)) {
+            // Instants can be cast anytime a player has priority
+            actions.push("cast");
+        } else if (isSorceryTiming(state)) {
+            // Sorcery-speed: main phase, empty stack, active player has priority
             actions.push("cast");
         }
     }
