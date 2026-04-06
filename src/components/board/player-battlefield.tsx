@@ -504,7 +504,10 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
                         (c) => c.id === attackerId
                     );
                     if (!attacker) return null;
-                    const power = Math.max(0, attacker.card.power ?? 0);
+                    const power = Math.max(
+                        0,
+                        attacker.power ?? attacker.card.power ?? 0
+                    );
                     const blockerIds = blockersPerAttacker[attackerId] ?? [];
                     const assignments =
                         combat.damageAssignments?.[attackerId] ?? {};
@@ -620,7 +623,10 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
                 (c) => c.id === attackerId
             );
             if (!attacker) continue;
-            const power = Math.max(0, attacker.card.power ?? 0);
+            const power = Math.max(
+                0,
+                attacker.power ?? attacker.card.power ?? 0
+            );
             const assignments = combat.damageAssignments?.[attackerId] ?? {};
             const total = Object.values(assignments).reduce((s, n) => s + n, 0);
             if (total !== power) return false;

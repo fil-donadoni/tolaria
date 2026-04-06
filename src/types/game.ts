@@ -46,6 +46,8 @@ export interface CardInstance {
     zone: Zone;
     isTapped: boolean;
     manaCommitted?: boolean;
+    power?: number;
+    toughness?: number;
     isSummoningSick?: boolean;
     isAttacking?: boolean;
     isBlocking?: boolean;

@@ -40,6 +40,10 @@ export type CardInstanceState = {
     manaCommitted?: boolean;
     /** Set when a creature enters the battlefield. Cleared at untap step. Prevents attacking. */
     isSummoningSick?: boolean;
+    /** Creature instance power (initialized from card definition, tracks modifications). */
+    power?: number;
+    /** Creature instance toughness (initialized from card definition, tracks modifications). */
+    toughness?: number;
     /** Set during combat when this creature is declared as attacker. Cleared at END_OF_COMBAT. */
     isAttacking?: boolean;
     /** Set during combat when this creature is declared as blocker. Cleared at END_OF_COMBAT. */
@@ -152,6 +156,12 @@ export function resolveTopOfStack(state: GameState): StackItem {
         item.isTapped = false;
         if (types.includes("Creature")) {
             item.isSummoningSick = true;
+            const cardData = item.card as {
+                power?: number;
+                toughness?: number;
+            };
+            item.power = cardData.power ?? 0;
+            item.toughness = cardData.toughness ?? 0;
         }
         controller.battlefield.push(item);
     } else {
@@ -164,99 +174,97 @@ export function resolveTopOfStack(state: GameState): StackItem {
     return item;
 }
 
+/** Finds a card on any player's battlefield by instance id. */
+function findOnBattlefield(
+    state: GameState,
+    cardId: string
+): { card: CardInstanceState; player: PlayerState; idx: number } | null {
+    for (const player of state.players) {
+        const idx = player.battlefield.findIndex((c) => c.id === cardId);
+        if (idx !== -1) return { card: player.battlefield[idx], player, idx };
+    }
+    return null;
+}
+
+/** Removes a permanent from battlefield and moves it to the target zone of its owner. */
+function removePermanentTo(
+    state: GameState,
+    cardId: string,
+    toZone: "graveyard" | "exile"
+): void {
+    const found = findOnBattlefield(state, cardId);
+    if (!found) return;
+    const [creature] = found.player.battlefield.splice(found.idx, 1);
+    creature.zone = toZone;
+    const owner = getPlayer(state, creature.ownerId);
+    (owner[toZone] as CardInstanceState[]).push(creature);
+}
+
 /** Builds a SpellContext with primitives bound to the current game state. */
 function buildSpellContext(state: GameState, item: StackItem): SpellContext {
+    function requireCreature(target: TargetSelection): CardInstanceState {
+        const found = findOnBattlefield(state, target.id);
+        if (!found) throw new Error(`Creature ${target.id} not on battlefield`);
+        return found.card;
+    }
+
     return {
         caster: item.castById,
         controller: item.castById,
         targets: item.targets ?? [],
+
         dealDamage(target: TargetSelection, amount: number) {
             if (target.type === "player") {
-                const player = getPlayer(state, target.id);
-                player.life -= amount;
+                getPlayer(state, target.id).life -= amount;
             } else {
-                // Find the creature on any player's battlefield
-                for (const player of state.players) {
-                    const idx = player.battlefield.findIndex(
-                        (c) => c.id === target.id
-                    );
-                    if (idx === -1) continue;
-                    const creature = player.battlefield[idx];
-                    const toughness =
-                        (creature.card as { toughness?: number }).toughness ??
-                        0;
-                    if (amount >= toughness) {
-                        // Lethal damage — move to graveyard (SBA 704.5g)
-                        player.battlefield.splice(idx, 1);
-                        creature.zone = "graveyard";
-                        const owner = getPlayer(state, creature.ownerId);
-                        owner.graveyard.push(creature);
-                    }
-                    // TODO: track damage on creatures for non-lethal damage accumulation
-                    break;
+                const found = findOnBattlefield(state, target.id);
+                if (!found) return;
+                if (amount >= (found.card.toughness ?? 0)) {
+                    removePermanentTo(state, target.id, "graveyard");
                 }
+                // TODO: track damage on creatures for non-lethal damage accumulation
             }
         },
         gainLife(playerId: string, amount: number) {
-            const player = getPlayer(state, playerId);
-            player.life += amount;
+            getPlayer(state, playerId).life += amount;
         },
         loseLife(playerId: string, amount: number) {
-            const player = getPlayer(state, playerId);
-            player.life -= amount;
+            getPlayer(state, playerId).life -= amount;
         },
         getLife(playerId: string): number {
             return getPlayer(state, playerId).life;
         },
         getPower(target: TargetSelection): number {
             if (target.type !== "creature") return 0;
-            for (const player of state.players) {
-                const card = player.battlefield.find((c) => c.id === target.id);
-                if (card) {
-                    return (card.card as { power?: number }).power ?? 0;
-                }
-            }
-            return 0;
+            return findOnBattlefield(state, target.id)?.card.power ?? 0;
+        },
+        getToughness(target: TargetSelection): number {
+            if (target.type !== "creature") return 0;
+            return findOnBattlefield(state, target.id)?.card.toughness ?? 0;
+        },
+        modifyPower(target: TargetSelection, amount: number): void {
+            if (target.type !== "creature") return;
+            const card = requireCreature(target);
+            card.power = (card.power ?? 0) + amount;
+        },
+        modifyToughness(target: TargetSelection, amount: number): void {
+            if (target.type !== "creature") return;
+            const card = requireCreature(target);
+            card.toughness = (card.toughness ?? 0) + amount;
         },
         getController(target: TargetSelection): string {
             if (target.type === "player") return target.id;
-            for (const player of state.players) {
-                const card = player.battlefield.find((c) => c.id === target.id);
-                if (card) return card.controllerId;
-            }
-            throw new Error(`Target ${target.id} not found on battlefield`);
+            return requireCreature(target).controllerId;
         },
         destroy(target: TargetSelection): void {
-            if (target.type === "player") {
+            if (target.type === "player")
                 throw new Error("Cannot destroy a player");
-            }
-            for (const player of state.players) {
-                const idx = player.battlefield.findIndex(
-                    (c) => c.id === target.id
-                );
-                if (idx === -1) continue;
-                const creature = player.battlefield.splice(idx, 1)[0];
-                creature.zone = "graveyard";
-                const owner = getPlayer(state, creature.ownerId);
-                owner.graveyard.push(creature);
-                break;
-            }
+            removePermanentTo(state, target.id, "graveyard");
         },
         exile(target: TargetSelection): void {
-            if (target.type === "player") {
+            if (target.type === "player")
                 throw new Error("Cannot exile a player");
-            }
-            for (const player of state.players) {
-                const idx = player.battlefield.findIndex(
-                    (c) => c.id === target.id
-                );
-                if (idx === -1) continue;
-                const creature = player.battlefield.splice(idx, 1)[0];
-                creature.zone = "exile";
-                const owner = getPlayer(state, creature.ownerId);
-                owner.exile.push(creature);
-                break;
-            }
+            removePermanentTo(state, target.id, "exile");
         },
     };
 }

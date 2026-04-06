@@ -1636,6 +1636,11 @@ export const giantGrowth: CardDefinition = {
     name: "Giant Growth",
     manaCost: { G: 1 },
     types: ["Instant"],
+    targetRequirement: { type: "creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        ctx.modifyPower(ctx.targets[0], 3);
+        ctx.modifyToughness(ctx.targets[0], 3);
+    },
 };
 
 export const giantSpider: CardDefinition = {

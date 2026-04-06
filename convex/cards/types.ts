@@ -68,6 +68,9 @@ export interface SpellContext {
     loseLife: (playerId: string, amount: number) => void;
     getLife: (playerId: string) => number;
     getPower: (target: TargetSelection) => number;
+    getToughness: (target: TargetSelection) => number;
+    modifyPower: (target: TargetSelection, amount: number) => void;
+    modifyToughness: (target: TargetSelection, amount: number) => void;
     getController: (target: TargetSelection) => string;
     destroy: (target: TargetSelection) => void;
     exile: (target: TargetSelection) => void;

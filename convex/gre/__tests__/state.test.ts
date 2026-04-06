@@ -581,4 +581,206 @@ describe("resolveTopOfStack", () => {
         const p2 = getPlayer(state, "p2");
         expect(p2.graveyard).toHaveLength(0);
     });
+
+    it("creature entering battlefield gets instance power/toughness from card definition", () => {
+        const item = makeStackItem(
+            { name: "Bear", types: ["Creature"], power: 2, toughness: 2 },
+            "p1"
+        );
+        const state = makeGameState();
+        state.stack.push(item);
+
+        resolveTopOfStack(state);
+
+        const p1 = getPlayer(state, "p1");
+        expect(p1.battlefield[0].power).toBe(2);
+        expect(p1.battlefield[0].toughness).toBe(2);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Spell resolution with effects — SpellContext primitives
+// ---------------------------------------------------------------------------
+
+import { lightningBolt } from "../../cards/sets/lea";
+import { giantGrowth } from "../../cards/sets/lea";
+
+describe("spell resolution: Lightning Bolt", () => {
+    function makeBoltOnStack(
+        castById: string,
+        targets: StackItem["targets"]
+    ): StackItem {
+        return makeStackItem(
+            {
+                id: lightningBolt.id,
+                name: lightningBolt.name,
+                types: lightningBolt.types,
+            },
+            castById,
+            { targets }
+        );
+    }
+
+    it("deals 3 damage to a player", () => {
+        const state = makeGameState();
+        const bolt = makeBoltOnStack("p1", [{ type: "player", id: "p2" }]);
+        state.stack.push(bolt);
+
+        resolveTopOfStack(state);
+
+        expect(getPlayer(state, "p2").life).toBe(17);
+        // Bolt goes to caster's graveyard
+        expect(getPlayer(state, "p1").graveyard).toHaveLength(1);
+    });
+
+    it("kills a creature with toughness <= 3", () => {
+        const state = makeGameState();
+        const creature = makeCard({
+            id: "bear1",
+            card: { name: "Bear", types: ["Creature"], power: 2, toughness: 2 },
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            power: 2,
+            toughness: 2,
+        });
+        getPlayer(state, "p2").battlefield.push(creature);
+
+        const bolt = makeBoltOnStack("p1", [{ type: "creature", id: "bear1" }]);
+        state.stack.push(bolt);
+
+        resolveTopOfStack(state);
+
+        expect(getPlayer(state, "p2").battlefield).toHaveLength(0);
+        expect(getPlayer(state, "p2").graveyard).toHaveLength(1);
+        expect(getPlayer(state, "p2").graveyard[0].id).toBe("bear1");
+    });
+
+    it("does NOT kill a creature with toughness > 3", () => {
+        const state = makeGameState();
+        const creature = makeCard({
+            id: "giant1",
+            card: {
+                name: "Hill Giant",
+                types: ["Creature"],
+                power: 3,
+                toughness: 4,
+            },
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            power: 3,
+            toughness: 4,
+        });
+        getPlayer(state, "p2").battlefield.push(creature);
+
+        const bolt = makeBoltOnStack("p1", [
+            { type: "creature", id: "giant1" },
+        ]);
+        state.stack.push(bolt);
+
+        resolveTopOfStack(state);
+
+        // Creature survives
+        expect(getPlayer(state, "p2").battlefield).toHaveLength(1);
+        expect(getPlayer(state, "p2").graveyard).toHaveLength(0);
+    });
+});
+
+describe("spell resolution: Giant Growth + Lightning Bolt interaction", () => {
+    it("Giant Growth on a 1/1, then Lightning Bolt does NOT kill it", () => {
+        const state = makeGameState();
+        // 1/1 creature on p1's battlefield
+        const creature = makeCard({
+            id: "elf1",
+            card: {
+                name: "Llanowar Elves",
+                types: ["Creature"],
+                power: 1,
+                toughness: 1,
+            },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            power: 1,
+            toughness: 1,
+        });
+        getPlayer(state, "p1").battlefield.push(creature);
+
+        // Step 1: Giant Growth resolves on the elf (+3/+3)
+        const growth = makeStackItem(
+            {
+                id: giantGrowth.id,
+                name: giantGrowth.name,
+                types: giantGrowth.types,
+            },
+            "p1",
+            { targets: [{ type: "creature", id: "elf1" }] }
+        );
+        state.stack.push(growth);
+        resolveTopOfStack(state);
+
+        // Verify: elf is now 4/4
+        const elf = getPlayer(state, "p1").battlefield.find(
+            (c) => c.id === "elf1"
+        );
+        expect(elf).toBeDefined();
+        expect(elf!.power).toBe(4);
+        expect(elf!.toughness).toBe(4);
+
+        // Step 2: Lightning Bolt resolves on the elf (3 damage)
+        const bolt = makeStackItem(
+            {
+                id: lightningBolt.id,
+                name: lightningBolt.name,
+                types: lightningBolt.types,
+            },
+            "p2",
+            { targets: [{ type: "creature", id: "elf1" }] }
+        );
+        state.stack.push(bolt);
+        resolveTopOfStack(state);
+
+        // Elf survives: 3 damage < 4 toughness
+        expect(getPlayer(state, "p1").battlefield).toHaveLength(1);
+        // p1's graveyard has Giant Growth (instant → graveyard after resolve)
+        expect(
+            getPlayer(state, "p1").graveyard.every((c) => c.id !== "elf1")
+        ).toBe(true);
+    });
+
+    it("Lightning Bolt kills a 1/1 without Giant Growth", () => {
+        const state = makeGameState();
+        const creature = makeCard({
+            id: "elf1",
+            card: {
+                name: "Llanowar Elves",
+                types: ["Creature"],
+                power: 1,
+                toughness: 1,
+            },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            power: 1,
+            toughness: 1,
+        });
+        getPlayer(state, "p1").battlefield.push(creature);
+
+        const bolt = makeStackItem(
+            {
+                id: lightningBolt.id,
+                name: lightningBolt.name,
+                types: lightningBolt.types,
+            },
+            "p2",
+            { targets: [{ type: "creature", id: "elf1" }] }
+        );
+        state.stack.push(bolt);
+        resolveTopOfStack(state);
+
+        // Elf dies: 3 damage >= 1 toughness
+        expect(getPlayer(state, "p1").battlefield).toHaveLength(0);
+        expect(getPlayer(state, "p1").graveyard).toHaveLength(1);
+    });
 });
