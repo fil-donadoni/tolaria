@@ -13,6 +13,10 @@ function makeCard(
     return {
         id: overrides.id ?? crypto.randomUUID(),
         card: cardData,
+        types: (cardData.types as string[]) ?? [],
+        subtypes: (cardData.subtypes as string[]) ?? [],
+        power: cardData.power as number | undefined,
+        toughness: cardData.toughness as number | undefined,
         controllerId: "p1",
         ownerId: "p1",
         zone: "hand",

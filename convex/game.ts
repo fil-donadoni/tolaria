@@ -64,13 +64,13 @@ function buildPlayerState(player: PlayerInput) {
                 id: def.id,
                 name: def.name,
                 manaCost: def.manaCost,
-                types: def.types,
-                subtypes: def.subtypes,
                 supertypes: def.supertypes,
-                power: def.power,
-                toughness: def.toughness,
                 loyalty: def.loyalty,
             },
+            types: def.types,
+            subtypes: def.subtypes ?? [],
+            power: def.power,
+            toughness: def.toughness,
             controllerId: player.id,
             ownerId: player.id,
             zone: "library" as const,
@@ -512,7 +512,7 @@ export const tapForPayment = mutation({
         if (!card) throw new Error("Card not on battlefield");
         if (card.isTapped) throw new Error("Card already tapped");
 
-        const types = (card.card as { types?: string[] }).types ?? [];
+        const types = card.types;
         if (!types.includes("Land")) {
             throw new Error("Only lands can be tapped for mana");
         }
@@ -702,12 +702,16 @@ export const selectTarget = mutation({
         }
 
         // Validate target is legal
-        const target = { type: args.targetType, id: args.targetId };
+        // TargetSelection uses "permanent" for all permanent types (creature, land, etc.)
+        const target: { type: "permanent" | "player"; id: string } = {
+            type: args.targetType === "player" ? "player" : "permanent",
+            id: args.targetId,
+        };
         if (args.targetType === "creature") {
             const found = state.players.some((p) =>
                 p.battlefield.some((c) => {
                     if (c.id !== args.targetId) return false;
-                    const types = (c.card as { types?: string[] }).types ?? [];
+                    const types = c.types;
                     return types.includes("Creature");
                 })
             );
@@ -719,7 +723,7 @@ export const selectTarget = mutation({
 
         // Check target type compatibility
         const pt = state.pendingTarget;
-        if (pt.targetType === "creature" && args.targetType !== "creature") {
+        if (pt.targetType === "Creature" && args.targetType !== "creature") {
             throw new Error("Must target a creature");
         }
         if (pt.targetType === "player" && args.targetType !== "player") {
@@ -860,7 +864,7 @@ export const toggleAttacker = mutation({
         );
         if (!card) throw new Error("Card not on battlefield");
 
-        const types = (card.card as { types?: string[] }).types ?? [];
+        const types = card.types;
         if (!types.includes("Creature")) {
             throw new Error("Only creatures can attack");
         }
@@ -990,7 +994,7 @@ export const selectBlocker = mutation({
                 (c) => c.id === args.cardInstanceId
             );
             if (!card) throw new Error("Card not on battlefield");
-            const types = (card.card as { types?: string[] }).types ?? [];
+            const types = card.types;
             if (!types.includes("Creature")) {
                 throw new Error("Only creatures can block");
             }
@@ -1139,10 +1143,7 @@ export const setDamageAssignment = mutation({
         );
         if (!attacker) throw new Error("Attacker not on battlefield");
 
-        const power = Math.max(
-            0,
-            (attacker.card as { power?: number }).power ?? 0
-        );
+        const power = Math.max(0, attacker.power ?? 0);
         const total = Object.values(assignments).reduce((sum, n) => sum + n, 0);
         if (total > power) {
             throw new Error(
@@ -1503,7 +1504,7 @@ export const tapUntap = mutation({
         );
         if (!card) throw new Error("Card not on battlefield");
 
-        const types = (card.card as { types?: string[] }).types ?? [];
+        const types = card.types;
         if (!types.includes("Land")) {
             throw new Error("Only lands can be tapped/untapped manually");
         }

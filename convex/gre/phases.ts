@@ -65,23 +65,12 @@ function getBlockersPerAttacker(state: GameState): Record<string, string[]> {
     return result;
 }
 
-function getCardPower(card: {
-    power?: number;
-    card: Record<string, unknown>;
-}): number {
-    return Math.max(
-        0,
-        card.power ?? (card.card as { power?: number }).power ?? 0
-    );
+function getCardPower(card: { power?: number }): number {
+    return Math.max(0, card.power ?? 0);
 }
 
-function getCardToughness(card: {
-    toughness?: number;
-    card: Record<string, unknown>;
-}): number {
-    return (
-        card.toughness ?? (card.card as { toughness?: number }).toughness ?? 0
-    );
+function getCardToughness(card: { toughness?: number }): number {
+    return card.toughness ?? 0;
 }
 
 /** Returns true if any attacker has 2+ blockers (needs manual damage assignment). */

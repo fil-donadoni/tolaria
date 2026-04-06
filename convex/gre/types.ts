@@ -6,6 +6,15 @@ export type Zone =
     | "exile"
     | "stack";
 
+export type CardAction =
+    | "play"
+    | "cast"
+    | "discard"
+    | "putToGraveyard"
+    | "putToExile"
+    | "putToLibrary"
+    | "putToHand";
+
 export type Phase =
     | "UNTAP"
     | "UPKEEP"

@@ -34,23 +34,30 @@ export type CardSupertype =
 
 // --- Targeting ---
 
-export type TargetType =
-    | "creature"
-    | "player"
-    | "land"
-    | "enchantment"
-    | "artifact"
-    | "permanent"
-    | "any";
-
 export interface TargetRequirement {
-    type: TargetType;
+    /** Card type(s) to target, or "player"/"any". */
+    type: CardType | "player" | "any" | (CardType | "player" | "any")[];
     count: number;
 }
 
 export interface TargetSelection {
-    type: "creature" | "player";
+    type: "permanent" | "player";
     id: string; // cardInstanceId or playerId
+}
+
+export interface ActivatedAbilityContext {
+    addMana: (cost: ManaCost) => void;
+}
+
+export interface ActivatedAbility {
+    id: string;
+    cost: {
+        tap?: boolean;
+        mana?: ManaCost;
+    };
+    effect: (ctx: ActivatedAbilityContext) => void;
+    /** Mana abilities don't use the stack — they resolve immediately (CR 605.3a). */
+    useStack: boolean;
 }
 
 // --- Spell resolution context ---
@@ -74,6 +81,7 @@ export interface SpellContext {
     getController: (target: TargetSelection) => string;
     destroy: (target: TargetSelection) => void;
     exile: (target: TargetSelection) => void;
+    destroyAll: (type?: CardType | CardType[]) => void;
 }
 
 /** Full card definition used by the GRE. */
@@ -92,7 +100,7 @@ export interface CardDefinition {
     /** Imperative resolve function — called when the spell resolves from the stack. */
     resolve?: (ctx: SpellContext) => void;
     staticAbilities?: string[];
-    activatedAbilities?: string[];
+    activatedAbilities?: ActivatedAbility[];
     triggeredAbilities?: string[];
     sbaMods?: string[];
 }

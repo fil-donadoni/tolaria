@@ -1,49 +1,36 @@
 import type {
-    Color,
+    CardType,
     SpellContext,
+    TargetRequirement,
     TargetSelection,
-    TargetType,
 } from "../cards/types";
 import { getCardById } from "../cards";
 import type { Phase, Zone } from "./types";
+import { getBasicLandMana, MANA_COLORS, PERMANENT_TYPES } from "./constants";
 
-/**
- * Intrinsic mana abilities for basic land subtypes (rule 305.6).
- * Any land with one of these subtypes has the corresponding mana ability.
- */
-const LAND_SUBTYPE_MANA: Record<string, Color> = {
-    Plains: "W",
-    Island: "U",
-    Swamp: "B",
-    Mountain: "R",
-    Forest: "G",
-};
-
-/** Returns the mana color a land produces via basic land subtype, or null. */
-export function getBasicLandMana(card: CardInstanceState): Color | null {
-    const subtypes = (card.card as { subtypes?: string[] }).subtypes ?? [];
-    for (const subtype of subtypes) {
-        const color = LAND_SUBTYPE_MANA[subtype];
-        if (color) return color;
-    }
-    return null;
-}
+// Re-export for consumers that imported from here previously
+export { getBasicLandMana } from "./constants";
 
 export type CardInstanceState = {
     id: string;
+    /** Immutable reference to the original card definition. */
     card: Record<string, unknown>;
     controllerId: string;
     ownerId: string;
     zone: Zone;
+    /** Mutable types — initialized from card definition, can be modified by effects. */
+    types: CardType[];
+    /** Mutable subtypes — initialized from card definition, can be modified by effects. */
+    subtypes: string[];
+    /** Mutable power — initialized from card definition for creatures. */
+    power?: number;
+    /** Mutable toughness — initialized from card definition for creatures. */
+    toughness?: number;
     isTapped: boolean;
     /** Set when this land's mana has been consumed by a spell. Cannot be manually untapped. Resets at untap step. */
     manaCommitted?: boolean;
     /** Set when a creature enters the battlefield. Cleared at untap step. Prevents attacking. */
     isSummoningSick?: boolean;
-    /** Creature instance power (initialized from card definition, tracks modifications). */
-    power?: number;
-    /** Creature instance toughness (initialized from card definition, tracks modifications). */
-    toughness?: number;
     /** Set during combat when this creature is declared as attacker. Cleared at END_OF_COMBAT. */
     isAttacking?: boolean;
     /** Set during combat when this creature is declared as blocker. Cleared at END_OF_COMBAT. */
@@ -83,8 +70,8 @@ export type PendingCast = {
 export type PendingTarget = {
     playerId: string;
     cardInstanceId: string;
-    /** What kind of targets are needed. */
-    targetType: TargetType;
+    /** What kind of targets are needed (matches TargetRequirement.type). */
+    targetType: TargetRequirement["type"];
     /** How many targets still needed. */
     count: number;
     /** Targets already selected. */
@@ -122,21 +109,14 @@ export type GameState = {
     };
 };
 
-const PERMANENT_TYPES = [
-    "Creature",
-    "Artifact",
-    "Enchantment",
-    "Planeswalker",
-    "Battle",
-];
-
 /** Resolves the top item of the stack (CR 608.3). Returns the resolved item. */
 export function resolveTopOfStack(state: GameState): StackItem {
     const item = state.stack.pop();
     if (!item) throw new Error("Stack is empty");
 
-    const types = (item.card as { types?: string[] }).types ?? [];
-    const isPermanent = types.some((t) => PERMANENT_TYPES.includes(t));
+    const isPermanent = item.types.some((t) =>
+        PERMANENT_TYPES.includes(t as (typeof PERMANENT_TYPES)[number])
+    );
 
     // Execute spell effects before moving to destination zone (CR 608.2b)
     const cardId = (item.card as { id?: string }).id;
@@ -154,14 +134,8 @@ export function resolveTopOfStack(state: GameState): StackItem {
         // Permanent spells enter the battlefield (CR 608.3)
         item.zone = "battlefield";
         item.isTapped = false;
-        if (types.includes("Creature")) {
+        if (item.types.includes("Creature")) {
             item.isSummoningSick = true;
-            const cardData = item.card as {
-                power?: number;
-                toughness?: number;
-            };
-            item.power = cardData.power ?? 0;
-            item.toughness = cardData.toughness ?? 0;
         }
         controller.battlefield.push(item);
     } else {
@@ -202,7 +176,7 @@ function removePermanentTo(
 
 /** Builds a SpellContext with primitives bound to the current game state. */
 function buildSpellContext(state: GameState, item: StackItem): SpellContext {
-    function requireCreature(target: TargetSelection): CardInstanceState {
+    function requirePermanent(target: TargetSelection): CardInstanceState {
         const found = findOnBattlefield(state, target.id);
         if (!found) throw new Error(`Creature ${target.id} not on battlefield`);
         return found.card;
@@ -235,26 +209,26 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             return getPlayer(state, playerId).life;
         },
         getPower(target: TargetSelection): number {
-            if (target.type !== "creature") return 0;
+            if (target.type === "player") return 0;
             return findOnBattlefield(state, target.id)?.card.power ?? 0;
         },
         getToughness(target: TargetSelection): number {
-            if (target.type !== "creature") return 0;
+            if (target.type === "player") return 0;
             return findOnBattlefield(state, target.id)?.card.toughness ?? 0;
         },
         modifyPower(target: TargetSelection, amount: number): void {
-            if (target.type !== "creature") return;
-            const card = requireCreature(target);
+            if (target.type === "player") return;
+            const card = requirePermanent(target);
             card.power = (card.power ?? 0) + amount;
         },
         modifyToughness(target: TargetSelection, amount: number): void {
-            if (target.type !== "creature") return;
-            const card = requireCreature(target);
+            if (target.type === "player") return;
+            const card = requirePermanent(target);
             card.toughness = (card.toughness ?? 0) + amount;
         },
         getController(target: TargetSelection): string {
             if (target.type === "player") return target.id;
-            return requireCreature(target).controllerId;
+            return requirePermanent(target).controllerId;
         },
         destroy(target: TargetSelection): void {
             if (target.type === "player")
@@ -265,6 +239,23 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (target.type === "player")
                 throw new Error("Cannot exile a player");
             removePermanentTo(state, target.id, "exile");
+        },
+        destroyAll(type?: CardType | CardType[]): void {
+            const types = type
+                ? Array.isArray(type)
+                    ? type
+                    : [type]
+                : undefined;
+            for (const player of state.players) {
+                const toDestroy = types
+                    ? player.battlefield.filter((c) =>
+                          types.some((t) => c.types.includes(t))
+                      )
+                    : [...player.battlefield];
+                for (const card of toDestroy) {
+                    removePermanentTo(state, card.id, "graveyard");
+                }
+            }
         },
     };
 }
@@ -333,8 +324,6 @@ export function removeFromZone(
 }
 
 type ManaCost = Record<string, number | string | undefined>;
-
-const MANA_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
 
 /** Checks if a player can pay a mana cost. Returns null if yes, or a description of what's missing. */
 export function checkManaCost(

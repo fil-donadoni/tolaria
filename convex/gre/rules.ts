@@ -1,15 +1,7 @@
 import type { TargetRequirement, TargetSelection } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
+import type { CardAction } from "./types";
 import { isSorceryTiming } from "./phases";
-
-export type CardAction =
-    | "play"
-    | "cast"
-    | "discard"
-    | "putToGraveyard"
-    | "putToExile"
-    | "putToLibrary"
-    | "putToHand";
 
 const ALL_HAND_ACTIONS: CardAction[] = [
     "play",
@@ -21,7 +13,7 @@ const ALL_HAND_ACTIONS: CardAction[] = [
 ];
 
 function hasInstantTiming(card: CardInstanceState): boolean {
-    const types = (card.card as { types?: string[] }).types ?? [];
+    const types = card.types;
     if (types.includes("Instant")) return true;
     // TODO: check for Flash keyword
     return false;
@@ -39,7 +31,7 @@ export function getLegalActions(
     }
 
     const actions: CardAction[] = [];
-    const types = (card.card as { types?: string[] }).types ?? [];
+    const types = card.types;
 
     // "Play" is for lands only — requires sorcery timing (main phase, empty stack, active player)
     if (types.includes("Land")) {
@@ -69,18 +61,30 @@ export function getLegalTargets(
 ): TargetSelection[] {
     const targets: TargetSelection[] = [];
 
-    if (requirement.type === "creature" || requirement.type === "any") {
+    const reqTypes = Array.isArray(requirement.type)
+        ? requirement.type
+        : [requirement.type];
+
+    // Check for permanent-targeting types (CardType values)
+    const wantsAny = reqTypes.includes("any");
+    const permanentTypes = reqTypes.filter(
+        (t) => t !== "player" && t !== "any"
+    );
+
+    if (wantsAny || permanentTypes.length > 0) {
         for (const player of state.players) {
             for (const card of player.battlefield) {
-                const types = (card.card as { types?: string[] }).types ?? [];
-                if (types.includes("Creature")) {
-                    targets.push({ type: "creature", id: card.id });
+                if (
+                    wantsAny ||
+                    permanentTypes.some((t) => card.types.includes(t as never))
+                ) {
+                    targets.push({ type: "permanent", id: card.id });
                 }
             }
         }
     }
 
-    if (requirement.type === "player" || requirement.type === "any") {
+    if (wantsAny || reqTypes.includes("player")) {
         for (const player of state.players) {
             targets.push({ type: "player", id: player.id });
         }

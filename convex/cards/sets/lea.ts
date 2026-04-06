@@ -1,4 +1,8 @@
-import type { CardDefinition, SpellContext } from "../types";
+import type {
+    ActivatedAbilityContext,
+    CardDefinition,
+    SpellContext,
+} from "../types";
 
 export const animateWall: CardDefinition = {
     id: "d5c83259-9b90-47c2-b48e-c7d78519e792",
@@ -13,6 +17,9 @@ export const armageddon: CardDefinition = {
     name: "Armageddon",
     manaCost: { X: 3, W: 1 },
     types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        ctx.destroyAll("Land");
+    },
 };
 
 export const balance: CardDefinition = {
@@ -132,6 +139,10 @@ export const disenchant: CardDefinition = {
     name: "Disenchant",
     manaCost: { X: 1, W: 1 },
     types: ["Instant"],
+    targetRequirement: { type: ["Artifact", "Enchantment"], count: 1 },
+    resolve: (ctx: SpellContext) => {
+        ctx.destroy(ctx.targets[0]);
+    },
 };
 
 export const farmstead: CardDefinition = {
@@ -313,7 +324,7 @@ export const swordsToPlowshares: CardDefinition = {
     name: "Swords to Plowshares",
     manaCost: { W: 1 },
     types: ["Instant"],
-    targetRequirement: { type: "creature", count: 1 },
+    targetRequirement: { type: "Creature", count: 1 },
     resolve: (ctx: SpellContext) => {
         const power = ctx.getPower(ctx.targets[0]);
         const controller = ctx.getController(ctx.targets[0]);
@@ -365,6 +376,9 @@ export const wrathOfGod: CardDefinition = {
     name: "Wrath of God",
     manaCost: { X: 2, W: 2 },
     types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        ctx.destroyAll("Creature");
+    },
 };
 
 export const airElemental: CardDefinition = {
@@ -1636,7 +1650,7 @@ export const giantGrowth: CardDefinition = {
     name: "Giant Growth",
     manaCost: { G: 1 },
     types: ["Instant"],
-    targetRequirement: { type: "creature", count: 1 },
+    targetRequirement: { type: "Creature", count: 1 },
     resolve: (ctx: SpellContext) => {
         ctx.modifyPower(ctx.targets[0], 3);
         ctx.modifyToughness(ctx.targets[0], 3);
@@ -1929,6 +1943,16 @@ export const basaltMonolith: CardDefinition = {
     name: "Basalt Monolith",
     manaCost: { X: 3 },
     types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "basalt-monolith-mana",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ C: 3 });
+            },
+            useStack: false,
+        },
+    ],
 };
 
 export const blackLotus: CardDefinition = {

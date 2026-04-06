@@ -17,9 +17,18 @@ function makeCard(
         card?: Record<string, unknown>;
     } = {}
 ): CardInstanceState {
+    const card = overrides.card ?? { name: "Test Card", types: ["Creature"] };
     return {
         id: overrides.id ?? crypto.randomUUID(),
-        card: overrides.card ?? { name: "Test Card", types: ["Creature"] },
+        card,
+        types: (overrides.types as string[]) ?? (card.types as string[]) ?? [],
+        subtypes:
+            (overrides.subtypes as string[]) ??
+            (card.subtypes as string[]) ??
+            [],
+        power: overrides.power ?? (card.power as number | undefined),
+        toughness:
+            overrides.toughness ?? (card.toughness as number | undefined),
         controllerId: "p1",
         ownerId: "p1",
         zone: "battlefield",
@@ -573,6 +582,10 @@ function makeStackItem(
     return {
         id: overrides.id ?? crypto.randomUUID(),
         card: cardData,
+        types: (cardData.types as string[]) ?? [],
+        subtypes: (cardData.subtypes as string[]) ?? [],
+        power: cardData.power as number | undefined,
+        toughness: cardData.toughness as number | undefined,
         controllerId: castById,
         ownerId: castById,
         zone: "stack",
