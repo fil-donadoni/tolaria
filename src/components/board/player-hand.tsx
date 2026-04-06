@@ -1,6 +1,10 @@
 import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
-import { getFanStyle, fanCardClassName } from "~/lib/card-layout";
+import {
+    getFanStyle,
+    fanCardClassName,
+    fanCardOpponentClassName,
+} from "~/lib/card-layout";
 import SelectableCard from "../cards/selectable-card";
 import CardBack from "../cards/card-back";
 
@@ -15,12 +19,19 @@ export default function PlayerHand({ player }: HandProps) {
 
     const cardsInHand = player.hand.map(
         (cardInstance: CardInstance, cardIndex) => {
-            const style = getFanStyle(cardIndex, player.hand.length);
+            const isOpponent = !isMe;
+            const style = getFanStyle(
+                cardIndex,
+                player.hand.length,
+                isOpponent
+            );
 
             return (
                 <div
                     key={cardInstance.id}
-                    className={fanCardClassName}
+                    className={
+                        isOpponent ? fanCardOpponentClassName : fanCardClassName
+                    }
                     style={style}
                 >
                     {canSeeCards ? (

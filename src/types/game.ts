@@ -46,7 +46,14 @@ export interface CardInstance {
     zone: Zone;
     isTapped: boolean;
     manaCommitted?: boolean;
+    isSummoningSick?: boolean;
+    isAttacking?: boolean;
     legalActions?: CardAction[];
+}
+
+export interface Combat {
+    attackerIds: string[];
+    confirmed: boolean;
 }
 
 export type Zone =

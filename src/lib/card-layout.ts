@@ -1,10 +1,14 @@
 /** Computes fan-style rotation and offset for a card at a given index in a hand. */
-export function getFanStyle(cardIndex: number, totalCards: number) {
+export function getFanStyle(
+    cardIndex: number,
+    totalCards: number,
+    isOpponent = false
+) {
     const centerIndex = (totalCards - 1) / 2;
     const distanceFromCenter = cardIndex - centerIndex;
 
     const rotation = distanceFromCenter * 4;
-    const marginTop = Math.abs(distanceFromCenter) * 8;
+    const marginTop = Math.abs(distanceFromCenter) * (isOpponent ? 4 : 8);
 
     return {
         transform: `rotate(${rotation}deg)`,
@@ -14,9 +18,13 @@ export function getFanStyle(cardIndex: number, totalCards: number) {
     };
 }
 
-/** Shared className for cards in a fan layout. */
+/** ClassName for cards in the player's fan layout. */
 export const fanCardClassName =
     "w-32 mb-2 transition-all hover:-translate-y-4 hover:z-10";
+
+/** ClassName for cards in the opponent's fan layout. */
+export const fanCardOpponentClassName =
+    "w-24 mb-2 transition-all hover:-translate-y-4 hover:z-10";
 
 const CARD_WIDTH_PX = 128; // w-32
 const OVERLAP_PX = 48; // 3rem

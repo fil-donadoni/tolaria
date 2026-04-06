@@ -32,6 +32,10 @@ export type CardInstanceState = {
     isTapped: boolean;
     /** Set when this land's mana has been consumed by a spell. Cannot be manually untapped. Resets at untap step. */
     manaCommitted?: boolean;
+    /** Set when a creature enters the battlefield. Cleared at untap step. Prevents attacking. */
+    isSummoningSick?: boolean;
+    /** Set during combat when this creature is declared as attacker. Cleared at END_OF_COMBAT. */
+    isAttacking?: boolean;
 };
 
 export type PlayerState = {
@@ -74,6 +78,11 @@ export type GameState = {
     pendingCast?: PendingCast;
     /** Player IDs that auto-pass priority for the rest of this turn. Resets on new turn. */
     autoPassPlayers?: string[];
+    /** Active combat state. Set at DECLARE_ATTACKERS, cleared at END_OF_COMBAT. */
+    combat?: {
+        attackerIds: string[];
+        confirmed: boolean;
+    };
 };
 
 const PERMANENT_TYPES = [
@@ -98,6 +107,9 @@ export function resolveTopOfStack(state: GameState): StackItem {
         // Permanent spells enter the battlefield (CR 608.3)
         item.zone = "battlefield";
         item.isTapped = false;
+        if (types.includes("Creature")) {
+            item.isSummoningSick = true;
+        }
         controller.battlefield.push(item);
     } else {
         // Instant/Sorcery go to owner's graveyard (CR 608.2k)

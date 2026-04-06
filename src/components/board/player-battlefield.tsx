@@ -49,15 +49,27 @@ function groupByName(cards: CardInstance[]): CardInstance[][] {
 }
 
 export default function PlayerBattlefield({ player }: BattlefieldProps) {
-    const { gameId, playerId, pendingCast } = useGameContext();
+    const { gameId, playerId, activePlayerId, phase, pendingCast, combat } =
+        useGameContext();
     const isMe = player.id === playerId;
     const tapUntap = useMutation(api.game.tapUntap);
     const tapForPayment = useMutation(api.game.tapForPayment);
     const untapForPayment = useMutation(api.game.untapForPayment);
     const cancelCast = useMutation(api.game.cancelCast);
+    const toggleAttacker = useMutation(api.game.toggleAttacker);
+    const confirmAttackersMut = useMutation(api.game.confirmAttackers);
 
     const isPayingCast =
         isMe && !!pendingCast && pendingCast.playerId === playerId;
+
+    const isSelectingAttackers =
+        phase === "DECLARE_ATTACKERS" &&
+        !!combat &&
+        !combat.confirmed &&
+        isMe &&
+        playerId === activePlayerId;
+
+    const selectedAttackerIds = combat?.attackerIds ?? [];
 
     const creatures = player.battlefield.filter(isCreature);
     const lands = player.battlefield.filter((c) => isLand(c) && !isCreature(c));
@@ -67,6 +79,15 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
 
     function handleClick(cardInstance: CardInstance) {
         if (!canInteract(cardInstance)) return;
+
+        if (isSelectingAttackers && isCreature(cardInstance)) {
+            toggleAttacker({
+                gameId,
+                playerId,
+                cardInstanceId: cardInstance.id,
+            });
+            return;
+        }
 
         if (isPayingCast) {
             if (cardInstance.isTapped) {
@@ -88,6 +109,14 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
     }
 
     function canInteract(cardInstance: CardInstance): boolean {
+        // During attacker selection, creatures are interactive
+        if (isSelectingAttackers && isCreature(cardInstance)) {
+            // Already selected → can always deselect
+            if (selectedAttackerIds.includes(cardInstance.id)) return true;
+            // Eligible to select: untapped and not summoning sick
+            return !cardInstance.isTapped && !cardInstance.isSummoningSick;
+        }
+
         if (!isMe || !isLand(cardInstance)) return false;
         if (isPayingCast) {
             if (cardInstance.isTapped) {
@@ -103,15 +132,51 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
         return true;
     }
 
+    function getAttackingOffset(cardInstance: CardInstance): string {
+        // During selection: show translate for selected creatures
+        if (
+            combat &&
+            !combat.confirmed &&
+            selectedAttackerIds.includes(cardInstance.id)
+        ) {
+            return isMe ? "-translate-y-8" : "translate-y-8";
+        }
+        // After confirmation: show translate for attacking creatures
+        if (cardInstance.isAttacking) {
+            return isMe ? "-translate-y-8" : "translate-y-8";
+        }
+        return "";
+    }
+
     function renderCard(cardInstance: CardInstance) {
-        const interactive = isMe && isLand(cardInstance);
+        const isLandCard = isLand(cardInstance);
+        const isCreatureCard = isCreature(cardInstance);
+        const interactive =
+            isMe && (isLandCard || (isSelectingAttackers && isCreatureCard));
         const enabled = canInteract(cardInstance);
+        const attackOffset = getAttackingOffset(cardInstance);
+        const dimmedSick =
+            isSelectingAttackers &&
+            isCreatureCard &&
+            !selectedAttackerIds.includes(cardInstance.id) &&
+            (cardInstance.isTapped || cardInstance.isSummoningSick);
+
         return (
             <div
                 key={cardInstance.id}
                 className={`w-32 transition-transform duration-150 ${
                     cardInstance.isTapped ? "rotate-90" : ""
-                } ${interactive ? (enabled ? "cursor-pointer" : "cursor-not-allowed opacity-60") : ""}`}
+                } ${attackOffset} ${
+                    interactive
+                        ? enabled
+                            ? "cursor-pointer"
+                            : "cursor-not-allowed opacity-60"
+                        : ""
+                } ${dimmedSick ? "opacity-40" : ""} ${
+                    selectedAttackerIds.includes(cardInstance.id)
+                        ? "ring-2 ring-red-500 rounded-lg"
+                        : ""
+                }`}
                 onClick={() => handleClick(cardInstance)}
             >
                 <CardImage card={cardInstance.card} />
@@ -135,14 +200,36 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
                 style={{ width: `calc(8rem * ${overlapWidth})` }}
             >
                 {group.map((card, i) => {
-                    const interactive = isMe && isLand(card);
+                    const isLandCard = isLand(card);
+                    const isCreatureCard = isCreature(card);
+                    const interactive =
+                        isMe &&
+                        (isLandCard ||
+                            (isSelectingAttackers && isCreatureCard));
                     const enabled = canInteract(card);
+                    const attackOffset = getAttackingOffset(card);
+                    const dimmedSick =
+                        isSelectingAttackers &&
+                        isCreatureCard &&
+                        !selectedAttackerIds.includes(card.id) &&
+                        (card.isTapped || card.isSummoningSick);
+
                     return (
                         <div
                             key={card.id}
                             className={`transition-transform duration-150 ${
                                 card.isTapped ? "rotate-90" : ""
-                            } ${interactive ? (enabled ? "cursor-pointer" : "cursor-not-allowed opacity-60") : ""}`}
+                            } ${attackOffset} ${
+                                interactive
+                                    ? enabled
+                                        ? "cursor-pointer"
+                                        : "cursor-not-allowed opacity-60"
+                                    : ""
+                            } ${dimmedSick ? "opacity-40" : ""} ${
+                                selectedAttackerIds.includes(card.id)
+                                    ? "ring-2 ring-red-500 rounded-lg"
+                                    : ""
+                            }`}
                             style={{
                                 width: "8rem",
                                 flexShrink: 0,
@@ -203,6 +290,20 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
                         className="bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-1 rounded-lg text-sm transition-colors"
                     >
                         Cancel Cast
+                    </button>
+                </div>
+            )}
+            {isSelectingAttackers && (
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-40">
+                    <button
+                        onClick={() =>
+                            confirmAttackersMut({ gameId, playerId })
+                        }
+                        className="bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-1 rounded-lg text-sm transition-colors"
+                    >
+                        {selectedAttackerIds.length > 0
+                            ? `Confirm Attackers (${selectedAttackerIds.length})`
+                            : "Skip Attack"}
                     </button>
                 </div>
             )}

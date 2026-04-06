@@ -90,22 +90,41 @@ describe("advancePhase", () => {
             expect(state.phase).toBe("DECLARE_ATTACKERS");
         });
 
-        it("DECLARE_ATTACKERS → DECLARE_BLOCKERS", () => {
+        it("DECLARE_ATTACKERS → POSTCOMBAT_MAIN (no attackers: skips BLOCKERS, DAMAGE, END)", () => {
             const state = makeGameState({ phase: "DECLARE_ATTACKERS" });
             advancePhase(state);
-            expect(state.phase).toBe("DECLARE_BLOCKERS");
+            expect(state.phase).toBe("POSTCOMBAT_MAIN");
         });
 
-        it("DECLARE_BLOCKERS → COMBAT_DAMAGE", () => {
-            const state = makeGameState({ phase: "DECLARE_BLOCKERS" });
+        it("DECLARE_ATTACKERS → COMBAT_DAMAGE (with attackers)", () => {
+            const state = makeGameState({
+                phase: "DECLARE_ATTACKERS",
+                combat: { attackerIds: ["c1"], confirmed: true },
+            });
+            // DECLARE_BLOCKERS is auto-phase, skips to COMBAT_DAMAGE
             advancePhase(state);
             expect(state.phase).toBe("COMBAT_DAMAGE");
         });
 
-        it("COMBAT_DAMAGE → END_OF_COMBAT", () => {
-            const state = makeGameState({ phase: "COMBAT_DAMAGE" });
+        it("DECLARE_BLOCKERS → POSTCOMBAT_MAIN (no attackers)", () => {
+            const state = makeGameState({ phase: "DECLARE_BLOCKERS" });
+            advancePhase(state);
+            expect(state.phase).toBe("POSTCOMBAT_MAIN");
+        });
+
+        it("COMBAT_DAMAGE → END_OF_COMBAT (with attackers)", () => {
+            const state = makeGameState({
+                phase: "COMBAT_DAMAGE",
+                combat: { attackerIds: ["c1"], confirmed: true },
+            });
             advancePhase(state);
             expect(state.phase).toBe("END_OF_COMBAT");
+        });
+
+        it("COMBAT_DAMAGE → POSTCOMBAT_MAIN (no attackers)", () => {
+            const state = makeGameState({ phase: "COMBAT_DAMAGE" });
+            advancePhase(state);
+            expect(state.phase).toBe("POSTCOMBAT_MAIN");
         });
 
         it("END_OF_COMBAT → POSTCOMBAT_MAIN", () => {
@@ -432,15 +451,13 @@ describe("advancePhase", () => {
                 if (state.phase === "UPKEEP" && state.turn === 3) break;
             }
 
+            // No attackers → DECLARE_BLOCKERS/COMBAT_DAMAGE/END_OF_COMBAT are skipped
             expect(phases).toEqual([
                 "UPKEEP",
                 "DRAW",
                 "PRECOMBAT_MAIN",
                 "BEGINNING_OF_COMBAT",
                 "DECLARE_ATTACKERS",
-                "DECLARE_BLOCKERS",
-                "COMBAT_DAMAGE",
-                "END_OF_COMBAT",
                 "POSTCOMBAT_MAIN",
                 "END_STEP",
             ]);

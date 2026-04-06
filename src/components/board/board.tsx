@@ -1,7 +1,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import type { PendingCast, Player, StackItem } from "~/types/game";
+import type { Combat, PendingCast, Player, StackItem } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import PlayerBoard from "./player-board";
 import GameStack from "./game-stack";
@@ -44,6 +44,7 @@ export default function Board({
         .pendingCast;
     const autoPassPlayers = (state as unknown as { autoPassPlayers?: string[] })
         .autoPassPlayers;
+    const combat = (state as unknown as { combat?: Combat }).combat;
 
     // Opponent on top, local player on bottom
     const opponent = allPlayers.find((p) => p.id !== playerId);
@@ -61,6 +62,7 @@ export default function Board({
                 turn,
                 pendingCast,
                 autoPassPlayers,
+                combat,
                 showAllCards,
                 debugAllActions,
             }}

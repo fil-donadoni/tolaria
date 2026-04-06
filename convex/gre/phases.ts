@@ -19,7 +19,7 @@ const PHASE_ORDER: Phase[] = [
 ];
 
 /** Phases where no player receives priority (automatic). */
-const AUTO_PHASES = new Set<Phase>(["UNTAP", "CLEANUP"]);
+const AUTO_PHASES = new Set<Phase>(["UNTAP", "DECLARE_BLOCKERS", "CLEANUP"]);
 
 /** Returns the next phase after the given one, or null if end of turn (CLEANUP). */
 function nextPhase(current: Phase): Phase | null {
@@ -35,6 +35,7 @@ function untapStep(state: GameState): void {
     for (const card of player.battlefield) {
         card.isTapped = false;
         card.manaCommitted = undefined;
+        card.isSummoningSick = undefined;
     }
     for (const color of Object.keys(player.manaPool)) {
         player.manaPool[color] = 0;
@@ -60,6 +61,40 @@ function performPhaseEntry(state: GameState): void {
         case "DRAW":
             drawStep(state);
             break;
+        case "DECLARE_ATTACKERS":
+            state.combat = { attackerIds: [], confirmed: false };
+            break;
+        case "COMBAT_DAMAGE": {
+            if (state.combat && state.combat.attackerIds.length > 0) {
+                const activePlayer = getPlayer(state, state.activePlayerId);
+                const defenderId = getOpponentId(state, state.activePlayerId);
+                const defender = getPlayer(state, defenderId);
+
+                let totalDamage = 0;
+                for (const attackerId of state.combat.attackerIds) {
+                    const attacker = activePlayer.battlefield.find(
+                        (c) => c.id === attackerId
+                    );
+                    if (attacker) {
+                        const power =
+                            (attacker.card as { power?: number }).power ?? 0;
+                        totalDamage += Math.max(0, power);
+                    }
+                }
+                defender.life -= totalDamage;
+            }
+            break;
+        }
+        case "END_OF_COMBAT": {
+            if (state.combat) {
+                const activePlayer = getPlayer(state, state.activePlayerId);
+                for (const card of activePlayer.battlefield) {
+                    card.isAttacking = undefined;
+                }
+                state.combat = undefined;
+            }
+            break;
+        }
         case "CLEANUP":
             // No-op for now (hand size check, "until end of turn" effects are future work)
             break;
@@ -93,10 +128,17 @@ export function advancePhase(state: GameState): Phase[] {
     }
 
     traversed.push(state.phase);
+
+    // Check combat state before entry actions (END_OF_COMBAT clears it)
+    const hadAttackers = !!state.combat && state.combat.attackerIds.length > 0;
     performPhaseEntry(state);
 
-    if (AUTO_PHASES.has(state.phase)) {
-        // Auto-phase: skip straight through (no priority given)
+    const skipEmptyCombat =
+        (state.phase === "COMBAT_DAMAGE" || state.phase === "END_OF_COMBAT") &&
+        !hadAttackers;
+
+    if (AUTO_PHASES.has(state.phase) || skipEmptyCombat) {
+        // Auto-phase or empty combat: skip straight through (no priority given)
         traversed.push(...advancePhase(state));
     } else {
         // Priority phase: active player gets priority
@@ -118,6 +160,25 @@ export function drainAutoPasses(state: GameState): void {
     for (let i = 0; i < maxIterations; i++) {
         const autoPass = state.autoPassPlayers ?? [];
         if (!autoPass.includes(state.priorityPlayerId)) break;
+
+        // Auto-confirm attackers with current selection when auto-passing
+        if (
+            state.phase === "DECLARE_ATTACKERS" &&
+            state.combat &&
+            !state.combat.confirmed
+        ) {
+            const activePlayer = getPlayer(state, state.activePlayerId);
+            for (const attackerId of state.combat.attackerIds) {
+                const card = activePlayer.battlefield.find(
+                    (c) => c.id === attackerId
+                );
+                if (card) {
+                    card.isTapped = true;
+                    card.isAttacking = true;
+                }
+            }
+            state.combat.confirmed = true;
+        }
 
         state.passCount += 1;
 

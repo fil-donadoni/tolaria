@@ -623,6 +623,122 @@ export const cancelCast = mutation({
     },
 });
 
+/** Toggle a creature in/out of the attacker selection (visible to both clients in real-time). */
+export const toggleAttacker = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+
+        if (state.phase !== "DECLARE_ATTACKERS") {
+            throw new Error("Not in DECLARE_ATTACKERS phase");
+        }
+        if (args.playerId !== state.activePlayerId) {
+            throw new Error("Only the active player can declare attackers");
+        }
+        if (!state.combat || state.combat.confirmed) {
+            throw new Error("Attacker selection is not open");
+        }
+
+        const player = getPlayer(state, args.playerId);
+        const card = player.battlefield.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!card) throw new Error("Card not on battlefield");
+
+        const types = (card.card as { types?: string[] }).types ?? [];
+        if (!types.includes("Creature")) {
+            throw new Error("Only creatures can attack");
+        }
+
+        const idx = state.combat.attackerIds.indexOf(args.cardInstanceId);
+        if (idx !== -1) {
+            // Deselect
+            state.combat.attackerIds.splice(idx, 1);
+        } else {
+            // Select — must be eligible
+            if (card.isTapped)
+                throw new Error("Tapped creatures cannot attack");
+            if (card.isSummoningSick) {
+                throw new Error("Creature has summoning sickness");
+            }
+            state.combat.attackerIds.push(args.cardInstanceId);
+        }
+
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            state,
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+/** Lock in the attacker selection, tap attackers, and pass priority. */
+export const confirmAttackers = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+
+        if (state.phase !== "DECLARE_ATTACKERS") {
+            throw new Error("Not in DECLARE_ATTACKERS phase");
+        }
+        if (args.playerId !== state.activePlayerId) {
+            throw new Error("Only the active player can confirm attackers");
+        }
+        if (!state.combat || state.combat.confirmed) {
+            throw new Error("Attacker selection is not open");
+        }
+
+        const player = getPlayer(state, args.playerId);
+
+        // Tap and mark each attacker
+        for (const attackerId of state.combat.attackerIds) {
+            const card = player.battlefield.find((c) => c.id === attackerId);
+            if (card) {
+                card.isTapped = true;
+                card.isAttacking = true;
+            }
+        }
+
+        state.combat.confirmed = true;
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+        drainAutoPasses(state);
+
+        const now = Date.now();
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            state,
+            updatedAt: now,
+        });
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            type: "ATTACKERS_DECLARED",
+            player: args.playerId,
+            payload: {
+                attackerIds: state.combat.attackerIds,
+            },
+            timestamp: now,
+        });
+    },
+});
+
 export const passPriority = mutation({
     args: {
         gameId: v.id("games"),
@@ -636,6 +752,15 @@ export const passPriority = mutation({
 
         if (state.priorityPlayerId !== args.playerId) {
             throw new Error("You don't have priority");
+        }
+
+        // Cannot pass priority before confirming attackers
+        if (
+            state.phase === "DECLARE_ATTACKERS" &&
+            state.combat &&
+            !state.combat.confirmed
+        ) {
+            throw new Error("Must declare attackers before passing priority");
         }
 
         state.passCount += 1;

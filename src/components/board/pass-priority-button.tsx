@@ -4,12 +4,27 @@ import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
 
 export default function PassPriorityButton() {
-    const { gameId, playerId, priorityPlayerId, pendingCast, autoPassPlayers } =
-        useGameContext();
+    const {
+        gameId,
+        playerId,
+        activePlayerId,
+        priorityPlayerId,
+        phase,
+        pendingCast,
+        autoPassPlayers,
+        combat,
+    } = useGameContext();
     const passPriority = useMutation(api.game.passPriority);
     const endTurn = useMutation(api.game.endTurn);
 
-    const hasPriority = playerId === priorityPlayerId && !pendingCast;
+    const isSelectingAttackers =
+        phase === "DECLARE_ATTACKERS" &&
+        !!combat &&
+        !combat.confirmed &&
+        playerId === activePlayerId;
+
+    const hasPriority =
+        playerId === priorityPlayerId && !pendingCast && !isSelectingAttackers;
     const isAutoPass = autoPassPlayers?.includes(playerId) ?? false;
 
     const handlePass = () => {
