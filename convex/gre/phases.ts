@@ -19,7 +19,7 @@ const PHASE_ORDER: Phase[] = [
 ];
 
 /** Phases where no player receives priority (automatic). */
-const AUTO_PHASES = new Set<Phase>(["UNTAP", "DECLARE_BLOCKERS", "CLEANUP"]);
+const AUTO_PHASES = new Set<Phase>(["UNTAP", "CLEANUP"]);
 
 /** Returns the next phase after the given one, or null if end of turn (CLEANUP). */
 function nextPhase(current: Phase): Phase | null {
@@ -52,6 +52,169 @@ function drawStep(state: GameState): void {
     moveCard(player, player.library[0].id, "library", "hand");
 }
 
+/** Inverts blockerAssignments (blockerId→attackerId) to attackerId→blockerId[]. */
+function getBlockersPerAttacker(state: GameState): Record<string, string[]> {
+    const result: Record<string, string[]> = {};
+    if (!state.combat) return result;
+    for (const [blockerId, attackerId] of Object.entries(
+        state.combat.blockerAssignments
+    )) {
+        if (!result[attackerId]) result[attackerId] = [];
+        result[attackerId].push(blockerId);
+    }
+    return result;
+}
+
+function getCardPower(card: { card: Record<string, unknown> }): number {
+    return Math.max(0, (card.card as { power?: number }).power ?? 0);
+}
+
+function getCardToughness(card: { card: Record<string, unknown> }): number {
+    return (card.card as { toughness?: number }).toughness ?? 0;
+}
+
+/** Returns true if any attacker has 2+ blockers (needs manual damage assignment). */
+function combatDamageNeedsManual(state: GameState): boolean {
+    const blockersPerAttacker = getBlockersPerAttacker(state);
+    for (const blockerIds of Object.values(blockersPerAttacker)) {
+        if (blockerIds.length >= 2) return true;
+    }
+    return false;
+}
+
+/** Build auto damage assignments for attackers with 0 or 1 blocker. */
+function buildAutoDamageAssignments(
+    state: GameState
+): Record<string, Record<string, number>> {
+    const blockersPerAttacker = getBlockersPerAttacker(state);
+    const activePlayer = getPlayer(state, state.activePlayerId);
+    const result: Record<string, Record<string, number>> = {};
+
+    for (const attackerId of state.combat!.attackerIds) {
+        const attacker = activePlayer.battlefield.find(
+            (c) => c.id === attackerId
+        );
+        if (!attacker) continue;
+        const blockers = blockersPerAttacker[attackerId] ?? [];
+        if (blockers.length === 1) {
+            result[attackerId] = {
+                [blockers[0]]: getCardPower(attacker),
+            };
+        }
+        // 0 blockers = unblocked, handled separately in applyAllCombatDamage
+    }
+    return result;
+}
+
+/** Build default damage assignments for multi-blocker attackers (all damage to first). */
+function buildDefaultDamageAssignments(
+    state: GameState
+): Record<string, Record<string, number>> {
+    const blockersPerAttacker = getBlockersPerAttacker(state);
+    const activePlayer = getPlayer(state, state.activePlayerId);
+    const result: Record<string, Record<string, number>> = {};
+
+    for (const attackerId of state.combat!.attackerIds) {
+        const attacker = activePlayer.battlefield.find(
+            (c) => c.id === attackerId
+        );
+        if (!attacker) continue;
+        const blockers = blockersPerAttacker[attackerId] ?? [];
+        if (blockers.length === 1) {
+            result[attackerId] = {
+                [blockers[0]]: getCardPower(attacker),
+            };
+        } else if (blockers.length >= 2) {
+            // Default: all damage to first blocker
+            const assignment: Record<string, number> = {};
+            for (let i = 0; i < blockers.length; i++) {
+                assignment[blockers[i]] = i === 0 ? getCardPower(attacker) : 0;
+            }
+            result[attackerId] = assignment;
+        }
+    }
+    return result;
+}
+
+/**
+ * Apply all combat damage and move dead creatures to graveyard.
+ * @param damageAssignments attackerId → { blockerId: damage } for blocked attackers
+ */
+export function applyAllCombatDamage(
+    state: GameState,
+    damageAssignments: Record<string, Record<string, number>>
+): void {
+    if (!state.combat) return;
+
+    const activePlayer = getPlayer(state, state.activePlayerId);
+    const defenderId = getOpponentId(state, state.activePlayerId);
+    const defender = getPlayer(state, defenderId);
+    const blockersPerAttacker = getBlockersPerAttacker(state);
+
+    // Track damage received: cardId → total damage
+    const damageReceived: Record<string, number> = {};
+
+    for (const attackerId of state.combat.attackerIds) {
+        const attacker = activePlayer.battlefield.find(
+            (c) => c.id === attackerId
+        );
+        if (!attacker) continue; // removed before damage (e.g. killed by instant)
+
+        const blockers = blockersPerAttacker[attackerId] ?? [];
+        const attackerPower = getCardPower(attacker);
+
+        if (blockers.length === 0) {
+            // Unblocked: damage to defending player
+            defender.life -= attackerPower;
+        } else {
+            // Blocked: distribute attacker's damage to blockers
+            const assignments = damageAssignments[attackerId] ?? {};
+            for (const [blockerId, damage] of Object.entries(assignments)) {
+                damageReceived[blockerId] =
+                    (damageReceived[blockerId] ?? 0) + damage;
+            }
+
+            // All blockers deal their power to the attacker
+            for (const blockerId of blockers) {
+                const blocker = defender.battlefield.find(
+                    (c) => c.id === blockerId
+                );
+                if (!blocker) continue; // removed before damage
+                damageReceived[attackerId] =
+                    (damageReceived[attackerId] ?? 0) + getCardPower(blocker);
+            }
+        }
+    }
+
+    // Check for deaths: damage >= toughness → move to graveyard
+    const deadIds = new Set<string>();
+    for (const [cardId, damage] of Object.entries(damageReceived)) {
+        // Find the creature on either player's battlefield
+        const card =
+            activePlayer.battlefield.find((c) => c.id === cardId) ??
+            defender.battlefield.find((c) => c.id === cardId);
+        if (card && damage >= getCardToughness(card)) {
+            deadIds.add(cardId);
+        }
+    }
+
+    // Move dead creatures to their owner's graveyard
+    for (const player of state.players) {
+        const dead = player.battlefield.filter((c) => deadIds.has(c.id));
+        for (const card of dead) {
+            player.battlefield = player.battlefield.filter(
+                (c) => c.id !== card.id
+            );
+            card.zone = "graveyard";
+            card.isAttacking = undefined;
+            card.isBlocking = undefined;
+            card.isTapped = false;
+            const owner = getPlayer(state, card.ownerId);
+            owner.graveyard.push(card);
+        }
+    }
+}
+
 /** Perform automatic entry actions for the current phase. */
 function performPhaseEntry(state: GameState): void {
     switch (state.phase) {
@@ -62,34 +225,49 @@ function performPhaseEntry(state: GameState): void {
             drawStep(state);
             break;
         case "DECLARE_ATTACKERS":
-            state.combat = { attackerIds: [], confirmed: false };
+            state.combat = {
+                attackerIds: [],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            };
             break;
+        case "DECLARE_BLOCKERS": {
+            if (state.combat) {
+                state.combat.blockerAssignments = {};
+                state.combat.pendingBlockerId = undefined;
+                state.combat.blockersConfirmed = false;
+            }
+            break;
+        }
         case "COMBAT_DAMAGE": {
             if (state.combat && state.combat.attackerIds.length > 0) {
-                const activePlayer = getPlayer(state, state.activePlayerId);
-                const defenderId = getOpponentId(state, state.activePlayerId);
-                const defender = getPlayer(state, defenderId);
-
-                let totalDamage = 0;
-                for (const attackerId of state.combat.attackerIds) {
-                    const attacker = activePlayer.battlefield.find(
-                        (c) => c.id === attackerId
+                const needsManual = combatDamageNeedsManual(state);
+                if (needsManual) {
+                    // Pre-fill default assignments and wait for active player
+                    state.combat.damageAssignments =
+                        buildDefaultDamageAssignments(state);
+                    state.combat.damageConfirmed = false;
+                } else {
+                    // All auto: apply immediately
+                    applyAllCombatDamage(
+                        state,
+                        buildAutoDamageAssignments(state)
                     );
-                    if (attacker) {
-                        const power =
-                            (attacker.card as { power?: number }).power ?? 0;
-                        totalDamage += Math.max(0, power);
-                    }
                 }
-                defender.life -= totalDamage;
             }
             break;
         }
         case "END_OF_COMBAT": {
             if (state.combat) {
                 const activePlayer = getPlayer(state, state.activePlayerId);
+                const defenderId = getOpponentId(state, state.activePlayerId);
+                const defender = getPlayer(state, defenderId);
                 for (const card of activePlayer.battlefield) {
                     card.isAttacking = undefined;
+                }
+                for (const card of defender.battlefield) {
+                    card.isBlocking = undefined;
                 }
                 state.combat = undefined;
             }
@@ -134,7 +312,9 @@ export function advancePhase(state: GameState): Phase[] {
     performPhaseEntry(state);
 
     const skipEmptyCombat =
-        (state.phase === "COMBAT_DAMAGE" || state.phase === "END_OF_COMBAT") &&
+        (state.phase === "DECLARE_BLOCKERS" ||
+            state.phase === "COMBAT_DAMAGE" ||
+            state.phase === "END_OF_COMBAT") &&
         !hadAttackers;
 
     if (AUTO_PHASES.has(state.phase) || skipEmptyCombat) {
@@ -178,6 +358,38 @@ export function drainAutoPasses(state: GameState): void {
                 }
             }
             state.combat.confirmed = true;
+            state.combat.blockerAssignments = {};
+            state.combat.blockersConfirmed = false;
+        }
+
+        // Auto-confirm blockers when defending player auto-passes
+        if (
+            state.phase === "DECLARE_BLOCKERS" &&
+            state.combat &&
+            !state.combat.blockersConfirmed
+        ) {
+            const defenderId = getOpponentId(state, state.activePlayerId);
+            const defender = getPlayer(state, defenderId);
+            for (const blockerId of Object.keys(
+                state.combat.blockerAssignments
+            )) {
+                const card = defender.battlefield.find(
+                    (c) => c.id === blockerId
+                );
+                if (card) card.isBlocking = true;
+            }
+            state.combat.pendingBlockerId = undefined;
+            state.combat.blockersConfirmed = true;
+        }
+
+        // Auto-confirm damage assignment when active player auto-passes
+        if (
+            state.phase === "COMBAT_DAMAGE" &&
+            state.combat &&
+            state.combat.damageConfirmed === false
+        ) {
+            applyAllCombatDamage(state, state.combat.damageAssignments ?? {});
+            state.combat.damageConfirmed = true;
         }
 
         state.passCount += 1;

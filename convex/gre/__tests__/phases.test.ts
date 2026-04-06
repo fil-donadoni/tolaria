@@ -96,14 +96,18 @@ describe("advancePhase", () => {
             expect(state.phase).toBe("POSTCOMBAT_MAIN");
         });
 
-        it("DECLARE_ATTACKERS → COMBAT_DAMAGE (with attackers)", () => {
+        it("DECLARE_ATTACKERS → DECLARE_BLOCKERS (with attackers)", () => {
             const state = makeGameState({
                 phase: "DECLARE_ATTACKERS",
-                combat: { attackerIds: ["c1"], confirmed: true },
+                combat: {
+                    attackerIds: ["c1"],
+                    confirmed: true,
+                    blockerAssignments: {},
+                    blockersConfirmed: false,
+                },
             });
-            // DECLARE_BLOCKERS is auto-phase, skips to COMBAT_DAMAGE
             advancePhase(state);
-            expect(state.phase).toBe("COMBAT_DAMAGE");
+            expect(state.phase).toBe("DECLARE_BLOCKERS");
         });
 
         it("DECLARE_BLOCKERS → POSTCOMBAT_MAIN (no attackers)", () => {
@@ -115,8 +119,27 @@ describe("advancePhase", () => {
         it("COMBAT_DAMAGE → END_OF_COMBAT (with attackers)", () => {
             const state = makeGameState({
                 phase: "COMBAT_DAMAGE",
-                combat: { attackerIds: ["c1"], confirmed: true },
+                combat: {
+                    attackerIds: ["c1"],
+                    confirmed: true,
+                    blockerAssignments: {},
+                    blockersConfirmed: true,
+                },
             });
+            // Need attacker on battlefield for damage calc
+            const p1 = state.players.find((p) => p.id === "p1")!;
+            p1.battlefield.push(
+                makeCard({
+                    id: "c1",
+                    card: {
+                        name: "Bear",
+                        types: ["Creature"],
+                        power: 2,
+                        toughness: 2,
+                    },
+                    isAttacking: true,
+                })
+            );
             advancePhase(state);
             expect(state.phase).toBe("END_OF_COMBAT");
         });

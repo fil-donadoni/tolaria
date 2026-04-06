@@ -36,6 +36,8 @@ export type CardInstanceState = {
     isSummoningSick?: boolean;
     /** Set during combat when this creature is declared as attacker. Cleared at END_OF_COMBAT. */
     isAttacking?: boolean;
+    /** Set during combat when this creature is declared as blocker. Cleared at END_OF_COMBAT. */
+    isBlocking?: boolean;
 };
 
 export type PlayerState = {
@@ -82,6 +84,15 @@ export type GameState = {
     combat?: {
         attackerIds: string[];
         confirmed: boolean;
+        /** blockerId → attackerId mapping. */
+        blockerAssignments: Record<string, string>;
+        /** Blocker currently being assigned by the defending player (visible to both clients). */
+        pendingBlockerId?: string;
+        blockersConfirmed: boolean;
+        /** attackerId → { blockerId: damage } for multi-blocker damage distribution. */
+        damageAssignments?: Record<string, Record<string, number>>;
+        /** false = waiting for manual assignment, undefined = auto-applied or not yet at damage step. */
+        damageConfirmed?: boolean;
     };
 };
 

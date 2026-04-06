@@ -63,6 +63,7 @@ export default function Board({
                 pendingCast,
                 autoPassPlayers,
                 combat,
+                allPlayers,
                 showAllCards,
                 debugAllActions,
             }}

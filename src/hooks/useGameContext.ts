@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 import type { Id } from "@convex/_generated/dataModel";
-import type { Combat, PendingCast } from "~/types/game";
+import type { Combat, PendingCast, Player } from "~/types/game";
 
 type GameContext = {
     gameId: Id<"games">;
@@ -12,6 +12,7 @@ type GameContext = {
     pendingCast?: PendingCast;
     autoPassPlayers?: string[];
     combat?: Combat;
+    allPlayers: Player[];
     showAllCards: boolean;
     debugAllActions: boolean;
 };

@@ -23,8 +23,24 @@ export default function PassPriorityButton() {
         !combat.confirmed &&
         playerId === activePlayerId;
 
+    const isSelectingBlockers =
+        phase === "DECLARE_BLOCKERS" &&
+        !!combat &&
+        !combat.blockersConfirmed &&
+        playerId !== activePlayerId;
+
+    const isAssigningDamage =
+        phase === "COMBAT_DAMAGE" &&
+        !!combat &&
+        combat.damageConfirmed === false &&
+        playerId === activePlayerId;
+
     const hasPriority =
-        playerId === priorityPlayerId && !pendingCast && !isSelectingAttackers;
+        playerId === priorityPlayerId &&
+        !pendingCast &&
+        !isSelectingAttackers &&
+        !isSelectingBlockers &&
+        !isAssigningDamage;
     const isAutoPass = autoPassPlayers?.includes(playerId) ?? false;
 
     const handlePass = () => {

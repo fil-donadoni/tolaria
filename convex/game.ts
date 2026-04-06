@@ -18,7 +18,11 @@ import {
     isManaCostCovered,
 } from "./gre/state";
 import { assertLegalAction, getLegalActions } from "./gre/rules";
-import { advancePhase, drainAutoPasses } from "./gre/phases";
+import {
+    advancePhase,
+    drainAutoPasses,
+    applyAllCombatDamage,
+} from "./gre/phases";
 import type { Phase } from "./gre/types";
 
 const STARTING_HAND_SIZE = 7;
@@ -714,6 +718,8 @@ export const confirmAttackers = mutation({
         }
 
         state.combat.confirmed = true;
+        state.combat.blockerAssignments = {};
+        state.combat.blockersConfirmed = false;
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
         drainAutoPasses(state);
@@ -734,6 +740,277 @@ export const confirmAttackers = mutation({
             payload: {
                 attackerIds: state.combat.attackerIds,
             },
+            timestamp: now,
+        });
+    },
+});
+
+/** Select a blocker (or deselect/unassign if already selected/assigned). */
+export const selectBlocker = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+
+        if (state.phase !== "DECLARE_BLOCKERS") {
+            throw new Error("Not in DECLARE_BLOCKERS phase");
+        }
+        if (!state.combat || state.combat.blockersConfirmed) {
+            throw new Error("Blocker selection is not open");
+        }
+        if (args.playerId === state.activePlayerId) {
+            throw new Error("Only the defending player can declare blockers");
+        }
+
+        // If this card is already assigned as a blocker, unassign it
+        if (
+            state.combat.blockerAssignments[args.cardInstanceId] !== undefined
+        ) {
+            delete state.combat.blockerAssignments[args.cardInstanceId];
+            if (state.combat.pendingBlockerId === args.cardInstanceId) {
+                state.combat.pendingBlockerId = undefined;
+            }
+        } else if (state.combat.pendingBlockerId === args.cardInstanceId) {
+            // If it's the current pending, deselect
+            state.combat.pendingBlockerId = undefined;
+        } else {
+            // Select as pending: validate it's an eligible creature
+            const player = getPlayer(state, args.playerId);
+            const card = player.battlefield.find(
+                (c) => c.id === args.cardInstanceId
+            );
+            if (!card) throw new Error("Card not on battlefield");
+            const types = (card.card as { types?: string[] }).types ?? [];
+            if (!types.includes("Creature")) {
+                throw new Error("Only creatures can block");
+            }
+            if (card.isTapped) throw new Error("Tapped creatures cannot block");
+            state.combat.pendingBlockerId = args.cardInstanceId;
+        }
+
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            state,
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+/** Assign the pending blocker to an attacker. */
+export const assignBlockerTarget = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        attackerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+
+        if (state.phase !== "DECLARE_BLOCKERS") {
+            throw new Error("Not in DECLARE_BLOCKERS phase");
+        }
+        if (!state.combat || state.combat.blockersConfirmed) {
+            throw new Error("Blocker selection is not open");
+        }
+        if (args.playerId === state.activePlayerId) {
+            throw new Error("Only the defending player can assign blockers");
+        }
+        if (!state.combat.pendingBlockerId) {
+            throw new Error("No blocker selected");
+        }
+        if (!state.combat.attackerIds.includes(args.attackerId)) {
+            throw new Error("Target is not an attacker");
+        }
+
+        state.combat.blockerAssignments[state.combat.pendingBlockerId] =
+            args.attackerId;
+        state.combat.pendingBlockerId = undefined;
+
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            state,
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+/** Confirm blocker declarations. */
+export const confirmBlockers = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+
+        if (state.phase !== "DECLARE_BLOCKERS") {
+            throw new Error("Not in DECLARE_BLOCKERS phase");
+        }
+        if (!state.combat || state.combat.blockersConfirmed) {
+            throw new Error("Blocker selection is not open");
+        }
+        if (args.playerId === state.activePlayerId) {
+            throw new Error("Only the defending player can confirm blockers");
+        }
+
+        const player = getPlayer(state, args.playerId);
+
+        // Mark each assigned blocker
+        for (const blockerId of Object.keys(state.combat.blockerAssignments)) {
+            const card = player.battlefield.find((c) => c.id === blockerId);
+            if (card) card.isBlocking = true;
+        }
+
+        state.combat.pendingBlockerId = undefined;
+        state.combat.blockersConfirmed = true;
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+        drainAutoPasses(state);
+
+        const now = Date.now();
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            state,
+            updatedAt: now,
+        });
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            type: "BLOCKERS_DECLARED",
+            player: args.playerId,
+            payload: {
+                blockerAssignments: state.combat.blockerAssignments,
+            },
+            timestamp: now,
+        });
+    },
+});
+
+/** Set damage distribution for an attacker with multiple blockers. */
+export const setDamageAssignment = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        attackerId: v.string(),
+        assignments: v.any(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+
+        if (state.phase !== "COMBAT_DAMAGE") {
+            throw new Error("Not in COMBAT_DAMAGE phase");
+        }
+        if (args.playerId !== state.activePlayerId) {
+            throw new Error("Only the active player assigns combat damage");
+        }
+        if (!state.combat || state.combat.damageConfirmed !== false) {
+            throw new Error("Damage assignment is not open");
+        }
+
+        const assignments = args.assignments as Record<string, number>;
+
+        // Validate: attacker exists and total equals power
+        const player = getPlayer(state, args.playerId);
+        const attacker = player.battlefield.find(
+            (c) => c.id === args.attackerId
+        );
+        if (!attacker) throw new Error("Attacker not on battlefield");
+
+        const power = Math.max(
+            0,
+            (attacker.card as { power?: number }).power ?? 0
+        );
+        const total = Object.values(assignments).reduce((sum, n) => sum + n, 0);
+        if (total > power) {
+            throw new Error(
+                `Damage total (${total}) exceeds attacker power (${power})`
+            );
+        }
+
+        // Validate: all targets are valid blockers of this attacker
+        for (const blockerId of Object.keys(assignments)) {
+            if (
+                state.combat.blockerAssignments[blockerId] !== args.attackerId
+            ) {
+                throw new Error(`${blockerId} is not blocking this attacker`);
+            }
+        }
+
+        if (!state.combat.damageAssignments) {
+            state.combat.damageAssignments = {};
+        }
+        state.combat.damageAssignments[args.attackerId] = assignments;
+
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            state,
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+/** Confirm damage assignments and apply all combat damage. */
+export const confirmDamage = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+
+        if (state.phase !== "COMBAT_DAMAGE") {
+            throw new Error("Not in COMBAT_DAMAGE phase");
+        }
+        if (args.playerId !== state.activePlayerId) {
+            throw new Error("Only the active player confirms damage");
+        }
+        if (!state.combat || state.combat.damageConfirmed !== false) {
+            throw new Error("Damage assignment is not open");
+        }
+
+        applyAllCombatDamage(state, state.combat.damageAssignments ?? {});
+        state.combat.damageConfirmed = true;
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+        drainAutoPasses(state);
+
+        const now = Date.now();
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            state,
+            updatedAt: now,
+        });
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            type: "COMBAT_DAMAGE_DEALT",
+            player: args.playerId,
+            payload: {},
             timestamp: now,
         });
     },
@@ -761,6 +1038,26 @@ export const passPriority = mutation({
             !state.combat.confirmed
         ) {
             throw new Error("Must declare attackers before passing priority");
+        }
+
+        // Cannot pass priority before confirming blockers
+        if (
+            state.phase === "DECLARE_BLOCKERS" &&
+            state.combat &&
+            !state.combat.blockersConfirmed
+        ) {
+            throw new Error("Must declare blockers before passing priority");
+        }
+
+        // Cannot pass priority before confirming damage assignments
+        if (
+            state.phase === "COMBAT_DAMAGE" &&
+            state.combat &&
+            state.combat.damageConfirmed === false
+        ) {
+            throw new Error(
+                "Must assign combat damage before passing priority"
+            );
         }
 
         state.passCount += 1;

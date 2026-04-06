@@ -48,12 +48,18 @@ export interface CardInstance {
     manaCommitted?: boolean;
     isSummoningSick?: boolean;
     isAttacking?: boolean;
+    isBlocking?: boolean;
     legalActions?: CardAction[];
 }
 
 export interface Combat {
     attackerIds: string[];
     confirmed: boolean;
+    blockerAssignments: Record<string, string>;
+    pendingBlockerId?: string;
+    blockersConfirmed: boolean;
+    damageAssignments?: Record<string, Record<string, number>>;
+    damageConfirmed?: boolean;
 }
 
 export type Zone =
