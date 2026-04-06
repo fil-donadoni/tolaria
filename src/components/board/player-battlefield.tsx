@@ -6,6 +6,10 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import CardImage from "../cards/card-image";
 
+function isTargetableCreature(targetType: string | undefined): boolean {
+    return targetType === "creature" || targetType === "any";
+}
+
 type BattlefieldProps = {
     player: Player;
 };
@@ -70,6 +74,7 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
         activePlayerId,
         phase,
         pendingCast,
+        pendingTarget,
         combat,
         allPlayers,
     } = useGameContext();
@@ -85,9 +90,17 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
     const confirmBlockersMut = useMutation(api.game.confirmBlockers);
     const setDamageAssignmentMut = useMutation(api.game.setDamageAssignment);
     const confirmDamageMut = useMutation(api.game.confirmDamage);
+    const selectTargetMut = useMutation(api.game.selectTarget);
+    const cancelTargetMut = useMutation(api.game.cancelTarget);
 
     const isPayingCast =
         isMe && !!pendingCast && pendingCast.playerId === playerId;
+
+    // Target selection: creatures on ANY player's battlefield are clickable
+    const isSelectingTarget =
+        !!pendingTarget &&
+        pendingTarget.playerId === playerId &&
+        isTargetableCreature(pendingTarget.targetType);
 
     const isSelectingAttackers =
         phase === "DECLARE_ATTACKERS" &&
@@ -162,6 +175,17 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
     function handleClick(cardInstance: CardInstance) {
         if (!canInteract(cardInstance)) return;
 
+        // Target selection for spells
+        if (isSelectingTarget && isCreature(cardInstance)) {
+            selectTargetMut({
+                gameId,
+                playerId,
+                targetType: "creature",
+                targetId: cardInstance.id,
+            });
+            return;
+        }
+
         // Attacker selection
         if (isSelectingAttackers && isCreature(cardInstance)) {
             toggleAttacker({
@@ -213,6 +237,11 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
     }
 
     function canInteract(cardInstance: CardInstance): boolean {
+        // During target selection, creatures on any battlefield are interactive
+        if (isSelectingTarget && isCreature(cardInstance)) {
+            return true;
+        }
+
         // During attacker selection, own creatures are interactive
         if (isSelectingAttackers && isCreature(cardInstance)) {
             if (selectedAttackerIds.includes(cardInstance.id)) return true;
@@ -332,6 +361,7 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
         const isLandCard = isLand(cardInstance);
         const isCreatureCard = isCreature(cardInstance);
         const interactive =
+            (isSelectingTarget && isCreatureCard) ||
             (isMe &&
                 (isLandCard ||
                     (isSelectingAttackers && isCreatureCard) ||
@@ -346,13 +376,17 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
             isCreatureCard &&
             !selectedAttackerIds.includes(cardInstance.id) &&
             (cardInstance.isTapped || cardInstance.isSummoningSick);
+        const targetHighlight =
+            isSelectingTarget && isCreatureCard
+                ? "ring-2 ring-orange-400 rounded-lg"
+                : "";
 
         return (
             <div
                 key={cardInstance.id}
                 className={`relative w-32 transition-transform duration-150 ${
                     cardInstance.isTapped ? "rotate-90" : ""
-                } ${combatOffset} ${combatRing} ${
+                } ${combatOffset} ${combatRing} ${targetHighlight} ${
                     interactive
                         ? enabled
                             ? "cursor-pointer"
@@ -392,6 +426,7 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
                     const isLandCard = isLand(card);
                     const isCreatureCard = isCreature(card);
                     const interactive =
+                        (isSelectingTarget && isCreatureCard) ||
                         (isMe &&
                             (isLandCard ||
                                 (isSelectingAttackers && isCreatureCard) ||
@@ -406,13 +441,17 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
                         isCreatureCard &&
                         !selectedAttackerIds.includes(card.id) &&
                         (card.isTapped || card.isSummoningSick);
+                    const targetHighlight =
+                        isSelectingTarget && isCreatureCard
+                            ? "ring-2 ring-orange-400 rounded-lg"
+                            : "";
 
                     return (
                         <div
                             key={card.id}
                             className={`relative transition-transform duration-150 ${
                                 card.isTapped ? "rotate-90" : ""
-                            } ${combatOffset} ${combatRing} ${
+                            } ${combatOffset} ${combatRing} ${targetHighlight} ${
                                 interactive
                                     ? enabled
                                         ? "cursor-pointer"
@@ -623,6 +662,16 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
                         {renderZone(creatures)}
                     </div>
                 </>
+            )}
+            {isSelectingTarget && (
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-40">
+                    <button
+                        onClick={() => cancelTargetMut({ gameId, playerId })}
+                        className="bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-1 rounded-lg text-sm transition-colors"
+                    >
+                        Cancel Target
+                    </button>
+                </div>
             )}
             {isPayingCast && (
                 <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-40">

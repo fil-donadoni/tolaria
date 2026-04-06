@@ -1,4 +1,10 @@
-import type { Color } from "../cards/types";
+import type {
+    Color,
+    SpellContext,
+    TargetSelection,
+    TargetType,
+} from "../cards/types";
+import { getCardById } from "../cards";
 import type { Phase, Zone } from "./types";
 
 /**
@@ -56,6 +62,8 @@ export type PlayerState = {
 
 export type StackItem = CardInstanceState & {
     castById: string;
+    /** Targets chosen during spell announcement (CR 601.2c). */
+    targets?: TargetSelection[];
 };
 
 /** Tracks an in-progress spell cast during the payment phase (CR 601.2). */
@@ -65,6 +73,18 @@ export type PendingCast = {
     manaCost: Record<string, number>;
     /** Land ids tapped during this payment, for rollback on cancel. */
     tappedLandIds: string[];
+};
+
+/** Tracks target selection for a spell being announced (CR 601.2c). */
+export type PendingTarget = {
+    playerId: string;
+    cardInstanceId: string;
+    /** What kind of targets are needed. */
+    targetType: TargetType;
+    /** How many targets still needed. */
+    count: number;
+    /** Targets already selected. */
+    selected: TargetSelection[];
 };
 
 export type GameState = {
@@ -78,6 +98,8 @@ export type GameState = {
     phase: Phase;
     /** Active spell payment in progress (CR 601.2). */
     pendingCast?: PendingCast;
+    /** Active target selection in progress (CR 601.2c). */
+    pendingTarget?: PendingTarget;
     /** Player IDs that auto-pass priority for the rest of this turn. Resets on new turn. */
     autoPassPlayers?: string[];
     /** Active combat state. Set at DECLARE_ATTACKERS, cleared at END_OF_COMBAT. */
@@ -112,6 +134,16 @@ export function resolveTopOfStack(state: GameState): StackItem {
     const types = (item.card as { types?: string[] }).types ?? [];
     const isPermanent = types.some((t) => PERMANENT_TYPES.includes(t));
 
+    // Execute spell effects before moving to destination zone (CR 608.2b)
+    const cardId = (item.card as { id?: string }).id;
+    if (cardId) {
+        const cardDef = getCardById(cardId);
+        if (cardDef.resolve && item.targets) {
+            const ctx = buildSpellContext(state, item);
+            cardDef.resolve(ctx);
+        }
+    }
+
     const controller = getPlayer(state, item.castById);
 
     if (isPermanent) {
@@ -130,6 +162,103 @@ export function resolveTopOfStack(state: GameState): StackItem {
     }
 
     return item;
+}
+
+/** Builds a SpellContext with primitives bound to the current game state. */
+function buildSpellContext(state: GameState, item: StackItem): SpellContext {
+    return {
+        caster: item.castById,
+        controller: item.castById,
+        targets: item.targets ?? [],
+        dealDamage(target: TargetSelection, amount: number) {
+            if (target.type === "player") {
+                const player = getPlayer(state, target.id);
+                player.life -= amount;
+            } else {
+                // Find the creature on any player's battlefield
+                for (const player of state.players) {
+                    const idx = player.battlefield.findIndex(
+                        (c) => c.id === target.id
+                    );
+                    if (idx === -1) continue;
+                    const creature = player.battlefield[idx];
+                    const toughness =
+                        (creature.card as { toughness?: number }).toughness ??
+                        0;
+                    if (amount >= toughness) {
+                        // Lethal damage — move to graveyard (SBA 704.5g)
+                        player.battlefield.splice(idx, 1);
+                        creature.zone = "graveyard";
+                        const owner = getPlayer(state, creature.ownerId);
+                        owner.graveyard.push(creature);
+                    }
+                    // TODO: track damage on creatures for non-lethal damage accumulation
+                    break;
+                }
+            }
+        },
+        gainLife(playerId: string, amount: number) {
+            const player = getPlayer(state, playerId);
+            player.life += amount;
+        },
+        loseLife(playerId: string, amount: number) {
+            const player = getPlayer(state, playerId);
+            player.life -= amount;
+        },
+        getLife(playerId: string): number {
+            return getPlayer(state, playerId).life;
+        },
+        getPower(target: TargetSelection): number {
+            if (target.type !== "creature") return 0;
+            for (const player of state.players) {
+                const card = player.battlefield.find((c) => c.id === target.id);
+                if (card) {
+                    return (card.card as { power?: number }).power ?? 0;
+                }
+            }
+            return 0;
+        },
+        getController(target: TargetSelection): string {
+            if (target.type === "player") return target.id;
+            for (const player of state.players) {
+                const card = player.battlefield.find((c) => c.id === target.id);
+                if (card) return card.controllerId;
+            }
+            throw new Error(`Target ${target.id} not found on battlefield`);
+        },
+        destroy(target: TargetSelection): void {
+            if (target.type === "player") {
+                throw new Error("Cannot destroy a player");
+            }
+            for (const player of state.players) {
+                const idx = player.battlefield.findIndex(
+                    (c) => c.id === target.id
+                );
+                if (idx === -1) continue;
+                const creature = player.battlefield.splice(idx, 1)[0];
+                creature.zone = "graveyard";
+                const owner = getPlayer(state, creature.ownerId);
+                owner.graveyard.push(creature);
+                break;
+            }
+        },
+        exile(target: TargetSelection): void {
+            if (target.type === "player") {
+                throw new Error("Cannot exile a player");
+            }
+            for (const player of state.players) {
+                const idx = player.battlefield.findIndex(
+                    (c) => c.id === target.id
+                );
+                if (idx === -1) continue;
+                const creature = player.battlefield.splice(idx, 1)[0];
+                creature.zone = "exile";
+                const owner = getPlayer(state, creature.ownerId);
+                owner.exile.push(creature);
+                break;
+            }
+        },
+    };
 }
 
 const ZONE_TO_FIELD: Record<Exclude<Zone, "stack">, keyof PlayerState> = {

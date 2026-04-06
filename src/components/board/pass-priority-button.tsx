@@ -11,6 +11,7 @@ export default function PassPriorityButton() {
         priorityPlayerId,
         phase,
         pendingCast,
+        pendingTarget,
         autoPassPlayers,
         combat,
     } = useGameContext();
@@ -38,6 +39,7 @@ export default function PassPriorityButton() {
     const hasPriority =
         playerId === priorityPlayerId &&
         !pendingCast &&
+        !pendingTarget &&
         !isSelectingAttackers &&
         !isSelectingBlockers &&
         !isAssigningDamage;

@@ -1,3 +1,4 @@
+import type { TargetRequirement, TargetSelection } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { isSorceryTiming } from "./phases";
 
@@ -59,6 +60,33 @@ export function getLegalActions(
     }
 
     return actions;
+}
+
+/** Returns all legal targets for a spell/ability with the given target requirement. */
+export function getLegalTargets(
+    state: GameState,
+    requirement: TargetRequirement
+): TargetSelection[] {
+    const targets: TargetSelection[] = [];
+
+    if (requirement.type === "creature" || requirement.type === "any") {
+        for (const player of state.players) {
+            for (const card of player.battlefield) {
+                const types = (card.card as { types?: string[] }).types ?? [];
+                if (types.includes("Creature")) {
+                    targets.push({ type: "creature", id: card.id });
+                }
+            }
+        }
+    }
+
+    if (requirement.type === "player" || requirement.type === "any") {
+        for (const player of state.players) {
+            targets.push({ type: "player", id: player.id });
+        }
+    }
+
+    return targets;
 }
 
 /** Validates that a specific action is legal for a card. Throws if not. */

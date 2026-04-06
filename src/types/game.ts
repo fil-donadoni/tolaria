@@ -72,6 +72,7 @@ export type Zone =
 
 export interface StackItem extends CardInstance {
     castById: string;
+    targets?: { type: "creature" | "player"; id: string }[];
 }
 
 export interface PendingCast {
@@ -79,6 +80,14 @@ export interface PendingCast {
     cardInstanceId: string;
     manaCost: Record<string, number>;
     tappedLandIds: string[];
+}
+
+export interface PendingTarget {
+    playerId: string;
+    cardInstanceId: string;
+    targetType: "creature" | "player" | "land" | "any";
+    count: number;
+    selected: { type: "creature" | "player"; id: string }[];
 }
 
 export type CardAction =

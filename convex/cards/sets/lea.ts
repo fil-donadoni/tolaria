@@ -1,4 +1,4 @@
-import type { CardDefinition } from "../types";
+import type { CardDefinition, SpellContext } from "../types";
 
 export const animateWall: CardDefinition = {
     id: "d5c83259-9b90-47c2-b48e-c7d78519e792",
@@ -313,6 +313,13 @@ export const swordsToPlowshares: CardDefinition = {
     name: "Swords to Plowshares",
     manaCost: { W: 1 },
     types: ["Instant"],
+    targetRequirement: { type: "creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const power = ctx.getPower(ctx.targets[0]);
+        const controller = ctx.getController(ctx.targets[0]);
+        ctx.exile(ctx.targets[0]);
+        ctx.gainLife(controller, power);
+    },
 };
 
 export const veteranBodyguard: CardDefinition = {
@@ -1320,6 +1327,10 @@ export const lightningBolt: CardDefinition = {
     name: "Lightning Bolt",
     manaCost: { R: 1 },
     types: ["Instant"],
+    targetRequirement: { type: "any", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        ctx.dealDamage(ctx.targets[0], 3);
+    },
 };
 
 export const manaFlare: CardDefinition = {
