@@ -24,7 +24,7 @@ export default function PlayerBoard({ player }: { player: Player }) {
             <PlayerManaPool player={player} />
 
             <div
-                className={`absolute flex gap-2 ${isMe ? "bottom-4 right-4" : "flex-row-reverse top-4 left-4"}`}
+                className={`absolute flex gap-2 ${isMe ? "bottom-20 right-4" : "flex-row-reverse top-4 left-4"}`}
             >
                 <PlayerExile player={player} />
                 <PlayerLibrary player={player} />

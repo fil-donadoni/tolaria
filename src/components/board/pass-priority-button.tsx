@@ -50,7 +50,7 @@ export default function PassPriorityButton() {
     if (!hasPriority) return null;
 
     return (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex gap-2">
+        <div className="fixed bottom-6 right-2 z-40 flex gap-2">
             <button
                 onClick={handlePass}
                 className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-8 py-2 rounded-lg transition-colors shadow-lg"
@@ -62,7 +62,7 @@ export default function PassPriorityButton() {
                 onClick={handleEndTurn}
                 className="bg-red-600 hover:bg-red-500 text-white font-bold px-6 py-2 rounded-lg transition-colors shadow-lg"
             >
-                End Turn
+                Pass Turn
                 <span className="ml-2 text-xs opacity-60">[enter]</span>
             </button>
         </div>
