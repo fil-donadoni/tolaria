@@ -30,6 +30,8 @@ export type CardInstanceState = {
     ownerId: string;
     zone: Zone;
     isTapped: boolean;
+    /** Set when this land's mana has been consumed by a spell. Cannot be manually untapped. Resets at untap step. */
+    manaCommitted?: boolean;
 };
 
 export type PlayerState = {
@@ -50,13 +52,60 @@ export type StackItem = CardInstanceState & {
     castById: string;
 };
 
+/** Tracks an in-progress spell cast during the payment phase (CR 601.2). */
+export type PendingCast = {
+    playerId: string;
+    cardInstanceId: string;
+    manaCost: Record<string, number>;
+    /** Land ids tapped during this payment, for rollback on cancel. */
+    tappedLandIds: string[];
+};
+
 export type GameState = {
     players: PlayerState[];
     stack: StackItem[];
     turn: number;
     activePlayerId: string;
+    priorityPlayerId: string;
+    /** Number of consecutive priority passes (resets on any action). Resolves top of stack at 2. */
+    passCount: number;
     phase: string;
+    /** Active spell payment in progress (CR 601.2). */
+    pendingCast?: PendingCast;
 };
+
+const PERMANENT_TYPES = [
+    "Creature",
+    "Artifact",
+    "Enchantment",
+    "Planeswalker",
+    "Battle",
+];
+
+/** Resolves the top item of the stack (CR 608.3). Returns the resolved item. */
+export function resolveTopOfStack(state: GameState): StackItem {
+    const item = state.stack.pop();
+    if (!item) throw new Error("Stack is empty");
+
+    const types = (item.card as { types?: string[] }).types ?? [];
+    const isPermanent = types.some((t) => PERMANENT_TYPES.includes(t));
+
+    const controller = getPlayer(state, item.castById);
+
+    if (isPermanent) {
+        // Permanent spells enter the battlefield (CR 608.3)
+        item.zone = "battlefield";
+        item.isTapped = false;
+        controller.battlefield.push(item);
+    } else {
+        // Instant/Sorcery go to owner's graveyard (CR 608.2k)
+        const owner = getPlayer(state, item.ownerId);
+        item.zone = "graveyard";
+        owner.graveyard.push(item);
+    }
+
+    return item;
+}
 
 const ZONE_TO_FIELD: Record<Exclude<Zone, "stack">, keyof PlayerState> = {
     hand: "hand",
@@ -70,6 +119,13 @@ export function getPlayer(state: GameState, playerId: string): PlayerState {
     const player = state.players.find((p) => p.id === playerId);
     if (!player) throw new Error(`Player not found: ${playerId}`);
     return player;
+}
+
+/** Returns the id of the other player (2-player game). */
+export function getOpponentId(state: GameState, playerId: string): string {
+    const opponent = state.players.find((p) => p.id !== playerId);
+    if (!opponent) throw new Error("Opponent not found");
+    return opponent.id;
 }
 
 /** Moves a card between player zones (not stack). Returns the moved card. */
@@ -180,6 +236,104 @@ export function payManaCost(
             }
         }
     }
+}
+
+/**
+ * After paying a mana cost, mark tapped lands as committed so they can't be manually untapped.
+ * For each color spent, finds tapped-but-uncommitted lands of that color and marks them.
+ * Generic mana commits lands greedy (highest pool color first, matching payManaCost behavior).
+ */
+export function commitLandsForCost(
+    player: PlayerState,
+    cost: Record<string, number>
+): void {
+    const remaining = { ...cost };
+
+    // Commit lands for colored costs first
+    for (const color of MANA_COLORS) {
+        let needed = remaining[color] ?? 0;
+        if (needed <= 0) continue;
+        for (const card of player.battlefield) {
+            if (needed <= 0) break;
+            if (
+                card.isTapped &&
+                !card.manaCommitted &&
+                getBasicLandMana(card) === color
+            ) {
+                card.manaCommitted = true;
+                needed--;
+            }
+        }
+    }
+
+    // Commit lands for generic cost (same greedy order as payManaCost)
+    let generic = remaining.X ?? 0;
+    if (generic > 0) {
+        const sorted = [...MANA_COLORS].sort((a, b) => {
+            const countA = player.battlefield.filter(
+                (c) =>
+                    c.isTapped && !c.manaCommitted && getBasicLandMana(c) === a
+            ).length;
+            const countB = player.battlefield.filter(
+                (c) =>
+                    c.isTapped && !c.manaCommitted && getBasicLandMana(c) === b
+            ).length;
+            return countB - countA;
+        });
+        for (const color of sorted) {
+            for (const card of player.battlefield) {
+                if (generic <= 0) break;
+                if (
+                    card.isTapped &&
+                    !card.manaCommitted &&
+                    getBasicLandMana(card) === color
+                ) {
+                    card.manaCommitted = true;
+                    generic--;
+                }
+            }
+            if (generic <= 0) break;
+        }
+    }
+}
+
+/** Converts a ManaCost (with possible string X) to a pure numeric record. */
+export function normalizeManaCost(cost: ManaCost): Record<string, number> {
+    const result: Record<string, number> = {};
+    for (const [key, val] of Object.entries(cost)) {
+        const n = typeof val === "number" ? val : 0;
+        if (n > 0) result[key] = n;
+    }
+    return result;
+}
+
+/** Returns true if manaPool fully covers the normalized cost. */
+export function isManaCostCovered(
+    manaPool: Record<string, number>,
+    cost: Record<string, number>
+): boolean {
+    const pool = { ...manaPool };
+
+    // Check colored/colorless
+    for (const color of MANA_COLORS) {
+        const required = cost[color] ?? 0;
+        if (required > 0) {
+            if ((pool[color] ?? 0) < required) return false;
+            pool[color] = (pool[color] ?? 0) - required;
+        }
+    }
+
+    // Check generic
+    const generic = cost.X ?? 0;
+    if (generic > 0) {
+        let available = 0;
+        for (const color of MANA_COLORS) {
+            available += pool[color] ?? 0;
+        }
+        if (available < generic) return false;
+    }
+
+    return true;
 }
 
 function formatManaCost(cost: ManaCost): string {

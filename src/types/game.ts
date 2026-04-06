@@ -45,6 +45,7 @@ export interface CardInstance {
     ownerId: string;
     zone: Zone;
     isTapped: boolean;
+    manaCommitted?: boolean;
     legalActions?: CardAction[];
 }
 
@@ -58,6 +59,13 @@ export type Zone =
 
 export interface StackItem extends CardInstance {
     castById: string;
+}
+
+export interface PendingCast {
+    playerId: string;
+    cardInstanceId: string;
+    manaCost: Record<string, number>;
+    tappedLandIds: string[];
 }
 
 export type CardAction =

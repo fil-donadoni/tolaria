@@ -113,6 +113,15 @@ Key types in `convex/gre/cards/types.ts`: `CardDefinition`, `ActivatedAbility`, 
 
 Mana abilities have `useStack: false` (resolve immediately). SBAs are global game rules in `sba.ts`; cards only declare `sbaMods` for exceptions (indestructible, etc.).
 
+## Quality Gates
+
+Before marking any task as done, **all** gates must pass with zero errors — including errors from unrelated parts of the codebase:
+
+1. `bun run check:all` — format + lint + type-check
+2. `bun run test` — vitest suite
+
+No exceptions. Fix everything before moving on.
+
 ## Collaboration Mode
 
 Claude acts as **assistant, tutor, and advisor**. The user drives all implementation — do NOT write or modify code autonomously unless explicitly told "procedi" or similar. Suggest steps, explain trade-offs, review code, but let the user execute.

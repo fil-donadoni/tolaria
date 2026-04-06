@@ -7,11 +7,15 @@ import {
     type GameState,
     type StackItem,
     getPlayer,
+    getOpponentId,
     moveCard,
     removeFromZone,
     getBasicLandMana,
-    checkManaCost,
     payManaCost,
+    commitLandsForCost,
+    resolveTopOfStack,
+    normalizeManaCost,
+    isManaCostCovered,
 } from "./gre/state";
 import { assertLegalAction, getLegalActions } from "./gre/rules";
 
@@ -259,6 +263,8 @@ export const joinGame = mutation({
                 stack: [],
                 turn: 1,
                 activePlayerId: playersState[0].id,
+                priorityPlayerId: playersState[0].id,
+                passCount: 0,
                 phase: "BEGINNING",
             },
             updatedAt: now,
@@ -334,7 +340,8 @@ export const playCard = mutation({
     },
 });
 
-export const castSpell = mutation({
+/** Step 1 of casting: announce the spell, enter payment phase (CR 601.2a). */
+export const announceCast = mutation({
     args: {
         gameId: v.id("games"),
         playerId: v.string(),
@@ -347,9 +354,11 @@ export const castSpell = mutation({
         const state = structuredClone(gameState.state) as GameState;
         const player = getPlayer(state, args.playerId);
 
-        // Must have priority
-        if (state.activePlayerId !== args.playerId) {
+        if (state.priorityPlayerId !== args.playerId) {
             throw new Error("You don't have priority");
+        }
+        if (state.pendingCast) {
+            throw new Error("Another spell is already being cast");
         }
 
         const cardInHand = player.hand.find(
@@ -358,46 +367,322 @@ export const castSpell = mutation({
         if (!cardInHand) throw new Error("Card not in hand");
         assertLegalAction(state, player, cardInHand, "cast");
 
-        // Check mana cost
-        const manaCost = (
+        const rawCost = (
             cardInHand.card as {
                 manaCost?: Record<string, number | string | undefined>;
             }
         ).manaCost;
-        if (manaCost) {
-            const missing = checkManaCost(player.manaPool, manaCost);
-            if (missing) {
-                throw new Error(`NOT_ENOUGH_MANA:${missing}`);
+
+        const manaCost = rawCost ? normalizeManaCost(rawCost) : {};
+
+        // If cost is zero or pool already covers it, commit immediately
+        if (
+            Object.keys(manaCost).length === 0 ||
+            isManaCostCovered(player.manaPool, manaCost)
+        ) {
+            if (Object.keys(manaCost).length > 0) {
+                payManaCost(player.manaPool, manaCost);
+                commitLandsForCost(player, manaCost);
             }
-            payManaCost(player.manaPool, manaCost);
+            const card = removeFromZone(player, args.cardInstanceId, "hand");
+            const stackItem: StackItem = {
+                ...card,
+                castById: args.playerId,
+            };
+            state.stack.push(stackItem);
+            state.passCount = 0;
+            state.priorityPlayerId = getOpponentId(state, args.playerId);
+        } else {
+            // Enter payment phase for remaining mana
+            state.pendingCast = {
+                playerId: args.playerId,
+                cardInstanceId: args.cardInstanceId,
+                manaCost,
+                tappedLandIds: [],
+            };
         }
 
-        // Move from hand to stack
-        const card = removeFromZone(player, args.cardInstanceId, "hand");
-        const stackItem: StackItem = { ...card, castById: args.playerId };
-        state.stack.push(stackItem);
-
         const now = Date.now();
-        const nextSeq = gameState.seq + 1;
-
         await ctx.db.insert("game_states", {
             gameId: args.gameId,
-            seq: nextSeq,
+            seq: gameState.seq + 1,
             state,
             updatedAt: now,
         });
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
-            seq: nextSeq,
-            type: "SPELL_CAST",
+            seq: gameState.seq + 1,
+            type: state.pendingCast ? "CAST_ANNOUNCED" : "SPELL_CAST",
             player: args.playerId,
             payload: {
-                cardInstanceId: card.id,
-                cardName: (card.card as { name?: string }).name,
+                cardInstanceId: args.cardInstanceId,
+                cardName: (cardInHand.card as { name?: string }).name,
             },
             timestamp: now,
         });
+    },
+});
+
+/** Step 2: tap a land during payment to add mana. Auto-commits when cost is covered. */
+export const tapForPayment = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+
+        if (!state.pendingCast) throw new Error("No spell being cast");
+        if (state.pendingCast.playerId !== args.playerId) {
+            throw new Error("Not your pending cast");
+        }
+
+        const player = getPlayer(state, args.playerId);
+        const card = player.battlefield.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!card) throw new Error("Card not on battlefield");
+        if (card.isTapped) throw new Error("Card already tapped");
+
+        const types = (card.card as { types?: string[] }).types ?? [];
+        if (!types.includes("Land")) {
+            throw new Error("Only lands can be tapped for mana");
+        }
+
+        const manaColor = getBasicLandMana(card);
+        if (!manaColor) throw new Error("Land does not produce mana");
+
+        // Tap and add mana
+        card.isTapped = true;
+        player.manaPool[manaColor] = (player.manaPool[manaColor] ?? 0) + 1;
+        state.pendingCast.tappedLandIds.push(card.id);
+
+        // Check if cost is now covered → auto-commit
+        if (isManaCostCovered(player.manaPool, state.pendingCast.manaCost)) {
+            // Pay the cost from pool and commit the lands
+            payManaCost(player.manaPool, state.pendingCast.manaCost);
+            commitLandsForCost(player, state.pendingCast.manaCost);
+
+            // Move spell from hand to stack
+            const spellCard = removeFromZone(
+                player,
+                state.pendingCast.cardInstanceId,
+                "hand"
+            );
+            const stackItem: StackItem = {
+                ...spellCard,
+                castById: args.playerId,
+            };
+            state.stack.push(stackItem);
+
+            const cardName = (spellCard.card as { name?: string }).name;
+            state.pendingCast = undefined;
+            state.passCount = 0;
+            state.priorityPlayerId = getOpponentId(state, args.playerId);
+
+            const now = Date.now();
+            await ctx.db.insert("game_states", {
+                gameId: args.gameId,
+                seq: gameState.seq + 1,
+                state,
+                updatedAt: now,
+            });
+
+            await ctx.db.insert("events", {
+                gameId: args.gameId,
+                seq: gameState.seq + 1,
+                type: "SPELL_CAST",
+                player: args.playerId,
+                payload: {
+                    cardInstanceId: spellCard.id,
+                    cardName,
+                },
+                timestamp: now,
+            });
+        } else {
+            // Just save the tap
+            const now = Date.now();
+            await ctx.db.insert("game_states", {
+                gameId: args.gameId,
+                seq: gameState.seq + 1,
+                state,
+                updatedAt: now,
+            });
+        }
+    },
+});
+
+/** Untap a land during payment (undo). */
+export const untapForPayment = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+
+        if (!state.pendingCast) throw new Error("No spell being cast");
+        if (state.pendingCast.playerId !== args.playerId) {
+            throw new Error("Not your pending cast");
+        }
+
+        // Only lands tapped during this payment can be untapped
+        const idx = state.pendingCast.tappedLandIds.indexOf(
+            args.cardInstanceId
+        );
+        if (idx === -1) {
+            throw new Error("This land was not tapped during this cast");
+        }
+
+        const player = getPlayer(state, args.playerId);
+        const card = player.battlefield.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!card) throw new Error("Card not on battlefield");
+
+        const manaColor = getBasicLandMana(card);
+        if (!manaColor) throw new Error("Land does not produce mana");
+
+        card.isTapped = false;
+        player.manaPool[manaColor] = Math.max(
+            0,
+            (player.manaPool[manaColor] ?? 0) - 1
+        );
+        state.pendingCast.tappedLandIds.splice(idx, 1);
+
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            state,
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+/** Cancel a pending cast: rollback all taps (CR 601.2 reversal). */
+export const cancelCast = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+
+        if (!state.pendingCast) throw new Error("No spell being cast");
+        if (state.pendingCast.playerId !== args.playerId) {
+            throw new Error("Not your pending cast");
+        }
+
+        const player = getPlayer(state, args.playerId);
+
+        // Rollback all taps
+        for (const landId of state.pendingCast.tappedLandIds) {
+            const land = player.battlefield.find((c) => c.id === landId);
+            if (land) {
+                land.isTapped = false;
+                const manaColor = getBasicLandMana(land);
+                if (manaColor) {
+                    player.manaPool[manaColor] = Math.max(
+                        0,
+                        (player.manaPool[manaColor] ?? 0) - 1
+                    );
+                }
+            }
+        }
+
+        state.pendingCast = undefined;
+
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            state,
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+export const passPriority = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+
+        if (state.priorityPlayerId !== args.playerId) {
+            throw new Error("You don't have priority");
+        }
+
+        state.passCount += 1;
+
+        if (state.passCount >= 2 && state.stack.length > 0) {
+            // Both players passed consecutively — resolve top of stack (CR 117.3d)
+            const resolved = resolveTopOfStack(state);
+
+            // After resolution, priority goes to active player (CR 117.3b)
+            state.priorityPlayerId = state.activePlayerId;
+            state.passCount = 0;
+
+            const now = Date.now();
+            const nextSeq = gameState.seq + 1;
+
+            await ctx.db.insert("game_states", {
+                gameId: args.gameId,
+                seq: nextSeq,
+                state,
+                updatedAt: now,
+            });
+
+            await ctx.db.insert("events", {
+                gameId: args.gameId,
+                seq: nextSeq,
+                type: "SPELL_RESOLVED",
+                player: args.playerId,
+                payload: {
+                    cardInstanceId: resolved.id,
+                    cardName: (resolved.card as { name?: string }).name,
+                    destination: resolved.zone,
+                },
+                timestamp: now,
+            });
+        } else {
+            // Pass priority to opponent
+            state.priorityPlayerId = getOpponentId(state, args.playerId);
+
+            const now = Date.now();
+            const nextSeq = gameState.seq + 1;
+
+            await ctx.db.insert("game_states", {
+                gameId: args.gameId,
+                seq: nextSeq,
+                state,
+                updatedAt: now,
+            });
+
+            await ctx.db.insert("events", {
+                gameId: args.gameId,
+                seq: nextSeq,
+                type: "PRIORITY_PASSED",
+                player: args.playerId,
+                payload: {},
+                timestamp: now,
+            });
+        }
     },
 });
 
@@ -546,10 +831,12 @@ export const tapUntap = mutation({
         const state = structuredClone(gameState.state) as GameState;
         const player = getPlayer(state, args.playerId);
 
-        // Must have priority (be the active player)
-        if (state.activePlayerId !== args.playerId) {
-            throw new Error("You don't have priority");
+        // Cannot manually tap/untap during payment phase
+        if (state.pendingCast) {
+            throw new Error("Use tapForPayment/untapForPayment during casting");
         }
+
+        // Mana abilities don't require priority (CR 605.3a)
 
         const card = player.battlefield.find(
             (c) => c.id === args.cardInstanceId
@@ -562,21 +849,23 @@ export const tapUntap = mutation({
         }
 
         const wasTapped = card.isTapped;
+
+        // Block untap if land is committed (mana was spent on a cast)
+        if (wasTapped && card.manaCommitted) {
+            throw new Error("Cannot untap: mana already spent");
+        }
+
         card.isTapped = !card.isTapped;
 
         // Mana ability: basic land subtypes produce mana on tap, remove on untap
         const manaColor = getBasicLandMana(card);
         if (manaColor) {
             if (!wasTapped) {
-                // Tapping: add mana
                 player.manaPool[manaColor] =
                     (player.manaPool[manaColor] ?? 0) + 1;
             } else {
-                // Untapping: remove mana (undo)
-                player.manaPool[manaColor] = Math.max(
-                    0,
-                    (player.manaPool[manaColor] ?? 0) - 1
-                );
+                player.manaPool[manaColor] =
+                    (player.manaPool[manaColor] ?? 0) - 1;
             }
         }
 

@@ -1,4 +1,5 @@
 import type { CardInstance, Player } from "~/types/game";
+import type { Color } from "~/types/cards";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -14,6 +15,22 @@ function isLand(card: CardInstance): boolean {
 
 function isCreature(card: CardInstance): boolean {
     return card.card.types.includes("Creature");
+}
+
+const LAND_SUBTYPE_MANA: Record<string, Color> = {
+    Plains: "W",
+    Island: "U",
+    Swamp: "B",
+    Mountain: "R",
+    Forest: "G",
+};
+
+function getLandManaColor(card: CardInstance): Color | null {
+    for (const subtype of card.card.subtypes ?? []) {
+        const color = LAND_SUBTYPE_MANA[subtype];
+        if (color) return color;
+    }
+    return null;
 }
 
 /** Groups cards by name, preserving order of first appearance. */
@@ -32,9 +49,15 @@ function groupByName(cards: CardInstance[]): CardInstance[][] {
 }
 
 export default function PlayerBattlefield({ player }: BattlefieldProps) {
-    const { gameId, playerId } = useGameContext();
+    const { gameId, playerId, pendingCast } = useGameContext();
     const isMe = player.id === playerId;
     const tapUntap = useMutation(api.game.tapUntap);
+    const tapForPayment = useMutation(api.game.tapForPayment);
+    const untapForPayment = useMutation(api.game.untapForPayment);
+    const cancelCast = useMutation(api.game.cancelCast);
+
+    const isPayingCast =
+        isMe && !!pendingCast && pendingCast.playerId === playerId;
 
     const creatures = player.battlefield.filter(isCreature);
     const lands = player.battlefield.filter((c) => isLand(c) && !isCreature(c));
@@ -42,20 +65,54 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
         (c) => !isCreature(c) && !isLand(c)
     );
 
-    function handleTap(cardInstance: CardInstance) {
-        if (!isMe || !isLand(cardInstance)) return;
-        tapUntap({ gameId, playerId, cardInstanceId: cardInstance.id });
+    function handleClick(cardInstance: CardInstance) {
+        if (!canInteract(cardInstance)) return;
+
+        if (isPayingCast) {
+            if (cardInstance.isTapped) {
+                untapForPayment({
+                    gameId,
+                    playerId,
+                    cardInstanceId: cardInstance.id,
+                });
+            } else {
+                tapForPayment({
+                    gameId,
+                    playerId,
+                    cardInstanceId: cardInstance.id,
+                });
+            }
+        } else {
+            tapUntap({ gameId, playerId, cardInstanceId: cardInstance.id });
+        }
+    }
+
+    function canInteract(cardInstance: CardInstance): boolean {
+        if (!isMe || !isLand(cardInstance)) return false;
+        if (isPayingCast) {
+            if (cardInstance.isTapped) {
+                return pendingCast!.tappedLandIds.includes(cardInstance.id);
+            }
+            return getLandManaColor(cardInstance) !== null;
+        }
+        // Outside payment: untapped lands can always be tapped.
+        // Committed lands (mana spent on a cast) cannot be untapped.
+        if (cardInstance.isTapped) {
+            return !cardInstance.manaCommitted;
+        }
+        return true;
     }
 
     function renderCard(cardInstance: CardInstance) {
-        const tappable = isMe && isLand(cardInstance);
+        const interactive = isMe && isLand(cardInstance);
+        const enabled = canInteract(cardInstance);
         return (
             <div
                 key={cardInstance.id}
                 className={`w-32 transition-transform duration-150 ${
                     cardInstance.isTapped ? "rotate-90" : ""
-                } ${tappable ? "cursor-pointer" : ""}`}
-                onClick={() => handleTap(cardInstance)}
+                } ${interactive ? (enabled ? "cursor-pointer" : "cursor-not-allowed opacity-60") : ""}`}
+                onClick={() => handleClick(cardInstance)}
             >
                 <CardImage card={cardInstance.card} />
             </div>
@@ -70,7 +127,6 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
                 </div>
             );
         }
-        // Stack cards with 50% overlap
         const overlapWidth = `${0.5 * (group.length - 1) + 1}`;
         return (
             <div
@@ -78,23 +134,27 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
                 className="flex"
                 style={{ width: `calc(8rem * ${overlapWidth})` }}
             >
-                {group.map((card, i) => (
-                    <div
-                        key={card.id}
-                        className={`transition-transform duration-150 ${
-                            card.isTapped ? "rotate-90" : ""
-                        } ${isMe && isLand(card) ? "cursor-pointer" : ""}`}
-                        style={{
-                            width: "8rem",
-                            flexShrink: 0,
-                            marginLeft: i > 0 ? "-4rem" : undefined,
-                            zIndex: i,
-                        }}
-                        onClick={() => handleTap(card)}
-                    >
-                        <CardImage card={card.card} />
-                    </div>
-                ))}
+                {group.map((card, i) => {
+                    const interactive = isMe && isLand(card);
+                    const enabled = canInteract(card);
+                    return (
+                        <div
+                            key={card.id}
+                            className={`transition-transform duration-150 ${
+                                card.isTapped ? "rotate-90" : ""
+                            } ${interactive ? (enabled ? "cursor-pointer" : "cursor-not-allowed opacity-60") : ""}`}
+                            style={{
+                                width: "8rem",
+                                flexShrink: 0,
+                                marginLeft: i > 0 ? "-4rem" : undefined,
+                                zIndex: i,
+                            }}
+                            onClick={() => handleClick(card)}
+                        >
+                            <CardImage card={card.card} />
+                        </div>
+                    );
+                })}
             </div>
         );
     }
@@ -135,6 +195,16 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
                         {renderZone(creatures)}
                     </div>
                 </>
+            )}
+            {isPayingCast && (
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-40">
+                    <button
+                        onClick={() => cancelCast({ gameId, playerId })}
+                        className="bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-1 rounded-lg text-sm transition-colors"
+                    >
+                        Cancel Cast
+                    </button>
+                </div>
             )}
         </div>
     );

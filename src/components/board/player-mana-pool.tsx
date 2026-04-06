@@ -9,6 +9,10 @@ export default function PlayerManaPool({ player }: { player: Player }) {
 
     const colorsWithMana = colors.filter((color) => player.manaPool[color] > 0);
 
+    if (!colorsWithMana.length) {
+        return null;
+    }
+
     return (
         <div
             className={`z-20 flex gap-2 bg-black/40 p-2 rounded-md absolute left-1/2 -translate-x-1/2 ${isMe ? "bottom-32" : "top-48"}`}

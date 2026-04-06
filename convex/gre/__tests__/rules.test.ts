@@ -44,6 +44,8 @@ function makeGameState(overrides: Partial<GameState> = {}): GameState {
         stack: [],
         turn: 1,
         activePlayerId: "p1",
+        priorityPlayerId: "p1",
+        passCount: 0,
         phase: "PRECOMBAT_MAIN",
         ...overrides,
     };

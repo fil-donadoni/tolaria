@@ -1,9 +1,12 @@
 import { createContext, useContext } from "react";
 import type { Id } from "@convex/_generated/dataModel";
+import type { PendingCast } from "~/types/game";
 
 type GameContext = {
     gameId: Id<"games">;
     playerId: string;
+    priorityPlayerId: string;
+    pendingCast?: PendingCast;
     showAllCards: boolean;
     debugAllActions: boolean;
 };

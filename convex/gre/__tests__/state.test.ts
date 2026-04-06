@@ -2,13 +2,17 @@ import { describe, it, expect } from "vitest";
 import {
     getBasicLandMana,
     getPlayer,
+    getOpponentId,
     moveCard,
     removeFromZone,
-    checkManaCost,
+    isManaCostCovered,
+    normalizeManaCost,
     payManaCost,
+    resolveTopOfStack,
     type CardInstanceState,
     type PlayerState,
     type GameState,
+    type StackItem,
 } from "../state";
 
 // ---------------------------------------------------------------------------
@@ -54,6 +58,8 @@ function makeGameState(overrides: Partial<GameState> = {}): GameState {
         stack: [],
         turn: 1,
         activePlayerId: "p1",
+        priorityPlayerId: "p1",
+        passCount: 0,
         phase: "PRECOMBAT_MAIN",
         ...overrides,
     };
@@ -152,6 +158,18 @@ describe("getPlayer", () => {
         expect(() => getPlayer(state, "nonexistent")).toThrow(
             "Player not found: nonexistent"
         );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getOpponentId
+// ---------------------------------------------------------------------------
+
+describe("getOpponentId", () => {
+    it("returns the other player's id", () => {
+        const state = makeGameState();
+        expect(getOpponentId(state, "p1")).toBe("p2");
+        expect(getOpponentId(state, "p2")).toBe("p1");
     });
 });
 
@@ -270,70 +288,85 @@ describe("removeFromZone", () => {
 });
 
 // ---------------------------------------------------------------------------
-// checkManaCost — CR 117.6: paying costs
+// normalizeManaCost
 // ---------------------------------------------------------------------------
 
-describe("checkManaCost", () => {
-    it("returns null when pool exactly matches colored cost", () => {
-        // Savannah Lions: {W}
+describe("normalizeManaCost", () => {
+    it("converts ManaCost to pure numeric record", () => {
+        expect(normalizeManaCost({ X: 3, W: 1 })).toEqual({ X: 3, W: 1 });
+    });
+
+    it("drops zero values", () => {
+        expect(normalizeManaCost({ W: 0, U: 1 })).toEqual({ U: 1 });
+    });
+
+    it("treats string X as 0", () => {
+        expect(normalizeManaCost({ X: "any" as unknown as number })).toEqual(
+            {}
+        );
+    });
+
+    it("returns empty for empty cost", () => {
+        expect(normalizeManaCost({})).toEqual({});
+    });
+});
+
+// ---------------------------------------------------------------------------
+// isManaCostCovered — CR 117.6: checking mana payment
+// ---------------------------------------------------------------------------
+
+describe("isManaCostCovered", () => {
+    it("returns true when pool exactly matches colored cost", () => {
         const pool = { W: 1, U: 0, B: 0, R: 0, G: 0, C: 0 };
-        expect(checkManaCost(pool, { W: 1 })).toBeNull();
+        expect(isManaCostCovered(pool, { W: 1 })).toBe(true);
     });
 
-    it("returns null when pool has excess mana", () => {
+    it("returns true when pool has excess mana", () => {
         const pool = { W: 3, U: 0, B: 0, R: 0, G: 0, C: 0 };
-        expect(checkManaCost(pool, { W: 1 })).toBeNull();
+        expect(isManaCostCovered(pool, { W: 1 })).toBe(true);
     });
 
-    it("returns cost string when colored mana insufficient", () => {
+    it("returns false when colored mana insufficient", () => {
         const pool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
-        const result = checkManaCost(pool, { W: 1 });
-        expect(result).not.toBeNull();
-        expect(result).toContain("{W}");
+        expect(isManaCostCovered(pool, { W: 1 })).toBe(false);
     });
 
     it("handles generic mana paid by any color (CR 117.6)", () => {
-        // Armageddon: {3}{W}
         const pool = { W: 2, U: 1, B: 1, R: 0, G: 0, C: 0 };
-        // 1W colored + 3 generic from W(1 remaining) + U(1) + B(1) = 3 ✓
-        expect(checkManaCost(pool, { X: 3, W: 1 })).toBeNull();
+        expect(isManaCostCovered(pool, { X: 3, W: 1 })).toBe(true);
     });
 
     it("fails when generic mana cannot be covered", () => {
-        // Armageddon: {3}{W} with only 2 mana total
         const pool = { W: 1, U: 1, B: 0, R: 0, G: 0, C: 0 };
-        // After paying W: only 1U left, need 3 generic
-        expect(checkManaCost(pool, { X: 3, W: 1 })).not.toBeNull();
+        expect(isManaCostCovered(pool, { X: 3, W: 1 })).toBe(false);
     });
 
     it("handles zero-cost spells", () => {
         const pool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
-        expect(checkManaCost(pool, {})).toBeNull();
+        expect(isManaCostCovered(pool, {})).toBe(true);
     });
 
-    it("handles multi-colored cost (CR 117.6)", () => {
-        // A hypothetical {W}{U} cost
+    it("handles multi-colored cost", () => {
         const pool = { W: 1, U: 1, B: 0, R: 0, G: 0, C: 0 };
-        expect(checkManaCost(pool, { W: 1, U: 1 })).toBeNull();
+        expect(isManaCostCovered(pool, { W: 1, U: 1 })).toBe(true);
     });
 
     it("fails multi-colored when one color missing", () => {
         const pool = { W: 1, U: 0, B: 0, R: 0, G: 0, C: 0 };
-        expect(checkManaCost(pool, { W: 1, U: 1 })).not.toBeNull();
+        expect(isManaCostCovered(pool, { W: 1, U: 1 })).toBe(false);
     });
 
     it("colorless mana (C) is distinct from generic (CR 107.4b)", () => {
-        // A cost of {C} requires colorless mana specifically
         const pool = { W: 5, U: 0, B: 0, R: 0, G: 0, C: 0 };
-        expect(checkManaCost(pool, { C: 1 })).not.toBeNull();
+        expect(isManaCostCovered(pool, { C: 1 })).toBe(false);
 
         const poolWithC = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 1 };
-        expect(checkManaCost(poolWithC, { C: 1 })).toBeNull();
+        expect(isManaCostCovered(poolWithC, { C: 1 })).toBe(true);
     });
 
     it("does not mutate the original pool", () => {
         const pool = { W: 2, U: 0, B: 0, R: 0, G: 0, C: 0 };
-        checkManaCost(pool, { W: 1 });
+        isManaCostCovered(pool, { W: 1 });
         expect(pool.W).toBe(2);
     });
 });
@@ -386,5 +419,166 @@ describe("payManaCost", () => {
         const pool = { W: 1, U: 0, B: 0, R: 0, G: 0, C: 0 };
         payManaCost(pool, { W: 1 });
         expect(pool.W).toBe(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// resolveTopOfStack — CR 608.3 (permanents), CR 608.2k (instants/sorceries)
+// ---------------------------------------------------------------------------
+
+function makeStackItem(
+    cardData: Record<string, unknown>,
+    castById: string,
+    overrides: Partial<StackItem> = {}
+): StackItem {
+    return {
+        id: overrides.id ?? crypto.randomUUID(),
+        card: cardData,
+        controllerId: castById,
+        ownerId: castById,
+        zone: "stack",
+        isTapped: false,
+        castById,
+        ...overrides,
+    };
+}
+
+describe("resolveTopOfStack", () => {
+    it("creature spell enters the battlefield under caster's control (CR 608.3)", () => {
+        const item = makeStackItem(
+            { name: "Savannah Lions", types: ["Creature"] },
+            "p1"
+        );
+        const state = makeGameState();
+        state.stack.push(item);
+
+        const resolved = resolveTopOfStack(state);
+
+        expect(state.stack).toHaveLength(0);
+        expect(resolved.zone).toBe("battlefield");
+        expect(resolved.isTapped).toBe(false);
+        const p1 = getPlayer(state, "p1");
+        expect(p1.battlefield).toHaveLength(1);
+        expect(p1.battlefield[0].id).toBe(item.id);
+    });
+
+    it("artifact spell enters the battlefield (CR 608.3)", () => {
+        const item = makeStackItem(
+            { name: "Sol Ring", types: ["Artifact"] },
+            "p1"
+        );
+        const state = makeGameState();
+        state.stack.push(item);
+
+        resolveTopOfStack(state);
+
+        const p1 = getPlayer(state, "p1");
+        expect(p1.battlefield).toHaveLength(1);
+    });
+
+    it("enchantment spell enters the battlefield (CR 608.3)", () => {
+        const item = makeStackItem(
+            { name: "Animate Wall", types: ["Enchantment"] },
+            "p1"
+        );
+        const state = makeGameState();
+        state.stack.push(item);
+
+        resolveTopOfStack(state);
+
+        const p1 = getPlayer(state, "p1");
+        expect(p1.battlefield).toHaveLength(1);
+    });
+
+    it("instant goes to owner's graveyard after resolution (CR 608.2k)", () => {
+        const item = makeStackItem(
+            { name: "Lightning Bolt", types: ["Instant"] },
+            "p1"
+        );
+        const state = makeGameState();
+        state.stack.push(item);
+
+        const resolved = resolveTopOfStack(state);
+
+        expect(state.stack).toHaveLength(0);
+        expect(resolved.zone).toBe("graveyard");
+        const p1 = getPlayer(state, "p1");
+        expect(p1.graveyard).toHaveLength(1);
+        expect(p1.battlefield).toHaveLength(0);
+    });
+
+    it("sorcery goes to owner's graveyard after resolution (CR 608.2k)", () => {
+        const item = makeStackItem(
+            { name: "Armageddon", types: ["Sorcery"] },
+            "p1"
+        );
+        const state = makeGameState();
+        state.stack.push(item);
+
+        resolveTopOfStack(state);
+
+        const p1 = getPlayer(state, "p1");
+        expect(p1.graveyard).toHaveLength(1);
+    });
+
+    it("resolves top item only (LIFO — CR 405.5)", () => {
+        const bolt = makeStackItem(
+            { name: "Lightning Bolt", types: ["Instant"] },
+            "p1",
+            { id: "bolt" }
+        );
+        const lions = makeStackItem(
+            { name: "Savannah Lions", types: ["Creature"] },
+            "p1",
+            { id: "lions" }
+        );
+        const state = makeGameState();
+        state.stack.push(bolt, lions); // lions on top
+
+        const resolved = resolveTopOfStack(state);
+
+        expect(resolved.id).toBe("lions");
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].id).toBe("bolt");
+    });
+
+    it("throws when stack is empty", () => {
+        const state = makeGameState();
+        expect(() => resolveTopOfStack(state)).toThrow("Stack is empty");
+    });
+
+    it("permanent enters under caster's control even if owner differs", () => {
+        // Edge case: controllerId and castById differ from ownerId
+        const item = makeStackItem(
+            { name: "Savannah Lions", types: ["Creature"] },
+            "p1",
+            { ownerId: "p2" }
+        );
+        const state = makeGameState();
+        state.stack.push(item);
+
+        resolveTopOfStack(state);
+
+        // Enters under caster (p1)'s battlefield
+        const p1 = getPlayer(state, "p1");
+        expect(p1.battlefield).toHaveLength(1);
+    });
+
+    it("instant goes to owner's graveyard even if cast by opponent", () => {
+        const item = makeStackItem(
+            { name: "Lightning Bolt", types: ["Instant"] },
+            "p2",
+            { ownerId: "p1" }
+        );
+        const state = makeGameState();
+        state.stack.push(item);
+
+        resolveTopOfStack(state);
+
+        // Goes to owner (p1)'s graveyard
+        const p1 = getPlayer(state, "p1");
+        expect(p1.graveyard).toHaveLength(1);
+        const p2 = getPlayer(state, "p2");
+        expect(p2.graveyard).toHaveLength(0);
     });
 });
