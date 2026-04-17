@@ -1,5 +1,5 @@
 import { v, type GenericId } from "convex/values";
-import type { GenericQueryCtx } from "convex/server";
+import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { getCardById, getCardByName, getAllCardNames } from "./cards";
@@ -116,12 +116,37 @@ async function getLatestGameState(
     ctx: Pick<GenericQueryCtx<DataModel>, "db">,
     gameId: GenericId<"games">
 ): Promise<Doc<"game_states"> | null> {
-    const states = await ctx.db
+    return await ctx.db
         .query("game_states")
-        .filter((q) => q.eq(q.field("gameId"), gameId))
+        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+        .order("desc")
+        .first();
+}
+
+/** Save a game state snapshot, keeping only the last 2 (current + previous for undo). */
+async function saveGameState(
+    ctx: Pick<GenericMutationCtx<DataModel>, "db">,
+    gameId: GenericId<"games">,
+    seq: number,
+    state: GameState | Record<string, unknown>
+) {
+    await ctx.db.insert("game_states", {
+        gameId,
+        seq,
+        state,
+        updatedAt: Date.now(),
+    });
+
+    // Clean up old snapshots: keep only the 2 most recent
+    const allStates = await ctx.db
+        .query("game_states")
+        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+        .order("desc")
         .collect();
-    if (states.length === 0) return null;
-    return states.reduce((a, b) => (a.seq > b.seq ? a : b));
+
+    for (let i = 2; i < allStates.length; i++) {
+        await ctx.db.delete(allStates[i]._id);
+    }
 }
 
 // --- Queries ---
@@ -286,12 +311,7 @@ export const joinGame = mutation({
         // UNTAP is auto → advances to UPKEEP (with entry actions along the way)
         advancePhase(initialState);
 
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: 0,
-            state: initialState,
-            updatedAt: now,
-        });
+        await saveGameState(ctx, args.gameId, 0, initialState);
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
@@ -341,12 +361,7 @@ export const playCard = mutation({
         const nextSeq = gameState.seq + 1;
 
         // Insert new snapshot (don't overwrite previous)
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            state,
-            updatedAt: now,
-        });
+        await saveGameState(ctx, args.gameId, nextSeq, state);
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
@@ -415,12 +430,7 @@ export const announceCast = mutation({
             };
 
             const now = Date.now();
-            await ctx.db.insert("game_states", {
-                gameId: args.gameId,
-                seq: gameState.seq + 1,
-                state,
-                updatedAt: now,
-            });
+            await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
 
             await ctx.db.insert("events", {
                 gameId: args.gameId,
@@ -475,12 +485,7 @@ export const announceCast = mutation({
         }
 
         const now = Date.now();
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: now,
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
@@ -559,12 +564,7 @@ export const tapForPayment = mutation({
             drainAutoPasses(state);
 
             const now = Date.now();
-            await ctx.db.insert("game_states", {
-                gameId: args.gameId,
-                seq: gameState.seq + 1,
-                state,
-                updatedAt: now,
-            });
+            await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
 
             await ctx.db.insert("events", {
                 gameId: args.gameId,
@@ -579,13 +579,7 @@ export const tapForPayment = mutation({
             });
         } else {
             // Just save the tap
-            const now = Date.now();
-            await ctx.db.insert("game_states", {
-                gameId: args.gameId,
-                seq: gameState.seq + 1,
-                state,
-                updatedAt: now,
-            });
+            await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
         }
     },
 });
@@ -633,12 +627,7 @@ export const untapForPayment = mutation({
         );
         state.pendingCast.tappedLandIds.splice(idx, 1);
 
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: Date.now(),
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
     },
 });
 
@@ -680,12 +669,7 @@ export const cancelCast = mutation({
 
         state.pendingCast = undefined;
 
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: Date.now(),
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
     },
 });
 
@@ -790,12 +774,7 @@ export const selectTarget = mutation({
         }
 
         const now = Date.now();
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: now,
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
 
         if (!state.pendingTarget) {
             await ctx.db.insert("events", {
@@ -836,12 +815,7 @@ export const cancelTarget = mutation({
 
         state.pendingTarget = undefined;
 
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: Date.now(),
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
     },
 });
 
@@ -888,12 +862,7 @@ export const toggleAttacker = mutation({
             state.combat.attackerIds.push(args.cardInstanceId);
         }
 
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: Date.now(),
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
     },
 });
 
@@ -941,12 +910,7 @@ export const confirmAttackers = mutation({
         drainAutoPasses(state);
 
         const now = Date.now();
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: now,
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
@@ -1011,12 +975,7 @@ export const selectBlocker = mutation({
             state.combat.pendingBlockerId = args.cardInstanceId;
         }
 
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: Date.now(),
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
     },
 });
 
@@ -1075,12 +1034,7 @@ export const assignBlockerTarget = mutation({
             args.attackerId;
         state.combat.pendingBlockerId = undefined;
 
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: Date.now(),
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
     },
 });
 
@@ -1147,12 +1101,7 @@ export const confirmBlockers = mutation({
         drainAutoPasses(state);
 
         const now = Date.now();
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: now,
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
@@ -1211,12 +1160,7 @@ export const setBlockerOrder = mutation({
 
         state.combat.blockerOrder![args.attackerId] = args.orderedBlockerIds;
 
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: Date.now(),
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
     },
 });
 
@@ -1255,12 +1199,7 @@ export const confirmBlockerOrder = mutation({
         drainAutoPasses(state);
 
         const now = Date.now();
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: now,
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
@@ -1340,12 +1279,7 @@ export const setDamageAssignment = mutation({
         }
         state.combat.damageAssignments[args.attackerId] = assignments;
 
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: Date.now(),
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
     },
 });
 
@@ -1379,12 +1313,7 @@ export const confirmDamage = mutation({
         drainAutoPasses(state);
 
         const now = Date.now();
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: now,
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
@@ -1472,12 +1401,7 @@ export const passPriority = mutation({
         drainAutoPasses(state);
 
         const now = Date.now();
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: now,
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
@@ -1518,12 +1442,7 @@ export const endTurn = mutation({
         drainAutoPasses(state);
 
         const now = Date.now();
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: now,
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
@@ -1558,12 +1477,7 @@ export const drawCard = mutation({
         const now = Date.now();
         const nextSeq = gameState.seq + 1;
 
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            state,
-            updatedAt: now,
-        });
+        await saveGameState(ctx, args.gameId, nextSeq, state);
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
@@ -1606,12 +1520,7 @@ export const mill = mutation({
         const now = Date.now();
         const nextSeq = gameState.seq + 1;
 
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            state,
-            updatedAt: now,
-        });
+        await saveGameState(ctx, args.gameId, nextSeq, state);
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
@@ -1649,12 +1558,7 @@ export const exileFromLibrary = mutation({
         const now = Date.now();
         const nextSeq = gameState.seq + 1;
 
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            state,
-            updatedAt: now,
-        });
+        await saveGameState(ctx, args.gameId, nextSeq, state);
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
@@ -1777,12 +1681,7 @@ export const tapUntap = mutation({
         state.undoableBy = args.playerId;
 
         // Save updated state
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: Date.now(),
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
     },
 });
 
@@ -1811,12 +1710,7 @@ export const debugPatchState = mutation({
 
         target[keys[keys.length - 1]] = args.value;
 
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: Date.now(),
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
     },
 });
 
@@ -1846,17 +1740,16 @@ export const debugUndo = mutation({
         gameId: v.id("games"),
     },
     handler: async (ctx, args) => {
-        const states = await ctx.db
+        const latest = await ctx.db
             .query("game_states")
-            .filter((q) => q.eq(q.field("gameId"), args.gameId))
-            .collect();
+            .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+            .order("desc")
+            .first();
 
-        if (states.length <= 1) {
+        if (!latest || latest.seq <= 0) {
             throw new Error("Nothing to undo");
         }
 
-        // Find and delete the one with highest seq
-        const latest = states.reduce((a, b) => (a.seq > b.seq ? a : b));
         await ctx.db.delete(latest._id);
     },
 });
@@ -1869,7 +1762,8 @@ export const debugResetGame = mutation({
     handler: async (ctx, args) => {
         const states = await ctx.db
             .query("game_states")
-            .filter((q) => q.eq(q.field("gameId"), args.gameId))
+            .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+            .order("desc")
             .collect();
 
         // Delete all except seq 0
@@ -1981,11 +1875,6 @@ export const debugSetupScenario = mutation({
         state.pendingCast = undefined;
         state.stack = [];
 
-        await ctx.db.insert("game_states", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            state,
-            updatedAt: Date.now(),
-        });
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
     },
 });

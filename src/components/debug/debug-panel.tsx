@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { JSONTree } from "react-json-tree";
+import { usePageVisible } from "~/hooks/usePageVisible";
 import DebugButton from "./debug-button";
 
 const theme = {
@@ -108,7 +109,11 @@ export default function DebugPanel({
 }: DebugPanelProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [showScenarios, setShowScenarios] = useState(false);
-    const state = useQuery(api.game.getFullState, { gameId });
+    const pageVisible = usePageVisible();
+    const state = useQuery(
+        api.game.getFullState,
+        isOpen && pageVisible ? { gameId } : "skip"
+    );
     const undo = useMutation(api.game.debugUndo);
     const resetGame = useMutation(api.game.debugResetGame);
     const setupScenario = useMutation(api.game.debugSetupScenario);

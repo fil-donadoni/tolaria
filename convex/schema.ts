@@ -15,7 +15,7 @@ export default defineSchema({
         seq: v.number(),
         state: v.any(),
         updatedAt: v.number(),
-    }),
+    }).index("by_gameId", ["gameId", "seq"]),
     games: defineTable({
         name: v.string(),
         status: v.union(

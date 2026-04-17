@@ -9,6 +9,7 @@ import type {
     StackItem,
 } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
+import { usePageVisible } from "~/hooks/usePageVisible";
 import PlayerBoard from "./player-board";
 import GameStack from "./game-stack";
 import PhaseTracker from "./phase-tracker";
@@ -27,7 +28,11 @@ export default function Board({
     showAllCards,
     debugAllActions,
 }: BoardProps) {
-    const state = useQuery(api.game.getFullState, { gameId, debugAllActions });
+    const pageVisible = usePageVisible();
+    const state = useQuery(
+        api.game.getFullState,
+        pageVisible ? { gameId, debugAllActions } : "skip"
+    );
 
     if (!state) {
         return (

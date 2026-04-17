@@ -4,6 +4,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import Board from "./components/board/board";
 import DebugPanel from "./components/debug/debug-panel";
+import { usePageVisible } from "./hooks/usePageVisible";
 import { whiteWeenieDeck, monoredDeck } from "./mocks/startingPlayers";
 
 const PLAYER_COLORS = ["#4B5A6C", "#63768D"];
@@ -34,10 +35,17 @@ function App() {
     const [showAllCards, setShowAllCards] = useState(false);
     const [debugAllActions, setDebugAllActions] = useState(false);
 
+    const pageVisible = usePageVisible();
     const createGame = useMutation(api.game.createGame);
     const joinGame = useMutation(api.game.joinGame);
-    const openGames = useQuery(api.game.listOpenGames);
-    const game = useQuery(api.game.getGame, gameId ? { gameId } : "skip");
+    const openGames = useQuery(
+        api.game.listOpenGames,
+        pageVisible ? {} : "skip"
+    );
+    const game = useQuery(
+        api.game.getGame,
+        pageVisible && gameId ? { gameId } : "skip"
+    );
 
     const handleCreate = async () => {
         const name = playerName.trim() || "Player 1";
