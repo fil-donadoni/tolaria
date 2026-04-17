@@ -88,6 +88,8 @@ function buildAutoDamageAssignments(
 ): Record<string, Record<string, number>> {
     const blockersPerAttacker = getBlockersPerAttacker(state);
     const activePlayer = getPlayer(state, state.activePlayerId);
+    const defenderId = getOpponentId(state, state.activePlayerId);
+    const defender = getPlayer(state, defenderId);
     const result: Record<string, Record<string, number>> = {};
 
     for (const attackerId of state.combat!.attackerIds) {
@@ -96,22 +98,44 @@ function buildAutoDamageAssignments(
         );
         if (!attacker) continue;
         const blockers = blockersPerAttacker[attackerId] ?? [];
+        const hasTrample = attacker.staticAbilities.includes("trample");
+
         if (blockers.length === 1) {
-            result[attackerId] = {
-                [blockers[0]]: getCardPower(attacker),
-            };
+            const blocker = defender.battlefield.find(
+                (c) => c.id === blockers[0]
+            );
+            if (hasTrample && blocker) {
+                // Trample: assign lethal damage to blocker, excess to defender
+                const lethal = getCardToughness(blocker);
+                const toBlocker = Math.min(getCardPower(attacker), lethal);
+                const toDefender = getCardPower(attacker) - toBlocker;
+                const assignment: Record<string, number> = {
+                    [blockers[0]]: toBlocker,
+                };
+                if (toDefender > 0) {
+                    assignment[defenderId] = toDefender;
+                }
+                result[attackerId] = assignment;
+            } else {
+                result[attackerId] = {
+                    [blockers[0]]: getCardPower(attacker),
+                };
+            }
         }
         // 0 blockers = unblocked, handled separately in applyAllCombatDamage
     }
     return result;
 }
 
-/** Build default damage assignments for multi-blocker attackers (all damage to first). */
+/** Build default damage assignments for multi-blocker attackers.
+ *  Uses blockerOrder for ordering. With trample, assigns lethal to each in order, excess to defender. */
 function buildDefaultDamageAssignments(
     state: GameState
 ): Record<string, Record<string, number>> {
     const blockersPerAttacker = getBlockersPerAttacker(state);
     const activePlayer = getPlayer(state, state.activePlayerId);
+    const defenderId = getOpponentId(state, state.activePlayerId);
+    const defender = getPlayer(state, defenderId);
     const result: Record<string, Record<string, number>> = {};
 
     for (const attackerId of state.combat!.attackerIds) {
@@ -119,16 +143,52 @@ function buildDefaultDamageAssignments(
             (c) => c.id === attackerId
         );
         if (!attacker) continue;
-        const blockers = blockersPerAttacker[attackerId] ?? [];
+        // Use blockerOrder if available, fall back to blockersPerAttacker
+        const blockers =
+            state.combat!.blockerOrder?.[attackerId] ??
+            blockersPerAttacker[attackerId] ??
+            [];
+        const hasTrample = attacker.staticAbilities.includes("trample");
+
         if (blockers.length === 1) {
-            result[attackerId] = {
-                [blockers[0]]: getCardPower(attacker),
-            };
+            if (hasTrample) {
+                const blocker = defender.battlefield.find(
+                    (c) => c.id === blockers[0]
+                );
+                const lethal = blocker ? getCardToughness(blocker) : 0;
+                const toBlocker = Math.min(getCardPower(attacker), lethal);
+                const toDefender = getCardPower(attacker) - toBlocker;
+                const assignment: Record<string, number> = {
+                    [blockers[0]]: toBlocker,
+                };
+                if (toDefender > 0) assignment[defenderId] = toDefender;
+                result[attackerId] = assignment;
+            } else {
+                result[attackerId] = {
+                    [blockers[0]]: getCardPower(attacker),
+                };
+            }
         } else if (blockers.length >= 2) {
-            // Default: all damage to first blocker
             const assignment: Record<string, number> = {};
-            for (let i = 0; i < blockers.length; i++) {
-                assignment[blockers[i]] = i === 0 ? getCardPower(attacker) : 0;
+            if (hasTrample) {
+                // Default with trample: lethal to each in order, excess to defender
+                let remaining = getCardPower(attacker);
+                for (const blockerId of blockers) {
+                    const blocker = defender.battlefield.find(
+                        (c) => c.id === blockerId
+                    );
+                    const lethal = blocker ? getCardToughness(blocker) : 0;
+                    const toThis = Math.min(remaining, lethal);
+                    assignment[blockerId] = toThis;
+                    remaining -= toThis;
+                }
+                if (remaining > 0) assignment[defenderId] = remaining;
+            } else {
+                // Default without trample: all damage to first blocker
+                for (let i = 0; i < blockers.length; i++) {
+                    assignment[blockers[i]] =
+                        i === 0 ? getCardPower(attacker) : 0;
+                }
             }
             result[attackerId] = assignment;
         }
@@ -167,11 +227,16 @@ export function applyAllCombatDamage(
             // Unblocked: damage to defending player
             defender.life -= attackerPower;
         } else {
-            // Blocked: distribute attacker's damage to blockers
+            // Blocked: distribute attacker's damage to blockers (and defender if trample)
             const assignments = damageAssignments[attackerId] ?? {};
-            for (const [blockerId, damage] of Object.entries(assignments)) {
-                damageReceived[blockerId] =
-                    (damageReceived[blockerId] ?? 0) + damage;
+            for (const [targetId, damage] of Object.entries(assignments)) {
+                if (targetId === defenderId) {
+                    // Trample excess damage to defending player
+                    defender.life -= damage;
+                } else {
+                    damageReceived[targetId] =
+                        (damageReceived[targetId] ?? 0) + damage;
+                }
             }
 
             // All blockers deal their power to the attacker
@@ -382,6 +447,27 @@ export function drainAutoPasses(state: GameState): void {
             }
             state.combat.pendingBlockerId = undefined;
             state.combat.blockersConfirmed = true;
+
+            // Initialize blocker order (same logic as confirmBlockers)
+            const blockerOrder: Record<string, string[]> = {};
+            for (const [blockerId, attackerId] of Object.entries(
+                state.combat.blockerAssignments
+            )) {
+                if (!blockerOrder[attackerId]) blockerOrder[attackerId] = [];
+                blockerOrder[attackerId].push(blockerId);
+            }
+            state.combat.blockerOrder = blockerOrder;
+            // Auto-confirm order (no multi-block reordering during auto-pass)
+            state.combat.blockerOrderConfirmed = true;
+        }
+
+        // Auto-confirm blocker order when attacking player auto-passes
+        if (
+            state.phase === "DECLARE_BLOCKERS" &&
+            state.combat &&
+            state.combat.blockerOrderConfirmed === false
+        ) {
+            state.combat.blockerOrderConfirmed = true;
         }
 
         // Auto-confirm damage assignment when active player auto-passes

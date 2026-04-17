@@ -64,6 +64,15 @@ const PRESET_SCENARIOS = [
         ],
         phase: "DECLARE_ATTACKERS",
     },
+    {
+        label: "Trample: Mammoth vs Merfolk x2",
+        cards: [
+            { name: "War Mammoth", owner: "me" as const },
+            { name: "Merfolk of the Pearl Trident", owner: "opp" as const },
+            { name: "Merfolk of the Pearl Trident", owner: "opp" as const },
+        ],
+        phase: "DECLARE_ATTACKERS",
+    },
 ];
 
 type DebugPanelProps = {

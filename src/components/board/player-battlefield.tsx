@@ -13,6 +13,7 @@ import {
 import { COMBAT_GROUP_RING, COMBAT_GROUP_BG } from "~/lib/combat-colors";
 import BattlefieldCard, { type CardVisualState } from "./battlefield-card";
 import DamageAssignmentPanel from "./damage-assignment-panel";
+import BlockerOrderPanel from "./blocker-order-panel";
 import ActionButton from "./action-button";
 
 // ---------------------------------------------------------------------------
@@ -77,6 +78,14 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         !combat.blockersConfirmed &&
         !!combat.pendingBlockerId &&
         playerId !== activePlayerId;
+
+    const isOrderingBlockers =
+        phase === "DECLARE_BLOCKERS" &&
+        !!combat &&
+        combat.blockersConfirmed &&
+        combat.blockerOrderConfirmed === false &&
+        isMe &&
+        playerId === activePlayerId;
 
     const isAssigningDamage =
         phase === "COMBAT_DAMAGE" &&
@@ -431,6 +440,15 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                     color="blue"
                 />
             )}
+            {isOrderingBlockers && (
+                <BlockerOrderPanel
+                    combat={combat!}
+                    opponentBattlefield={opponent?.battlefield ?? []}
+                    combatGroupColors={combatGroupColors}
+                    gameId={gameId}
+                    playerId={playerId}
+                />
+            )}
             {isAssigningDamage && (
                 <>
                     <DamageAssignmentPanel
@@ -441,6 +459,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                         combatGroupColors={combatGroupColors}
                         gameId={gameId}
                         playerId={playerId}
+                        defenderId={opponent?.id ?? ""}
                     />
                     <ActionButton
                         onClick={() => confirmDamage({ gameId, playerId })}

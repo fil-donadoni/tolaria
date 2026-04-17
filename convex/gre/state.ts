@@ -104,7 +104,11 @@ export type GameState = {
         /** Blocker currently being assigned by the defending player (visible to both clients). */
         pendingBlockerId?: string;
         blockersConfirmed: boolean;
-        /** attackerId → { blockerId: damage } for multi-blocker damage distribution. */
+        /** attackerId → ordered list of blocker IDs (set by attacking player after blockers declared, CR 510.1). */
+        blockerOrder?: Record<string, string[]>;
+        /** true once attacking player has confirmed the blocker ordering. */
+        blockerOrderConfirmed?: boolean;
+        /** attackerId → { blockerId/defenderId: damage } for damage distribution. */
         damageAssignments?: Record<string, Record<string, number>>;
         /** false = waiting for manual assignment, undefined = auto-applied or not yet at damage step. */
         damageConfirmed?: boolean;

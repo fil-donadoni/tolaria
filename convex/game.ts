@@ -1112,6 +1112,31 @@ export const confirmBlockers = mutation({
 
         state.combat.pendingBlockerId = undefined;
         state.combat.blockersConfirmed = true;
+
+        // Build blockerOrder: attackerId → ordered blocker IDs (CR 510.1)
+        // If any attacker has 2+ blockers, the attacking player must order them
+        const blockerOrder: Record<string, string[]> = {};
+        let needsOrdering = false;
+        for (const [blockerId, attackerId] of Object.entries(
+            state.combat.blockerAssignments
+        )) {
+            if (!blockerOrder[attackerId]) blockerOrder[attackerId] = [];
+            blockerOrder[attackerId].push(blockerId);
+        }
+        for (const blockerIds of Object.values(blockerOrder)) {
+            if (blockerIds.length >= 2) needsOrdering = true;
+        }
+
+        if (needsOrdering) {
+            // Default order: declaration order. Attacking player must confirm/reorder.
+            state.combat.blockerOrder = blockerOrder;
+            state.combat.blockerOrderConfirmed = false;
+        } else {
+            // Single or zero blockers per attacker: order is trivial, skip ordering step
+            state.combat.blockerOrder = blockerOrder;
+            state.combat.blockerOrderConfirmed = true;
+        }
+
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
         drainAutoPasses(state);
@@ -1131,6 +1156,112 @@ export const confirmBlockers = mutation({
             player: args.playerId,
             payload: {
                 blockerAssignments: state.combat.blockerAssignments,
+            },
+            timestamp: now,
+        });
+    },
+});
+
+/** Set the blocker damage ordering for a specific attacker (CR 510.1). */
+export const setBlockerOrder = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        attackerId: v.string(),
+        orderedBlockerIds: v.array(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+
+        if (state.phase !== "DECLARE_BLOCKERS") {
+            throw new Error("Not in DECLARE_BLOCKERS phase");
+        }
+        if (args.playerId !== state.activePlayerId) {
+            throw new Error("Only the attacking player can order blockers");
+        }
+        if (
+            !state.combat ||
+            !state.combat.blockersConfirmed ||
+            state.combat.blockerOrderConfirmed
+        ) {
+            throw new Error("Blocker ordering is not open");
+        }
+
+        // Validate: same set of blocker IDs, just reordered
+        const existing = state.combat.blockerOrder?.[args.attackerId] ?? [];
+        const sorted = [...args.orderedBlockerIds].sort();
+        const expectedSorted = [...existing].sort();
+        if (
+            sorted.length !== expectedSorted.length ||
+            sorted.some((id, i) => id !== expectedSorted[i])
+        ) {
+            throw new Error(
+                "Ordered blocker IDs must be the same set as the declared blockers"
+            );
+        }
+
+        state.combat.blockerOrder![args.attackerId] = args.orderedBlockerIds;
+
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            state,
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+/** Confirm the blocker ordering and proceed. */
+export const confirmBlockerOrder = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+
+        if (state.phase !== "DECLARE_BLOCKERS") {
+            throw new Error("Not in DECLARE_BLOCKERS phase");
+        }
+        if (args.playerId !== state.activePlayerId) {
+            throw new Error(
+                "Only the attacking player can confirm blocker order"
+            );
+        }
+        if (
+            !state.combat ||
+            !state.combat.blockersConfirmed ||
+            state.combat.blockerOrderConfirmed
+        ) {
+            throw new Error("Blocker ordering is not open");
+        }
+
+        state.combat.blockerOrderConfirmed = true;
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+        drainAutoPasses(state);
+
+        const now = Date.now();
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            state,
+            updatedAt: now,
+        });
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            type: "BLOCKER_ORDER_CONFIRMED",
+            player: args.playerId,
+            payload: {
+                blockerOrder: state.combat.blockerOrder,
             },
             timestamp: now,
         });
@@ -1178,12 +1309,21 @@ export const setDamageAssignment = mutation({
             );
         }
 
-        // Validate: all targets are valid blockers of this attacker
-        for (const blockerId of Object.keys(assignments)) {
-            if (
-                state.combat.blockerAssignments[blockerId] !== args.attackerId
-            ) {
-                throw new Error(`${blockerId} is not blocking this attacker`);
+        const hasTrample = attacker.staticAbilities.includes("trample");
+        const defenderId = getOpponentId(state, args.playerId);
+
+        // Validate: all targets are valid blockers of this attacker (or defender if trample)
+        for (const targetId of Object.keys(assignments)) {
+            if (targetId === defenderId) {
+                if (!hasTrample) {
+                    throw new Error(
+                        "Only creatures with trample can assign damage to the defending player"
+                    );
+                }
+                continue;
+            }
+            if (state.combat.blockerAssignments[targetId] !== args.attackerId) {
+                throw new Error(`${targetId} is not blocking this attacker`);
             }
         }
 
@@ -1279,6 +1419,17 @@ export const passPriority = mutation({
             !state.combat.blockersConfirmed
         ) {
             throw new Error("Must declare blockers before passing priority");
+        }
+
+        // Cannot pass priority before confirming blocker order (CR 510.1)
+        if (
+            state.phase === "DECLARE_BLOCKERS" &&
+            state.combat &&
+            state.combat.blockerOrderConfirmed === false
+        ) {
+            throw new Error(
+                "Must confirm blocker order before passing priority"
+            );
         }
 
         // Cannot pass priority before confirming damage assignments

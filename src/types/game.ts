@@ -67,6 +67,8 @@ export interface Combat {
     blockerAssignments: Record<string, string>;
     pendingBlockerId?: string;
     blockersConfirmed: boolean;
+    blockerOrder?: Record<string, string[]>;
+    blockerOrderConfirmed?: boolean;
     damageAssignments?: Record<string, Record<string, number>>;
     damageConfirmed?: boolean;
 }

@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { advancePhase, drainAutoPasses, isSorceryTiming } from "../phases";
+import {
+    advancePhase,
+    drainAutoPasses,
+    isSorceryTiming,
+    applyAllCombatDamage,
+} from "../phases";
 import type {
     GameState,
     PlayerState,
@@ -706,5 +711,294 @@ describe("drainAutoPasses", () => {
         // At DRAW, p1 gets priority, not auto-passing → stop
         expect(state.phase).toBe("DRAW");
         expect(state.priorityPlayerId).toBe("p1");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// applyAllCombatDamage — trample and blocker ordering
+// ---------------------------------------------------------------------------
+
+describe("applyAllCombatDamage", () => {
+    /** Helper: create a combat state with attackers, blockers, and optional blocker order. */
+    function makeCombatState(opts: {
+        attackers: CardInstanceState[];
+        blockers: CardInstanceState[];
+        /** blockerId → attackerId */
+        blockerAssignments: Record<string, string>;
+        blockerOrder?: Record<string, string[]>;
+    }) {
+        const p1 = makePlayer({
+            id: "p1",
+            battlefield: opts.attackers,
+        });
+        const p2 = makePlayer({
+            id: "p2",
+            battlefield: opts.blockers,
+        });
+        return makeGameState({
+            activePlayerId: "p1",
+            phase: "COMBAT_DAMAGE",
+            players: [p1, p2],
+            combat: {
+                attackerIds: opts.attackers.map((a) => a.id),
+                confirmed: true,
+                blockerAssignments: opts.blockerAssignments,
+                blockersConfirmed: true,
+                blockerOrder: opts.blockerOrder,
+            },
+        });
+    }
+
+    it("without trample, blocked attacker deals no damage to defender", () => {
+        const attacker = makeCard({
+            id: "att",
+            power: 4,
+            toughness: 4,
+            staticAbilities: [],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blocker = makeCard({
+            id: "blk",
+            power: 2,
+            toughness: 2,
+            staticAbilities: [],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeCombatState({
+            attackers: [attacker],
+            blockers: [blocker],
+            blockerAssignments: { blk: "att" },
+        });
+
+        applyAllCombatDamage(state, { att: { blk: 4 } });
+
+        // Defender takes no damage
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        expect(p2.life).toBe(20);
+        // Blocker dies (4 >= 2)
+        expect(p2.battlefield).toHaveLength(0);
+        expect(p2.graveyard).toHaveLength(1);
+        // Attacker takes 2 from blocker, survives (2 < 4)
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        expect(p1.battlefield).toHaveLength(1);
+    });
+
+    it("trample with 1 weaker blocker: excess damage to defender", () => {
+        const attacker = makeCard({
+            id: "att",
+            power: 3,
+            toughness: 3,
+            staticAbilities: ["trample"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blocker = makeCard({
+            id: "blk",
+            power: 1,
+            toughness: 1,
+            staticAbilities: [],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeCombatState({
+            attackers: [attacker],
+            blockers: [blocker],
+            blockerAssignments: { blk: "att" },
+        });
+
+        // Assign 1 to blocker (lethal), 2 to defender (p2)
+        applyAllCombatDamage(state, { att: { blk: 1, p2: 2 } });
+
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        expect(p2.life).toBe(18); // 20 - 2
+        expect(p2.battlefield).toHaveLength(0); // blocker dies
+        expect(p2.graveyard).toHaveLength(1);
+    });
+
+    it("trample with blocker toughness >= power: 0 to defender", () => {
+        const attacker = makeCard({
+            id: "att",
+            power: 2,
+            toughness: 2,
+            staticAbilities: ["trample"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blocker = makeCard({
+            id: "blk",
+            power: 3,
+            toughness: 3,
+            staticAbilities: [],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeCombatState({
+            attackers: [attacker],
+            blockers: [blocker],
+            blockerAssignments: { blk: "att" },
+        });
+
+        // All damage to blocker, none to defender
+        applyAllCombatDamage(state, { att: { blk: 2 } });
+
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        expect(p2.life).toBe(20); // No trample excess
+        expect(p2.battlefield).toHaveLength(1); // blocker survives (2 < 3)
+        // Attacker dies (3 >= 2)
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        expect(p1.battlefield).toHaveLength(0);
+    });
+
+    it("trample unblocked: all damage to defender (same as no trample)", () => {
+        const attacker = makeCard({
+            id: "att",
+            power: 3,
+            toughness: 3,
+            staticAbilities: ["trample"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeCombatState({
+            attackers: [attacker],
+            blockers: [],
+            blockerAssignments: {},
+        });
+
+        applyAllCombatDamage(state, {});
+
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        expect(p2.life).toBe(17); // 20 - 3
+    });
+
+    it("trample multi-block: lethal to each blocker, excess to defender", () => {
+        const attacker = makeCard({
+            id: "att",
+            power: 3,
+            toughness: 3,
+            staticAbilities: ["trample"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blocker1 = makeCard({
+            id: "blk1",
+            power: 1,
+            toughness: 1,
+            staticAbilities: [],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const blocker2 = makeCard({
+            id: "blk2",
+            power: 1,
+            toughness: 1,
+            staticAbilities: [],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeCombatState({
+            attackers: [attacker],
+            blockers: [blocker1, blocker2],
+            blockerAssignments: { blk1: "att", blk2: "att" },
+            blockerOrder: { att: ["blk1", "blk2"] },
+        });
+
+        // 1 to blk1 (lethal), 1 to blk2 (lethal), 1 to defender
+        applyAllCombatDamage(state, { att: { blk1: 1, blk2: 1, p2: 1 } });
+
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        expect(p2.life).toBe(19); // 20 - 1
+        expect(p2.battlefield).toHaveLength(0); // both blockers die
+        expect(p2.graveyard).toHaveLength(2);
+        // Attacker takes 1+1=2, survives (2 < 3)
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        expect(p1.battlefield).toHaveLength(1);
+    });
+
+    it("trample multi-block: all damage to blockers, 0 to defender", () => {
+        const attacker = makeCard({
+            id: "att",
+            power: 3,
+            toughness: 3,
+            staticAbilities: ["trample"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blocker1 = makeCard({
+            id: "blk1",
+            power: 1,
+            toughness: 2,
+            staticAbilities: [],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const blocker2 = makeCard({
+            id: "blk2",
+            power: 1,
+            toughness: 2,
+            staticAbilities: [],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeCombatState({
+            attackers: [attacker],
+            blockers: [blocker1, blocker2],
+            blockerAssignments: { blk1: "att", blk2: "att" },
+            blockerOrder: { att: ["blk1", "blk2"] },
+        });
+
+        // 2 to blk1, 1 to blk2 — all damage used on blockers
+        applyAllCombatDamage(state, { att: { blk1: 2, blk2: 1 } });
+
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        expect(p2.life).toBe(20); // No trample excess
+        // blk1 dies (2 >= 2), blk2 survives (1 < 2)
+        expect(p2.battlefield).toHaveLength(1);
+        expect(p2.graveyard).toHaveLength(1);
+    });
+
+    it("blocker damage is dealt correctly regardless of order", () => {
+        const attacker = makeCard({
+            id: "att",
+            power: 5,
+            toughness: 5,
+            staticAbilities: [],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blocker1 = makeCard({
+            id: "blk1",
+            power: 2,
+            toughness: 2,
+            staticAbilities: [],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const blocker2 = makeCard({
+            id: "blk2",
+            power: 3,
+            toughness: 3,
+            staticAbilities: [],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeCombatState({
+            attackers: [attacker],
+            blockers: [blocker1, blocker2],
+            blockerAssignments: { blk1: "att", blk2: "att" },
+            blockerOrder: { att: ["blk1", "blk2"] },
+        });
+
+        // 2 to blk1 (lethal), 3 to blk2 (lethal)
+        applyAllCombatDamage(state, { att: { blk1: 2, blk2: 3 } });
+
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        expect(p2.life).toBe(20); // No trample, no excess
+        expect(p2.battlefield).toHaveLength(0); // both die
+        expect(p2.graveyard).toHaveLength(2);
+        // Attacker takes 2+3=5, dies (5 >= 5)
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        expect(p1.battlefield).toHaveLength(0);
     });
 });
