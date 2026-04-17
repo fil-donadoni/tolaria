@@ -5,7 +5,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import Board from "./components/board/board";
 import DebugPanel from "./components/debug/debug-panel";
 import { usePageVisible } from "./hooks/usePageVisible";
-import { whiteWeenieDeck, monoredDeck } from "./mocks/startingPlayers";
+import { whiteWeenieDeck } from "./mocks/startingPlayers";
 
 const PLAYER_COLORS = ["#4B5A6C", "#63768D"];
 
@@ -74,7 +74,7 @@ function App() {
                 id: pid,
                 name,
                 bgColor: PLAYER_COLORS[1],
-                deck: monoredDeck,
+                deck: whiteWeenieDeck,
             },
         });
         localStorage.setItem("tolaria:playerName", name);

@@ -134,16 +134,16 @@ import type {
 //     types: ["Instant"],
 // };
 
-// export const disenchant: CardDefinition = {
-//     id: "2722d7e2-61c6-4934-9c21-875ee78fd06c",
-//     name: "Disenchant",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Instant"],
-//     targetRequirement: { type: ["Artifact", "Enchantment"], count: 1 },
-//     resolve: (ctx: SpellContext) => {
-//         ctx.destroy(ctx.targets[0]);
-//     },
-// };
+export const disenchant: CardDefinition = {
+    id: "2722d7e2-61c6-4934-9c21-875ee78fd06c",
+    name: "Disenchant",
+    manaCost: { X: 1, W: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: ["Artifact", "Enchantment"], count: 1 },
+    resolve: (ctx: SpellContext) => {
+        ctx.destroy(ctx.targets[0]);
+    },
+};
 
 // export const farmstead: CardDefinition = {
 //     id: "3455b006-9ea5-4aef-8ad2-d0701eb0cacf",
