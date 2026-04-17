@@ -34,6 +34,7 @@ const PRESET_SCENARIOS = [
             { name: "Grizzly Bears", owner: "opp" as const },
         ],
         phase: "PRECOMBAT_MAIN",
+        landCount: 7,
     },
     {
         label: "Combat: Serra vs Wall",
@@ -42,6 +43,7 @@ const PRESET_SCENARIOS = [
             { name: "Wall of Swords", owner: "opp" as const },
         ],
         phase: "DECLARE_ATTACKERS",
+        landCount: 7,
     },
     {
         label: "Multi-block test",
@@ -53,6 +55,7 @@ const PRESET_SCENARIOS = [
             { name: "Pearled Unicorn", owner: "opp" as const },
         ],
         phase: "DECLARE_ATTACKERS",
+        landCount: 7,
     },
     {
         label: "Trample: Mammoth vs Merfolk x2",
@@ -62,6 +65,7 @@ const PRESET_SCENARIOS = [
             { name: "Merfolk of the Pearl Trident", owner: "opp" as const },
         ],
         phase: "DECLARE_ATTACKERS",
+        landCount: 7,
     },
     {
         label: "Defender: Wall vs Bears",
@@ -71,6 +75,19 @@ const PRESET_SCENARIOS = [
             { name: "Grizzly Bears", owner: "opp" as const },
         ],
         phase: "DECLARE_ATTACKERS",
+        landCount: 7,
+    },
+    {
+        label: "Mox: all 5 + Black Lotus",
+        cards: [
+            { name: "Black Lotus", owner: "me" as const },
+            { name: "Mox Pearl", owner: "me" as const },
+            { name: "Mox Sapphire", owner: "me" as const },
+            { name: "Mox Jet", owner: "me" as const },
+            { name: "Mox Ruby", owner: "me" as const },
+            { name: "Mox Emerald", owner: "me" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
     },
 ];
 
@@ -147,6 +164,7 @@ export default function DebugPanel({
                                                 gameId,
                                                 cards: scenario.cards,
                                                 phase: scenario.phase,
+                                                landCount: scenario.landCount,
                                             })
                                         }
                                     >

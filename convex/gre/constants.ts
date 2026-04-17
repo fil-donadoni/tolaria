@@ -1,4 +1,5 @@
-import type { Color } from "../cards/types";
+import type { Color, ManaCost } from "../cards/types";
+import { getCardById } from "../cards";
 import type { CardInstanceState } from "./state";
 
 /** Intrinsic mana abilities for basic land subtypes (CR 305.6). */
@@ -37,4 +38,46 @@ export function isCreature(card: CardInstanceState): boolean {
 
 export function isLand(card: CardInstanceState): boolean {
     return card.types.includes("Land");
+}
+
+/** Returns the mana color produced by a tap mana ability (e.g. Mox), or null. */
+export function getActivatedManaColor(card: CardInstanceState): Color | null {
+    const cardDef = getCardById(card.card.id as string);
+    const ability = cardDef.activatedAbilities?.find(
+        (a) => a.cost.tap && !a.useStack && a.manaProduced
+    );
+    if (!ability?.manaProduced) return null;
+    const colors = Object.entries(ability.manaProduced)
+        .filter(([k, v]) => k !== "X" && typeof v === "number" && v > 0)
+        .map(([k]) => k as Color);
+    return colors.length === 1 ? colors[0] : null;
+}
+
+/** Returns the mana produced by a tap mana ability, or null. Supports multi-color (e.g. Signet). */
+export function getActivatedManaProduced(
+    card: CardInstanceState
+): ManaCost | null {
+    const cardDef = getCardById(card.card.id as string);
+    const ability = cardDef.activatedAbilities?.find(
+        (a) => a.cost.tap && !a.useStack && a.manaProduced
+    );
+    return ability?.manaProduced ?? null;
+}
+
+/** Returns the activated mana ability definition for a card, or null. */
+export function getActivatedManaAbility(card: CardInstanceState) {
+    const cardDef = getCardById(card.card.id as string);
+    return (
+        cardDef.activatedAbilities?.find(
+            (a) => !a.useStack && (a.manaProduced || a.manaChoices)
+        ) ?? null
+    );
+}
+
+/** Returns true if a card has a tap mana ability (basic land subtype or activated). */
+export function hasManaAbility(card: CardInstanceState): boolean {
+    return (
+        getBasicLandMana(card) !== null ||
+        getActivatedManaAbility(card) !== null
+    );
 }

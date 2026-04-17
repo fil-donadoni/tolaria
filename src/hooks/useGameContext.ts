@@ -12,6 +12,7 @@ type GameContext = {
     pendingCast?: PendingCast;
     pendingTarget?: PendingTarget;
     autoPassPlayers?: string[];
+    undoableBy?: string;
     combat?: Combat;
     allPlayers: Player[];
     showAllCards: boolean;

@@ -28,6 +28,11 @@ import {
     applyAllCombatDamage,
 } from "./gre/phases";
 import type { Phase } from "./gre/types";
+import {
+    getActivatedManaAbility,
+    getActivatedManaColor,
+    hasManaAbility,
+} from "./gre/constants";
 import { validateAttackerEligibility } from "./gre/combat";
 
 const STARTING_HAND_SIZE = 7;
@@ -313,6 +318,7 @@ export const playCard = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
         const player = getPlayer(state, args.playerId);
 
         // Validate: card must be in hand and "play" must be legal
@@ -370,6 +376,7 @@ export const announceCast = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
         const player = getPlayer(state, args.playerId);
 
         if (state.priorityPlayerId !== args.playerId) {
@@ -501,6 +508,7 @@ export const tapForPayment = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (!state.pendingCast) throw new Error("No spell being cast");
         if (state.pendingCast.playerId !== args.playerId) {
@@ -514,13 +522,8 @@ export const tapForPayment = mutation({
         if (!card) throw new Error("Card not on battlefield");
         if (card.isTapped) throw new Error("Card already tapped");
 
-        const types = card.types;
-        if (!types.includes("Land")) {
-            throw new Error("Only lands can be tapped for mana");
-        }
-
-        const manaColor = getBasicLandMana(card);
-        if (!manaColor) throw new Error("Land does not produce mana");
+        const manaColor = getBasicLandMana(card) ?? getActivatedManaColor(card);
+        if (!manaColor) throw new Error("Card does not produce mana");
 
         // Tap and add mana
         card.isTapped = true;
@@ -599,6 +602,7 @@ export const untapForPayment = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (!state.pendingCast) throw new Error("No spell being cast");
         if (state.pendingCast.playerId !== args.playerId) {
@@ -619,8 +623,8 @@ export const untapForPayment = mutation({
         );
         if (!card) throw new Error("Card not on battlefield");
 
-        const manaColor = getBasicLandMana(card);
-        if (!manaColor) throw new Error("Land does not produce mana");
+        const manaColor = getBasicLandMana(card) ?? getActivatedManaColor(card);
+        if (!manaColor) throw new Error("Card does not produce mana");
 
         card.isTapped = false;
         player.manaPool[manaColor] = Math.max(
@@ -649,6 +653,7 @@ export const cancelCast = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (!state.pendingCast) throw new Error("No spell being cast");
         if (state.pendingCast.playerId !== args.playerId) {
@@ -658,11 +663,12 @@ export const cancelCast = mutation({
         const player = getPlayer(state, args.playerId);
 
         // Rollback all taps
-        for (const landId of state.pendingCast.tappedLandIds) {
-            const land = player.battlefield.find((c) => c.id === landId);
-            if (land) {
-                land.isTapped = false;
-                const manaColor = getBasicLandMana(land);
+        for (const cardId of state.pendingCast.tappedLandIds) {
+            const card = player.battlefield.find((c) => c.id === cardId);
+            if (card) {
+                card.isTapped = false;
+                const manaColor =
+                    getBasicLandMana(card) ?? getActivatedManaColor(card);
                 if (manaColor) {
                     player.manaPool[manaColor] = Math.max(
                         0,
@@ -696,6 +702,7 @@ export const selectTarget = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (!state.pendingTarget)
             throw new Error("No target selection in progress");
@@ -819,6 +826,7 @@ export const cancelTarget = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (!state.pendingTarget)
             throw new Error("No target selection in progress");
@@ -849,6 +857,7 @@ export const toggleAttacker = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (state.phase !== "DECLARE_ATTACKERS") {
             throw new Error("Not in DECLARE_ATTACKERS phase");
@@ -899,6 +908,7 @@ export const confirmAttackers = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (state.phase !== "DECLARE_ATTACKERS") {
             throw new Error("Not in DECLARE_ATTACKERS phase");
@@ -963,6 +973,7 @@ export const selectBlocker = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (state.phase !== "DECLARE_BLOCKERS") {
             throw new Error("Not in DECLARE_BLOCKERS phase");
@@ -1021,6 +1032,7 @@ export const assignBlockerTarget = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (state.phase !== "DECLARE_BLOCKERS") {
             throw new Error("Not in DECLARE_BLOCKERS phase");
@@ -1083,6 +1095,7 @@ export const confirmBlockers = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (state.phase !== "DECLARE_BLOCKERS") {
             throw new Error("Not in DECLARE_BLOCKERS phase");
@@ -1167,6 +1180,7 @@ export const setBlockerOrder = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (state.phase !== "DECLARE_BLOCKERS") {
             throw new Error("Not in DECLARE_BLOCKERS phase");
@@ -1217,6 +1231,7 @@ export const confirmBlockerOrder = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (state.phase !== "DECLARE_BLOCKERS") {
             throw new Error("Not in DECLARE_BLOCKERS phase");
@@ -1273,6 +1288,7 @@ export const setDamageAssignment = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (state.phase !== "COMBAT_DAMAGE") {
             throw new Error("Not in COMBAT_DAMAGE phase");
@@ -1344,6 +1360,7 @@ export const confirmDamage = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (state.phase !== "COMBAT_DAMAGE") {
             throw new Error("Not in COMBAT_DAMAGE phase");
@@ -1390,6 +1407,7 @@ export const passPriority = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (state.priorityPlayerId !== args.playerId) {
             throw new Error("You don't have priority");
@@ -1483,6 +1501,7 @@ export const endTurn = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
 
         if (state.priorityPlayerId !== args.playerId) {
             throw new Error("You don't have priority");
@@ -1527,6 +1546,7 @@ export const drawCard = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
         const player = getPlayer(state, args.playerId);
 
         if (player.library.length === 0) {
@@ -1569,6 +1589,7 @@ export const mill = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
         const player = getPlayer(state, args.playerId);
 
         if (player.library.length === 0) {
@@ -1616,6 +1637,7 @@ export const exileFromLibrary = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
         const player = getPlayer(state, args.playerId);
 
         if (player.library.length === 0) {
@@ -1654,12 +1676,14 @@ export const tapUntap = mutation({
         gameId: v.id("games"),
         playerId: v.string(),
         cardInstanceId: v.string(),
+        manaChoiceIndex: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
         const player = getPlayer(state, args.playerId);
 
         // Cannot manually tap/untap during payment phase
@@ -1674,33 +1698,85 @@ export const tapUntap = mutation({
         );
         if (!card) throw new Error("Card not on battlefield");
 
-        const types = card.types;
-        if (!types.includes("Land")) {
-            throw new Error("Only lands can be tapped/untapped manually");
+        if (!hasManaAbility(card)) {
+            throw new Error("Card has no mana ability to tap/untap");
         }
 
+        const ability = getActivatedManaAbility(card);
+        const isSacrifice = ability?.cost.sacrifice === true;
         const wasTapped = card.isTapped;
 
-        // Block untap if land is committed (mana was spent on a cast)
+        // Sacrifice abilities are one-way — cannot "untap"
+        if (isSacrifice && wasTapped) {
+            throw new Error("Cannot untap a sacrifice ability");
+        }
+
+        // Block untap if mana was spent on a cast
         if (wasTapped && card.manaCommitted) {
             throw new Error("Cannot untap: mana already spent");
         }
 
-        card.isTapped = !card.isTapped;
-
-        // Mana ability: basic land subtypes produce mana on tap, remove on untap
-        const manaColor = getBasicLandMana(card);
-        if (manaColor) {
+        // Determine mana to add/remove
+        if (ability?.manaChoices) {
+            // Choice-based mana ability (e.g. Black Lotus)
             if (!wasTapped) {
-                player.manaPool[manaColor] =
-                    (player.manaPool[manaColor] ?? 0) + 1;
+                if (args.manaChoiceIndex === undefined) {
+                    throw new Error("Must choose a mana color");
+                }
+                const chosen = ability.manaChoices[args.manaChoiceIndex];
+                if (!chosen) throw new Error("Invalid mana choice");
+
+                // Pay cost: tap (+ sacrifice if required)
+                if (isSacrifice) {
+                    moveCard(player, card.id, "battlefield", "graveyard");
+                } else {
+                    card.isTapped = true;
+                }
+
+                // Add chosen mana to pool
+                for (const [color, amount] of Object.entries(chosen)) {
+                    if (
+                        color !== "X" &&
+                        typeof amount === "number" &&
+                        amount > 0
+                    ) {
+                        player.manaPool[color as keyof typeof player.manaPool] =
+                            (player.manaPool[
+                                color as keyof typeof player.manaPool
+                            ] ?? 0) + amount;
+                    }
+                }
             } else {
-                player.manaPool[manaColor] =
-                    (player.manaPool[manaColor] ?? 0) - 1;
+                // Untap: remove the mana (only for non-sacrifice)
+                const manaColor = getActivatedManaColor(card);
+                if (manaColor) {
+                    player.manaPool[manaColor] = Math.max(
+                        0,
+                        (player.manaPool[manaColor] ?? 0) - 1
+                    );
+                }
+                card.isTapped = false;
+            }
+        } else {
+            // Fixed mana ability (lands, Mox)
+            card.isTapped = !card.isTapped;
+            const manaColor =
+                getBasicLandMana(card) ?? getActivatedManaColor(card);
+            if (manaColor) {
+                if (!wasTapped) {
+                    player.manaPool[manaColor] =
+                        (player.manaPool[manaColor] ?? 0) + 1;
+                } else {
+                    player.manaPool[manaColor] =
+                        (player.manaPool[manaColor] ?? 0) - 1;
+                }
             }
         }
 
-        // Save updated state (tap/untap persists with the current snapshot)
+        // Mana ability activation is undoable
+        state.undoableBy = args.playerId;
+
+        // Save updated state
         await ctx.db.insert("game_states", {
             gameId: args.gameId,
             seq: gameState.seq + 1,
@@ -1741,6 +1817,26 @@ export const debugPatchState = mutation({
             state,
             updatedAt: Date.now(),
         });
+    },
+});
+
+/** Undo the last mana ability activation (tap, untap, sacrifice). Only valid while undoableBy is set. */
+export const undoManaAbility = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = gameState.state as GameState;
+        if (state.undoableBy !== args.playerId) {
+            throw new Error("Nothing to undo");
+        }
+
+        // Delete the latest snapshot to revert to previous state
+        await ctx.db.delete(gameState._id);
     },
 });
 
@@ -1807,7 +1903,7 @@ export const debugSetupScenario = mutation({
             })
         ),
         phase: v.optional(v.string()),
-        /** Give each player this many Plains. Default 7. */
+        /** Give each player this many Plains. Default 0. */
         landCount: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
@@ -1815,6 +1911,7 @@ export const debugSetupScenario = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
         const p1 = state.players[0];
         const p2 = state.players[1];
 
@@ -1859,8 +1956,8 @@ export const debugSetupScenario = mutation({
             );
         }
 
-        // Add lands (default 7 Plains each)
-        const landCount = args.landCount ?? 7;
+        // Add lands (only if explicitly requested)
+        const landCount = args.landCount ?? 0;
         for (let i = 0; i < landCount; i++) {
             p1.battlefield.push(makeInstance("Plains", p1.id));
             p2.battlefield.push(makeInstance("Plains", p2.id));

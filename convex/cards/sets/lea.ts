@@ -1,4 +1,8 @@
-import type { CardDefinition, SpellContext } from "../types";
+import type {
+    ActivatedAbilityContext,
+    CardDefinition,
+    SpellContext,
+} from "../types";
 
 // export const animateWall: CardDefinition = {
 //     id: "d5c83259-9b90-47c2-b48e-c7d78519e792",
@@ -1963,11 +1967,24 @@ export const warMammoth: CardDefinition = {
 //     ],
 // };
 
-// export const blackLotus: CardDefinition = {
-//     id: "b0faa7f2-b547-42c4-a810-839da50dadfe",
-//     name: "Black Lotus",
-//     types: ["Artifact"],
-// };
+export const blackLotus: CardDefinition = {
+    id: "b0faa7f2-b547-42c4-a810-839da50dadfe",
+    name: "Black Lotus",
+    manaCost: { X: 0 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "black-lotus-mana",
+            cost: { tap: true, sacrifice: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                // Color chosen at activation time, applied by engine
+                ctx.addMana({ W: 3 });
+            },
+            useStack: false,
+            manaChoices: [{ W: 3 }, { U: 3 }, { B: 3 }, { R: 3 }, { G: 3 }],
+        },
+    ],
+};
 
 // export const blackVise: CardDefinition = {
 //     id: "76ac72f8-5b1e-4d67-a796-ef69cde27424",
@@ -2174,35 +2191,95 @@ export const warMammoth: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const moxEmerald: CardDefinition = {
-//     id: "b0e1427c-05cd-465b-be59-97ed6e39f7ba",
-//     name: "Mox Emerald",
-//     types: ["Artifact"],
-// };
+export const moxEmerald: CardDefinition = {
+    id: "b0e1427c-05cd-465b-be59-97ed6e39f7ba",
+    name: "Mox Emerald",
+    manaCost: { X: 0 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "mox-emerald-mana",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ G: 1 });
+            },
+            useStack: false,
+            manaProduced: { G: 1 },
+        },
+    ],
+};
 
-// export const moxJet: CardDefinition = {
-//     id: "92bcd1ce-19b1-4d78-8b09-95242ca08d76",
-//     name: "Mox Jet",
-//     types: ["Artifact"],
-// };
+export const moxJet: CardDefinition = {
+    id: "92bcd1ce-19b1-4d78-8b09-95242ca08d76",
+    name: "Mox Jet",
+    manaCost: { X: 0 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "mox-jet-mana",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ B: 1 });
+            },
+            useStack: false,
+            manaProduced: { B: 1 },
+        },
+    ],
+};
 
-// export const moxPearl: CardDefinition = {
-//     id: "8ebe4be7-e12a-4596-a899-fbd5b152e879",
-//     name: "Mox Pearl",
-//     types: ["Artifact"],
-// };
+export const moxPearl: CardDefinition = {
+    id: "8ebe4be7-e12a-4596-a899-fbd5b152e879",
+    name: "Mox Pearl",
+    manaCost: { X: 0 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "mox-pearl-mana",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ W: 1 });
+            },
+            useStack: false,
+            manaProduced: { W: 1 },
+        },
+    ],
+};
 
-// export const moxRuby: CardDefinition = {
-//     id: "8945585f-4773-493d-a0fe-d707db910b38",
-//     name: "Mox Ruby",
-//     types: ["Artifact"],
-// };
+export const moxRuby: CardDefinition = {
+    id: "8945585f-4773-493d-a0fe-d707db910b38",
+    name: "Mox Ruby",
+    manaCost: { X: 0 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "mox-ruby-mana",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ R: 1 });
+            },
+            useStack: false,
+            manaProduced: { R: 1 },
+        },
+    ],
+};
 
-// export const moxSapphire: CardDefinition = {
-//     id: "82da0972-b17b-4600-9efd-e9430a0db04b",
-//     name: "Mox Sapphire",
-//     types: ["Artifact"],
-// };
+export const moxSapphire: CardDefinition = {
+    id: "82da0972-b17b-4600-9efd-e9430a0db04b",
+    name: "Mox Sapphire",
+    manaCost: { X: 0 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "mox-sapphire-mana",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ U: 1 });
+            },
+            useStack: false,
+            manaProduced: { U: 1 },
+        },
+    ],
+};
 
 // export const nevinyrralsDisk: CardDefinition = {
 //     id: "12926dc8-8e6f-4a47-a12b-4d674189615a",

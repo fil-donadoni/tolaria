@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useMutation } from "convex/react";
@@ -7,6 +7,9 @@ import {
     isCreature,
     isLand,
     getLandManaColor,
+    getActivatedManaColor,
+    hasManaAbility,
+    getManaChoices,
     isTargetableCreature,
     groupByName,
 } from "~/lib/card-utils";
@@ -15,6 +18,7 @@ import BattlefieldCard, { type CardVisualState } from "./battlefield-card";
 import DamageAssignmentPanel from "./damage-assignment-panel";
 import BlockerOrderPanel from "./blocker-order-panel";
 import ActionButton from "./action-button";
+import ManaChoicePicker from "./mana-choice-picker";
 
 // ---------------------------------------------------------------------------
 // PlayerBattlefield
@@ -28,15 +32,18 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         phase,
         pendingCast,
         pendingTarget,
+        undoableBy,
         combat,
         allPlayers,
     } = useGameContext();
     const isMe = player.id === playerId;
+    const canUndo = isMe && undoableBy === playerId;
 
     // Mutations
     const tapUntap = useMutation(api.game.tapUntap);
     const tapForPayment = useMutation(api.game.tapForPayment);
     const untapForPayment = useMutation(api.game.untapForPayment);
+    const undoManaAbility = useMutation(api.game.undoManaAbility);
     const cancelCast = useMutation(api.game.cancelCast);
     const toggleAttacker = useMutation(api.game.toggleAttacker);
     const confirmAttackers = useMutation(api.game.confirmAttackers);
@@ -46,6 +53,32 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     const confirmDamage = useMutation(api.game.confirmDamage);
     const selectTarget = useMutation(api.game.selectTarget);
     const cancelTarget = useMutation(api.game.cancelTarget);
+
+    // Mana choice picker state
+    const [manaChoiceState, setManaChoiceState] = useState<{
+        cardId: string;
+        choices: import("~/types/cards").ManaCost[];
+        position: { x: number; y: number };
+    } | null>(null);
+
+    // --- Undo shortcut (Ctrl/Cmd+Z) ---
+
+    const handleUndo = useCallback(() => {
+        if (canUndo) {
+            undoManaAbility({ gameId, playerId });
+        }
+    }, [canUndo, undoManaAbility, gameId, playerId]);
+
+    useEffect(() => {
+        function onKeyDown(e: KeyboardEvent) {
+            if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+                e.preventDefault();
+                handleUndo();
+            }
+        }
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [handleUndo]);
 
     // --- Interaction modes ---
 
@@ -185,23 +218,24 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
 
         if (isBlockerTarget && card.isAttacking) return true;
 
-        if (!isMe || !isLand(card)) return false;
+        if (!isMe || !hasManaAbility(card)) return false;
         if (isPayingCast) {
             return card.isTapped
                 ? pendingCast!.tappedLandIds.includes(card.id)
-                : getLandManaColor(card) !== null;
+                : (getLandManaColor(card) ?? getActivatedManaColor(card)) !==
+                      null;
         }
         return card.isTapped ? !card.manaCommitted : true;
     }
 
     function getVisualState(card: CardInstance): CardVisualState {
         const creature = isCreature(card);
-        const land = isLand(card);
+        const manaSource = hasManaAbility(card);
 
         const interactive =
             (isSelectingTarget && creature) ||
             (isMe &&
-                (land ||
+                (manaSource ||
                     (isSelectingAttackers && creature) ||
                     (isSelectingBlockers && creature))) ||
             (isBlockerTarget && !!card.isAttacking);
@@ -332,13 +366,38 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             return;
         }
 
-        // Land tap/untap
+        // Mana source tap/untap (lands, mox, etc.)
         if (isPayingCast) {
             const mut = card.isTapped ? untapForPayment : tapForPayment;
             mut({ gameId, playerId, cardInstanceId: card.id });
         } else {
-            tapUntap({ gameId, playerId, cardInstanceId: card.id });
+            // Check for mana choices (e.g. Black Lotus) — show picker
+            const choices = getManaChoices(card);
+            if (choices && !card.isTapped) {
+                // We don't have mouse event coords here, so we use a fixed position
+                // The event is passed from the card component
+                setManaChoiceState({
+                    cardId: card.id,
+                    choices,
+                    position: { x: 0, y: 0 },
+                });
+            } else {
+                tapUntap({ gameId, playerId, cardInstanceId: card.id });
+            }
         }
+    }
+
+    function handleClickWithEvent(card: CardInstance, e: React.MouseEvent) {
+        const choices = getManaChoices(card);
+        if (choices && !card.isTapped && !isPayingCast && canInteract(card)) {
+            setManaChoiceState({
+                cardId: card.id,
+                choices,
+                position: { x: e.clientX, y: e.clientY - 50 },
+            });
+            return;
+        }
+        handleClick(card);
     }
 
     // --- Rendering ---
@@ -357,7 +416,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                     <BattlefieldCard
                         card={group[0]}
                         vs={vs}
-                        onClick={() => handleClick(group[0])}
+                        onClick={(e) => handleClickWithEvent(group[0], e)}
                     />
                 </div>
             );
@@ -376,7 +435,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                             key={card.id}
                             card={card}
                             vs={vs}
-                            onClick={() => handleClick(card)}
+                            onClick={(e) => handleClickWithEvent(card, e)}
                             style={{
                                 width: "8rem",
                                 flexShrink: 0,
@@ -431,6 +490,17 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 </>
             )}
 
+            {canUndo && (
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-40">
+                    <button
+                        onClick={handleUndo}
+                        className="font-bold px-3 py-1 rounded-lg text-xs bg-yellow-600 hover:bg-yellow-500 text-white transition-colors"
+                    >
+                        Undo
+                        <span className="ml-1 opacity-60">[Ctrl+Z]</span>
+                    </button>
+                </div>
+            )}
             {isSelectingTarget && (
                 <ActionButton
                     onClick={() => cancelTarget({ gameId, playerId })}
@@ -493,6 +563,23 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                         disabled={!allDamageAssigned}
                     />
                 </>
+            )}
+
+            {manaChoiceState && (
+                <ManaChoicePicker
+                    choices={manaChoiceState.choices}
+                    position={manaChoiceState.position}
+                    onSelect={(index) => {
+                        tapUntap({
+                            gameId,
+                            playerId,
+                            cardInstanceId: manaChoiceState.cardId,
+                            manaChoiceIndex: index,
+                        });
+                        setManaChoiceState(null);
+                    }}
+                    onCancel={() => setManaChoiceState(null)}
+                />
             )}
         </div>
     );

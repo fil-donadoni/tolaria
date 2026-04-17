@@ -6,7 +6,12 @@ import type {
 } from "../cards/types";
 import { getCardById } from "../cards";
 import type { Phase, Zone } from "./types";
-import { getBasicLandMana, MANA_COLORS, PERMANENT_TYPES } from "./constants";
+import {
+    getActivatedManaColor,
+    getBasicLandMana,
+    MANA_COLORS,
+    PERMANENT_TYPES,
+} from "./constants";
 
 // Re-export for consumers that imported from here previously
 export { getBasicLandMana } from "./constants";
@@ -113,6 +118,8 @@ export type GameState = {
         /** false = waiting for manual assignment, undefined = auto-applied or not yet at damage step. */
         damageConfirmed?: boolean;
     };
+    /** Player who can undo the last mana ability activation. Cleared on any non-mana action. */
+    undoableBy?: string;
 };
 
 /** Resolves the top item of the stack (CR 608.3). Returns the resolved item. */
@@ -406,7 +413,11 @@ export function commitLandsForCost(
 ): void {
     const remaining = { ...cost };
 
-    // Commit lands for colored costs first
+    /** Returns the mana color a tapped source produces (land subtype or activated ability). */
+    const getManaColor = (card: CardInstanceState) =>
+        getBasicLandMana(card) ?? getActivatedManaColor(card);
+
+    // Commit mana sources for colored costs first
     for (const color of MANA_COLORS) {
         let needed = remaining[color] ?? 0;
         if (needed <= 0) continue;
@@ -415,7 +426,7 @@ export function commitLandsForCost(
             if (
                 card.isTapped &&
                 !card.manaCommitted &&
-                getBasicLandMana(card) === color
+                getManaColor(card) === color
             ) {
                 card.manaCommitted = true;
                 needed--;
@@ -423,17 +434,15 @@ export function commitLandsForCost(
         }
     }
 
-    // Commit lands for generic cost (same greedy order as payManaCost)
+    // Commit mana sources for generic cost (same greedy order as payManaCost)
     let generic = remaining.X ?? 0;
     if (generic > 0) {
         const sorted = [...MANA_COLORS].sort((a, b) => {
             const countA = player.battlefield.filter(
-                (c) =>
-                    c.isTapped && !c.manaCommitted && getBasicLandMana(c) === a
+                (c) => c.isTapped && !c.manaCommitted && getManaColor(c) === a
             ).length;
             const countB = player.battlefield.filter(
-                (c) =>
-                    c.isTapped && !c.manaCommitted && getBasicLandMana(c) === b
+                (c) => c.isTapped && !c.manaCommitted && getManaColor(c) === b
             ).length;
             return countB - countA;
         });
@@ -443,7 +452,7 @@ export function commitLandsForCost(
                 if (
                     card.isTapped &&
                     !card.manaCommitted &&
-                    getBasicLandMana(card) === color
+                    getManaColor(card) === color
                 ) {
                     card.manaCommitted = true;
                     generic--;

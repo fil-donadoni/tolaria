@@ -54,6 +54,7 @@ export default function Board({
     const pendingTarget = (
         state as unknown as { pendingTarget?: PendingTarget }
     ).pendingTarget;
+    const undoableBy = (state as unknown as { undoableBy?: string }).undoableBy;
 
     // Opponent on top, local player on bottom
     const opponent = allPlayers.find((p) => p.id !== playerId);
@@ -72,6 +73,7 @@ export default function Board({
                 pendingCast,
                 pendingTarget,
                 autoPassPlayers,
+                undoableBy,
                 combat,
                 allPlayers,
                 showAllCards,

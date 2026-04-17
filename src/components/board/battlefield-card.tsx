@@ -24,7 +24,7 @@ export default function BattlefieldCard({
 }: {
     card: CardInstance;
     vs: CardVisualState;
-    onClick: () => void;
+    onClick: (e: React.MouseEvent) => void;
     style?: React.CSSProperties;
 }) {
     const cardClassName = `relative transition-transform duration-150 ${

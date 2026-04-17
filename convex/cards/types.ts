@@ -54,10 +54,15 @@ export interface ActivatedAbility {
     cost: {
         tap?: boolean;
         mana?: ManaCost;
+        sacrifice?: boolean;
     };
     effect: (ctx: ActivatedAbilityContext) => void;
     /** Mana abilities don't use the stack — they resolve immediately (CR 605.3a). */
     useStack: boolean;
+    /** Fixed mana output — used by the engine to track pool changes without executing the effect. */
+    manaProduced?: ManaCost;
+    /** Multiple mana options the player can choose from (e.g. Talisman: "{T}: Add {U} or {B}"). */
+    manaChoices?: ManaCost[];
 }
 
 // --- Spell resolution context ---
