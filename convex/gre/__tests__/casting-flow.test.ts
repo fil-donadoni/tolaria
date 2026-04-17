@@ -13,6 +13,7 @@ import {
     type GameState,
     type StackItem,
 } from "../state";
+import type { CardType } from "../../cards/types";
 
 // ---------------------------------------------------------------------------
 // Helpers — simulate mutation logic as pure functions
@@ -27,7 +28,7 @@ function makeCard(
     return {
         id: overrides.id ?? crypto.randomUUID(),
         card,
-        types: (overrides.types as string[]) ?? (card.types as string[]) ?? [],
+        types: overrides.types ?? (card.types as CardType[]) ?? [],
         subtypes:
             (overrides.subtypes as string[]) ??
             (card.subtypes as string[]) ??
@@ -35,6 +36,10 @@ function makeCard(
         power: overrides.power ?? (card.power as number | undefined),
         toughness:
             overrides.toughness ?? (card.toughness as number | undefined),
+        staticAbilities:
+            (overrides.staticAbilities as string[]) ??
+            (card.staticAbilities as string[]) ??
+            [],
         controllerId: "p1",
         ownerId: "p1",
         zone: "hand",

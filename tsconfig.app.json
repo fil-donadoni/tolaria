@@ -31,5 +31,11 @@
             "@convex/*": ["convex/*"]
         }
     },
-    "include": ["src", "convex/_generated"]
+    "include": [
+        "src",
+        "convex/_generated",
+        "convex/cards/types.ts",
+        "convex/gre/types.ts",
+        "convex/gre/constants.ts"
+    ]
 }

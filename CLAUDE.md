@@ -122,6 +122,13 @@ Before marking any task as done, **all** gates must pass with zero errors — in
 
 No exceptions. Fix everything before moving on.
 
+## Code Organization
+
+- **One component per file.** Every React component lives in its own `.tsx` file. No inline component definitions or helper components in the same file as the parent.
+- **Extract, don't inline.** When logic grows (visual state computation, interaction handlers, derived data), extract it into named functions or dedicated files — don't let it accumulate inline.
+- **Types are centralized.** `convex/` is the source of truth for all shared types (`cards/types.ts`, `gre/types.ts`, `gre/state.ts`). `src/types/` re-exports from there. No local type definitions or constants in components.
+- **Constants and helpers are shared.** Constants like `LAND_SUBTYPE_MANA`, `PERMANENT_TYPES` and helpers like `isCreature`, `isLand` live in `convex/gre/constants.ts`. Components import from there — no local copies.
+
 ## Collaboration Mode
 
 Claude acts as **assistant, tutor, and advisor**. The user drives all implementation — do NOT write or modify code autonomously unless explicitly told "procedi" or similar. Suggest steps, explain trade-offs, review code, but let the user execute.

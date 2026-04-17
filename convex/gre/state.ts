@@ -26,6 +26,8 @@ export type CardInstanceState = {
     power?: number;
     /** Mutable toughness — initialized from card definition for creatures. */
     toughness?: number;
+    /** Keyword abilities (flying, vigilance, defender, etc.). Initialized from card definition. */
+    staticAbilities: string[];
     isTapped: boolean;
     /** Set when this land's mana has been consumed by a spell. Cannot be manually untapped. Resets at untap step. */
     manaCommitted?: boolean;

@@ -14,6 +14,7 @@ import {
     type GameState,
     type StackItem,
 } from "../state";
+import type { CardType } from "../../cards/types";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -28,7 +29,7 @@ function makeCard(
     return {
         id: overrides.id ?? crypto.randomUUID(),
         card,
-        types: (overrides.types as string[]) ?? (card.types as string[]) ?? [],
+        types: overrides.types ?? (card.types as CardType[]) ?? [],
         subtypes:
             (overrides.subtypes as string[]) ??
             (card.subtypes as string[]) ??
@@ -36,6 +37,10 @@ function makeCard(
         power: overrides.power ?? (card.power as number | undefined),
         toughness:
             overrides.toughness ?? (card.toughness as number | undefined),
+        staticAbilities:
+            (overrides.staticAbilities as string[]) ??
+            (card.staticAbilities as string[]) ??
+            [],
         controllerId: "p1",
         ownerId: "p1",
         zone: "hand",
@@ -443,10 +448,11 @@ function makeStackItem(
     return {
         id: overrides.id ?? crypto.randomUUID(),
         card: cardData,
-        types: (cardData.types as string[]) ?? [],
+        types: (cardData.types as CardType[]) ?? [],
         subtypes: (cardData.subtypes as string[]) ?? [],
         power: cardData.power as number | undefined,
         toughness: cardData.toughness as number | undefined,
+        staticAbilities: (cardData.staticAbilities as string[]) ?? [],
         controllerId: castById,
         ownerId: castById,
         zone: "stack",
@@ -659,7 +665,9 @@ describe("spell resolution: Lightning Bolt", () => {
         });
         getPlayer(state, "p2").battlefield.push(creature);
 
-        const bolt = makeBoltOnStack("p1", [{ type: "creature", id: "bear1" }]);
+        const bolt = makeBoltOnStack("p1", [
+            { type: "permanent", id: "bear1" },
+        ]);
         state.stack.push(bolt);
 
         resolveTopOfStack(state);
@@ -688,7 +696,7 @@ describe("spell resolution: Lightning Bolt", () => {
         getPlayer(state, "p2").battlefield.push(creature);
 
         const bolt = makeBoltOnStack("p1", [
-            { type: "creature", id: "giant1" },
+            { type: "permanent", id: "giant1" },
         ]);
         state.stack.push(bolt);
 
@@ -728,7 +736,7 @@ describe("spell resolution: Giant Growth + Lightning Bolt interaction", () => {
                 types: giantGrowth.types,
             },
             "p1",
-            { targets: [{ type: "creature", id: "elf1" }] }
+            { targets: [{ type: "permanent", id: "elf1" }] }
         );
         state.stack.push(growth);
         resolveTopOfStack(state);
@@ -749,7 +757,7 @@ describe("spell resolution: Giant Growth + Lightning Bolt interaction", () => {
                 types: lightningBolt.types,
             },
             "p2",
-            { targets: [{ type: "creature", id: "elf1" }] }
+            { targets: [{ type: "permanent", id: "elf1" }] }
         );
         state.stack.push(bolt);
         resolveTopOfStack(state);
@@ -787,7 +795,7 @@ describe("spell resolution: Giant Growth + Lightning Bolt interaction", () => {
                 types: lightningBolt.types,
             },
             "p2",
-            { targets: [{ type: "creature", id: "elf1" }] }
+            { targets: [{ type: "permanent", id: "elf1" }] }
         );
         state.stack.push(bolt);
         resolveTopOfStack(state);

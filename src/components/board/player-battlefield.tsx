@@ -1,73 +1,25 @@
 import { useMemo } from "react";
 import type { CardInstance, Player } from "~/types/game";
-import type { Color } from "~/types/cards";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import CardImage from "../cards/card-image";
+import {
+    isCreature,
+    isLand,
+    getLandManaColor,
+    isTargetableCreature,
+    groupByName,
+} from "~/lib/card-utils";
+import { COMBAT_GROUP_RING, COMBAT_GROUP_BG } from "~/lib/combat-colors";
+import BattlefieldCard, { type CardVisualState } from "./battlefield-card";
+import DamageAssignmentPanel from "./damage-assignment-panel";
+import ActionButton from "./action-button";
 
-function isTargetableCreature(targetType: string | undefined): boolean {
-    return targetType === "creature" || targetType === "any";
-}
+// ---------------------------------------------------------------------------
+// PlayerBattlefield
+// ---------------------------------------------------------------------------
 
-type BattlefieldProps = {
-    player: Player;
-};
-
-function isLand(card: CardInstance): boolean {
-    return card.card.types.includes("Land");
-}
-
-function isCreature(card: CardInstance): boolean {
-    return card.card.types.includes("Creature");
-}
-
-const LAND_SUBTYPE_MANA: Record<string, Color> = {
-    Plains: "W",
-    Island: "U",
-    Swamp: "B",
-    Mountain: "R",
-    Forest: "G",
-};
-
-function getLandManaColor(card: CardInstance): Color | null {
-    for (const subtype of card.card.subtypes ?? []) {
-        const color = LAND_SUBTYPE_MANA[subtype];
-        if (color) return color;
-    }
-    return null;
-}
-
-/** Groups cards by name, preserving order of first appearance. */
-function groupByName(cards: CardInstance[]): CardInstance[][] {
-    const groups: Map<string, CardInstance[]> = new Map();
-    for (const card of cards) {
-        const name = card.card.name;
-        const group = groups.get(name);
-        if (group) {
-            group.push(card);
-        } else {
-            groups.set(name, [card]);
-        }
-    }
-    return [...groups.values()];
-}
-
-/** Color palette for combat groups (attacker + its blockers share a color). */
-const COMBAT_GROUP_COLORS = [
-    "ring-red-500",
-    "ring-blue-500",
-    "ring-green-500",
-    "ring-yellow-500",
-];
-const COMBAT_GROUP_BG = [
-    "bg-red-500",
-    "bg-blue-500",
-    "bg-green-500",
-    "bg-yellow-500",
-];
-
-export default function PlayerBattlefield({ player }: BattlefieldProps) {
+export default function PlayerBattlefield({ player }: { player: Player }) {
     const {
         gameId,
         playerId,
@@ -79,24 +31,26 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
         allPlayers,
     } = useGameContext();
     const isMe = player.id === playerId;
+
+    // Mutations
     const tapUntap = useMutation(api.game.tapUntap);
     const tapForPayment = useMutation(api.game.tapForPayment);
     const untapForPayment = useMutation(api.game.untapForPayment);
     const cancelCast = useMutation(api.game.cancelCast);
     const toggleAttacker = useMutation(api.game.toggleAttacker);
-    const confirmAttackersMut = useMutation(api.game.confirmAttackers);
-    const selectBlockerMut = useMutation(api.game.selectBlocker);
-    const assignBlockerTargetMut = useMutation(api.game.assignBlockerTarget);
-    const confirmBlockersMut = useMutation(api.game.confirmBlockers);
-    const setDamageAssignmentMut = useMutation(api.game.setDamageAssignment);
-    const confirmDamageMut = useMutation(api.game.confirmDamage);
-    const selectTargetMut = useMutation(api.game.selectTarget);
-    const cancelTargetMut = useMutation(api.game.cancelTarget);
+    const confirmAttackers = useMutation(api.game.confirmAttackers);
+    const selectBlocker = useMutation(api.game.selectBlocker);
+    const assignBlockerTarget = useMutation(api.game.assignBlockerTarget);
+    const confirmBlockers = useMutation(api.game.confirmBlockers);
+    const confirmDamage = useMutation(api.game.confirmDamage);
+    const selectTarget = useMutation(api.game.selectTarget);
+    const cancelTarget = useMutation(api.game.cancelTarget);
+
+    // --- Interaction modes ---
 
     const isPayingCast =
         isMe && !!pendingCast && pendingCast.playerId === playerId;
 
-    // Target selection: creatures on ANY player's battlefield are clickable
     const isSelectingTarget =
         !!pendingTarget &&
         pendingTarget.playerId === playerId &&
@@ -116,7 +70,6 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
         isMe &&
         playerId !== activePlayerId;
 
-    // Opponent's attacking creatures become clickable as blocker targets
     const isBlockerTarget =
         !isMe &&
         phase === "DECLARE_BLOCKERS" &&
@@ -132,11 +85,12 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
         isMe &&
         playerId === activePlayerId;
 
+    // --- Combat derived state ---
+
     const selectedAttackerIds = combat?.attackerIds ?? [];
     const blockerAssignments = combat?.blockerAssignments ?? {};
     const pendingBlockerId = combat?.pendingBlockerId;
 
-    // Build combat group color map: attackerId → color index (only for attackers with blockers)
     const combatGroupColors = useMemo(() => {
         const map: Record<string, number> = {};
         if (!combat) return map;
@@ -146,14 +100,13 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
         let colorIdx = 0;
         for (const attackerId of combat.attackerIds) {
             if (attackersWithBlockers.has(attackerId)) {
-                map[attackerId] = colorIdx % COMBAT_GROUP_COLORS.length;
+                map[attackerId] = colorIdx % COMBAT_GROUP_RING.length;
                 colorIdx++;
             }
         }
         return map;
     }, [combat]);
 
-    // Invert blockerAssignments for damage UI: attackerId → blockerId[]
     const blockersPerAttacker = useMemo(() => {
         const map: Record<string, string[]> = {};
         if (!combat) return map;
@@ -166,252 +119,213 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
         return map;
     }, [combat]);
 
+    const allDamageAssigned = useMemo(() => {
+        if (!isAssigningDamage || !combat) return false;
+        for (const attackerId of combat.attackerIds) {
+            if ((blockersPerAttacker[attackerId]?.length ?? 0) < 2) continue;
+            const attacker = player.battlefield.find(
+                (c) => c.id === attackerId
+            );
+            if (!attacker) continue;
+            const power = Math.max(
+                0,
+                attacker.power ?? attacker.card.power ?? 0
+            );
+            const total = Object.values(
+                combat.damageAssignments?.[attackerId] ?? {}
+            ).reduce((s, n) => s + n, 0);
+            if (total !== power) return false;
+        }
+        return true;
+    }, [isAssigningDamage, combat, blockersPerAttacker, player.battlefield]);
+
+    // --- Card-level logic ---
+
+    function canBlockAnyAttacker(blocker: CardInstance): boolean {
+        if (!combat) return false;
+        const hasFlying = blocker.staticAbilities?.includes("flying") ?? false;
+        const hasReach = blocker.staticAbilities?.includes("reach") ?? false;
+        const attackingPlayer = allPlayers.find((p) => p.id === activePlayerId);
+        if (!attackingPlayer) return false;
+        for (const attackerId of combat.attackerIds) {
+            const attacker = attackingPlayer.battlefield.find(
+                (c) => c.id === attackerId
+            );
+            if (!attacker) continue;
+            const attackerFlies =
+                attacker.staticAbilities?.includes("flying") ?? false;
+            if (!attackerFlies || hasFlying || hasReach) return true;
+        }
+        return false;
+    }
+
+    function canInteract(card: CardInstance): boolean {
+        if (isSelectingTarget && isCreature(card)) return true;
+
+        if (isSelectingAttackers && isCreature(card)) {
+            if (selectedAttackerIds.includes(card.id)) return true;
+            if (card.staticAbilities?.includes("defender")) return false;
+            return !card.isTapped && !card.isSummoningSick;
+        }
+
+        if (isSelectingBlockers && isCreature(card)) {
+            if (blockerAssignments[card.id] !== undefined) return true;
+            if (pendingBlockerId === card.id) return true;
+            return !card.isTapped && canBlockAnyAttacker(card);
+        }
+
+        if (isBlockerTarget && card.isAttacking) return true;
+
+        if (!isMe || !isLand(card)) return false;
+        if (isPayingCast) {
+            return card.isTapped
+                ? pendingCast!.tappedLandIds.includes(card.id)
+                : getLandManaColor(card) !== null;
+        }
+        return card.isTapped ? !card.manaCommitted : true;
+    }
+
+    function getVisualState(card: CardInstance): CardVisualState {
+        const creature = isCreature(card);
+        const land = isLand(card);
+
+        const interactive =
+            (isSelectingTarget && creature) ||
+            (isMe &&
+                (land ||
+                    (isSelectingAttackers && creature) ||
+                    (isSelectingBlockers && creature))) ||
+            (isBlockerTarget && !!card.isAttacking);
+
+        const enabled = canInteract(card);
+
+        const dimmed: boolean =
+            !!(
+                isSelectingAttackers &&
+                creature &&
+                !selectedAttackerIds.includes(card.id) &&
+                (card.isTapped ||
+                    card.isSummoningSick ||
+                    card.staticAbilities?.includes("defender"))
+            ) ||
+            !!(
+                isSelectingBlockers &&
+                creature &&
+                blockerAssignments[card.id] === undefined &&
+                pendingBlockerId !== card.id &&
+                (card.isTapped || !canBlockAnyAttacker(card))
+            );
+
+        // Combat offset (translate toward center)
+        let combatOffset = "";
+        const towardCenter = isMe ? "-translate-y-8" : "translate-y-8";
+        if (
+            (combat &&
+                !combat.confirmed &&
+                selectedAttackerIds.includes(card.id)) ||
+            card.isAttacking ||
+            blockerAssignments[card.id] !== undefined ||
+            card.isBlocking
+        ) {
+            combatOffset = towardCenter;
+        }
+
+        // Ring class
+        let ringClass = "";
+        if (pendingBlockerId === card.id) {
+            ringClass = "ring-2 ring-amber-400 rounded-lg";
+        } else if (
+            card.isAttacking &&
+            combatGroupColors[card.id] !== undefined
+        ) {
+            ringClass = `ring-2 ${COMBAT_GROUP_RING[combatGroupColors[card.id]]} rounded-lg`;
+        } else {
+            const targetAtkId = blockerAssignments[card.id];
+            if (targetAtkId && combatGroupColors[targetAtkId] !== undefined) {
+                ringClass = `ring-2 ${COMBAT_GROUP_RING[combatGroupColors[targetAtkId]]} rounded-lg`;
+            } else if (
+                selectedAttackerIds.includes(card.id) &&
+                !combat?.confirmed
+            ) {
+                ringClass = "ring-2 ring-red-500 rounded-lg";
+            }
+        }
+        if (!ringClass && isSelectingTarget && creature) {
+            ringClass = "ring-2 ring-orange-400 rounded-lg";
+        }
+
+        // Badge
+        let badge: { color: string; index: number } | null = null;
+        if (combatGroupColors[card.id] !== undefined) {
+            badge = {
+                color: COMBAT_GROUP_BG[combatGroupColors[card.id]],
+                index: combatGroupColors[card.id],
+            };
+        } else {
+            const targetAtkId = blockerAssignments[card.id];
+            if (targetAtkId && combatGroupColors[targetAtkId] !== undefined) {
+                badge = {
+                    color: COMBAT_GROUP_BG[combatGroupColors[targetAtkId]],
+                    index: combatGroupColors[targetAtkId],
+                };
+            }
+        }
+
+        return { interactive, enabled, dimmed, combatOffset, ringClass, badge };
+    }
+
+    function handleClick(card: CardInstance) {
+        if (!canInteract(card)) return;
+
+        if (isSelectingTarget && isCreature(card)) {
+            selectTarget({
+                gameId,
+                playerId,
+                targetType: "creature",
+                targetId: card.id,
+            });
+            return;
+        }
+        if (isSelectingAttackers && isCreature(card)) {
+            toggleAttacker({ gameId, playerId, cardInstanceId: card.id });
+            return;
+        }
+        if (isSelectingBlockers && isCreature(card)) {
+            selectBlocker({ gameId, playerId, cardInstanceId: card.id });
+            return;
+        }
+        if (isBlockerTarget && card.isAttacking) {
+            assignBlockerTarget({ gameId, playerId, attackerId: card.id });
+            return;
+        }
+
+        // Land tap/untap
+        if (isPayingCast) {
+            const mut = card.isTapped ? untapForPayment : tapForPayment;
+            mut({ gameId, playerId, cardInstanceId: card.id });
+        } else {
+            tapUntap({ gameId, playerId, cardInstanceId: card.id });
+        }
+    }
+
+    // --- Rendering ---
+
     const creatures = player.battlefield.filter(isCreature);
     const lands = player.battlefield.filter((c) => isLand(c) && !isCreature(c));
     const others = player.battlefield.filter(
         (c) => !isCreature(c) && !isLand(c)
     );
 
-    function handleClick(cardInstance: CardInstance) {
-        if (!canInteract(cardInstance)) return;
-
-        // Target selection for spells
-        if (isSelectingTarget && isCreature(cardInstance)) {
-            selectTargetMut({
-                gameId,
-                playerId,
-                targetType: "creature",
-                targetId: cardInstance.id,
-            });
-            return;
-        }
-
-        // Attacker selection
-        if (isSelectingAttackers && isCreature(cardInstance)) {
-            toggleAttacker({
-                gameId,
-                playerId,
-                cardInstanceId: cardInstance.id,
-            });
-            return;
-        }
-
-        // Blocker selection (own creature)
-        if (isSelectingBlockers && isCreature(cardInstance)) {
-            selectBlockerMut({
-                gameId,
-                playerId,
-                cardInstanceId: cardInstance.id,
-            });
-            return;
-        }
-
-        // Blocker target assignment (opponent's attacking creature)
-        if (isBlockerTarget && cardInstance.isAttacking) {
-            assignBlockerTargetMut({
-                gameId,
-                playerId,
-                attackerId: cardInstance.id,
-            });
-            return;
-        }
-
-        // Land tap/untap
-        if (isPayingCast) {
-            if (cardInstance.isTapped) {
-                untapForPayment({
-                    gameId,
-                    playerId,
-                    cardInstanceId: cardInstance.id,
-                });
-            } else {
-                tapForPayment({
-                    gameId,
-                    playerId,
-                    cardInstanceId: cardInstance.id,
-                });
-            }
-        } else {
-            tapUntap({ gameId, playerId, cardInstanceId: cardInstance.id });
-        }
-    }
-
-    function canInteract(cardInstance: CardInstance): boolean {
-        // During target selection, creatures on any battlefield are interactive
-        if (isSelectingTarget && isCreature(cardInstance)) {
-            return true;
-        }
-
-        // During attacker selection, own creatures are interactive
-        if (isSelectingAttackers && isCreature(cardInstance)) {
-            if (selectedAttackerIds.includes(cardInstance.id)) return true;
-            return !cardInstance.isTapped && !cardInstance.isSummoningSick;
-        }
-
-        // During blocker selection, own untapped creatures are interactive
-        if (isSelectingBlockers && isCreature(cardInstance)) {
-            // Already assigned or pending → can deselect/unassign
-            if (blockerAssignments[cardInstance.id] !== undefined) return true;
-            if (pendingBlockerId === cardInstance.id) return true;
-            // Eligible: untapped creature
-            return !cardInstance.isTapped;
-        }
-
-        // Opponent's attacking creatures are clickable as blocker targets
-        if (isBlockerTarget && cardInstance.isAttacking) {
-            return true;
-        }
-
-        if (!isMe || !isLand(cardInstance)) return false;
-        if (isPayingCast) {
-            if (cardInstance.isTapped) {
-                return pendingCast!.tappedLandIds.includes(cardInstance.id);
-            }
-            return getLandManaColor(cardInstance) !== null;
-        }
-        if (cardInstance.isTapped) {
-            return !cardInstance.manaCommitted;
-        }
-        return true;
-    }
-
-    function getCombatRingClass(cardInstance: CardInstance): string {
-        // Pending blocker: amber ring
-        if (pendingBlockerId === cardInstance.id) {
-            return "ring-2 ring-amber-400 rounded-lg";
-        }
-
-        // This card is an attacker with blockers → group color ring
-        if (
-            cardInstance.isAttacking &&
-            combatGroupColors[cardInstance.id] !== undefined
-        ) {
-            return `ring-2 ${COMBAT_GROUP_COLORS[combatGroupColors[cardInstance.id]]} rounded-lg`;
-        }
-
-        // This card is an assigned blocker → group color ring (same as its target attacker)
-        const targetAttackerId = blockerAssignments[cardInstance.id];
-        if (
-            targetAttackerId &&
-            combatGroupColors[targetAttackerId] !== undefined
-        ) {
-            return `ring-2 ${COMBAT_GROUP_COLORS[combatGroupColors[targetAttackerId]]} rounded-lg`;
-        }
-
-        // Attacker selected (pre-confirmation) → red ring
-        if (
-            selectedAttackerIds.includes(cardInstance.id) &&
-            !combat?.confirmed
-        ) {
-            return "ring-2 ring-red-500 rounded-lg";
-        }
-
-        return "";
-    }
-
-    function getCombatOffset(cardInstance: CardInstance): string {
-        // Attackers: translate toward center
-        if (
-            combat &&
-            !combat.confirmed &&
-            selectedAttackerIds.includes(cardInstance.id)
-        ) {
-            return isMe ? "-translate-y-8" : "translate-y-8";
-        }
-        if (cardInstance.isAttacking) {
-            return isMe ? "-translate-y-8" : "translate-y-8";
-        }
-
-        // Blockers: translate toward center
-        if (blockerAssignments[cardInstance.id] !== undefined) {
-            return isMe ? "-translate-y-8" : "translate-y-8";
-        }
-        if (cardInstance.isBlocking) {
-            return isMe ? "-translate-y-8" : "translate-y-8";
-        }
-
-        return "";
-    }
-
-    function getCombatBadge(
-        cardInstance: CardInstance
-    ): { color: string; index: number } | null {
-        // Attacker with blockers
-        if (combatGroupColors[cardInstance.id] !== undefined) {
-            return {
-                color: COMBAT_GROUP_BG[combatGroupColors[cardInstance.id]],
-                index: combatGroupColors[cardInstance.id],
-            };
-        }
-        // Blocker assigned to an attacker
-        const targetAttackerId = blockerAssignments[cardInstance.id];
-        if (
-            targetAttackerId &&
-            combatGroupColors[targetAttackerId] !== undefined
-        ) {
-            return {
-                color: COMBAT_GROUP_BG[combatGroupColors[targetAttackerId]],
-                index: combatGroupColors[targetAttackerId],
-            };
-        }
-        return null;
-    }
-
-    function renderCard(cardInstance: CardInstance) {
-        const isLandCard = isLand(cardInstance);
-        const isCreatureCard = isCreature(cardInstance);
-        const interactive =
-            (isSelectingTarget && isCreatureCard) ||
-            (isMe &&
-                (isLandCard ||
-                    (isSelectingAttackers && isCreatureCard) ||
-                    (isSelectingBlockers && isCreatureCard))) ||
-            (isBlockerTarget && cardInstance.isAttacking);
-        const enabled = canInteract(cardInstance);
-        const combatOffset = getCombatOffset(cardInstance);
-        const combatRing = getCombatRingClass(cardInstance);
-        const badge = getCombatBadge(cardInstance);
-        const dimmedSick =
-            isSelectingAttackers &&
-            isCreatureCard &&
-            !selectedAttackerIds.includes(cardInstance.id) &&
-            (cardInstance.isTapped || cardInstance.isSummoningSick);
-        const targetHighlight =
-            isSelectingTarget && isCreatureCard
-                ? "ring-2 ring-orange-400 rounded-lg"
-                : "";
-
-        return (
-            <div
-                key={cardInstance.id}
-                className={`relative w-32 transition-transform duration-150 ${
-                    cardInstance.isTapped ? "rotate-90" : ""
-                } ${combatOffset} ${combatRing} ${targetHighlight} ${
-                    interactive
-                        ? enabled
-                            ? "cursor-pointer"
-                            : "cursor-not-allowed opacity-60"
-                        : ""
-                } ${dimmedSick ? "opacity-40" : ""}`}
-                onClick={() => handleClick(cardInstance)}
-            >
-                <CardImage card={cardInstance.card} />
-                {badge && (
-                    <div
-                        className={`absolute -top-1 -right-1 w-5 h-5 rounded-full ${badge.color} text-white text-xs font-bold flex items-center justify-center z-10`}
-                    >
-                        {badge.index + 1}
-                    </div>
-                )}
-            </div>
-        );
-    }
-
     function renderGroup(group: CardInstance[]) {
         if (group.length === 1) {
+            const vs = getVisualState(group[0]);
             return (
                 <div key={group[0].id} className="flex">
-                    {renderCard(group[0])}
+                    <BattlefieldCard
+                        card={group[0]}
+                        vs={vs}
+                        onClick={() => handleClick(group[0])}
+                    />
                 </div>
             );
         }
@@ -423,58 +337,20 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
                 style={{ width: `calc(8rem * ${overlapWidth})` }}
             >
                 {group.map((card, i) => {
-                    const isLandCard = isLand(card);
-                    const isCreatureCard = isCreature(card);
-                    const interactive =
-                        (isSelectingTarget && isCreatureCard) ||
-                        (isMe &&
-                            (isLandCard ||
-                                (isSelectingAttackers && isCreatureCard) ||
-                                (isSelectingBlockers && isCreatureCard))) ||
-                        (isBlockerTarget && card.isAttacking);
-                    const enabled = canInteract(card);
-                    const combatOffset = getCombatOffset(card);
-                    const combatRing = getCombatRingClass(card);
-                    const badge = getCombatBadge(card);
-                    const dimmedSick =
-                        isSelectingAttackers &&
-                        isCreatureCard &&
-                        !selectedAttackerIds.includes(card.id) &&
-                        (card.isTapped || card.isSummoningSick);
-                    const targetHighlight =
-                        isSelectingTarget && isCreatureCard
-                            ? "ring-2 ring-orange-400 rounded-lg"
-                            : "";
-
+                    const vs = getVisualState(card);
                     return (
-                        <div
+                        <BattlefieldCard
                             key={card.id}
-                            className={`relative transition-transform duration-150 ${
-                                card.isTapped ? "rotate-90" : ""
-                            } ${combatOffset} ${combatRing} ${targetHighlight} ${
-                                interactive
-                                    ? enabled
-                                        ? "cursor-pointer"
-                                        : "cursor-not-allowed opacity-60"
-                                    : ""
-                            } ${dimmedSick ? "opacity-40" : ""}`}
+                            card={card}
+                            vs={vs}
+                            onClick={() => handleClick(card)}
                             style={{
                                 width: "8rem",
                                 flexShrink: 0,
                                 marginLeft: i > 0 ? "-4rem" : undefined,
                                 zIndex: i,
                             }}
-                            onClick={() => handleClick(card)}
-                        >
-                            <CardImage card={card.card} />
-                            {badge && (
-                                <div
-                                    className={`absolute -top-1 -right-1 w-5 h-5 rounded-full ${badge.color} text-white text-xs font-bold flex items-center justify-center z-10`}
-                                >
-                                    {badge.index + 1}
-                                </div>
-                            )}
-                        </div>
+                        />
                     );
                 })}
             </div>
@@ -485,156 +361,8 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
         return groupByName(cards).map(renderGroup);
     }
 
-    // Damage assignment UI: for each attacker with 2+ blockers
-    function renderDamageAssignment() {
-        if (!isAssigningDamage || !combat) return null;
-
-        const attackersNeedingAssignment = combat.attackerIds.filter(
-            (id) => (blockersPerAttacker[id]?.length ?? 0) >= 2
-        );
-        if (attackersNeedingAssignment.length === 0) return null;
-
-        const myPlayer = player; // isMe is true when isAssigningDamage
-
-        return (
-            <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-50 bg-black/90 border border-white/20 rounded-lg p-3 text-white text-sm max-w-md">
-                <div className="font-bold mb-2">Assign Combat Damage</div>
-                {attackersNeedingAssignment.map((attackerId) => {
-                    const attacker = myPlayer.battlefield.find(
-                        (c) => c.id === attackerId
-                    );
-                    if (!attacker) return null;
-                    const power = Math.max(
-                        0,
-                        attacker.power ?? attacker.card.power ?? 0
-                    );
-                    const blockerIds = blockersPerAttacker[attackerId] ?? [];
-                    const assignments =
-                        combat.damageAssignments?.[attackerId] ?? {};
-                    const assigned = Object.values(assignments).reduce(
-                        (s, n) => s + n,
-                        0
-                    );
-                    const colorIdx = combatGroupColors[attackerId];
-                    const groupColor =
-                        colorIdx !== undefined
-                            ? COMBAT_GROUP_BG[colorIdx]
-                            : "bg-gray-500";
-
-                    return (
-                        <div key={attackerId} className="mb-2 last:mb-0">
-                            <div className="flex items-center gap-2 mb-1">
-                                <div
-                                    className={`w-3 h-3 rounded-full ${groupColor}`}
-                                />
-                                <span className="font-medium">
-                                    {(attacker.card.name as string) ??
-                                        "Attacker"}{" "}
-                                    ({power} dmg)
-                                </span>
-                                <span
-                                    className={
-                                        assigned === power
-                                            ? "text-green-400"
-                                            : "text-red-400"
-                                    }
-                                >
-                                    {assigned}/{power}
-                                </span>
-                            </div>
-                            {blockerIds.map((blockerId) => {
-                                const blocker =
-                                    // Blocker is on the OPPONENT's battlefield
-                                    allPlayers
-                                        .find((p) => p.id !== activePlayerId)
-                                        ?.battlefield.find(
-                                            (c) => c.id === blockerId
-                                        );
-                                const dmg = assignments[blockerId] ?? 0;
-
-                                return (
-                                    <div
-                                        key={blockerId}
-                                        className="flex items-center gap-2 ml-4"
-                                    >
-                                        <span className="flex-1 truncate">
-                                            {(blocker?.card?.name as string) ??
-                                                "Blocker"}
-                                        </span>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (dmg <= 0) return;
-                                                const newAssignments = {
-                                                    ...assignments,
-                                                    [blockerId]: dmg - 1,
-                                                };
-                                                setDamageAssignmentMut({
-                                                    gameId,
-                                                    playerId,
-                                                    attackerId,
-                                                    assignments: newAssignments,
-                                                });
-                                            }}
-                                            className="w-6 h-6 bg-white/20 hover:bg-white/30 rounded text-center leading-6"
-                                        >
-                                            -
-                                        </button>
-                                        <span className="w-6 text-center font-mono">
-                                            {dmg}
-                                        </span>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (assigned >= power) return;
-                                                const newAssignments = {
-                                                    ...assignments,
-                                                    [blockerId]: dmg + 1,
-                                                };
-                                                setDamageAssignmentMut({
-                                                    gameId,
-                                                    playerId,
-                                                    attackerId,
-                                                    assignments: newAssignments,
-                                                });
-                                            }}
-                                            className="w-6 h-6 bg-white/20 hover:bg-white/30 rounded text-center leading-6"
-                                        >
-                                            +
-                                        </button>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    );
-                })}
-            </div>
-        );
-    }
-
-    // Check if all damage assignments are valid for the confirm button
-    const allDamageAssigned = useMemo(() => {
-        if (!isAssigningDamage || !combat) return false;
-        const attackersNeedingAssignment = combat.attackerIds.filter(
-            (id) => (blockersPerAttacker[id]?.length ?? 0) >= 2
-        );
-        for (const attackerId of attackersNeedingAssignment) {
-            const attacker = player.battlefield.find(
-                (c) => c.id === attackerId
-            );
-            if (!attacker) continue;
-            const power = Math.max(
-                0,
-                attacker.power ?? attacker.card.power ?? 0
-            );
-            const assignments = combat.damageAssignments?.[attackerId] ?? {};
-            const total = Object.values(assignments).reduce((s, n) => s + n, 0);
-            if (total !== power) return false;
-        }
-        return true;
-    }, [isAssigningDamage, combat, blockersPerAttacker, player.battlefield]);
-
     const blockerCount = Object.keys(blockerAssignments).length;
+    const opponent = allPlayers.find((p) => p.id !== activePlayerId);
 
     return (
         <div
@@ -669,70 +397,56 @@ export default function PlayerBattlefield({ player }: BattlefieldProps) {
                     </div>
                 </>
             )}
+
             {isSelectingTarget && (
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-40">
-                    <button
-                        onClick={() => cancelTargetMut({ gameId, playerId })}
-                        className="bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-1 rounded-lg text-sm transition-colors"
-                    >
-                        Cancel Target
-                    </button>
-                </div>
+                <ActionButton
+                    onClick={() => cancelTarget({ gameId, playerId })}
+                    label="Cancel Target"
+                />
             )}
             {isPayingCast && (
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-40">
-                    <button
-                        onClick={() => cancelCast({ gameId, playerId })}
-                        className="bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-1 rounded-lg text-sm transition-colors"
-                    >
-                        Cancel Cast
-                    </button>
-                </div>
+                <ActionButton
+                    onClick={() => cancelCast({ gameId, playerId })}
+                    label="Cancel Cast"
+                />
             )}
             {isSelectingAttackers && (
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-40">
-                    <button
-                        onClick={() =>
-                            confirmAttackersMut({ gameId, playerId })
-                        }
-                        className="bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-1 rounded-lg text-sm transition-colors"
-                    >
-                        {selectedAttackerIds.length > 0
+                <ActionButton
+                    onClick={() => confirmAttackers({ gameId, playerId })}
+                    label={
+                        selectedAttackerIds.length > 0
                             ? `Confirm Attackers (${selectedAttackerIds.length})`
-                            : "Skip Attack"}
-                    </button>
-                </div>
+                            : "Skip Attack"
+                    }
+                />
             )}
             {isSelectingBlockers && (
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-40">
-                    <button
-                        onClick={() => confirmBlockersMut({ gameId, playerId })}
-                        className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-1 rounded-lg text-sm transition-colors"
-                    >
-                        {blockerCount > 0
+                <ActionButton
+                    onClick={() => confirmBlockers({ gameId, playerId })}
+                    label={
+                        blockerCount > 0
                             ? `Confirm Blockers (${blockerCount})`
-                            : "No Blockers"}
-                    </button>
-                </div>
+                            : "No Blockers"
+                    }
+                    color="blue"
+                />
             )}
             {isAssigningDamage && (
                 <>
-                    {renderDamageAssignment()}
-                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-40">
-                        <button
-                            onClick={() =>
-                                confirmDamageMut({ gameId, playerId })
-                            }
-                            disabled={!allDamageAssigned}
-                            className={`font-bold px-4 py-1 rounded-lg text-sm transition-colors ${
-                                allDamageAssigned
-                                    ? "bg-red-600 hover:bg-red-500 text-white"
-                                    : "bg-gray-600 text-gray-400 cursor-not-allowed"
-                            }`}
-                        >
-                            Confirm Damage
-                        </button>
-                    </div>
+                    <DamageAssignmentPanel
+                        combat={combat!}
+                        player={player}
+                        opponentBattlefield={opponent?.battlefield ?? []}
+                        blockersPerAttacker={blockersPerAttacker}
+                        combatGroupColors={combatGroupColors}
+                        gameId={gameId}
+                        playerId={playerId}
+                    />
+                    <ActionButton
+                        onClick={() => confirmDamage({ gameId, playerId })}
+                        label="Confirm Damage"
+                        disabled={!allDamageAssigned}
+                    />
                 </>
             )}
         </div>

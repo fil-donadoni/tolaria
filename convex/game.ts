@@ -2,7 +2,7 @@ import { v, type GenericId } from "convex/values";
 import type { GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import { getCardById } from "./cards";
+import { getCardById, getCardByName, getAllCardNames } from "./cards";
 import {
     type GameState,
     type StackItem,
@@ -71,6 +71,7 @@ function buildPlayerState(player: PlayerInput) {
             subtypes: def.subtypes ?? [],
             power: def.power,
             toughness: def.toughness,
+            staticAbilities: def.staticAbilities ?? [],
             controllerId: player.id,
             ownerId: player.id,
             zone: "library" as const,
@@ -875,6 +876,9 @@ export const toggleAttacker = mutation({
             state.combat.attackerIds.splice(idx, 1);
         } else {
             // Select — must be eligible
+            if (card.staticAbilities.includes("defender")) {
+                throw new Error("Creatures with defender cannot attack");
+            }
             if (card.isTapped)
                 throw new Error("Tapped creatures cannot attack");
             if (card.isSummoningSick) {
@@ -916,11 +920,13 @@ export const confirmAttackers = mutation({
 
         const player = getPlayer(state, args.playerId);
 
-        // Tap and mark each attacker
+        // Tap and mark each attacker (vigilance creatures don't tap)
         for (const attackerId of state.combat.attackerIds) {
             const card = player.battlefield.find((c) => c.id === attackerId);
             if (card) {
-                card.isTapped = true;
+                if (!card.staticAbilities.includes("vigilance")) {
+                    card.isTapped = true;
+                }
                 card.isAttacking = true;
             }
         }
@@ -1038,6 +1044,27 @@ export const assignBlockerTarget = mutation({
         }
         if (!state.combat.attackerIds.includes(args.attackerId)) {
             throw new Error("Target is not an attacker");
+        }
+
+        // Flying check: attacker with flying can only be blocked by creatures with flying or reach (CR 509.1b)
+        const activePlayer = getPlayer(state, state.activePlayerId);
+        const attacker = activePlayer.battlefield.find(
+            (c) => c.id === args.attackerId
+        );
+        if (attacker?.staticAbilities.includes("flying")) {
+            const defender = getPlayer(state, args.playerId);
+            const blocker = defender.battlefield.find(
+                (c) => c.id === state.combat!.pendingBlockerId
+            );
+            if (
+                blocker &&
+                !blocker.staticAbilities.includes("flying") &&
+                !blocker.staticAbilities.includes("reach")
+            ) {
+                throw new Error(
+                    "Only creatures with flying or reach can block a creature with flying"
+                );
+            }
         }
 
         state.combat.blockerAssignments[state.combat.pendingBlockerId] =
@@ -1612,5 +1639,113 @@ export const debugResetGame = mutation({
                 await ctx.db.delete(s._id);
             }
         }
+    },
+});
+
+/** Returns all available card names for the debug scenario builder. */
+export const debugListCards = query({
+    handler: () => getAllCardNames(),
+});
+
+/**
+ * Debug: set up a board scenario for testing.
+ * Each entry places a card (by name) on a player's battlefield.
+ * Optionally sets the phase and clears hands/stack.
+ */
+export const debugSetupScenario = mutation({
+    args: {
+        gameId: v.id("games"),
+        /** Cards to place. "me" = player 1, "opp" = player 2. */
+        cards: v.array(
+            v.object({
+                name: v.string(),
+                owner: v.union(v.literal("me"), v.literal("opp")),
+                tapped: v.optional(v.boolean()),
+            })
+        ),
+        phase: v.optional(v.string()),
+        /** Give each player this many Plains. Default 7. */
+        landCount: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        const p1 = state.players[0];
+        const p2 = state.players[1];
+
+        // Clear battlefields
+        p1.battlefield = [];
+        p2.battlefield = [];
+
+        // Helper to create an instance from a card name
+        function makeInstance(
+            cardName: string,
+            controllerId: string,
+            opts?: { tapped?: boolean }
+        ) {
+            const def = getCardByName(cardName);
+            return {
+                id: crypto.randomUUID(),
+                card: {
+                    id: def.id,
+                    name: def.name,
+                    manaCost: def.manaCost,
+                    supertypes: def.supertypes,
+                    loyalty: def.loyalty,
+                },
+                types: def.types,
+                subtypes: def.subtypes ?? [],
+                power: def.power,
+                toughness: def.toughness,
+                staticAbilities: def.staticAbilities ?? [],
+                controllerId,
+                ownerId: controllerId,
+                zone: "battlefield" as const,
+                isTapped: opts?.tapped ?? false,
+                isSummoningSick: false, // Scenario cards are ready to act
+            };
+        }
+
+        // Place requested cards
+        for (const entry of args.cards) {
+            const player = entry.owner === "me" ? p1 : p2;
+            player.battlefield.push(
+                makeInstance(entry.name, player.id, { tapped: entry.tapped })
+            );
+        }
+
+        // Add lands (default 7 Plains each)
+        const landCount = args.landCount ?? 7;
+        for (let i = 0; i < landCount; i++) {
+            p1.battlefield.push(makeInstance("Plains", p1.id));
+            p2.battlefield.push(makeInstance("Plains", p2.id));
+        }
+
+        // Set phase if requested
+        if (args.phase) {
+            state.phase = args.phase as Phase;
+            if (args.phase === "DECLARE_ATTACKERS") {
+                state.combat = {
+                    attackerIds: [],
+                    confirmed: false,
+                    blockerAssignments: {},
+                    blockersConfirmed: false,
+                };
+            }
+        }
+
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+        state.pendingCast = undefined;
+        state.stack = [];
+
+        await ctx.db.insert("game_states", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            state,
+            updatedAt: Date.now(),
+        });
     },
 });

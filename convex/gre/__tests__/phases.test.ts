@@ -7,6 +7,7 @@ import type {
     StackItem,
 } from "../state";
 import type { Phase } from "../types";
+import type { CardType } from "../../cards/types";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -21,7 +22,7 @@ function makeCard(
     return {
         id: overrides.id ?? crypto.randomUUID(),
         card,
-        types: (overrides.types as string[]) ?? (card.types as string[]) ?? [],
+        types: overrides.types ?? (card.types as CardType[]) ?? [],
         subtypes:
             (overrides.subtypes as string[]) ??
             (card.subtypes as string[]) ??
@@ -29,6 +30,10 @@ function makeCard(
         power: overrides.power ?? (card.power as number | undefined),
         toughness:
             overrides.toughness ?? (card.toughness as number | undefined),
+        staticAbilities:
+            (overrides.staticAbilities as string[]) ??
+            (card.staticAbilities as string[]) ??
+            [],
         controllerId: "p1",
         ownerId: "p1",
         zone: "battlefield",
@@ -582,10 +587,11 @@ function makeStackItem(
     return {
         id: overrides.id ?? crypto.randomUUID(),
         card: cardData,
-        types: (cardData.types as string[]) ?? [],
+        types: (cardData.types as CardType[]) ?? [],
         subtypes: (cardData.subtypes as string[]) ?? [],
         power: cardData.power as number | undefined,
         toughness: cardData.toughness as number | undefined,
+        staticAbilities: (cardData.staticAbilities as string[]) ?? [],
         controllerId: castById,
         ownerId: castById,
         zone: "stack",

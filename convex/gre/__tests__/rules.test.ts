@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { getLegalActions, assertLegalAction } from "../rules";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
+import type { CardType } from "../../cards/types";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -13,10 +14,11 @@ function makeCard(
     return {
         id: overrides.id ?? crypto.randomUUID(),
         card: cardData,
-        types: (cardData.types as string[]) ?? [],
+        types: (cardData.types as CardType[]) ?? [],
         subtypes: (cardData.subtypes as string[]) ?? [],
         power: cardData.power as number | undefined,
         toughness: cardData.toughness as number | undefined,
+        staticAbilities: (cardData.staticAbilities as string[]) ?? [],
         controllerId: "p1",
         ownerId: "p1",
         zone: "hand",

@@ -317,6 +317,7 @@ export const serraAngel: CardDefinition = {
     subtypes: ["Angel"],
     power: 4,
     toughness: 4,
+    staticAbilities: ["flying", "vigilance"],
 };
 
 export const swordsToPlowshares: CardDefinition = {
@@ -351,6 +352,7 @@ export const wallOfSwords: CardDefinition = {
     subtypes: ["Wall"],
     power: 3,
     toughness: 5,
+    staticAbilities: ["defender"],
 };
 
 export const whiteKnight: CardDefinition = {

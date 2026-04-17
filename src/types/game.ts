@@ -1,4 +1,8 @@
 import type { Card, Color } from "./cards";
+import type { Zone, CardAction } from "@convex/gre/types";
+
+// Re-export from convex (single source of truth)
+export type { Zone, CardAction };
 
 export interface Player {
     id: string;
@@ -44,10 +48,13 @@ export interface CardInstance {
     controllerId: string;
     ownerId: string;
     zone: Zone;
+    types?: string[];
+    subtypes?: string[];
     isTapped: boolean;
     manaCommitted?: boolean;
     power?: number;
     toughness?: number;
+    staticAbilities?: string[];
     isSummoningSick?: boolean;
     isAttacking?: boolean;
     isBlocking?: boolean;
@@ -64,13 +71,7 @@ export interface Combat {
     damageConfirmed?: boolean;
 }
 
-export type Zone =
-    | "library"
-    | "hand"
-    | "battlefield"
-    | "graveyard"
-    | "exile"
-    | "stack";
+// Zone re-exported from @convex/gre/types above
 
 export interface StackItem extends CardInstance {
     castById: string;
@@ -92,11 +93,4 @@ export interface PendingTarget {
     selected: { type: "creature" | "player"; id: string }[];
 }
 
-export type CardAction =
-    | "discard"
-    | "putToGraveyard"
-    | "cast"
-    | "play"
-    | "putToExile"
-    | "putToLibrary"
-    | "putToHand";
+// CardAction re-exported from @convex/gre/types above

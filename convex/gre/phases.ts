@@ -353,7 +353,9 @@ export function drainAutoPasses(state: GameState): void {
                     (c) => c.id === attackerId
                 );
                 if (card) {
-                    card.isTapped = true;
+                    if (!card.staticAbilities.includes("vigilance")) {
+                        card.isTapped = true;
+                    }
                     card.isAttacking = true;
                 }
             }

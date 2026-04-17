@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { JSONTree } from "react-json-tree";
+import DebugButton from "./debug-button";
 
 const theme = {
     scheme: "tolaria",
@@ -24,27 +25,46 @@ const theme = {
     base0F: "#cc6633",
 };
 
-function DebugButton({
-    onClick,
-    children,
-    variant = "default",
-}: {
-    onClick: () => void;
-    children: React.ReactNode;
-    variant?: "default" | "danger";
-}) {
-    const base = "rounded px-2 py-1 text-xs font-medium transition-colors";
-    const styles =
-        variant === "danger"
-            ? "bg-red-900/50 text-red-300 hover:bg-red-900/80"
-            : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white";
-
-    return (
-        <button onClick={onClick} className={`${base} ${styles}`}>
-            {children}
-        </button>
-    );
-}
+const PRESET_SCENARIOS = [
+    {
+        label: "Serra Angel vs Bears",
+        cards: [
+            { name: "Serra Angel", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+    },
+    {
+        label: "Combat: Serra vs Wall",
+        cards: [
+            { name: "Serra Angel", owner: "me" as const },
+            { name: "Wall of Swords", owner: "opp" as const },
+        ],
+        phase: "DECLARE_ATTACKERS",
+    },
+    {
+        label: "Combat: Knights duel",
+        cards: [
+            { name: "White Knight", owner: "me" as const },
+            { name: "White Knight", owner: "me" as const },
+            { name: "Black Knight", owner: "opp" as const },
+            { name: "Black Knight", owner: "opp" as const },
+        ],
+        phase: "DECLARE_ATTACKERS",
+    },
+    {
+        label: "Multi-block test",
+        cards: [
+            { name: "Serra Angel", owner: "me" as const },
+            { name: "Hill Giant", owner: "me" as const },
+            { name: "Savannah Lions", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Pearled Unicorn", owner: "opp" as const },
+        ],
+        phase: "DECLARE_ATTACKERS",
+    },
+];
 
 type DebugPanelProps = {
     gameId: Id<"games">;
@@ -62,9 +82,11 @@ export default function DebugPanel({
     onToggleDebugAllActions,
 }: DebugPanelProps) {
     const [isOpen, setIsOpen] = useState(false);
+    const [showScenarios, setShowScenarios] = useState(false);
     const state = useQuery(api.game.getFullState, { gameId });
     const undo = useMutation(api.game.debugUndo);
     const resetGame = useMutation(api.game.debugResetGame);
+    const setupScenario = useMutation(api.game.debugSetupScenario);
 
     return (
         <div className="fixed top-1/2 right-4 -translate-y-1/2 z-50 font-mono text-xs">
@@ -79,7 +101,7 @@ export default function DebugPanel({
 
                 {isOpen && (
                     <div className="border-t border-white/10">
-                        <div className="flex gap-2 px-3 py-2 border-b border-white/10">
+                        <div className="flex flex-wrap gap-2 px-3 py-2 border-b border-white/10">
                             {state && state.seq > 0 && (
                                 <DebugButton onClick={() => undo({ gameId })}>
                                     Undo
@@ -92,12 +114,39 @@ export default function DebugPanel({
                                 {debugAllActions ? "Rules on" : "All actions"}
                             </DebugButton>
                             <DebugButton
+                                onClick={() => setShowScenarios(!showScenarios)}
+                            >
+                                Scenarios
+                            </DebugButton>
+                            <DebugButton
                                 onClick={() => resetGame({ gameId })}
                                 variant="danger"
                             >
                                 Reset Game
                             </DebugButton>
                         </div>
+
+                        {showScenarios && (
+                            <div className="px-3 py-2 border-b border-white/10 flex flex-col gap-1">
+                                <span className="text-white/40 text-[10px] uppercase tracking-wide">
+                                    Load scenario
+                                </span>
+                                {PRESET_SCENARIOS.map((scenario) => (
+                                    <DebugButton
+                                        key={scenario.label}
+                                        onClick={() =>
+                                            setupScenario({
+                                                gameId,
+                                                cards: scenario.cards,
+                                                phase: scenario.phase,
+                                            })
+                                        }
+                                    >
+                                        {scenario.label}
+                                    </DebugButton>
+                                ))}
+                            </div>
+                        )}
 
                         <div className="max-h-[70vh] w-100 overflow-auto px-2 py-1">
                             {state ? (
