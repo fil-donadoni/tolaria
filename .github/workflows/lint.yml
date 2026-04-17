@@ -30,6 +30,8 @@ jobs:
 
       - name: Generate Convex types
         run: bunx convex codegen
+        env:
+          CONVEX_DEPLOYMENT: ${{ secrets.CONVEX_DEPLOYMENT }}
 
       - name: Type Check
         run: bun run check:ts
