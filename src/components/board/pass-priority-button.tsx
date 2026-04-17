@@ -17,6 +17,8 @@ export default function PassPriorityButton() {
     } = useGameContext();
     const passPriority = useMutation(api.game.passPriority);
     const endTurn = useMutation(api.game.endTurn);
+    const confirmAttackers = useMutation(api.game.confirmAttackers);
+    const confirmBlockers = useMutation(api.game.confirmBlockers);
 
     const isSelectingAttackers =
         phase === "DECLARE_ATTACKERS" &&
@@ -61,7 +63,13 @@ export default function PassPriorityButton() {
         const onKeyDown = (e: KeyboardEvent) => {
             if (e.code === "Space" && !e.repeat) {
                 e.preventDefault();
-                handlePass();
+                if (isSelectingAttackers) {
+                    confirmAttackers({ gameId, playerId });
+                } else if (isSelectingBlockers) {
+                    confirmBlockers({ gameId, playerId });
+                } else {
+                    handlePass();
+                }
             }
             if (e.code === "Enter" && !e.repeat) {
                 e.preventDefault();

@@ -263,6 +263,22 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             ringClass = "ring-2 ring-orange-400 rounded-lg";
         }
 
+        // Tooltip for ineligible creatures
+        let tooltip: string | undefined;
+        if (dimmed) {
+            if (isSelectingAttackers && creature) {
+                if (card.staticAbilities?.includes("defender"))
+                    tooltip = "Can't attack — has defender";
+                else if (card.isSummoningSick)
+                    tooltip = "Can't attack — summoning sick";
+                else if (card.isTapped) tooltip = "Can't attack — tapped";
+            } else if (isSelectingBlockers && creature) {
+                if (card.isTapped) tooltip = "Can't block — tapped";
+                else if (!canBlockAnyAttacker(card))
+                    tooltip = "Can't block — no valid target";
+            }
+        }
+
         // Badge
         let badge: { color: string; index: number } | null = null;
         if (combatGroupColors[card.id] !== undefined) {
@@ -280,7 +296,15 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             }
         }
 
-        return { interactive, enabled, dimmed, combatOffset, ringClass, badge };
+        return {
+            interactive,
+            enabled,
+            dimmed,
+            combatOffset,
+            ringClass,
+            badge,
+            tooltip,
+        };
     }
 
     function handleClick(card: CardInstance) {
@@ -427,6 +451,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                             ? `Confirm Attackers (${selectedAttackerIds.length})`
                             : "Skip Attack"
                     }
+                    shortcut="space"
                 />
             )}
             {isSelectingBlockers && (
@@ -438,6 +463,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                             : "No Blockers"
                     }
                     color="blue"
+                    shortcut="space"
                 />
             )}
             {isOrderingBlockers && (

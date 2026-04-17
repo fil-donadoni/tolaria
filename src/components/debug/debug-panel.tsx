@@ -44,16 +44,6 @@ const PRESET_SCENARIOS = [
         phase: "DECLARE_ATTACKERS",
     },
     {
-        label: "Combat: Knights duel",
-        cards: [
-            { name: "White Knight", owner: "me" as const },
-            { name: "White Knight", owner: "me" as const },
-            { name: "Black Knight", owner: "opp" as const },
-            { name: "Black Knight", owner: "opp" as const },
-        ],
-        phase: "DECLARE_ATTACKERS",
-    },
-    {
         label: "Multi-block test",
         cards: [
             { name: "Serra Angel", owner: "me" as const },
@@ -70,6 +60,15 @@ const PRESET_SCENARIOS = [
             { name: "War Mammoth", owner: "me" as const },
             { name: "Merfolk of the Pearl Trident", owner: "opp" as const },
             { name: "Merfolk of the Pearl Trident", owner: "opp" as const },
+        ],
+        phase: "DECLARE_ATTACKERS",
+    },
+    {
+        label: "Defender: Wall vs Bears",
+        cards: [
+            { name: "Wall of Swords", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
         ],
         phase: "DECLARE_ATTACKERS",
     },

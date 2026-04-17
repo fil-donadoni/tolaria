@@ -3,11 +3,13 @@ export default function ActionButton({
     label,
     color = "red",
     disabled = false,
+    shortcut,
 }: {
     onClick: () => void;
     label: string;
     color?: "red" | "blue" | "gray";
     disabled?: boolean;
+    shortcut?: string;
 }) {
     const colors = {
         red: "bg-red-600 hover:bg-red-500 text-white",
@@ -24,6 +26,11 @@ export default function ActionButton({
                 }`}
             >
                 {label}
+                {shortcut && (
+                    <span className="ml-2 text-xs opacity-60">
+                        [{shortcut}]
+                    </span>
+                )}
             </button>
         </div>
     );

@@ -28,6 +28,7 @@ import {
     applyAllCombatDamage,
 } from "./gre/phases";
 import type { Phase } from "./gre/types";
+import { validateAttackerEligibility } from "./gre/combat";
 
 const STARTING_HAND_SIZE = 7;
 
@@ -865,24 +866,15 @@ export const toggleAttacker = mutation({
         );
         if (!card) throw new Error("Card not on battlefield");
 
-        const types = card.types;
-        if (!types.includes("Creature")) {
-            throw new Error("Only creatures can attack");
-        }
-
         const idx = state.combat.attackerIds.indexOf(args.cardInstanceId);
         if (idx !== -1) {
             // Deselect
             state.combat.attackerIds.splice(idx, 1);
         } else {
             // Select — must be eligible
-            if (card.staticAbilities.includes("defender")) {
-                throw new Error("Creatures with defender cannot attack");
-            }
-            if (card.isTapped)
-                throw new Error("Tapped creatures cannot attack");
-            if (card.isSummoningSick) {
-                throw new Error("Creature has summoning sickness");
+            const validation = validateAttackerEligibility(card);
+            if (!validation.eligible) {
+                throw new Error(validation.reason);
             }
             state.combat.attackerIds.push(args.cardInstanceId);
         }

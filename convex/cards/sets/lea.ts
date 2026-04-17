@@ -340,16 +340,16 @@ export const swordsToPlowshares: CardDefinition = {
 //     toughness: 5,
 // };
 
-// export const wallOfSwords: CardDefinition = {
-//     id: "99ec4723-b36c-4015-b361-736a6523e8f5",
-//     name: "Wall of Swords",
-//     manaCost: { X: 3, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Wall"],
-//     power: 3,
-//     toughness: 5,
-//     staticAbilities: ["defender"],
-// };
+export const wallOfSwords: CardDefinition = {
+    id: "99ec4723-b36c-4015-b361-736a6523e8f5",
+    name: "Wall of Swords",
+    manaCost: { X: 3, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 3,
+    toughness: 5,
+    staticAbilities: ["defender", "flying"],
+};
 
 // export const whiteKnight: CardDefinition = {
 //     id: "50abfba8-c9f9-4ebf-965a-4b425fe83129",
@@ -379,15 +379,16 @@ export const swordsToPlowshares: CardDefinition = {
 //     },
 // };
 
-// export const airElemental: CardDefinition = {
-//     id: "69c3b2a3-0daa-4d42-832d-fcdfda6555ea",
-//     name: "Air Elemental",
-//     manaCost: { X: 3, U: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Elemental"],
-//     power: 4,
-//     toughness: 4,
-// };
+export const airElemental: CardDefinition = {
+    id: "69c3b2a3-0daa-4d42-832d-fcdfda6555ea",
+    name: "Air Elemental",
+    manaCost: { X: 3, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Elemental"],
+    power: 4,
+    toughness: 4,
+    staticAbilities: ["flying"],
+};
 
 // export const ancestralRecall: CardDefinition = {
 //     id: "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b",
@@ -520,15 +521,16 @@ export const swordsToPlowshares: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const mahamotiDjinn: CardDefinition = {
-//     id: "36204ddd-ddf7-4b44-ae3c-b4a5a41ac9cb",
-//     name: "Mahamoti Djinn",
-//     manaCost: { X: 4, U: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Djinn"],
-//     power: 5,
-//     toughness: 6,
-// };
+export const mahamotiDjinn: CardDefinition = {
+    id: "36204ddd-ddf7-4b44-ae3c-b4a5a41ac9cb",
+    name: "Mahamoti Djinn",
+    manaCost: { X: 4, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Djinn"],
+    power: 5,
+    toughness: 6,
+    staticAbilities: ["flying"],
+};
 
 // export const manaShort: CardDefinition = {
 //     id: "73e3e0b3-5284-464f-8c62-0f7801c966f5",
@@ -565,15 +567,16 @@ export const merfolkOfThePearlTrident: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 
-// export const phantomMonster: CardDefinition = {
-//     id: "e46d2cf5-e8d0-4fb2-b950-252d52084b63",
-//     name: "Phantom Monster",
-//     manaCost: { X: 3, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Illusion"],
-//     power: 3,
-//     toughness: 3,
-// };
+export const phantomMonster: CardDefinition = {
+    id: "e46d2cf5-e8d0-4fb2-b950-252d52084b63",
+    name: "Phantom Monster",
+    manaCost: { X: 3, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Illusion"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["flying"],
+};
 
 // export const pirateShip: CardDefinition = {
 //     id: "d0a7cb23-d229-43c5-addd-dcf423984b0c",
@@ -723,15 +726,16 @@ export const merfolkOfThePearlTrident: CardDefinition = {
 //     types: ["Sorcery"],
 // };
 
-// export const wallOfAir: CardDefinition = {
-//     id: "da56fdf3-6a8f-4833-a5c3-197650cc4889",
-//     name: "Wall of Air",
-//     manaCost: { X: 1, U: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Wall"],
-//     power: 1,
-//     toughness: 5,
-// };
+export const wallOfAir: CardDefinition = {
+    id: "da56fdf3-6a8f-4833-a5c3-197650cc4889",
+    name: "Wall of Air",
+    manaCost: { X: 1, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 1,
+    toughness: 5,
+    staticAbilities: ["defender", "flying"],
+};
 
 // export const wallOfWater: CardDefinition = {
 //     id: "41faed1a-ded8-49ee-8e2a-c60d377775d7",
@@ -1407,15 +1411,16 @@ export const monssGoblinRaiders: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const rocOfKherRidges: CardDefinition = {
-//     id: "731a4b86-c213-4d8e-bf01-0a0e8cff0ff1",
-//     name: "Roc of Kher Ridges",
-//     manaCost: { X: 3, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Bird"],
-//     power: 3,
-//     toughness: 3,
-// };
+export const rocOfKherRidges: CardDefinition = {
+    id: "731a4b86-c213-4d8e-bf01-0a0e8cff0ff1",
+    name: "Roc of Kher Ridges",
+    manaCost: { X: 3, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Bird"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["flying"],
+};
 
 // export const rockHydra: CardDefinition = {
 //     id: "410ac9e6-fbc1-4cc8-84db-84e2eb1bab97",
@@ -1515,15 +1520,16 @@ export const monssGoblinRaiders: CardDefinition = {
 //     toughness: 5,
 // };
 
-// export const wallOfStone: CardDefinition = {
-//     id: "140e567c-6e4a-42b0-8084-d6c9695ae802",
-//     name: "Wall of Stone",
-//     manaCost: { X: 1, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Wall"],
-//     power: 0,
-//     toughness: 8,
-// };
+export const wallOfStone: CardDefinition = {
+    id: "140e567c-6e4a-42b0-8084-d6c9695ae802",
+    name: "Wall of Stone",
+    manaCost: { X: 1, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 8,
+    staticAbilities: ["defender"],
+};
 
 // export const wheelOfFortune: CardDefinition = {
 //     id: "67b369c4-faa8-45c8-a1b9-98f228b69682",
@@ -1794,15 +1800,16 @@ export const ironrootTreefolk: CardDefinition = {
 //     types: ["Sorcery"],
 // };
 
-// export const scrybSprites: CardDefinition = {
-//     id: "6d929c38-91e6-457c-937a-d1884f4bba44",
-//     name: "Scryb Sprites",
-//     manaCost: { G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Faerie"],
-//     power: 1,
-//     toughness: 1,
-// };
+export const scrybSprites: CardDefinition = {
+    id: "6d929c38-91e6-457c-937a-d1884f4bba44",
+    name: "Scryb Sprites",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Faerie"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flying"],
+};
 
 // export const shanodinDryads: CardDefinition = {
 //     id: "814cf35c-f1ad-4bf4-8c10-a5592c3b1be8",
@@ -1875,25 +1882,27 @@ export const ironrootTreefolk: CardDefinition = {
 //     toughness: 3,
 // };
 
-// export const wallOfIce: CardDefinition = {
-//     id: "cc743a03-867c-4bb0-8fb0-2bcaa0a8a756",
-//     name: "Wall of Ice",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Wall"],
-//     power: 0,
-//     toughness: 7,
-// };
+export const wallOfIce: CardDefinition = {
+    id: "cc743a03-867c-4bb0-8fb0-2bcaa0a8a756",
+    name: "Wall of Ice",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 7,
+    staticAbilities: ["defender"],
+};
 
-// export const wallOfWood: CardDefinition = {
-//     id: "8df80424-3bd9-4982-ad79-e55d9ba3b43d",
-//     name: "Wall of Wood",
-//     manaCost: { G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Wall"],
-//     power: 0,
-//     toughness: 3,
-// };
+export const wallOfWood: CardDefinition = {
+    id: "8df80424-3bd9-4982-ad79-e55d9ba3b43d",
+    name: "Wall of Wood",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 3,
+    staticAbilities: ["defender"],
+};
 
 // export const wanderlust: CardDefinition = {
 //     id: "220a03ca-8c9b-4acb-821d-f6577fbb20fb",

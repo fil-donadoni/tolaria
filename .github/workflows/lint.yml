@@ -28,5 +28,8 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Generate Convex types
+        run: bunx convex codegen
+
       - name: Type Check
         run: bun run check:ts
