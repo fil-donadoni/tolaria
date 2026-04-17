@@ -29,9 +29,10 @@ jobs:
         run: bun run lint
 
       - name: Generate Convex types
-        run: bunx convex codegen
+        run: bunx convex codegen --typecheck disable
         env:
           CONVEX_DEPLOYMENT: ${{ secrets.CONVEX_DEPLOYMENT }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
 
       - name: Type Check
         run: bun run check:ts
