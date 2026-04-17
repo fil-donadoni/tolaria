@@ -109,8 +109,8 @@ function App() {
             );
         }
 
-        // Playing
-        if (game && game.status === "playing") {
+        // Playing or finished (board handles game-over dialog)
+        if (game && (game.status === "playing" || game.status === "finished")) {
             return (
                 <div className="flex h-screen flex-col">
                     <Board

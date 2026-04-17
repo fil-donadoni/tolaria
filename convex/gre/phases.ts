@@ -47,7 +47,11 @@ function drawStep(state: GameState): void {
     if (state.turn === 1) return;
 
     const player = getPlayer(state, state.activePlayerId);
-    if (player.library.length === 0) return;
+    if (player.library.length === 0) {
+        // CR 704.5b: attempting to draw from empty library — SBA will end the game
+        player.hasDrawnFromEmpty = true;
+        return;
+    }
 
     moveCard(player, player.library[0].id, "library", "hand");
 }

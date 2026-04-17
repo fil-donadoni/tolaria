@@ -95,4 +95,10 @@ export interface PendingTarget {
     selected: { type: "creature" | "player"; id: string }[];
 }
 
+export interface GameOver {
+    winnerId: string;
+    loserId: string;
+    reason: "life" | "decked";
+}
+
 // CardAction re-exported from @convex/gre/types above

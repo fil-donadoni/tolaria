@@ -34,6 +34,7 @@ import {
     hasManaAbility,
 } from "./gre/constants";
 import { validateAttackerEligibility } from "./gre/combat";
+import { checkGameOverSBA } from "./gre/sba";
 
 const STARTING_HAND_SIZE = 7;
 
@@ -147,6 +148,40 @@ async function saveGameState(
     for (let i = 2; i < allStates.length; i++) {
         await ctx.db.delete(allStates[i]._id);
     }
+}
+
+/** If SBA detected game over, persist the result to the games table and emit event. */
+async function finalizeGameOver(
+    ctx: Pick<GenericMutationCtx<DataModel>, "db">,
+    gameId: GenericId<"games">,
+    seq: number,
+    state: GameState
+) {
+    if (!state.gameOver) return;
+
+    await ctx.db.patch(gameId, {
+        status: "finished",
+        winner: state.gameOver.winnerId,
+        updatedAt: Date.now(),
+    });
+
+    await ctx.db.insert("events", {
+        gameId,
+        seq,
+        type: "GAME_OVER",
+        player: "system",
+        payload: {
+            winnerId: state.gameOver.winnerId,
+            loserId: state.gameOver.loserId,
+            reason: state.gameOver.reason,
+        },
+        timestamp: Date.now(),
+    });
+}
+
+/** Guard: reject actions on a finished game. */
+function assertGameNotOver(state: GameState) {
+    if (state.gameOver) throw new Error("Game is over");
 }
 
 // --- Queries ---
@@ -339,6 +374,7 @@ export const playCard = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
         const player = getPlayer(state, args.playerId);
 
         // Validate: card must be in hand and "play" must be legal
@@ -392,6 +428,7 @@ export const announceCast = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
         const player = getPlayer(state, args.playerId);
 
         if (state.priorityPlayerId !== args.playerId) {
@@ -514,6 +551,7 @@ export const tapForPayment = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (!state.pendingCast) throw new Error("No spell being cast");
         if (state.pendingCast.playerId !== args.playerId) {
@@ -597,6 +635,7 @@ export const untapForPayment = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (!state.pendingCast) throw new Error("No spell being cast");
         if (state.pendingCast.playerId !== args.playerId) {
@@ -643,6 +682,7 @@ export const cancelCast = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (!state.pendingCast) throw new Error("No spell being cast");
         if (state.pendingCast.playerId !== args.playerId) {
@@ -687,6 +727,7 @@ export const selectTarget = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (!state.pendingTarget)
             throw new Error("No target selection in progress");
@@ -806,6 +847,7 @@ export const cancelTarget = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (!state.pendingTarget)
             throw new Error("No target selection in progress");
@@ -832,6 +874,7 @@ export const toggleAttacker = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (state.phase !== "DECLARE_ATTACKERS") {
             throw new Error("Not in DECLARE_ATTACKERS phase");
@@ -878,6 +921,7 @@ export const confirmAttackers = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (state.phase !== "DECLARE_ATTACKERS") {
             throw new Error("Not in DECLARE_ATTACKERS phase");
@@ -938,6 +982,7 @@ export const selectBlocker = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (state.phase !== "DECLARE_BLOCKERS") {
             throw new Error("Not in DECLARE_BLOCKERS phase");
@@ -992,6 +1037,7 @@ export const assignBlockerTarget = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (state.phase !== "DECLARE_BLOCKERS") {
             throw new Error("Not in DECLARE_BLOCKERS phase");
@@ -1050,6 +1096,7 @@ export const confirmBlockers = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (state.phase !== "DECLARE_BLOCKERS") {
             throw new Error("Not in DECLARE_BLOCKERS phase");
@@ -1130,6 +1177,7 @@ export const setBlockerOrder = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (state.phase !== "DECLARE_BLOCKERS") {
             throw new Error("Not in DECLARE_BLOCKERS phase");
@@ -1176,6 +1224,7 @@ export const confirmBlockerOrder = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (state.phase !== "DECLARE_BLOCKERS") {
             throw new Error("Not in DECLARE_BLOCKERS phase");
@@ -1228,6 +1277,7 @@ export const setDamageAssignment = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (state.phase !== "COMBAT_DAMAGE") {
             throw new Error("Not in COMBAT_DAMAGE phase");
@@ -1295,6 +1345,7 @@ export const confirmDamage = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (state.phase !== "COMBAT_DAMAGE") {
             throw new Error("Not in COMBAT_DAMAGE phase");
@@ -1308,16 +1359,24 @@ export const confirmDamage = mutation({
 
         applyAllCombatDamage(state, state.combat.damageAssignments ?? {});
         state.combat.damageConfirmed = true;
-        state.priorityPlayerId = state.activePlayerId;
-        state.passCount = 0;
-        drainAutoPasses(state);
+
+        // Check SBA after combat damage (CR 704.5)
+        checkGameOverSBA(state);
+
+        if (!state.gameOver) {
+            state.priorityPlayerId = state.activePlayerId;
+            state.passCount = 0;
+            drainAutoPasses(state);
+        }
 
         const now = Date.now();
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
-            seq: gameState.seq + 1,
+            seq: nextSeq,
             type: "COMBAT_DAMAGE_DEALT",
             player: args.playerId,
             payload: {},
@@ -1337,6 +1396,7 @@ export const passPriority = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (state.priorityPlayerId !== args.playerId) {
             throw new Error("You don't have priority");
@@ -1400,12 +1460,17 @@ export const passPriority = mutation({
         // If the new priority holder has autoPass, keep draining
         drainAutoPasses(state);
 
+        // Check SBA for game-ending conditions (CR 704.5)
+        checkGameOverSBA(state);
+
         const now = Date.now();
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
-            seq: gameState.seq + 1,
+            seq: nextSeq,
             type: "PRIORITY_PASSED",
             player: args.playerId,
             payload: { phase: state.phase, turn: state.turn },
@@ -1426,6 +1491,7 @@ export const endTurn = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
 
         if (state.priorityPlayerId !== args.playerId) {
             throw new Error("You don't have priority");
@@ -1441,12 +1507,17 @@ export const endTurn = mutation({
         // Immediately pass priority (and keep resolving as long as auto-pass applies)
         drainAutoPasses(state);
 
+        // Check SBA after auto-pass drain (may have resolved combat damage)
+        checkGameOverSBA(state);
+
         const now = Date.now();
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
 
         await ctx.db.insert("events", {
             gameId: args.gameId,
-            seq: gameState.seq + 1,
+            seq: nextSeq,
             type: "AUTO_PASS_SET",
             player: args.playerId,
             payload: {},
@@ -1466,10 +1537,18 @@ export const drawCard = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
         const player = getPlayer(state, args.playerId);
 
         if (player.library.length === 0) {
-            throw new Error("Library is empty");
+            // CR 704.5b: attempting to draw from empty library
+            player.hasDrawnFromEmpty = true;
+            checkGameOverSBA(state);
+
+            const nextSeq = gameState.seq + 1;
+            await saveGameState(ctx, args.gameId, nextSeq, state);
+            await finalizeGameOver(ctx, args.gameId, nextSeq, state);
+            return;
         }
 
         const card = moveCard(player, player.library[0].id, "library", "hand");
@@ -1504,6 +1583,7 @@ export const mill = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
         const player = getPlayer(state, args.playerId);
 
         if (player.library.length === 0) {
@@ -1547,6 +1627,7 @@ export const exileFromLibrary = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
         const player = getPlayer(state, args.playerId);
 
         if (player.library.length === 0) {
@@ -1588,6 +1669,7 @@ export const tapUntap = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+        assertGameNotOver(state);
         const player = getPlayer(state, args.playerId);
 
         // Cannot manually tap/untap during payment phase

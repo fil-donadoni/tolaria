@@ -41,6 +41,8 @@ export default defineSchema({
                 }),
             })
         ),
+        /** ID of the winning player (set when status transitions to "finished"). */
+        winner: v.optional(v.string()),
         createdAt: v.number(),
         updatedAt: v.number(),
     }),

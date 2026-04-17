@@ -56,6 +56,8 @@ export type PlayerState = {
     exile: CardInstanceState[];
     battlefield: CardInstanceState[];
     manaPool: Record<string, number>;
+    /** Set when a player attempts to draw from an empty library (CR 704.5b). */
+    hasDrawnFromEmpty?: boolean;
 };
 
 export type StackItem = CardInstanceState & {
@@ -120,6 +122,12 @@ export type GameState = {
     };
     /** Player who can undo the last mana ability activation. Cleared on any non-mana action. */
     undoableBy?: string;
+    /** Set when a player loses the game. Contains winner/loser info. */
+    gameOver?: {
+        winnerId: string;
+        loserId: string;
+        reason: "life" | "decked";
+    };
 };
 
 /** Resolves the top item of the stack (CR 608.3). Returns the resolved item. */

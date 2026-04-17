@@ -3,6 +3,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type {
     Combat,
+    GameOver,
     PendingCast,
     PendingTarget,
     Player,
@@ -14,6 +15,7 @@ import PlayerBoard from "./player-board";
 import GameStack from "./game-stack";
 import PhaseTracker from "./phase-tracker";
 import PassPriorityButton from "./pass-priority-button";
+import GameOverDialog from "./game-over-dialog";
 
 type BoardProps = {
     gameId: Id<"games">;
@@ -60,6 +62,7 @@ export default function Board({
         state as unknown as { pendingTarget?: PendingTarget }
     ).pendingTarget;
     const undoableBy = (state as unknown as { undoableBy?: string }).undoableBy;
+    const gameOver = (state as unknown as { gameOver?: GameOver }).gameOver;
 
     // Opponent on top, local player on bottom
     const opponent = allPlayers.find((p) => p.id !== playerId);
@@ -80,6 +83,7 @@ export default function Board({
                 autoPassPlayers,
                 undoableBy,
                 combat,
+                gameOver,
                 allPlayers,
                 showAllCards,
                 debugAllActions,
@@ -92,6 +96,12 @@ export default function Board({
                 <PhaseTracker />
                 {stack.length > 0 && <GameStack stack={stack} />}
                 <PassPriorityButton />
+                {gameOver && (
+                    <GameOverDialog
+                        gameOver={gameOver}
+                        allPlayers={allPlayers}
+                    />
+                )}
             </div>
         </GameContext>
     );
