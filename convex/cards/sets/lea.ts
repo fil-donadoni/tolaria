@@ -79,8 +79,10 @@ export const castle: CardDefinition = {
     staticEffects: [
         {
             kind: "pt-buff",
-            scope: "creatures-you-control",
-            condition: "untapped",
+            applies: (target, source, ctx) =>
+                ctx.isCreature(target) &&
+                target.controllerId === source.controllerId &&
+                !target.isTapped,
             power: 0,
             toughness: 2,
         },
@@ -791,12 +793,22 @@ export const waterElemental: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 
-// export const badMoon: CardDefinition = {
-//     id: "43572906-ea74-4411-a549-5dc401591d2a",
-//     name: "Bad Moon",
-//     manaCost: { X: 1, B: 1 },
-//     types: ["Enchantment"],
-// };
+// Bad Moon — "Black creatures get +1/+1." (CR 611 — static layer 7c, color check via CR 202.2)
+export const badMoon: CardDefinition = {
+    id: "43572906-ea74-4411-a549-5dc401591d2a",
+    name: "Bad Moon",
+    manaCost: { X: 1, B: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, _source, ctx) =>
+                ctx.isCreature(target) && ctx.getColors(target).includes("B"),
+            power: 1,
+            toughness: 1,
+        },
+    ],
+};
 
 // export const blackKnight: CardDefinition = {
 //     id: "c1662949-0d69-49a3-8c69-daf10717ed4e",
@@ -808,15 +820,18 @@ export const waterElemental: CardDefinition = {
 //     toughness: 2,
 // };
 
-// export const bogWraith: CardDefinition = {
-//     id: "6701874e-986e-4b81-9268-90b6171e6187",
-//     name: "Bog Wraith",
-//     manaCost: { X: 3, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Wraith"],
-//     power: 3,
-//     toughness: 3,
-// };
+// Bog Wraith — LEA has "swampwalk" (landwalk keyword, CR 702.13). Not enforced
+// by the engine yet — keyword tagged for later, treated as vanilla 3/3 for now.
+export const bogWraith: CardDefinition = {
+    id: "6701874e-986e-4b81-9268-90b6171e6187",
+    name: "Bog Wraith",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Wraith"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["swampwalk"],
+};
 
 // export const contractFromBelow: CardDefinition = {
 //     id: "9853b0ce-4763-4877-9741-f9145a3659c6",

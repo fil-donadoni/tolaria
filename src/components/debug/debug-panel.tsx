@@ -101,6 +101,25 @@ const PRESET_SCENARIOS = [
         phase: "PRECOMBAT_MAIN",
         landCount: 4,
     },
+    {
+        label: "Bad Moon (black +1/+1, symmetric)",
+        cards: [
+            // Bad Moon buffs ALL black creatures on either side.
+            { name: "Bad Moon", owner: "me" as const },
+            { name: "Bog Wraith", owner: "me" as const }, // B → 4/4
+            { name: "Bog Wraith", owner: "opp" as const }, // B, opponent → 4/4 (buffed too!)
+            { name: "Grizzly Bears", owner: "me" as const }, // G → stays 2/2
+            { name: "Savannah Lions", owner: "opp" as const }, // W → stays 2/1
+            {
+                name: "Disenchant",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "me" as const }, // W → stays 2/1
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
 ];
 
 type DebugPanelProps = {

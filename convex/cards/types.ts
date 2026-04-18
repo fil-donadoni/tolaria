@@ -108,13 +108,42 @@ export interface SpellContext {
 // --- Continuous static effects (CR 611, 613) ---
 // Minimal layer-system subset: P/T buffs (layer 7c) applied at read time.
 // No layer ordering, no CDA support, no text-changing effects yet.
+//
+// Effects are expressed via an `applies` predicate (like SpellContext.resolve
+// for spells). This keeps the engine small: no enum of scopes/filters to
+// maintain — each card declares its own eligibility rule.
+
+/** Minimal permanent shape exposed to static-effect predicates. */
+export interface PermanentView {
+    id: string;
+    controllerId: string;
+    ownerId: string;
+    types: CardType[];
+    subtypes: string[];
+    isTapped: boolean;
+    power?: number;
+    toughness?: number;
+    /** Raw card definition reference — predicates read manaCost for color, etc. */
+    card: Record<string, unknown>;
+}
+
+export interface StaticEffectContext {
+    /** Colors of a card derived from its mana cost (CR 202.2). Returns W/U/B/R/G subset. */
+    getColors: (card: PermanentView) => Color[];
+    /** True if card has type "Creature" (CR 208.2). */
+    isCreature: (card: PermanentView) => boolean;
+    /** True if card has the given subtype. */
+    hasSubtype: (card: PermanentView, subtype: string) => boolean;
+}
 
 export interface StaticPTBuff {
     kind: "pt-buff";
-    /** Recipient scope. Only creatures on the battlefield are eligible. */
-    scope: "creatures-you-control";
-    /** Optional predicate on the target creature's state. */
-    condition?: "untapped" | "tapped";
+    /** Predicate: does this buff apply to `target` given its `source`? */
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
     power: number;
     toughness: number;
 }

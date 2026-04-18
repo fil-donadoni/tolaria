@@ -13,7 +13,13 @@ import {
     type StackItem,
 } from "../state";
 import type { CardType } from "../../cards/types";
-import { castle, lightningBolt, giantGrowth } from "../../cards/sets/lea";
+import {
+    castle,
+    lightningBolt,
+    giantGrowth,
+    badMoon,
+    bogWraith,
+} from "../../cards/sets/lea";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -340,5 +346,209 @@ describe("Castle + Giant Growth", () => {
         expect(elfAfter?.toughness).toBe(4);
         expect(getEffectivePower(state, elfAfter!)).toBe(4);
         expect(getEffectiveToughness(state, elfAfter!)).toBe(6);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Bad Moon — CR 611 / 202.2 (color-based global buff)
+// "Black creatures get +1/+1." — symmetric, affects opponent's creatures too.
+// ---------------------------------------------------------------------------
+
+function makeBadMoon(controllerId: string): CardInstanceState {
+    return makeCard({
+        id: `badmoon-${controllerId}`,
+        card: { id: badMoon.id, name: badMoon.name, types: badMoon.types },
+        types: badMoon.types,
+        controllerId,
+        ownerId: controllerId,
+        zone: "battlefield",
+    });
+}
+
+function makeBlackCreature(
+    id: string,
+    controllerId: string
+): CardInstanceState {
+    return makeCard({
+        id,
+        card: {
+            id: bogWraith.id,
+            name: bogWraith.name,
+            types: bogWraith.types,
+            manaCost: bogWraith.manaCost, // { X: 3, B: 1 } — colors predicate reads this
+        },
+        types: bogWraith.types,
+        power: bogWraith.power,
+        toughness: bogWraith.toughness,
+        controllerId,
+        ownerId: controllerId,
+        zone: "battlefield",
+    });
+}
+
+describe("Bad Moon static effect (CR 611)", () => {
+    it("buffs black creatures you control (+1/+1)", () => {
+        const moon = makeBadMoon("p1");
+        const wraith = makeBlackCreature("wraith", "p1");
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [moon, wraith] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+
+        expect(getEffectivePower(state, wraith)).toBe(4);
+        expect(getEffectiveToughness(state, wraith)).toBe(4);
+    });
+
+    it("buffs OPPONENT's black creatures too (symmetric effect)", () => {
+        const moon = makeBadMoon("p1");
+        const oppWraith = makeBlackCreature("opp-wraith", "p2");
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [moon] }),
+                makePlayer({ id: "p2", battlefield: [oppWraith] }),
+            ],
+        });
+
+        expect(getEffectivePower(state, oppWraith)).toBe(4);
+        expect(getEffectiveToughness(state, oppWraith)).toBe(4);
+    });
+
+    it("does NOT buff non-black creatures (Grizzly Bears stays 2/2)", () => {
+        const moon = makeBadMoon("p1");
+        const bears = makeCreature(
+            "bears",
+            "p1",
+            { power: 2, toughness: 2 },
+            {
+                card: {
+                    name: "Grizzly Bears",
+                    types: ["Creature"],
+                    power: 2,
+                    toughness: 2,
+                    manaCost: { X: 1, G: 1 }, // green — no B
+                },
+            }
+        );
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [moon, bears] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+
+        expect(getEffectivePower(state, bears)).toBe(2);
+        expect(getEffectiveToughness(state, bears)).toBe(2);
+    });
+
+    it("does NOT buff colorless creatures (Ornithopter-style)", () => {
+        const moon = makeBadMoon("p1");
+        const golem = makeCreature(
+            "golem",
+            "p1",
+            { power: 3, toughness: 3 },
+            {
+                card: {
+                    name: "Obsianus Golem",
+                    types: ["Creature"],
+                    manaCost: { X: 6 }, // colorless — generic only
+                },
+            }
+        );
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [moon, golem] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+
+        expect(getEffectivePower(state, golem)).toBe(3);
+        expect(getEffectiveToughness(state, golem)).toBe(3);
+    });
+
+    it("stacks with Castle when the black creature is also yours and untapped", () => {
+        const moon = makeBadMoon("p1");
+        const castleCard = makeCastleOnBattlefield("p1");
+        const wraith = makeBlackCreature("wraith", "p1");
+        const state = makeGameState({
+            players: [
+                makePlayer({
+                    id: "p1",
+                    battlefield: [moon, castleCard, wraith],
+                }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+
+        // Base 3/3 + Bad Moon (+1/+1) + Castle (+0/+2) = 4/6
+        expect(getEffectivePower(state, wraith)).toBe(4);
+        expect(getEffectiveToughness(state, wraith)).toBe(6);
+    });
+
+    it("Castle does NOT apply to opponent's black creature even with Bad Moon", () => {
+        const moon = makeBadMoon("p1");
+        const castleCard = makeCastleOnBattlefield("p1");
+        const oppWraith = makeBlackCreature("opp-wraith", "p2");
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [moon, castleCard] }),
+                makePlayer({ id: "p2", battlefield: [oppWraith] }),
+            ],
+        });
+
+        // Bad Moon (+1/+1) applies; Castle (creatures YOU control) does not → 4/4
+        expect(getEffectivePower(state, oppWraith)).toBe(4);
+        expect(getEffectiveToughness(state, oppWraith)).toBe(4);
+    });
+
+    it("two Bad Moons stack (+2/+2)", () => {
+        const m1 = makeBadMoon("p1");
+        m1.id = "bm1";
+        const m2 = makeBadMoon("p2");
+        m2.id = "bm2";
+        const wraith = makeBlackCreature("wraith", "p1");
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [m1, wraith] }),
+                makePlayer({ id: "p2", battlefield: [m2] }),
+            ],
+        });
+
+        // 3/3 + 1/1 + 1/1 = 5/5
+        expect(getEffectivePower(state, wraith)).toBe(5);
+        expect(getEffectiveToughness(state, wraith)).toBe(5);
+    });
+
+    it("Lightning Bolt does NOT kill a Bad-Moon-buffed Bog Wraith (now 4/4)", () => {
+        const moon = makeBadMoon("p1");
+        const wraith = makeBlackCreature("wraith", "p1");
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [moon, wraith] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+
+        const bolt: StackItem = {
+            ...makeCard({
+                id: "bolt",
+                card: {
+                    id: lightningBolt.id,
+                    name: lightningBolt.name,
+                    types: lightningBolt.types,
+                },
+                types: lightningBolt.types,
+                zone: "stack",
+            }),
+            castById: "p2",
+            targets: [{ type: "permanent", id: "wraith" }],
+        };
+        state.stack.push(bolt);
+        resolveTopOfStack(state);
+
+        expect(
+            getPlayer(state, "p1").battlefield.find((c) => c.id === "wraith")
+        ).toBeDefined();
     });
 });
