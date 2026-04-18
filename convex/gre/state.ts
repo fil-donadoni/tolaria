@@ -12,6 +12,7 @@ import {
     MANA_COLORS,
     PERMANENT_TYPES,
 } from "./constants";
+import { getEffectivePower, getEffectiveToughness } from "./layers";
 
 // Re-export for consumers that imported from here previously
 export { getBasicLandMana } from "./constants";
@@ -227,7 +228,8 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             } else {
                 const found = findOnBattlefield(state, target.id);
                 if (!found) return;
-                if (amount >= (found.card.toughness ?? 0)) {
+                // Lethal damage check uses effective toughness after layer 7c buffs.
+                if (amount >= getEffectiveToughness(state, found.card)) {
                     removePermanentTo(state, target.id, "graveyard");
                 }
                 // TODO: track damage on creatures for non-lethal damage accumulation
@@ -244,11 +246,13 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         },
         getPower(target: TargetSelection): number {
             if (target.type === "player") return 0;
-            return findOnBattlefield(state, target.id)?.card.power ?? 0;
+            const found = findOnBattlefield(state, target.id);
+            return found ? getEffectivePower(state, found.card) : 0;
         },
         getToughness(target: TargetSelection): number {
             if (target.type === "player") return 0;
-            return findOnBattlefield(state, target.id)?.card.toughness ?? 0;
+            const found = findOnBattlefield(state, target.id);
+            return found ? getEffectiveToughness(state, found.card) : 0;
         },
         modifyPower(target: TargetSelection, amount: number): void {
             if (target.type === "player") return;

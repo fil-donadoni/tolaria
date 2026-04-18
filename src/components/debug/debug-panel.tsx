@@ -89,6 +89,18 @@ const PRESET_SCENARIOS = [
         ],
         phase: "PRECOMBAT_MAIN",
     },
+    {
+        label: "Castle (static +0/+2)",
+        cards: [
+            // Castle on my battlefield gives my untapped creatures +0/+2.
+            { name: "Castle", owner: "me" as const },
+            { name: "Savannah Lions", owner: "me" as const }, // 2/1 → 2/3 untapped
+            { name: "Serra Angel", owner: "me" as const }, // 4/6
+            { name: "Grizzly Bears", owner: "opp" as const }, // opponent: no buff
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
 ];
 
 type DebugPanelProps = {

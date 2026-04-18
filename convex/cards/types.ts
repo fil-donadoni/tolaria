@@ -105,6 +105,22 @@ export interface SpellContext {
     counter: (target: TargetSelection) => void;
 }
 
+// --- Continuous static effects (CR 611, 613) ---
+// Minimal layer-system subset: P/T buffs (layer 7c) applied at read time.
+// No layer ordering, no CDA support, no text-changing effects yet.
+
+export interface StaticPTBuff {
+    kind: "pt-buff";
+    /** Recipient scope. Only creatures on the battlefield are eligible. */
+    scope: "creatures-you-control";
+    /** Optional predicate on the target creature's state. */
+    condition?: "untapped" | "tapped";
+    power: number;
+    toughness: number;
+}
+
+export type StaticEffect = StaticPTBuff;
+
 /** Full card definition used by the GRE. */
 export interface CardDefinition {
     id: CardId;
@@ -123,6 +139,8 @@ export interface CardDefinition {
     /** Permanent enters the battlefield tapped (e.g. Nevinyrral's Disk). */
     entersTapped?: boolean;
     staticAbilities?: string[];
+    /** Continuous static effects (CR 611). Applied at stat-read time by the layer system. */
+    staticEffects?: StaticEffect[];
     activatedAbilities?: ActivatedAbility[];
     triggeredAbilities?: string[];
     sbaMods?: string[];

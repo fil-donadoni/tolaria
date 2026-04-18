@@ -15,6 +15,11 @@ export const getCardById = (cardId: string): CardDefinition => {
     return card;
 };
 
+/** Non-throwing variant. Returns null when the id isn't in the registry — used
+ *  by subsystems that operate best-effort (layer system, test fixtures). */
+export const tryGetCardById = (cardId: string): CardDefinition | null =>
+    registry.get(cardId) ?? null;
+
 const nameRegistry = new Map<string, CardDefinition>(
     allCards.map((card) => [card.name.toLowerCase(), card])
 );

@@ -70,12 +70,22 @@ export const armageddon: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 
-// export const castle: CardDefinition = {
-//     id: "b0da8d56-3178-44c2-9344-95d2346d326f",
-//     name: "Castle",
-//     manaCost: { X: 3, W: 1 },
-//     types: ["Enchantment"],
-// };
+// Castle — "Untapped creatures you control get +0/+2." (CR 611, 613 — static layer 7c)
+export const castle: CardDefinition = {
+    id: "b0da8d56-3178-44c2-9344-95d2346d326f",
+    name: "Castle",
+    manaCost: { X: 3, W: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            scope: "creatures-you-control",
+            condition: "untapped",
+            power: 0,
+            toughness: 2,
+        },
+    ],
+};
 
 // export const circleOfProtectionBlue: CardDefinition = {
 //     id: "848b1a7f-e8ba-40b5-92b7-af1e963a0319",

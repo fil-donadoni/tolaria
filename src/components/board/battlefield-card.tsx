@@ -11,6 +11,9 @@ import {
     ContextMenuContent,
     ContextMenuItem,
 } from "~/components/ui/context-menu";
+import { useGameContext } from "~/hooks/useGameContext";
+import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
+import { isCreature } from "~/lib/card-utils";
 
 export type CardVisualState = {
     interactive: boolean;
@@ -43,6 +46,7 @@ export default function BattlefieldCard({
     onActivateAbility?: (abilityId: string) => void;
 }) {
     const hasAbilities = !!activatableAbilities?.length;
+    const { allPlayers } = useGameContext();
 
     const cardClassName = `relative transition-transform duration-150 ${
         !style ? "w-32" : ""
@@ -64,6 +68,14 @@ export default function BattlefieldCard({
         </div>
     );
 
+    // Effective P/T overlay for creatures (CR 611, 613 — layer 7c static buffs).
+    const ptOverlay = isCreature(card) ? (
+        <div className="absolute bottom-1.5 right-1.5 bg-black p-0.5 rounded-xs text-[10px] font-bold text-white leading-none pointer-events-none z-10 drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]">
+            {effectivePower(allPlayers, card)}/
+            {effectiveToughness(allPlayers, card)}
+        </div>
+    ) : null;
+
     const cardContent = vs.tooltip ? (
         <Tooltip>
             <TooltipTrigger
@@ -74,6 +86,7 @@ export default function BattlefieldCard({
             >
                 <CardImage card={card.card} />
                 {badgeEl}
+                {ptOverlay}
             </TooltipTrigger>
             <TooltipContent>{vs.tooltip}</TooltipContent>
         </Tooltip>
@@ -81,6 +94,7 @@ export default function BattlefieldCard({
         <div className={cardClassName} style={style} onClick={onClick}>
             <CardImage card={card.card} />
             {badgeEl}
+            {ptOverlay}
         </div>
     );
 
