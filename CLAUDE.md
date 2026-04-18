@@ -82,17 +82,17 @@ Phases: BEGINNING (untap/upkeep/draw) → PRECOMBAT_MAIN → COMBAT (5 substeps)
 convex/                        # Backend
 ├── schema.ts                  # Table definitions
 ├── game.ts                    # Public mutations/queries
+├── cards/                     # Card definitions as data
+│   ├── index.ts               # Registry: id → CardDefinition
+│   ├── types.ts               # Shared types (ManaCost, SpellContext, etc.)
+│   └── sets/                  # Card sets (e.g. lea.ts)
 └── gre/                       # Game Rules Engine
     ├── engine.ts              # Main loop
     ├── phases.ts              # Phase/turn management
     ├── stack.ts               # Stack and priority
     ├── triggers.ts            # Event/trigger system
     ├── sba.ts                 # State Based Actions
-    ├── actions/               # Validators per action type
-    └── cards/                 # Card definitions as data
-        ├── index.ts           # Registry: id → CardDefinition
-        ├── types.ts           # Shared types (ManaCost, Effect, etc.)
-        └── sets/              # Card sets
+    └── actions/               # Validators per action type
 src/                           # Frontend (React + Vite)
 ├── components/                # Battlefield, Hand, Stack, Card
 └── hooks/
@@ -109,18 +109,9 @@ Cards are defined as **data**, not imperative code. Three complexity levels:
 2. **Declarative behavior** — Triggered/activated/static abilities using structured templates
 3. **Imperative behavior** — Replacement effects, layer system (out of initial scope)
 
-Key types in `convex/gre/cards/types.ts`: `CardDefinition`, `ActivatedAbility`, `TriggeredAbility`, `Effect`, `ManaCost`, `StaticAbility`, `ChoiceRequest`.
+Key types in `convex/cards/types.ts`: `CardDefinition`, `ActivatedAbility`, `ManaCost`, `SpellContext`, `TargetRequirement`, `TargetSelection`.
 
 Mana abilities have `useStack: false` (resolve immediately). SBAs are global game rules in `sba.ts`; cards only declare `sbaMods` for exceptions (indestructible, etc.).
-
-## Quality Gates
-
-Before marking any task as done, **all** gates must pass with zero errors — including errors from unrelated parts of the codebase:
-
-1. `bun run check:all` — format + lint + type-check
-2. `bun run test` — vitest suite
-
-No exceptions. Fix everything before moving on.
 
 ## Code Organization
 
@@ -131,7 +122,7 @@ No exceptions. Fix everything before moving on.
 
 ## Collaboration Mode
 
-Claude acts as **assistant, tutor, and advisor**. The user drives all implementation — do NOT write or modify code autonomously unless explicitly told "procedi" or similar. Suggest steps, explain trade-offs, review code, but let the user execute.
+Claude operates **autonomously**: implements, tests, and validates code end-to-end. The user defines features and high-level strategy — Claude executes the full development cycle including writing code, tests, and running quality gates. Ask the user for confirmation only on significant architectural decisions or when the CR leaves ambiguity that affects game behavior.
 
 ## Chrome Browser Debug (via claude-in-chrome MCP)
 
@@ -152,6 +143,39 @@ Tips:
 - Use `find` + click by `ref` instead of guessing coordinates
 - For multi-player testing: create a second tab with `tabs_create_mcp`, clear localStorage via `javascript_tool`, then join the game
 - Skip `wait` unless waiting for async navigation — check state directly instead
+
+## Automated Development Workflow
+
+### Skills (invoke explicitly or auto-triggered)
+
+| Skill              | Trigger                               | What it does                                               |
+| ------------------ | ------------------------------------- | ---------------------------------------------------------- |
+| `/mtg-rules-check` | Before implementing any game mechanic | Fetches CR text, finds implementation, reports gaps        |
+| `/new-card`        | When adding a new card                | Fetches Scryfall data, generates CardDefinition, validates |
+| `/gre-test`        | When adding/modifying GRE logic       | Generates vitest tests following project patterns          |
+
+### Path-specific rules (auto-loaded)
+
+- `convex/gre/**` and `convex/cards/**` → CR compliance, testing requirements, code patterns
+- `src/components/**` → One-component-per-file, type sourcing, UI testing
+
+### Development cycle
+
+1. **Discuss** — User describes the feature/rule at high level
+2. **Verify rules** — `/mtg-rules-check` to get exact CR text and current implementation status
+3. **Plan** — Agree on scope: what to implement now, what to defer
+4. **Implement** — Write code, following CR and project patterns
+5. **Test** — Write tests referencing CR sections, run `bun run test`
+6. **Validate** — `bun run check:all` must pass with zero errors
+7. **UI verify** — For frontend changes, test in browser at localhost:5173
+
+### Quality gates (mandatory, no exceptions)
+
+Before marking any task as done:
+
+1. `bun run check:all` — format + lint + type-check (zero errors)
+2. `bun run test` — vitest suite (zero failures)
+3. For UI changes: visual verification in browser
 
 ## Rules Implementation Process
 
