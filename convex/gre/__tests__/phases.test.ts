@@ -511,6 +511,153 @@ describe("advancePhase", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Mana pool emptying — CR 500.4
+// ---------------------------------------------------------------------------
+
+describe("mana pool emptying (CR 500.4)", () => {
+    it("empties both players' mana pools on phase change", () => {
+        const state = makeGameState({
+            phase: "PRECOMBAT_MAIN",
+            players: [
+                makePlayer({
+                    id: "p1",
+                    manaPool: { W: 3, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer({
+                    id: "p2",
+                    manaPool: { W: 0, U: 0, B: 2, R: 1, G: 0, C: 0 },
+                }),
+            ],
+        });
+
+        advancePhase(state);
+
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        expect(p1.manaPool.W).toBe(0);
+        expect(p2.manaPool.B).toBe(0);
+        expect(p2.manaPool.R).toBe(0);
+    });
+
+    it("marks tapped lands as committed on phase change", () => {
+        const tappedLand = makeCard({
+            id: "tapped",
+            card: { name: "Plains", types: ["Land"], subtypes: ["Plains"] },
+            isTapped: true,
+            controllerId: "p1",
+        });
+        const untappedLand = makeCard({
+            id: "untapped",
+            card: { name: "Plains", types: ["Land"], subtypes: ["Plains"] },
+            isTapped: false,
+            controllerId: "p1",
+        });
+
+        const state = makeGameState({
+            phase: "PRECOMBAT_MAIN",
+            players: [
+                makePlayer({
+                    id: "p1",
+                    battlefield: [tappedLand, untappedLand],
+                }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+
+        advancePhase(state);
+
+        expect(tappedLand.manaCommitted).toBe(true);
+        expect(untappedLand.manaCommitted).toBeUndefined();
+    });
+
+    it("manaCommitted is cleared at owner's untap step", () => {
+        const land = makeCard({
+            id: "land",
+            card: { name: "Plains", types: ["Land"], subtypes: ["Plains"] },
+            isTapped: true,
+            controllerId: "p1",
+        });
+        land.manaCommitted = true;
+
+        // p1's turn about to end → p2 becomes active → p1 stays committed
+        const state = makeGameState({
+            phase: "END_STEP",
+            turn: 1,
+            activePlayerId: "p1",
+            players: [
+                makePlayer({ id: "p1", battlefield: [land] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+
+        // END_STEP → CLEANUP → new turn (p2 active) → UNTAP (p2) → UPKEEP
+        advancePhase(state);
+        expect(state.activePlayerId).toBe("p2");
+        // p1's land is still committed (not p1's untap step yet)
+        expect(land.manaCommitted).toBe(true);
+        expect(land.isTapped).toBe(true);
+
+        // Walk through p2's full turn until p1's untap step
+        const maxSteps = 20;
+        for (let i = 0; i < maxSteps; i++) {
+            advancePhase(state);
+            if (state.activePlayerId === "p1" && state.phase === "UPKEEP")
+                break;
+        }
+
+        // Now it's p1's turn — untap step ran
+        expect(state.activePlayerId).toBe("p1");
+        expect(land.manaCommitted).toBeUndefined();
+        expect(land.isTapped).toBe(false);
+    });
+
+    it("empties mana pool on turn change (END_STEP → CLEANUP → UNTAP)", () => {
+        const state = makeGameState({
+            phase: "END_STEP",
+            turn: 1,
+            activePlayerId: "p1",
+            players: [
+                makePlayer({
+                    id: "p1",
+                    manaPool: { W: 5, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer({
+                    id: "p2",
+                    manaPool: { W: 0, U: 0, B: 0, R: 3, G: 0, C: 0 },
+                }),
+            ],
+        });
+
+        advancePhase(state);
+
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        expect(p1.manaPool.W).toBe(0);
+        expect(p2.manaPool.R).toBe(0);
+    });
+
+    it("active player's floating mana does not persist to combat", () => {
+        const state = makeGameState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            players: [
+                makePlayer({
+                    id: "p1",
+                    manaPool: { W: 2, U: 1, B: 0, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+
+        advancePhase(state); // → BEGINNING_OF_COMBAT
+
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        expect(p1.manaPool.W).toBe(0);
+        expect(p1.manaPool.U).toBe(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // isSorceryTiming — CR 307.1, CR 305.2
 // ---------------------------------------------------------------------------
 

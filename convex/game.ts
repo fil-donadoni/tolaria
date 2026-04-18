@@ -125,7 +125,9 @@ async function getLatestGameState(
         .first();
 }
 
-/** Save a game state snapshot, keeping only the last 2 (current + previous for undo). */
+/** Save a game state snapshot, keeping the last N for undo history. */
+const MAX_SNAPSHOTS = 20;
+
 async function saveGameState(
     ctx: Pick<GenericMutationCtx<DataModel>, "db">,
     gameId: GenericId<"games">,
@@ -139,14 +141,13 @@ async function saveGameState(
         updatedAt: Date.now(),
     });
 
-    // Clean up old snapshots: keep only the 2 most recent
     const allStates = await ctx.db
         .query("game_states")
         .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
         .order("desc")
         .collect();
 
-    for (let i = 2; i < allStates.length; i++) {
+    for (let i = MAX_SNAPSHOTS; i < allStates.length; i++) {
         await ctx.db.delete(allStates[i]._id);
     }
 }
@@ -1933,24 +1934,47 @@ export const debugUndo = mutation({
     },
 });
 
-/** Debug: reset game to initial state (seq 0). */
+/** Debug: reset game — rebuild initial state from the game record. */
 export const debugResetGame = mutation({
     args: {
         gameId: v.id("games"),
     },
     handler: async (ctx, args) => {
+        const game = await ctx.db.get(args.gameId);
+        if (!game) throw new Error("Game not found");
+
+        // Delete all existing snapshots
         const states = await ctx.db
             .query("game_states")
             .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-            .order("desc")
             .collect();
-
-        // Delete all except seq 0
         for (const s of states) {
-            if (s.seq > 0) {
-                await ctx.db.delete(s._id);
-            }
+            await ctx.db.delete(s._id);
         }
+
+        // Rebuild initial state from game players
+        const playersState = game.players.map((p) =>
+            buildPlayerState(p as PlayerInput)
+        );
+        const initialState: GameState = {
+            players: playersState,
+            stack: [],
+            turn: 1,
+            activePlayerId: playersState[0].id,
+            priorityPlayerId: playersState[0].id,
+            passCount: 0,
+            phase: "UNTAP" as Phase,
+        };
+        advancePhase(initialState);
+
+        await saveGameState(ctx, args.gameId, 0, initialState);
+
+        // Reset game status in case it was finished
+        await ctx.db.patch(args.gameId, {
+            status: "playing",
+            winner: undefined,
+            updatedAt: Date.now(),
+        });
     },
 });
 
