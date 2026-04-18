@@ -64,6 +64,8 @@ export type StackItem = CardInstanceState & {
     castById: string;
     /** Targets chosen during spell announcement (CR 601.2c). */
     targets?: TargetSelection[];
+    /** If set, this stack item is an activated ability (not a spell). Source permanent stays on battlefield. */
+    abilityId?: string;
 };
 
 /** Tracks an in-progress spell cast during the payment phase (CR 601.2). */
@@ -135,18 +137,29 @@ export function resolveTopOfStack(state: GameState): StackItem {
     const item = state.stack.pop();
     if (!item) throw new Error("Stack is empty");
 
+    const cardId = (item.card as { id?: string }).id;
+    const cardDef = cardId ? getCardById(cardId) : undefined;
+
+    // Activated ability resolution — execute effect and discard (CR 602.2)
+    if (item.abilityId && cardDef) {
+        const ability = cardDef.activatedAbilities?.find(
+            (a) => a.id === item.abilityId
+        );
+        if (ability?.resolve) {
+            const ctx = buildSpellContext(state, item);
+            ability.resolve(ctx);
+        }
+        return item;
+    }
+
     const isPermanent = item.types.some((t) =>
         PERMANENT_TYPES.includes(t as (typeof PERMANENT_TYPES)[number])
     );
 
     // Execute spell effects before moving to destination zone (CR 608.2b)
-    const cardId = (item.card as { id?: string }).id;
-    if (cardId) {
-        const cardDef = getCardById(cardId);
-        if (cardDef.resolve && item.targets) {
-            const ctx = buildSpellContext(state, item);
-            cardDef.resolve(ctx);
-        }
+    if (cardDef?.resolve) {
+        const ctx = buildSpellContext(state, item);
+        cardDef.resolve(ctx);
     }
 
     const controller = getPlayer(state, item.castById);
@@ -154,7 +167,7 @@ export function resolveTopOfStack(state: GameState): StackItem {
     if (isPermanent) {
         // Permanent spells enter the battlefield (CR 608.3)
         item.zone = "battlefield";
-        item.isTapped = false;
+        item.isTapped = cardDef?.entersTapped === true;
         if (item.types.includes("Creature")) {
             item.isSummoningSick = true;
         }
@@ -182,7 +195,7 @@ function findOnBattlefield(
 }
 
 /** Removes a permanent from battlefield and moves it to the target zone of its owner. */
-function removePermanentTo(
+export function removePermanentTo(
     state: GameState,
     cardId: string,
     toZone: "graveyard" | "exile"
@@ -273,6 +286,16 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                           types.some((t) => c.types.includes(t))
                       )
                     : [...player.battlefield];
+                for (const card of toDestroy) {
+                    removePermanentTo(state, card.id, "graveyard");
+                }
+            }
+        },
+        destroyAllBySubtype(subtype: string): void {
+            for (const player of state.players) {
+                const toDestroy = player.battlefield.filter((c) =>
+                    c.subtypes.includes(subtype)
+                );
                 for (const card of toDestroy) {
                     removePermanentTo(state, card.id, "graveyard");
                 }

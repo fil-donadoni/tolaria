@@ -16,6 +16,7 @@ import GameStack from "./game-stack";
 import PhaseTracker from "./phase-tracker";
 import PassPriorityButton from "./pass-priority-button";
 import GameOverDialog from "./game-over-dialog";
+import TargetSelectionBanner from "./target-selection-banner";
 
 type BoardProps = {
     gameId: Id<"games">;
@@ -95,6 +96,14 @@ export default function Board({
                 ))}
                 <PhaseTracker />
                 {stack.length > 0 && <GameStack stack={stack} />}
+                {pendingTarget && pendingTarget.playerId === playerId && (
+                    <TargetSelectionBanner
+                        pendingTarget={pendingTarget}
+                        me={me}
+                        gameId={gameId}
+                        playerId={playerId}
+                    />
+                )}
                 <PassPriorityButton />
                 {gameOver && (
                     <GameOverDialog

@@ -21,7 +21,8 @@ export default function SelectableCard({
     cardInstance,
     allowedActions = [],
 }: SelectableCardProps) {
-    const { gameId, playerId, debugAllActions } = useGameContext();
+    const { gameId, playerId, debugAllActions, pendingCast, pendingTarget } =
+        useGameContext();
     const playCard = useMutation(api.game.playCard);
     const announceCast = useMutation(api.game.announceCast);
 
@@ -50,7 +51,8 @@ export default function SelectableCard({
         console.log(`Exiling card ${cardInstance.id}`);
     };
 
-    const hasActions = allowedActions.length > 0;
+    const hasActions =
+        allowedActions.length > 0 && !pendingCast && !pendingTarget;
 
     if (!hasActions) {
         return <CardImage card={cardInstance.card} />;

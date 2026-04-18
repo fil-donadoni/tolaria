@@ -29,16 +29,12 @@ function nextPhase(current: Phase): Phase | null {
     return PHASE_ORDER[idx + 1];
 }
 
-/** Untap step: untap all permanents, clear mana pool and committed flags (CR 502.4). */
+/** Untap step: untap all permanents, clear summoning sickness (CR 502.4). */
 function untapStep(state: GameState): void {
     const player = getPlayer(state, state.activePlayerId);
     for (const card of player.battlefield) {
         card.isTapped = false;
-        card.manaCommitted = undefined;
         card.isSummoningSick = undefined;
-    }
-    for (const color of Object.keys(player.manaPool)) {
-        player.manaPool[color] = 0;
     }
 }
 
@@ -361,8 +357,23 @@ function advanceTurn(state: GameState): void {
  * Auto-phases (UNTAP, CLEANUP) are traversed without giving priority.
  * Returns the list of phases traversed (for event emission).
  */
+/** Empty mana pools and clear committed flags for all players (CR 500.4). */
+function emptyManaPools(state: GameState): void {
+    for (const player of state.players) {
+        for (const color of Object.keys(player.manaPool)) {
+            player.manaPool[color] = 0;
+        }
+        for (const card of player.battlefield) {
+            card.manaCommitted = undefined;
+        }
+    }
+}
+
 export function advancePhase(state: GameState): Phase[] {
     const traversed: Phase[] = [];
+
+    // CR 500.4: mana pools empty when a step or phase ends
+    emptyManaPools(state);
 
     const next = nextPhase(state.phase);
 

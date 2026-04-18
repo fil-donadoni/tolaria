@@ -5,6 +5,12 @@ import {
     TooltipTrigger,
     TooltipContent,
 } from "~/components/ui/tooltip";
+import {
+    ContextMenu,
+    ContextMenuTrigger,
+    ContextMenuContent,
+    ContextMenuItem,
+} from "~/components/ui/context-menu";
 
 export type CardVisualState = {
     interactive: boolean;
@@ -16,25 +22,38 @@ export type CardVisualState = {
     tooltip?: string;
 };
 
+export type ActivatableAbility = {
+    id: string;
+    oracleText: string;
+};
+
 export default function BattlefieldCard({
     card,
     vs,
     onClick,
     style,
+    activatableAbilities,
+    onActivateAbility,
 }: {
     card: CardInstance;
     vs: CardVisualState;
     onClick: (e: React.MouseEvent) => void;
     style?: React.CSSProperties;
+    activatableAbilities?: ActivatableAbility[];
+    onActivateAbility?: (abilityId: string) => void;
 }) {
+    const hasAbilities = !!activatableAbilities?.length;
+
     const cardClassName = `relative transition-transform duration-150 ${
         !style ? "w-32" : ""
     } ${card.isTapped ? "rotate-90" : ""} ${vs.combatOffset} ${vs.ringClass} ${
-        vs.interactive
-            ? vs.enabled
-                ? "cursor-pointer"
-                : "cursor-not-allowed opacity-60"
-            : ""
+        hasAbilities && !vs.interactive
+            ? "cursor-pointer"
+            : vs.interactive
+              ? vs.enabled
+                  ? "cursor-pointer"
+                  : "cursor-not-allowed opacity-60"
+              : ""
     } ${vs.dimmed ? "opacity-40" : ""}`;
 
     const badgeEl = vs.badge && (
@@ -45,16 +64,7 @@ export default function BattlefieldCard({
         </div>
     );
 
-    if (!vs.tooltip) {
-        return (
-            <div className={cardClassName} style={style} onClick={onClick}>
-                <CardImage card={card.card} />
-                {badgeEl}
-            </div>
-        );
-    }
-
-    return (
+    const cardContent = vs.tooltip ? (
         <Tooltip>
             <TooltipTrigger
                 render={<div />}
@@ -67,5 +77,28 @@ export default function BattlefieldCard({
             </TooltipTrigger>
             <TooltipContent>{vs.tooltip}</TooltipContent>
         </Tooltip>
+    ) : (
+        <div className={cardClassName} style={style} onClick={onClick}>
+            <CardImage card={card.card} />
+            {badgeEl}
+        </div>
+    );
+
+    if (!hasAbilities) return cardContent;
+
+    return (
+        <ContextMenu>
+            <ContextMenuTrigger>{cardContent}</ContextMenuTrigger>
+            <ContextMenuContent className="w-72">
+                {activatableAbilities.map((a) => (
+                    <ContextMenuItem
+                        key={a.id}
+                        onClick={() => onActivateAbility?.(a.id)}
+                    >
+                        {a.oracleText}
+                    </ContextMenuItem>
+                ))}
+            </ContextMenuContent>
+        </ContextMenu>
     );
 }

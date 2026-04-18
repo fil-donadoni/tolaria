@@ -12,15 +12,15 @@ import type {
 //     subtypes: ["Aura"],
 // };
 
-// export const armageddon: CardDefinition = {
-//     id: "5b6ddce7-b9c5-431d-a0b0-46d4aa93cbcb",
-//     name: "Armageddon",
-//     manaCost: { X: 3, W: 1 },
-//     types: ["Sorcery"],
-//     resolve: (ctx: SpellContext) => {
-//         ctx.destroyAll("Land");
-//     },
-// };
+export const armageddon: CardDefinition = {
+    id: "5b6ddce7-b9c5-431d-a0b0-46d4aa93cbcb",
+    name: "Armageddon",
+    manaCost: { X: 3, W: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        ctx.destroyAll("Land");
+    },
+};
 
 // export const balance: CardDefinition = {
 //     id: "6f9ea46a-411f-40ce-a873-a905180093f4",
@@ -373,15 +373,15 @@ export const wallOfSwords: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 
-// export const wrathOfGod: CardDefinition = {
-//     id: "a2788d69-6a3a-42f0-8736-cc6b57755ecd",
-//     name: "Wrath of God",
-//     manaCost: { X: 2, W: 2 },
-//     types: ["Sorcery"],
-//     resolve: (ctx: SpellContext) => {
-//         ctx.destroyAll("Creature");
-//     },
-// };
+export const wrathOfGod: CardDefinition = {
+    id: "a2788d69-6a3a-42f0-8736-cc6b57755ecd",
+    name: "Wrath of God",
+    manaCost: { X: 2, W: 2 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        ctx.destroyAll("Creature");
+    },
+};
 
 export const airElemental: CardDefinition = {
     id: "69c3b2a3-0daa-4d42-832d-fcdfda6555ea",
@@ -1250,12 +1250,15 @@ export const fireElemental: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 
-// export const flashfires: CardDefinition = {
-//     id: "ee8a05a4-0ce3-4abe-bb60-08af53cf08e5",
-//     name: "Flashfires",
-//     manaCost: { X: 3, R: 1 },
-//     types: ["Sorcery"],
-// };
+export const flashfires: CardDefinition = {
+    id: "ee8a05a4-0ce3-4abe-bb60-08af53cf08e5",
+    name: "Flashfires",
+    manaCost: { X: 3, R: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        ctx.destroyAllBySubtype("Plains");
+    },
+};
 
 // export const fork: CardDefinition = {
 //     id: "e6b43916-fe2d-417a-a550-d7c795023297",
@@ -1852,19 +1855,25 @@ export const scrybSprites: CardDefinition = {
 //     toughness: 1,
 // };
 
-// export const tranquility: CardDefinition = {
-//     id: "774cc5a6-3a69-4812-add4-eb5eb6389238",
-//     name: "Tranquility",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Sorcery"],
-// };
+export const tranquility: CardDefinition = {
+    id: "774cc5a6-3a69-4812-add4-eb5eb6389238",
+    name: "Tranquility",
+    manaCost: { X: 2, G: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        ctx.destroyAll("Enchantment");
+    },
+};
 
-// export const tsunami: CardDefinition = {
-//     id: "9ed67d61-cf47-446b-b454-eb404a8686b7",
-//     name: "Tsunami",
-//     manaCost: { X: 3, G: 1 },
-//     types: ["Sorcery"],
-// };
+export const tsunami: CardDefinition = {
+    id: "9ed67d61-cf47-446b-b454-eb404a8686b7",
+    name: "Tsunami",
+    manaCost: { X: 3, G: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        ctx.destroyAllBySubtype("Island");
+    },
+};
 
 // export const verduranEnchantress: CardDefinition = {
 //     id: "9f87178b-1221-4d7a-a7a5-20d7f01b8089",
@@ -1975,6 +1984,8 @@ export const blackLotus: CardDefinition = {
     activatedAbilities: [
         {
             id: "black-lotus-mana",
+            oracleText:
+                "{T}, Sacrifice Black Lotus: Add three mana of any one color.",
             cost: { tap: true, sacrifice: true },
             effect: (ctx: ActivatedAbilityContext) => {
                 // Color chosen at activation time, applied by engine
@@ -2199,6 +2210,7 @@ export const moxEmerald: CardDefinition = {
     activatedAbilities: [
         {
             id: "mox-emerald-mana",
+            oracleText: "{T}: Add {G}.",
             cost: { tap: true },
             effect: (ctx: ActivatedAbilityContext) => {
                 ctx.addMana({ G: 1 });
@@ -2217,6 +2229,7 @@ export const moxJet: CardDefinition = {
     activatedAbilities: [
         {
             id: "mox-jet-mana",
+            oracleText: "{T}: Add {B}.",
             cost: { tap: true },
             effect: (ctx: ActivatedAbilityContext) => {
                 ctx.addMana({ B: 1 });
@@ -2235,6 +2248,7 @@ export const moxPearl: CardDefinition = {
     activatedAbilities: [
         {
             id: "mox-pearl-mana",
+            oracleText: "{T}: Add {W}.",
             cost: { tap: true },
             effect: (ctx: ActivatedAbilityContext) => {
                 ctx.addMana({ W: 1 });
@@ -2253,6 +2267,7 @@ export const moxRuby: CardDefinition = {
     activatedAbilities: [
         {
             id: "mox-ruby-mana",
+            oracleText: "{T}: Add {R}.",
             cost: { tap: true },
             effect: (ctx: ActivatedAbilityContext) => {
                 ctx.addMana({ R: 1 });
@@ -2271,6 +2286,7 @@ export const moxSapphire: CardDefinition = {
     activatedAbilities: [
         {
             id: "mox-sapphire-mana",
+            oracleText: "{T}: Add {U}.",
             cost: { tap: true },
             effect: (ctx: ActivatedAbilityContext) => {
                 ctx.addMana({ U: 1 });
@@ -2281,12 +2297,25 @@ export const moxSapphire: CardDefinition = {
     ],
 };
 
-// export const nevinyrralsDisk: CardDefinition = {
-//     id: "12926dc8-8e6f-4a47-a12b-4d674189615a",
-//     name: "Nevinyrral's Disk",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+export const nevinyrralsDisk: CardDefinition = {
+    id: "12926dc8-8e6f-4a47-a12b-4d674189615a",
+    name: "Nevinyrral's Disk",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    entersTapped: true,
+    activatedAbilities: [
+        {
+            id: "nevinyrral-destroy",
+            oracleText:
+                "{1}, {T}: Destroy all artifacts, creatures, and enchantments.",
+            cost: { tap: true, mana: { X: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.destroyAll(["Artifact", "Creature", "Enchantment"]);
+            },
+        },
+    ],
+};
 
 export const obsianusGolem: CardDefinition = {
     id: "4c8e9f5c-deba-4443-bf9d-fb2be75c5418",

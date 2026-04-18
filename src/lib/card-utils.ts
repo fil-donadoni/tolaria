@@ -1,7 +1,8 @@
-import type { CardInstance } from "~/types/game";
+import type { CardInstance, ManaPool } from "~/types/game";
 import type { Color, ManaCost } from "~/types/cards";
 import { LAND_SUBTYPE_MANA } from "@convex/gre/constants";
 import { getCardById } from "@convex/cards";
+import { isManaCostCovered, normalizeManaCost } from "@convex/gre/state";
 
 export function isLand(card: CardInstance): boolean {
     return (
@@ -59,8 +60,53 @@ export function getActivatedManaColor(card: CardInstance): Color | null {
     return colors.length === 1 ? colors[0] : null;
 }
 
-export function isTargetableCreature(targetType: string | undefined): boolean {
-    return targetType === "creature" || targetType === "any";
+/** Returns true if the target requirement includes permanents (not player-only). */
+export function wantsPermanentTarget(
+    targetType: string | string[] | undefined
+): boolean {
+    if (!targetType) return false;
+    const types = Array.isArray(targetType) ? targetType : [targetType];
+    return types.some((t) => t !== "player");
+}
+
+/** Returns true if a card on the battlefield matches the pending target requirement. */
+export function matchesTargetRequirement(
+    card: CardInstance,
+    targetType: string | string[]
+): boolean {
+    const types = Array.isArray(targetType) ? targetType : [targetType];
+    if (types.includes("any")) return true;
+    const cardTypes = card.types ?? [];
+    return types.some((t) => cardTypes.includes(t as never));
+}
+
+/** Returns stack-using activated abilities that can currently be activated (costs payable). */
+export function getStackAbilities(
+    card: CardInstance,
+    manaPool: ManaPool
+): { id: string; oracleText: string }[] {
+    const cardDef = getCardById(card.card.id);
+    return (cardDef.activatedAbilities ?? [])
+        .filter((a) => {
+            if (!a.useStack || !a.oracleText) return false;
+            if (a.cost.tap && card.isTapped) return false;
+            if (a.cost.mana) {
+                const cost = normalizeManaCost(a.cost.mana);
+                if (!isManaCostCovered(manaPool, cost)) return false;
+            }
+            return true;
+        })
+        .map((a) => ({ id: a.id, oracleText: a.oracleText }));
+}
+
+/** Returns the oracle text for an ability by id, or null. */
+export function getAbilityOracleText(
+    cardId: string,
+    abilityId: string
+): string | null {
+    const cardDef = getCardById(cardId);
+    const ability = cardDef.activatedAbilities?.find((a) => a.id === abilityId);
+    return ability?.oracleText ?? null;
 }
 
 export function groupByName(cards: CardInstance[]): CardInstance[][] {

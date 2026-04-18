@@ -19,12 +19,24 @@ function ContextMenuPortal({ ...props }: ContextMenuPrimitive.Portal.Props) {
 
 function ContextMenuTrigger({
     className,
+    onClick,
     ...props
 }: ContextMenuPrimitive.Trigger.Props) {
     return (
         <ContextMenuPrimitive.Trigger
             data-slot="context-menu-trigger"
             className={cn("select-none", className)}
+            onClick={(e) => {
+                onClick?.(e);
+                if (e.defaultPrevented) return;
+                e.currentTarget.dispatchEvent(
+                    new MouseEvent("contextmenu", {
+                        bubbles: true,
+                        clientX: e.clientX,
+                        clientY: e.clientY,
+                    })
+                );
+            }}
             {...props}
         />
     );

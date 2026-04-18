@@ -10,6 +10,7 @@ import {
     getOpponentId,
     moveCard,
     removeFromZone,
+    removePermanentTo,
     getBasicLandMana,
     payManaCost,
     commitLandsForCost,
@@ -718,7 +719,7 @@ export const selectTarget = mutation({
     args: {
         gameId: v.id("games"),
         playerId: v.string(),
-        targetType: v.union(v.literal("creature"), v.literal("player")),
+        targetType: v.union(v.literal("permanent"), v.literal("player")),
         targetId: v.string(),
     },
     handler: async (ctx, args) => {
@@ -735,33 +736,38 @@ export const selectTarget = mutation({
             throw new Error("Not your pending target selection");
         }
 
-        // Validate target is legal
-        // TargetSelection uses "permanent" for all permanent types (creature, land, etc.)
         const target: { type: "permanent" | "player"; id: string } = {
-            type: args.targetType === "player" ? "player" : "permanent",
+            type: args.targetType,
             id: args.targetId,
         };
-        if (args.targetType === "creature") {
+
+        // Validate the target exists and matches the requirement
+        const pt = state.pendingTarget;
+        const reqTypes = Array.isArray(pt.targetType)
+            ? pt.targetType
+            : [pt.targetType];
+        const wantsAny = reqTypes.includes("any");
+
+        if (args.targetType === "permanent") {
+            const permanentTypes = reqTypes.filter(
+                (t) => t !== "player" && t !== "any"
+            );
             const found = state.players.some((p) =>
                 p.battlefield.some((c) => {
                     if (c.id !== args.targetId) return false;
-                    const types = c.types;
-                    return types.includes("Creature");
+                    return (
+                        wantsAny ||
+                        permanentTypes.some((t) => c.types.includes(t as never))
+                    );
                 })
             );
-            if (!found) throw new Error("Invalid creature target");
+            if (!found) throw new Error("Invalid target");
         } else {
+            if (!wantsAny && !reqTypes.includes("player")) {
+                throw new Error("Must target a permanent");
+            }
             const found = state.players.some((p) => p.id === args.targetId);
             if (!found) throw new Error("Invalid player target");
-        }
-
-        // Check target type compatibility
-        const pt = state.pendingTarget;
-        if (pt.targetType === "Creature" && args.targetType !== "creature") {
-            throw new Error("Must target a creature");
-        }
-        if (pt.targetType === "player" && args.targetType !== "player") {
-            throw new Error("Must target a player");
         }
 
         pt.selected.push(target);
@@ -1656,6 +1662,97 @@ export const exileFromLibrary = mutation({
     },
 });
 
+/** Activate a non-mana ability on a permanent (CR 602.2). Pays costs and puts ability on stack. */
+export const activateAbility = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+        abilityId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
+        assertGameNotOver(state);
+
+        if (state.priorityPlayerId !== args.playerId) {
+            throw new Error("You don't have priority");
+        }
+        if (state.pendingCast) {
+            throw new Error("Another spell is already being cast");
+        }
+
+        const player = getPlayer(state, args.playerId);
+        const card = player.battlefield.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!card) throw new Error("Card not on battlefield");
+
+        const cardId = (card.card as { id?: string }).id;
+        if (!cardId) throw new Error("Card has no definition");
+
+        const cardDef = getCardById(cardId);
+        const ability = cardDef.activatedAbilities?.find(
+            (a) => a.id === args.abilityId
+        );
+        if (!ability) throw new Error("Ability not found");
+        if (!ability.useStack) {
+            throw new Error("Use tapUntap for mana abilities");
+        }
+
+        // Pay costs (CR 602.2b)
+        if (ability.cost.tap) {
+            if (card.isTapped) throw new Error("Card is already tapped");
+            card.isTapped = true;
+        }
+
+        if (ability.cost.mana) {
+            const manaCost = normalizeManaCost(ability.cost.mana);
+            if (!isManaCostCovered(player.manaPool, manaCost)) {
+                throw new Error("Not enough mana");
+            }
+            payManaCost(player.manaPool, manaCost);
+            commitLandsForCost(player, manaCost);
+        }
+
+        if (ability.cost.sacrifice) {
+            removePermanentTo(state, card.id, "graveyard");
+        }
+
+        // Put ability on stack (clone card state as a virtual stack item)
+        const stackItem: StackItem = {
+            ...structuredClone(card),
+            zone: "stack" as const,
+            castById: args.playerId,
+            abilityId: args.abilityId,
+        };
+        state.stack.push(stackItem);
+        state.passCount = 0;
+        state.priorityPlayerId = getOpponentId(state, args.playerId);
+        drainAutoPasses(state);
+
+        const now = Date.now();
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state);
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            type: "ABILITY_ACTIVATED",
+            player: args.playerId,
+            payload: {
+                cardInstanceId: card.id,
+                cardName: (card.card as { name?: string }).name,
+                abilityId: args.abilityId,
+            },
+            timestamp: now,
+        });
+    },
+});
+
 export const tapUntap = mutation({
     args: {
         gameId: v.id("games"),
@@ -1875,6 +1972,9 @@ export const debugSetupScenario = mutation({
             v.object({
                 name: v.string(),
                 owner: v.union(v.literal("me"), v.literal("opp")),
+                zone: v.optional(
+                    v.union(v.literal("hand"), v.literal("battlefield"))
+                ),
                 tapped: v.optional(v.boolean()),
             })
         ),
@@ -1891,14 +1991,17 @@ export const debugSetupScenario = mutation({
         const p1 = state.players[0];
         const p2 = state.players[1];
 
-        // Clear battlefields
+        // Clear battlefields and hands
         p1.battlefield = [];
         p2.battlefield = [];
+        p1.hand = [];
+        p2.hand = [];
 
         // Helper to create an instance from a card name
         function makeInstance(
             cardName: string,
             controllerId: string,
+            zone: "hand" | "battlefield",
             opts?: { tapped?: boolean }
         ) {
             const def = getCardByName(cardName);
@@ -1918,25 +2021,31 @@ export const debugSetupScenario = mutation({
                 staticAbilities: def.staticAbilities ?? [],
                 controllerId,
                 ownerId: controllerId,
-                zone: "battlefield" as const,
+                zone,
                 isTapped: opts?.tapped ?? false,
-                isSummoningSick: false, // Scenario cards are ready to act
+                isSummoningSick: false,
             };
         }
 
         // Place requested cards
         for (const entry of args.cards) {
             const player = entry.owner === "me" ? p1 : p2;
-            player.battlefield.push(
-                makeInstance(entry.name, player.id, { tapped: entry.tapped })
-            );
+            const zone = entry.zone ?? "battlefield";
+            const instance = makeInstance(entry.name, player.id, zone, {
+                tapped: entry.tapped,
+            });
+            if (zone === "hand") {
+                player.hand.push(instance);
+            } else {
+                player.battlefield.push(instance);
+            }
         }
 
         // Add lands (only if explicitly requested)
         const landCount = args.landCount ?? 0;
         for (let i = 0; i < landCount; i++) {
-            p1.battlefield.push(makeInstance("Plains", p1.id));
-            p2.battlefield.push(makeInstance("Plains", p2.id));
+            p1.battlefield.push(makeInstance("Plains", p1.id, "battlefield"));
+            p2.battlefield.push(makeInstance("Plains", p2.id, "battlefield"));
         }
 
         // Set phase if requested

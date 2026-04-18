@@ -56,9 +56,14 @@ export interface ActivatedAbility {
         mana?: ManaCost;
         sacrifice?: boolean;
     };
-    effect: (ctx: ActivatedAbilityContext) => void;
+    /** Oracle text for this ability (displayed in context menus and on the stack). */
+    oracleText: string;
+    /** Effect for mana abilities (useStack: false). */
+    effect?: (ctx: ActivatedAbilityContext) => void;
     /** Mana abilities don't use the stack — they resolve immediately (CR 605.3a). */
     useStack: boolean;
+    /** Effect for stack abilities (useStack: true) — called with full SpellContext on resolution. */
+    resolve?: (ctx: SpellContext) => void;
     /** Fixed mana output — used by the engine to track pool changes without executing the effect. */
     manaProduced?: ManaCost;
     /** Multiple mana options the player can choose from (e.g. Talisman: "{T}: Add {U} or {B}"). */
@@ -87,6 +92,7 @@ export interface SpellContext {
     destroy: (target: TargetSelection) => void;
     exile: (target: TargetSelection) => void;
     destroyAll: (type?: CardType | CardType[]) => void;
+    destroyAllBySubtype: (subtype: string) => void;
 }
 
 /** Full card definition used by the GRE. */
@@ -104,6 +110,8 @@ export interface CardDefinition {
     targetRequirement?: TargetRequirement;
     /** Imperative resolve function — called when the spell resolves from the stack. */
     resolve?: (ctx: SpellContext) => void;
+    /** Permanent enters the battlefield tapped (e.g. Nevinyrral's Disk). */
+    entersTapped?: boolean;
     staticAbilities?: string[];
     activatedAbilities?: ActivatedAbility[];
     triggeredAbilities?: string[];

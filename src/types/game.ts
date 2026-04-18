@@ -78,6 +78,8 @@ export interface Combat {
 export interface StackItem extends CardInstance {
     castById: string;
     targets?: { type: "creature" | "player"; id: string }[];
+    /** If set, this stack item is an activated ability (not a spell). */
+    abilityId?: string;
 }
 
 export interface PendingCast {
@@ -90,9 +92,9 @@ export interface PendingCast {
 export interface PendingTarget {
     playerId: string;
     cardInstanceId: string;
-    targetType: "creature" | "player" | "land" | "any";
+    targetType: string | string[];
     count: number;
-    selected: { type: "creature" | "player"; id: string }[];
+    selected: { type: "permanent" | "player"; id: string }[];
 }
 
 export interface GameOver {

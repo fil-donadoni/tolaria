@@ -10,7 +10,9 @@ import {
     getActivatedManaColor,
     hasManaAbility,
     getManaChoices,
-    isTargetableCreature,
+    getStackAbilities,
+    wantsPermanentTarget,
+    matchesTargetRequirement,
     groupByName,
 } from "~/lib/card-utils";
 import { COMBAT_GROUP_RING, COMBAT_GROUP_BG } from "~/lib/combat-colors";
@@ -29,6 +31,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         gameId,
         playerId,
         activePlayerId,
+        priorityPlayerId,
         phase,
         pendingCast,
         pendingTarget,
@@ -52,7 +55,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     const confirmBlockers = useMutation(api.game.confirmBlockers);
     const confirmDamage = useMutation(api.game.confirmDamage);
     const selectTarget = useMutation(api.game.selectTarget);
-    const cancelTarget = useMutation(api.game.cancelTarget);
+    const activateAbility = useMutation(api.game.activateAbility);
 
     // Mana choice picker state
     const [manaChoiceState, setManaChoiceState] = useState<{
@@ -88,7 +91,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     const isSelectingTarget =
         !!pendingTarget &&
         pendingTarget.playerId === playerId &&
-        isTargetableCreature(pendingTarget.targetType);
+        wantsPermanentTarget(pendingTarget.targetType);
 
     const isSelectingAttackers =
         phase === "DECLARE_ATTACKERS" &&
@@ -202,7 +205,13 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     }
 
     function canInteract(card: CardInstance): boolean {
-        if (isSelectingTarget && isCreature(card)) return true;
+        // During target selection, ONLY valid targets are interactive
+        if (isSelectingTarget) {
+            return (
+                !!pendingTarget &&
+                matchesTargetRequirement(card, pendingTarget.targetType)
+            );
+        }
 
         if (isSelectingAttackers && isCreature(card)) {
             if (selectedAttackerIds.includes(card.id)) return true;
@@ -232,13 +241,18 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         const creature = isCreature(card);
         const manaSource = hasManaAbility(card);
 
-        const interactive =
-            (isSelectingTarget && creature) ||
-            (isMe &&
-                (manaSource ||
-                    (isSelectingAttackers && creature) ||
-                    (isSelectingBlockers && creature))) ||
-            (isBlockerTarget && !!card.isAttacking);
+        const isValidTarget =
+            isSelectingTarget &&
+            pendingTarget &&
+            matchesTargetRequirement(card, pendingTarget.targetType);
+
+        const interactive = isSelectingTarget
+            ? !!isValidTarget
+            : (isMe &&
+                  (manaSource ||
+                      (isSelectingAttackers && creature) ||
+                      (isSelectingBlockers && creature))) ||
+              (isBlockerTarget && !!card.isAttacking);
 
         const enabled = canInteract(card);
 
@@ -293,7 +307,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 ringClass = "ring-2 ring-red-500 rounded-lg";
             }
         }
-        if (!ringClass && isSelectingTarget && creature) {
+        if (!ringClass && isValidTarget) {
             ringClass = "ring-2 ring-orange-400 rounded-lg";
         }
 
@@ -344,11 +358,15 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     function handleClick(card: CardInstance) {
         if (!canInteract(card)) return;
 
-        if (isSelectingTarget && isCreature(card)) {
+        if (
+            isSelectingTarget &&
+            pendingTarget &&
+            matchesTargetRequirement(card, pendingTarget.targetType)
+        ) {
             selectTarget({
                 gameId,
                 playerId,
-                targetType: "creature",
+                targetType: "permanent",
                 targetId: card.id,
             });
             return;
@@ -388,8 +406,19 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     }
 
     function handleClickWithEvent(card: CardInstance, e: React.MouseEvent) {
+        // During target selection, only allow target clicks — skip all other interactions
+        if (isSelectingTarget) {
+            handleClick(card);
+            return;
+        }
         const choices = getManaChoices(card);
-        if (choices && !card.isTapped && !isPayingCast && canInteract(card)) {
+        if (
+            isMe &&
+            choices &&
+            !card.isTapped &&
+            !isPayingCast &&
+            canInteract(card)
+        ) {
             setManaChoiceState({
                 cardId: card.id,
                 choices,
@@ -398,6 +427,19 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             return;
         }
         handleClick(card);
+    }
+
+    // --- Activated abilities ---
+
+    const hasPriority = isMe && priorityPlayerId === playerId;
+
+    function getActivatable(card: CardInstance) {
+        if (!hasPriority || pendingCast || pendingTarget) return [];
+        return getStackAbilities(card, player.manaPool);
+    }
+
+    function handleActivateAbility(cardInstanceId: string, abilityId: string) {
+        activateAbility({ gameId, playerId, cardInstanceId, abilityId });
     }
 
     // --- Rendering ---
@@ -410,13 +452,19 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
 
     function renderGroup(group: CardInstance[]) {
         if (group.length === 1) {
-            const vs = getVisualState(group[0]);
+            const card = group[0];
+            const vs = getVisualState(card);
+            const abilities = getActivatable(card);
             return (
-                <div key={group[0].id} className="flex">
+                <div key={card.id} className="flex">
                     <BattlefieldCard
-                        card={group[0]}
+                        card={card}
                         vs={vs}
-                        onClick={(e) => handleClickWithEvent(group[0], e)}
+                        onClick={(e) => handleClickWithEvent(card, e)}
+                        activatableAbilities={abilities}
+                        onActivateAbility={(aId) =>
+                            handleActivateAbility(card.id, aId)
+                        }
                     />
                 </div>
             );
@@ -430,12 +478,17 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             >
                 {group.map((card, i) => {
                     const vs = getVisualState(card);
+                    const abilities = getActivatable(card);
                     return (
                         <BattlefieldCard
                             key={card.id}
                             card={card}
                             vs={vs}
                             onClick={(e) => handleClickWithEvent(card, e)}
+                            activatableAbilities={abilities}
+                            onActivateAbility={(aId) =>
+                                handleActivateAbility(card.id, aId)
+                            }
                             style={{
                                 width: "8rem",
                                 flexShrink: 0,
@@ -500,12 +553,6 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                         <span className="ml-1 opacity-60">[Ctrl+Z]</span>
                     </button>
                 </div>
-            )}
-            {isSelectingTarget && (
-                <ActionButton
-                    onClick={() => cancelTarget({ gameId, playerId })}
-                    label="Cancel Target"
-                />
             )}
             {isPayingCast && (
                 <ActionButton
