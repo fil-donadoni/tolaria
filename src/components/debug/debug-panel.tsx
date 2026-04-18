@@ -62,10 +62,10 @@ const PRESET_SCENARIOS = [
         landCount: 3,
     },
     {
-        label: "Ancestral Recall",
+        label: "Counterspell",
         cards: [
             {
-                name: "Ancestral Recall",
+                name: "Counterspell",
                 owner: "me" as const,
                 zone: "hand" as const,
             },
@@ -73,9 +73,21 @@ const PRESET_SCENARIOS = [
                 name: "Island",
                 owner: "me" as const,
             },
+            {
+                name: "Island",
+                owner: "me" as const,
+            },
+            {
+                name: "Savannah Lions",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Plains",
+                owner: "opp" as const,
+            },
         ],
         phase: "PRECOMBAT_MAIN",
-        landCount: 3,
     },
 ];
 

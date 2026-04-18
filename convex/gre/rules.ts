@@ -67,8 +67,9 @@ export function getLegalTargets(
 
     // Check for permanent-targeting types (CardType values)
     const wantsAny = reqTypes.includes("any");
+    const wantsSpell = reqTypes.includes("spell");
     const permanentTypes = reqTypes.filter(
-        (t) => t !== "player" && t !== "any"
+        (t) => t !== "player" && t !== "any" && t !== "spell"
     );
 
     if (wantsAny || permanentTypes.length > 0) {
@@ -87,6 +88,14 @@ export function getLegalTargets(
     if (wantsAny || reqTypes.includes("player")) {
         for (const player of state.players) {
             targets.push({ type: "player", id: player.id });
+        }
+    }
+
+    // CR 114.1: any spell or ability currently on the stack is a legal target.
+    // (The casting spell itself isn't on the stack yet during target selection.)
+    if (wantsSpell) {
+        for (const item of state.stack) {
+            targets.push({ type: "spell", id: item.id });
         }
     }
 

@@ -622,3 +622,319 @@ describe("activated ability stack resolution", () => {
         expect(getPlayer(state, "p1").graveyard[0].id).toBe("wrath");
     });
 });
+
+// ---------------------------------------------------------------------------
+// getLegalTargets — spell targets (CR 114.1)
+// ---------------------------------------------------------------------------
+
+describe("getLegalTargets: spell targeting (CR 114.1)", () => {
+    it("returns all stack items for 'spell' requirement", () => {
+        const bolt: StackItem = {
+            ...makeCard({
+                id: "bolt1",
+                card: { name: "Lightning Bolt" },
+                types: ["Instant"],
+                zone: "stack",
+            }),
+            castById: "p1",
+        };
+        const bear: StackItem = {
+            ...makeCard({
+                id: "bear1",
+                card: { name: "Bear" },
+                types: ["Creature"],
+                zone: "stack",
+            }),
+            castById: "p2",
+        };
+        const state = makeGameState({ stack: [bear, bolt] });
+
+        const req: TargetRequirement = { type: "spell", count: 1 };
+        const targets = getLegalTargets(state, req);
+
+        expect(targets).toHaveLength(2);
+        expect(targets.every((t) => t.type === "spell")).toBe(true);
+        const ids = targets.map((t) => t.id).sort();
+        expect(ids).toEqual(["bear1", "bolt1"]);
+    });
+
+    it("returns empty when stack is empty", () => {
+        const state = makeGameState({ stack: [] });
+        const req: TargetRequirement = { type: "spell", count: 1 };
+        expect(getLegalTargets(state, req)).toHaveLength(0);
+    });
+
+    it("does NOT include permanents or players when only 'spell' is requested", () => {
+        const bear = makeCard({
+            id: "bear",
+            card: CREATURE,
+            zone: "battlefield",
+        });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [bear] }),
+                makePlayer({ id: "p2" }),
+            ],
+            stack: [],
+        });
+        const req: TargetRequirement = { type: "spell", count: 1 };
+        expect(getLegalTargets(state, req)).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Counterspell — CR 701.5a
+// "Counter target spell."
+// ---------------------------------------------------------------------------
+
+import { counterspell, lightningBolt, giantGrowth } from "../../cards/sets/lea";
+
+describe("spell resolution: Counterspell (CR 701.5a)", () => {
+    function makeCounterspellItem(
+        castBy: string,
+        targets: StackItem["targets"]
+    ): StackItem {
+        return {
+            ...makeCard({
+                id: crypto.randomUUID(),
+                card: {
+                    id: counterspell.id,
+                    name: counterspell.name,
+                    types: counterspell.types,
+                },
+                types: counterspell.types,
+                zone: "stack",
+                ownerId: castBy,
+                controllerId: castBy,
+            }),
+            castById: castBy,
+            targets,
+        };
+    }
+
+    function makeBoltItem(castBy: string): StackItem {
+        return {
+            ...makeCard({
+                id: crypto.randomUUID(),
+                card: {
+                    id: lightningBolt.id,
+                    name: lightningBolt.name,
+                    types: lightningBolt.types,
+                },
+                types: lightningBolt.types,
+                zone: "stack",
+                ownerId: castBy,
+                controllerId: castBy,
+            }),
+            castById: castBy,
+            targets: [{ type: "player", id: "p1" }],
+        };
+    }
+
+    it("counters target spell: target goes to its owner's graveyard (CR 701.5a)", () => {
+        const state = makeGameState();
+        const bolt = makeBoltItem("p2");
+        state.stack.push(bolt);
+        const counter = makeCounterspellItem("p1", [
+            { type: "spell", id: bolt.id },
+        ]);
+        state.stack.push(counter);
+
+        resolveTopOfStack(state); // resolve Counterspell (top)
+
+        // Stack is empty after Counterspell resolves
+        expect(state.stack).toHaveLength(0);
+        // Bolt never resolves — p1 still at 20 life
+        expect(getPlayer(state, "p1").life).toBe(20);
+        // Bolt goes to its owner's (p2) graveyard
+        const p2Grave = getPlayer(state, "p2").graveyard;
+        expect(p2Grave).toHaveLength(1);
+        expect((p2Grave[0].card as { id: string }).id).toBe(lightningBolt.id);
+        // Counterspell goes to its own owner's (p1) graveyard (CR 608.2k)
+        const p1Grave = getPlayer(state, "p1").graveyard;
+        expect(p1Grave).toHaveLength(1);
+        expect((p1Grave[0].card as { id: string }).id).toBe(counterspell.id);
+    });
+
+    it("counters a creature spell before it enters the battlefield", () => {
+        const state = makeGameState();
+        const bearSpell: StackItem = {
+            ...makeCard({
+                id: "bear-spell",
+                card: { name: "Bear", types: ["Creature"] },
+                types: ["Creature"],
+                zone: "stack",
+                ownerId: "p2",
+                controllerId: "p2",
+            }),
+            castById: "p2",
+        };
+        state.stack.push(bearSpell);
+        state.stack.push(
+            makeCounterspellItem("p1", [{ type: "spell", id: "bear-spell" }])
+        );
+
+        resolveTopOfStack(state);
+
+        // Bear never hits the battlefield
+        expect(getPlayer(state, "p2").battlefield).toHaveLength(0);
+        // Bear goes to p2's graveyard (not battlefield)
+        expect(getPlayer(state, "p2").graveyard).toHaveLength(1);
+        expect(getPlayer(state, "p2").graveyard[0].id).toBe("bear-spell");
+    });
+
+    it("Counterspell countering Counterspell: double counter", () => {
+        const state = makeGameState();
+        const bolt = makeBoltItem("p1");
+        state.stack.push(bolt); // index 0
+
+        const cs1 = makeCounterspellItem("p2", [
+            { type: "spell", id: bolt.id },
+        ]);
+        state.stack.push(cs1); // index 1: counter the Bolt
+
+        const cs2 = makeCounterspellItem("p1", [{ type: "spell", id: cs1.id }]);
+        state.stack.push(cs2); // index 2 (top): counter cs1
+
+        // Resolve cs2 (top) → counters cs1
+        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].id).toBe(bolt.id);
+        // cs1 goes to p2's graveyard; cs2 goes to p1's graveyard
+        expect(getPlayer(state, "p2").graveyard).toHaveLength(1);
+        expect(getPlayer(state, "p1").graveyard).toHaveLength(1);
+
+        // Now resolve bolt → deals 3 to p1
+        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(0);
+        expect(getPlayer(state, "p1").life).toBe(17);
+    });
+
+    it("fizzles silently when target is no longer on stack (CR 608.2b)", () => {
+        const state = makeGameState();
+        // Counterspell targeting a non-existent id (e.g. already countered)
+        const counter = makeCounterspellItem("p1", [
+            { type: "spell", id: "ghost-spell" },
+        ]);
+        state.stack.push(counter);
+
+        resolveTopOfStack(state);
+
+        // No crash; Counterspell still goes to graveyard
+        expect(state.stack).toHaveLength(0);
+        expect(getPlayer(state, "p1").graveyard).toHaveLength(1);
+        expect(
+            (getPlayer(state, "p1").graveyard[0].card as { id: string }).id
+        ).toBe(counterspell.id);
+    });
+
+    it("counters a targeted spell without applying its effect", () => {
+        // Giant Growth on p1's creature, then Counterspell: creature stays 1/1
+        const state = makeGameState();
+        const elf = makeCard({
+            id: "elf1",
+            card: {
+                name: "Llanowar Elves",
+                types: ["Creature"],
+                power: 1,
+                toughness: 1,
+            },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            power: 1,
+            toughness: 1,
+        });
+        getPlayer(state, "p1").battlefield.push(elf);
+
+        const growth: StackItem = {
+            ...makeCard({
+                id: "gg-spell",
+                card: {
+                    id: giantGrowth.id,
+                    name: giantGrowth.name,
+                    types: giantGrowth.types,
+                },
+                types: giantGrowth.types,
+                zone: "stack",
+                ownerId: "p1",
+                controllerId: "p1",
+            }),
+            castById: "p1",
+            targets: [{ type: "permanent", id: "elf1" }],
+        };
+        state.stack.push(growth);
+
+        state.stack.push(
+            makeCounterspellItem("p2", [{ type: "spell", id: "gg-spell" }])
+        );
+
+        // Resolve Counterspell
+        resolveTopOfStack(state);
+
+        // Giant Growth did NOT resolve — elf stays 1/1
+        const elfAfter = getPlayer(state, "p1").battlefield.find(
+            (c) => c.id === "elf1"
+        );
+        expect(elfAfter?.power).toBe(1);
+        expect(elfAfter?.toughness).toBe(1);
+        // gg-spell is in p1's graveyard
+        expect(
+            getPlayer(state, "p1").graveyard.some((c) => c.id === "gg-spell")
+        ).toBe(true);
+    });
+
+    it("counters an activated ability: ability item is removed but no card moves", () => {
+        // Build a fake activated ability on the stack
+        const state = makeGameState();
+        const abilityItem: StackItem = {
+            ...makeCard({
+                id: "ability1",
+                card: {
+                    id: "some-source-id",
+                    name: "Source Permanent",
+                    types: ["Artifact"],
+                },
+                types: ["Artifact"],
+                zone: "stack",
+                ownerId: "p2",
+                controllerId: "p2",
+            }),
+            castById: "p2",
+            abilityId: "ability-slot-1",
+        };
+        state.stack.push(abilityItem);
+
+        state.stack.push(
+            makeCounterspellItem("p1", [{ type: "spell", id: "ability1" }])
+        );
+
+        resolveTopOfStack(state);
+
+        // Stack emptied; ability item vanishes (not a card, doesn't go to graveyard).
+        expect(state.stack).toHaveLength(0);
+        expect(getPlayer(state, "p2").graveyard).toHaveLength(0);
+        // Counterspell itself still goes to p1's graveyard.
+        expect(getPlayer(state, "p1").graveyard).toHaveLength(1);
+    });
+
+    it("ignores non-spell target passed to Counterspell (defensive)", () => {
+        // Counterspell's resolve guards against non-spell targets — no crash,
+        // spell simply fizzles to graveyard without countering anything.
+        const state = makeGameState();
+        const bolt = makeBoltItem("p2");
+        state.stack.push(bolt);
+        // Malformed targets: a player instead of a spell.
+        state.stack.push(
+            makeCounterspellItem("p1", [{ type: "player", id: "p2" }])
+        );
+
+        resolveTopOfStack(state);
+
+        // Bolt is still on the stack (not countered)
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].id).toBe(bolt.id);
+        // Counterspell still goes to p1's graveyard
+        expect(getPlayer(state, "p1").graveyard).toHaveLength(1);
+    });
+});

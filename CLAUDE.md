@@ -167,7 +167,8 @@ Tips:
 4. **Implement** — Write code, following CR and project patterns
 5. **Test** — Write tests referencing CR sections, run `bun run test`
 6. **Validate** — `bun run check:all` must pass with zero errors
-7. **UI verify** — For frontend changes, test in browser at localhost:5173
+7. **Preset scenario** — For any new card or gameplay feature, add a dedicated entry to `PRESET_SCENARIOS` in `src/components/debug/debug-panel.tsx` so the user can load it one-click from the Debug panel and exercise the feature end-to-end. Choose cards/zones/phase/`landCount` that hit the golden path (and ideally a key edge case). Skip only for pure refactors with no user-visible behavior change.
+8. **UI verify** — For frontend changes, test in browser at localhost:5173
 
 ### Quality gates (mandatory, no exceptions)
 

@@ -11,6 +11,7 @@ const TARGET_LABEL: Record<string, string> = {
     Planeswalker: "a planeswalker",
     player: "a player",
     any: "any target",
+    spell: "a spell on the stack",
 };
 
 function formatTargetLabel(targetType: string | string[]): string {

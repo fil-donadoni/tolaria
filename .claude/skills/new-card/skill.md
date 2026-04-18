@@ -2,7 +2,7 @@
 name: new-card
 description: Generate a CardDefinition for a new MTG card in convex/cards/sets/. Fetches oracle data from Scryfall, maps to the CardDefinition interface, and validates against CR.
 argument-hint: "<card name>"
-allowed-tools: WebFetch(domain:api.scryfall.com) WebFetch(domain:scryfall.com) WebFetch(domain:yawgatog.com)
+allowed-tools: Bash(curl:*) WebFetch(domain:api.scryfall.com) WebFetch(domain:scryfall.com) WebFetch(domain:yawgatog.com)
 ---
 
 # New Card Definition Generator
@@ -13,7 +13,13 @@ Generate a `CardDefinition` for a new card in the Tolaria engine.
 
 ### Step 1 — Fetch oracle data
 
-WebFetch `https://api.scryfall.com/cards/named?fuzzy={card_name}`
+Scryfall blocks WebFetch (HTTP 403). Use curl with a User-Agent header:
+
+```sh
+curl -s -A "Mozilla/5.0" "https://api.scryfall.com/cards/named?exact={card_name_plus_separated}"
+```
+
+Prefer `exact=` over `fuzzy=` to avoid ambiguity. Replace spaces with `+`.
 
 Extract: name, mana_cost, type_line, oracle_text, power, toughness, loyalty.
 

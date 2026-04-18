@@ -35,14 +35,20 @@ export type CardSupertype =
 // --- Targeting ---
 
 export interface TargetRequirement {
-    /** Card type(s) to target, or "player"/"any". */
-    type: CardType | "player" | "any" | (CardType | "player" | "any")[];
+    /** Card type(s) to target, "player", "any", or "spell" (stack target). */
+    type:
+        | CardType
+        | "player"
+        | "any"
+        | "spell"
+        | (CardType | "player" | "any" | "spell")[];
     count: number;
 }
 
 export interface TargetSelection {
-    type: "permanent" | "player";
-    id: string; // cardInstanceId or playerId
+    /** "permanent" = battlefield card, "player" = player, "spell" = stack item. */
+    type: "permanent" | "player" | "spell";
+    id: string; // cardInstanceId, playerId, or stackItem.id
 }
 
 export interface ActivatedAbilityContext {
@@ -95,6 +101,8 @@ export interface SpellContext {
     destroyAllBySubtype: (subtype: string) => void;
     /** Player draws N cards one at a time (CR 121.1). Stops if library empties; sets hasDrawnFromEmpty (CR 704.5b). */
     drawCards: (playerId: string, amount: number) => void;
+    /** Counters a spell or ability on the stack (CR 701.5a). Target must be TargetSelection with type "spell". No-op if target no longer on stack (CR 608.2b). */
+    counter: (target: TargetSelection) => void;
 }
 
 /** Full card definition used by the GRE. */

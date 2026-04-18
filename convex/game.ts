@@ -720,7 +720,11 @@ export const selectTarget = mutation({
     args: {
         gameId: v.id("games"),
         playerId: v.string(),
-        targetType: v.union(v.literal("permanent"), v.literal("player")),
+        targetType: v.union(
+            v.literal("permanent"),
+            v.literal("player"),
+            v.literal("spell")
+        ),
         targetId: v.string(),
     },
     handler: async (ctx, args) => {
@@ -737,7 +741,10 @@ export const selectTarget = mutation({
             throw new Error("Not your pending target selection");
         }
 
-        const target: { type: "permanent" | "player"; id: string } = {
+        const target: {
+            type: "permanent" | "player" | "spell";
+            id: string;
+        } = {
             type: args.targetType,
             id: args.targetId,
         };
@@ -751,7 +758,7 @@ export const selectTarget = mutation({
 
         if (args.targetType === "permanent") {
             const permanentTypes = reqTypes.filter(
-                (t) => t !== "player" && t !== "any"
+                (t) => t !== "player" && t !== "any" && t !== "spell"
             );
             const found = state.players.some((p) =>
                 p.battlefield.some((c) => {
@@ -763,12 +770,19 @@ export const selectTarget = mutation({
                 })
             );
             if (!found) throw new Error("Invalid target");
-        } else {
+        } else if (args.targetType === "player") {
             if (!wantsAny && !reqTypes.includes("player")) {
                 throw new Error("Must target a permanent");
             }
             const found = state.players.some((p) => p.id === args.targetId);
             if (!found) throw new Error("Invalid player target");
+        } else {
+            // "spell" target (CR 114.1): must match a stack item.
+            if (!reqTypes.includes("spell")) {
+                throw new Error("This spell does not target a spell");
+            }
+            const found = state.stack.some((s) => s.id === args.targetId);
+            if (!found) throw new Error("Invalid spell target");
         }
 
         pt.selected.push(target);

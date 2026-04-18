@@ -454,12 +454,18 @@ export const ancestralRecall: CardDefinition = {
 //     types: ["Enchantment"],
 // };
 
-// export const counterspell: CardDefinition = {
-//     id: "0df55e3f-14de-46ef-b6b1-616618724d9e",
-//     name: "Counterspell",
-//     manaCost: { U: 2 },
-//     types: ["Instant"],
-// };
+// Counterspell — "Counter target spell." (CR 701.5a)
+export const counterspell: CardDefinition = {
+    id: "0df55e3f-14de-46ef-b6b1-616618724d9e",
+    name: "Counterspell",
+    manaCost: { U: 2 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type === "spell") ctx.counter(target);
+    },
+};
 
 // export const creatureBond: CardDefinition = {
 //     id: "ee4bd7d1-77e5-46e5-a594-c24469e88c4c",

@@ -77,7 +77,7 @@ export interface Combat {
 
 export interface StackItem extends CardInstance {
     castById: string;
-    targets?: { type: "creature" | "player"; id: string }[];
+    targets?: { type: "permanent" | "player" | "spell"; id: string }[];
     /** If set, this stack item is an activated ability (not a spell). */
     abilityId?: string;
 }
@@ -94,7 +94,7 @@ export interface PendingTarget {
     cardInstanceId: string;
     targetType: string | string[];
     count: number;
-    selected: { type: "permanent" | "player"; id: string }[];
+    selected: { type: "permanent" | "player" | "spell"; id: string }[];
 }
 
 export interface GameOver {

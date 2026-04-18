@@ -309,6 +309,23 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 if (drawCard(player) === null) break;
             }
         },
+        // CR 701.5a: to counter a spell is to remove it from the stack and put
+        // it into its owner's graveyard. If the target is no longer on the
+        // stack (already resolved/countered), this is a silent no-op — the
+        // countering spell simply fails to find a legal target (CR 608.2b).
+        counter(target: TargetSelection): void {
+            if (target.type !== "spell") {
+                throw new Error("counter() requires a spell target");
+            }
+            const idx = state.stack.findIndex((s) => s.id === target.id);
+            if (idx === -1) return; // target no longer on stack — fizzle silently
+            const [item] = state.stack.splice(idx, 1);
+            const owner = getPlayer(state, item.ownerId);
+            // Activated abilities are not cards: they just vanish (CR 701.5a, 113.7a).
+            if (item.abilityId) return;
+            item.zone = "graveyard";
+            owner.graveyard.push(item);
+        },
     };
 }
 

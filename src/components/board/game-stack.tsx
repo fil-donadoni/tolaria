@@ -1,12 +1,29 @@
+import { useMutation } from "convex/react";
+import { api } from "@convex/_generated/api";
 import type { StackItem } from "~/types/game";
 import CardImage from "../cards/card-image";
 import { getAbilityOracleText } from "~/lib/card-utils";
+import { useGameContext } from "~/hooks/useGameContext";
 
 type GameStackProps = {
     stack: StackItem[];
 };
 
+function wantsSpellTarget(targetType: string | string[] | undefined): boolean {
+    if (!targetType) return false;
+    const types = Array.isArray(targetType) ? targetType : [targetType];
+    return types.includes("spell");
+}
+
 export default function GameStack({ stack }: GameStackProps) {
+    const { gameId, playerId, pendingTarget } = useGameContext();
+    const selectTarget = useMutation(api.game.selectTarget);
+
+    const canTargetSpell =
+        !!pendingTarget &&
+        pendingTarget.playerId === playerId &&
+        wantsSpellTarget(pendingTarget.targetType);
+
     // Display in LIFO order: last cast on top (leftmost)
     const reversed = [...stack].reverse();
 
@@ -17,11 +34,27 @@ export default function GameStack({ stack }: GameStackProps) {
                     const abilityText = item.abilityId
                         ? getAbilityOracleText(item.card.id, item.abilityId)
                         : null;
+                    const isTargetable = canTargetSpell;
 
                     return (
-                        <div
+                        <button
                             key={item.id}
-                            className="w-32 shrink-0 flex flex-col items-center"
+                            type="button"
+                            disabled={!isTargetable}
+                            onClick={() => {
+                                if (!isTargetable) return;
+                                selectTarget({
+                                    gameId,
+                                    playerId,
+                                    targetType: "spell",
+                                    targetId: item.id,
+                                });
+                            }}
+                            className={`w-32 shrink-0 flex flex-col items-center bg-transparent border-0 p-0 ${
+                                isTargetable
+                                    ? "cursor-pointer ring-2 ring-amber-400 rounded hover:ring-amber-300"
+                                    : "cursor-default"
+                            }`}
                             style={{
                                 marginLeft: i > 0 ? "-4rem" : undefined,
                                 zIndex: reversed.length - i,
@@ -33,7 +66,7 @@ export default function GameStack({ stack }: GameStackProps) {
                                     {abilityText}
                                 </div>
                             )}
-                        </div>
+                        </button>
                     );
                 })}
             </div>
