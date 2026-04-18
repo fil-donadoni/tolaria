@@ -623,6 +623,8 @@ describe("resolveTopOfStack", () => {
 
 import { lightningBolt } from "../../cards/sets/lea";
 import { giantGrowth } from "../../cards/sets/lea";
+import { ancestralRecall } from "../../cards/sets/lea";
+import { drawCard } from "../state";
 
 describe("spell resolution: Lightning Bolt", () => {
     function makeBoltOnStack(
@@ -803,5 +805,108 @@ describe("spell resolution: Giant Growth + Lightning Bolt interaction", () => {
         // Elf dies: 3 damage >= 1 toughness
         expect(getPlayer(state, "p1").battlefield).toHaveLength(0);
         expect(getPlayer(state, "p1").graveyard).toHaveLength(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// drawCard helper — CR 121.1 / CR 704.5b
+// ---------------------------------------------------------------------------
+
+describe("drawCard (CR 121.1)", () => {
+    it("moves the top card of the library to hand", () => {
+        const player = makePlayer({
+            library: [
+                makeCard({ id: "c1", zone: "library" }),
+                makeCard({ id: "c2", zone: "library" }),
+            ],
+        });
+
+        const drawn = drawCard(player);
+
+        expect(drawn?.id).toBe("c1");
+        expect(player.hand.map((c) => c.id)).toEqual(["c1"]);
+        expect(player.library.map((c) => c.id)).toEqual(["c2"]);
+    });
+
+    it("sets hasDrawnFromEmpty and returns null on empty library (CR 704.5b)", () => {
+        const player = makePlayer({ library: [] });
+
+        const drawn = drawCard(player);
+
+        expect(drawn).toBeNull();
+        expect(player.hasDrawnFromEmpty).toBe(true);
+        expect(player.hand).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Spell resolution: Ancestral Recall — CR 121.1
+// "Target player draws three cards."
+// ---------------------------------------------------------------------------
+
+describe("spell resolution: Ancestral Recall", () => {
+    function pushRecall(state: GameState, castBy: string, targetId: string) {
+        const item = makeStackItem(
+            {
+                id: ancestralRecall.id,
+                name: ancestralRecall.name,
+                types: ancestralRecall.types,
+            },
+            castBy,
+            { targets: [{ type: "player", id: targetId }] }
+        );
+        state.stack.push(item);
+        return item;
+    }
+
+    it("target player draws three cards", () => {
+        const state = makeGameState();
+        const p2 = getPlayer(state, "p2");
+        p2.library = [
+            makeCard({ id: "c1", ownerId: "p2", zone: "library" }),
+            makeCard({ id: "c2", ownerId: "p2", zone: "library" }),
+            makeCard({ id: "c3", ownerId: "p2", zone: "library" }),
+            makeCard({ id: "c4", ownerId: "p2", zone: "library" }),
+        ];
+        pushRecall(state, "p1", "p2");
+
+        resolveTopOfStack(state);
+
+        expect(p2.hand.map((c) => c.id)).toEqual(["c1", "c2", "c3"]);
+        expect(p2.library.map((c) => c.id)).toEqual(["c4"]);
+        // Caster's graveyard has the spell (instant → graveyard, CR 608.2k)
+        expect(getPlayer(state, "p1").graveyard).toHaveLength(1);
+        expect(
+            (getPlayer(state, "p1").graveyard[0].card as { id: string }).id
+        ).toBe(ancestralRecall.id);
+    });
+
+    it("targeting self draws three cards", () => {
+        const state = makeGameState();
+        const p1 = getPlayer(state, "p1");
+        p1.library = [
+            makeCard({ id: "a", ownerId: "p1", zone: "library" }),
+            makeCard({ id: "b", ownerId: "p1", zone: "library" }),
+            makeCard({ id: "c", ownerId: "p1", zone: "library" }),
+        ];
+        pushRecall(state, "p1", "p1");
+
+        resolveTopOfStack(state);
+
+        expect(p1.hand.map((c) => c.id)).toEqual(["a", "b", "c"]);
+        expect(p1.library).toHaveLength(0);
+    });
+
+    it("flags hasDrawnFromEmpty if library runs out mid-draw (CR 704.5b)", () => {
+        const state = makeGameState();
+        const p2 = getPlayer(state, "p2");
+        p2.library = [makeCard({ id: "only", ownerId: "p2", zone: "library" })];
+        pushRecall(state, "p1", "p2");
+
+        resolveTopOfStack(state);
+
+        expect(p2.hand.map((c) => c.id)).toEqual(["only"]);
+        expect(p2.library).toHaveLength(0);
+        expect(p2.hasDrawnFromEmpty).toBe(true);
     });
 });

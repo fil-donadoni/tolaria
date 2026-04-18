@@ -301,6 +301,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 }
             }
         },
+        // CR 121.1: cards are drawn one at a time. Stops if the library empties
+        // (CR 704.5b: hasDrawnFromEmpty flagged by drawCard; SBA ends the game).
+        drawCards(playerId: string, amount: number): void {
+            const player = getPlayer(state, playerId);
+            for (let i = 0; i < amount; i++) {
+                if (drawCard(player) === null) break;
+            }
+        },
     };
 }
 
@@ -323,6 +331,18 @@ export function getOpponentId(state: GameState, playerId: string): string {
     const opponent = state.players.find((p) => p.id !== playerId);
     if (!opponent) throw new Error("Opponent not found");
     return opponent.id;
+}
+
+/**
+ * Draws the top card of a player's library to their hand (CR 121.1).
+ * If the library is empty, marks hasDrawnFromEmpty (CR 704.5b) and returns null.
+ */
+export function drawCard(player: PlayerState): CardInstanceState | null {
+    if (player.library.length === 0) {
+        player.hasDrawnFromEmpty = true;
+        return null;
+    }
+    return moveCard(player, player.library[0].id, "library", "hand");
 }
 
 /** Moves a card between player zones (not stack). Returns the moved card. */

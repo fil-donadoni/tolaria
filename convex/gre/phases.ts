@@ -1,6 +1,6 @@
 import type { Phase } from "./types";
 import type { GameState } from "./state";
-import { getOpponentId, getPlayer, moveCard, resolveTopOfStack } from "./state";
+import { drawCard, getOpponentId, getPlayer, resolveTopOfStack } from "./state";
 
 /** Ordered sequence of all phases/steps in a turn. */
 const PHASE_ORDER: Phase[] = [
@@ -42,15 +42,7 @@ function untapStep(state: GameState): void {
 /** Draw step: active player draws a card. Skipped on turn 1 (CR 103.8). */
 function drawStep(state: GameState): void {
     if (state.turn === 1) return;
-
-    const player = getPlayer(state, state.activePlayerId);
-    if (player.library.length === 0) {
-        // CR 704.5b: attempting to draw from empty library — SBA will end the game
-        player.hasDrawnFromEmpty = true;
-        return;
-    }
-
-    moveCard(player, player.library[0].id, "library", "hand");
+    drawCard(getPlayer(state, state.activePlayerId));
 }
 
 /** Inverts blockerAssignments (blockerId→attackerId) to attackerId→blockerId[]. */

@@ -394,12 +394,18 @@ export const airElemental: CardDefinition = {
     staticAbilities: ["flying"],
 };
 
-// export const ancestralRecall: CardDefinition = {
-//     id: "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b",
-//     name: "Ancestral Recall",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
+// Ancestral Recall — "Target player draws three cards." (CR 121.1)
+export const ancestralRecall: CardDefinition = {
+    id: "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b",
+    name: "Ancestral Recall",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "player", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type === "player") ctx.drawCards(target.id, 3);
+    },
+};
 
 // export const animateArtifact: CardDefinition = {
 //     id: "664b46f5-0424-4f4e-9f26-6bd2cf5e0357",

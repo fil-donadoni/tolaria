@@ -28,25 +28,6 @@ const theme = {
 
 const PRESET_SCENARIOS = [
     {
-        label: "Serra Angel vs Bears",
-        cards: [
-            { name: "Serra Angel", owner: "me" as const },
-            { name: "Grizzly Bears", owner: "opp" as const },
-            { name: "Grizzly Bears", owner: "opp" as const },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 7,
-    },
-    {
-        label: "Combat: Serra vs Wall",
-        cards: [
-            { name: "Serra Angel", owner: "me" as const },
-            { name: "Wall of Swords", owner: "opp" as const },
-        ],
-        phase: "DECLARE_ATTACKERS",
-        landCount: 7,
-    },
-    {
         label: "Multi-block test",
         cards: [
             { name: "Serra Angel", owner: "me" as const },
@@ -69,29 +50,6 @@ const PRESET_SCENARIOS = [
         landCount: 7,
     },
     {
-        label: "Disenchant",
-        cards: [
-            { name: "Mox Pearl", owner: "me" as const },
-            { name: "Disenchant", owner: "me" as const, zone: "hand" as const },
-            { name: "Black Lotus", owner: "opp" as const },
-            { name: "Mox Jet", owner: "opp" as const },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 3,
-    },
-    {
-        label: "Mox: all 5 + Black Lotus",
-        cards: [
-            { name: "Black Lotus", owner: "me" as const },
-            { name: "Mox Pearl", owner: "me" as const },
-            { name: "Mox Sapphire", owner: "me" as const },
-            { name: "Mox Jet", owner: "me" as const },
-            { name: "Mox Ruby", owner: "me" as const },
-            { name: "Mox Emerald", owner: "me" as const },
-        ],
-        phase: "PRECOMBAT_MAIN",
-    },
-    {
         label: "Nevinyrral's Disk",
         cards: [
             { name: "Nevinyrral's Disk", owner: "me" as const },
@@ -99,6 +57,22 @@ const PRESET_SCENARIOS = [
             { name: "Mox Emerald", owner: "me" as const },
             { name: "Grizzly Bears", owner: "opp" as const },
             { name: "Mox Ruby", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
+    {
+        label: "Ancestral Recall",
+        cards: [
+            {
+                name: "Ancestral Recall",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Island",
+                owner: "me" as const,
+            },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 3,

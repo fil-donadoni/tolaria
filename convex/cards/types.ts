@@ -93,6 +93,8 @@ export interface SpellContext {
     exile: (target: TargetSelection) => void;
     destroyAll: (type?: CardType | CardType[]) => void;
     destroyAllBySubtype: (subtype: string) => void;
+    /** Player draws N cards one at a time (CR 121.1). Stops if library empties; sets hasDrawnFromEmpty (CR 704.5b). */
+    drawCards: (playerId: string, amount: number) => void;
 }
 
 /** Full card definition used by the GRE. */
