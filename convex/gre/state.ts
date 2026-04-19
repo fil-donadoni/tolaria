@@ -372,6 +372,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 moveCard(player, player.hand[idx].id, "hand", "graveyard");
             }
         },
+        addMana(cost: CardManaCost): void {
+            const player = getPlayer(state, item.castById);
+            for (const [color, amount] of Object.entries(cost)) {
+                if (color === "X" || typeof amount !== "number" || amount <= 0)
+                    continue;
+                player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
+            }
+        },
     };
 }
 

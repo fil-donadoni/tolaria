@@ -14,6 +14,7 @@ import {
     castle,
     counterspell,
     ancestralRecall,
+    darkRitual,
     lightningBolt,
     llanowarElves,
     plateau,
@@ -255,6 +256,24 @@ describe("Lightning Bolt (3 damage to any target, CR 608.3)", () => {
         expect(ids).toContain("p1");
         expect(ids).toContain("p2");
         expect(ids).not.toContain("forest");
+    });
+});
+
+describe("Dark Ritual (add {B}{B}{B}, CR 608.3 + 106.1)", () => {
+    it("adds three black mana to the caster's mana pool on resolution", () => {
+        const state = makeState();
+        pushSpell(state, darkRitual.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.B).toBe(3);
+        expect(state.players[0].graveyard).toHaveLength(1);
+    });
+
+    it("adds to the caster, not the opponent", () => {
+        const state = makeState();
+        pushSpell(state, darkRitual.id, "p2");
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.B ?? 0).toBe(0);
+        expect(state.players[1].manaPool.B).toBe(3);
     });
 });
 

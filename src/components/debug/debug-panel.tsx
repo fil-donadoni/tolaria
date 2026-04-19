@@ -167,6 +167,23 @@ const PRESET_SCENARIOS = [
         libraryCount: 53,
     },
     {
+        label: "Dark Ritual ({B} → {B}{B}{B})",
+        cards: [
+            {
+                name: "Dark Ritual",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Hypnotic Specter",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+    },
+    {
         label: "Hypnotic Specter (flying + random discard on damage)",
         cards: [
             { name: "Hypnotic Specter", owner: "me" as const },

@@ -107,6 +107,9 @@ export interface SpellContext {
      *  Capped at current hand size — no-op on an empty hand. Randomness is
      *  drawn from the game's seeded PRNG so replays reproduce the same picks. */
     discardAtRandom: (playerId: string, amount: number) => void;
+    /** Adds mana to the caster's mana pool (CR 106.1, 605.4). Mirrors the
+     *  mana-ability primitive; used by "add ~" spells like Dark Ritual. */
+    addMana: (cost: ManaCost) => void;
 }
 
 // --- Continuous static effects (CR 611, 613) ---

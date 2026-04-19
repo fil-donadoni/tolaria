@@ -848,12 +848,15 @@ export const bogWraith: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 
-// export const darkRitual: CardDefinition = {
-//     id: "ebb6664d-23ca-456e-9916-afcd6f26aa7f",
-//     name: "Dark Ritual",
-//     manaCost: { B: 1 },
-//     types: ["Instant"],
-// };
+export const darkRitual: CardDefinition = {
+    id: "ebb6664d-23ca-456e-9916-afcd6f26aa7f",
+    name: "Dark Ritual",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        ctx.addMana({ B: 3 });
+    },
+};
 
 // export const darkpact: CardDefinition = {
 //     id: "e78db688-93a2-47f5-9aa5-9158a72cd973",
