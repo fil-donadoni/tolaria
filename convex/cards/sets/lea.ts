@@ -2277,12 +2277,32 @@ export const blackLotus: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const icyManipulator: CardDefinition = {
-//     id: "29dc1596-a2e7-4d60-9f99-89babaef8a06",
-//     name: "Icy Manipulator",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+// Icy Manipulator — "{1}, {T}: Tap target artifact, creature, or land."
+// CR 701.20a (tap), CR 605 (activated abilities), CR 602.2 (target selection
+// at activation). Uses the stack (not a mana ability) so it can be responded to.
+export const icyManipulator: CardDefinition = {
+    id: "29dc1596-a2e7-4d60-9f99-89babaef8a06",
+    name: "Icy Manipulator",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "icy-manipulator-tap",
+            oracleText: "{1}, {T}: Tap target artifact, creature, or land.",
+            cost: { tap: true, mana: { X: 1 } },
+            useStack: true,
+            targetRequirement: {
+                type: ["Artifact", "Creature", "Land"],
+                count: 1,
+            },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (!target) return;
+                ctx.tap(target);
+            },
+        },
+    ],
+};
 
 // export const illusionaryMask: CardDefinition = {
 //     id: "62ef2f37-b8ad-47ad-89ca-d6abcb7ff21b",

@@ -41,6 +41,7 @@ import {
     elvishArchers,
     hurricane,
     hypnoticSpecter,
+    icyManipulator,
     jayemdaeTome,
     juggernaut,
     serraAngel,
@@ -1301,6 +1302,168 @@ describe("Jayemdae Tome ({4}, {T}: Draw a card, CR 602.1 + 121.1)", () => {
         const def = jayemdaeTome;
         expect(slimTome.card.id).toBe(def.id);
         expect(def.activatedAbilities?.[0].id).toBe("jayemdae-tome-draw");
+    });
+});
+
+describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.20a)", () => {
+    it("is a {4} artifact with a stack-using activated ability", () => {
+        expect(icyManipulator.manaCost).toEqual({ X: 4 });
+        expect(icyManipulator.types).toEqual(["Artifact"]);
+        const ability = icyManipulator.activatedAbilities?.[0];
+        expect(ability?.cost).toEqual({ tap: true, mana: { X: 1 } });
+        expect(ability?.useStack).toBe(true);
+        expect(ability?.targetRequirement).toEqual({
+            type: ["Artifact", "Creature", "Land"],
+            count: 1,
+        });
+    });
+
+    function activate(
+        state: ReturnType<typeof makeState>,
+        icy: CardInstanceState,
+        target: { type: "permanent" | "player" | "spell"; id: string }
+    ) {
+        state.stack.push({
+            ...icy,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "icy-manipulator-tap",
+            targets: [target],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("taps an untapped creature on resolution", () => {
+        const icy = makeInstance(icyManipulator.id, { id: "icy" });
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [icy] }),
+                makePlayer("p2", { battlefield: [lion] }),
+            ],
+        });
+        activate(state, icy, { type: "permanent", id: "lion" });
+        expect(state.players[1].battlefield[0].isTapped).toBe(true);
+    });
+
+    it("is a no-op when the target is already tapped (CR 701.20a)", () => {
+        const icy = makeInstance(icyManipulator.id, { id: "icy" });
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [icy] }),
+                makePlayer("p2", { battlefield: [lion] }),
+            ],
+        });
+        activate(state, icy, { type: "permanent", id: "lion" });
+        expect(state.players[1].battlefield[0].isTapped).toBe(true);
+    });
+
+    it("can target a land (tapping a tapland-source for mana denial)", () => {
+        const icy = makeInstance(icyManipulator.id, { id: "icy" });
+        const island = makeInstance(tropicalIsland.id, {
+            id: "island",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [icy] }),
+                makePlayer("p2", { battlefield: [island] }),
+            ],
+        });
+        activate(state, icy, { type: "permanent", id: "island" });
+        expect(state.players[1].battlefield[0].isTapped).toBe(true);
+    });
+
+    it("can target an artifact (including itself in principle)", () => {
+        const icy = makeInstance(icyManipulator.id, { id: "icy" });
+        const tome = makeInstance(jayemdaeTome.id, {
+            id: "tome",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [icy] }),
+                makePlayer("p2", { battlefield: [tome] }),
+            ],
+        });
+        activate(state, icy, { type: "permanent", id: "tome" });
+        expect(state.players[1].battlefield[0].isTapped).toBe(true);
+    });
+
+    it("silently fizzles if the target has left the battlefield (CR 608.2b)", () => {
+        const icy = makeInstance(icyManipulator.id, { id: "icy" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [icy] }),
+                makePlayer("p2"),
+            ],
+        });
+        activate(state, icy, { type: "permanent", id: "ghost" });
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("legal-target set spans artifacts, creatures and lands", () => {
+        const icy = makeInstance(icyManipulator.id, { id: "icy" });
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const island = makeInstance(tropicalIsland.id, {
+            id: "island",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const tome = makeInstance(jayemdaeTome.id, {
+            id: "tome",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [icy, tome] }),
+                makePlayer("p2", { battlefield: [lion, island] }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            icyManipulator.activatedAbilities![0].targetRequirement!
+        );
+        const ids = legal.map((t) => t.id).sort();
+        expect(ids).toEqual(["icy", "island", "lion", "tome"].sort());
+    });
+
+    it("wire format: tap survives projectPublicState (regression guard)", () => {
+        const icy = makeInstance(icyManipulator.id, { id: "icy" });
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [icy] }),
+                makePlayer("p2", { battlefield: [lion] }),
+            ],
+        });
+        activate(state, icy, { type: "permanent", id: "lion" });
+        const projected = projectPublicState(state, 1, "p1");
+        const slimLion = projected.players[1].battlefield.find(
+            (c) => c.id === "lion"
+        )!;
+        expect(slimLion.isTapped).toBe(true);
     });
 });
 

@@ -125,6 +125,10 @@ export interface SpellContext {
     getController: (target: TargetSelection) => string;
     destroy: (target: TargetSelection) => void;
     exile: (target: TargetSelection) => void;
+    /** Taps a permanent on the battlefield (CR 701.20a). No-op if already
+     *  tapped or if the target is no longer on the battlefield (CR 608.2b).
+     *  Used by Icy Manipulator and similar "tap target permanent" effects. */
+    tap: (target: TargetSelection) => void;
     /** Destroys every permanent on the battlefield matching the filter
      *  (CR 701.7). Shorthand `CardType | CardType[]` is equivalent to
      *  `{ types }`. The object form supports compounding types, subtypes, and

@@ -41,79 +41,6 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        label: "Elvish Archers (first strike, keyword-only)",
-        cards: [
-            // 2/1 with "first strike". The keyword is carried by the card
-            // definition; combat currently runs a single damage step so the
-            // ability isn't functionally honored yet — this preset only
-            // exercises rendering and board presence.
-            { name: "Elvish Archers", owner: "me" as const },
-            { name: "Grizzly Bears", owner: "opp" as const },
-        ],
-        phase: "DECLARE_ATTACKERS",
-        landCount: 3,
-    },
-    {
-        label: "Juggernaut (attacks if able + can't be blocked by Walls)",
-        cards: [
-            // 5/3 that must attack and ignores the Wall. Opponent has a Wall
-            // (illegal blocker) and a Grizzly Bears (legal blocker).
-            { name: "Juggernaut", owner: "me" as const },
-            { name: "Wall of Swords", owner: "opp" as const },
-            { name: "Grizzly Bears", owner: "opp" as const },
-        ],
-        phase: "DECLARE_ATTACKERS",
-        landCount: 4,
-    },
-    {
-        label: "Earthquake (X damage, spares fliers)",
-        cards: [
-            // Cast Earthquake with X=2: the Savannah Lions (2/1 ground) dies,
-            // the Serra Angel (4/4 flying) survives, both players take 2.
-            { name: "Earthquake", owner: "me" as const, zone: "hand" as const },
-            { name: "Mountain", owner: "me" as const },
-            { name: "Mountain", owner: "me" as const },
-            { name: "Mountain", owner: "me" as const },
-            { name: "Savannah Lions", owner: "opp" as const },
-            { name: "Serra Angel", owner: "opp" as const },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        label: "Jayemdae Tome ({4}, {T}: Draw a card)",
-        cards: [
-            // Tome already on the battlefield, untapped. 4 Islands let the
-            // player pay the activation cost immediately — tap all four + the
-            // Tome, stack resolves, draw 1. Library seeded with enough filler.
-            { name: "Jayemdae Tome", owner: "me" as const },
-            { name: "Island", owner: "me" as const },
-            { name: "Island", owner: "me" as const },
-            { name: "Island", owner: "me" as const },
-            { name: "Island", owner: "me" as const },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-        libraryCount: 5,
-    },
-    {
-        label: "Hurricane (X damage to fliers)",
-        cards: [
-            // Mirror of Earthquake: with X=4 the Serra Angel dies, the Lions
-            // survive, both players take 4.
-            { name: "Hurricane", owner: "me" as const, zone: "hand" as const },
-            { name: "Forest", owner: "me" as const },
-            { name: "Forest", owner: "me" as const },
-            { name: "Forest", owner: "me" as const },
-            { name: "Forest", owner: "me" as const },
-            { name: "Forest", owner: "me" as const },
-            { name: "Savannah Lions", owner: "opp" as const },
-            { name: "Serra Angel", owner: "opp" as const },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
         label: "Circle of Protection: Red (prevent next damage from red source)",
         cards: [
             // CoP: Red already in play. Opponent holds a Lightning Bolt and
@@ -122,7 +49,12 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             // stack, resolve CoP first, then Bolt fizzles on prevention.
             { name: "Circle of Protection: Red", owner: "me" as const },
             { name: "Plains", owner: "me" as const },
-            { name: "Lightning Bolt", owner: "opp" as const, zone: "hand" as const },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mons's Goblin Raiders", owner: "opp" as const },
             { name: "Mountain", owner: "opp" as const },
         ],
         phase: "PRECOMBAT_MAIN",
