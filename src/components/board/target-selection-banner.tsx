@@ -25,6 +25,32 @@ function formatTargetLabel(targetType: string | string[]): string {
     return labels.slice(0, -1).join(", ") + " or " + labels[labels.length - 1];
 }
 
+function describeTargetProgress(
+    count: PendingTarget["count"],
+    selected: number,
+    label: string
+): { hint: string; minReached: boolean; maxReached: boolean } {
+    if (typeof count === "number") {
+        const remaining = count - selected;
+        return {
+            hint:
+                remaining > 1
+                    ? `select ${remaining} targets`
+                    : `select ${label}`,
+            minReached: selected >= count,
+            maxReached: selected >= count,
+        };
+    }
+    const minReached = selected >= count.min;
+    const maxReached = count.max !== undefined && selected >= count.max;
+    const boundsLabel =
+        count.max !== undefined ? `up to ${count.max}` : "any number of";
+    const hint = minReached
+        ? `add more targets or press Done (${selected} selected)`
+        : `select ${boundsLabel} ${label} (min ${count.min})`;
+    return { hint, minReached, maxReached };
+}
+
 export default function TargetSelectionBanner({
     pendingTarget,
     me,
@@ -37,6 +63,7 @@ export default function TargetSelectionBanner({
     playerId: string;
 }) {
     const cancelTarget = useMutation(api.game.cancelTarget);
+    const confirmTargets = useMutation(api.game.confirmTargets);
 
     const cardInHand = me?.hand.find(
         (c) => c !== null && c.id === pendingTarget.cardInstanceId
@@ -44,17 +71,31 @@ export default function TargetSelectionBanner({
     const cardName = cardInHand
         ? getCardById(cardInHand.card.id).name
         : "spell";
-    const remaining = pendingTarget.count - pendingTarget.selected.length;
     const targetLabel = formatTargetLabel(pendingTarget.targetType);
+    const { hint, minReached, maxReached } = describeTargetProgress(
+        pendingTarget.count,
+        pendingTarget.selected.length,
+        targetLabel
+    );
+    const showDone = typeof pendingTarget.count !== "number" && !maxReached;
 
     return (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
             <div className="flex items-center gap-3 bg-amber-900/90 border border-amber-500/50 rounded-lg px-5 py-3 backdrop-blur-sm shadow-lg">
                 <div className="text-amber-200 text-sm font-medium">
                     <span className="text-white font-bold">{cardName}</span>
-                    {" — select "}
-                    {remaining > 1 ? `${remaining} targets` : targetLabel}
+                    {" — "}
+                    {hint}
                 </div>
+                {showDone && (
+                    <button
+                        disabled={!minReached}
+                        onClick={() => confirmTargets({ gameId, playerId })}
+                        className="ml-2 px-3 py-1 rounded text-xs font-bold bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white transition-colors"
+                    >
+                        Done
+                    </button>
+                )}
                 <button
                     onClick={() => cancelTarget({ gameId, playerId })}
                     className="ml-2 px-3 py-1 rounded text-xs font-bold bg-red-600 hover:bg-red-500 text-white transition-colors"

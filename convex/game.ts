@@ -5,6 +5,7 @@ import { mutation, query } from "./_generated/server";
 import { getCardById, getCardByName, getAllCardNames } from "./cards";
 import {
     type GameState,
+    type PendingTarget,
     type StackItem,
     getPlayer,
     getOpponentId,
@@ -277,6 +278,8 @@ export const joinGame = mutation({
         if (!game) throw new Error("Game not found");
         if (game.status !== "waiting") throw new Error("Game is not open");
         if (game.players.length >= 2) throw new Error("Game is full");
+        if (game.players.some((p) => p.id === args.player.id))
+            throw new Error("Cannot join a game you are already in");
 
         const allPlayers = [...game.players, args.player];
         const now = Date.now();
@@ -382,6 +385,90 @@ export const playCard = mutation({
     },
 });
 
+/** Minimum number of targets required for a TargetRequirement.count value.
+ *  Fixed N → N; range → min. Used to validate confirmTargets (CR 601.2c). */
+function minTargetCount(count: number | { min: number; max?: number }): number {
+    return typeof count === "number" ? count : count.min;
+}
+
+/** True when the selected targets have reached the maximum allowed for this
+ *  requirement. Fixed N → selected >= N; range → selected >= max (undefined
+ *  max means no upper limit, so this never triggers auto-advance). */
+function isTargetCountMaxReached(
+    count: number | { min: number; max?: number },
+    selected: number
+): boolean {
+    if (typeof count === "number") return selected >= count;
+    if (count.max === undefined) return false;
+    return selected >= count.max;
+}
+
+/** Finalizes target selection and either places the spell on the stack (if
+ *  the caster can already pay) or transitions into the payment phase.
+ *  Mutates `state` in place. Handles chosenX propagation and the per-target
+ *  additional generic cost modifier (CR 601.2f). */
+function finalizeTargetSelection(
+    state: GameState,
+    pt: PendingTarget,
+    playerId: string
+): void {
+    const targets = [...pt.selected];
+    const cardInstanceId = pt.cardInstanceId;
+    const keepPriority = pt.keepPriority;
+    const chosenX = pt.chosenX;
+    state.pendingTarget = undefined;
+
+    const player = getPlayer(state, playerId);
+    const cardInHand = player.hand.find((c) => c.id === cardInstanceId);
+    if (!cardInHand) throw new Error("Card not in hand");
+    const cardDef = getCardById((cardInHand.card as { id: string }).id);
+
+    const rawCost = (
+        cardInHand.card as {
+            manaCost?: Record<string, number | string | undefined>;
+        }
+    ).manaCost;
+    const extraPer = cardDef.additionalGenericPerExtraTarget ?? 0;
+    const additionalGeneric =
+        extraPer > 0 ? Math.max(0, targets.length - 1) * extraPer : 0;
+    const manaCost = rawCost
+        ? normalizeManaCost(rawCost, { chosenX, additionalGeneric })
+        : {};
+
+    if (
+        Object.keys(manaCost).length === 0 ||
+        isManaCostCovered(player.manaPool, manaCost)
+    ) {
+        if (Object.keys(manaCost).length > 0) {
+            payManaCost(player.manaPool, manaCost);
+            commitLandsForCost(player, manaCost);
+        }
+        const card = removeFromZone(player, cardInstanceId, "hand");
+        const stackItem: StackItem = {
+            ...card,
+            castById: playerId,
+            targets,
+            ...(chosenX !== undefined ? { chosenX } : {}),
+        };
+        state.stack.push(stackItem);
+        state.passCount = 0;
+        state.priorityPlayerId = getOpponentId(state, playerId);
+        state.singleShotAutoPass = keepPriority ? undefined : playerId;
+        drainAutoPasses(state);
+    } else {
+        state.pendingCast = {
+            playerId,
+            cardInstanceId,
+            manaCost,
+            tappedLandIds: [],
+            keepPriority,
+            chosenX,
+        };
+        // Targets ride along on pendingCast until payment completes.
+        (state.pendingCast as Record<string, unknown>).targets = targets;
+    }
+}
+
 /** Step 1 of casting: announce the spell, enter payment phase (CR 601.2a). */
 export const announceCast = mutation({
     args: {
@@ -392,6 +479,9 @@ export const announceCast = mutation({
          *  (Ctrl-initiated cast). Default is to auto-skip the caster's next
          *  priority window so they don't respond to their own spell. */
         keepPriority: v.optional(v.boolean()),
+        /** Value chosen for X at cast-time (CR 107.3, 601.2b). Required when
+         *  the spell has `X: "X"` in its mana cost. */
+        chosenX: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -418,8 +508,18 @@ export const announceCast = mutation({
         if (!cardInHand) throw new Error("Card not in hand");
         assertLegalAction(state, player, cardInHand, "cast");
 
-        // Check if the card requires targets (CR 601.2c)
         const cardDef = getCardById((cardInHand.card as { id: string }).id);
+
+        // Validate X is provided iff the cost contains a string X (CR 107.3).
+        const hasX =
+            typeof (cardDef.manaCost as { X?: unknown } | undefined)?.X ===
+            "string";
+        if (hasX && (args.chosenX === undefined || args.chosenX < 0)) {
+            throw new Error("Must choose X (≥ 0) for this spell");
+        }
+        const chosenX = hasX ? args.chosenX : undefined;
+
+        // Check if the card requires targets (CR 601.2c)
         if (cardDef.targetRequirement) {
             const legalTargets = getLegalTargets(
                 state,
@@ -436,6 +536,7 @@ export const announceCast = mutation({
                 count: cardDef.targetRequirement.count,
                 selected: [],
                 keepPriority: args.keepPriority,
+                chosenX,
             };
 
             const now = Date.now();
@@ -463,7 +564,7 @@ export const announceCast = mutation({
             }
         ).manaCost;
 
-        const manaCost = rawCost ? normalizeManaCost(rawCost) : {};
+        const manaCost = rawCost ? normalizeManaCost(rawCost, { chosenX }) : {};
 
         // If cost is zero or pool already covers it, commit immediately
         if (
@@ -478,6 +579,7 @@ export const announceCast = mutation({
             const stackItem: StackItem = {
                 ...card,
                 castById: args.playerId,
+                ...(chosenX !== undefined ? { chosenX } : {}),
             };
             state.stack.push(stackItem);
             state.passCount = 0;
@@ -494,6 +596,7 @@ export const announceCast = mutation({
                 manaCost,
                 tappedLandIds: [],
                 keepPriority: args.keepPriority,
+                chosenX,
             };
         }
 
@@ -595,10 +698,14 @@ export const tapForPayment = mutation({
             const pendingTargets = (
                 state.pendingCast as Record<string, unknown>
             ).targets as StackItem["targets"] | undefined;
+            const pendingChosenX = state.pendingCast.chosenX;
             const stackItem: StackItem = {
                 ...spellCard,
                 castById: args.playerId,
                 ...(pendingTargets ? { targets: pendingTargets } : {}),
+                ...(pendingChosenX !== undefined
+                    ? { chosenX: pendingChosenX }
+                    : {}),
             };
             state.stack.push(stackItem);
 
@@ -832,57 +939,12 @@ export const selectTarget = mutation({
 
         pt.selected.push(target);
 
-        if (pt.selected.length >= pt.count) {
-            // All targets selected — proceed to mana payment
-            const targets = [...pt.selected];
-            const cardInstanceId = pt.cardInstanceId;
-            const keepPriority = pt.keepPriority;
-            state.pendingTarget = undefined;
-
-            const player = getPlayer(state, args.playerId);
-            const cardInHand = player.hand.find((c) => c.id === cardInstanceId);
-            if (!cardInHand) throw new Error("Card not in hand");
-
-            const rawCost = (
-                cardInHand.card as {
-                    manaCost?: Record<string, number | string | undefined>;
-                }
-            ).manaCost;
-            const manaCost = rawCost ? normalizeManaCost(rawCost) : {};
-
-            if (
-                Object.keys(manaCost).length === 0 ||
-                isManaCostCovered(player.manaPool, manaCost)
-            ) {
-                if (Object.keys(manaCost).length > 0) {
-                    payManaCost(player.manaPool, manaCost);
-                    commitLandsForCost(player, manaCost);
-                }
-                const card = removeFromZone(player, cardInstanceId, "hand");
-                const stackItem: StackItem = {
-                    ...card,
-                    castById: args.playerId,
-                    targets,
-                };
-                state.stack.push(stackItem);
-                state.passCount = 0;
-                state.priorityPlayerId = getOpponentId(state, args.playerId);
-                state.singleShotAutoPass = keepPriority
-                    ? undefined
-                    : args.playerId;
-                drainAutoPasses(state);
-            } else {
-                state.pendingCast = {
-                    playerId: args.playerId,
-                    cardInstanceId,
-                    manaCost,
-                    tappedLandIds: [],
-                    keepPriority,
-                };
-                // Store targets temporarily — they'll be added to stack item when payment completes
-                (state.pendingCast as Record<string, unknown>).targets =
-                    targets;
-            }
+        const maxReached = isTargetCountMaxReached(
+            pt.count,
+            pt.selected.length
+        );
+        if (maxReached) {
+            finalizeTargetSelection(state, pt, args.playerId);
         }
 
         const now = Date.now();
@@ -903,6 +965,51 @@ export const selectTarget = mutation({
                 timestamp: now,
             });
         }
+    },
+});
+
+/** Finalize target selection for spells with a variable number of targets
+ *  (CR 601.2c). Legal once at least `min` targets have been chosen. Fixed-N
+ *  target requirements auto-advance in selectTarget and do not need this. */
+export const confirmTargets = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
+        assertGameNotOver(state);
+
+        if (!state.pendingTarget)
+            throw new Error("No target selection in progress");
+        if (state.pendingTarget.playerId !== args.playerId) {
+            throw new Error("Not your pending target selection");
+        }
+
+        const pt = state.pendingTarget;
+        if (pt.selected.length < minTargetCount(pt.count)) {
+            throw new Error(
+                `At least ${minTargetCount(pt.count)} target(s) required`
+            );
+        }
+        finalizeTargetSelection(state, pt, args.playerId);
+
+        const now = Date.now();
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: gameState.seq + 1,
+            type: state.pendingCast ? "CAST_ANNOUNCED" : "SPELL_CAST",
+            player: args.playerId,
+            payload: {
+                cardInstanceId: pt.cardInstanceId,
+            },
+            timestamp: now,
+        });
     },
 });
 
@@ -1589,6 +1696,45 @@ export const endTurn = mutation({
             gameId: args.gameId,
             seq: nextSeq,
             type: "AUTO_PASS_SET",
+            player: args.playerId,
+            payload: {},
+            timestamp: now,
+        });
+    },
+});
+
+/** CR 104.3a: a player can concede the game at any time. That player loses. */
+export const concede = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
+        assertGameNotOver(state);
+
+        getPlayer(state, args.playerId);
+        const winnerId = getOpponentId(state, args.playerId);
+
+        state.gameOver = {
+            winnerId,
+            loserId: args.playerId,
+            reason: "concede",
+        };
+
+        const now = Date.now();
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            type: "CONCEDE",
             player: args.playerId,
             payload: {},
             timestamp: now,

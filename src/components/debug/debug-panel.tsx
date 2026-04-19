@@ -232,6 +232,23 @@ const PRESET_SCENARIOS = [
         phase: "DECLARE_ATTACKERS",
         landCount: 4,
     },
+    {
+        label: "Fireball ({X}{R}, divided damage + extra-target cost)",
+        cards: [
+            // Cast Fireball on both opposing creatures. Engine prompts for X,
+            // adds +{1} generic for the second target (CR 601.2f), then deals
+            // floor(X / 2) to each (CR 120.1). X=4 kills both 1-toughness lions.
+            {
+                name: "Fireball",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Savannah Lions", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
 ];
 
 type DebugPanelProps = {

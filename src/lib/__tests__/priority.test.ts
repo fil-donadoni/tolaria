@@ -69,7 +69,7 @@ describe("computeHasPriority", () => {
                     pendingTarget: {
                         playerId: "p1",
                         cardInstanceId: "c",
-                        targetType: "permanent",
+                        targetType: "any",
                         count: 1,
                         selected: [],
                     },

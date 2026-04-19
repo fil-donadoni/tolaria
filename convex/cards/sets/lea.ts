@@ -1297,12 +1297,19 @@ export const fireElemental: CardDefinition = {
     toughness: 4,
 };
 
-// export const fireball: CardDefinition = {
-//     id: "b7623c00-144b-4a8f-9c6c-f5e9e4f65ece",
-//     name: "Fireball",
-//     manaCost: { X: "X", R: 1 },
-//     types: ["Sorcery"],
-// };
+// CR 601.2f: costs {1} more per extra target. CR 120.1: damage divided
+// evenly, rounded down — remainder is discarded. CR 107.3: X chosen on cast.
+export const fireball: CardDefinition = {
+    id: "b7623c00-144b-4a8f-9c6c-f5e9e4f65ece",
+    name: "Fireball",
+    manaCost: { X: "X", R: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "any", count: { min: 1 } },
+    additionalGenericPerExtraTarget: 1,
+    resolve: (ctx: SpellContext) => {
+        ctx.dealDividedDamage(ctx.targets, ctx.getX());
+    },
+};
 
 // export const firebreathing: CardDefinition = {
 //     id: "3eb27381-505d-4e47-bf66-9e7ba91a5075",

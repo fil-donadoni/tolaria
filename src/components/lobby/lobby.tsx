@@ -6,6 +6,7 @@ import { usePageVisible } from "~/hooks/usePageVisible";
 import {
     PLAYER_COLORS,
     clearDeckPresetId,
+    getOrCreateClientId,
     getStoredDeckPresetId,
     getStoredPlayerName,
     storeDeckPresetId,
@@ -25,15 +26,23 @@ function Lobby({ onEnter }: LobbyProps) {
         getStoredDeckPresetId()
     );
     const [focusedPresetId, setFocusedPresetId] = useState<string | null>(null);
+    const clientId = useMemo(() => getOrCreateClientId(), []);
 
     const pageVisible = usePageVisible();
     const decks = useQuery(api.decks.list, pageVisible ? {} : "skip");
     const seedIfEmpty = useMutation(api.decks.seedIfEmpty);
     const createGame = useMutation(api.game.createGame);
     const joinGame = useMutation(api.game.joinGame);
-    const openGames = useQuery(
+    const allOpenGames = useQuery(
         api.game.listOpenGames,
         pageVisible ? {} : "skip"
+    );
+    const openGames = useMemo(
+        () =>
+            allOpenGames?.filter(
+                (g) => !g.players.some((p) => p.id === clientId)
+            ),
+        [allOpenGames, clientId]
     );
 
     useEffect(() => {
@@ -69,7 +78,7 @@ function Lobby({ onEnter }: LobbyProps) {
     const handleCreate = async () => {
         if (!selectedDeck) return;
         const name = playerName.trim() || "Player 1";
-        const pid = crypto.randomUUID();
+        const pid = getOrCreateClientId();
         const id = await createGame({
             name: `${name}'s game`,
             player: {
@@ -87,7 +96,7 @@ function Lobby({ onEnter }: LobbyProps) {
     const handleJoin = async (targetGameId: Id<"games">) => {
         if (!selectedDeck) return;
         const name = playerName.trim() || "Player 2";
-        const pid = crypto.randomUUID();
+        const pid = getOrCreateClientId();
         await joinGame({
             gameId: targetGameId,
             player: {

@@ -72,6 +72,10 @@ export type StackItem = CardInstanceState & {
     castById: string;
     /** Targets chosen during spell announcement (CR 601.2c). */
     targets?: TargetSelection[];
+    /** Value chosen for X at cast-time for spells with X in their cost
+     *  (CR 107.3, 601.2b). Undefined for spells without X. Read on
+     *  resolution by SpellContext.getX(). */
+    chosenX?: number;
     /** If set, this stack item is an activated ability (not a spell). Source permanent stays on battlefield. */
     abilityId?: string;
     /** If set, this stack item is a triggered ability (CR 603). The source
@@ -91,6 +95,8 @@ export type PendingCast = {
     /** If true, the caster wants priority back after their spell hits the stack
      *  (Ctrl-initiated cast). If false/undefined, the caster is auto-skipped. */
     keepPriority?: boolean;
+    /** Value chosen for X at announce time. Propagated to the stack item. */
+    chosenX?: number;
 };
 
 /** Tracks target selection for a spell being announced (CR 601.2c). */
@@ -99,12 +105,16 @@ export type PendingTarget = {
     cardInstanceId: string;
     /** What kind of targets are needed (matches TargetRequirement.type). */
     targetType: TargetRequirement["type"];
-    /** How many targets still needed. */
-    count: number;
+    /** Fixed N, or a range for variable-target spells. Target selection ends
+     *  automatically when selected.length === count (fixed) or the caller
+     *  invokes confirmTargets with selected.length within [min, max]. */
+    count: number | { min: number; max?: number };
     /** Targets already selected. */
     selected: TargetSelection[];
     /** Mirrors PendingCast.keepPriority — propagated when the pending cast is created. */
     keepPriority?: boolean;
+    /** Propagated from announceCast when the spell has X in its mana cost. */
+    chosenX?: number;
 };
 
 export type GameState = {
@@ -156,7 +166,7 @@ export type GameState = {
     gameOver?: {
         winnerId: string;
         loserId: string;
-        reason: "life" | "decked";
+        reason: "life" | "decked" | "concede";
     };
 };
 
@@ -389,6 +399,23 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
             }
         },
+        getX(): number {
+            return item.chosenX ?? 0;
+        },
+        // CR 120.1: damage divided evenly, rounded down, among target
+        // creatures/players. E.g. 5 damage / 2 targets = 2 each (remainder
+        // discarded). Empty targets list is a silent no-op.
+        dealDividedDamage(
+            targets: TargetSelection[],
+            totalAmount: number
+        ): void {
+            if (targets.length === 0 || totalAmount <= 0) return;
+            const per = Math.floor(totalAmount / targets.length);
+            if (per <= 0) return;
+            for (const target of targets) {
+                this.dealDamage(target, per);
+            }
+        },
     };
 }
 
@@ -608,12 +635,28 @@ export function commitLandsForCost(
     }
 }
 
-/** Converts a ManaCost (with possible string X) to a pure numeric record. */
-export function normalizeManaCost(cost: ManaCost): Record<string, number> {
+/** Converts a ManaCost (with possible string X) to a pure numeric record.
+ *  When the raw cost has `X: "X"`, the caster's chosen X value is folded into
+ *  the generic portion of the cost (CR 107.3, 601.2b). Additional generic mana
+ *  from cost modifiers (e.g. Fireball's "+{1} per extra target", CR 601.2f) is
+ *  added on top of the generic portion.
+ */
+export function normalizeManaCost(
+    cost: ManaCost,
+    opts: { chosenX?: number; additionalGeneric?: number } = {}
+): Record<string, number> {
     const result: Record<string, number> = {};
+    let extraGeneric = opts.additionalGeneric ?? 0;
     for (const [key, val] of Object.entries(cost)) {
+        if (key === "X" && typeof val === "string") {
+            extraGeneric += opts.chosenX ?? 0;
+            continue;
+        }
         const n = typeof val === "number" ? val : 0;
         if (n > 0) result[key] = n;
+    }
+    if (extraGeneric > 0) {
+        result.X = (result.X ?? 0) + extraGeneric;
     }
     return result;
 }

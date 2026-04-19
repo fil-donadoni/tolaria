@@ -69,6 +69,33 @@ const monoRedBurn: DeckPreset = {
     ],
 };
 
+const channelFireball: DeckPreset = {
+    presetId: "channel-fireball",
+    name: "RG Channel Fireball",
+    format: "Freeform",
+    description: "Cast big X Spells.",
+    colors: ["G"],
+    cards: [
+        ...times(4, "d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb", "Llanowar Elves"),
+        ...times(
+            2,
+            "55fe6449-1f23-43dc-adee-d144cd505b5c",
+            "Birds of Paradise"
+        ),
+        ...times(3, "d573ef03-4730-45aa-93dd-e45ac1dbaf4a", "Lightning Bolt"),
+        // 1 sol ring
+        // 1 hurricane
+        // 4 fireball
+        // 3 juggernaut
+        // 1 channel
+        // 2 icy manipulator
+        // 2 jade statue
+        // 6 forest
+        // 6 mountain
+        // 4 taiga
+    ],
+};
+
 const monoGreenStompy: DeckPreset = {
     presetId: "mono-green-stompy",
     name: "Mono Green Stompy",
@@ -101,4 +128,5 @@ export const PRESET_DECKS: DeckPreset[] = [
     whiteWeenie,
     monoRedBurn,
     monoGreenStompy,
+    channelFireball,
 ];

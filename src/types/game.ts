@@ -88,25 +88,12 @@ export interface StackItem extends CardInstance {
     triggeredAbilityId?: string;
 }
 
-export interface PendingCast {
-    playerId: string;
-    cardInstanceId: string;
-    manaCost: Record<string, number>;
-    tappedLandIds: string[];
-}
-
-export interface PendingTarget {
-    playerId: string;
-    cardInstanceId: string;
-    targetType: string | string[];
-    count: number;
-    selected: { type: "permanent" | "player" | "spell"; id: string }[];
-}
+export type { PendingCast, PendingTarget } from "@convex/gre/state";
 
 export interface GameOver {
     winnerId: string;
     loserId: string;
-    reason: "life" | "decked";
+    reason: "life" | "decked" | "concede";
 }
 
 // CardAction re-exported from @convex/gre/types above

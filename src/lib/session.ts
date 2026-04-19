@@ -6,6 +6,7 @@ const GAME_KEY = "tolaria:gameId";
 const PLAYER_KEY = "tolaria:playerId";
 const NAME_KEY = "tolaria:playerName";
 const DECK_KEY = "tolaria:selectedDeckId";
+const CLIENT_KEY = "tolaria:clientId";
 
 export function getStoredSession() {
     const gameId = localStorage.getItem(GAME_KEY) as Id<"games"> | null;
@@ -41,4 +42,13 @@ export function storeDeckPresetId(presetId: string) {
 
 export function clearDeckPresetId() {
     localStorage.removeItem(DECK_KEY);
+}
+
+/** Stable per-browser id, independent of the current game session. */
+export function getOrCreateClientId(): string {
+    const existing = localStorage.getItem(CLIENT_KEY);
+    if (existing) return existing;
+    const id = crypto.randomUUID();
+    localStorage.setItem(CLIENT_KEY, id);
+    return id;
 }

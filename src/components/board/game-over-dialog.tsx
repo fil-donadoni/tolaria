@@ -21,10 +21,13 @@ export default function GameOverDialog({
     const winner = allPlayers.find((p) => p.id === gameOver.winnerId);
     const loser = allPlayers.find((p) => p.id === gameOver.loserId);
 
+    const loserName = loser?.name ?? "?";
     const reasonText =
         gameOver.reason === "life"
-            ? `${loser?.name ?? "?"} ran out of life`
-            : `${loser?.name ?? "?"} tried to draw from an empty library`;
+            ? `${loserName} ran out of life`
+            : gameOver.reason === "decked"
+              ? `${loserName} tried to draw from an empty library`
+              : `${loserName} conceded`;
 
     const handleLeave = () => {
         localStorage.removeItem("tolaria:gameId");

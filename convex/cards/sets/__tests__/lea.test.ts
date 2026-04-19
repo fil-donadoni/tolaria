@@ -17,6 +17,7 @@ import {
     counterspell,
     ancestralRecall,
     darkRitual,
+    fireball,
     lightningBolt,
     llanowarElves,
     plateau,
@@ -260,6 +261,120 @@ describe("Lightning Bolt (3 damage to any target, CR 608.3)", () => {
         expect(ids).toContain("p1");
         expect(ids).toContain("p2");
         expect(ids).not.toContain("forest");
+    });
+});
+
+describe("Fireball ({X}{R} — X damage divided, +{1}/target, CR 107.3 / 120.1 / 601.2f)", () => {
+    function setupState(targets: string[] = []) {
+        const creatures = targets.map((id) =>
+            makeInstance(savannahLions.id, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+                power: 2,
+                toughness: 1,
+            })
+        );
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: creatures }),
+            ],
+        });
+    }
+
+    it("deals X damage to a single target when only one is chosen", () => {
+        const state = setupState();
+        const item = pushSpell(state, fireball.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.chosenX = 5;
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(15);
+    });
+
+    it("divides X damage evenly rounded down across multiple targets", () => {
+        // X=5 across 2 targets => 2 each, remainder 1 discarded (CR 120.1).
+        const state = setupState(["lion-a", "lion-b"]);
+        state.players[1].battlefield[0].toughness = 3;
+        state.players[1].battlefield[1].toughness = 3;
+        const item = pushSpell(state, fireball.id, "p1", [
+            { type: "permanent", id: "lion-a" },
+            { type: "permanent", id: "lion-b" },
+        ]);
+        item.chosenX = 5;
+        resolveTopOfStack(state);
+        // 2 damage per target < 3 toughness → neither dies, both stay alive.
+        expect(state.players[1].battlefield).toHaveLength(2);
+    });
+
+    it("kills all targets when per-target damage reaches lethal", () => {
+        // X=6 across 2 targets => 3 each, lethal against toughness 1.
+        const state = setupState(["lion-a", "lion-b"]);
+        const item = pushSpell(state, fireball.id, "p1", [
+            { type: "permanent", id: "lion-a" },
+            { type: "permanent", id: "lion-b" },
+        ]);
+        item.chosenX = 6;
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard).toHaveLength(2);
+    });
+
+    it("is a no-op when X is 0 (total 0 damage)", () => {
+        const state = setupState();
+        const item = pushSpell(state, fireball.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.chosenX = 0;
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("declares additionalGenericPerExtraTarget for the cost modifier", () => {
+        // CR 601.2f: the engine uses this value in finalizeTargetSelection to
+        // grow the generic mana cost with each target beyond the first.
+        expect(fireball.additionalGenericPerExtraTarget).toBe(1);
+    });
+
+    it("declares a variable target count with min 1", () => {
+        expect(fireball.targetRequirement).toEqual({
+            type: "any",
+            count: { min: 1 },
+        });
+    });
+
+    it("goes to the caster's graveyard after resolving (CR 608.2k)", () => {
+        const state = setupState();
+        const item = pushSpell(state, fireball.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        expect(state.players[0].graveyard).toHaveLength(1);
+        expect((state.players[0].graveyard[0].card as { id: string }).id).toBe(
+            fireball.id
+        );
+    });
+
+    it("wire format: divided damage still lethal after projectPublicState", () => {
+        // Regression: the projection slims stack items' card to { id } only,
+        // but chosenX/targets must survive the projection AND re-driving the
+        // GRE from a freshly cloned state must still kill both lions.
+        const state = setupState(["lion-a", "lion-b"]);
+        const item = pushSpell(state, fireball.id, "p1", [
+            { type: "permanent", id: "lion-a" },
+            { type: "permanent", id: "lion-b" },
+        ]);
+        item.chosenX = 4;
+        const projected = projectPublicState(state, 1, "p1");
+        const projectedItem = projected.stack[0];
+        expect(projectedItem.chosenX).toBe(4);
+        expect(projectedItem.targets).toHaveLength(2);
+        // Resolve against the live state (the source of truth) and assert
+        // that the per-target damage (4/2 = 2) clears both 1-toughness lions.
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
     });
 });
 

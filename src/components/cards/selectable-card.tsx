@@ -7,6 +7,7 @@ import {
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
+import { getCardById } from "@convex/cards";
 
 import type { CardAction, CardInstance } from "~/types/game";
 
@@ -36,11 +37,26 @@ export default function SelectableCard({
     };
 
     const onCastClick = (e: React.MouseEvent) => {
+        const keepPriority = e.ctrlKey || e.metaKey || undefined;
+        // CR 107.3 / 601.2b: if the spell has X in its mana cost, the caster
+        // chooses X before announcement. Stay tiny: a native prompt is enough
+        // for the study-engine MVP.
+        const def = getCardById(cardInstance.card.id);
+        const hasX = typeof def.manaCost?.X === "string";
+        let chosenX: number | undefined;
+        if (hasX) {
+            const raw = window.prompt(`Choose X for ${def.name}`, "0");
+            if (raw === null) return;
+            const parsed = Number.parseInt(raw, 10);
+            if (!Number.isFinite(parsed) || parsed < 0) return;
+            chosenX = parsed;
+        }
         announceCast({
             gameId,
             playerId,
             cardInstanceId: cardInstance.id,
-            keepPriority: e.ctrlKey || e.metaKey || undefined,
+            keepPriority,
+            chosenX,
         });
     };
 

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -16,7 +16,14 @@ import PhaseTracker from "./phase-tracker";
 import ActionBar from "./action-bar";
 import AutoPassController from "./auto-pass-controller";
 import GameOverDialog from "./game-over-dialog";
+import PauseMenuDialog from "./pause-menu-dialog";
 import TargetSelectionBanner from "./target-selection-banner";
+
+const POPUP_SELECTORS = [
+    '[data-slot="dialog-content"]',
+    '[data-slot="popover-content"]',
+    '[data-slot="context-menu-content"]',
+].join(",");
 
 type BoardProps = {
     gameId: Id<"games">;
@@ -33,6 +40,7 @@ export default function Board({
 }: BoardProps) {
     const pageVisible = usePageVisible();
     const skipPhasePrefs = useSkipPhasePrefsState();
+    const [pauseMenuOpen, setPauseMenuOpen] = useState(false);
     const publicState = useQuery(
         api.game.getPublicState,
         pageVisible && !showAllCards
@@ -62,6 +70,18 @@ export default function Board({
         if (stack) for (const c of stack) ids.push(c.card.id);
         preloadCardImages(ids);
     }, [players, stack]);
+
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (e.key !== "Escape") return;
+            if (state?.gameOver) return;
+            if (document.querySelector(POPUP_SELECTORS)) return;
+            e.preventDefault();
+            setPauseMenuOpen(true);
+        };
+        window.addEventListener("keydown", handler);
+        return () => window.removeEventListener("keydown", handler);
+    }, [state?.gameOver]);
 
     if (!state) {
         return (
@@ -135,6 +155,12 @@ export default function Board({
                             allPlayers={allPlayers}
                         />
                     )}
+                    <PauseMenuDialog
+                        open={pauseMenuOpen}
+                        onOpenChange={setPauseMenuOpen}
+                        gameId={gameId}
+                        playerId={playerId}
+                    />
                 </div>
             </SkipPhasePrefsContext>
         </GameContext>

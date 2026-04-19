@@ -42,7 +42,10 @@ export interface TargetRequirement {
         | "any"
         | "spell"
         | (CardType | "player" | "any" | "spell")[];
-    count: number;
+    /** Fixed N, or a range for spells that take a variable number of targets
+     *  (CR 601.2c). `max` is open-ended when undefined — capped by legal
+     *  target availability. Example: Fireball → { min: 1 }. */
+    count: number | { min: number; max?: number };
 }
 
 export interface TargetSelection {
@@ -110,6 +113,17 @@ export interface SpellContext {
     /** Adds mana to the caster's mana pool (CR 106.1, 605.4). Mirrors the
      *  mana-ability primitive; used by "add ~" spells like Dark Ritual. */
     addMana: (cost: ManaCost) => void;
+    /** Value chosen for X at cast-time (CR 107.3, 601.2b). 0 if the spell
+     *  has no X in its cost. Read by spells like Fireball on resolution. */
+    getX: () => number;
+    /** Deals `totalAmount` damage divided evenly, rounded down, among the
+     *  given targets (CR 120.1, 603.3). Remainder (if any) is discarded.
+     *  Used by Fireball and other "divided among any number of targets"
+     *  spells. No-op if targets is empty. */
+    dealDividedDamage: (
+        targets: TargetSelection[],
+        totalAmount: number
+    ) => void;
 }
 
 // --- Continuous static effects (CR 611, 613) ---
@@ -216,4 +230,8 @@ export interface CardDefinition {
     activatedAbilities?: ActivatedAbility[];
     triggeredAbilities?: TriggeredAbility[];
     sbaMods?: string[];
+    /** Adds this many generic mana to the total cost for each target beyond
+     *  the first (CR 601.2f). Used by Fireball ("costs {1} more to cast for
+     *  each target beyond the first"). */
+    additionalGenericPerExtraTarget?: number;
 }
