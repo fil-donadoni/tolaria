@@ -7,17 +7,36 @@ export function getFanStyle(
     const centerIndex = (totalCards - 1) / 2;
     const distanceFromCenter = cardIndex - centerIndex;
 
-    const rotation = distanceFromCenter * 4;
-    const marginTop = Math.abs(distanceFromCenter) * (isOpponent ? 4 : 8);
-    // Overlap ~37.5% of card width (matches old -3rem for 8rem card).
+    // Cap total angular spread so large piles don't over-rotate.
+    const maxTotalSpreadDeg = isOpponent ? 36 : 50;
+    const basePerCardDeg = isOpponent ? 3 : 5;
+    const degPerCard =
+        totalCards > 1
+            ? Math.min(basePerCardDeg, maxTotalSpreadDeg / (totalCards - 1))
+            : basePerCardDeg;
+    const rotation = distanceFromCenter * degPerCard;
+
+    // Cards lie on a circular arc whose virtual pivot is below them.
+    // Bigger pivotDistancePx = gentler arc. In items-end layout,
+    // marginBottom pushes content UP, so we give the center the
+    // largest marginBottom and edges 0, producing a natural dome
+    // (center highest, edges lowest) like a hand-held fan.
+    const pivotDistancePx = isOpponent ? 360 : 480;
+    const rad = (rotation * Math.PI) / 180;
+    const arcDropPx = pivotDistancePx * (1 - Math.cos(rad));
+    const maxAngleRad = (centerIndex * degPerCard * Math.PI) / 180;
+    const maxArcDropPx = pivotDistancePx * (1 - Math.cos(maxAngleRad));
+    const marginBottomPx = maxArcDropPx - arcDropPx;
+
+    // Overlap ~50% of card width — cards sit closer together.
     const overlapVar = isOpponent
-        ? "calc(var(--card-w-sm) * -0.375)"
-        : "calc(var(--card-w) * -0.375)";
+        ? "calc(var(--card-w-sm) * -0.5)"
+        : "calc(var(--card-w) * -0.5)";
 
     return {
         transform: `rotate(${rotation}deg)`,
         marginLeft: cardIndex === 0 ? "0" : overlapVar,
-        marginTop: `${marginTop}px`,
+        marginBottom: `${marginBottomPx}px`,
         transformOrigin: "bottom center",
     };
 }
@@ -31,9 +50,9 @@ export const fanCardOpponentClassName =
     "w-[var(--card-w-sm)] aspect-5/7 shrink-0 mb-2 transition-all hover:-translate-y-4 hover:z-10";
 
 const CARD_WIDTH_PX = 128; // w-32 fallback for dialog sizing
-const OVERLAP_PX = 48; // 3rem
+const OVERLAP_PX = 64; // 50% of CARD_WIDTH_PX
 
-const ROTATION_MARGIN_PX = 32; // extra space for rotated edge cards
+const ROTATION_MARGIN_PX = 96; // extra space for rotated edge cards
 
 /** Estimates the pixel width of a fan of cards (used for dialog sizing). */
 export function getFanWidth(totalCards: number): number {

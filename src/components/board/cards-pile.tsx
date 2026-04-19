@@ -87,24 +87,36 @@ export default function CardsPile({
                             {title || "Cards"} ({cards.length})
                         </DialogTitle>
                     </DialogHeader>
-                    <div className="flex justify-center overflow-hidden py-4">
-                        {cards.map((cardInstance, cardIndex) => {
-                            const style = getFanStyle(cardIndex, cards.length);
+                    <div className="overflow-x-auto overflow-y-visible py-4">
+                        <div
+                            className="flex items-end mx-auto"
+                            style={{
+                                width: `${getFanWidth(cards.length)}px`,
+                            }}
+                        >
+                            {cards.map((cardInstance, cardIndex) => {
+                                const style = getFanStyle(
+                                    cardIndex,
+                                    cards.length
+                                );
 
-                            return (
-                                <div
-                                    key={cardInstance.id}
-                                    className={fanCardClassName}
-                                    style={style}
-                                >
-                                    {isFaceDown ? (
-                                        <CardBack />
-                                    ) : (
-                                        <CardImage card={cardInstance.card} />
-                                    )}
-                                </div>
-                            );
-                        })}
+                                return (
+                                    <div
+                                        key={cardInstance.id}
+                                        className={fanCardClassName}
+                                        style={style}
+                                    >
+                                        {isFaceDown ? (
+                                            <CardBack />
+                                        ) : (
+                                            <CardImage
+                                                card={cardInstance.card}
+                                            />
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>

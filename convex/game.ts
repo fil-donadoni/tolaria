@@ -1990,6 +1990,8 @@ export const debugSetupScenario = mutation({
         phase: v.optional(v.string()),
         /** Give each player this many Plains. Default 0. */
         landCount: v.optional(v.number()),
+        /** Fill each player's library with this many Plains. Default: unchanged. */
+        libraryCount: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -2010,7 +2012,7 @@ export const debugSetupScenario = mutation({
         function makeInstance(
             cardName: string,
             controllerId: string,
-            zone: "hand" | "battlefield",
+            zone: "hand" | "battlefield" | "library",
             opts?: { tapped?: boolean }
         ) {
             const def = getCardByName(cardName);
@@ -2055,6 +2057,16 @@ export const debugSetupScenario = mutation({
         for (let i = 0; i < landCount; i++) {
             p1.battlefield.push(makeInstance("Plains", p1.id, "battlefield"));
             p2.battlefield.push(makeInstance("Plains", p2.id, "battlefield"));
+        }
+
+        // Fill libraries if requested
+        if (args.libraryCount !== undefined) {
+            p1.library = [];
+            p2.library = [];
+            for (let i = 0; i < args.libraryCount; i++) {
+                p1.library.push(makeInstance("Plains", p1.id, "library"));
+                p2.library.push(makeInstance("Plains", p2.id, "library"));
+            }
         }
 
         // Set phase if requested
