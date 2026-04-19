@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -143,6 +143,24 @@ const PRESET_SCENARIOS = [
         phase: "PRECOMBAT_MAIN",
     },
     {
+        label: "Sol Ring ({T}: Add {C}{C})",
+        cards: [
+            // Tap Sol Ring to add {C}{C} — pair with a single Mountain to cast
+            // Obsianus Golem ({6}) with just 1 land + 1 artifact in play
+            // (demonstrates multi-amount fixed mana abilities).
+            { name: "Sol Ring", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const },
+            {
+                name: "Obsianus Golem",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+    },
+    {
         label: "Birds of Paradise & Llanowar Elves",
         cards: [
             // Tap Birds to add any color — pair with a Plains to cast
@@ -249,6 +267,46 @@ const PRESET_SCENARIOS = [
         phase: "PRECOMBAT_MAIN",
         landCount: 6,
     },
+    {
+        label: "Time Walk ({1}{U}, extra turn)",
+        cards: [
+            // Cast Time Walk from hand, pass priority through the end step:
+            // at CLEANUP the active player stays p1 (CR 500.7). Next end-of-turn
+            // returns control to p2 as normal.
+            {
+                name: "Time Walk",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const },
+            { name: "Island", owner: "me" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+    },
+    {
+        label: "Channel (life → {C} until end of turn)",
+        cards: [
+            // Cast Channel on 2 Forests: resolves to grant a "Pay 1 life: Add
+            // {C}." mana ability on the caster. Fireball in hand lets you
+            // convert the life payments into damage, then CLEANUP clears the
+            // grant at turn end.
+            {
+                name: "Channel",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Fireball",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Forest", owner: "me" as const },
+            { name: "Forest", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+    },
 ];
 
 type DebugPanelProps = {
@@ -268,7 +326,23 @@ export default function DebugPanel({
 }: DebugPanelProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [showScenarios, setShowScenarios] = useState(false);
+    const panelRef = useRef<HTMLDivElement>(null);
     const pageVisible = usePageVisible();
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const handlePointerDown = (event: PointerEvent) => {
+            if (
+                panelRef.current &&
+                !panelRef.current.contains(event.target as Node)
+            ) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener("pointerdown", handlePointerDown);
+        return () =>
+            document.removeEventListener("pointerdown", handlePointerDown);
+    }, [isOpen]);
     const state = useQuery(
         api.game.getFullState,
         isOpen && pageVisible ? { gameId } : "skip"
@@ -278,7 +352,10 @@ export default function DebugPanel({
     const setupScenario = useMutation(api.game.debugSetupScenario);
 
     return (
-        <div className="fixed top-1/2 right-4 -translate-y-1/2 z-50 font-mono text-xs">
+        <div
+            ref={panelRef}
+            className="fixed top-1/2 right-4 -translate-y-1/2 z-50 font-mono text-xs"
+        >
             <div className="rounded-lg border border-white/10 bg-black/90 shadow-2xl backdrop-blur">
                 <button
                     onClick={() => setIsOpen(!isOpen)}

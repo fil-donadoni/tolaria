@@ -52,6 +52,22 @@ export type CardInstanceState = {
     isBlocking?: boolean;
 };
 
+/** A reference to an activated ability template granted to a player by
+ *  another card's effect (CR 113.1). Stores only ids — the actual ability
+ *  is resolved at activation time via `getCardById(sourceCardId)`. */
+export type GrantedAbilityInstance = {
+    /** Unique instance id ("grant-N") generated from GameState.nextGrantSeq. */
+    id: string;
+    /** Card definition id whose `activatedAbilities[]` contains the template. */
+    sourceCardId: string;
+    /** The ability's id on that card definition. */
+    abilityId: string;
+    /** "end-of-turn" is removed at CLEANUP (CR 514.2). */
+    duration: "end-of-turn";
+    /** Turn on which the grant was created; used for bookkeeping/debug. */
+    grantedAtTurn: number;
+};
+
 export type PlayerState = {
     id: string;
     name: string;
@@ -66,6 +82,10 @@ export type PlayerState = {
     manaPool: Record<string, number>;
     /** Set when a player attempts to draw from an empty library (CR 704.5b). */
     hasDrawnFromEmpty?: boolean;
+    /** Activated abilities granted by effects (e.g. Channel's "Pay 1 life:
+     *  Add {C}." until end of turn). Each entry is a reference to a template
+     *  on another card; duration controls when CLEANUP purges it. */
+    grantedAbilities?: GrantedAbilityInstance[];
 };
 
 export type StackItem = CardInstanceState & {
@@ -162,12 +182,20 @@ export type GameState = {
     };
     /** Player who can undo the last mana ability activation. Cleared on any non-mana action. */
     undoableBy?: string;
+    /** Monotonic counter advanced by each grantAbility() call. Used to
+     *  generate deterministic `grant-N` ids for GrantedAbilityInstance so
+     *  replays reproduce the same ids. */
+    nextGrantSeq?: number;
     /** Set when a player loses the game. Contains winner/loser info. */
     gameOver?: {
         winnerId: string;
         loserId: string;
         reason: "life" | "decked" | "concede";
     };
+    /** Queue of player IDs scheduled to take an extra turn (CR 500.7).
+     *  LIFO: pushed at the end, popped from the end — the last extra turn
+     *  created is the next one taken. Consumed by advanceTurn(). */
+    extraTurns?: string[];
 };
 
 /** Resolves the top item of the stack (CR 608.3). Returns the resolved item. */
@@ -415,6 +443,37 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             for (const target of targets) {
                 this.dealDamage(target, per);
             }
+        },
+        // Grants an activated ability to a player for a limited duration
+        // (CR 113.1). The ability is stored as a reference — the template is
+        // looked up at activation time via getCardById. Used by Channel.
+        grantAbility(
+            playerId: string,
+            sourceCardId: string,
+            abilityId: string,
+            duration: "end-of-turn"
+        ): void {
+            state.nextGrantSeq = (state.nextGrantSeq ?? 0) + 1;
+            const instance: GrantedAbilityInstance = {
+                id: `grant-${state.nextGrantSeq}`,
+                sourceCardId,
+                abilityId,
+                duration,
+                grantedAtTurn: state.turn,
+            };
+            const player = getPlayer(state, playerId);
+            player.grantedAbilities = [
+                ...(player.grantedAbilities ?? []),
+                instance,
+            ];
+        },
+        // CR 500.7: extra turns are taken after the current turn. Multiple
+        // extra turns created on the same turn stack LIFO — the last created
+        // is the next taken. advanceTurn() pops from the end of the queue.
+        takeExtraTurn(playerId: string): void {
+            // Validate the target player exists (throws if not).
+            getPlayer(state, playerId);
+            state.extraTurns = [...(state.extraTurns ?? []), playerId];
         },
     };
 }

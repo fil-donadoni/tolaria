@@ -1,8 +1,10 @@
 import type { Color } from "./cards";
 import type { Zone, CardAction } from "@convex/gre/types";
+import type { PublicGrantedAbility } from "@convex/gameProjections";
 
 // Re-export from convex (single source of truth)
 export type { Zone, CardAction };
+export type GrantedAbility = PublicGrantedAbility;
 
 export interface Player {
     id: string;
@@ -19,6 +21,8 @@ export interface Player {
     exile: CardInstance[];
     battlefield: CardInstance[];
     manaPool: ManaPool;
+    /** Abilities granted to this player by an effect (e.g. Channel). */
+    grantedAbilities?: GrantedAbility[];
 }
 
 /** Mana pool carried by the player. All six color slots may be missing from the server payload. */

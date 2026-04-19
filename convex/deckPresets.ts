@@ -74,7 +74,7 @@ const channelFireball: DeckPreset = {
     name: "RG Channel Fireball",
     format: "Freeform",
     description: "Cast big X Spells.",
-    colors: ["G"],
+    colors: ["R", "G"],
     cards: [
         ...times(4, "d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb", "Llanowar Elves"),
         ...times(
@@ -82,17 +82,15 @@ const channelFireball: DeckPreset = {
             "55fe6449-1f23-43dc-adee-d144cd505b5c",
             "Birds of Paradise"
         ),
-        ...times(3, "d573ef03-4730-45aa-93dd-e45ac1dbaf4a", "Lightning Bolt"),
-        // 1 sol ring
-        // 1 hurricane
-        // 4 fireball
-        // 3 juggernaut
-        // 1 channel
-        // 2 icy manipulator
-        // 2 jade statue
-        // 6 forest
-        // 6 mountain
-        // 4 taiga
+        ...times(4, "d573ef03-4730-45aa-93dd-e45ac1dbaf4a", "Lightning Bolt"),
+        ...times(4, "b7623c00-144b-4a8f-9c6c-f5e9e4f65ece", "Fireball"),
+        ...times(1, "c1862c47-71cc-45a3-8805-a5ddc62e55ea", "Channel"),
+        ...times(1, "c4300d24-1cae-4dd5-be7e-38cc677cf5bd", "Sol Ring"),
+        ...times(4, "bfed1a95-bd67-4e16-a781-81866028af2f", "Craw Wurm"),
+        ...times(4, "c8d6081e-f686-4263-a0a2-21c0d9af5fdb", "War Mammoth"),
+        ...times(6, "6f1c8cb0-38eb-408b-94e8-16db83999b3b", "Forest"),
+        ...times(6, "eace2c85-976c-425e-9800-5a6ccbd91b56", "Mountain"),
+        ...times(4, "60df6592-0b3b-4b87-aeb2-8fa94b4fb7be", "Taiga"),
     ],
 };
 

@@ -64,6 +64,9 @@ export interface ActivatedAbility {
         tap?: boolean;
         mana?: ManaCost;
         sacrifice?: boolean;
+        /** Life payment (CR 118.4). Legal while `player.life >= life`; SBA
+         *  handles the loss if payment takes life to 0 or below. */
+        life?: number;
     };
     /** Oracle text for this ability (displayed in context menus and on the stack). */
     oracleText: string;
@@ -124,6 +127,23 @@ export interface SpellContext {
         targets: TargetSelection[],
         totalAmount: number
     ) => void;
+    /** Grants a player a reference to an activated ability template defined
+     *  on another card (CR 113). The template is looked up at activation
+     *  time via the card registry — the grant stores only ids, not the
+     *  ability itself. `duration: "end-of-turn"` is purged at CLEANUP
+     *  (CR 514.2). Used by Channel and similar "until end of turn, you may
+     *  ~" effects. */
+    grantAbility: (
+        playerId: string,
+        sourceCardId: string,
+        abilityId: string,
+        duration: "end-of-turn"
+    ) => void;
+    /** Schedules an extra turn for `playerId` to be taken after the current
+     *  one (CR 500.7). Multiple extra turns stack LIFO — the last one
+     *  scheduled is the next one taken. Consumed by advanceTurn(). Used by
+     *  Time Walk and similar effects. */
+    takeExtraTurn: (playerId: string) => void;
 }
 
 // --- Continuous static effects (CR 611, 613) ---

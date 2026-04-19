@@ -33,6 +33,7 @@ import {
     DAMAGEABLE_PERMANENT_TYPES,
     getActivatedManaAbility,
     getActivatedManaColor,
+    getFixedManaAmount,
     hasManaAbility,
 } from "./gre/constants";
 import {
@@ -171,6 +172,52 @@ async function finalizeGameOver(
 /** Guard: reject actions on a finished game. */
 function assertGameNotOver(state: GameState) {
     if (state.gameOver) throw new Error("Game is over");
+}
+
+/** If the caster's mana pool now covers pendingCast, pay the cost, move the
+ *  spell to the stack, clear pendingCast, and swap priority — mirroring the
+ *  tail of tapForPayment. Returns the card name on commit (for SPELL_CAST
+ *  event logging), or null if nothing was committed. */
+function tryAutoCommitPendingCast(
+    state: GameState,
+    playerId: string
+): { cardInstanceId: string; cardName: string | undefined } | null {
+    if (!state.pendingCast || state.pendingCast.playerId !== playerId) {
+        return null;
+    }
+    const player = getPlayer(state, playerId);
+    if (!isManaCostCovered(player.manaPool, state.pendingCast.manaCost)) {
+        return null;
+    }
+
+    payManaCost(player.manaPool, state.pendingCast.manaCost);
+    commitLandsForCost(player, state.pendingCast.manaCost);
+
+    const spellCard = removeFromZone(
+        player,
+        state.pendingCast.cardInstanceId,
+        "hand"
+    );
+    const pendingTargets = (state.pendingCast as Record<string, unknown>)
+        .targets as StackItem["targets"] | undefined;
+    const pendingChosenX = state.pendingCast.chosenX;
+    const stackItem: StackItem = {
+        ...spellCard,
+        castById: playerId,
+        ...(pendingTargets ? { targets: pendingTargets } : {}),
+        ...(pendingChosenX !== undefined ? { chosenX: pendingChosenX } : {}),
+    };
+    state.stack.push(stackItem);
+
+    const cardName = (spellCard.card as { name?: string }).name;
+    const keepPriority = state.pendingCast.keepPriority;
+    state.pendingCast = undefined;
+    state.passCount = 0;
+    state.priorityPlayerId = getOpponentId(state, playerId);
+    state.singleShotAutoPass = keepPriority ? undefined : playerId;
+    drainAutoPasses(state);
+
+    return { cardInstanceId: spellCard.id, cardName };
 }
 
 // --- Queries ---
@@ -679,61 +726,28 @@ export const tapForPayment = mutation({
             if (!manaColor) throw new Error("Card does not produce mana");
 
             card.isTapped = true;
-            player.manaPool[manaColor] = (player.manaPool[manaColor] ?? 0) + 1;
+            const amount = getFixedManaAmount(card, manaColor);
+            player.manaPool[manaColor] =
+                (player.manaPool[manaColor] ?? 0) + amount;
             state.pendingCast.tappedLandIds.push(card.id);
         }
 
         // Check if cost is now covered → auto-commit
-        if (isManaCostCovered(player.manaPool, state.pendingCast.manaCost)) {
-            // Pay the cost from pool and commit the lands
-            payManaCost(player.manaPool, state.pendingCast.manaCost);
-            commitLandsForCost(player, state.pendingCast.manaCost);
+        const committed = tryAutoCommitPendingCast(state, args.playerId);
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
 
-            // Move spell from hand to stack
-            const spellCard = removeFromZone(
-                player,
-                state.pendingCast.cardInstanceId,
-                "hand"
-            );
-            const pendingTargets = (
-                state.pendingCast as Record<string, unknown>
-            ).targets as StackItem["targets"] | undefined;
-            const pendingChosenX = state.pendingCast.chosenX;
-            const stackItem: StackItem = {
-                ...spellCard,
-                castById: args.playerId,
-                ...(pendingTargets ? { targets: pendingTargets } : {}),
-                ...(pendingChosenX !== undefined
-                    ? { chosenX: pendingChosenX }
-                    : {}),
-            };
-            state.stack.push(stackItem);
-
-            const cardName = (spellCard.card as { name?: string }).name;
-            const keepPriority = state.pendingCast.keepPriority;
-            state.pendingCast = undefined;
-            state.passCount = 0;
-            state.priorityPlayerId = getOpponentId(state, args.playerId);
-            state.singleShotAutoPass = keepPriority ? undefined : args.playerId;
-            drainAutoPasses(state);
-
-            const now = Date.now();
-            await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
-
+        if (committed) {
             await ctx.db.insert("events", {
                 gameId: args.gameId,
                 seq: gameState.seq + 1,
                 type: "SPELL_CAST",
                 player: args.playerId,
                 payload: {
-                    cardInstanceId: spellCard.id,
-                    cardName,
+                    cardInstanceId: committed.cardInstanceId,
+                    cardName: committed.cardName,
                 },
-                timestamp: now,
+                timestamp: Date.now(),
             });
-        } else {
-            // Just save the tap
-            await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
         }
     },
 });
@@ -788,9 +802,10 @@ export const untapForPayment = mutation({
             const manaColor =
                 getBasicLandMana(card) ?? getActivatedManaColor(card);
             if (!manaColor) throw new Error("Card does not produce mana");
+            const amount = getFixedManaAmount(card, manaColor);
             player.manaPool[manaColor] = Math.max(
                 0,
-                (player.manaPool[manaColor] ?? 0) - 1
+                (player.manaPool[manaColor] ?? 0) - amount
             );
         }
 
@@ -847,9 +862,10 @@ export const cancelCast = mutation({
                 const manaColor =
                     getBasicLandMana(card) ?? getActivatedManaColor(card);
                 if (manaColor) {
+                    const amount = getFixedManaAmount(card, manaColor);
                     player.manaPool[manaColor] = Math.max(
                         0,
-                        (player.manaPool[manaColor] ?? 0) - 1
+                        (player.manaPool[manaColor] ?? 0) - amount
                     );
                 }
             }
@@ -2074,17 +2090,18 @@ export const tapUntap = mutation({
                 card.isTapped = false;
             }
         } else {
-            // Fixed mana ability (lands, Mox)
+            // Fixed mana ability (lands, Mox, Sol Ring)
             card.isTapped = !card.isTapped;
             const manaColor =
                 getBasicLandMana(card) ?? getActivatedManaColor(card);
             if (manaColor) {
+                const amount = getFixedManaAmount(card, manaColor);
                 if (!wasTapped) {
                     player.manaPool[manaColor] =
-                        (player.manaPool[manaColor] ?? 0) + 1;
+                        (player.manaPool[manaColor] ?? 0) + amount;
                 } else {
                     player.manaPool[manaColor] =
-                        (player.manaPool[manaColor] ?? 0) - 1;
+                        (player.manaPool[manaColor] ?? 0) - amount;
                 }
             }
         }
@@ -2094,6 +2111,174 @@ export const tapUntap = mutation({
 
         // Save updated state
         await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+    },
+});
+
+/** Activate an ability that was granted to a player by an effect (e.g.
+ *  Channel's "Pay 1 life: Add {C}." — CR 113.1). Mirrors activateAbility
+ *  but scoped to player-granted templates rather than battlefield cards.
+ *  Mana abilities (useStack:false) resolve immediately; stack abilities
+ *  push to the stack. */
+export const activatePlayerAbility = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        grantedAbilityInstanceId: v.string(),
+        keepPriority: v.optional(v.boolean()),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+
+        const player = getPlayer(state, args.playerId);
+        const instance = player.grantedAbilities?.find(
+            (g) => g.id === args.grantedAbilityInstanceId
+        );
+        if (!instance) throw new Error("Granted ability not found");
+
+        const sourceCard = getCardById(instance.sourceCardId);
+        const ability = sourceCard.activatedAbilities?.find(
+            (a) => a.id === instance.abilityId
+        );
+        if (!ability) throw new Error("Ability template not found");
+
+        // CR 605.3a — mana abilities can be activated (a) when the player has
+        // priority, or (b) while paying a mana cost of a spell/ability. Mirror
+        // tapUntap / tapForPayment timing: allow either gate.
+        const hasPriority = state.priorityPlayerId === args.playerId;
+        const isInPayment = state.pendingCast?.playerId === args.playerId;
+        if (!ability.useStack) {
+            if (!hasPriority && !isInPayment) {
+                throw new Error(
+                    "Cannot activate mana ability without priority"
+                );
+            }
+        } else {
+            if (!hasPriority) throw new Error("You don't have priority");
+            if (state.pendingCast) {
+                throw new Error("Another spell is already being cast");
+            }
+        }
+
+        // Player-scoped grants have no source permanent — tap/sacrifice costs
+        // are not meaningful here. Reject templates that require them.
+        if (ability.cost.tap) {
+            throw new Error(
+                "Granted ability cannot require tap (no source permanent)"
+            );
+        }
+        if (ability.cost.sacrifice) {
+            throw new Error(
+                "Granted ability cannot require sacrifice (no source permanent)"
+            );
+        }
+
+        if (ability.cost.mana) {
+            const manaCost = normalizeManaCost(ability.cost.mana);
+            if (!isManaCostCovered(player.manaPool, manaCost)) {
+                throw new Error("Not enough mana");
+            }
+            payManaCost(player.manaPool, manaCost);
+            commitLandsForCost(player, manaCost);
+        }
+
+        // CR 118.4 — a player can't pay more life than they have.
+        if (ability.cost.life !== undefined) {
+            if (player.life < ability.cost.life) {
+                throw new Error("Not enough life");
+            }
+        }
+
+        if (!ability.useStack) {
+            // Mana abilities resolve immediately (CR 605.3c) — no SBA pass.
+            // Pay life after mana, then run the effect via a minimal context
+            // exposing only addMana (ActivatedAbilityContext).
+            if (ability.cost.life !== undefined) {
+                player.life -= ability.cost.life;
+            }
+            ability.effect?.({
+                addMana: (amount) => {
+                    for (const [color, count] of Object.entries(amount)) {
+                        if (
+                            color !== "X" &&
+                            typeof count === "number" &&
+                            count > 0
+                        ) {
+                            const key = color as keyof typeof player.manaPool;
+                            player.manaPool[key] =
+                                (player.manaPool[key] ?? 0) + count;
+                        }
+                    }
+                },
+            });
+            state.undoableBy = undefined;
+        } else {
+            // Stack path: synthesize a stack item carrying the template's
+            // source card reference. Not exercised by Channel yet, but kept
+            // for future granted stack abilities.
+            if (ability.cost.life !== undefined) {
+                player.life -= ability.cost.life;
+            }
+            state.undoableBy = undefined;
+            const stackItem: StackItem = {
+                id: `granted-${instance.id}`,
+                card: { id: instance.sourceCardId },
+                controllerId: args.playerId,
+                ownerId: args.playerId,
+                zone: "stack",
+                types: sourceCard.types,
+                subtypes: sourceCard.subtypes ?? [],
+                staticAbilities: [],
+                isTapped: false,
+                castById: args.playerId,
+                abilityId: instance.abilityId,
+            };
+            state.stack.push(stackItem);
+            state.passCount = 0;
+            state.priorityPlayerId = getOpponentId(state, args.playerId);
+            state.singleShotAutoPass = args.keepPriority
+                ? undefined
+                : args.playerId;
+            drainAutoPasses(state);
+        }
+
+        // If a pendingCast is now payable thanks to the freshly produced mana,
+        // auto-commit the spell to the stack (mirrors tapForPayment).
+        const committed = tryAutoCommitPendingCast(state, args.playerId);
+
+        const now = Date.now();
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state);
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            type: "PLAYER_ABILITY_ACTIVATED",
+            player: args.playerId,
+            payload: {
+                grantedAbilityInstanceId: instance.id,
+                sourceCardId: instance.sourceCardId,
+                abilityId: instance.abilityId,
+            },
+            timestamp: now,
+        });
+
+        if (committed) {
+            await ctx.db.insert("events", {
+                gameId: args.gameId,
+                seq: nextSeq,
+                type: "SPELL_CAST",
+                player: args.playerId,
+                payload: {
+                    cardInstanceId: committed.cardInstanceId,
+                    cardName: committed.cardName,
+                },
+                timestamp: now,
+            });
+        }
     },
 });
 

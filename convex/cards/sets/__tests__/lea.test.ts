@@ -14,6 +14,7 @@ import {
     bogWraith,
     shanodinDryads,
     castle,
+    channel,
     counterspell,
     ancestralRecall,
     darkRitual,
@@ -26,6 +27,7 @@ import {
     swamp,
     swordsToPlowshares,
     taiga,
+    timeWalk,
     tropicalIsland,
     tundra,
     undergroundSea,
@@ -34,6 +36,7 @@ import {
     hypnoticSpecter,
     serraAngel,
     savannahLions,
+    solRing,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -41,10 +44,15 @@ import {
     type CardInstanceState,
 } from "../../../gre/state";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
-import { getActivatedManaColor, hasManaAbility } from "../../../gre/constants";
+import {
+    getActivatedManaColor,
+    getFixedManaAmount,
+    hasManaAbility,
+} from "../../../gre/constants";
 import { getLegalTargets } from "../../../gre/rules";
 import { projectPublicState } from "../../../gameProjections";
 import { validateBlockerEligibility } from "../../../gre/combat";
+import { advancePhase } from "../../../gre/phases";
 import type { CardDefinition, CardType } from "../../types";
 import {
     makeInstance,
@@ -804,6 +812,46 @@ describe("Llanowar Elves ({T}: Add {G}, CR 605.1a)", () => {
     });
 });
 
+describe("Sol Ring ({T}: Add {C}{C}, CR 605.1a)", () => {
+    it("is a {1} artifact", () => {
+        expect(solRing.manaCost).toEqual({ X: 1 });
+        expect(solRing.types).toEqual(["Artifact"]);
+    });
+
+    it("declares a tap-for-{C}{C} mana ability (useStack: false)", () => {
+        const ability = solRing.activatedAbilities?.[0];
+        expect(ability?.cost.tap).toBe(true);
+        expect(ability?.useStack).toBe(false);
+        expect(ability?.manaProduced).toEqual({ C: 2 });
+    });
+
+    it("engine recognizes the ability and reports 2 colorless produced", () => {
+        const ring = makeInstance(solRing.id, { id: "ring" });
+        expect(hasManaAbility(ring)).toBe(true);
+        expect(getActivatedManaColor(ring)).toBe("C");
+        expect(getFixedManaAmount(ring, "C")).toBe(2);
+    });
+
+    it("wire format: ability survives projectPublicState", () => {
+        // Artifact abilities are visible on the board — must be readable from
+        // the projected state too (the projection strips card.card to { id }).
+        const ring = makeInstance(solRing.id, { id: "ring" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ring] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slimRing = projected.players[0].battlefield.find(
+            (c) => c.id === "ring"
+        )!;
+        expect(hasManaAbility(slimRing as CardInstanceState)).toBe(true);
+        expect(getActivatedManaColor(slimRing as CardInstanceState)).toBe("C");
+        expect(getFixedManaAmount(slimRing as CardInstanceState, "C")).toBe(2);
+    });
+});
+
 describe("Birds of Paradise (flying + {T}: Add one mana of any color, CR 605.1a)", () => {
     it("is a 0/1 Bird for {G} with flying", () => {
         expect(birdsOfParadise.manaCost).toEqual({ G: 1 });
@@ -937,6 +985,165 @@ describe("Alpha dual lands (snapshot: types, subtypes, mana choices)", () => {
             ]);
         });
     }
+});
+
+describe("Channel (CR 605.1a, 118.4, 514.2)", () => {
+    it("is a {G}{G} sorcery", () => {
+        expect(channel.manaCost).toEqual({ G: 2 });
+        expect(channel.types).toEqual(["Sorcery"]);
+    });
+
+    it("declares a pay-1-life mana ability template (useStack: false)", () => {
+        const ability = channel.activatedAbilities?.[0];
+        expect(ability?.id).toBe("channel-mana");
+        expect(ability?.cost.life).toBe(1);
+        expect(ability?.cost.tap).toBeUndefined();
+        expect(ability?.useStack).toBe(false);
+        expect(ability?.manaProduced).toEqual({ C: 1 });
+    });
+
+    it("resolve grants the caster a reference to channel-mana for the turn", () => {
+        const state = makeState();
+        pushSpell(state, channel.id, "p1");
+        resolveTopOfStack(state);
+        const grants = state.players[0].grantedAbilities;
+        expect(grants).toHaveLength(1);
+        expect(grants?.[0]).toMatchObject({
+            sourceCardId: channel.id,
+            abilityId: "channel-mana",
+            duration: "end-of-turn",
+            grantedAtTurn: state.turn,
+        });
+        expect(grants?.[0].id).toMatch(/^grant-\d+$/);
+        // Opponent does not get the grant.
+        expect(state.players[1].grantedAbilities).toBeUndefined();
+    });
+
+    it("multiple resolves produce distinct grant ids", () => {
+        const state = makeState();
+        pushSpell(state, channel.id, "p1");
+        resolveTopOfStack(state);
+        pushSpell(state, channel.id, "p1");
+        resolveTopOfStack(state);
+        const grants = state.players[0].grantedAbilities!;
+        expect(grants).toHaveLength(2);
+        expect(grants[0].id).not.toBe(grants[1].id);
+    });
+
+    it("CLEANUP step purges end-of-turn grants", () => {
+        const state = makeState({ phase: "END_STEP" });
+        pushSpell(state, channel.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].grantedAbilities).toHaveLength(1);
+        // advancePhase from END_STEP traverses CLEANUP (auto) into next turn.
+        advancePhase(state);
+        expect(state.players[0].grantedAbilities).toBeUndefined();
+    });
+
+    it("template effect adds {C} via ActivatedAbilityContext.addMana", () => {
+        // The mutation drives execution over the network; here we exercise
+        // the template directly to guarantee the effect is wired correctly.
+        const state = makeState();
+        pushSpell(state, channel.id, "p1");
+        resolveTopOfStack(state);
+        const p1 = state.players[0];
+        const ability = channel.activatedAbilities![0];
+        // Simulate the mutation's payment+execution path for useStack:false.
+        p1.life -= ability.cost.life!;
+        ability.effect!({
+            addMana: (amount) => {
+                for (const [color, count] of Object.entries(amount)) {
+                    if (color === "X" || typeof count !== "number") continue;
+                    p1.manaPool[color] = (p1.manaPool[color] ?? 0) + count;
+                }
+            },
+        });
+        expect(p1.life).toBe(19);
+        expect(p1.manaPool.C).toBe(1);
+    });
+
+    it("wire format: projectPublicState hydrates grantedAbilities for both viewers", () => {
+        const state = makeState();
+        pushSpell(state, channel.id, "p1");
+        resolveTopOfStack(state);
+
+        for (const viewer of ["p1", "p2"] as const) {
+            const projected = projectPublicState(state, 1, viewer);
+            const slim = projected.players[0].grantedAbilities;
+            expect(slim).toHaveLength(1);
+            expect(slim?.[0]).toMatchObject({
+                sourceCardId: channel.id,
+                abilityId: "channel-mana",
+                oracleText: "Pay 1 life: Add {C}.",
+                useStack: false,
+                manaProduced: { C: 1 },
+                duration: "end-of-turn",
+            });
+            expect(slim?.[0].cost.life).toBe(1);
+        }
+    });
+});
+
+describe("Time Walk (extra turn after this one, CR 500.7)", () => {
+    it("is a {1}{U} sorcery", () => {
+        expect(timeWalk.manaCost).toEqual({ X: 1, U: 1 });
+        expect(timeWalk.types).toEqual(["Sorcery"]);
+    });
+
+    it("resolves by queueing an extra turn for the caster", () => {
+        const state = makeState();
+        pushSpell(state, timeWalk.id, "p1");
+        expect(state.extraTurns).toBeUndefined();
+        resolveTopOfStack(state);
+        expect(state.extraTurns).toEqual(["p1"]);
+        expect(state.players[0].graveyard).toHaveLength(1);
+    });
+
+    it("advancing the turn keeps the caster active (no opponent swap)", () => {
+        // Resolve Time Walk at end-of-turn so the very next advanceTurn runs.
+        const state = makeState({
+            phase: "END_STEP",
+            turn: 1,
+            activePlayerId: "p1",
+        });
+        pushSpell(state, timeWalk.id, "p1");
+        resolveTopOfStack(state);
+        // END_STEP → CLEANUP (auto) → UNTAP of the next turn.
+        advancePhase(state);
+        expect(state.activePlayerId).toBe("p1");
+        expect(state.turn).toBe(2);
+        expect(state.extraTurns).toBeUndefined();
+        // The turn after the extra turn returns to normal swap order.
+        const next = makeState({
+            ...state,
+            phase: "END_STEP",
+        });
+        advancePhase(next);
+        expect(next.activePlayerId).toBe("p2");
+    });
+
+    it("multiple extra turns stack LIFO (CR 500.7)", () => {
+        const state = makeState({ phase: "END_STEP", activePlayerId: "p1" });
+        // p1 casts Time Walk targeting self, then p2 somehow gets one queued
+        // (simulated by pushing directly). Order: [p1, p2] → p2 taken first.
+        state.extraTurns = ["p1", "p2"];
+        advancePhase(state);
+        expect(state.activePlayerId).toBe("p2");
+        expect(state.extraTurns).toEqual(["p1"]);
+        const next = makeState({ ...state, phase: "END_STEP" });
+        advancePhase(next);
+        expect(next.activePlayerId).toBe("p1");
+        expect(next.extraTurns).toBeUndefined();
+    });
+
+    it("wire format: extraTurns survives projectPublicState", () => {
+        const state = makeState();
+        pushSpell(state, timeWalk.id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.extraTurns).toEqual(["p1"]);
+        expect(projected.activePlayerId).toBe(state.activePlayerId);
+    });
 });
 
 // ---------------------------------------------------------------------------

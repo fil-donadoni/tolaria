@@ -395,15 +395,33 @@ function performPhaseEntry(state: GameState): void {
             break;
         }
         case "CLEANUP":
-            // No-op for now (hand size check, "until end of turn" effects are future work)
+            // CR 514.2 — "until end of turn" effects end at the cleanup step.
+            // Purge player-granted abilities whose duration has expired.
+            for (const p of state.players) {
+                if (!p.grantedAbilities?.length) continue;
+                const kept = p.grantedAbilities.filter(
+                    (g) => g.duration !== "end-of-turn"
+                );
+                p.grantedAbilities = kept.length > 0 ? kept : undefined;
+            }
+            // TODO: hand size check (CR 514.1), damage wearing off (CR 514.2).
             break;
     }
 }
 
-/** Advance turn: increment counter, swap active player, reset autoPass. */
+/** Advance turn: increment counter, swap active player, reset autoPass.
+ *  CR 500.7: if an extra turn is queued, the next active player is the one
+ *  at the end of the queue (LIFO) instead of the normal turn-order swap. */
 function advanceTurn(state: GameState): void {
     state.turn += 1;
-    state.activePlayerId = getOpponentId(state, state.activePlayerId);
+    if (state.extraTurns && state.extraTurns.length > 0) {
+        const nextActive = state.extraTurns[state.extraTurns.length - 1];
+        state.extraTurns = state.extraTurns.slice(0, -1);
+        if (state.extraTurns.length === 0) state.extraTurns = undefined;
+        state.activePlayerId = nextActive;
+    } else {
+        state.activePlayerId = getOpponentId(state, state.activePlayerId);
+    }
     state.autoPassPlayers = undefined;
     state.singleShotAutoPass = undefined;
 }

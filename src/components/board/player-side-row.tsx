@@ -5,6 +5,7 @@ import PlayerLibrary from "./player-library";
 import PlayerGraveyard from "./player-graveyard";
 import PlayerExile from "./player-exile";
 import PlayerManaPool from "./player-mana-pool";
+import PlayerGrantedAbilities from "./player-granted-abilities";
 import { useGameContext } from "~/hooks/useGameContext";
 
 export default function PlayerSideRow({ player }: { player: Player }) {
@@ -16,6 +17,7 @@ export default function PlayerSideRow({ player }: { player: Player }) {
             className={`relative ${isMe ? "justify-self-start" : "justify-self-end"}`}
         >
             <PlayerManaPool player={player} />
+            <PlayerGrantedAbilities player={player} />
             <PlayerLife player={player} />
         </div>
     );

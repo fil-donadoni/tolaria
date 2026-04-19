@@ -99,6 +99,17 @@ export function getActivatedManaProduced(
     return ability?.manaProduced ?? null;
 }
 
+/** Amount of a single color produced by a card's fixed (non-choice) tap mana
+ *  ability. Basic lands and abilities without an explicit count default to 1;
+ *  abilities like Sol Ring ({T}: Add {C}{C}) return 2. */
+export function getFixedManaAmount(
+    card: CardInstanceState,
+    color: Color
+): number {
+    const produced = getActivatedManaProduced(card);
+    return produced?.[color] ?? 1;
+}
+
 /** Returns the activated mana ability definition for a card, or null. */
 export function getActivatedManaAbility(card: CardInstanceState) {
     const cardDef = getCardById(card.card.id as string);

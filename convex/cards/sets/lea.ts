@@ -709,12 +709,15 @@ export const phantomMonster: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const timeWalk: CardDefinition = {
-//     id: "e0139f60-d48e-46fb-9f5a-1e3d7558c834",
-//     name: "Time Walk",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Sorcery"],
-// };
+export const timeWalk: CardDefinition = {
+    id: "e0139f60-d48e-46fb-9f5a-1e3d7558c834",
+    name: "Time Walk",
+    manaCost: { X: 1, U: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        ctx.takeExtraTurn(ctx.controller);
+    },
+};
 
 // export const timetwister: CardDefinition = {
 //     id: "9a49dc44-616e-4bdd-8220-0bb71eccc512",
@@ -1660,12 +1663,30 @@ export const birdsOfParadise: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const channel: CardDefinition = {
-//     id: "c1862c47-71cc-45a3-8805-a5ddc62e55ea",
-//     name: "Channel",
-//     manaCost: { G: 2 },
-//     types: ["Sorcery"],
-// };
+// CR 605.1a — the granted ability adds mana and does not target, so it
+// qualifies as a mana ability (useStack: false). CR 118.4 — paying 1 life
+// requires player.life >= 1; SBA handles reaching 0 (CR 704.5a).
+const CHANNEL_ID = "c1862c47-71cc-45a3-8805-a5ddc62e55ea";
+
+export const channel: CardDefinition = {
+    id: CHANNEL_ID,
+    name: "Channel",
+    manaCost: { G: 2 },
+    types: ["Sorcery"],
+    activatedAbilities: [
+        {
+            id: "channel-mana",
+            cost: { life: 1 },
+            oracleText: "Pay 1 life: Add {C}.",
+            useStack: false,
+            manaProduced: { C: 1 },
+            effect: (ctx) => ctx.addMana({ C: 1 }),
+        },
+    ],
+    resolve: (ctx) => {
+        ctx.grantAbility(ctx.caster, CHANNEL_ID, "channel-mana", "end-of-turn");
+    },
+};
 
 // export const cockatrice: CardDefinition = {
 //     id: "9cd91814-6177-4a3d-a1c1-a3be7d7c7957",
@@ -2430,12 +2451,24 @@ export const obsianusGolem: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const solRing: CardDefinition = {
-//     id: "c4300d24-1cae-4dd5-be7e-38cc677cf5bd",
-//     name: "Sol Ring",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-// };
+export const solRing: CardDefinition = {
+    id: "c4300d24-1cae-4dd5-be7e-38cc677cf5bd",
+    name: "Sol Ring",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "sol-ring-mana",
+            oracleText: "{T}: Add {C}{C}.",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ C: 2 });
+            },
+            useStack: false,
+            manaProduced: { C: 2 },
+        },
+    ],
+};
 
 // export const soulNet: CardDefinition = {
 //     id: "2b814198-814b-4619-a158-327af675f8f2",

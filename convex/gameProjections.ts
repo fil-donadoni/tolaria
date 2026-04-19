@@ -1,11 +1,14 @@
 import type {
     CardInstanceState,
     GameState,
+    GrantedAbilityInstance,
     PlayerState,
     StackItem,
 } from "./gre/state";
 import type { CardAction } from "./gre/types";
+import type { ActivatedAbility, ManaCost } from "./cards/types";
 import { getLegalActions } from "./gre/rules";
+import { tryGetCardById } from "./cards";
 
 /** CardInstanceState with the static card def stripped to { id } only. */
 export type SlimCardInstance = Omit<CardInstanceState, "card"> & {
@@ -18,28 +21,53 @@ export type SlimHandCard = SlimCardInstance & { legalActions: CardAction[] };
 /** StackItem slimmed to { id } card ref. */
 export type SlimStackItem = Omit<StackItem, "card"> & { card: { id: string } };
 
+/** Granted ability hydrated with its template data so clients can render
+ *  oracle text and cost without loading the backend card registry. */
+export type PublicGrantedAbility = {
+    id: string;
+    sourceCardId: string;
+    abilityId: string;
+    oracleText: string;
+    cost: ActivatedAbility["cost"];
+    useStack: boolean;
+    manaProduced?: ManaCost;
+    duration: GrantedAbilityInstance["duration"];
+};
+
 /** PlayerState as seen through the public projection (library hidden, opponent hand nulled). */
 export type PublicPlayer = Omit<
     PlayerState,
-    "hand" | "library" | "graveyard" | "exile" | "battlefield"
+    | "hand"
+    | "library"
+    | "graveyard"
+    | "exile"
+    | "battlefield"
+    | "grantedAbilities"
 > & {
     hand: (SlimHandCard | null)[];
     library: { count: number };
     graveyard: SlimCardInstance[];
     exile: SlimCardInstance[];
     battlefield: SlimCardInstance[];
+    grantedAbilities?: PublicGrantedAbility[];
 };
 
 /** PlayerState in the full debug projection (everything visible, card defs slimmed). */
 export type FullPlayer = Omit<
     PlayerState,
-    "hand" | "library" | "graveyard" | "exile" | "battlefield"
+    | "hand"
+    | "library"
+    | "graveyard"
+    | "exile"
+    | "battlefield"
+    | "grantedAbilities"
 > & {
     hand: SlimHandCard[];
     library: SlimCardInstance[];
     graveyard: SlimCardInstance[];
     exile: SlimCardInstance[];
     battlefield: SlimCardInstance[];
+    grantedAbilities?: PublicGrantedAbility[];
 };
 
 export type PublicGameState = Omit<GameState, "players" | "stack"> & {
@@ -61,6 +89,33 @@ function slimCard<
     return { ...instance, card: { id } };
 }
 
+/** Hydrate a granted ability instance with its template data for the wire. */
+function hydrateGrantedAbility(
+    instance: GrantedAbilityInstance
+): PublicGrantedAbility {
+    const cardDef = tryGetCardById(instance.sourceCardId);
+    const ability = cardDef?.activatedAbilities?.find(
+        (a) => a.id === instance.abilityId
+    );
+    return {
+        id: instance.id,
+        sourceCardId: instance.sourceCardId,
+        abilityId: instance.abilityId,
+        oracleText: ability?.oracleText ?? "",
+        cost: ability?.cost ?? {},
+        useStack: ability?.useStack ?? false,
+        manaProduced: ability?.manaProduced,
+        duration: instance.duration,
+    };
+}
+
+function hydrateGrantedAbilities(
+    grants: GrantedAbilityInstance[] | undefined
+): PublicGrantedAbility[] | undefined {
+    if (!grants || grants.length === 0) return undefined;
+    return grants.map(hydrateGrantedAbility);
+}
+
 /**
  * Projects GameState into the public view: viewer's own hand has slim cards + legalActions,
  * opponent's hand is an array of nulls of equal length, libraries are reduced to { count }.
@@ -78,6 +133,7 @@ export function projectPublicState(
             exile: player.exile.map(slimCard),
             battlefield: player.battlefield.map(slimCard),
             library: { count: player.library.length },
+            grantedAbilities: hydrateGrantedAbilities(player.grantedAbilities),
         };
         if (player.id === viewerId) {
             return {
@@ -133,6 +189,7 @@ export function projectFullState(
             graveyard: player.graveyard.map(slimCard),
             exile: player.exile.map(slimCard),
             battlefield: player.battlefield.map(slimCard),
+            grantedAbilities: hydrateGrantedAbilities(player.grantedAbilities),
         })
     );
 
