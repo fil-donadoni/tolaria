@@ -238,6 +238,28 @@ describe("getLegalActions", () => {
         });
     });
 
+    describe("priority (CR 117.1)", () => {
+        it("returns no actions when player does not have priority", () => {
+            const state = makeGameState({ priorityPlayerId: "p2" });
+            const player = makePlayer({ id: "p1" });
+            const land = makeCard(PLAINS);
+            const instant = makeCard(LIGHTNING_BOLT);
+            const creature = makeCard(SAVANNAH_LIONS);
+
+            expect(getLegalActions(state, player, land)).toEqual([]);
+            expect(getLegalActions(state, player, instant)).toEqual([]);
+            expect(getLegalActions(state, player, creature)).toEqual([]);
+        });
+
+        it("returns actions when player has priority", () => {
+            const state = makeGameState({ priorityPlayerId: "p1" });
+            const player = makePlayer({ id: "p1" });
+            const card = makeCard(LIGHTNING_BOLT);
+
+            expect(getLegalActions(state, player, card)).toContain("cast");
+        });
+    });
+
     describe("debugAllActions mode", () => {
         it("returns all actions regardless of card type", () => {
             const state = makeGameState();

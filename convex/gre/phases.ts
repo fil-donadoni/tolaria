@@ -37,6 +37,7 @@ function untapStep(state: GameState): void {
         card.isTapped = false;
         card.manaCommitted = undefined;
         card.isSummoningSick = undefined;
+        card.chosenMana = undefined;
     }
 }
 

@@ -22,7 +22,7 @@ function hasInstantTiming(card: CardInstanceState): boolean {
 /** Returns the list of legal actions for a card in a player's hand. */
 export function getLegalActions(
     state: GameState,
-    _player: PlayerState,
+    player: PlayerState,
     card: CardInstanceState,
     debugAllActions = false
 ): CardAction[] {
@@ -31,6 +31,12 @@ export function getLegalActions(
     }
 
     const actions: CardAction[] = [];
+
+    // CR 117.1: a player can only take actions while they have priority.
+    if (state.priorityPlayerId !== player.id) {
+        return actions;
+    }
+
     const types = card.types;
 
     // "Play" is for lands only — requires sorcery timing (main phase, empty stack, active player)

@@ -48,18 +48,3 @@ export const fanCardClassName =
 /** ClassName for cards in the opponent's fan layout. */
 export const fanCardOpponentClassName =
     "w-[var(--card-w-sm)] aspect-5/7 shrink-0 mb-2 transition-all hover:-translate-y-4 hover:z-10";
-
-const CARD_WIDTH_PX = 128; // w-32 fallback for dialog sizing
-const OVERLAP_PX = 64; // 50% of CARD_WIDTH_PX
-
-const ROTATION_MARGIN_PX = 96; // extra space for rotated edge cards
-
-/** Estimates the pixel width of a fan of cards (used for dialog sizing). */
-export function getFanWidth(totalCards: number): number {
-    if (totalCards <= 0) return 0;
-    return (
-        CARD_WIDTH_PX +
-        (totalCards - 1) * (CARD_WIDTH_PX - OVERLAP_PX) +
-        ROTATION_MARGIN_PX * 2
-    );
-}

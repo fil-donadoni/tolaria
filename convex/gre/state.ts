@@ -1,5 +1,6 @@
 import type {
     CardType,
+    ManaCost as CardManaCost,
     SpellContext,
     TargetRequirement,
     TargetSelection,
@@ -35,6 +36,9 @@ export type CardInstanceState = {
     /** Keyword abilities (flying, vigilance, defender, etc.). Initialized from card definition. */
     staticAbilities: string[];
     isTapped: boolean;
+    /** Mana choice made when activating a manaChoices ability (e.g. Birds of Paradise).
+     *  Stored so untap can refund the exact mana that was added. Cleared at untap step. */
+    chosenMana?: CardManaCost;
     /** Set when this land's mana has been consumed by a spell. Cannot be manually untapped. Resets at untap step. */
     manaCommitted?: boolean;
     /** Set when a creature enters the battlefield. Cleared at untap step. Prevents attacking. */

@@ -331,6 +331,40 @@ describe("advancePhase", () => {
             expect(p2.battlefield[0].manaCommitted).toBeUndefined();
         });
 
+        it("clears chosenMana (manaChoices bookkeeping) during untap", () => {
+            // Birds of Paradise stores its colour choice on the instance so
+            // tapUntap can refund it. The untap step must wipe that record.
+            const bird = makeCard({
+                id: "bird1",
+                card: {
+                    name: "Birds of Paradise",
+                    types: ["Creature"],
+                    subtypes: ["Bird"],
+                },
+                controllerId: "p2",
+                isTapped: true,
+                chosenMana: { U: 1 },
+            });
+
+            const state = makeGameState({
+                phase: "END_STEP",
+                turn: 1,
+                activePlayerId: "p1",
+                players: [
+                    makePlayer({ id: "p1" }),
+                    makePlayer({
+                        id: "p2",
+                        battlefield: [bird],
+                    }),
+                ],
+            });
+
+            advancePhase(state);
+
+            const p2 = state.players.find((p) => p.id === "p2")!;
+            expect(p2.battlefield[0].chosenMana).toBeUndefined();
+        });
+
         it("clears mana pool during untap", () => {
             const state = makeGameState({
                 phase: "END_STEP",

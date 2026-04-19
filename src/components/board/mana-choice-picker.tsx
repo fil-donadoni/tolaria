@@ -1,13 +1,5 @@
 import type { ManaCost } from "~/types/cards";
 
-const MANA_SYMBOLS: Record<string, { label: string; bg: string }> = {
-    W: { label: "W", bg: "bg-amber-100 text-amber-900 hover:bg-amber-200" },
-    U: { label: "U", bg: "bg-blue-500 text-white hover:bg-blue-400" },
-    B: { label: "B", bg: "bg-gray-800 text-white hover:bg-gray-700" },
-    R: { label: "R", bg: "bg-red-500 text-white hover:bg-red-400" },
-    G: { label: "G", bg: "bg-green-600 text-white hover:bg-green-500" },
-};
-
 type ManaChoicePickerProps = {
     choices: ManaCost[];
     position: { x: number; y: number };
@@ -33,16 +25,19 @@ export default function ManaChoicePicker({
                         (k) => k !== "X"
                     ) as string;
                     const amount = cost[color as keyof ManaCost];
-                    const sym = MANA_SYMBOLS[color];
-                    if (!sym) return null;
+                    if (!color) return null;
                     return (
                         <button
                             key={color}
-                            className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${sym.bg} cursor-pointer transition-colors`}
+                            className="flex size-8 items-center justify-center rounded-full cursor-pointer transition-transform hover:scale-110"
                             onClick={() => onSelect(i)}
-                            title={`Add ${amount}${sym.label}`}
+                            title={`Add ${amount}{${color}}`}
                         >
-                            {sym.label}
+                            <img
+                                src={`/img/symbols/${color}.svg`}
+                                alt={color}
+                                className="size-7"
+                            />
                         </button>
                     );
                 })}

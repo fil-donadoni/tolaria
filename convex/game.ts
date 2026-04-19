@@ -1760,7 +1760,11 @@ export const tapUntap = mutation({
             throw new Error("Use tapForPayment/untapForPayment during casting");
         }
 
-        // Mana abilities don't require priority (CR 605.3a)
+        // CR 605.3b: a mana ability can be activated only while the player
+        // has priority (or while paying a mana cost — handled above).
+        if (state.priorityPlayerId !== args.playerId) {
+            throw new Error("Cannot activate mana ability without priority");
+        }
 
         const card = player.battlefield.find(
             (c) => c.id === args.cardInstanceId
@@ -1787,7 +1791,7 @@ export const tapUntap = mutation({
 
         // Determine mana to add/remove
         if (ability?.manaChoices) {
-            // Choice-based mana ability (e.g. Black Lotus)
+            // Choice-based mana ability (e.g. Birds of Paradise, Black Lotus)
             if (!wasTapped) {
                 if (args.manaChoiceIndex === undefined) {
                     throw new Error("Must choose a mana color");
@@ -1800,6 +1804,9 @@ export const tapUntap = mutation({
                     moveCard(player, card.id, "battlefield", "graveyard");
                 } else {
                     card.isTapped = true;
+                    // Remember the exact mana produced so untap can refund it.
+                    // Fixed-color abilities use manaProduced and don't need this.
+                    card.chosenMana = chosen;
                 }
 
                 // Add chosen mana to pool
@@ -1816,14 +1823,25 @@ export const tapUntap = mutation({
                     }
                 }
             } else {
-                // Untap: remove the mana (only for non-sacrifice)
-                const manaColor = getActivatedManaColor(card);
-                if (manaColor) {
-                    player.manaPool[manaColor] = Math.max(
-                        0,
-                        (player.manaPool[manaColor] ?? 0) - 1
-                    );
+                // Untap: refund exactly the mana that was chosen on tap.
+                // Falls back to manaProduced for legacy instances (pre-chosenMana).
+                const refund = card.chosenMana;
+                if (refund) {
+                    for (const [color, amount] of Object.entries(refund)) {
+                        if (
+                            color !== "X" &&
+                            typeof amount === "number" &&
+                            amount > 0
+                        ) {
+                            const key = color as keyof typeof player.manaPool;
+                            player.manaPool[key] = Math.max(
+                                0,
+                                (player.manaPool[key] ?? 0) - amount
+                            );
+                        }
+                    }
                 }
+                card.chosenMana = undefined;
                 card.isTapped = false;
             }
         } else {

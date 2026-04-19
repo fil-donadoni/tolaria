@@ -8,10 +8,12 @@
 import { describe, it, expect } from "vitest";
 import {
     badMoon,
+    birdsOfParadise,
     castle,
     counterspell,
     ancestralRecall,
     lightningBolt,
+    llanowarElves,
     swordsToPlowshares,
     wrathOfGod,
     disenchant,
@@ -20,6 +22,7 @@ import {
 } from "../lea";
 import { resolveTopOfStack, type CardInstanceState } from "../../../gre/state";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
+import { getActivatedManaColor, hasManaAbility } from "../../../gre/constants";
 import { projectPublicState } from "../../../gameProjections";
 import type { CardType } from "../../types";
 import {
@@ -344,6 +347,102 @@ describe("Serra Angel (keyword abilities)", () => {
     it("has flying and vigilance", () => {
         expect(serraAngel.staticAbilities).toContain("flying");
         expect(serraAngel.staticAbilities).toContain("vigilance");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Activated mana abilities on creatures (CR 605.1a)
+// ---------------------------------------------------------------------------
+
+describe("Llanowar Elves ({T}: Add {G}, CR 605.1a)", () => {
+    it("is a 1/1 Elf Druid for {G}", () => {
+        expect(llanowarElves.manaCost).toEqual({ G: 1 });
+        expect(llanowarElves.types).toContain("Creature");
+        expect(llanowarElves.subtypes).toEqual(["Elf", "Druid"]);
+        expect(llanowarElves.power).toBe(1);
+        expect(llanowarElves.toughness).toBe(1);
+    });
+
+    it("declares a tap-for-green mana ability (useStack: false)", () => {
+        const ability = llanowarElves.activatedAbilities?.[0];
+        expect(ability?.cost.tap).toBe(true);
+        expect(ability?.useStack).toBe(false);
+        expect(ability?.manaProduced).toEqual({ G: 1 });
+    });
+
+    it("engine recognizes the mana ability on the battlefield", () => {
+        const elf = makeInstance(llanowarElves.id, { id: "elf" });
+        expect(hasManaAbility(elf)).toBe(true);
+        expect(getActivatedManaColor(elf)).toBe("G");
+    });
+
+    it("wire format: mana ability survives projectPublicState", () => {
+        // The projection slims `card.card` to `{ id }`. The constants helpers
+        // read the ability via `getCardById(card.card.id)` — this test guards
+        // against any future refactor that reads ability data off the fat embed.
+        const elf = makeInstance(llanowarElves.id, { id: "elf" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [elf] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slimElf = projected.players[0].battlefield.find(
+            (c) => c.id === "elf"
+        )!;
+        expect(hasManaAbility(slimElf as CardInstanceState)).toBe(true);
+        expect(getActivatedManaColor(slimElf as CardInstanceState)).toBe("G");
+    });
+});
+
+describe("Birds of Paradise (flying + {T}: Add one mana of any color, CR 605.1a)", () => {
+    it("is a 0/1 Bird for {G} with flying", () => {
+        expect(birdsOfParadise.manaCost).toEqual({ G: 1 });
+        expect(birdsOfParadise.types).toContain("Creature");
+        expect(birdsOfParadise.subtypes).toEqual(["Bird"]);
+        expect(birdsOfParadise.power).toBe(0);
+        expect(birdsOfParadise.toughness).toBe(1);
+        expect(birdsOfParadise.staticAbilities).toContain("flying");
+    });
+
+    it("declares a tap mana ability offering all five colors (no colorless)", () => {
+        const ability = birdsOfParadise.activatedAbilities?.[0];
+        expect(ability?.cost.tap).toBe(true);
+        expect(ability?.useStack).toBe(false);
+        // "Any color" excludes colorless per CR 106.1b — must be W/U/B/R/G only.
+        expect(ability?.manaChoices).toEqual([
+            { W: 1 },
+            { U: 1 },
+            { B: 1 },
+            { R: 1 },
+            { G: 1 },
+        ]);
+    });
+
+    it("engine recognizes the mana ability; color is null (choice-based)", () => {
+        const bird = makeInstance(birdsOfParadise.id, { id: "bird" });
+        expect(hasManaAbility(bird)).toBe(true);
+        // getActivatedManaColor only resolves fixed (manaProduced) abilities.
+        // Choice-based abilities MUST return null so the engine takes the
+        // manaChoices branch in tapUntap instead of adding a fixed color.
+        expect(getActivatedManaColor(bird)).toBeNull();
+    });
+
+    it("wire format: ability survives projectPublicState", () => {
+        const bird = makeInstance(birdsOfParadise.id, { id: "bird" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bird] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBird = projected.players[0].battlefield.find(
+            (c) => c.id === "bird"
+        )!;
+        expect(hasManaAbility(slimBird as CardInstanceState)).toBe(true);
+        expect(getActivatedManaColor(slimBird as CardInstanceState)).toBeNull();
     });
 });
 

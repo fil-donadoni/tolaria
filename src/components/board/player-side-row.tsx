@@ -24,9 +24,9 @@ export default function PlayerSideRow({ player }: { player: Player }) {
         <div
             className={`flex gap-2 ${isMe ? "justify-self-end flex-row-reverse" : "justify-self-start"}`}
         >
-            <PlayerExile player={player} />
-            <PlayerLibrary player={player} />
             <PlayerGraveyard player={player} />
+            <PlayerLibrary player={player} />
+            <PlayerExile player={player} />
         </div>
     );
 

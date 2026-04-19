@@ -1597,15 +1597,29 @@ export const wallOfStone: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const birdsOfParadise: CardDefinition = {
-//     id: "55fe6449-1f23-43dc-adee-d144cd505b5c",
-//     name: "Birds of Paradise",
-//     manaCost: { G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Bird"],
-//     power: 0,
-//     toughness: 1,
-// };
+export const birdsOfParadise: CardDefinition = {
+    id: "55fe6449-1f23-43dc-adee-d144cd505b5c",
+    name: "Birds of Paradise",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Bird"],
+    power: 0,
+    toughness: 1,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "birds-of-paradise-mana",
+            oracleText: "{T}: Add one mana of any color.",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                // Color chosen at activation time, applied by engine
+                ctx.addMana({ G: 1 });
+            },
+            useStack: false,
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
+        },
+    ],
+};
 
 // export const camouflage: CardDefinition = {
 //     id: "3838c2a3-7fab-4976-9c1b-2891aee24e52",
@@ -1804,15 +1818,27 @@ export const ironrootTreefolk: CardDefinition = {
 //     types: ["Enchantment"],
 // };
 
-// export const llanowarElves: CardDefinition = {
-//     id: "d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb",
-//     name: "Llanowar Elves",
-//     manaCost: { G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Elf", "Druid"],
-//     power: 1,
-//     toughness: 1,
-// };
+export const llanowarElves: CardDefinition = {
+    id: "d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb",
+    name: "Llanowar Elves",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Elf", "Druid"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "llanowar-elves-mana",
+            oracleText: "{T}: Add {G}.",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ G: 1 });
+            },
+            useStack: false,
+            manaProduced: { G: 1 },
+        },
+    ],
+};
 
 // export const lure: CardDefinition = {
 //     id: "2a87b26e-0431-42e9-b44f-94ba8546111a",

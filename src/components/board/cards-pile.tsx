@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import type { CardInstance } from "~/types/game";
-import { getFanStyle, getFanWidth, fanCardClassName } from "~/lib/card-layout";
 import {
     Dialog,
     DialogContent,
@@ -79,7 +78,7 @@ export default function CardsPile({
                 <DialogContent
                     className="px-4 max-w-[90vw]"
                     style={{
-                        width: `${getFanWidth(cards.length) + 32}px`,
+                        width: `calc(var(--card-w) * ${(cards.length + 1) / 2} + 2rem)`,
                     }}
                 >
                     <DialogHeader>
@@ -87,35 +86,31 @@ export default function CardsPile({
                             {title || "Cards"} ({cards.length})
                         </DialogTitle>
                     </DialogHeader>
-                    <div className="overflow-x-auto overflow-y-visible py-4">
+                    <div className="overflow-x-auto px-4 py-8">
                         <div
-                            className="flex items-end mx-auto"
+                            className="flex mx-auto"
                             style={{
-                                width: `${getFanWidth(cards.length)}px`,
+                                width: `calc(var(--card-w) * ${(cards.length + 1) / 2})`,
                             }}
                         >
-                            {cards.map((cardInstance, cardIndex) => {
-                                const style = getFanStyle(
-                                    cardIndex,
-                                    cards.length
-                                );
-
-                                return (
-                                    <div
-                                        key={cardInstance.id}
-                                        className={fanCardClassName}
-                                        style={style}
-                                    >
-                                        {isFaceDown ? (
-                                            <CardBack />
-                                        ) : (
-                                            <CardImage
-                                                card={cardInstance.card}
-                                            />
-                                        )}
-                                    </div>
-                                );
-                            })}
+                            {cards.map((cardInstance, cardIndex) => (
+                                <div
+                                    key={cardInstance.id}
+                                    className="w-(--card-w) aspect-5/7 shrink-0"
+                                    style={{
+                                        marginLeft:
+                                            cardIndex === 0
+                                                ? "0"
+                                                : "calc(var(--card-w) * -0.5)",
+                                    }}
+                                >
+                                    {isFaceDown ? (
+                                        <CardBack />
+                                    ) : (
+                                        <CardImage card={cardInstance.card} />
+                                    )}
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </DialogContent>

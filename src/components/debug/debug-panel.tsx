@@ -120,6 +120,30 @@ const PRESET_SCENARIOS = [
         phase: "PRECOMBAT_MAIN",
         landCount: 4,
     },
+    {
+        label: "Birds of Paradise & Llanowar Elves",
+        cards: [
+            // Tap Birds to add any color — pair with a Plains to cast
+            // Swords to Plowshares on an opposing creature (golden path).
+            // Birds itself is 0/1 with flying for a cheap evasive body (edge case).
+            { name: "Birds of Paradise", owner: "me" as const },
+            { name: "Llanowar Elves", owner: "me" as const },
+            { name: "Plains", owner: "me" as const },
+            {
+                name: "Swords to Plowshares",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Serra Angel", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+    },
+    {
+        label: "Library fan stress (53 cards)",
+        cards: [],
+        phase: "PRECOMBAT_MAIN",
+        libraryCount: 53,
+    },
 ];
 
 type DebugPanelProps = {
@@ -210,6 +234,10 @@ export default function DebugPanel({
                                                 cards: scenario.cards,
                                                 phase: scenario.phase,
                                                 landCount: scenario.landCount,
+                                                libraryCount:
+                                                    "libraryCount" in scenario
+                                                        ? scenario.libraryCount
+                                                        : undefined,
                                             })
                                         }
                                     >

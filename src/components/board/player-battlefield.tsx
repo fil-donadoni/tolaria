@@ -62,6 +62,8 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     const isPayingCast =
         isMe && !!pendingCast && pendingCast.playerId === playerId;
 
+    const hasPriority = isMe && priorityPlayerId === playerId;
+
     const isSelectingTarget =
         !!pendingTarget &&
         pendingTarget.playerId === playerId &&
@@ -188,6 +190,8 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 : (getLandManaColor(card) ?? getActivatedManaColor(card)) !==
                       null;
         }
+        // CR 605.3b: mana abilities require priority (outside payment).
+        if (!hasPriority) return false;
         return card.isTapped ? !card.manaCommitted : true;
     }
 
@@ -384,8 +388,6 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     }
 
     // --- Activated abilities ---
-
-    const hasPriority = isMe && priorityPlayerId === playerId;
 
     function getActivatable(card: CardInstance) {
         if (!hasPriority || pendingCast || pendingTarget) return [];
