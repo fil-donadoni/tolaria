@@ -5,23 +5,15 @@ import { getCardById } from "@convex/cards";
 import { isManaCostCovered, normalizeManaCost } from "@convex/gre/state";
 
 export function isLand(card: CardInstance): boolean {
-    return (
-        card.types?.includes("Land") ??
-        card.card.types?.includes("Land") ??
-        false
-    );
+    return card.types?.includes("Land") ?? false;
 }
 
 export function isCreature(card: CardInstance): boolean {
-    return (
-        card.types?.includes("Creature") ??
-        card.card.types?.includes("Creature") ??
-        false
-    );
+    return card.types?.includes("Creature") ?? false;
 }
 
 export function getLandManaColor(card: CardInstance): Color | null {
-    const subtypes = card.subtypes ?? card.card.subtypes ?? [];
+    const subtypes = card.subtypes ?? [];
     for (const subtype of subtypes) {
         const color = LAND_SUBTYPE_MANA[subtype];
         if (color) return color;
@@ -112,7 +104,7 @@ export function getAbilityOracleText(
 export function groupByName(cards: CardInstance[]): CardInstance[][] {
     const groups: Map<string, CardInstance[]> = new Map();
     for (const card of cards) {
-        const name = card.card.name;
+        const name = getCardById(card.card.id).name;
         const group = groups.get(name);
         if (group) {
             group.push(card);

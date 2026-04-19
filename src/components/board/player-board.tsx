@@ -9,7 +9,7 @@ export default function PlayerBoard({ player }: { player: Player }) {
 
     return (
         <div
-            className="flex-1 flex flex-col relative overflow-hidden min-h-0"
+            className="flex-1 flex flex-col relative min-h-0"
             style={{ backgroundColor: player.bgColor }}
         >
             <div

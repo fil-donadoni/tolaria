@@ -18,11 +18,8 @@ import {
     normalizeManaCost,
     isManaCostCovered,
 } from "./gre/state";
-import {
-    assertLegalAction,
-    getLegalActions,
-    getLegalTargets,
-} from "./gre/rules";
+import { assertLegalAction, getLegalTargets } from "./gre/rules";
+import { projectFullState, projectPublicState } from "./gameProjections";
 import {
     advancePhase,
     drainAutoPasses,
@@ -141,14 +138,17 @@ async function saveGameState(
         updatedAt: Date.now(),
     });
 
-    const allStates = await ctx.db
+    // Read at most MAX_SNAPSHOTS + 1 to bound per-mutation database bandwidth.
+    // In steady state .collect() returned the same count, but .take() caps reads
+    // defensively if pruning ever lags (e.g., concurrent writes or bugs).
+    const recent = await ctx.db
         .query("game_states")
         .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
         .order("desc")
-        .collect();
+        .take(MAX_SNAPSHOTS + 1);
 
-    for (let i = MAX_SNAPSHOTS; i < allStates.length; i++) {
-        await ctx.db.delete(allStates[i]._id);
+    if (recent.length > MAX_SNAPSHOTS) {
+        await ctx.db.delete(recent[MAX_SNAPSHOTS]._id);
     }
 }
 
@@ -188,36 +188,22 @@ function assertGameNotOver(state: GameState) {
 
 // --- Queries ---
 
-/** Public view: hides opponent's hand and all library contents. */
+/** Public view: hides opponent's hand and all library contents. Computes legalActions only for own hand. */
 export const getPublicState = query({
     args: {
         gameId: v.id("games"),
         playerId: v.string(),
+        debugAllActions: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) return null;
-
-        const state = gameState.state as {
-            players: Array<{
-                id: string;
-                hand: unknown[];
-                library: unknown[];
-                [key: string]: unknown;
-            }>;
-            [key: string]: unknown;
-        };
-
-        const players = state.players.map((player) => {
-            const isMe = player.id === args.playerId;
-            return {
-                ...player,
-                hand: isMe ? player.hand : player.hand.map(() => null),
-                library: { count: player.library.length },
-            };
-        });
-
-        return { ...state, players };
+        return projectPublicState(
+            gameState.state as GameState,
+            gameState.seq,
+            args.playerId,
+            args.debugAllActions ?? false
+        );
     },
 });
 
@@ -230,26 +216,11 @@ export const getFullState = query({
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) return null;
-
-        const state = gameState.state as GameState;
-        const allActions = args.debugAllActions ?? false;
-
-        return {
-            ...state,
-            seq: gameState.seq,
-            players: state.players.map((player) => ({
-                ...player,
-                hand: player.hand.map((card) => ({
-                    ...card,
-                    legalActions: getLegalActions(
-                        state,
-                        player,
-                        card,
-                        allActions
-                    ),
-                })),
-            })),
-        };
+        return projectFullState(
+            gameState.state as GameState,
+            gameState.seq,
+            args.debugAllActions ?? false
+        );
     },
 });
 

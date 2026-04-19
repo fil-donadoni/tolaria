@@ -2,6 +2,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingTarget, Player } from "~/types/game";
+import { getCardById } from "@convex/cards";
 
 const TARGET_LABEL: Record<string, string> = {
     Creature: "a creature",
@@ -38,9 +39,11 @@ export default function TargetSelectionBanner({
     const cancelTarget = useMutation(api.game.cancelTarget);
 
     const cardInHand = me?.hand.find(
-        (c) => c.id === pendingTarget.cardInstanceId
+        (c) => c !== null && c.id === pendingTarget.cardInstanceId
     );
-    const cardName = cardInHand?.card.name ?? "spell";
+    const cardName = cardInHand
+        ? getCardById(cardInHand.card.id).name
+        : "spell";
     const remaining = pendingTarget.count - pendingTarget.selected.length;
     const targetLabel = formatTargetLabel(pendingTarget.targetType);
 

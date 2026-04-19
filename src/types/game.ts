@@ -1,4 +1,4 @@
-import type { Card, Color } from "./cards";
+import type { Color } from "./cards";
 import type { Zone, CardAction } from "@convex/gre/types";
 
 // Re-export from convex (single source of truth)
@@ -10,8 +10,10 @@ export interface Player {
     bgColor: string;
     life: number;
     deck: Deck;
-    hand: CardInstance[];
-    library: CardInstance[];
+    /** Own hand has full cards; opponent's hand is a list of nulls (one per card) when viewed via getPublicState. */
+    hand: (CardInstance | null)[];
+    /** Full array when the viewer has full-state access, { count } when hidden (getPublicState). */
+    library: CardInstance[] | { count: number };
     graveyard: CardInstance[];
     exile: CardInstance[];
     battlefield: CardInstance[];
@@ -44,7 +46,8 @@ export type DeckCard = {
 
 export interface CardInstance {
     id: string;
-    card: Card;
+    /** Static definition reference. Resolve via getCardById(card.id). */
+    card: { id: string };
     controllerId: string;
     ownerId: string;
     zone: Zone;

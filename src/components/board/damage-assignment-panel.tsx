@@ -3,6 +3,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { ReactMutation } from "convex/react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { getCardById } from "@convex/cards";
 import { COMBAT_GROUP_BG } from "~/lib/combat-colors";
 
 function DamageRow({
@@ -110,10 +111,7 @@ export default function DamageAssignmentPanel({
                     (c) => c.id === attackerId
                 );
                 if (!attacker) return null;
-                const power = Math.max(
-                    0,
-                    attacker.power ?? attacker.card.power ?? 0
-                );
+                const power = Math.max(0, attacker.power ?? 0);
                 const hasTrample =
                     attacker.staticAbilities?.includes("trample") ?? false;
                 const blockerIds = blockersPerAttacker[attackerId] ?? [];
@@ -136,8 +134,9 @@ export default function DamageAssignmentPanel({
                                 className={`w-3 h-3 rounded-full ${groupColor}`}
                             />
                             <span className="font-medium">
-                                {(attacker.card.name as string) ?? "Attacker"} (
-                                {power} dmg)
+                                {getCardById(attacker.card.id).name ??
+                                    "Attacker"}{" "}
+                                ({power} dmg)
                             </span>
                             <span
                                 className={
@@ -159,8 +158,9 @@ export default function DamageAssignmentPanel({
                                     key={blockerId}
                                     targetId={blockerId}
                                     label={
-                                        (blocker?.card?.name as string) ??
-                                        "Blocker"
+                                        blocker
+                                            ? getCardById(blocker.card.id).name
+                                            : "Blocker"
                                     }
                                     dmg={dmg}
                                     assigned={assigned}

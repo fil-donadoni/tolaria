@@ -6,9 +6,20 @@ import {
     ContextMenuItem,
     ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import type { Player } from "~/types/game";
+import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import CardsPile from "./cards-pile";
+
+function libraryPlaceholders(count: number, playerId: string): CardInstance[] {
+    return Array.from({ length: count }, (_, i) => ({
+        id: `lib-${playerId}-${i}`,
+        card: { id: "" },
+        controllerId: playerId,
+        ownerId: playerId,
+        zone: "library",
+        isTapped: false,
+    }));
+}
 
 export default function PlayerLibrary({ player }: { player: Player }) {
     const { gameId, playerId, debugAllActions } = useGameContext();
@@ -16,7 +27,10 @@ export default function PlayerLibrary({ player }: { player: Player }) {
     const millCard = useMutation(api.game.mill);
     const exile = useMutation(api.game.exileFromLibrary);
     const isMe = player.id === playerId;
-    const hasCards = player.library.length > 0;
+    const libraryCards = Array.isArray(player.library)
+        ? player.library
+        : libraryPlaceholders(player.library.count, player.id);
+    const hasCards = libraryCards.length > 0;
 
     const handleDraw = () => draw({ gameId, playerId });
     const handleMill = () => millCard({ gameId, playerId });
@@ -24,7 +38,7 @@ export default function PlayerLibrary({ player }: { player: Player }) {
 
     const pile = (
         <CardsPile
-            cards={player.library}
+            cards={libraryCards}
             isFaceDown={true}
             emptyLabel="Library is empty"
             title="Library"

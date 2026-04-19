@@ -3,6 +3,7 @@ import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { getCardById } from "@convex/cards";
 import {
     isCreature,
     isLand,
@@ -243,25 +244,25 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         // Ring class
         let ringClass = "";
         if (pendingBlockerId === card.id) {
-            ringClass = "ring-2 ring-amber-400 rounded-lg";
+            ringClass = "ring-2 ring-amber-400 rounded-sm";
         } else if (
             card.isAttacking &&
             combatGroupColors[card.id] !== undefined
         ) {
-            ringClass = `ring-2 ${COMBAT_GROUP_RING[combatGroupColors[card.id]]} rounded-lg`;
+            ringClass = `ring-2 ${COMBAT_GROUP_RING[combatGroupColors[card.id]]} rounded-sm`;
         } else {
             const targetAtkId = blockerAssignments[card.id];
             if (targetAtkId && combatGroupColors[targetAtkId] !== undefined) {
-                ringClass = `ring-2 ${COMBAT_GROUP_RING[combatGroupColors[targetAtkId]]} rounded-lg`;
+                ringClass = `ring-2 ${COMBAT_GROUP_RING[combatGroupColors[targetAtkId]]} rounded-sm`;
             } else if (
                 selectedAttackerIds.includes(card.id) &&
                 !combat?.confirmed
             ) {
-                ringClass = "ring-2 ring-red-500 rounded-lg";
+                ringClass = "ring-2 ring-red-500 rounded-sm";
             }
         }
         if (!ringClass && isValidTarget) {
-            ringClass = "ring-2 ring-orange-400 rounded-lg";
+            ringClass = "ring-2 ring-orange-400 rounded-sm";
         }
 
         // Tooltip for ineligible creatures
@@ -409,7 +410,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             const vs = getVisualState(card);
             const abilities = getActivatable(card);
             return (
-                <div key={card.id} className="flex">
+                <div key={card.id} className="flex h-full">
                     <BattlefieldCard
                         card={card}
                         vs={vs}
@@ -425,8 +426,8 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         const overlapWidth = `${0.5 * (group.length - 1) + 1}`;
         return (
             <div
-                key={group[0].card.name}
-                className="flex shrink-0"
+                key={getCardById(group[0].card.id).name}
+                className="flex shrink-0 h-full"
                 style={{ width: `calc(var(--card-w) * ${overlapWidth})` }}
             >
                 {group.map((card, i) => {
@@ -468,14 +469,14 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         <div
             className={`flex-1 min-h-0 w-full px-4 py-2 flex flex-col gap-2 relative ${isMe ? "" : "flex-col-reverse"}`}
         >
-            <div className="flex-1 min-h-0 flex gap-2 justify-center items-center overflow-hidden">
+            <div className="flex-1 min-h-0 flex gap-2 justify-center items-center">
                 {renderZone(creatures)}
             </div>
             <div className="flex-1 min-h-0 flex">
-                <div className="flex-1 flex gap-2 justify-center items-center overflow-hidden">
+                <div className="flex-1 flex gap-2 justify-center items-center">
                     {renderZone(lands)}
                 </div>
-                <div className="flex-1 flex gap-2 justify-center items-center overflow-hidden">
+                <div className="flex-1 flex gap-2 justify-center items-center">
                     {renderZone(others)}
                 </div>
             </div>

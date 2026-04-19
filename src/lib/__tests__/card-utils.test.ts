@@ -14,11 +14,7 @@ import type { CardInstance, ManaPool } from "~/types/game";
 function makeCardInstance(overrides: Partial<CardInstance> = {}): CardInstance {
     return {
         id: overrides.id ?? "card-1",
-        card: overrides.card ?? {
-            id: "test-id",
-            name: "Test Card",
-            types: ["Creature"],
-        },
+        card: overrides.card ?? { id: "test-id" },
         controllerId: "p1",
         ownerId: "p1",
         zone: "battlefield",
@@ -127,11 +123,7 @@ describe("matchesTargetRequirement", () => {
 describe("getStackAbilities", () => {
     it("returns stack abilities for Nevinyrral's Disk when costs payable", () => {
         const card = makeCardInstance({
-            card: {
-                id: "12926dc8-8e6f-4a47-a12b-4d674189615a",
-                name: "Nevinyrral's Disk",
-                types: ["Artifact"],
-            },
+            card: { id: "12926dc8-8e6f-4a47-a12b-4d674189615a" },
             types: ["Artifact"],
             isTapped: false,
         });
@@ -146,11 +138,7 @@ describe("getStackAbilities", () => {
 
     it("returns empty when Disk is tapped (tap cost unpayable)", () => {
         const card = makeCardInstance({
-            card: {
-                id: "12926dc8-8e6f-4a47-a12b-4d674189615a",
-                name: "Nevinyrral's Disk",
-                types: ["Artifact"],
-            },
+            card: { id: "12926dc8-8e6f-4a47-a12b-4d674189615a" },
             types: ["Artifact"],
             isTapped: true,
         });
@@ -161,11 +149,7 @@ describe("getStackAbilities", () => {
 
     it("returns empty when not enough mana for Disk", () => {
         const card = makeCardInstance({
-            card: {
-                id: "12926dc8-8e6f-4a47-a12b-4d674189615a",
-                name: "Nevinyrral's Disk",
-                types: ["Artifact"],
-            },
+            card: { id: "12926dc8-8e6f-4a47-a12b-4d674189615a" },
             types: ["Artifact"],
             isTapped: false,
         });
@@ -175,11 +159,7 @@ describe("getStackAbilities", () => {
 
     it("returns empty for mana-only abilities (Mox)", () => {
         const card = makeCardInstance({
-            card: {
-                id: "b0e1427c-05cd-465b-be59-97ed6e39f7ba",
-                name: "Mox Emerald",
-                types: ["Artifact"],
-            },
+            card: { id: "b0e1427c-05cd-465b-be59-97ed6e39f7ba" },
             types: ["Artifact"],
             isTapped: false,
         });
@@ -189,11 +169,7 @@ describe("getStackAbilities", () => {
 
     it("returns empty for creatures without activated abilities", () => {
         const card = makeCardInstance({
-            card: {
-                id: "ce2d603a-3231-4a8c-bf39-1617586ea870",
-                name: "Grizzly Bears",
-                types: ["Creature"],
-            },
+            card: { id: "ce2d603a-3231-4a8c-bf39-1617586ea870" },
             types: ["Creature"],
         });
 

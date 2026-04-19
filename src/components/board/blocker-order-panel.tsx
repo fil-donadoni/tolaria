@@ -5,6 +5,7 @@ import { useSortable } from "@dnd-kit/react/sortable";
 import { isSortable } from "@dnd-kit/dom/sortable";
 import type { Id } from "@convex/_generated/dataModel";
 import type { Combat, CardInstance } from "~/types/game";
+import { getCardById } from "@convex/cards";
 import { COMBAT_GROUP_BG } from "~/lib/combat-colors";
 import ActionButton from "./action-button";
 
@@ -109,9 +110,9 @@ export default function BlockerOrderPanel({
                                     const blocker = opponentBattlefield.find(
                                         (c) => c.id === blockerId
                                     );
-                                    const name =
-                                        (blocker?.card?.name as string) ??
-                                        "Blocker";
+                                    const name = blocker
+                                        ? getCardById(blocker.card.id).name
+                                        : "Blocker";
                                     return (
                                         <SortableBlocker
                                             key={blockerId}
