@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { getImageUrl } from "~/lib/images";
 
-const ZOOM_WIDTH = 128 * 4;
+const ZOOM_WIDTH = 128 * 2;
 const ZOOM_ASPECT = 7 / 5;
 const ZOOM_HEIGHT = ZOOM_WIDTH * ZOOM_ASPECT;
 const GAP = 8;
@@ -75,6 +75,27 @@ export default function CardPreview({
         };
     }, [updatePosition]);
 
+    const handleMouseDown = useCallback(
+        (e: React.MouseEvent) => {
+            if (e.button !== 2) return;
+            e.preventDefault();
+            e.stopPropagation();
+            updatePosition();
+            setShowZoom(true);
+            const onUp = () => {
+                setShowZoom(false);
+                window.removeEventListener("mouseup", onUp);
+            };
+            window.addEventListener("mouseup", onUp);
+        },
+        [updatePosition]
+    );
+
+    const handleContextMenu = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    }, []);
+
     return (
         <div
             ref={containerRef}
@@ -86,6 +107,8 @@ export default function CardPreview({
                 isHovered.current = false;
                 setShowZoom(false);
             }}
+            onMouseDown={handleMouseDown}
+            onContextMenu={handleContextMenu}
         >
             {children}
             {showZoom &&
@@ -100,7 +123,7 @@ export default function CardPreview({
                     >
                         <img
                             src={getImageUrl(cardId)}
-                            className="rounded-lg shadow-2xl"
+                            className="rounded-2xl shadow-2xl"
                             alt={cardName}
                         />
                     </div>,

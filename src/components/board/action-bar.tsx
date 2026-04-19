@@ -120,7 +120,7 @@ export default function ActionBar() {
 
     useEffect(() => {
         function onKeyDown(e: KeyboardEvent) {
-            if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+            if (e.key === "u" && !e.metaKey && !e.ctrlKey && !e.altKey) {
                 e.preventDefault();
                 handleUndo();
                 return;
@@ -163,7 +163,7 @@ export default function ActionBar() {
                 onClick={handleUndo}
                 label="Undo"
                 color="yellow"
-                shortcut="Ctrl+Z"
+                shortcut="U"
             />
         );
     }

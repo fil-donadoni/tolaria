@@ -1,9 +1,11 @@
+import { useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import { usePageVisible } from "~/hooks/usePageVisible";
+import { preloadCardImages } from "~/lib/image-preload";
 import PlayerBoard from "./player-board";
 import GameStack from "./game-stack";
 import PhaseTracker from "./phase-tracker";
@@ -37,6 +39,24 @@ export default function Board({
     );
     const state = showAllCards ? fullState : publicState;
 
+    const players = state?.players;
+    const stack = state?.stack;
+    useEffect(() => {
+        if (!players) return;
+        const ids: string[] = [];
+        for (const p of players) {
+            for (const c of p.battlefield) ids.push(c.card.id);
+            for (const c of p.graveyard) ids.push(c.card.id);
+            for (const c of p.exile) ids.push(c.card.id);
+            for (const c of p.hand) if (c) ids.push(c.card.id);
+            if (Array.isArray(p.library)) {
+                for (const c of p.library) ids.push(c.card.id);
+            }
+        }
+        if (stack) for (const c of stack) ids.push(c.card.id);
+        preloadCardImages(ids);
+    }, [players, stack]);
+
     if (!state) {
         return (
             <div className="flex h-full items-center justify-center text-white">
@@ -46,7 +66,6 @@ export default function Board({
     }
 
     const allPlayers: Player[] = state.players;
-    const stack = state.stack ?? [];
     const activePlayerId = state.activePlayerId;
     const priorityPlayerId = state.priorityPlayerId ?? activePlayerId;
     const phase = state.phase ?? "UPKEEP";
@@ -57,6 +76,7 @@ export default function Board({
     const pendingTarget = state.pendingTarget;
     const undoableBy = state.undoableBy;
     const gameOver = state.gameOver;
+    const stackItems = state.stack ?? [];
 
     // Opponent on top, local player on bottom
     const opponent = allPlayers.find((p) => p.id !== playerId);
@@ -90,7 +110,7 @@ export default function Board({
                     <PlayerBoard key={player.id} player={player} />
                 ))}
                 <PhaseTracker />
-                {stack.length > 0 && <GameStack stack={stack} />}
+                {stackItems.length > 0 && <GameStack stack={stackItems} />}
                 {pendingTarget && pendingTarget.playerId === playerId && (
                     <TargetSelectionBanner
                         pendingTarget={pendingTarget}
