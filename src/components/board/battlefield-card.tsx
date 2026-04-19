@@ -48,9 +48,7 @@ export default function BattlefieldCard({
     const hasAbilities = !!activatableAbilities?.length;
     const { allPlayers } = useGameContext();
 
-    const cardClassName = `relative transition-transform duration-150 ${
-        !style ? "w-32" : ""
-    } ${card.isTapped ? "rotate-90" : ""} ${vs.combatOffset} ${vs.ringClass} ${
+    const cardClassName = `relative transition-all duration-[250ms] flex items-center justify-center shrink-0 ${vs.combatOffset} ${vs.ringClass} ${
         hasAbilities && !vs.interactive
             ? "cursor-pointer"
             : vs.interactive
@@ -59,6 +57,30 @@ export default function BattlefieldCard({
                   : "cursor-not-allowed opacity-60"
               : ""
     } ${vs.dimmed ? "opacity-40" : ""}`;
+
+    const tapped = card.isTapped;
+    const baseWidth = (style?.width as string | undefined) ?? "var(--card-w)";
+    const baseHeight = `calc(${baseWidth} * 7 / 5)`;
+
+    // Layout box stays portrait regardless of tap state: untapped height fits the
+    // band, tapping only rotates the visual without resizing the layout box.
+    const boxStyle: React.CSSProperties = {
+        ...style,
+        height: "100%",
+        width: "auto",
+        maxHeight: baseHeight,
+        maxWidth: baseWidth,
+        aspectRatio: "5 / 7",
+    };
+
+    // Inner fills the outer box; rotation is purely visual.
+    const innerStyle: React.CSSProperties = {
+        position: "absolute",
+        inset: 0,
+        transform: tapped ? "rotate(90deg)" : "rotate(0deg)",
+        transformOrigin: "center",
+        transition: "transform 250ms",
+    };
 
     const badgeEl = vs.badge && (
         <div
@@ -76,25 +98,29 @@ export default function BattlefieldCard({
         </div>
     ) : null;
 
+    const inner = (
+        <div className="relative" style={innerStyle}>
+            <CardImage card={card.card} />
+            {badgeEl}
+            {ptOverlay}
+        </div>
+    );
+
     const cardContent = vs.tooltip ? (
         <Tooltip>
             <TooltipTrigger
                 render={<div />}
                 className={cardClassName}
-                style={style}
+                style={boxStyle}
                 onClick={onClick}
             >
-                <CardImage card={card.card} />
-                {badgeEl}
-                {ptOverlay}
+                {inner}
             </TooltipTrigger>
             <TooltipContent>{vs.tooltip}</TooltipContent>
         </Tooltip>
     ) : (
-        <div className={cardClassName} style={style} onClick={onClick}>
-            <CardImage card={card.card} />
-            {badgeEl}
-            {ptOverlay}
+        <div className={cardClassName} style={boxStyle} onClick={onClick}>
+            {inner}
         </div>
     );
 

@@ -1,12 +1,7 @@
 import type { Player } from "~/types/game";
-import PlayerLife from "./player-life";
 import PlayerBattlefield from "./player-battlefield";
-import PlayerHand from "./player-hand";
-import PlayerLibrary from "./player-library";
-import PlayerGraveyard from "./player-graveyard";
-import PlayerExile from "./player-exile";
+import PlayerSideRow from "./player-side-row";
 import { useGameContext } from "~/hooks/useGameContext";
-import PlayerManaPool from "./player-mana-pool";
 
 export default function PlayerBoard({ player }: { player: Player }) {
     const { playerId } = useGameContext();
@@ -14,24 +9,15 @@ export default function PlayerBoard({ player }: { player: Player }) {
 
     return (
         <div
-            className="flex-1 flex justify-center items-center relative overflow-hidden"
+            className="flex-1 flex flex-col relative overflow-hidden min-h-0"
             style={{ backgroundColor: player.bgColor }}
         >
-            <PlayerHand player={player} />
-
-            <PlayerLife player={player} />
-
-            <PlayerManaPool player={player} />
-
             <div
-                className={`absolute flex gap-2 ${isMe ? "bottom-20 right-4" : "flex-row-reverse top-4 left-4"}`}
+                className={`flex-1 flex flex-col min-h-0 ${isMe ? "" : "flex-col-reverse"}`}
             >
-                <PlayerExile player={player} />
-                <PlayerLibrary player={player} />
-                <PlayerGraveyard player={player} />
+                <PlayerBattlefield player={player} />
+                <PlayerSideRow player={player} />
             </div>
-
-            <PlayerBattlefield player={player} />
         </div>
     );
 }

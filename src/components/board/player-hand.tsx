@@ -49,11 +49,5 @@ export default function PlayerHand({ player }: HandProps) {
         }
     );
 
-    return (
-        <div
-            className={`absolute w-full h-1/4 p-4 ${isMe ? "bottom-0" : "top-0"}`}
-        >
-            <div className="flex justify-center">{cardsInHand}</div>
-        </div>
-    );
+    return <div className="flex justify-center items-end">{cardsInHand}</div>;
 }

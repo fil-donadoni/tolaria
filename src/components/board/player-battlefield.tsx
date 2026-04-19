@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useMutation } from "convex/react";
@@ -19,7 +19,6 @@ import { COMBAT_GROUP_RING, COMBAT_GROUP_BG } from "~/lib/combat-colors";
 import BattlefieldCard, { type CardVisualState } from "./battlefield-card";
 import DamageAssignmentPanel from "./damage-assignment-panel";
 import BlockerOrderPanel from "./blocker-order-panel";
-import ActionButton from "./action-button";
 import ManaChoicePicker from "./mana-choice-picker";
 
 // ---------------------------------------------------------------------------
@@ -35,25 +34,18 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         phase,
         pendingCast,
         pendingTarget,
-        undoableBy,
         combat,
         allPlayers,
     } = useGameContext();
     const isMe = player.id === playerId;
-    const canUndo = isMe && undoableBy === playerId;
 
     // Mutations
     const tapUntap = useMutation(api.game.tapUntap);
     const tapForPayment = useMutation(api.game.tapForPayment);
     const untapForPayment = useMutation(api.game.untapForPayment);
-    const undoManaAbility = useMutation(api.game.undoManaAbility);
-    const cancelCast = useMutation(api.game.cancelCast);
     const toggleAttacker = useMutation(api.game.toggleAttacker);
-    const confirmAttackers = useMutation(api.game.confirmAttackers);
     const selectBlocker = useMutation(api.game.selectBlocker);
     const assignBlockerTarget = useMutation(api.game.assignBlockerTarget);
-    const confirmBlockers = useMutation(api.game.confirmBlockers);
-    const confirmDamage = useMutation(api.game.confirmDamage);
     const selectTarget = useMutation(api.game.selectTarget);
     const activateAbility = useMutation(api.game.activateAbility);
 
@@ -63,25 +55,6 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         choices: import("~/types/cards").ManaCost[];
         position: { x: number; y: number };
     } | null>(null);
-
-    // --- Undo shortcut (Ctrl/Cmd+Z) ---
-
-    const handleUndo = useCallback(() => {
-        if (canUndo) {
-            undoManaAbility({ gameId, playerId });
-        }
-    }, [canUndo, undoManaAbility, gameId, playerId]);
-
-    useEffect(() => {
-        function onKeyDown(e: KeyboardEvent) {
-            if ((e.metaKey || e.ctrlKey) && e.key === "z") {
-                e.preventDefault();
-                handleUndo();
-            }
-        }
-        window.addEventListener("keydown", onKeyDown);
-        return () => window.removeEventListener("keydown", onKeyDown);
-    }, [handleUndo]);
 
     // --- Interaction modes ---
 
@@ -163,26 +136,6 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         }
         return map;
     }, [combat]);
-
-    const allDamageAssigned = useMemo(() => {
-        if (!isAssigningDamage || !combat) return false;
-        for (const attackerId of combat.attackerIds) {
-            if ((blockersPerAttacker[attackerId]?.length ?? 0) < 2) continue;
-            const attacker = player.battlefield.find(
-                (c) => c.id === attackerId
-            );
-            if (!attacker) continue;
-            const power = Math.max(
-                0,
-                attacker.power ?? attacker.card.power ?? 0
-            );
-            const total = Object.values(
-                combat.damageAssignments?.[attackerId] ?? {}
-            ).reduce((s, n) => s + n, 0);
-            if (total !== power) return false;
-        }
-        return true;
-    }, [isAssigningDamage, combat, blockersPerAttacker, player.battlefield]);
 
     // --- Card-level logic ---
 
@@ -473,8 +426,8 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         return (
             <div
                 key={group[0].card.name}
-                className="flex"
-                style={{ width: `calc(8rem * ${overlapWidth})` }}
+                className="flex shrink-0"
+                style={{ width: `calc(var(--card-w) * ${overlapWidth})` }}
             >
                 {group.map((card, i) => {
                     const vs = getVisualState(card);
@@ -490,9 +443,12 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                                 handleActivateAbility(card.id, aId)
                             }
                             style={{
-                                width: "8rem",
+                                width: "var(--card-w)",
                                 flexShrink: 0,
-                                marginLeft: i > 0 ? "-4rem" : undefined,
+                                marginLeft:
+                                    i > 0
+                                        ? "calc(var(--card-w) * -0.5)"
+                                        : undefined,
                                 zIndex: i,
                             }}
                         />
@@ -506,83 +462,24 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         return groupByName(cards).map(renderGroup);
     }
 
-    const blockerCount = Object.keys(blockerAssignments).length;
     const opponent = allPlayers.find((p) => p.id !== activePlayerId);
 
     return (
         <div
-            className={`absolute w-full h-2/3 p-4 flex flex-col ${isMe ? "top-0" : "bottom-0"}`}
+            className={`flex-1 min-h-0 w-full px-4 py-2 flex flex-col gap-2 relative ${isMe ? "" : "flex-col-reverse"}`}
         >
-            {isMe ? (
-                <div className="flex flex-col gap-2">
-                    <div className="flex-1 flex gap-2 justify-center items-center">
-                        {renderZone(creatures)}
-                    </div>
-                    <div className="flex-1 flex">
-                        <div className="flex-1 flex gap-2 justify-center items-center">
-                            {renderZone(lands)}
-                        </div>
-                        <div className="flex-1 flex gap-2 justify-center items-center">
-                            {renderZone(others)}
-                        </div>
-                    </div>
+            <div className="flex-1 min-h-0 flex gap-2 justify-center items-center overflow-hidden">
+                {renderZone(creatures)}
+            </div>
+            <div className="flex-1 min-h-0 flex">
+                <div className="flex-1 flex gap-2 justify-center items-center overflow-hidden">
+                    {renderZone(lands)}
                 </div>
-            ) : (
-                <>
-                    <div className="flex-1 flex">
-                        <div className="flex-1 flex gap-2 justify-center items-center">
-                            {renderZone(lands)}
-                        </div>
-                        <div className="flex-1 flex gap-2 justify-center items-center">
-                            {renderZone(others)}
-                        </div>
-                    </div>
-                    <div className="flex-1 flex gap-2 justify-center items-center">
-                        {renderZone(creatures)}
-                    </div>
-                </>
-            )}
+                <div className="flex-1 flex gap-2 justify-center items-center overflow-hidden">
+                    {renderZone(others)}
+                </div>
+            </div>
 
-            {canUndo && (
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-40">
-                    <button
-                        onClick={handleUndo}
-                        className="font-bold px-3 py-1 rounded-lg text-xs bg-yellow-600 hover:bg-yellow-500 text-white transition-colors"
-                    >
-                        Undo
-                        <span className="ml-1 opacity-60">[Ctrl+Z]</span>
-                    </button>
-                </div>
-            )}
-            {isPayingCast && (
-                <ActionButton
-                    onClick={() => cancelCast({ gameId, playerId })}
-                    label="Cancel Cast"
-                />
-            )}
-            {isSelectingAttackers && (
-                <ActionButton
-                    onClick={() => confirmAttackers({ gameId, playerId })}
-                    label={
-                        selectedAttackerIds.length > 0
-                            ? `Confirm Attackers (${selectedAttackerIds.length})`
-                            : "Skip Attack"
-                    }
-                    shortcut="space"
-                />
-            )}
-            {isSelectingBlockers && (
-                <ActionButton
-                    onClick={() => confirmBlockers({ gameId, playerId })}
-                    label={
-                        blockerCount > 0
-                            ? `Confirm Blockers (${blockerCount})`
-                            : "No Blockers"
-                    }
-                    color="blue"
-                    shortcut="space"
-                />
-            )}
             {isOrderingBlockers && (
                 <BlockerOrderPanel
                     combat={combat!}
@@ -593,23 +490,16 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 />
             )}
             {isAssigningDamage && (
-                <>
-                    <DamageAssignmentPanel
-                        combat={combat!}
-                        player={player}
-                        opponentBattlefield={opponent?.battlefield ?? []}
-                        blockersPerAttacker={blockersPerAttacker}
-                        combatGroupColors={combatGroupColors}
-                        gameId={gameId}
-                        playerId={playerId}
-                        defenderId={opponent?.id ?? ""}
-                    />
-                    <ActionButton
-                        onClick={() => confirmDamage({ gameId, playerId })}
-                        label="Confirm Damage"
-                        disabled={!allDamageAssigned}
-                    />
-                </>
+                <DamageAssignmentPanel
+                    combat={combat!}
+                    player={player}
+                    opponentBattlefield={opponent?.battlefield ?? []}
+                    blockersPerAttacker={blockersPerAttacker}
+                    combatGroupColors={combatGroupColors}
+                    gameId={gameId}
+                    playerId={playerId}
+                    defenderId={opponent?.id ?? ""}
+                />
             )}
 
             {manaChoiceState && (

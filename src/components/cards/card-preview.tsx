@@ -78,6 +78,7 @@ export default function CardPreview({
     return (
         <div
             ref={containerRef}
+            className="w-full h-full"
             onMouseEnter={() => {
                 isHovered.current = true;
             }}

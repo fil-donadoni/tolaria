@@ -38,7 +38,7 @@ export default function CardsPile({
 
     if (!cards.length) {
         return (
-            <div className="w-24 aspect-5/7 mb-2 flex justify-center items-center text-center p-2 border border-white/20 rounded-md text-white/40 text-xs">
+            <div className="w-(--card-w-sm) aspect-5/7 mb-2 flex justify-center items-center text-center p-2 border border-white/20 rounded-sm text-white/40 text-xs">
                 {emptyLabel || "No cards"}
             </div>
         );
@@ -61,7 +61,7 @@ export default function CardsPile({
         return (
             <div
                 key={cardIndex}
-                className="absolute w-24 mb-2"
+                className="absolute w-(--card-w-sm) aspect-5/7 mb-2"
                 style={cardStyle}
             >
                 {image}

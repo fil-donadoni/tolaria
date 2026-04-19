@@ -33,14 +33,14 @@ export default function PlayerLibrary({ player }: { player: Player }) {
 
     if (!isMe || !hasCards || !debugAllActions) {
         return (
-            <div className="w-24 aspect-5/7">
+            <div className="w-[var(--card-w-sm)] aspect-5/7">
                 <div className="relative">{pile}</div>
             </div>
         );
     }
 
     return (
-        <div className="w-24 aspect-5/7">
+        <div className="w-[var(--card-w-sm)] aspect-5/7">
             <ContextMenu>
                 <ContextMenuTrigger>
                     <div className="relative cursor-pointer">{pile}</div>

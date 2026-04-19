@@ -14,7 +14,7 @@ import { usePageVisible } from "~/hooks/usePageVisible";
 import PlayerBoard from "./player-board";
 import GameStack from "./game-stack";
 import PhaseTracker from "./phase-tracker";
-import PassPriorityButton from "./pass-priority-button";
+import ActionBar from "./action-bar";
 import GameOverDialog from "./game-over-dialog";
 import TargetSelectionBanner from "./target-selection-banner";
 
@@ -32,10 +32,17 @@ export default function Board({
     debugAllActions,
 }: BoardProps) {
     const pageVisible = usePageVisible();
-    const state = useQuery(
-        api.game.getFullState,
-        pageVisible ? { gameId, debugAllActions } : "skip"
+    const publicState = useQuery(
+        api.game.getPublicState,
+        pageVisible && !showAllCards
+            ? { gameId, playerId, debugAllActions }
+            : "skip"
     );
+    const fullState = useQuery(
+        api.game.getFullState,
+        pageVisible && showAllCards ? { gameId, debugAllActions } : "skip"
+    );
+    const state = showAllCards ? fullState : publicState;
 
     if (!state) {
         return (
@@ -104,7 +111,7 @@ export default function Board({
                         playerId={playerId}
                     />
                 )}
-                <PassPriorityButton />
+                <ActionBar />
                 {gameOver && (
                     <GameOverDialog
                         gameOver={gameOver}
