@@ -250,6 +250,153 @@ describe("advancePhase", () => {
             expect(state.phase).toBe("POSTCOMBAT_MAIN");
         });
 
+        it("DECLARE_BLOCKERS → COMBAT_DAMAGE (FIRST_STRIKE_DAMAGE skipped when no first/double strike)", () => {
+            const state = makeGameState({
+                phase: "DECLARE_BLOCKERS",
+                combat: {
+                    attackerIds: ["c1"],
+                    confirmed: true,
+                    blockerAssignments: {},
+                    blockersConfirmed: true,
+                },
+            });
+            const p1 = state.players.find((p) => p.id === "p1")!;
+            p1.battlefield.push(
+                makeCard({
+                    id: "c1",
+                    types: ["Creature"],
+                    power: 2,
+                    toughness: 2,
+                    isAttacking: true,
+                })
+            );
+            advancePhase(state);
+            expect(state.phase).toBe("COMBAT_DAMAGE");
+        });
+
+        it("DECLARE_BLOCKERS → FIRST_STRIKE_DAMAGE when an attacker has first strike", () => {
+            const state = makeGameState({
+                phase: "DECLARE_BLOCKERS",
+                combat: {
+                    attackerIds: ["archer"],
+                    confirmed: true,
+                    blockerAssignments: {},
+                    blockersConfirmed: true,
+                },
+            });
+            const p1 = state.players.find((p) => p.id === "p1")!;
+            p1.battlefield.push(
+                makeCard({
+                    id: "archer",
+                    types: ["Creature"],
+                    power: 2,
+                    toughness: 1,
+                    staticAbilities: ["first strike"],
+                    isAttacking: true,
+                })
+            );
+            advancePhase(state);
+            expect(state.phase).toBe("FIRST_STRIKE_DAMAGE");
+        });
+
+        it("DECLARE_BLOCKERS → FIRST_STRIKE_DAMAGE when a blocker has first strike", () => {
+            const state = makeGameState({
+                phase: "DECLARE_BLOCKERS",
+                combat: {
+                    attackerIds: ["bear"],
+                    confirmed: true,
+                    blockerAssignments: { wall: "bear" },
+                    blockersConfirmed: true,
+                },
+            });
+            const p1 = state.players.find((p) => p.id === "p1")!;
+            const p2 = state.players.find((p) => p.id === "p2")!;
+            p1.battlefield.push(
+                makeCard({
+                    id: "bear",
+                    types: ["Creature"],
+                    power: 2,
+                    toughness: 2,
+                    isAttacking: true,
+                })
+            );
+            p2.battlefield.push(
+                makeCard({
+                    id: "wall",
+                    types: ["Creature"],
+                    power: 3,
+                    toughness: 5,
+                    staticAbilities: ["first strike"],
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    isBlocking: true,
+                })
+            );
+            advancePhase(state);
+            expect(state.phase).toBe("FIRST_STRIKE_DAMAGE");
+        });
+
+        it("FIRST_STRIKE_DAMAGE applies only first/double strike damage; blocker killed first does not hit back", () => {
+            const state = makeGameState({
+                phase: "FIRST_STRIKE_DAMAGE",
+                combat: {
+                    attackerIds: ["archer"],
+                    confirmed: true,
+                    blockerAssignments: { bear: "archer" },
+                    blockersConfirmed: true,
+                    blockerOrder: { archer: ["bear"] },
+                    blockerOrderConfirmed: true,
+                },
+            });
+            const p1 = state.players.find((p) => p.id === "p1")!;
+            const p2 = state.players.find((p) => p.id === "p2")!;
+            p1.battlefield.push(
+                makeCard({
+                    id: "archer",
+                    types: ["Creature"],
+                    power: 2,
+                    toughness: 1,
+                    staticAbilities: ["first strike"],
+                    isAttacking: true,
+                })
+            );
+            p2.battlefield.push(
+                makeCard({
+                    id: "bear",
+                    types: ["Creature"],
+                    power: 2,
+                    toughness: 2,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    isBlocking: true,
+                })
+            );
+            // Advance from DECLARE_BLOCKERS into FIRST_STRIKE_DAMAGE entry.
+            // Simulate entry directly: performPhaseEntry for FIRST_STRIKE_DAMAGE
+            // is invoked by advancePhase when transitioning into it. Here we
+            // start in FIRST_STRIKE_DAMAGE so we walk one step back: set to
+            // DECLARE_BLOCKERS → advancePhase.
+            state.phase = "DECLARE_BLOCKERS";
+            advancePhase(state);
+            expect(state.phase).toBe("FIRST_STRIKE_DAMAGE");
+            // Archer dealt 2 to bear (killed). Bear is now in graveyard and
+            // cannot deal regular damage back.
+            expect(p2.battlefield.find((c) => c.id === "bear")).toBeUndefined();
+            expect(p2.graveyard.some((c) => c.id === "bear")).toBe(true);
+            // Archer still alive and untouched entering FSD; regular damage
+            // step pending.
+            const archer = p1.battlefield.find((c) => c.id === "archer")!;
+            expect(archer).toBeDefined();
+            // Pass priority through FSD → COMBAT_DAMAGE → EOC; archer must
+            // survive because bear is dead and does not hit back.
+            state.phase = "FIRST_STRIKE_DAMAGE";
+            advancePhase(state);
+            expect(state.phase).toBe("COMBAT_DAMAGE");
+            advancePhase(state);
+            expect(state.phase).toBe("END_OF_COMBAT");
+            expect(p1.battlefield.find((c) => c.id === "archer")).toBeDefined();
+        });
+
         it("COMBAT_DAMAGE → END_OF_COMBAT (with attackers)", () => {
             const state = makeGameState({
                 phase: "COMBAT_DAMAGE",

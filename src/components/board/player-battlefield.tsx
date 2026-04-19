@@ -22,6 +22,8 @@ import BattlefieldCard, { type CardVisualState } from "./battlefield-card";
 import DamageAssignmentPanel from "./damage-assignment-panel";
 import BlockerOrderPanel from "./blocker-order-panel";
 import ManaChoicePicker from "./mana-choice-picker";
+import ValidationToast from "./validation-toast";
+import { extractMutationErrorMessage } from "~/lib/mutation-error";
 
 // ---------------------------------------------------------------------------
 // PlayerBattlefield
@@ -59,6 +61,14 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         position: { x: number; y: number };
         inPayment: boolean;
     } | null>(null);
+
+    const [validationError, setValidationError] = useState<string | null>(null);
+
+    function guardMutation(promise: Promise<unknown>) {
+        promise.catch((err) => {
+            setValidationError(extractMutationErrorMessage(err));
+        });
+    }
 
     // --- Interaction modes ---
 
@@ -103,7 +113,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         playerId === activePlayerId;
 
     const isAssigningDamage =
-        phase === "COMBAT_DAMAGE" &&
+        (phase === "COMBAT_DAMAGE" || phase === "FIRST_STRIKE_DAMAGE") &&
         !!combat &&
         combat.damageConfirmed === false &&
         isMe &&
@@ -328,31 +338,63 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             pendingTarget &&
             matchesTargetRequirement(card, pendingTarget.targetType)
         ) {
-            selectTarget({
-                gameId,
-                playerId,
-                targetType: "permanent",
-                targetId: card.id,
-            });
+            guardMutation(
+                selectTarget({
+                    gameId,
+                    playerId,
+                    targetType: "permanent",
+                    targetId: card.id,
+                })
+            );
             return;
         }
         if (isSelectingAttackers && isCreature(card)) {
-            toggleAttacker({ gameId, playerId, cardInstanceId: card.id });
+            // CR 508.1d: can't deselect a creature required to attack.
+            // Pre-check client-side for instant feedback (the server also
+            // rejects this via toggleAttacker).
+            const alreadySelected = selectedAttackerIds.includes(card.id);
+            const mustAttackClient =
+                alreadySelected &&
+                (card.staticAbilities?.includes("attacks-if-able") ?? false) &&
+                !card.isTapped &&
+                !card.isSummoningSick;
+            if (mustAttackClient) {
+                const name = getCardById(card.card.id).name;
+                setValidationError(`${name} must attack this combat if able`);
+                return;
+            }
+            guardMutation(
+                toggleAttacker({ gameId, playerId, cardInstanceId: card.id })
+            );
             return;
         }
         if (isSelectingBlockers && isCreature(card)) {
-            selectBlocker({ gameId, playerId, cardInstanceId: card.id });
+            guardMutation(
+                selectBlocker({ gameId, playerId, cardInstanceId: card.id })
+            );
             return;
         }
         if (isBlockerTarget && card.isAttacking) {
-            assignBlockerTarget({ gameId, playerId, attackerId: card.id });
+            guardMutation(
+                assignBlockerTarget({
+                    gameId,
+                    playerId,
+                    attackerId: card.id,
+                })
+            );
             return;
         }
 
         // Mana source tap/untap (lands, mox, etc.)
         if (isPayingCast) {
             if (card.isTapped) {
-                untapForPayment({ gameId, playerId, cardInstanceId: card.id });
+                guardMutation(
+                    untapForPayment({
+                        gameId,
+                        playerId,
+                        cardInstanceId: card.id,
+                    })
+                );
                 return;
             }
             const choices = getManaChoices(card);
@@ -364,7 +406,13 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                     inPayment: true,
                 });
             } else {
-                tapForPayment({ gameId, playerId, cardInstanceId: card.id });
+                guardMutation(
+                    tapForPayment({
+                        gameId,
+                        playerId,
+                        cardInstanceId: card.id,
+                    })
+                );
             }
         } else {
             // Check for mana choices (e.g. Black Lotus) — show picker
@@ -379,7 +427,9 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                     inPayment: false,
                 });
             } else {
-                tapUntap({ gameId, playerId, cardInstanceId: card.id });
+                guardMutation(
+                    tapUntap({ gameId, playerId, cardInstanceId: card.id })
+                );
             }
         }
     }
@@ -415,13 +465,15 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         abilityId: string,
         keepPriority: boolean
     ) {
-        activateAbility({
-            gameId,
-            playerId,
-            cardInstanceId,
-            abilityId,
-            keepPriority: keepPriority || undefined,
-        });
+        guardMutation(
+            activateAbility({
+                gameId,
+                playerId,
+                cardInstanceId,
+                abilityId,
+                keepPriority: keepPriority || undefined,
+            })
+        );
     }
 
     // --- Rendering ---
@@ -543,15 +595,19 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                             manaChoiceIndex: index,
                         };
                         if (manaChoiceState.inPayment) {
-                            tapForPayment(args);
+                            guardMutation(tapForPayment(args));
                         } else {
-                            tapUntap(args);
+                            guardMutation(tapUntap(args));
                         }
                         setManaChoiceState(null);
                     }}
                     onCancel={() => setManaChoiceState(null)}
                 />
             )}
+            <ValidationToast
+                message={validationError}
+                onDismiss={() => setValidationError(null)}
+            />
         </div>
     );
 }

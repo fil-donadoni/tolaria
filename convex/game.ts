@@ -4,6 +4,7 @@ import type { DataModel, Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { getCardById, getCardByName, getAllCardNames } from "./cards";
 import {
+    type CardInstanceState,
     type GameState,
     type PendingTarget,
     type StackItem,
@@ -20,7 +21,8 @@ import {
     normalizeManaCost,
     isManaCostCovered,
 } from "./gre/state";
-import { assertLegalAction, getLegalTargets } from "./gre/rules";
+import type { Color } from "./cards/types";
+import { assertLegalAction, getLegalTargets, hasColor } from "./gre/rules";
 import { projectFullState, projectPublicState } from "./gameProjections";
 import {
     advancePhase,
@@ -39,6 +41,8 @@ import {
 import {
     validateAttackerEligibility,
     validateBlockerEligibility,
+    getRequiredAttackerIds,
+    mustAttack,
 } from "./gre/combat";
 import { checkGameOverSBA } from "./gre/sba";
 
@@ -463,9 +467,56 @@ function finalizeTargetSelection(
     const cardInstanceId = pt.cardInstanceId;
     const keepPriority = pt.keepPriority;
     const chosenX = pt.chosenX;
+    const kind = pt.kind ?? "cast";
+    const abilityId = pt.abilityId;
     state.pendingTarget = undefined;
 
     const player = getPlayer(state, playerId);
+
+    // Activated-ability targeting branch (CR 602.2b). Costs are paid here
+    // — after targets are chosen — and the ability goes on the stack.
+    if (kind === "ability") {
+        if (!abilityId) throw new Error("pendingTarget.abilityId missing");
+        const card = player.battlefield.find((c) => c.id === cardInstanceId);
+        if (!card) throw new Error("Ability source not on battlefield");
+        const cardDef = getCardById((card.card as { id: string }).id);
+        const ability = cardDef.activatedAbilities?.find(
+            (a) => a.id === abilityId
+        );
+        if (!ability) throw new Error("Ability not found");
+
+        if (ability.cost.tap) {
+            if (card.isTapped) throw new Error("Card is already tapped");
+            card.isTapped = true;
+        }
+        if (ability.cost.mana) {
+            const manaCost = normalizeManaCost(ability.cost.mana);
+            if (!isManaCostCovered(player.manaPool, manaCost)) {
+                throw new Error("Not enough mana");
+            }
+            payManaCost(player.manaPool, manaCost);
+            commitLandsForCost(player, manaCost);
+        }
+        if (ability.cost.sacrifice) {
+            removePermanentTo(state, card.id, "graveyard");
+        }
+
+        const stackItem: StackItem = {
+            ...structuredClone(card),
+            zone: "stack" as const,
+            castById: playerId,
+            abilityId,
+            targets,
+        };
+        state.stack.push(stackItem);
+        state.passCount = 0;
+        state.priorityPlayerId = getOpponentId(state, playerId);
+        state.singleShotAutoPass = keepPriority ? undefined : playerId;
+        drainAutoPasses(state);
+        return;
+    }
+
+    // Spell cast branch (CR 601.2c).
     const cardInHand = player.hand.find((c) => c.id === cardInstanceId);
     if (!cardInHand) throw new Error("Card not in hand");
     const cardDef = getCardById((cardInHand.card as { id: string }).id);
@@ -923,9 +974,10 @@ export const selectTarget = mutation({
                 (t) => t !== "player" && t !== "any" && t !== "spell"
             );
             // CR 115.4 / 120.3: "any target" only matches damageable permanents.
-            const found = state.players.some((p) =>
-                p.battlefield.some((c) => {
-                    if (c.id !== args.targetId) return false;
+            let matchedCard: CardInstanceState | null = null;
+            for (const p of state.players) {
+                for (const c of p.battlefield) {
+                    if (c.id !== args.targetId) continue;
                     const matchesAny =
                         wantsAny &&
                         DAMAGEABLE_PERMANENT_TYPES.some((t) =>
@@ -934,13 +986,23 @@ export const selectTarget = mutation({
                     const matchesExplicit = permanentTypes.some((t) =>
                         c.types.includes(t as never)
                     );
-                    return matchesAny || matchesExplicit;
-                })
-            );
-            if (!found) throw new Error("Invalid target");
+                    if (matchesAny || matchesExplicit) matchedCard = c;
+                }
+            }
+            if (!matchedCard) throw new Error("Invalid target");
+            // CR 202.2: color-restricted choice (e.g. Circle of Protection).
+            if (
+                pt.colorFilter &&
+                !hasColor(matchedCard, pt.colorFilter as Color)
+            ) {
+                throw new Error(`Target must be ${pt.colorFilter}`);
+            }
         } else if (args.targetType === "player") {
             if (!wantsAny && !reqTypes.includes("player")) {
                 throw new Error("Must target a permanent");
+            }
+            if (pt.colorFilter) {
+                throw new Error("Players have no color");
             }
             const found = state.players.some((p) => p.id === args.targetId);
             if (!found) throw new Error("Invalid player target");
@@ -949,8 +1011,11 @@ export const selectTarget = mutation({
             if (!reqTypes.includes("spell")) {
                 throw new Error("This spell does not target a spell");
             }
-            const found = state.stack.some((s) => s.id === args.targetId);
-            if (!found) throw new Error("Invalid spell target");
+            const spell = state.stack.find((s) => s.id === args.targetId);
+            if (!spell) throw new Error("Invalid spell target");
+            if (pt.colorFilter && !hasColor(spell, pt.colorFilter as Color)) {
+                throw new Error(`Target must be ${pt.colorFilter}`);
+            }
         }
 
         pt.selected.push(target);
@@ -1088,7 +1153,12 @@ export const toggleAttacker = mutation({
 
         const idx = state.combat.attackerIds.indexOf(args.cardInstanceId);
         if (idx !== -1) {
-            // Deselect
+            // CR 508.1d: can't deselect a creature required to attack
+            if (mustAttack(card)) {
+                throw new Error(
+                    `${card.card.name as string} must attack this combat if able`
+                );
+            }
             state.combat.attackerIds.splice(idx, 1);
         } else {
             // Select — must be eligible
@@ -1128,6 +1198,14 @@ export const confirmAttackers = mutation({
         }
 
         const player = getPlayer(state, args.playerId);
+
+        // CR 508.1d: auto-include any eligible creature required to attack
+        // that the player didn't manually select.
+        for (const requiredId of getRequiredAttackerIds(player.battlefield)) {
+            if (!state.combat.attackerIds.includes(requiredId)) {
+                state.combat.attackerIds.push(requiredId);
+            }
+        }
 
         // Tap and mark each attacker (vigilance creatures don't tap)
         for (const attackerId of state.combat.attackerIds) {
@@ -1472,8 +1550,11 @@ export const setDamageAssignment = mutation({
         state.undoableBy = undefined;
         assertGameNotOver(state);
 
-        if (state.phase !== "COMBAT_DAMAGE") {
-            throw new Error("Not in COMBAT_DAMAGE phase");
+        if (
+            state.phase !== "FIRST_STRIKE_DAMAGE" &&
+            state.phase !== "COMBAT_DAMAGE"
+        ) {
+            throw new Error("Not in a combat damage step");
         }
         if (args.playerId !== state.activePlayerId) {
             throw new Error("Only the active player assigns combat damage");
@@ -1540,8 +1621,11 @@ export const confirmDamage = mutation({
         state.undoableBy = undefined;
         assertGameNotOver(state);
 
-        if (state.phase !== "COMBAT_DAMAGE") {
-            throw new Error("Not in COMBAT_DAMAGE phase");
+        if (
+            state.phase !== "FIRST_STRIKE_DAMAGE" &&
+            state.phase !== "COMBAT_DAMAGE"
+        ) {
+            throw new Error("Not in a combat damage step");
         }
         if (args.playerId !== state.activePlayerId) {
             throw new Error("Only the active player confirms damage");
@@ -1550,7 +1634,9 @@ export const confirmDamage = mutation({
             throw new Error("Damage assignment is not open");
         }
 
-        applyAllCombatDamage(state, state.combat.damageAssignments ?? {});
+        const kind =
+            state.phase === "FIRST_STRIKE_DAMAGE" ? "first-strike" : "regular";
+        applyAllCombatDamage(state, state.combat.damageAssignments ?? {}, kind);
         state.combat.damageConfirmed = true;
 
         // Check SBA after combat damage (CR 704.5)
@@ -1626,7 +1712,8 @@ export const passPriority = mutation({
 
         // Cannot pass priority before confirming damage assignments
         if (
-            state.phase === "COMBAT_DAMAGE" &&
+            (state.phase === "FIRST_STRIKE_DAMAGE" ||
+                state.phase === "COMBAT_DAMAGE") &&
             state.combat &&
             state.combat.damageConfirmed === false
         ) {
@@ -1929,6 +2016,58 @@ export const activateAbility = mutation({
         if (!ability) throw new Error("Ability not found");
         if (!ability.useStack) {
             throw new Error("Use tapUntap for mana abilities");
+        }
+
+        // CR 602.2b: if the ability has targets, choose them before paying
+        // costs. Validate the activation is legal up-front (costs coverable,
+        // at least one legal target) so the player can't strand themselves
+        // in a pendingTarget they can't finalize.
+        if (ability.targetRequirement) {
+            if (state.pendingTarget) {
+                throw new Error("Target selection is in progress");
+            }
+            if (ability.cost.tap && card.isTapped) {
+                throw new Error("Card is already tapped");
+            }
+            if (ability.cost.mana) {
+                const manaCost = normalizeManaCost(ability.cost.mana);
+                if (!isManaCostCovered(player.manaPool, manaCost)) {
+                    throw new Error("Not enough mana");
+                }
+            }
+            const legal = getLegalTargets(state, ability.targetRequirement);
+            if (legal.length === 0) {
+                throw new Error("No legal targets available");
+            }
+            state.pendingTarget = {
+                playerId: args.playerId,
+                cardInstanceId: card.id,
+                targetType: ability.targetRequirement.type,
+                count: ability.targetRequirement.count,
+                colorFilter: ability.targetRequirement.colorFilter,
+                selected: [],
+                keepPriority: args.keepPriority,
+                kind: "ability",
+                abilityId: args.abilityId,
+            };
+
+            const now = Date.now();
+            const nextSeq = gameState.seq + 1;
+            await saveGameState(ctx, args.gameId, nextSeq, state);
+            await ctx.db.insert("events", {
+                gameId: args.gameId,
+                seq: nextSeq,
+                type: "TARGET_SELECTION_STARTED",
+                player: args.playerId,
+                payload: {
+                    cardInstanceId: card.id,
+                    cardName: (card.card as { name?: string }).name,
+                    targetType: ability.targetRequirement.type,
+                    abilityId: args.abilityId,
+                },
+                timestamp: now,
+            });
+            return;
         }
 
         // Pay costs (CR 602.2b)

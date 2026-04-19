@@ -42,7 +42,8 @@ export function isSelectingBlockers(ctx: HasPriorityCtx): boolean {
 
 export function isAssigningDamage(ctx: HasPriorityCtx): boolean {
     return (
-        ctx.phase === "COMBAT_DAMAGE" &&
+        (ctx.phase === "COMBAT_DAMAGE" ||
+            ctx.phase === "FIRST_STRIKE_DAMAGE") &&
         !!ctx.combat &&
         ctx.combat.damageConfirmed === false &&
         ctx.playerId === ctx.activePlayerId

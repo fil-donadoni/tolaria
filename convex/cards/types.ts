@@ -46,6 +46,10 @@ export interface TargetRequirement {
      *  (CR 601.2c). `max` is open-ended when undefined — capped by legal
      *  target availability. Example: Fireball → { min: 1 }. */
     count: number | { min: number; max?: number };
+    /** If set, restricts legal targets to permanents and stack spells of the
+     *  given color (CR 202.2). Used by Circle of Protection's "source of your
+     *  choice of color W/U/B/R/G" choice. */
+    colorFilter?: Color;
 }
 
 export interface TargetSelection {
@@ -70,6 +74,9 @@ export interface ActivatedAbility {
     };
     /** Oracle text for this ability (displayed in context menus and on the stack). */
     oracleText: string;
+    /** Target requirements declared at activation time (CR 602.2b). Chosen
+     *  when the ability is activated, validated again on resolution. */
+    targetRequirement?: TargetRequirement;
     /** Effect for mana abilities (useStack: false). */
     effect?: (ctx: ActivatedAbilityContext) => void;
     /** Mana abilities don't use the stack — they resolve immediately (CR 605.3a). */
@@ -80,6 +87,21 @@ export interface ActivatedAbility {
     manaProduced?: ManaCost;
     /** Multiple mana options the player can choose from (e.g. Talisman: "{T}: Add {U} or {B}"). */
     manaChoices?: ManaCost[];
+}
+
+// --- Permanent filter (shared by sweeper primitives) ---
+
+/** Declarative selector over the battlefield used by mass primitives
+ *  (`destroyAll`, `dealDamageToEach` creature scope). All fields are combined
+ *  with AND; omitted fields don't constrain. Matches are resolved at call
+ *  time against the current battlefield state. */
+export interface PermanentFilter {
+    types?: CardType | CardType[];
+    subtypes?: string | string[];
+    /** Only match permanents whose `staticAbilities` contains this keyword. */
+    requireAbility?: string;
+    /** Skip permanents whose `staticAbilities` contains this keyword. */
+    excludeAbility?: string;
 }
 
 // --- Spell resolution context ---
@@ -103,8 +125,13 @@ export interface SpellContext {
     getController: (target: TargetSelection) => string;
     destroy: (target: TargetSelection) => void;
     exile: (target: TargetSelection) => void;
-    destroyAll: (type?: CardType | CardType[]) => void;
-    destroyAllBySubtype: (subtype: string) => void;
+    /** Destroys every permanent on the battlefield matching the filter
+     *  (CR 701.7). Shorthand `CardType | CardType[]` is equivalent to
+     *  `{ types }`. The object form supports compounding types, subtypes, and
+     *  keyword requirements — e.g. `{ types: "Creature", excludeAbility: "flying" }`
+     *  for "destroy all non-flying creatures". Undefined filter destroys every
+     *  permanent. */
+    destroyAll: (filter?: CardType | CardType[] | PermanentFilter) => void;
     /** Player draws N cards one at a time (CR 121.1). Stops if library empties; sets hasDrawnFromEmpty (CR 704.5b). */
     drawCards: (playerId: string, amount: number) => void;
     /** Counters a spell or ability on the stack (CR 701.5a). Target must be TargetSelection with type "spell". No-op if target no longer on stack (CR 608.2b). */
@@ -127,6 +154,21 @@ export interface SpellContext {
         targets: TargetSelection[],
         totalAmount: number
     ) => void;
+    /** Deals `amount` damage to every permanent / player matching the filter
+     *  (CR 120.3). Creatures matching the filter are resolved at call time —
+     *  creatures entering mid-resolution are not affected. Lethal damage uses
+     *  effective toughness (layer 7c). `filter.creatures`: `true` for all
+     *  creatures, or a `PermanentFilter` (types are forced to Creature) to
+     *  restrict by subtype/keyword (e.g. `{ excludeAbility: "flying" }`).
+     *  `filter.players`: include both players. No-op when amount <= 0 or
+     *  nothing matches. Used by Earthquake / Hurricane / Pyroclasm-like sweepers. */
+    dealDamageToEach: (
+        amount: number,
+        filter: {
+            creatures?: boolean | Omit<PermanentFilter, "types">;
+            players?: boolean;
+        }
+    ) => void;
     /** Grants a player a reference to an activated ability template defined
      *  on another card (CR 113). The template is looked up at activation
      *  time via the card registry — the grant stores only ids, not the
@@ -144,6 +186,15 @@ export interface SpellContext {
      *  scheduled is the next one taken. Consumed by advanceTurn(). Used by
      *  Time Walk and similar effects. */
     takeExtraTurn: (playerId: string) => void;
+    /** Records a one-shot prevention effect: the next time the given source
+     *  would deal damage to `playerId` this turn, that damage is prevented
+     *  (CR 615.1, 615.6). The effect is consumed the first time it matches
+     *  and cleared at the end of the turn (CR 514.2). Used by Circle of
+     *  Protection's activated ability. */
+    preventNextDamageFromSource: (
+        sourceInstanceId: string,
+        playerId: string
+    ) => void;
 }
 
 // --- Continuous static effects (CR 611, 613) ---

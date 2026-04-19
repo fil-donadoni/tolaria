@@ -66,6 +66,8 @@ export interface CardInstance {
     isSummoningSick?: boolean;
     isAttacking?: boolean;
     isBlocking?: boolean;
+    /** Damage marked on this creature this turn (CR 120.3). Cleared at CLEANUP. */
+    damageMarked?: number;
     legalActions?: CardAction[];
 }
 

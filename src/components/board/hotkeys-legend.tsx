@@ -17,6 +17,7 @@ const HOTKEYS: HotkeyRow[] = [
     { keys: ["Enter"], label: "Pass turn" },
     { keys: ["U"], label: "Undo mana ability" },
     { keys: [modKey, "click"], label: "Keep priority after casting" },
+    { keys: ["Esc"], label: "Concede" },
 ];
 
 export default function HotkeysLegend() {

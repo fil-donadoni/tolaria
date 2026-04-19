@@ -28,6 +28,7 @@ const PHASE_GROUPS: PhaseGroup[] = [
             { id: "BEGINNING_OF_COMBAT", short: "BC" },
             { id: "DECLARE_ATTACKERS", short: "DA" },
             { id: "DECLARE_BLOCKERS", short: "DB" },
+            { id: "FIRST_STRIKE_DAMAGE", short: "FD" },
             { id: "COMBAT_DAMAGE", short: "CD" },
             { id: "END_OF_COMBAT", short: "EC" },
         ],

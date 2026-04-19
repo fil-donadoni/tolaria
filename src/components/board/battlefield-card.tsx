@@ -98,11 +98,21 @@ export default function BattlefieldCard({
         </div>
     ) : null;
 
+    // Marked damage overlay (CR 120.3). Accumulates across the turn until
+    // CLEANUP (CR 514.2). Hidden when 0/undefined.
+    const damageOverlay =
+        isCreature(card) && (card.damageMarked ?? 0) > 0 ? (
+            <div className="absolute bottom-1.5 left-1.5 bg-red-600 px-1 py-0.5 rounded-xs text-[10px] font-bold text-white leading-none pointer-events-none z-10 drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]">
+                {card.damageMarked}
+            </div>
+        ) : null;
+
     const inner = (
         <div className={`relative ${vs.ringClass}`} style={innerStyle}>
             <CardImage card={card.card} />
             {badgeEl}
             {ptOverlay}
+            {damageOverlay}
         </div>
     );
 

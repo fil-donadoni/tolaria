@@ -1,8 +1,9 @@
-import type { TargetRequirement, TargetSelection } from "../cards/types";
+import type { Color, TargetRequirement, TargetSelection } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import type { CardAction } from "./types";
 import { isSorceryTiming } from "./phases";
 import { DAMAGEABLE_PERMANENT_TYPES } from "./constants";
+import { STATIC_EFFECT_CTX } from "./layers";
 
 const ALL_HAND_ACTIONS: CardAction[] = [
     "play",
@@ -61,6 +62,12 @@ export function getLegalActions(
     return actions;
 }
 
+/** True if the permanent/stack item has at least one of the given color in
+ *  its mana cost (CR 202.2). Used by TargetRequirement.colorFilter. */
+export function hasColor(card: CardInstanceState, color: Color): boolean {
+    return STATIC_EFFECT_CTX.getColors(card).includes(color);
+}
+
 /** Returns all legal targets for a spell/ability with the given target requirement. */
 export function getLegalTargets(
     state: GameState,
@@ -78,6 +85,7 @@ export function getLegalTargets(
     const permanentTypes = reqTypes.filter(
         (t) => t !== "player" && t !== "any" && t !== "spell"
     );
+    const colorFilter = requirement.colorFilter;
 
     // CR 115.4: "any target" means any creature, planeswalker, player, or
     // battle — the four object types that can be damaged (CR 120.3).
@@ -92,14 +100,16 @@ export function getLegalTargets(
                 const matchesExplicit = permanentTypes.some((t) =>
                     card.types.includes(t as never)
                 );
-                if (matchesAny || matchesExplicit) {
-                    targets.push({ type: "permanent", id: card.id });
-                }
+                if (!matchesAny && !matchesExplicit) continue;
+                // CR 202.2: filter by color for "source of color X" choices.
+                if (colorFilter && !hasColor(card, colorFilter)) continue;
+                targets.push({ type: "permanent", id: card.id });
             }
         }
     }
 
-    if (wantsAny || reqTypes.includes("player")) {
+    // Players have no color, so colorFilter excludes them.
+    if ((wantsAny || reqTypes.includes("player")) && !colorFilter) {
         for (const player of state.players) {
             targets.push({ type: "player", id: player.id });
         }
@@ -109,6 +119,7 @@ export function getLegalTargets(
     // (The casting spell itself isn't on the stack yet during target selection.)
     if (wantsSpell) {
         for (const item of state.stack) {
+            if (colorFilter && !hasColor(item, colorFilter)) continue;
             targets.push({ type: "spell", id: item.id });
         }
     }

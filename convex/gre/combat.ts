@@ -57,6 +57,19 @@ export function validateBlockerEligibility(
         }
     }
 
+    // Subtype-based block restriction (CR 509.1b). Juggernaut: "This creature
+    // can't be blocked by Walls." Generalizable to other subtype restrictions
+    // via `cant-be-blocked-by-<subtype>` static ability strings.
+    if (
+        attacker.staticAbilities.includes("cant-be-blocked-by-wall") &&
+        blocker.subtypes.includes("Wall")
+    ) {
+        return {
+            eligible: false,
+            reason: "Attacker can't be blocked by Walls",
+        };
+    }
+
     if (attacker.staticAbilities.includes("flying")) {
         if (
             !blocker.staticAbilities.includes("flying") &&
@@ -70,6 +83,24 @@ export function validateBlockerEligibility(
     }
 
     return { eligible: true };
+}
+
+/**
+ * True if `card` is subject to an "attacks each combat if able" requirement
+ * (CR 508.1d) and is currently eligible to attack. Creatures with the
+ * requirement but no legal attack (tapped, sick, defender, etc.) are not
+ * required — CR 508.1d only forces requirements that can be obeyed.
+ */
+export function mustAttack(card: CardInstanceState): boolean {
+    if (!card.staticAbilities.includes("attacks-if-able")) return false;
+    return validateAttackerEligibility(card).eligible;
+}
+
+/** Ids of creatures on `battlefield` that are required to attack this combat. */
+export function getRequiredAttackerIds(
+    battlefield: CardInstanceState[]
+): string[] {
+    return battlefield.filter(mustAttack).map((c) => c.id);
 }
 
 /**

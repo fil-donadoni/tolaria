@@ -15,6 +15,10 @@ import {
     shanodinDryads,
     castle,
     channel,
+    circleOfProtectionBlue,
+    circleOfProtectionGreen,
+    circleOfProtectionRed,
+    circleOfProtectionWhite,
     counterspell,
     ancestralRecall,
     darkRitual,
@@ -33,10 +37,16 @@ import {
     undergroundSea,
     wrathOfGod,
     disenchant,
+    earthquake,
+    elvishArchers,
+    hurricane,
     hypnoticSpecter,
+    jayemdaeTome,
+    juggernaut,
     serraAngel,
     savannahLions,
     solRing,
+    wallOfSwords,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -51,7 +61,11 @@ import {
 } from "../../../gre/constants";
 import { getLegalTargets } from "../../../gre/rules";
 import { projectPublicState } from "../../../gameProjections";
-import { validateBlockerEligibility } from "../../../gre/combat";
+import {
+    validateBlockerEligibility,
+    mustAttack,
+    getRequiredAttackerIds,
+} from "../../../gre/combat";
 import { advancePhase } from "../../../gre/phases";
 import type { CardDefinition, CardType } from "../../types";
 import {
@@ -386,6 +400,211 @@ describe("Fireball ({X}{R} — X damage divided, +{1}/target, CR 107.3 / 120.1 /
     });
 });
 
+describe("Earthquake ({X}{R} — X damage to each non-flying creature and each player, CR 107.3 / 120.3)", () => {
+    function setupBoard() {
+        const ground = makeInstance(savannahLions.id, {
+            id: "ground",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        // Serra Angel is a 4/4 with flying — the canonical flier in LEA.
+        const flier = makeInstance(serraAngel.id, {
+            id: "flier",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [ground, flier] }),
+            ],
+        });
+    }
+
+    it("kills non-flying creatures, spares fliers, damages both players", () => {
+        const state = setupBoard();
+        const item = pushSpell(state, earthquake.id, "p1");
+        item.chosenX = 2;
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "ground")
+        ).toBeUndefined();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "flier")
+        ).toBeDefined();
+        expect(state.players[0].life).toBe(18);
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("is a no-op when X is 0", () => {
+        const state = setupBoard();
+        const item = pushSpell(state, earthquake.id, "p1");
+        item.chosenX = 0;
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(2);
+        expect(state.players[0].life).toBe(20);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("leaves fliers alive even when X would otherwise be lethal", () => {
+        const state = setupBoard();
+        const item = pushSpell(state, earthquake.id, "p1");
+        item.chosenX = 10;
+        resolveTopOfStack(state);
+        // Only the flier survives; both players take 10.
+        expect(state.players[1].battlefield).toHaveLength(1);
+        expect(state.players[1].battlefield[0].id).toBe("flier");
+        expect(state.players[0].life).toBe(10);
+        expect(state.players[1].life).toBe(10);
+    });
+
+    it("wire format: battlefield and life projection reflect the sweep", () => {
+        const state = setupBoard();
+        const item = pushSpell(state, earthquake.id, "p1");
+        item.chosenX = 2;
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const p2 = projected.players.find((p) => p.id === "p2")!;
+        const ids = p2.battlefield.map((c) => c.id);
+        expect(ids).not.toContain("ground");
+        expect(ids).toContain("flier");
+        expect(p2.life).toBe(18);
+        expect(projected.players.find((p) => p.id === "p1")!.life).toBe(18);
+    });
+});
+
+describe("Hurricane ({X}{G} — X damage to each flying creature and each player, CR 107.3 / 120.3)", () => {
+    function setupBoard() {
+        const ground = makeInstance(savannahLions.id, {
+            id: "ground",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const flier = makeInstance(serraAngel.id, {
+            id: "flier",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [ground, flier] }),
+            ],
+        });
+    }
+
+    it("kills fliers when X reaches lethal, spares ground, damages both players", () => {
+        const state = setupBoard();
+        const item = pushSpell(state, hurricane.id, "p1");
+        item.chosenX = 4;
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "flier")
+        ).toBeUndefined();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "ground")
+        ).toBeDefined();
+        expect(state.players[0].life).toBe(16);
+        expect(state.players[1].life).toBe(16);
+    });
+
+    it("is a no-op when X is 0", () => {
+        const state = setupBoard();
+        const item = pushSpell(state, hurricane.id, "p1");
+        item.chosenX = 0;
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(2);
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("wire format: projection confirms only the flier died", () => {
+        const state = setupBoard();
+        const item = pushSpell(state, hurricane.id, "p1");
+        item.chosenX = 4;
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const p2 = projected.players.find((p) => p.id === "p2")!;
+        const ids = p2.battlefield.map((c) => c.id);
+        expect(ids).toContain("ground");
+        expect(ids).not.toContain("flier");
+        expect(p2.life).toBe(16);
+    });
+});
+
+describe("Damage accumulation on creatures (CR 120.3, 704.5g, 514.2)", () => {
+    function setup() {
+        // Serra Angel: 4/4 flying — two Lightning Bolts (3 each) accumulate
+        // to 6 marked damage >= 4 toughness → dies. One alone leaves her at
+        // 3 marked damage, alive.
+        const angel = makeInstance(serraAngel.id, {
+            id: "angel",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [angel] }),
+            ],
+        });
+    }
+
+    it("single non-lethal hit leaves the creature alive with marked damage", () => {
+        const state = setup();
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "permanent", id: "angel" },
+        ]);
+        resolveTopOfStack(state);
+        const angel = state.players[1].battlefield.find(
+            (c) => c.id === "angel"
+        );
+        expect(angel).toBeDefined();
+        expect(angel!.damageMarked).toBe(3);
+    });
+
+    it("second hit accumulates and kills once marked damage >= toughness", () => {
+        const state = setup();
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "permanent", id: "angel" },
+        ]);
+        resolveTopOfStack(state);
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "permanent", id: "angel" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "angel")
+        ).toBeUndefined();
+        // Angel in p2's graveyard (along with the two resolved bolts for p1).
+        expect(
+            state.players[1].graveyard.find(
+                (c) => (c.card as { id: string }).id === serraAngel.id
+            )
+        ).toBeDefined();
+    });
+
+    it("CLEANUP wipes marked damage (CR 514.2)", () => {
+        const state = setup();
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "permanent", id: "angel" },
+        ]);
+        resolveTopOfStack(state);
+        // Jump straight to END_STEP so the next advancePhase lands on CLEANUP,
+        // whose entry handler wipes marked damage inline (CR 514.2). Walking
+        // every phase with advancePhase risks an auto-skip / combat-entry loop
+        // in a scenario without declared attackers.
+        state.phase = "END_STEP";
+        // advancePhase will traverse CLEANUP (auto) into the next turn's
+        // UPKEEP — the CR 514.2 wipe runs inline on CLEANUP entry.
+        advancePhase(state);
+        const angel = state.players[1].battlefield.find(
+            (c) => c.id === "angel"
+        );
+        expect(angel).toBeDefined();
+        expect(angel!.damageMarked).toBeUndefined();
+    });
+});
+
 describe("Dark Ritual (add {B}{B}{B}, CR 608.3 + 106.1)", () => {
     it("adds three black mana to the caster's mana pool on resolution", () => {
         const state = makeState();
@@ -536,6 +755,120 @@ describe("Serra Angel (keyword abilities)", () => {
     });
 });
 
+describe("Elvish Archers (first strike, CR 702.7)", () => {
+    it("is a 2/1 Elf Archer for {1}{G} with first strike", () => {
+        expect(elvishArchers.manaCost).toEqual({ X: 1, G: 1 });
+        expect(elvishArchers.types).toContain("Creature");
+        expect(elvishArchers.subtypes).toEqual(["Elf", "Archer"]);
+        expect(elvishArchers.power).toBe(2);
+        expect(elvishArchers.toughness).toBe(1);
+        expect(elvishArchers.staticAbilities).toContain("first strike");
+    });
+
+    it("kills a 2/2 blocker in the first-strike step before it can swing back", () => {
+        // Elvish Archers (2/1, first strike) attacks, blocked by Grizzly
+        // Bears (2/2). CR 510.2: only first/double strike creatures deal
+        // damage in the first-strike step — the archer kills the bear, then
+        // the bear (dead) cannot deal regular combat damage.
+        const archer = makeInstance(elvishArchers.id, {
+            id: "archer",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const bear: CardInstanceState = {
+            id: "bear",
+            card: { id: "fake-bear" },
+            types: ["Creature"] as CardType[],
+            subtypes: ["Bear"],
+            staticAbilities: [],
+            power: 2,
+            toughness: 2,
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            isTapped: false,
+            isBlocking: true,
+        };
+        const p1 = makePlayer("p1", { battlefield: [archer] });
+        const p2 = makePlayer("p2", { battlefield: [bear] });
+        const state = makeState({
+            players: [p1, p2],
+            activePlayerId: "p1",
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["archer"],
+                confirmed: true,
+                blockerAssignments: { bear: "archer" },
+                blockersConfirmed: true,
+                blockerOrder: { archer: ["bear"] },
+                blockerOrderConfirmed: true,
+            },
+        });
+
+        advancePhase(state);
+        expect(state.phase).toBe("FIRST_STRIKE_DAMAGE");
+        expect(p2.battlefield.find((c) => c.id === "bear")).toBeUndefined();
+        expect(p2.graveyard.some((c) => c.id === "bear")).toBe(true);
+
+        advancePhase(state);
+        expect(state.phase).toBe("COMBAT_DAMAGE");
+        advancePhase(state);
+        expect(state.phase).toBe("END_OF_COMBAT");
+        const archerAfter = p1.battlefield.find((c) => c.id === "archer");
+        expect(archerAfter).toBeDefined();
+    });
+
+    it("dies to a 3/3 blocker (first strike can't save a 1-toughness attacker from a bigger body)", () => {
+        // Archer deals 2 first-strike to a 3/3 — 3/3 survives (2 < 3) and
+        // then hits back in the regular step for 3, killing the archer.
+        const archer = makeInstance(elvishArchers.id, {
+            id: "archer",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const ogre: CardInstanceState = {
+            id: "ogre",
+            card: { id: "fake-ogre" },
+            types: ["Creature"] as CardType[],
+            subtypes: [],
+            staticAbilities: [],
+            power: 3,
+            toughness: 3,
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            isTapped: false,
+            isBlocking: true,
+        };
+        const p1 = makePlayer("p1", { battlefield: [archer] });
+        const p2 = makePlayer("p2", { battlefield: [ogre] });
+        const state = makeState({
+            players: [p1, p2],
+            activePlayerId: "p1",
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["archer"],
+                confirmed: true,
+                blockerAssignments: { ogre: "archer" },
+                blockersConfirmed: true,
+                blockerOrder: { archer: ["ogre"] },
+                blockerOrderConfirmed: true,
+            },
+        });
+
+        advancePhase(state);
+        expect(state.phase).toBe("FIRST_STRIKE_DAMAGE");
+        // Ogre alive (3 toughness > 2 damage from first strike).
+        expect(p2.battlefield.find((c) => c.id === "ogre")).toBeDefined();
+
+        advancePhase(state);
+        expect(state.phase).toBe("COMBAT_DAMAGE");
+        // Archer now dead: ogre's 3 power >= archer's 1 toughness.
+        expect(p1.battlefield.find((c) => c.id === "archer")).toBeUndefined();
+        expect(p1.graveyard.some((c) => c.id === "archer")).toBe(true);
+    });
+});
+
 describe("Bog Wraith (swampwalk evasion, CR 702.13b)", () => {
     it("is a 3/3 Wraith for {3}{B} with swampwalk", () => {
         expect(bogWraith.manaCost).toEqual({ X: 3, B: 1 });
@@ -631,6 +964,59 @@ describe("Shanodin Dryads (forestwalk evasion, CR 702.13b)", () => {
         expect(validateBlockerEligibility(dryads, bears, [bears])).toEqual({
             eligible: true,
         });
+    });
+});
+
+describe("Juggernaut (CR 508.1d + 509.1b)", () => {
+    it("is a 5/3 Juggernaut for {4} with the two restrictions/requirements", () => {
+        expect(juggernaut.manaCost).toEqual({ X: 4 });
+        expect(juggernaut.types).toEqual(["Artifact", "Creature"]);
+        expect(juggernaut.subtypes).toEqual(["Juggernaut"]);
+        expect(juggernaut.power).toBe(5);
+        expect(juggernaut.toughness).toBe(3);
+        expect(juggernaut.staticAbilities).toContain("attacks-if-able");
+        expect(juggernaut.staticAbilities).toContain("cant-be-blocked-by-wall");
+    });
+
+    it("can't be blocked by Walls (CR 509.1b)", () => {
+        const jug = makeInstance(juggernaut.id, { id: "jug" });
+        const wall = makeInstance(wallOfSwords.id, {
+            id: "wall",
+            controllerId: "p2",
+        });
+        const result = validateBlockerEligibility(jug, wall, [wall]);
+        expect(result.eligible).toBe(false);
+        if (!result.eligible) expect(result.reason).toMatch(/Wall/);
+    });
+
+    it("can still be blocked by non-Wall creatures", () => {
+        const jug = makeInstance(juggernaut.id, { id: "jug" });
+        const bears = makeInstance(savannahLions.id, {
+            id: "bears",
+            controllerId: "p2",
+        });
+        expect(validateBlockerEligibility(jug, bears, [bears])).toEqual({
+            eligible: true,
+        });
+    });
+
+    it("mustAttack is true when eligible, false when tapped or sick", () => {
+        const jug = makeInstance(juggernaut.id, { id: "jug" });
+        expect(mustAttack(jug)).toBe(true);
+        expect(mustAttack({ ...jug, isTapped: true })).toBe(false);
+        expect(mustAttack({ ...jug, isSummoningSick: true })).toBe(false);
+    });
+
+    it("getRequiredAttackerIds picks up eligible Juggernauts only", () => {
+        const eligible = makeInstance(juggernaut.id, { id: "jug1" });
+        const sick = makeInstance(juggernaut.id, {
+            id: "jug2",
+            isSummoningSick: true,
+        });
+        const bears = makeInstance(savannahLions.id, { id: "bears" });
+        expect(getRequiredAttackerIds([eligible, sick, bears])).toEqual([
+            "jug1",
+        ]);
     });
 });
 
@@ -849,6 +1235,72 @@ describe("Sol Ring ({T}: Add {C}{C}, CR 605.1a)", () => {
         expect(hasManaAbility(slimRing as CardInstanceState)).toBe(true);
         expect(getActivatedManaColor(slimRing as CardInstanceState)).toBe("C");
         expect(getFixedManaAmount(slimRing as CardInstanceState, "C")).toBe(2);
+    });
+});
+
+describe("Jayemdae Tome ({4}, {T}: Draw a card, CR 602.1 + 121.1)", () => {
+    it("is a {4} artifact with a stack-using activated ability", () => {
+        expect(jayemdaeTome.manaCost).toEqual({ X: 4 });
+        expect(jayemdaeTome.types).toEqual(["Artifact"]);
+        const ability = jayemdaeTome.activatedAbilities?.[0];
+        expect(ability?.cost).toEqual({ tap: true, mana: { X: 4 } });
+        expect(ability?.useStack).toBe(true);
+    });
+
+    it("resolving the ability draws one card for the controller", () => {
+        const tome = makeInstance(jayemdaeTome.id, {
+            id: "tome",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const library = Array.from({ length: 3 }, (_, i) =>
+            makeInstance(grizzlyBearsId(), {
+                id: `p1-lib-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tome], library }),
+                makePlayer("p2"),
+            ],
+        });
+        // Simulate activation: the tome is pushed on the stack with its
+        // abilityId set (the engine does this at activation time).
+        state.stack.push({
+            ...tome,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "jayemdae-tome-draw",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(1);
+        expect(state.players[0].library).toHaveLength(2);
+    });
+
+    it("wire format: activated ability survives projectPublicState", () => {
+        // Jayemdae Tome's ability is visible on the board — the projection
+        // strips card.card to { id }, so the engine must read ability metadata
+        // from the registry, not from the fat embed.
+        const tome = makeInstance(jayemdaeTome.id, { id: "tome" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tome] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slimTome = projected.players[0].battlefield.find(
+            (c) => c.id === "tome"
+        )!;
+        // After projection, the ability is still reachable through the
+        // registry via the card id.
+        const def = jayemdaeTome;
+        expect(slimTome.card.id).toBe(def.id);
+        expect(def.activatedAbilities?.[0].id).toBe("jayemdae-tome-draw");
     });
 });
 
@@ -1143,6 +1595,249 @@ describe("Time Walk (extra turn after this one, CR 500.7)", () => {
         const projected = projectPublicState(state, 1, "p2");
         expect(projected.extraTurns).toEqual(["p1"]);
         expect(projected.activePlayerId).toBe(state.activePlayerId);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Circle of Protection: {color} (CR 615.1, 615.6 — one-shot damage prevention)
+// ---------------------------------------------------------------------------
+
+describe("Circle of Protection: Red (CR 615.1, 615.6)", () => {
+    function setupCoPOnBattlefield(copCard = circleOfProtectionRed) {
+        const cop = makeInstance(copCard.id, { id: "cop" });
+        const p1 = makePlayer("p1", { battlefield: [cop] });
+        return makeState({ players: [p1, makePlayer("p2")] });
+    }
+
+    it("registers an end-of-turn prevention effect when the ability resolves", () => {
+        const state = setupCoPOnBattlefield();
+        const cop = state.players[0].battlefield[0];
+        // Simulate activation: push ability on stack with a chosen source.
+        const bolt = makeInstance(lightningBolt.id, {
+            id: "bolt-stack",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        state.stack.push({
+            ...bolt,
+            castById: "p2",
+            targets: [{ type: "player", id: "p1" }],
+        });
+        state.stack.push({
+            ...cop,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "cop-prevent",
+            targets: [{ type: "spell", id: "bolt-stack" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.preventionEffects).toEqual([
+            {
+                sourceInstanceId: "bolt-stack",
+                playerId: "p1",
+                duration: "end-of-turn",
+            },
+        ]);
+    });
+
+    it("prevents direct damage from the chosen spell source to the protected player", () => {
+        const state = setupCoPOnBattlefield();
+        state.preventionEffects = [
+            {
+                sourceInstanceId: "bolt-stack",
+                playerId: "p1",
+                duration: "end-of-turn",
+            },
+        ];
+        const bolt = makeInstance(lightningBolt.id, {
+            id: "bolt-stack",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        state.stack.push({
+            ...bolt,
+            castById: "p2",
+            targets: [{ type: "player", id: "p1" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
+        expect(state.preventionEffects).toBeUndefined();
+    });
+
+    it("is a one-shot: a second bolt from a different source still hits the player", () => {
+        const state = setupCoPOnBattlefield();
+        state.preventionEffects = [
+            {
+                sourceInstanceId: "bolt-first",
+                playerId: "p1",
+                duration: "end-of-turn",
+            },
+        ];
+        // Prevention matches the first bolt.
+        const first = makeInstance(lightningBolt.id, {
+            id: "bolt-first",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        state.stack.push({
+            ...first,
+            castById: "p2",
+            targets: [{ type: "player", id: "p1" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
+        // A different bolt (different instance id) goes through.
+        const second = makeInstance(lightningBolt.id, {
+            id: "bolt-second",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        state.stack.push({
+            ...second,
+            castById: "p2",
+            targets: [{ type: "player", id: "p1" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(17);
+    });
+
+    it("prevents combat damage from the chosen unblocked attacker", async () => {
+        const state = setupCoPOnBattlefield();
+        const attacker = makeInstance(hypnoticSpecter.id, {
+            id: "specter",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        state.players[1].battlefield.push(attacker);
+        // p2 is the active player while attacking — flip turn control.
+        state.activePlayerId = "p2";
+        state.phase = "COMBAT_DAMAGE";
+        state.combat = {
+            attackerIds: ["specter"],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: true,
+        };
+        state.preventionEffects = [
+            {
+                sourceInstanceId: "specter",
+                playerId: "p1",
+                duration: "end-of-turn",
+            },
+        ];
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, {});
+        expect(state.players[0].life).toBe(20);
+        expect(state.preventionEffects).toBeUndefined();
+    });
+
+    it("does NOT prevent damage from a source other than the chosen one", () => {
+        const state = setupCoPOnBattlefield();
+        state.preventionEffects = [
+            {
+                sourceInstanceId: "some-other-bolt",
+                playerId: "p1",
+                duration: "end-of-turn",
+            },
+        ];
+        const bolt = makeInstance(lightningBolt.id, {
+            id: "bolt-stack",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        state.stack.push({
+            ...bolt,
+            castById: "p2",
+            targets: [{ type: "player", id: "p1" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(17);
+        // Prevention survives because it didn't match.
+        expect(state.preventionEffects).toHaveLength(1);
+    });
+
+    it("CLEANUP wipes unused end-of-turn prevention effects (CR 514.2)", async () => {
+        const state = setupCoPOnBattlefield();
+        state.preventionEffects = [
+            {
+                sourceInstanceId: "whatever",
+                playerId: "p1",
+                duration: "end-of-turn",
+            },
+        ];
+        state.phase = "END_STEP";
+        const { advancePhase } = await import("../../../gre/phases");
+        // END_STEP → CLEANUP (auto) → next turn.
+        advancePhase(state);
+        expect(state.preventionEffects).toBeUndefined();
+    });
+});
+
+describe("Circle of Protection: color filter on target selection", () => {
+    it("Red CoP only offers red spells/permanents as legal targets", () => {
+        const redBolt = makeInstance(lightningBolt.id, {
+            id: "bolt",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        const blueSpell = makeInstance(ancestralRecall.id, {
+            id: "recall",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        const state = makeState();
+        state.stack.push({ ...redBolt, castById: "p2" });
+        state.stack.push({ ...blueSpell, castById: "p2" });
+        const ability = circleOfProtectionRed.activatedAbilities![0];
+        const legal = getLegalTargets(state, ability.targetRequirement!);
+        expect(legal.map((t) => t.id)).toEqual(["bolt"]);
+    });
+
+    it("Blue CoP only offers blue spells/permanents as legal targets", () => {
+        const redBolt = makeInstance(lightningBolt.id, {
+            id: "bolt",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        const blueSpell = makeInstance(ancestralRecall.id, {
+            id: "recall",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        const state = makeState();
+        state.stack.push({ ...redBolt, castById: "p2" });
+        state.stack.push({ ...blueSpell, castById: "p2" });
+        const ability = circleOfProtectionBlue.activatedAbilities![0];
+        const legal = getLegalTargets(state, ability.targetRequirement!);
+        expect(legal.map((t) => t.id)).toEqual(["recall"]);
+    });
+
+    it("color filter excludes players (players have no color)", () => {
+        const state = makeState();
+        const ability = circleOfProtectionWhite.activatedAbilities![0];
+        const legal = getLegalTargets(state, ability.targetRequirement!);
+        expect(legal.filter((t) => t.type === "player")).toEqual([]);
+    });
+
+    it("Green CoP exposes the correct declarative shape", () => {
+        const ability = circleOfProtectionGreen.activatedAbilities![0];
+        expect(ability.useStack).toBe(true);
+        expect(ability.cost).toEqual({ mana: { X: 1 } });
+        expect(ability.targetRequirement).toEqual({
+            type: ["any", "spell"],
+            count: 1,
+            colorFilter: "G",
+        });
     });
 });
 

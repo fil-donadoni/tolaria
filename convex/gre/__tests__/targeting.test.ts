@@ -240,7 +240,7 @@ describe("getLegalTargets", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Mass destruction — destroyAll / destroyAllBySubtype
+// Mass destruction — destroyAll (types / subtypes / keyword filters)
 // ---------------------------------------------------------------------------
 
 describe("mass destruction", () => {
@@ -385,7 +385,7 @@ describe("mass destruction", () => {
         expect(getPlayer(state, "p2").graveyard).toHaveLength(2); // mox + aura
     });
 
-    it("destroyAllBySubtype('Island') destroys only Islands (Tsunami)", () => {
+    it("destroyAll({ subtypes: 'Island' }) destroys only Islands (Tsunami)", () => {
         const tsunamiDef = getCardById("9ed67d61-cf47-446b-b454-eb404a8686b7");
 
         const island = makeCard({
@@ -425,7 +425,7 @@ describe("mass destruction", () => {
         expect(getPlayer(state, "p1").battlefield[0].id).toBe("plains");
     });
 
-    it("destroyAllBySubtype('Plains') destroys only Plains (Flashfires)", () => {
+    it("destroyAll({ subtypes: 'Plains' }) destroys only Plains (Flashfires)", () => {
         const flashDef = getCardById("ee8a05a4-0ce3-4abe-bb60-08af53cf08e5");
 
         const plains1 = makeCard({

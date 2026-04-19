@@ -1,10 +1,16 @@
 import type { Phase } from "./types";
 import type { GameEvent } from "../cards/types";
 import type { CardInstanceState, GameState } from "./state";
-import { drawCard, getOpponentId, getPlayer, resolveTopOfStack } from "./state";
+import {
+    consumePreventionIfAny,
+    drawCard,
+    getOpponentId,
+    getPlayer,
+    resolveTopOfStack,
+} from "./state";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
 import { collectTriggers } from "./triggers";
-import { hasAnyLegalBlock } from "./combat";
+import { hasAnyLegalBlock, getRequiredAttackerIds } from "./combat";
 
 /** Ordered sequence of all phases/steps in a turn. */
 const PHASE_ORDER: Phase[] = [
@@ -15,12 +21,51 @@ const PHASE_ORDER: Phase[] = [
     "BEGINNING_OF_COMBAT",
     "DECLARE_ATTACKERS",
     "DECLARE_BLOCKERS",
+    "FIRST_STRIKE_DAMAGE",
     "COMBAT_DAMAGE",
     "END_OF_COMBAT",
     "POSTCOMBAT_MAIN",
     "END_STEP",
     "CLEANUP",
 ];
+
+/** Which damage step a creature deals damage in (CR 510.2-510.5, 702.7). */
+export type DamageKind = "first-strike" | "regular";
+
+function hasFirstOrDoubleStrike(card: CardInstanceState): boolean {
+    return (
+        card.staticAbilities.includes("first strike") ||
+        card.staticAbilities.includes("double strike")
+    );
+}
+
+/** CR 510.5: A creature deals damage in the first-strike step iff it has
+ *  first strike or double strike. It deals damage in the regular step iff
+ *  it has no first strike, or it has double strike (which deals twice). */
+function dealsDamageIn(card: CardInstanceState, kind: DamageKind): boolean {
+    const fs = card.staticAbilities.includes("first strike");
+    const ds = card.staticAbilities.includes("double strike");
+    if (kind === "first-strike") return fs || ds;
+    return !fs || ds;
+}
+
+/** CR 510.5: first-strike damage step is skipped if no attacker or blocker
+ *  has first strike or double strike when the step would begin. */
+function anyCombatantHasFirstOrDoubleStrike(state: GameState): boolean {
+    if (!state.combat) return false;
+    const activePlayer = getPlayer(state, state.activePlayerId);
+    const defenderId = getOpponentId(state, state.activePlayerId);
+    const defender = getPlayer(state, defenderId);
+    for (const id of state.combat.attackerIds) {
+        const c = activePlayer.battlefield.find((x) => x.id === id);
+        if (c && hasFirstOrDoubleStrike(c)) return true;
+    }
+    for (const blockerId of Object.keys(state.combat.blockerAssignments)) {
+        const c = defender.battlefield.find((x) => x.id === blockerId);
+        if (c && hasFirstOrDoubleStrike(c)) return true;
+    }
+    return false;
+}
 
 /** Phases where no player receives priority (automatic). */
 const AUTO_PHASES = new Set<Phase>(["UNTAP", "CLEANUP"]);
@@ -71,18 +116,28 @@ function getCardToughness(state: GameState, card: CardInstanceState): number {
     return getEffectiveToughness(state, card);
 }
 
-/** Returns true if any attacker has 2+ blockers (needs manual damage assignment). */
-function combatDamageNeedsManual(state: GameState): boolean {
+/** Returns true if any attacker dealing damage in this step has 2+ blockers. */
+function combatDamageNeedsManual(state: GameState, kind: DamageKind): boolean {
+    if (!state.combat) return false;
+    const activePlayer = getPlayer(state, state.activePlayerId);
     const blockersPerAttacker = getBlockersPerAttacker(state);
-    for (const blockerIds of Object.values(blockersPerAttacker)) {
-        if (blockerIds.length >= 2) return true;
+    for (const [attackerId, blockerIds] of Object.entries(
+        blockersPerAttacker
+    )) {
+        if (blockerIds.length < 2) continue;
+        const attacker = activePlayer.battlefield.find(
+            (c) => c.id === attackerId
+        );
+        if (!attacker) continue;
+        if (dealsDamageIn(attacker, kind)) return true;
     }
     return false;
 }
 
 /** Build auto damage assignments for attackers with 0 or 1 blocker. */
 function buildAutoDamageAssignments(
-    state: GameState
+    state: GameState,
+    kind: DamageKind
 ): Record<string, Record<string, number>> {
     const blockersPerAttacker = getBlockersPerAttacker(state);
     const activePlayer = getPlayer(state, state.activePlayerId);
@@ -95,6 +150,7 @@ function buildAutoDamageAssignments(
             (c) => c.id === attackerId
         );
         if (!attacker) continue;
+        if (!dealsDamageIn(attacker, kind)) continue;
         const blockers = blockersPerAttacker[attackerId] ?? [];
         const hasTrample = attacker.staticAbilities.includes("trample");
 
@@ -131,7 +187,8 @@ function buildAutoDamageAssignments(
 /** Build default damage assignments for multi-blocker attackers.
  *  Uses blockerOrder for ordering. With trample, assigns lethal to each in order, excess to defender. */
 function buildDefaultDamageAssignments(
-    state: GameState
+    state: GameState,
+    kind: DamageKind
 ): Record<string, Record<string, number>> {
     const blockersPerAttacker = getBlockersPerAttacker(state);
     const activePlayer = getPlayer(state, state.activePlayerId);
@@ -144,6 +201,7 @@ function buildDefaultDamageAssignments(
             (c) => c.id === attackerId
         );
         if (!attacker) continue;
+        if (!dealsDamageIn(attacker, kind)) continue;
         // Use blockerOrder if available, fall back to blockersPerAttacker
         const blockers =
             state.combat!.blockerOrder?.[attackerId] ??
@@ -203,12 +261,19 @@ function buildDefaultDamageAssignments(
 }
 
 /**
- * Apply all combat damage and move dead creatures to graveyard.
- * @param damageAssignments attackerId → { blockerId: damage } for blocked attackers
+ * Apply combat damage for a single damage step and move dead creatures to
+ * the graveyard. When `kind` is "first-strike" only creatures with first
+ * strike or double strike deal damage (CR 510.2). When "regular", creatures
+ * without first strike deal damage; creatures with double strike deal again
+ * (CR 510.5).
+ *
+ * @param damageAssignments attackerId → { blockerId|defenderId: damage } — used
+ *   only for multi-blocker attackers currently dealing damage in this step.
  */
 export function applyAllCombatDamage(
     state: GameState,
-    damageAssignments: Record<string, Record<string, number>>
+    damageAssignments: Record<string, Record<string, number>>,
+    kind: DamageKind = "regular"
 ): void {
     if (!state.combat) return;
 
@@ -229,56 +294,75 @@ export function applyAllCombatDamage(
 
         const blockers = blockersPerAttacker[attackerId] ?? [];
         const attackerPower = getCardPower(state, attacker);
+        const attackerDeals = dealsDamageIn(attacker, kind);
 
         if (blockers.length === 0) {
-            // Unblocked: damage to defending player
-            if (attackerPower > 0) {
-                defender.life -= attackerPower;
-                events.push({
-                    type: "DAMAGE_DEALT",
-                    sourceInstanceId: attacker.id,
-                    sourceControllerId: attacker.controllerId,
-                    target: { type: "player", id: defenderId },
-                    amount: attackerPower,
-                    isCombat: true,
-                });
-            }
-        } else {
-            // Blocked: distribute attacker's damage to blockers (and defender if trample)
-            const assignments = damageAssignments[attackerId] ?? {};
-            for (const [targetId, damage] of Object.entries(assignments)) {
-                if (damage <= 0) continue;
-                if (targetId === defenderId) {
-                    // Trample excess damage to defending player
-                    defender.life -= damage;
+            // Unblocked: damage to defending player (only if attacker is active this step)
+            if (attackerDeals && attackerPower > 0) {
+                // CR 615.1: prevention effect consumes the damage fully.
+                const prevented = consumePreventionIfAny(
+                    state,
+                    attacker.id,
+                    defenderId
+                );
+                if (!prevented) {
+                    defender.life -= attackerPower;
                     events.push({
                         type: "DAMAGE_DEALT",
                         sourceInstanceId: attacker.id,
                         sourceControllerId: attacker.controllerId,
                         target: { type: "player", id: defenderId },
-                        amount: damage,
-                        isCombat: true,
-                    });
-                } else {
-                    damageReceived[targetId] =
-                        (damageReceived[targetId] ?? 0) + damage;
-                    events.push({
-                        type: "DAMAGE_DEALT",
-                        sourceInstanceId: attacker.id,
-                        sourceControllerId: attacker.controllerId,
-                        target: { type: "permanent", id: targetId },
-                        amount: damage,
+                        amount: attackerPower,
                         isCombat: true,
                     });
                 }
             }
+        } else {
+            // Blocked: the attacker distributes its damage only if it deals in this step
+            if (attackerDeals) {
+                const assignments = damageAssignments[attackerId] ?? {};
+                for (const [targetId, damage] of Object.entries(assignments)) {
+                    if (damage <= 0) continue;
+                    if (targetId === defenderId) {
+                        // Trample excess damage to defending player
+                        // CR 615.1: prevention effect consumes the damage fully.
+                        const prevented = consumePreventionIfAny(
+                            state,
+                            attacker.id,
+                            defenderId
+                        );
+                        if (prevented) continue;
+                        defender.life -= damage;
+                        events.push({
+                            type: "DAMAGE_DEALT",
+                            sourceInstanceId: attacker.id,
+                            sourceControllerId: attacker.controllerId,
+                            target: { type: "player", id: defenderId },
+                            amount: damage,
+                            isCombat: true,
+                        });
+                    } else {
+                        damageReceived[targetId] =
+                            (damageReceived[targetId] ?? 0) + damage;
+                        events.push({
+                            type: "DAMAGE_DEALT",
+                            sourceInstanceId: attacker.id,
+                            sourceControllerId: attacker.controllerId,
+                            target: { type: "permanent", id: targetId },
+                            amount: damage,
+                            isCombat: true,
+                        });
+                    }
+                }
+            }
 
-            // All blockers deal their power to the attacker
+            // Blockers that deal damage in this step hit the attacker.
             for (const blockerId of blockers) {
                 const blocker = defender.battlefield.find(
                     (c) => c.id === blockerId
                 );
                 if (!blocker) continue; // removed before damage
+                if (!dealsDamageIn(blocker, kind)) continue;
                 const blockerPower = getCardPower(state, blocker);
                 if (blockerPower <= 0) continue;
                 damageReceived[attackerId] =
@@ -295,14 +379,16 @@ export function applyAllCombatDamage(
         }
     }
 
-    // Check for deaths: damage >= toughness → move to graveyard
+    // CR 120.3: accumulate combat damage onto the creature's marked damage,
+    // then check CR 704.5g lethal against effective toughness (layer 7c).
     const deadIds = new Set<string>();
     for (const [cardId, damage] of Object.entries(damageReceived)) {
-        // Find the creature on either player's battlefield
         const card =
             activePlayer.battlefield.find((c) => c.id === cardId) ??
             defender.battlefield.find((c) => c.id === cardId);
-        if (card && damage >= getCardToughness(state, card)) {
+        if (!card) continue;
+        card.damageMarked = (card.damageMarked ?? 0) + damage;
+        if (card.damageMarked >= getCardToughness(state, card)) {
             deadIds.add(cardId);
         }
     }
@@ -361,19 +447,25 @@ function performPhaseEntry(state: GameState): void {
             }
             break;
         }
+        case "FIRST_STRIKE_DAMAGE":
         case "COMBAT_DAMAGE": {
             if (state.combat && state.combat.attackerIds.length > 0) {
-                const needsManual = combatDamageNeedsManual(state);
+                const kind: DamageKind =
+                    state.phase === "FIRST_STRIKE_DAMAGE"
+                        ? "first-strike"
+                        : "regular";
+                const needsManual = combatDamageNeedsManual(state, kind);
                 if (needsManual) {
                     // Pre-fill default assignments and wait for active player
                     state.combat.damageAssignments =
-                        buildDefaultDamageAssignments(state);
+                        buildDefaultDamageAssignments(state, kind);
                     state.combat.damageConfirmed = false;
                 } else {
                     // All auto: apply immediately
                     applyAllCombatDamage(
                         state,
-                        buildAutoDamageAssignments(state)
+                        buildAutoDamageAssignments(state, kind),
+                        kind
                     );
                 }
             }
@@ -404,7 +496,24 @@ function performPhaseEntry(state: GameState): void {
                 );
                 p.grantedAbilities = kept.length > 0 ? kept : undefined;
             }
-            // TODO: hand size check (CR 514.1), damage wearing off (CR 514.2).
+            // CR 514.2 — purge unused one-shot prevention effects from
+            // Circle of Protection et al. An effect that hasn't matched a
+            // damage event by cleanup simply wears off.
+            if (state.preventionEffects?.length) {
+                const kept = state.preventionEffects.filter(
+                    (e) => e.duration !== "end-of-turn"
+                );
+                state.preventionEffects = kept.length > 0 ? kept : undefined;
+            }
+            // CR 514.2 — marked damage is removed from all permanents.
+            for (const p of state.players) {
+                for (const card of p.battlefield) {
+                    if (card.damageMarked !== undefined) {
+                        card.damageMarked = undefined;
+                    }
+                }
+            }
+            // TODO: hand size check (CR 514.1).
             break;
     }
 }
@@ -483,6 +592,7 @@ export function advancePhase(state: GameState): Phase[] {
 
     const skipEmptyCombat =
         (state.phase === "DECLARE_BLOCKERS" ||
+            state.phase === "FIRST_STRIKE_DAMAGE" ||
             state.phase === "COMBAT_DAMAGE" ||
             state.phase === "END_OF_COMBAT") &&
         !hadAttackers;
@@ -502,10 +612,18 @@ export function advancePhase(state: GameState): Phase[] {
         state.combat.blockerOrderConfirmed = true;
     }
 
+    // CR 510.5: skip the first-strike damage step when no combatant has
+    // first strike or double strike.
+    const skipFirstStrikeDamage =
+        state.phase === "FIRST_STRIKE_DAMAGE" &&
+        hadAttackers &&
+        !anyCombatantHasFirstOrDoubleStrike(state);
+
     if (
         AUTO_PHASES.has(state.phase) ||
         skipEmptyCombat ||
-        skipUnblockableCombat
+        skipUnblockableCombat ||
+        skipFirstStrikeDamage
     ) {
         // Auto-phase or empty combat: skip straight through (no priority given)
         traversed.push(...advancePhase(state));
@@ -539,6 +657,14 @@ export function drainAutoPasses(state: GameState): void {
             !state.combat.confirmed
         ) {
             const activePlayer = getPlayer(state, state.activePlayerId);
+            // CR 508.1d: fold in any eligible creature required to attack.
+            for (const requiredId of getRequiredAttackerIds(
+                activePlayer.battlefield
+            )) {
+                if (!state.combat.attackerIds.includes(requiredId)) {
+                    state.combat.attackerIds.push(requiredId);
+                }
+            }
             for (const attackerId of state.combat.attackerIds) {
                 const card = activePlayer.battlefield.find(
                     (c) => c.id === attackerId
@@ -598,11 +724,20 @@ export function drainAutoPasses(state: GameState): void {
 
         // Auto-confirm damage assignment when active player auto-passes
         if (
-            state.phase === "COMBAT_DAMAGE" &&
+            (state.phase === "FIRST_STRIKE_DAMAGE" ||
+                state.phase === "COMBAT_DAMAGE") &&
             state.combat &&
             state.combat.damageConfirmed === false
         ) {
-            applyAllCombatDamage(state, state.combat.damageAssignments ?? {});
+            const kind: DamageKind =
+                state.phase === "FIRST_STRIKE_DAMAGE"
+                    ? "first-strike"
+                    : "regular";
+            applyAllCombatDamage(
+                state,
+                state.combat.damageAssignments ?? {},
+                kind
+            );
             state.combat.damageConfirmed = true;
         }
 

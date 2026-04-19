@@ -89,33 +89,70 @@ export const castle: CardDefinition = {
     ],
 };
 
-// export const circleOfProtectionBlue: CardDefinition = {
-//     id: "848b1a7f-e8ba-40b5-92b7-af1e963a0319",
-//     name: "Circle of Protection: Blue",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Enchantment"],
-// };
+// Circle of Protection — "{1}: The next time a source of your choice of
+// [color] would deal damage to you this turn, prevent that damage." The
+// four CoPs share identical behavior modulo the color filter (CR 615.1,
+// 615.6). We build them from one factory to keep the colored choice local.
+function makeCircleOfProtection(args: {
+    id: string;
+    name: string;
+    color: "U" | "G" | "R" | "W";
+    colorWord: string;
+}): CardDefinition {
+    return {
+        id: args.id,
+        name: args.name,
+        manaCost: { X: 1, W: 1 },
+        types: ["Enchantment"],
+        activatedAbilities: [
+            {
+                id: "cop-prevent",
+                oracleText: `{1}: The next time a ${args.colorWord.toLowerCase()} source of your choice would deal damage to you this turn, prevent that damage.`,
+                cost: { mana: { X: 1 } },
+                useStack: true,
+                targetRequirement: {
+                    type: ["any", "spell"],
+                    count: 1,
+                    colorFilter: args.color,
+                },
+                resolve: (ctx: SpellContext) => {
+                    const [target] = ctx.targets;
+                    if (!target) return;
+                    if (target.type === "player") return; // no color
+                    ctx.preventNextDamageFromSource(target.id, ctx.controller);
+                },
+            },
+        ],
+    };
+}
 
-// export const circleOfProtectionGreen: CardDefinition = {
-//     id: "1ae32d20-b438-4f43-b603-e8f706ecfb03",
-//     name: "Circle of Protection: Green",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Enchantment"],
-// };
+export const circleOfProtectionBlue: CardDefinition = makeCircleOfProtection({
+    id: "848b1a7f-e8ba-40b5-92b7-af1e963a0319",
+    name: "Circle of Protection: Blue",
+    color: "U",
+    colorWord: "Blue",
+});
 
-// export const circleOfProtectionRed: CardDefinition = {
-//     id: "b3dd94c5-42f6-4148-be6e-2a3a4226cc0e",
-//     name: "Circle of Protection: Red",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Enchantment"],
-// };
+export const circleOfProtectionGreen: CardDefinition = makeCircleOfProtection({
+    id: "1ae32d20-b438-4f43-b603-e8f706ecfb03",
+    name: "Circle of Protection: Green",
+    color: "G",
+    colorWord: "Green",
+});
 
-// export const circleOfProtectionWhite: CardDefinition = {
-//     id: "92df19c9-e127-42d9-8dd2-7fa5a7095428",
-//     name: "Circle of Protection: White",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Enchantment"],
-// };
+export const circleOfProtectionRed: CardDefinition = makeCircleOfProtection({
+    id: "b3dd94c5-42f6-4148-be6e-2a3a4226cc0e",
+    name: "Circle of Protection: Red",
+    color: "R",
+    colorWord: "Red",
+});
+
+export const circleOfProtectionWhite: CardDefinition = makeCircleOfProtection({
+    id: "92df19c9-e127-42d9-8dd2-7fa5a7095428",
+    name: "Circle of Protection: White",
+    color: "W",
+    colorWord: "White",
+});
 
 // export const consecrateLand: CardDefinition = {
 //     id: "d2379f78-c03f-447f-b3c9-10a918d556e9",
@@ -1276,12 +1313,21 @@ export const earthElemental: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 
-// export const earthquake: CardDefinition = {
-//     id: "e68ac362-6cdc-48a6-bdd3-4f8ea32add64",
-//     name: "Earthquake",
-//     manaCost: { X: "X", R: 1 },
-//     types: ["Sorcery"],
-// };
+// CR 107.3: X chosen on cast. CR 120.3: damage respects flying at
+// resolution time (creatures losing flying mid-resolution aren't affected,
+// since matching creatures are snapshotted).
+export const earthquake: CardDefinition = {
+    id: "e68ac362-6cdc-48a6-bdd3-4f8ea32add64",
+    name: "Earthquake",
+    manaCost: { X: "X", R: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        ctx.dealDamageToEach(ctx.getX(), {
+            creatures: { excludeAbility: "flying" },
+            players: true,
+        });
+    },
+};
 
 // export const falseOrders: CardDefinition = {
 //     id: "7eb71ac4-796d-4011-9002-1129bc09c284",
@@ -1328,7 +1374,7 @@ export const flashfires: CardDefinition = {
     manaCost: { X: 3, R: 1 },
     types: ["Sorcery"],
     resolve: (ctx: SpellContext) => {
-        ctx.destroyAllBySubtype("Plains");
+        ctx.destroyAll({ subtypes: "Plains" });
     },
 };
 
@@ -1708,15 +1754,16 @@ export const crawWurm: CardDefinition = {
     toughness: 4,
 };
 
-// export const elvishArchers: CardDefinition = {
-//     id: "1cb9d405-f2b5-4e10-a405-feafd2a87d90",
-//     name: "Elvish Archers",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Elf", "Archer"],
-//     power: 2,
-//     toughness: 1,
-// };
+export const elvishArchers: CardDefinition = {
+    id: "1cb9d405-f2b5-4e10-a405-feafd2a87d90",
+    name: "Elvish Archers",
+    manaCost: { X: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Elf", "Archer"],
+    power: 2,
+    toughness: 1,
+    staticAbilities: ["first strike"],
+};
 
 // export const fastbond: CardDefinition = {
 //     id: "a575a9af-e1de-4a1d-91d8-440585377e4f",
@@ -1792,12 +1839,20 @@ export const grizzlyBears: CardDefinition = {
     toughness: 2,
 };
 
-// export const hurricane: CardDefinition = {
-//     id: "52f5a19f-16e4-4d35-89e1-969ac8202f88",
-//     name: "Hurricane",
-//     manaCost: { X: "X", G: 1 },
-//     types: ["Sorcery"],
-// };
+// CR 107.3: X chosen on cast. CR 120.3: mirrors Earthquake but targets
+// fliers instead.
+export const hurricane: CardDefinition = {
+    id: "52f5a19f-16e4-4d35-89e1-969ac8202f88",
+    name: "Hurricane",
+    manaCost: { X: "X", G: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        ctx.dealDamageToEach(ctx.getX(), {
+            creatures: { requireAbility: "flying" },
+            players: true,
+        });
+    },
+};
 
 // export const iceStorm: CardDefinition = {
 //     id: "9914836e-2fa6-4390-94b2-431427848a54",
@@ -1988,7 +2043,7 @@ export const tsunami: CardDefinition = {
     manaCost: { X: 3, G: 1 },
     types: ["Sorcery"],
     resolve: (ctx: SpellContext) => {
-        ctx.destroyAllBySubtype("Island");
+        ctx.destroyAll({ subtypes: "Island" });
     },
 };
 
@@ -2264,22 +2319,40 @@ export const blackLotus: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const jayemdaeTome: CardDefinition = {
-//     id: "cac8c421-5b92-481d-b2de-560c0231ab58",
-//     name: "Jayemdae Tome",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+// Jayemdae Tome — "{4}, {T}: Draw a card." CR 107.1 (mana cost symbols), CR
+// 602.1 (activated abilities), CR 121.1 (drawing a card). Uses the stack
+// (useStack: true) — this is a non-mana activated ability (CR 605.1a).
+export const jayemdaeTome: CardDefinition = {
+    id: "cac8c421-5b92-481d-b2de-560c0231ab58",
+    name: "Jayemdae Tome",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "jayemdae-tome-draw",
+            oracleText: "{4}, {T}: Draw a card.",
+            cost: { tap: true, mana: { X: 4 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.drawCards(ctx.caster, 1);
+            },
+        },
+    ],
+};
 
-// export const juggernaut: CardDefinition = {
-//     id: "dcd6a291-5282-4f49-8203-d9b416083c48",
-//     name: "Juggernaut",
-//     manaCost: { X: 4 },
-//     types: ["Artifact", "Creature"],
-//     subtypes: ["Juggernaut"],
-//     power: 5,
-//     toughness: 3,
-// };
+// Juggernaut — "This creature attacks each combat if able. This creature can't
+// be blocked by Walls." CR 508.1d (attack requirement), CR 509.1b (block
+// restriction by subtype).
+export const juggernaut: CardDefinition = {
+    id: "dcd6a291-5282-4f49-8203-d9b416083c48",
+    name: "Juggernaut",
+    manaCost: { X: 4 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Juggernaut"],
+    power: 5,
+    toughness: 3,
+    staticAbilities: ["attacks-if-able", "cant-be-blocked-by-wall"],
+};
 
 // export const kormusBell: CardDefinition = {
 //     id: "3f4ef7a1-148d-44ac-89ed-0ef379cca0c6",

@@ -2,6 +2,7 @@ import type {
     CardType,
     GameEvent,
     ManaCost as CardManaCost,
+    PermanentFilter,
     SpellContext,
     TargetRequirement,
     TargetSelection,
@@ -50,6 +51,25 @@ export type CardInstanceState = {
     isAttacking?: boolean;
     /** Set during combat when this creature is declared as blocker. Cleared at END_OF_COMBAT. */
     isBlocking?: boolean;
+    /** Damage marked on the creature this turn (CR 120.3). Accumulates across
+     *  damage events; checked against effective toughness for lethal damage
+     *  (CR 704.5g). Removed at CLEANUP (CR 514.2). */
+    damageMarked?: number;
+};
+
+/** A one-shot damage prevention effect (CR 615.1, 615.6). The next time the
+ *  given source would deal damage to `playerId`, that damage is prevented and
+ *  this effect is consumed. End-of-turn effects are purged at CLEANUP
+ *  (CR 514.2). Used by Circle of Protection. */
+export type PreventionEffect = {
+    /** Id of the source permanent (on battlefield) or stack item whose next
+     *  damage to `playerId` should be prevented. Matched against
+     *  `sourceInstanceId` on damage events. */
+    sourceInstanceId: string;
+    /** The player whose incoming damage is prevented. */
+    playerId: string;
+    /** "end-of-turn" is removed at CLEANUP (CR 514.2). */
+    duration: "end-of-turn";
 };
 
 /** A reference to an activated ability template granted to a player by
@@ -119,9 +139,12 @@ export type PendingCast = {
     chosenX?: number;
 };
 
-/** Tracks target selection for a spell being announced (CR 601.2c). */
+/** Tracks target selection for a spell being announced (CR 601.2c) or an
+ *  activated ability with targets (CR 602.2b). */
 export type PendingTarget = {
     playerId: string;
+    /** For spells: id of the card being cast (in hand). For activated
+     *  abilities (`kind: "ability"`): id of the permanent on the battlefield. */
     cardInstanceId: string;
     /** What kind of targets are needed (matches TargetRequirement.type). */
     targetType: TargetRequirement["type"];
@@ -129,12 +152,22 @@ export type PendingTarget = {
      *  automatically when selected.length === count (fixed) or the caller
      *  invokes confirmTargets with selected.length within [min, max]. */
     count: number | { min: number; max?: number };
+    /** If set, restricts legal targets to sources of the given color
+     *  (CR 202.2). Propagated from TargetRequirement.colorFilter. */
+    colorFilter?: string;
     /** Targets already selected. */
     selected: TargetSelection[];
     /** Mirrors PendingCast.keepPriority — propagated when the pending cast is created. */
     keepPriority?: boolean;
     /** Propagated from announceCast when the spell has X in its mana cost. */
     chosenX?: number;
+    /** Distinguishes a spell cast (default) from an activated ability that
+     *  requires targets (CR 602.2b). When "ability", `abilityId` is set and
+     *  costs are paid at finalization instead of at announcement. */
+    kind?: "cast" | "ability";
+    /** For `kind: "ability"` only — id of the activated ability template on
+     *  the source card definition. */
+    abilityId?: string;
 };
 
 export type GameState = {
@@ -196,7 +229,33 @@ export type GameState = {
      *  LIFO: pushed at the end, popped from the end — the last extra turn
      *  created is the next one taken. Consumed by advanceTurn(). */
     extraTurns?: string[];
+    /** Active one-shot damage prevention effects (CR 615.1). Each effect is
+     *  consumed the first time a matching (source, player) damage event
+     *  occurs. Cleared at CLEANUP for "end-of-turn" effects (CR 514.2). */
+    preventionEffects?: PreventionEffect[];
 };
+
+/** Returns true if a prevention effect matches (source, player) and consumes
+ *  it. Called from every damage-dealing path (spell/ability, combat). */
+export function consumePreventionIfAny(
+    state: GameState,
+    sourceInstanceId: string,
+    playerId: string
+): boolean {
+    if (!state.preventionEffects || state.preventionEffects.length === 0) {
+        return false;
+    }
+    const idx = state.preventionEffects.findIndex(
+        (e) =>
+            e.sourceInstanceId === sourceInstanceId && e.playerId === playerId
+    );
+    if (idx === -1) return false;
+    state.preventionEffects.splice(idx, 1);
+    if (state.preventionEffects.length === 0) {
+        state.preventionEffects = undefined;
+    }
+    return true;
+}
 
 /** Resolves the top item of the stack (CR 608.3). Returns the resolved item. */
 export function resolveTopOfStack(state: GameState): StackItem {
@@ -287,6 +346,50 @@ export function removePermanentTo(
     (owner[toZone] as CardInstanceState[]).push(creature);
 }
 
+/** Predicate: does the card match every constraint in the filter? Omitted
+ *  fields don't constrain (AND semantics). */
+function matchesPermanentFilter(
+    card: CardInstanceState,
+    filter: PermanentFilter
+): boolean {
+    if (filter.types !== undefined) {
+        const types = Array.isArray(filter.types)
+            ? filter.types
+            : [filter.types];
+        if (!types.some((t) => card.types.includes(t))) return false;
+    }
+    if (filter.subtypes !== undefined) {
+        const subtypes = Array.isArray(filter.subtypes)
+            ? filter.subtypes
+            : [filter.subtypes];
+        if (!subtypes.some((s) => card.subtypes.includes(s))) return false;
+    }
+    if (
+        filter.requireAbility !== undefined &&
+        !card.staticAbilities.includes(filter.requireAbility)
+    ) {
+        return false;
+    }
+    if (
+        filter.excludeAbility !== undefined &&
+        card.staticAbilities.includes(filter.excludeAbility)
+    ) {
+        return false;
+    }
+    return true;
+}
+
+/** Normalizes the polymorphic `destroyAll` argument into a filter object. */
+function normalizeDestroyAllFilter(
+    filter: CardType | CardType[] | PermanentFilter | undefined
+): PermanentFilter {
+    if (filter === undefined) return {};
+    if (typeof filter === "string" || Array.isArray(filter)) {
+        return { types: filter };
+    }
+    return filter;
+}
+
 /** Builds a SpellContext with primitives bound to the current game state. */
 function buildSpellContext(state: GameState, item: StackItem): SpellContext {
     function requirePermanent(target: TargetSelection): CardInstanceState {
@@ -302,6 +405,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
 
         dealDamage(target: TargetSelection, amount: number) {
             if (target.type === "player") {
+                // CR 615.1: a prevention effect replaces the would-be damage
+                // with nothing. Matched against the current stack item's id
+                // (the spell/ability dealing the damage).
+                if (consumePreventionIfAny(state, item.id, target.id)) return;
                 getPlayer(state, target.id).life -= amount;
             } else {
                 const found = findOnBattlefield(state, target.id);
@@ -309,12 +416,36 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 // CR 120.3: damage can only be dealt to creatures, planeswalkers,
                 // players and battles. Damage on any other permanent is a no-op.
                 if (!isDamageablePermanent(found.card)) return;
-                // Lethal damage check uses effective toughness after layer 7c buffs.
-                if (amount >= getEffectiveToughness(state, found.card)) {
+                // CR 120.3: damage is marked on the creature and accumulates
+                // until CLEANUP (CR 514.2). Lethal damage (CR 704.5g) is
+                // applied inline using the post-accumulation marked total
+                // compared to effective toughness (layer 7c).
+                found.card.damageMarked =
+                    (found.card.damageMarked ?? 0) + amount;
+                if (
+                    found.card.damageMarked >=
+                    getEffectiveToughness(state, found.card)
+                ) {
                     removePermanentTo(state, target.id, "graveyard");
                 }
-                // TODO: track damage on creatures for non-lethal damage accumulation
             }
+        },
+        preventNextDamageFromSource(
+            sourceInstanceId: string,
+            playerId: string
+        ): void {
+            // CR 615.1, 615.6: "The next time a [source] would deal damage
+            // to [player] this turn, prevent that damage." Stored as a
+            // one-shot replacement effect and consumed by the first
+            // matching damage event.
+            state.preventionEffects = [
+                ...(state.preventionEffects ?? []),
+                {
+                    sourceInstanceId,
+                    playerId,
+                    duration: "end-of-turn",
+                },
+            ];
         },
         gainLife(playerId: string, amount: number) {
             getPlayer(state, playerId).life += amount;
@@ -359,31 +490,18 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 throw new Error("Cannot exile a player");
             removePermanentTo(state, target.id, "exile");
         },
-        destroyAll(type?: CardType | CardType[]): void {
-            const types = type
-                ? Array.isArray(type)
-                    ? type
-                    : [type]
-                : undefined;
+        destroyAll(filter?: CardType | CardType[] | PermanentFilter): void {
+            const normalized = normalizeDestroyAllFilter(filter);
+            const ids: string[] = [];
             for (const player of state.players) {
-                const toDestroy = types
-                    ? player.battlefield.filter((c) =>
-                          types.some((t) => c.types.includes(t))
-                      )
-                    : [...player.battlefield];
-                for (const card of toDestroy) {
-                    removePermanentTo(state, card.id, "graveyard");
+                for (const card of player.battlefield) {
+                    if (matchesPermanentFilter(card, normalized)) {
+                        ids.push(card.id);
+                    }
                 }
             }
-        },
-        destroyAllBySubtype(subtype: string): void {
-            for (const player of state.players) {
-                const toDestroy = player.battlefield.filter((c) =>
-                    c.subtypes.includes(subtype)
-                );
-                for (const card of toDestroy) {
-                    removePermanentTo(state, card.id, "graveyard");
-                }
+            for (const id of ids) {
+                removePermanentTo(state, id, "graveyard");
             }
         },
         // CR 121.1: cards are drawn one at a time. Stops if the library empties
@@ -442,6 +560,44 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (per <= 0) return;
             for (const target of targets) {
                 this.dealDamage(target, per);
+            }
+        },
+        // CR 120.3: damage is dealt simultaneously to every matching entity.
+        // Snapshot creature ids before iterating — dealDamage may remove them
+        // from the battlefield (SBA lethal) and players have not yet taken
+        // damage at that moment.
+        dealDamageToEach(
+            amount: number,
+            filter: {
+                creatures?: boolean | Omit<PermanentFilter, "types">;
+                players?: boolean;
+            }
+        ): void {
+            if (amount <= 0) return;
+            if (filter.creatures) {
+                const spec: PermanentFilter = {
+                    types: "Creature",
+                    ...(typeof filter.creatures === "object"
+                        ? filter.creatures
+                        : {}),
+                };
+                const ids: string[] = [];
+                for (const player of state.players) {
+                    for (const card of player.battlefield) {
+                        if (!isDamageablePermanent(card)) continue;
+                        if (matchesPermanentFilter(card, spec)) {
+                            ids.push(card.id);
+                        }
+                    }
+                }
+                for (const id of ids) {
+                    this.dealDamage({ type: "permanent", id }, amount);
+                }
+            }
+            if (filter.players) {
+                for (const player of state.players) {
+                    this.dealDamage({ type: "player", id: player.id }, amount);
+                }
             }
         },
         // Grants an activated ability to a player for a limited duration

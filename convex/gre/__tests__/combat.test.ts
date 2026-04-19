@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
     validateAttackerEligibility,
     validateBlockerEligibility,
+    mustAttack,
+    getRequiredAttackerIds,
 } from "../combat";
 import type { CardInstanceState } from "../state";
 import type { CardType } from "../../cards/types";
@@ -273,5 +275,118 @@ describe("validateBlockerEligibility — landwalk (CR 702.13b)", () => {
         expect(
             validateBlockerEligibility(scout, bears, [bears, forest]).eligible
         ).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// validateBlockerEligibility — subtype restriction (CR 509.1b)
+// ---------------------------------------------------------------------------
+
+describe("validateBlockerEligibility — can't be blocked by Walls (CR 509.1b)", () => {
+    it("rejects a Wall blocker against an attacker with the restriction", () => {
+        const jug = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["cant-be-blocked-by-wall"],
+        });
+        const wall = makeCard({
+            types: ["Creature"],
+            subtypes: ["Wall"],
+            staticAbilities: ["defender"],
+        });
+        const result = validateBlockerEligibility(jug, wall, [wall]);
+        expect(result.eligible).toBe(false);
+        if (!result.eligible) expect(result.reason).toMatch(/Wall/);
+    });
+
+    it("allows non-Wall blockers", () => {
+        const jug = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["cant-be-blocked-by-wall"],
+        });
+        const bears = makeCard({ types: ["Creature"], staticAbilities: [] });
+        expect(validateBlockerEligibility(jug, bears, [bears])).toEqual({
+            eligible: true,
+        });
+    });
+
+    it("stacks with flying when both apply", () => {
+        const flyingJug = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["cant-be-blocked-by-wall", "flying"],
+        });
+        const groundWall = makeCard({
+            types: ["Creature"],
+            subtypes: ["Wall"],
+            staticAbilities: ["defender"],
+        });
+        const flyer = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["flying"],
+        });
+        expect(
+            validateBlockerEligibility(flyingJug, groundWall, [
+                groundWall,
+                flyer,
+            ]).eligible
+        ).toBe(false);
+        expect(
+            validateBlockerEligibility(flyingJug, flyer, [groundWall, flyer])
+        ).toEqual({ eligible: true });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// mustAttack / getRequiredAttackerIds (CR 508.1d)
+// ---------------------------------------------------------------------------
+
+describe("mustAttack / getRequiredAttackerIds (CR 508.1d)", () => {
+    it("eligible creature with attacks-if-able must attack", () => {
+        const jug = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["attacks-if-able"],
+        });
+        expect(mustAttack(jug)).toBe(true);
+    });
+
+    it("tapped creature with attacks-if-able is not required (can't attack)", () => {
+        const jug = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["attacks-if-able"],
+            isTapped: true,
+        });
+        expect(mustAttack(jug)).toBe(false);
+    });
+
+    it("summoning-sick creature with attacks-if-able is not required", () => {
+        const jug = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["attacks-if-able"],
+            isSummoningSick: true,
+        });
+        expect(mustAttack(jug)).toBe(false);
+    });
+
+    it("creature with defender + attacks-if-able is not required", () => {
+        const brick = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["attacks-if-able", "defender"],
+        });
+        expect(mustAttack(brick)).toBe(false);
+    });
+
+    it("getRequiredAttackerIds filters out ineligible required attackers", () => {
+        const jugA = makeCard({
+            id: "a",
+            types: ["Creature"],
+            staticAbilities: ["attacks-if-able"],
+        });
+        const jugB = makeCard({
+            id: "b",
+            types: ["Creature"],
+            staticAbilities: ["attacks-if-able"],
+            isTapped: true,
+        });
+        const bears = makeCard({ id: "c", types: ["Creature"] });
+        expect(getRequiredAttackerIds([jugA, jugB, bears])).toEqual(["a"]);
     });
 });
