@@ -2,6 +2,13 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
+import {
+    computeHasPriority,
+    isAssigningDamage as isAssigningDamageFn,
+    isSelectingAttackers as isSelectingAttackersFn,
+    isSelectingBlockers as isSelectingBlockersFn,
+    isWaitingOnOpponent,
+} from "~/lib/priority";
 import ActionButton from "./action-button";
 
 export default function ActionBar() {
@@ -27,43 +34,25 @@ export default function ActionBar() {
     const passPriority = useMutation(api.game.passPriority);
     const endTurn = useMutation(api.game.endTurn);
 
+    const priorityCtx = {
+        playerId,
+        activePlayerId,
+        priorityPlayerId,
+        phase,
+        pendingCast,
+        pendingTarget,
+        combat,
+    };
+
     const canUndo = undoableBy === playerId;
     const isPayingCast = !!pendingCast && pendingCast.playerId === playerId;
-    const isSelectingAttackers =
-        phase === "DECLARE_ATTACKERS" &&
-        !!combat &&
-        !combat.confirmed &&
-        playerId === activePlayerId;
-    const isSelectingBlockers =
-        phase === "DECLARE_BLOCKERS" &&
-        !!combat &&
-        !combat.blockersConfirmed &&
-        playerId !== activePlayerId;
-    const isAssigningDamage =
-        phase === "COMBAT_DAMAGE" &&
-        !!combat &&
-        combat.damageConfirmed === false &&
-        playerId === activePlayerId;
+    const isSelectingAttackers = isSelectingAttackersFn(priorityCtx);
+    const isSelectingBlockers = isSelectingBlockersFn(priorityCtx);
+    const isAssigningDamage = isAssigningDamageFn(priorityCtx);
+    const waitingOnOpponent = isWaitingOnOpponent(priorityCtx);
     const opponentSelectingAttackers =
-        phase === "DECLARE_ATTACKERS" &&
-        !!combat &&
-        !combat.confirmed &&
-        playerId !== activePlayerId;
-    const opponentSelectingBlockers =
-        phase === "DECLARE_BLOCKERS" &&
-        !!combat &&
-        !combat.blockersConfirmed &&
-        playerId === activePlayerId;
-    const waitingOnOpponent =
-        opponentSelectingAttackers || opponentSelectingBlockers;
-    const hasPriority =
-        playerId === priorityPlayerId &&
-        !pendingCast &&
-        !pendingTarget &&
-        !isSelectingAttackers &&
-        !isSelectingBlockers &&
-        !isAssigningDamage &&
-        !waitingOnOpponent;
+        waitingOnOpponent && phase === "DECLARE_ATTACKERS";
+    const hasPriority = computeHasPriority(priorityCtx);
     const isAutoPass = autoPassPlayers?.includes(playerId) ?? false;
 
     const selectedAttackerIds = combat?.attackerIds ?? [];

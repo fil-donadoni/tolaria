@@ -5,11 +5,16 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import { usePageVisible } from "~/hooks/usePageVisible";
+import {
+    SkipPhasePrefsContext,
+    useSkipPhasePrefsState,
+} from "~/hooks/useSkipPhasePreferences";
 import { preloadCardImages } from "~/lib/image-preload";
 import PlayerBoard from "./player-board";
 import GameStack from "./game-stack";
 import PhaseTracker from "./phase-tracker";
 import ActionBar from "./action-bar";
+import AutoPassController from "./auto-pass-controller";
 import GameOverDialog from "./game-over-dialog";
 import TargetSelectionBanner from "./target-selection-banner";
 
@@ -27,6 +32,7 @@ export default function Board({
     debugAllActions,
 }: BoardProps) {
     const pageVisible = usePageVisible();
+    const skipPhasePrefs = useSkipPhasePrefsState();
     const publicState = useQuery(
         api.game.getPublicState,
         pageVisible && !showAllCards
@@ -94,6 +100,7 @@ export default function Board({
                 priorityPlayerId,
                 phase,
                 turn,
+                stackCount: stackItems.length,
                 pendingCast,
                 pendingTarget,
                 autoPassPlayers,
@@ -105,28 +112,31 @@ export default function Board({
                 debugAllActions,
             }}
         >
-            <div className="flex h-full w-full flex-col relative">
-                {orderedPlayers.map((player) => (
-                    <PlayerBoard key={player.id} player={player} />
-                ))}
-                <PhaseTracker />
-                {stackItems.length > 0 && <GameStack stack={stackItems} />}
-                {pendingTarget && pendingTarget.playerId === playerId && (
-                    <TargetSelectionBanner
-                        pendingTarget={pendingTarget}
-                        me={me}
-                        gameId={gameId}
-                        playerId={playerId}
-                    />
-                )}
-                <ActionBar />
-                {gameOver && (
-                    <GameOverDialog
-                        gameOver={gameOver}
-                        allPlayers={allPlayers}
-                    />
-                )}
-            </div>
+            <SkipPhasePrefsContext value={skipPhasePrefs}>
+                <div className="flex h-full w-full flex-col relative">
+                    <AutoPassController />
+                    {orderedPlayers.map((player) => (
+                        <PlayerBoard key={player.id} player={player} />
+                    ))}
+                    <PhaseTracker />
+                    {stackItems.length > 0 && <GameStack stack={stackItems} />}
+                    {pendingTarget && pendingTarget.playerId === playerId && (
+                        <TargetSelectionBanner
+                            pendingTarget={pendingTarget}
+                            me={me}
+                            gameId={gameId}
+                            playerId={playerId}
+                        />
+                    )}
+                    <ActionBar />
+                    {gameOver && (
+                        <GameOverDialog
+                            gameOver={gameOver}
+                            allPlayers={allPlayers}
+                        />
+                    )}
+                </div>
+            </SkipPhasePrefsContext>
         </GameContext>
     );
 }

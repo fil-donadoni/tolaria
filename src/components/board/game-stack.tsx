@@ -2,7 +2,10 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { StackItem } from "~/types/game";
 import CardImage from "../cards/card-image";
-import { getAbilityOracleText } from "~/lib/card-utils";
+import {
+    getAbilityOracleText,
+    getTriggeredAbilityOracleText,
+} from "~/lib/card-utils";
 import { useGameContext } from "~/hooks/useGameContext";
 
 type GameStackProps = {
@@ -33,7 +36,12 @@ export default function GameStack({ stack }: GameStackProps) {
                 {reversed.map((item, i) => {
                     const abilityText = item.abilityId
                         ? getAbilityOracleText(item.card.id, item.abilityId)
-                        : null;
+                        : item.triggeredAbilityId
+                          ? getTriggeredAbilityOracleText(
+                                item.card.id,
+                                item.triggeredAbilityId
+                            )
+                          : null;
                     const isTargetable = canTargetSpell;
 
                     return (

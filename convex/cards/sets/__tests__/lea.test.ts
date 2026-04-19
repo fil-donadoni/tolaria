@@ -26,6 +26,7 @@ import {
     undergroundSea,
     wrathOfGod,
     disenchant,
+    hypnoticSpecter,
     serraAngel,
     savannahLions,
 } from "../lea";
@@ -386,6 +387,138 @@ describe("Serra Angel (keyword abilities)", () => {
     it("has flying and vigilance", () => {
         expect(serraAngel.staticAbilities).toContain("flying");
         expect(serraAngel.staticAbilities).toContain("vigilance");
+    });
+});
+
+describe("Hypnotic Specter (keyword abilities + CR 603 trigger)", () => {
+    it("is a 2/2 Specter for {1}{B}{B} with flying", () => {
+        expect(hypnoticSpecter.manaCost).toEqual({ X: 1, B: 2 });
+        expect(hypnoticSpecter.types).toContain("Creature");
+        expect(hypnoticSpecter.subtypes).toEqual(["Specter"]);
+        expect(hypnoticSpecter.power).toBe(2);
+        expect(hypnoticSpecter.toughness).toBe(2);
+        expect(hypnoticSpecter.staticAbilities).toContain("flying");
+    });
+
+    it("declares a damage-dealt trigger with matching oracle text", () => {
+        const trigger = hypnoticSpecter.triggeredAbilities?.[0];
+        expect(trigger?.event).toBe("DAMAGE_DEALT");
+        expect(trigger?.oracleText).toMatch(/discards a card at random/);
+    });
+
+    function setupCombatScenario() {
+        const specter = makeInstance(hypnoticSpecter.id, {
+            id: "specter",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const oppHand = [
+            makeInstance(llanowarElves.id, {
+                id: "opp-card-1",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }),
+            makeInstance(llanowarElves.id, {
+                id: "opp-card-2",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }),
+        ];
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [specter] }),
+                makePlayer("p2", { hand: oppHand }),
+            ],
+            combat: {
+                attackerIds: ["specter"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
+            rngSeed: 1,
+        });
+        return state;
+    }
+
+    it("queues a trigger on the stack when Specter deals damage to an opponent", async () => {
+        const state = setupCombatScenario();
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, {});
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "hypnotic-specter-discard"
+        );
+        expect(state.stack[0].triggerEvent).toMatchObject({
+            type: "DAMAGE_DEALT",
+            target: { type: "player", id: "p2" },
+            amount: 2,
+        });
+        // Priority restarts at active player with triggers on the stack.
+        expect(state.priorityPlayerId).toBe("p1");
+    });
+
+    it("resolves the trigger into a random discard from the opponent's hand", async () => {
+        const state = setupCombatScenario();
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, {});
+        resolveTopOfStack(state);
+
+        const p2 = state.players[1];
+        expect(p2.hand).toHaveLength(1);
+        expect(p2.graveyard).toHaveLength(1);
+        // Specter stays on the battlefield after the trigger resolves.
+        expect(state.players[0].battlefield).toHaveLength(1);
+    });
+
+    it("is deterministic: same seed → same discarded card", async () => {
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        const runOnce = () => {
+            const state = setupCombatScenario();
+            applyAllCombatDamage(state, {});
+            resolveTopOfStack(state);
+            return state.players[1].graveyard[0].id;
+        };
+        expect(runOnce()).toBe(runOnce());
+    });
+
+    it("does NOT trigger when dealing damage to self (controller)", () => {
+        const specter = makeInstance(hypnoticSpecter.id, {
+            id: "specter",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const trigger = hypnoticSpecter.triggeredAbilities![0];
+        const match = trigger.matches(
+            {
+                type: "DAMAGE_DEALT",
+                sourceInstanceId: "specter",
+                sourceControllerId: "p1",
+                target: { type: "player", id: "p1" },
+                amount: 2,
+                isCombat: true,
+            },
+            specter
+        );
+        expect(match).toBe(false);
+    });
+
+    it("wire format: triggerEvent and triggeredAbilityId survive projection", async () => {
+        const state = setupCombatScenario();
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, {});
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.stack).toHaveLength(1);
+        expect(projected.stack[0].triggeredAbilityId).toBe(
+            "hypnotic-specter-discard"
+        );
+        expect(projected.stack[0].triggerEvent).toMatchObject({
+            type: "DAMAGE_DEALT",
+            target: { type: "player", id: "p2" },
+        });
     });
 });
 

@@ -1,5 +1,6 @@
 import type {
     CardType,
+    GameEvent,
     ManaCost as CardManaCost,
     SpellContext,
     TargetRequirement,
@@ -15,6 +16,7 @@ import {
     PERMANENT_TYPES,
 } from "./constants";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
+import { randomInt } from "./rng";
 
 // Re-export for consumers that imported from here previously
 export { getBasicLandMana } from "./constants";
@@ -72,6 +74,11 @@ export type StackItem = CardInstanceState & {
     targets?: TargetSelection[];
     /** If set, this stack item is an activated ability (not a spell). Source permanent stays on battlefield. */
     abilityId?: string;
+    /** If set, this stack item is a triggered ability (CR 603). The source
+     *  permanent stays on the battlefield; the trigger vanishes on resolution. */
+    triggeredAbilityId?: string;
+    /** The originating event captured at trigger time. Passed to resolve(). */
+    triggerEvent?: GameEvent;
 };
 
 /** Tracks an in-progress spell cast during the payment phase (CR 601.2). */
@@ -104,6 +111,12 @@ export type GameState = {
     /** Number of consecutive priority passes (resets on any action). Resolves top of stack at 2. */
     passCount: number;
     phase: Phase;
+    /** Seed for the per-game PRNG. Logged on GAME_INITIALIZED for replay. */
+    rngSeed: number;
+    /** Monotonic counter advanced by every consumption of randomness (shuffle,
+     *  discard at random, coin flips). With rngSeed, the event log is
+     *  sufficient to reproduce the exact random choices made during a game. */
+    rngCounter: number;
     /** Active spell payment in progress (CR 601.2). */
     pendingCast?: PendingCast;
     /** Active target selection in progress (CR 601.2c). */
@@ -145,6 +158,19 @@ export function resolveTopOfStack(state: GameState): StackItem {
 
     const cardId = (item.card as { id?: string }).id;
     const cardDef = cardId ? getCardById(cardId) : undefined;
+
+    // Triggered ability resolution (CR 603.3). Source permanent stays on
+    // battlefield; the trigger vanishes after resolve.
+    if (item.triggeredAbilityId && cardDef && item.triggerEvent) {
+        const ability = cardDef.triggeredAbilities?.find(
+            (a) => a.id === item.triggeredAbilityId
+        );
+        if (ability) {
+            const ctx = buildSpellContext(state, item);
+            ability.resolve(ctx, item.triggerEvent);
+        }
+        return item;
+    }
 
     // Activated ability resolution — execute effect and discard (CR 602.2)
     if (item.abilityId && cardDef) {
@@ -337,6 +363,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (item.abilityId) return;
             item.zone = "graveyard";
             owner.graveyard.push(item);
+        },
+        discardAtRandom(playerId: string, amount: number): void {
+            const player = getPlayer(state, playerId);
+            const picks = Math.min(amount, player.hand.length);
+            for (let i = 0; i < picks; i++) {
+                const idx = randomInt(state, player.hand.length);
+                moveCard(player, player.hand[idx].id, "hand", "graveyard");
+            }
         },
     };
 }

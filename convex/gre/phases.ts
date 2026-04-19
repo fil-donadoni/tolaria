@@ -1,7 +1,9 @@
 import type { Phase } from "./types";
+import type { GameEvent } from "../cards/types";
 import type { CardInstanceState, GameState } from "./state";
 import { drawCard, getOpponentId, getPlayer, resolveTopOfStack } from "./state";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
+import { collectTriggers } from "./triggers";
 
 /** Ordered sequence of all phases/steps in a turn. */
 const PHASE_ORDER: Phase[] = [
@@ -216,6 +218,7 @@ export function applyAllCombatDamage(
 
     // Track damage received: cardId → total damage
     const damageReceived: Record<string, number> = {};
+    const events: GameEvent[] = [];
 
     for (const attackerId of state.combat.attackerIds) {
         const attacker = activePlayer.battlefield.find(
@@ -228,17 +231,44 @@ export function applyAllCombatDamage(
 
         if (blockers.length === 0) {
             // Unblocked: damage to defending player
-            defender.life -= attackerPower;
+            if (attackerPower > 0) {
+                defender.life -= attackerPower;
+                events.push({
+                    type: "DAMAGE_DEALT",
+                    sourceInstanceId: attacker.id,
+                    sourceControllerId: attacker.controllerId,
+                    target: { type: "player", id: defenderId },
+                    amount: attackerPower,
+                    isCombat: true,
+                });
+            }
         } else {
             // Blocked: distribute attacker's damage to blockers (and defender if trample)
             const assignments = damageAssignments[attackerId] ?? {};
             for (const [targetId, damage] of Object.entries(assignments)) {
+                if (damage <= 0) continue;
                 if (targetId === defenderId) {
                     // Trample excess damage to defending player
                     defender.life -= damage;
+                    events.push({
+                        type: "DAMAGE_DEALT",
+                        sourceInstanceId: attacker.id,
+                        sourceControllerId: attacker.controllerId,
+                        target: { type: "player", id: defenderId },
+                        amount: damage,
+                        isCombat: true,
+                    });
                 } else {
                     damageReceived[targetId] =
                         (damageReceived[targetId] ?? 0) + damage;
+                    events.push({
+                        type: "DAMAGE_DEALT",
+                        sourceInstanceId: attacker.id,
+                        sourceControllerId: attacker.controllerId,
+                        target: { type: "permanent", id: targetId },
+                        amount: damage,
+                        isCombat: true,
+                    });
                 }
             }
 
@@ -248,9 +278,18 @@ export function applyAllCombatDamage(
                     (c) => c.id === blockerId
                 );
                 if (!blocker) continue; // removed before damage
+                const blockerPower = getCardPower(state, blocker);
+                if (blockerPower <= 0) continue;
                 damageReceived[attackerId] =
-                    (damageReceived[attackerId] ?? 0) +
-                    getCardPower(state, blocker);
+                    (damageReceived[attackerId] ?? 0) + blockerPower;
+                events.push({
+                    type: "DAMAGE_DEALT",
+                    sourceInstanceId: blocker.id,
+                    sourceControllerId: blocker.controllerId,
+                    target: { type: "permanent", id: attackerId },
+                    amount: blockerPower,
+                    isCombat: true,
+                });
             }
         }
     }
@@ -281,6 +320,18 @@ export function applyAllCombatDamage(
             const owner = getPlayer(state, card.ownerId);
             owner.graveyard.push(card);
         }
+    }
+
+    // Collect triggered abilities fired by this damage step (CR 603.2). Dead
+    // permanents are already gone, so their own triggers are skipped — that's
+    // not strictly CR-correct for LTB/"when ~ dies" triggers, but those are
+    // out of scope here.
+    const triggers = collectTriggers(state, events);
+    if (triggers.length > 0) {
+        state.stack.push(...triggers);
+        // Active player gets priority again with triggers on the stack (CR 117.3c).
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
     }
 }
 

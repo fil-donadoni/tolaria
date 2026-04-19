@@ -8,6 +8,7 @@ import {
     type StackItem,
     getPlayer,
     getOpponentId,
+    drawCard as drawCardFromLibrary,
     moveCard,
     removeFromZone,
     removePermanentTo,
@@ -25,6 +26,7 @@ import {
     drainAutoPasses,
     applyAllCombatDamage,
 } from "./gre/phases";
+import { freshSeed, seededShuffle } from "./gre/rng";
 import type { Phase } from "./gre/types";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
@@ -51,17 +53,7 @@ type PlayerInput = {
     deck: DeckInput;
 };
 
-function shuffle<T>(array: T[]): T[] {
-    const copy = [...array];
-    for (let i = copy.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
-    }
-    return copy;
-}
-
 function buildPlayerState(player: PlayerInput) {
-    // Create CardInstances from deck, all starting in library
     const instances = player.deck.cards.map((deckCard) => {
         const def = getCardById(deckCard.cardId);
         return {
@@ -85,24 +77,14 @@ function buildPlayerState(player: PlayerInput) {
         };
     });
 
-    // Shuffle library
-    const shuffled = shuffle(instances);
-
-    // Draw starting hand
-    const hand = shuffled.slice(0, STARTING_HAND_SIZE).map((c) => ({
-        ...c,
-        zone: "hand" as const,
-    }));
-    const library = shuffled.slice(STARTING_HAND_SIZE);
-
     return {
         id: player.id,
         name: player.name,
         bgColor: player.bgColor,
         life: 20,
         deck: player.deck,
-        hand,
-        library,
+        hand: [],
+        library: instances,
         graveyard: [],
         exile: [],
         battlefield: [],
@@ -303,11 +285,9 @@ export const joinGame = mutation({
             updatedAt: now,
         });
 
-        // Build initial state for both players
         const playersState = allPlayers.map(buildPlayerState);
 
-        // Build initial state and let the phase machine advance through
-        // auto-phases (UNTAP) to the first priority phase (UPKEEP).
+        const rngSeed = freshSeed();
         const initialState: GameState = {
             players: playersState,
             stack: [],
@@ -316,7 +296,16 @@ export const joinGame = mutation({
             priorityPlayerId: playersState[0].id,
             passCount: 0,
             phase: "UNTAP" as Phase,
+            rngSeed,
+            rngCounter: 0,
         };
+
+        for (const player of initialState.players) {
+            seededShuffle(initialState, player.library);
+            for (let i = 0; i < STARTING_HAND_SIZE; i++)
+                drawCardFromLibrary(player);
+        }
+
         // UNTAP is auto → advances to UPKEEP (with entry actions along the way)
         advancePhase(initialState);
 
@@ -329,6 +318,7 @@ export const joinGame = mutation({
             player: "system",
             payload: {
                 playerIds: allPlayers.map((p) => p.id),
+                rngSeed,
             },
             timestamp: now,
         });
@@ -2025,10 +2015,10 @@ export const debugResetGame = mutation({
             await ctx.db.delete(s._id);
         }
 
-        // Rebuild initial state from game players
         const playersState = game.players.map((p) =>
             buildPlayerState(p as PlayerInput)
         );
+        const rngSeed = freshSeed();
         const initialState: GameState = {
             players: playersState,
             stack: [],
@@ -2037,7 +2027,14 @@ export const debugResetGame = mutation({
             priorityPlayerId: playersState[0].id,
             passCount: 0,
             phase: "UNTAP" as Phase,
+            rngSeed,
+            rngCounter: 0,
         };
+        for (const player of initialState.players) {
+            seededShuffle(initialState, player.library);
+            for (let i = 0; i < STARTING_HAND_SIZE; i++)
+                drawCardFromLibrary(player);
+        }
         advancePhase(initialState);
 
         await saveGameState(ctx, args.gameId, 0, initialState);

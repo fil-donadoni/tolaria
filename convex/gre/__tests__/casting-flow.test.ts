@@ -74,6 +74,8 @@ function makeGameState(overrides: Partial<GameState> = {}): GameState {
         priorityPlayerId: "p1",
         passCount: 0,
         phase: "PRECOMBAT_MAIN",
+        rngSeed: 0,
+        rngCounter: 0,
         ...overrides,
     };
 }

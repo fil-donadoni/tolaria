@@ -103,6 +103,10 @@ export interface SpellContext {
     drawCards: (playerId: string, amount: number) => void;
     /** Counters a spell or ability on the stack (CR 701.5a). Target must be TargetSelection with type "spell". No-op if target no longer on stack (CR 608.2b). */
     counter: (target: TargetSelection) => void;
+    /** Player discards `amount` cards chosen uniformly at random (CR 701.8a).
+     *  Capped at current hand size — no-op on an empty hand. Randomness is
+     *  drawn from the game's seeded PRNG so replays reproduce the same picks. */
+    discardAtRandom: (playerId: string, amount: number) => void;
 }
 
 // --- Continuous static effects (CR 611, 613) ---
@@ -150,6 +154,42 @@ export interface StaticPTBuff {
 
 export type StaticEffect = StaticPTBuff;
 
+// --- Triggered abilities (CR 603) ---
+// Inline structure mirroring ActivatedAbility: each trigger declares which
+// game event it listens to, a predicate identifying relevant occurrences, and
+// a resolve function invoked from the stack after both players pass priority.
+
+export type GameEventType = "DAMAGE_DEALT";
+
+/** Damage event emitted whenever a source inflicts damage on a target
+ *  (CR 120.3). Used by "whenever ~ deals damage" triggers. */
+export interface DamageDealtEvent {
+    type: "DAMAGE_DEALT";
+    /** Instance id of the permanent or stack item that dealt the damage. */
+    sourceInstanceId: string;
+    /** Controller of the damage source at the time of the event. */
+    sourceControllerId: string;
+    /** Target that took damage — player or permanent. */
+    target: TargetSelection;
+    amount: number;
+    /** True for combat damage (CR 510), false for spell/ability damage. */
+    isCombat: boolean;
+}
+
+export type GameEvent = DamageDealtEvent;
+
+export interface TriggeredAbility {
+    id: string;
+    /** Oracle text shown on the stack and in context menus. */
+    oracleText: string;
+    /** Which event kind can fire this ability. Used to index-filter before matches(). */
+    event: GameEventType;
+    /** True if `event` triggers this ability on the permanent carrying it. */
+    matches: (event: GameEvent, self: PermanentView) => boolean;
+    /** Effect run when the trigger resolves from the stack. */
+    resolve: (ctx: SpellContext, event: GameEvent) => void;
+}
+
 /** Full card definition used by the GRE. */
 export interface CardDefinition {
     id: CardId;
@@ -171,6 +211,6 @@ export interface CardDefinition {
     /** Continuous static effects (CR 611). Applied at stat-read time by the layer system. */
     staticEffects?: StaticEffect[];
     activatedAbilities?: ActivatedAbility[];
-    triggeredAbilities?: string[];
+    triggeredAbilities?: TriggeredAbility[];
     sbaMods?: string[];
 }

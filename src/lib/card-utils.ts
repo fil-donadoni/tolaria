@@ -98,13 +98,25 @@ export function getStackAbilities(
         .map((a) => ({ id: a.id, oracleText: a.oracleText }));
 }
 
-/** Returns the oracle text for an ability by id, or null. */
+/** Returns the oracle text for an activated ability by id, or null. */
 export function getAbilityOracleText(
     cardId: string,
     abilityId: string
 ): string | null {
     const cardDef = getCardById(cardId);
     const ability = cardDef.activatedAbilities?.find((a) => a.id === abilityId);
+    return ability?.oracleText ?? null;
+}
+
+/** Returns the oracle text for a triggered ability by id, or null. */
+export function getTriggeredAbilityOracleText(
+    cardId: string,
+    triggeredAbilityId: string
+): string | null {
+    const cardDef = getCardById(cardId);
+    const ability = cardDef.triggeredAbilities?.find(
+        (a) => a.id === triggeredAbilityId
+    );
     return ability?.oracleText ?? null;
 }
 

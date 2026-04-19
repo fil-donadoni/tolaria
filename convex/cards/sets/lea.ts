@@ -957,15 +957,37 @@ export const bogWraith: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const hypnoticSpecter: CardDefinition = {
-//     id: "b43b900f-2d9b-442b-9699-058483604ec9",
-//     name: "Hypnotic Specter",
-//     manaCost: { X: 1, B: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Specter"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Hypnotic Specter — CR 603 triggered ability on combat/spell damage to an
+// opponent. The random discard uses the game's seeded PRNG (CR 701.8a).
+export const hypnoticSpecter: CardDefinition = {
+    id: "b43b900f-2d9b-442b-9699-058483604ec9",
+    name: "Hypnotic Specter",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Specter"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        {
+            id: "hypnotic-specter-discard",
+            oracleText:
+                "Whenever Hypnotic Specter deals damage to an opponent, that player discards a card at random.",
+            event: "DAMAGE_DEALT",
+            matches: (event, self) => {
+                if (event.type !== "DAMAGE_DEALT") return false;
+                if (event.sourceInstanceId !== self.id) return false;
+                if (event.target.type !== "player") return false;
+                return event.target.id !== self.controllerId;
+            },
+            resolve: (ctx, event) => {
+                if (event.type !== "DAMAGE_DEALT") return;
+                if (event.target.type !== "player") return;
+                ctx.discardAtRandom(event.target.id, 1);
+            },
+        },
+    ],
+};
 
 // export const lich: CardDefinition = {
 //     id: "4250caec-0e37-41be-9ec4-8938deb5f0d0",

@@ -166,6 +166,29 @@ const PRESET_SCENARIOS = [
         phase: "PRECOMBAT_MAIN",
         libraryCount: 53,
     },
+    {
+        label: "Hypnotic Specter (flying + random discard on damage)",
+        cards: [
+            { name: "Hypnotic Specter", owner: "me" as const },
+            {
+                name: "Savannah Lions",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "DECLARE_ATTACKERS",
+        landCount: 3,
+    },
 ];
 
 type DebugPanelProps = {

@@ -1,8 +1,12 @@
+import type { Phase } from "@convex/gre/types";
 import { useGameContext } from "~/hooks/useGameContext";
+import { useSkipPhasePreferences } from "~/hooks/useSkipPhasePreferences";
+import { isSkippablePhase } from "~/lib/skip-phase-prefs";
+import PhaseStepCell from "./phase-step-cell";
 
 type PhaseGroup = {
     label: string;
-    steps: { id: string; short: string }[];
+    steps: { id: Phase; short: string }[];
 };
 
 const PHASE_GROUPS: PhaseGroup[] = [
@@ -43,6 +47,7 @@ const PHASE_GROUPS: PhaseGroup[] = [
 
 export default function PhaseTracker() {
     const { phase, turn, activePlayerId, playerId } = useGameContext();
+    const { prefs, toggle } = useSkipPhasePreferences();
     const isMyTurn = activePlayerId === playerId;
 
     return (
@@ -56,18 +61,36 @@ export default function PhaseTracker() {
                 <div key={group.label} className="flex flex-col gap-px">
                     {group.steps.map((step) => {
                         const isCurrent = step.id === phase;
+                        if (!isSkippablePhase(step.id)) {
+                            return (
+                                <div
+                                    key={step.id}
+                                    className="flex items-center gap-1"
+                                >
+                                    <span className="h-1.5 w-1.5 shrink-0" />
+                                    <div
+                                        className={`text-[9px] leading-tight px-1 py-px rounded text-center transition-colors flex-1 ${
+                                            isCurrent
+                                                ? "bg-amber-400 text-black font-bold"
+                                                : "text-white/40"
+                                        }`}
+                                        title={step.id}
+                                    >
+                                        {step.short}
+                                    </div>
+                                    <span className="h-1.5 w-1.5 shrink-0" />
+                                </div>
+                            );
+                        }
                         return (
-                            <div
+                            <PhaseStepCell
                                 key={step.id}
-                                className={`text-[9px] leading-tight px-1 py-px rounded text-center transition-colors ${
-                                    isCurrent
-                                        ? "bg-amber-400 text-black font-bold"
-                                        : "text-white/40"
-                                }`}
-                                title={step.id}
-                            >
-                                {step.short}
-                            </div>
+                                phase={step.id}
+                                short={step.short}
+                                isCurrent={isCurrent}
+                                prefs={prefs}
+                                onToggle={toggle}
+                            />
                         );
                     })}
                 </div>

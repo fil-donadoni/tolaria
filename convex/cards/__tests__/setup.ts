@@ -71,6 +71,8 @@ export function makeState(overrides: Partial<GameState> = {}): GameState {
         priorityPlayerId: "p1",
         passCount: 0,
         phase: "PRECOMBAT_MAIN" as Phase,
+        rngSeed: 0,
+        rngCounter: 0,
         ...overrides,
     };
 }

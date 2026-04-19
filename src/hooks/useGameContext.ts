@@ -15,6 +15,7 @@ type GameContext = {
     priorityPlayerId: string;
     phase: string;
     turn: number;
+    stackCount: number;
     pendingCast?: PendingCast;
     pendingTarget?: PendingTarget;
     autoPassPlayers?: string[];

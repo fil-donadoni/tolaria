@@ -84,6 +84,8 @@ export interface StackItem extends CardInstance {
     targets?: { type: "permanent" | "player" | "spell"; id: string }[];
     /** If set, this stack item is an activated ability (not a spell). */
     abilityId?: string;
+    /** If set, this stack item is a triggered ability (CR 603). */
+    triggeredAbilityId?: string;
 }
 
 export interface PendingCast {
