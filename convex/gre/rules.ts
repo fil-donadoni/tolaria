@@ -2,6 +2,7 @@ import type { TargetRequirement, TargetSelection } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import type { CardAction } from "./types";
 import { isSorceryTiming } from "./phases";
+import { DAMAGEABLE_PERMANENT_TYPES } from "./constants";
 
 const ALL_HAND_ACTIONS: CardAction[] = [
     "play",
@@ -78,13 +79,20 @@ export function getLegalTargets(
         (t) => t !== "player" && t !== "any" && t !== "spell"
     );
 
+    // CR 115.4: "any target" means any creature, planeswalker, player, or
+    // battle — the four object types that can be damaged (CR 120.3).
     if (wantsAny || permanentTypes.length > 0) {
         for (const player of state.players) {
             for (const card of player.battlefield) {
-                if (
-                    wantsAny ||
-                    permanentTypes.some((t) => card.types.includes(t as never))
-                ) {
+                const matchesAny =
+                    wantsAny &&
+                    DAMAGEABLE_PERMANENT_TYPES.some((t) =>
+                        card.types.includes(t)
+                    );
+                const matchesExplicit = permanentTypes.some((t) =>
+                    card.types.includes(t as never)
+                );
+                if (matchesAny || matchesExplicit) {
                     targets.push({ type: "permanent", id: card.id });
                 }
             }

@@ -20,8 +20,34 @@ export const PERMANENT_TYPES = [
     "Battle",
 ] as const;
 
+/**
+ * Permanent types that can be dealt damage (CR 120.3). Damage to any other
+ * permanent (artifact, enchantment, land) is a no-op. This is also the set
+ * of permanent types matched by a `"any target"` spell (CR 115.4).
+ */
+export const DAMAGEABLE_PERMANENT_TYPES = [
+    "Creature",
+    "Planeswalker",
+    "Battle",
+] as const;
+
+export function isDamageablePermanent(card: CardInstanceState): boolean {
+    return DAMAGEABLE_PERMANENT_TYPES.some((t) => card.types.includes(t));
+}
+
 /** All six mana colors in canonical order. */
 export const MANA_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
+
+/** Mana value of a cost (CR 202.3). Numeric `X` counts as its value; string `X` counts as 0 (unpaid). */
+export function manaValue(cost?: ManaCost): number {
+    if (!cost) return 0;
+    let total = 0;
+    for (const key of ["X", "W", "U", "B", "R", "G", "C"] as const) {
+        const v = cost[key];
+        if (typeof v === "number") total += v;
+    }
+    return total;
+}
 
 /** Returns the mana color a land produces via basic land subtype, or null. */
 export function getBasicLandMana(card: CardInstanceState): Color | null {

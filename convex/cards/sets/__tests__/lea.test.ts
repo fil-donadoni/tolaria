@@ -36,6 +36,7 @@ import {
 } from "../../../gre/state";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { getActivatedManaColor, hasManaAbility } from "../../../gre/constants";
+import { getLegalTargets } from "../../../gre/rules";
 import { projectPublicState } from "../../../gameProjections";
 import type { CardDefinition, CardType } from "../../types";
 import {
@@ -228,6 +229,31 @@ describe("Lightning Bolt (3 damage to any target, CR 608.3)", () => {
         expect((state.players[0].graveyard[0].card as { id: string }).id).toBe(
             lightningBolt.id
         );
+    });
+
+    it("cannot target lands (CR 115.4 / 120.3 — 'any target' is damageable only)", () => {
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const forest = makeInstance(taiga.id, {
+            id: "forest",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [lion, forest] }),
+            ],
+        });
+        const legal = getLegalTargets(state, lightningBolt.targetRequirement!);
+        const ids = legal.map((t) => t.id);
+        expect(ids).toContain("lion");
+        expect(ids).toContain("p1");
+        expect(ids).toContain("p2");
+        expect(ids).not.toContain("forest");
     });
 });
 

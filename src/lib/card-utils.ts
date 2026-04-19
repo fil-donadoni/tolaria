@@ -1,6 +1,9 @@
 import type { CardInstance, ManaPool } from "~/types/game";
 import type { Color, ManaCost } from "~/types/cards";
-import { LAND_SUBTYPE_MANA } from "@convex/gre/constants";
+import {
+    DAMAGEABLE_PERMANENT_TYPES,
+    LAND_SUBTYPE_MANA,
+} from "@convex/gre/constants";
 import { getCardById } from "@convex/cards";
 import { isManaCostCovered, normalizeManaCost } from "@convex/gre/state";
 
@@ -67,8 +70,12 @@ export function matchesTargetRequirement(
     targetType: string | string[]
 ): boolean {
     const types = Array.isArray(targetType) ? targetType : [targetType];
-    if (types.includes("any")) return true;
     const cardTypes = card.types ?? [];
+    // CR 115.4 / 120.3: "any target" only matches damageable permanents
+    // (creatures, planeswalkers, battles) — never lands, artifacts, enchantments.
+    if (types.includes("any")) {
+        return DAMAGEABLE_PERMANENT_TYPES.some((t) => cardTypes.includes(t));
+    }
     return types.some((t) => cardTypes.includes(t as never));
 }
 

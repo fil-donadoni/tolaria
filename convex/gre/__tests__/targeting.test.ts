@@ -149,7 +149,7 @@ describe("getLegalTargets", () => {
         expect(ids).not.toContain("bear");
     });
 
-    it("finds all permanents for 'any' requirement", () => {
+    it("finds only creatures, planeswalkers, battles and players for 'any' requirement (CR 115.4)", () => {
         const bear = makeCard({ id: "bear", card: CREATURE });
         const mox = makeCard({
             id: "mox",
@@ -157,18 +157,37 @@ describe("getLegalTargets", () => {
             controllerId: "p2",
             ownerId: "p2",
         });
+        const aura = makeCard({
+            id: "aura",
+            card: ENCHANTMENT,
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const island = makeCard({
+            id: "island",
+            card: LAND,
+            controllerId: "p2",
+            ownerId: "p2",
+        });
         const state = makeGameState({
             players: [
                 makePlayer({ id: "p1", battlefield: [bear] }),
-                makePlayer({ id: "p2", battlefield: [mox] }),
+                makePlayer({ id: "p2", battlefield: [mox, aura, island] }),
             ],
         });
 
         const req: TargetRequirement = { type: "any", count: 1 };
         const targets = getLegalTargets(state, req);
 
-        // 2 permanents + 2 players
-        expect(targets).toHaveLength(4);
+        // Only the creature + 2 players — artifact, enchantment and land are excluded.
+        expect(targets).toHaveLength(3);
+        const ids = targets.map((t) => t.id);
+        expect(ids).toContain("bear");
+        expect(ids).toContain("p1");
+        expect(ids).toContain("p2");
+        expect(ids).not.toContain("mox");
+        expect(ids).not.toContain("aura");
+        expect(ids).not.toContain("island");
     });
 
     it("includes players for 'player' requirement", () => {

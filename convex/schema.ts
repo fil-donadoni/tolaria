@@ -16,6 +16,19 @@ export default defineSchema({
         state: v.any(),
         updatedAt: v.number(),
     }).index("by_gameId", ["gameId", "seq"]),
+    decks: defineTable({
+        presetId: v.string(),
+        name: v.string(),
+        format: v.string(),
+        description: v.optional(v.string()),
+        colors: v.array(v.string()),
+        cards: v.array(
+            v.object({
+                cardId: v.string(),
+                cardName: v.string(),
+            })
+        ),
+    }).index("by_presetId", ["presetId"]),
     games: defineTable({
         name: v.string(),
         status: v.union(

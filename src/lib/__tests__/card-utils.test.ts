@@ -102,11 +102,19 @@ describe("matchesTargetRequirement", () => {
         ).toBe(true);
     });
 
-    it("any permanent matches 'any'", () => {
+    it("'any' only matches damageable permanents (CR 115.4 / 120.3)", () => {
         const creature = makeCardInstance({ types: ["Creature"] });
+        const planeswalker = makeCardInstance({ types: ["Planeswalker"] });
+        const battle = makeCardInstance({ types: ["Battle"] });
         const land = makeCardInstance({ types: ["Land"] });
+        const artifact = makeCardInstance({ types: ["Artifact"] });
+        const enchantment = makeCardInstance({ types: ["Enchantment"] });
         expect(matchesTargetRequirement(creature, "any")).toBe(true);
-        expect(matchesTargetRequirement(land, "any")).toBe(true);
+        expect(matchesTargetRequirement(planeswalker, "any")).toBe(true);
+        expect(matchesTargetRequirement(battle, "any")).toBe(true);
+        expect(matchesTargetRequirement(land, "any")).toBe(false);
+        expect(matchesTargetRequirement(artifact, "any")).toBe(false);
+        expect(matchesTargetRequirement(enchantment, "any")).toBe(false);
     });
 
     it("land matches 'Land' but not 'Creature'", () => {

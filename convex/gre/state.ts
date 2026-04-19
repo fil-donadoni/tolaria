@@ -10,6 +10,7 @@ import type { Phase, Zone } from "./types";
 import {
     getActivatedManaColor,
     getBasicLandMana,
+    isDamageablePermanent,
     MANA_COLORS,
     PERMANENT_TYPES,
 } from "./constants";
@@ -232,6 +233,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             } else {
                 const found = findOnBattlefield(state, target.id);
                 if (!found) return;
+                // CR 120.3: damage can only be dealt to creatures, planeswalkers,
+                // players and battles. Damage on any other permanent is a no-op.
+                if (!isDamageablePermanent(found.card)) return;
                 // Lethal damage check uses effective toughness after layer 7c buffs.
                 if (amount >= getEffectiveToughness(state, found.card)) {
                     removePermanentTo(state, target.id, "graveyard");

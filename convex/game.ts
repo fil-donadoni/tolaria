@@ -27,6 +27,7 @@ import {
 } from "./gre/phases";
 import type { Phase } from "./gre/types";
 import {
+    DAMAGEABLE_PERMANENT_TYPES,
     getActivatedManaAbility,
     getActivatedManaColor,
     hasManaAbility,
@@ -794,13 +795,19 @@ export const selectTarget = mutation({
             const permanentTypes = reqTypes.filter(
                 (t) => t !== "player" && t !== "any" && t !== "spell"
             );
+            // CR 115.4 / 120.3: "any target" only matches damageable permanents.
             const found = state.players.some((p) =>
                 p.battlefield.some((c) => {
                     if (c.id !== args.targetId) return false;
-                    return (
-                        wantsAny ||
-                        permanentTypes.some((t) => c.types.includes(t as never))
+                    const matchesAny =
+                        wantsAny &&
+                        DAMAGEABLE_PERMANENT_TYPES.some((t) =>
+                            c.types.includes(t)
+                        );
+                    const matchesExplicit = permanentTypes.some((t) =>
+                        c.types.includes(t as never)
                     );
+                    return matchesAny || matchesExplicit;
                 })
             );
             if (!found) throw new Error("Invalid target");
