@@ -44,13 +44,26 @@ export default function ActionBar() {
         !!combat &&
         combat.damageConfirmed === false &&
         playerId === activePlayerId;
+    const opponentSelectingAttackers =
+        phase === "DECLARE_ATTACKERS" &&
+        !!combat &&
+        !combat.confirmed &&
+        playerId !== activePlayerId;
+    const opponentSelectingBlockers =
+        phase === "DECLARE_BLOCKERS" &&
+        !!combat &&
+        !combat.blockersConfirmed &&
+        playerId === activePlayerId;
+    const waitingOnOpponent =
+        opponentSelectingAttackers || opponentSelectingBlockers;
     const hasPriority =
         playerId === priorityPlayerId &&
         !pendingCast &&
         !pendingTarget &&
         !isSelectingAttackers &&
         !isSelectingBlockers &&
-        !isAssigningDamage;
+        !isAssigningDamage &&
+        !waitingOnOpponent;
     const isAutoPass = autoPassPlayers?.includes(playerId) ?? false;
 
     const selectedAttackerIds = combat?.attackerIds ?? [];
@@ -220,6 +233,17 @@ export default function ActionBar() {
                 color="red"
                 shortcut="enter"
             />
+        );
+    } else if (waitingOnOpponent) {
+        buttons.push(
+            <div
+                key="waiting-opponent"
+                className="bg-black/60 text-white/60 px-6 py-2 rounded-lg text-sm"
+            >
+                {opponentSelectingAttackers
+                    ? "Opponent declaring attackers..."
+                    : "Opponent declaring blockers..."}
+            </div>
         );
     } else if (isAutoPass) {
         buttons.push(

@@ -14,15 +14,20 @@ import type {
     StaticEffect,
     StaticEffectContext,
 } from "../cards/types";
-import type { CardInstanceState, GameState } from "./state";
 import { MANA_COLORS } from "./constants";
 
 export type PTBuff = { power: number; toughness: number };
 
 const ZERO: PTBuff = { power: 0, toughness: 0 };
 
+/** Minimal view of GameState the layer system needs. Lets callers pass trimmed state
+ *  shapes (e.g. the frontend Player[]) without casting. */
+export interface LayerStateView {
+    players: ReadonlyArray<{ battlefield: ReadonlyArray<PermanentView> }>;
+}
+
 /** Returns the card definition's static effects, or [] if unknown. */
-function getStaticEffects(card: CardInstanceState): StaticEffect[] {
+function getStaticEffects(card: PermanentView): StaticEffect[] {
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return [];
     return tryGetCardById(cardId)?.staticEffects ?? [];
@@ -31,11 +36,14 @@ function getStaticEffects(card: CardInstanceState): StaticEffect[] {
 /** Context passed to every static-effect predicate. Pure, state-free. */
 export const STATIC_EFFECT_CTX: StaticEffectContext = {
     getColors(card: PermanentView): Color[] {
-        const cost = (card.card as { manaCost?: ManaCost }).manaCost;
+        // Resolve manaCost via registry. The embedded card.card is slimmed to { id }
+        // in public/full projections, so reading manaCost directly would silently yield [].
+        const embedded = (card.card as { manaCost?: ManaCost }).manaCost;
+        const cardId = (card.card as { id?: string }).id;
+        const cost =
+            embedded ?? (cardId ? tryGetCardById(cardId)?.manaCost : undefined);
         if (!cost) return [];
         const colors: Color[] = [];
-        // Only WUBRG count as colors (CR 202.2); generic X and colorless C
-        // don't make a card colored.
         for (const c of MANA_COLORS) {
             if (c === "C") continue;
             if ((cost[c] ?? 0) > 0) colors.push(c);
@@ -55,8 +63,8 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
  * currently on the battlefield (CR 611.2).
  */
 export function getStaticPTBuff(
-    state: GameState,
-    target: CardInstanceState
+    state: LayerStateView,
+    target: PermanentView
 ): PTBuff {
     let power = 0;
     let toughness = 0;
@@ -83,16 +91,16 @@ export function getStaticPTBuff(
 
 /** Effective power after static P/T buffs. Not floored (combat damage floors separately). */
 export function getEffectivePower(
-    state: GameState,
-    target: CardInstanceState
+    state: LayerStateView,
+    target: PermanentView
 ): number {
     return (target.power ?? 0) + getStaticPTBuff(state, target).power;
 }
 
 /** Effective toughness after static P/T buffs. */
 export function getEffectiveToughness(
-    state: GameState,
-    target: CardInstanceState
+    state: LayerStateView,
+    target: PermanentView
 ): number {
     return (target.toughness ?? 0) + getStaticPTBuff(state, target).toughness;
 }

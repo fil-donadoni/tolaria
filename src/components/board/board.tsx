@@ -1,14 +1,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import type {
-    Combat,
-    GameOver,
-    PendingCast,
-    PendingTarget,
-    Player,
-    StackItem,
-} from "~/types/game";
+import type { Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import PlayerBoard from "./player-board";
@@ -52,30 +45,25 @@ export default function Board({
         );
     }
 
-    const allPlayers = state.players as unknown as Player[];
-    const stack = (state as unknown as { stack: StackItem[] }).stack ?? [];
-    const activePlayerId = (state as unknown as { activePlayerId: string })
-        .activePlayerId;
-    const priorityPlayerId =
-        (state as unknown as { priorityPlayerId: string }).priorityPlayerId ??
-        activePlayerId;
-    const phase = (state as unknown as { phase: string }).phase ?? "UPKEEP";
-    const turn = (state as unknown as { turn: number }).turn ?? 1;
-    const pendingCast = (state as unknown as { pendingCast?: PendingCast })
-        .pendingCast;
-    const autoPassPlayers = (state as unknown as { autoPassPlayers?: string[] })
-        .autoPassPlayers;
-    const combat = (state as unknown as { combat?: Combat }).combat;
-    const pendingTarget = (
-        state as unknown as { pendingTarget?: PendingTarget }
-    ).pendingTarget;
-    const undoableBy = (state as unknown as { undoableBy?: string }).undoableBy;
-    const gameOver = (state as unknown as { gameOver?: GameOver }).gameOver;
+    const allPlayers: Player[] = state.players;
+    const stack = state.stack ?? [];
+    const activePlayerId = state.activePlayerId;
+    const priorityPlayerId = state.priorityPlayerId ?? activePlayerId;
+    const phase = state.phase ?? "UPKEEP";
+    const turn = state.turn ?? 1;
+    const pendingCast = state.pendingCast;
+    const autoPassPlayers = state.autoPassPlayers;
+    const combat = state.combat;
+    const pendingTarget = state.pendingTarget;
+    const undoableBy = state.undoableBy;
+    const gameOver = state.gameOver;
 
     // Opponent on top, local player on bottom
     const opponent = allPlayers.find((p) => p.id !== playerId);
     const me = allPlayers.find((p) => p.id === playerId);
-    const orderedPlayers = [opponent, me].filter(Boolean) as Player[];
+    const orderedPlayers = [opponent, me].filter(
+        (p): p is Player => p !== undefined
+    );
 
     return (
         <GameContext

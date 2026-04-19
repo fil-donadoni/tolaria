@@ -9,8 +9,9 @@ export interface Player {
     name: string;
     bgColor: string;
     life: number;
-    deck: Deck;
-    /** Own hand has full cards; opponent's hand is a list of nulls (one per card) when viewed via getPublicState. */
+    /** Opaque on the frontend — only the server's buildPlayerState reads it. */
+    deck: unknown;
+    /** Own hand has full cards; opponent's hand is a list of nulls when viewed via getPublicState. */
     hand: (CardInstance | null)[];
     /** Full array when the viewer has full-state access, { count } when hidden (getPublicState). */
     library: CardInstance[] | { count: number };
@@ -20,8 +21,8 @@ export interface Player {
     manaPool: ManaPool;
 }
 
-// TODO: add support for specific-use mana
-export type ManaPool = Record<Color, number>;
+/** Mana pool carried by the player. All six color slots may be missing from the server payload. */
+export type ManaPool = Partial<Record<Color, number>> & Record<string, number>;
 
 export const emptyManaPool: ManaPool = {
     W: 0,

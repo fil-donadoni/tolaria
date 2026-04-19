@@ -48,7 +48,7 @@ export default function BattlefieldCard({
     const hasAbilities = !!activatableAbilities?.length;
     const { allPlayers } = useGameContext();
 
-    const cardClassName = `relative transition-all duration-[250ms] flex items-center justify-center shrink-0 ${vs.combatOffset} ${vs.ringClass} ${
+    const cardClassName = `relative transition-all duration-[250ms] flex items-center justify-center shrink-0 ${vs.combatOffset} ${
         hasAbilities && !vs.interactive
             ? "cursor-pointer"
             : vs.interactive
@@ -99,7 +99,7 @@ export default function BattlefieldCard({
     ) : null;
 
     const inner = (
-        <div className="relative" style={innerStyle}>
+        <div className={`relative ${vs.ringClass}`} style={innerStyle}>
             <CardImage card={card.card} />
             {badgeEl}
             {ptOverlay}

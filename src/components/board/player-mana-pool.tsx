@@ -3,7 +3,9 @@ import { colors } from "~/types/cards";
 import type { Player } from "~/types/game";
 
 export default function PlayerManaPool({ player }: { player: Player }) {
-    const colorsWithMana = colors.filter((color) => player.manaPool[color] > 0);
+    const colorsWithMana = colors.filter(
+        (color) => (player.manaPool[color] ?? 0) > 0
+    );
 
     if (!colorsWithMana.length) {
         return null;
@@ -18,7 +20,7 @@ export default function PlayerManaPool({ player }: { player: Player }) {
                         className="size-5 shrink-0"
                     />
                     <p className="font-bold text-sm text-white">
-                        {player.manaPool[color]}
+                        {player.manaPool[color] ?? 0}
                     </p>
                 </div>
             ))}
