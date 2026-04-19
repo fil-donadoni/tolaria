@@ -121,6 +121,28 @@ const PRESET_SCENARIOS = [
         landCount: 4,
     },
     {
+        label: "Dual lands (Tundra + Underground Sea)",
+        cards: [
+            // Tundra taps for W or U, Underground Sea for U or B.
+            // Pre-tap each with the picker to produce the chosen color,
+            // then cast Counterspell ({U}{U}) from hand to verify committal.
+            { name: "Tundra", owner: "me" as const },
+            { name: "Underground Sea", owner: "me" as const },
+            {
+                name: "Counterspell",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+    },
+    {
         label: "Birds of Paradise & Llanowar Elves",
         cards: [
             // Tap Birds to add any color — pair with a Plains to cast

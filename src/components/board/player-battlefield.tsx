@@ -50,11 +50,13 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     const selectTarget = useMutation(api.game.selectTarget);
     const activateAbility = useMutation(api.game.activateAbility);
 
-    // Mana choice picker state
+    // Mana choice picker state. `inPayment` routes the selection to
+    // tapForPayment (committing the cast) vs tapUntap (floating mana).
     const [manaChoiceState, setManaChoiceState] = useState<{
         cardId: string;
         choices: import("~/types/cards").ManaCost[];
         position: { x: number; y: number };
+        inPayment: boolean;
     } | null>(null);
 
     // --- Interaction modes ---
@@ -187,8 +189,9 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         if (isPayingCast) {
             return card.isTapped
                 ? pendingCast!.tappedLandIds.includes(card.id)
-                : (getLandManaColor(card) ?? getActivatedManaColor(card)) !==
-                      null;
+                : getLandManaColor(card) !== null ||
+                      getActivatedManaColor(card) !== null ||
+                      getManaChoices(card) !== null;
         }
         // CR 605.3b: mana abilities require priority (outside payment).
         if (!hasPriority) return false;
@@ -344,8 +347,21 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
 
         // Mana source tap/untap (lands, mox, etc.)
         if (isPayingCast) {
-            const mut = card.isTapped ? untapForPayment : tapForPayment;
-            mut({ gameId, playerId, cardInstanceId: card.id });
+            if (card.isTapped) {
+                untapForPayment({ gameId, playerId, cardInstanceId: card.id });
+                return;
+            }
+            const choices = getManaChoices(card);
+            if (choices) {
+                setManaChoiceState({
+                    cardId: card.id,
+                    choices,
+                    position: { x: 0, y: 0 },
+                    inPayment: true,
+                });
+            } else {
+                tapForPayment({ gameId, playerId, cardInstanceId: card.id });
+            }
         } else {
             // Check for mana choices (e.g. Black Lotus) — show picker
             const choices = getManaChoices(card);
@@ -356,6 +372,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                     cardId: card.id,
                     choices,
                     position: { x: 0, y: 0 },
+                    inPayment: false,
                 });
             } else {
                 tapUntap({ gameId, playerId, cardInstanceId: card.id });
@@ -370,17 +387,12 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             return;
         }
         const choices = getManaChoices(card);
-        if (
-            isMe &&
-            choices &&
-            !card.isTapped &&
-            !isPayingCast &&
-            canInteract(card)
-        ) {
+        if (isMe && choices && !card.isTapped && canInteract(card)) {
             setManaChoiceState({
                 cardId: card.id,
                 choices,
                 position: { x: e.clientX, y: e.clientY - 50 },
+                inPayment: isPayingCast,
             });
             return;
         }
@@ -510,12 +522,17 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                     choices={manaChoiceState.choices}
                     position={manaChoiceState.position}
                     onSelect={(index) => {
-                        tapUntap({
+                        const args = {
                             gameId,
                             playerId,
                             cardInstanceId: manaChoiceState.cardId,
                             manaChoiceIndex: index,
-                        });
+                        };
+                        if (manaChoiceState.inPayment) {
+                            tapForPayment(args);
+                        } else {
+                            tapUntap(args);
+                        }
                         setManaChoiceState(null);
                     }}
                     onCancel={() => setManaChoiceState(null)}

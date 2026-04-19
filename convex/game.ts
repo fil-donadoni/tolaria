@@ -517,6 +517,8 @@ export const tapForPayment = mutation({
         gameId: v.id("games"),
         playerId: v.string(),
         cardInstanceId: v.string(),
+        /** Required for sources with manaChoices (duals, Birds of Paradise, Black Lotus). */
+        manaChoiceIndex: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -538,13 +540,42 @@ export const tapForPayment = mutation({
         if (!card) throw new Error("Card not on battlefield");
         if (card.isTapped) throw new Error("Card already tapped");
 
-        const manaColor = getBasicLandMana(card) ?? getActivatedManaColor(card);
-        if (!manaColor) throw new Error("Card does not produce mana");
+        const ability = getActivatedManaAbility(card);
 
-        // Tap and add mana
-        card.isTapped = true;
-        player.manaPool[manaColor] = (player.manaPool[manaColor] ?? 0) + 1;
-        state.pendingCast.tappedLandIds.push(card.id);
+        if (ability?.manaChoices) {
+            // Choice-based source (dual lands, Birds of Paradise, Black Lotus).
+            if (args.manaChoiceIndex === undefined) {
+                throw new Error("Must choose a mana color");
+            }
+            const chosen = ability.manaChoices[args.manaChoiceIndex];
+            if (!chosen) throw new Error("Invalid mana choice");
+
+            const isSacrifice = ability.cost.sacrifice === true;
+            if (isSacrifice) {
+                // Move to graveyard instead of tapping. Cannot be undone via
+                // untapForPayment — sacrifice is a one-way payment.
+                moveCard(player, card.id, "battlefield", "graveyard");
+            } else {
+                card.isTapped = true;
+                card.chosenMana = chosen;
+            }
+
+            for (const [color, amount] of Object.entries(chosen)) {
+                if (color !== "X" && typeof amount === "number" && amount > 0) {
+                    player.manaPool[color] =
+                        (player.manaPool[color] ?? 0) + amount;
+                }
+            }
+            state.pendingCast.tappedLandIds.push(card.id);
+        } else {
+            const manaColor =
+                getBasicLandMana(card) ?? getActivatedManaColor(card);
+            if (!manaColor) throw new Error("Card does not produce mana");
+
+            card.isTapped = true;
+            player.manaPool[manaColor] = (player.manaPool[manaColor] ?? 0) + 1;
+            state.pendingCast.tappedLandIds.push(card.id);
+        }
 
         // Check if cost is now covered → auto-commit
         if (isManaCostCovered(player.manaPool, state.pendingCast.manaCost)) {
@@ -627,16 +658,31 @@ export const untapForPayment = mutation({
         const card = player.battlefield.find(
             (c) => c.id === args.cardInstanceId
         );
-        if (!card) throw new Error("Card not on battlefield");
+        if (!card) {
+            throw new Error("Cannot undo: source was sacrificed");
+        }
 
-        const manaColor = getBasicLandMana(card) ?? getActivatedManaColor(card);
-        if (!manaColor) throw new Error("Card does not produce mana");
+        if (card.chosenMana) {
+            for (const [color, amount] of Object.entries(card.chosenMana)) {
+                if (color !== "X" && typeof amount === "number" && amount > 0) {
+                    player.manaPool[color] = Math.max(
+                        0,
+                        (player.manaPool[color] ?? 0) - amount
+                    );
+                }
+            }
+            card.chosenMana = undefined;
+        } else {
+            const manaColor =
+                getBasicLandMana(card) ?? getActivatedManaColor(card);
+            if (!manaColor) throw new Error("Card does not produce mana");
+            player.manaPool[manaColor] = Math.max(
+                0,
+                (player.manaPool[manaColor] ?? 0) - 1
+            );
+        }
 
         card.isTapped = false;
-        player.manaPool[manaColor] = Math.max(
-            0,
-            (player.manaPool[manaColor] ?? 0) - 1
-        );
         state.pendingCast.tappedLandIds.splice(idx, 1);
 
         await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
@@ -664,11 +710,28 @@ export const cancelCast = mutation({
 
         const player = getPlayer(state, args.playerId);
 
-        // Rollback all taps
+        // Rollback all taps. Sacrificed sources (Black Lotus) cannot be
+        // un-sacrificed, so their mana contribution is left in the pool —
+        // the empty-pool step at phase end will drain it.
         for (const cardId of state.pendingCast.tappedLandIds) {
             const card = player.battlefield.find((c) => c.id === cardId);
-            if (card) {
-                card.isTapped = false;
+            if (!card) continue;
+            card.isTapped = false;
+            if (card.chosenMana) {
+                for (const [color, amount] of Object.entries(card.chosenMana)) {
+                    if (
+                        color !== "X" &&
+                        typeof amount === "number" &&
+                        amount > 0
+                    ) {
+                        player.manaPool[color] = Math.max(
+                            0,
+                            (player.manaPool[color] ?? 0) - amount
+                        );
+                    }
+                }
+                card.chosenMana = undefined;
+            } else {
                 const manaColor =
                     getBasicLandMana(card) ?? getActivatedManaColor(card);
                 if (manaColor) {

@@ -2453,68 +2453,183 @@ export const obsianusGolem: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const badlands: CardDefinition = {
-//     id: "717f6d10-9144-4ade-9ac6-a481cc66b875",
-//     name: "Badlands",
-//     types: ["Land"],
-//     subtypes: ["Swamp", "Mountain"],
-// };
+// --- Dual lands (LEA) ---
+// Two basic land types for rules interactions (Armageddon, landwalk, etc.).
+// The two mana abilities are modelled as a single choice ability so the
+// frontend picker works the same as Birds of Paradise. Known limitation:
+// `tapForPayment` auto-picks the first color — pre-tap with the picker to
+// choose the other color.
 
-// export const bayou: CardDefinition = {
-//     id: "412ceddd-2b9a-4551-a6bf-ae2830a2010a",
-//     name: "Bayou",
-//     types: ["Land"],
-//     subtypes: ["Swamp", "Forest"],
-// };
+export const badlands: CardDefinition = {
+    id: "717f6d10-9144-4ade-9ac6-a481cc66b875",
+    name: "Badlands",
+    types: ["Land"],
+    subtypes: ["Swamp", "Mountain"],
+    activatedAbilities: [
+        {
+            id: "badlands-mana",
+            oracleText: "{T}: Add {B} or {R}.",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ B: 1 });
+            },
+            useStack: false,
+            manaChoices: [{ B: 1 }, { R: 1 }],
+        },
+    ],
+};
 
-// export const plateau: CardDefinition = {
-//     id: "6eafa00b-c628-40f6-86eb-88e1361fc7a0",
-//     name: "Plateau",
-//     types: ["Land"],
-//     subtypes: ["Mountain", "Plains"],
-// };
+export const bayou: CardDefinition = {
+    id: "412ceddd-2b9a-4551-a6bf-ae2830a2010a",
+    name: "Bayou",
+    types: ["Land"],
+    subtypes: ["Swamp", "Forest"],
+    activatedAbilities: [
+        {
+            id: "bayou-mana",
+            oracleText: "{T}: Add {B} or {G}.",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ B: 1 });
+            },
+            useStack: false,
+            manaChoices: [{ B: 1 }, { G: 1 }],
+        },
+    ],
+};
 
-// export const savannah: CardDefinition = {
-//     id: "94f7e24c-2546-41b6-81ad-5e920b07e64e",
-//     name: "Savannah",
-//     types: ["Land"],
-//     subtypes: ["Forest", "Plains"],
-// };
+export const plateau: CardDefinition = {
+    id: "6eafa00b-c628-40f6-86eb-88e1361fc7a0",
+    name: "Plateau",
+    types: ["Land"],
+    subtypes: ["Mountain", "Plains"],
+    activatedAbilities: [
+        {
+            id: "plateau-mana",
+            oracleText: "{T}: Add {R} or {W}.",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ R: 1 });
+            },
+            useStack: false,
+            manaChoices: [{ R: 1 }, { W: 1 }],
+        },
+    ],
+};
 
-// export const scrubland: CardDefinition = {
-//     id: "bebe39d4-21fb-46a4-a1ec-b97102e46c15",
-//     name: "Scrubland",
-//     types: ["Land"],
-//     subtypes: ["Plains", "Swamp"],
-// };
+export const savannah: CardDefinition = {
+    id: "94f7e24c-2546-41b6-81ad-5e920b07e64e",
+    name: "Savannah",
+    types: ["Land"],
+    subtypes: ["Forest", "Plains"],
+    activatedAbilities: [
+        {
+            id: "savannah-mana",
+            oracleText: "{T}: Add {G} or {W}.",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ G: 1 });
+            },
+            useStack: false,
+            manaChoices: [{ G: 1 }, { W: 1 }],
+        },
+    ],
+};
 
-// export const taiga: CardDefinition = {
-//     id: "60df6592-0b3b-4b87-aeb2-8fa94b4fb7be",
-//     name: "Taiga",
-//     types: ["Land"],
-//     subtypes: ["Mountain", "Forest"],
-// };
+export const scrubland: CardDefinition = {
+    id: "bebe39d4-21fb-46a4-a1ec-b97102e46c15",
+    name: "Scrubland",
+    types: ["Land"],
+    subtypes: ["Plains", "Swamp"],
+    activatedAbilities: [
+        {
+            id: "scrubland-mana",
+            oracleText: "{T}: Add {W} or {B}.",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ W: 1 });
+            },
+            useStack: false,
+            manaChoices: [{ W: 1 }, { B: 1 }],
+        },
+    ],
+};
 
-// export const tropicalIsland: CardDefinition = {
-//     id: "a9c6c759-aabf-44e7-ba8c-33c5df232b56",
-//     name: "Tropical Island",
-//     types: ["Land"],
-//     subtypes: ["Forest", "Island"],
-// };
+export const taiga: CardDefinition = {
+    id: "60df6592-0b3b-4b87-aeb2-8fa94b4fb7be",
+    name: "Taiga",
+    types: ["Land"],
+    subtypes: ["Mountain", "Forest"],
+    activatedAbilities: [
+        {
+            id: "taiga-mana",
+            oracleText: "{T}: Add {R} or {G}.",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ R: 1 });
+            },
+            useStack: false,
+            manaChoices: [{ R: 1 }, { G: 1 }],
+        },
+    ],
+};
 
-// export const tundra: CardDefinition = {
-//     id: "a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb",
-//     name: "Tundra",
-//     types: ["Land"],
-//     subtypes: ["Plains", "Island"],
-// };
+export const tropicalIsland: CardDefinition = {
+    id: "a9c6c759-aabf-44e7-ba8c-33c5df232b56",
+    name: "Tropical Island",
+    types: ["Land"],
+    subtypes: ["Forest", "Island"],
+    activatedAbilities: [
+        {
+            id: "tropical-island-mana",
+            oracleText: "{T}: Add {G} or {U}.",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ G: 1 });
+            },
+            useStack: false,
+            manaChoices: [{ G: 1 }, { U: 1 }],
+        },
+    ],
+};
 
-// export const undergroundSea: CardDefinition = {
-//     id: "ff76ac86-8a8a-47fe-9388-8950ca3e26c3",
-//     name: "Underground Sea",
-//     types: ["Land"],
-//     subtypes: ["Island", "Swamp"],
-// };
+export const tundra: CardDefinition = {
+    id: "a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb",
+    name: "Tundra",
+    types: ["Land"],
+    subtypes: ["Plains", "Island"],
+    activatedAbilities: [
+        {
+            id: "tundra-mana",
+            oracleText: "{T}: Add {W} or {U}.",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ W: 1 });
+            },
+            useStack: false,
+            manaChoices: [{ W: 1 }, { U: 1 }],
+        },
+    ],
+};
+
+export const undergroundSea: CardDefinition = {
+    id: "ff76ac86-8a8a-47fe-9388-8950ca3e26c3",
+    name: "Underground Sea",
+    types: ["Land"],
+    subtypes: ["Island", "Swamp"],
+    activatedAbilities: [
+        {
+            id: "underground-sea-mana",
+            oracleText: "{T}: Add {U} or {B}.",
+            cost: { tap: true },
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ U: 1 });
+            },
+            useStack: false,
+            manaChoices: [{ U: 1 }, { B: 1 }],
+        },
+    ],
+};
 
 export const plains: CardDefinition = {
     id: "b1623d57-4729-4796-b3f7-f1837a05c6ed",

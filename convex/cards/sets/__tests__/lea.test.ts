@@ -8,23 +8,36 @@
 import { describe, it, expect } from "vitest";
 import {
     badMoon,
+    badlands,
+    bayou,
     birdsOfParadise,
     castle,
     counterspell,
     ancestralRecall,
     lightningBolt,
     llanowarElves,
+    plateau,
+    savannah,
+    scrubland,
     swordsToPlowshares,
+    taiga,
+    tropicalIsland,
+    tundra,
+    undergroundSea,
     wrathOfGod,
     disenchant,
     serraAngel,
     savannahLions,
 } from "../lea";
-import { resolveTopOfStack, type CardInstanceState } from "../../../gre/state";
+import {
+    commitLandsForCost,
+    resolveTopOfStack,
+    type CardInstanceState,
+} from "../../../gre/state";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { getActivatedManaColor, hasManaAbility } from "../../../gre/constants";
 import { projectPublicState } from "../../../gameProjections";
-import type { CardType } from "../../types";
+import type { CardDefinition, CardType } from "../../types";
 import {
     makeInstance,
     makePlayer,
@@ -444,6 +457,91 @@ describe("Birds of Paradise (flying + {T}: Add one mana of any color, CR 605.1a)
         expect(hasManaAbility(slimBird as CardInstanceState)).toBe(true);
         expect(getActivatedManaColor(slimBird as CardInstanceState)).toBeNull();
     });
+});
+
+// ---------------------------------------------------------------------------
+// Dual lands (Alpha — CR 305.6, 605.1a): two land types + choice-based mana
+// ---------------------------------------------------------------------------
+
+describe("Tundra (dual land: {T}: Add {W} or {U})", () => {
+    it("is a Land with both Plains and Island subtypes", () => {
+        expect(tundra.types).toEqual(["Land"]);
+        expect(tundra.subtypes).toEqual(["Plains", "Island"]);
+        // Dual lands are NOT Basic (CR 205.4a).
+        expect(tundra.supertypes).toBeUndefined();
+    });
+
+    it("offers W and U as a single choice ability", () => {
+        const ability = tundra.activatedAbilities?.[0];
+        expect(ability?.cost.tap).toBe(true);
+        expect(ability?.useStack).toBe(false);
+        expect(ability?.manaChoices).toEqual([{ W: 1 }, { U: 1 }]);
+    });
+
+    it("commitLandsForCost commits a Tundra tapped for U when paying {U}", () => {
+        // Regression: without chosenMana, commitLandsForCost would see Tundra
+        // as {W} (via getBasicLandMana on first subtype) and skip it when
+        // committing a {U} cost — leaving Tundra untappable-but-uncommitted
+        // and exploitable for infinite mana.
+        const tund = makeInstance(tundra.id, {
+            id: "tundra-1",
+            isTapped: true,
+            chosenMana: { U: 1 },
+        });
+        const p1 = makePlayer("p1", { battlefield: [tund] });
+        commitLandsForCost(p1, { U: 1 });
+        expect(p1.battlefield[0].manaCommitted).toBe(true);
+    });
+});
+
+describe("Alpha dual lands (snapshot: types, subtypes, mana choices)", () => {
+    // The remaining 8 duals share Tundra's shape. Locking down the triples
+    // guards against typos in subtypes/manaChoices when adding new prints.
+    const duals: Array<{
+        card: CardDefinition;
+        subtypes: string[];
+        choices: [string, string];
+    }> = [
+        {
+            card: badlands,
+            subtypes: ["Swamp", "Mountain"],
+            choices: ["B", "R"],
+        },
+        { card: bayou, subtypes: ["Swamp", "Forest"], choices: ["B", "G"] },
+        {
+            card: plateau,
+            subtypes: ["Mountain", "Plains"],
+            choices: ["R", "W"],
+        },
+        { card: savannah, subtypes: ["Forest", "Plains"], choices: ["G", "W"] },
+        { card: scrubland, subtypes: ["Plains", "Swamp"], choices: ["W", "B"] },
+        { card: taiga, subtypes: ["Mountain", "Forest"], choices: ["R", "G"] },
+        {
+            card: tropicalIsland,
+            subtypes: ["Forest", "Island"],
+            choices: ["G", "U"],
+        },
+        {
+            card: undergroundSea,
+            subtypes: ["Island", "Swamp"],
+            choices: ["U", "B"],
+        },
+    ];
+
+    for (const { card, subtypes, choices } of duals) {
+        it(`${card.name}: land with subtypes ${subtypes.join("/")} and ${choices.join("/")} mana`, () => {
+            expect(card.types).toEqual(["Land"]);
+            expect(card.subtypes).toEqual(subtypes);
+            expect(card.supertypes).toBeUndefined();
+            const ability = card.activatedAbilities?.[0];
+            expect(ability?.cost.tap).toBe(true);
+            expect(ability?.useStack).toBe(false);
+            expect(ability?.manaChoices).toEqual([
+                { [choices[0]]: 1 },
+                { [choices[1]]: 1 },
+            ]);
+        });
+    }
 });
 
 // ---------------------------------------------------------------------------

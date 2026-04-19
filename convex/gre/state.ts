@@ -489,9 +489,23 @@ export function commitLandsForCost(
 ): void {
     const remaining = { ...cost };
 
-    /** Returns the mana color a tapped source produces (land subtype or activated ability). */
-    const getManaColor = (card: CardInstanceState) =>
-        getBasicLandMana(card) ?? getActivatedManaColor(card);
+    /** Returns the mana color a tapped source produces. Prefers chosenMana
+     *  (set by tapUntap for choice-based abilities — e.g. dual lands and
+     *  Birds of Paradise) so the correct color is matched against the cost.
+     *  Falls back to intrinsic subtype mana or fixed activated ability. */
+    const getManaColor = (card: CardInstanceState): string | null => {
+        if (card.chosenMana) {
+            for (const color of MANA_COLORS) {
+                if (
+                    ((card.chosenMana as Record<string, number>)[color] ?? 0) >
+                    0
+                ) {
+                    return color;
+                }
+            }
+        }
+        return getBasicLandMana(card) ?? getActivatedManaColor(card);
+    };
 
     // Commit mana sources for colored costs first
     for (const color of MANA_COLORS) {
