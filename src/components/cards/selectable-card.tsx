@@ -35,11 +35,12 @@ export default function SelectableCard({
         });
     };
 
-    const onCastClick = () => {
+    const onCastClick = (e: React.MouseEvent) => {
         announceCast({
             gameId,
             playerId,
             cardInstanceId: cardInstance.id,
+            keepPriority: e.ctrlKey || e.metaKey || undefined,
         });
     };
 

@@ -12,6 +12,7 @@ export const AUTO_PASS_DELAY_MS = 120;
 
 export const DEFAULT_SKIP_PREFS: PhaseSkipPrefs = {
     DRAW: { self: true, opponent: true },
+    COMBAT_DAMAGE: { self: true, opponent: true },
     END_OF_COMBAT: { self: true, opponent: true },
     END_STEP: { self: true, opponent: false },
 };

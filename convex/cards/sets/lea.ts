@@ -820,8 +820,8 @@ export const badMoon: CardDefinition = {
 //     toughness: 2,
 // };
 
-// Bog Wraith — LEA has "swampwalk" (landwalk keyword, CR 702.13). Not enforced
-// by the engine yet — keyword tagged for later, treated as vanilla 3/3 for now.
+// Bog Wraith — swampwalk (landwalk keyword, CR 702.13b). Enforced at
+// blocker-assignment time by validateBlockerEligibility in gre/combat.ts.
 export const bogWraith: CardDefinition = {
     id: "6701874e-986e-4b81-9268-90b6171e6187",
     name: "Bog Wraith",
@@ -1906,15 +1906,16 @@ export const scrybSprites: CardDefinition = {
     staticAbilities: ["flying"],
 };
 
-// export const shanodinDryads: CardDefinition = {
-//     id: "814cf35c-f1ad-4bf4-8c10-a5592c3b1be8",
-//     name: "Shanodin Dryads",
-//     manaCost: { G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Nymph", "Dryad"],
-//     power: 1,
-//     toughness: 1,
-// };
+export const shanodinDryads: CardDefinition = {
+    id: "814cf35c-f1ad-4bf4-8c10-a5592c3b1be8",
+    name: "Shanodin Dryads",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Nymph", "Dryad"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["forestwalk"],
+};
 
 // export const streamOfLife: CardDefinition = {
 //     id: "aa1c4d4b-2645-4cd9-823e-3c9bb2eb48f9",

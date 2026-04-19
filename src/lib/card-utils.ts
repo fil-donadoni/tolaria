@@ -3,6 +3,7 @@ import type { Color, ManaCost } from "~/types/cards";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
     LAND_SUBTYPE_MANA,
+    LANDWALK_KEYWORDS,
 } from "@convex/gre/constants";
 import { getCardById } from "@convex/cards";
 import { isManaCostCovered, normalizeManaCost } from "@convex/gre/state";
@@ -13,6 +14,26 @@ export function isLand(card: CardInstance): boolean {
 
 export function isCreature(card: CardInstance): boolean {
     return card.types?.includes("Creature") ?? false;
+}
+
+/**
+ * Returns true if `attacker` has a landwalk keyword (CR 702.13b) for a land
+ * subtype present anywhere in `defenderBattlefield`. Such an attacker can't
+ * be blocked at all and should be filtered out of blocker-eligibility checks.
+ */
+export function isLandwalkUnblockable(
+    attacker: CardInstance,
+    defenderBattlefield: CardInstance[]
+): boolean {
+    const abilities = attacker.staticAbilities ?? [];
+    for (const [keyword, subtype] of Object.entries(LANDWALK_KEYWORDS)) {
+        if (!abilities.includes(keyword)) continue;
+        const hasLand = defenderBattlefield.some(
+            (c) => isLand(c) && (c.subtypes?.includes(subtype) ?? false)
+        );
+        if (hasLand) return true;
+    }
+    return false;
 }
 
 export function getLandManaColor(card: CardInstance): Color | null {

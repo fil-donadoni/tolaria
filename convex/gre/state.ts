@@ -88,6 +88,9 @@ export type PendingCast = {
     manaCost: Record<string, number>;
     /** Land ids tapped during this payment, for rollback on cancel. */
     tappedLandIds: string[];
+    /** If true, the caster wants priority back after their spell hits the stack
+     *  (Ctrl-initiated cast). If false/undefined, the caster is auto-skipped. */
+    keepPriority?: boolean;
 };
 
 /** Tracks target selection for a spell being announced (CR 601.2c). */
@@ -100,6 +103,8 @@ export type PendingTarget = {
     count: number;
     /** Targets already selected. */
     selected: TargetSelection[];
+    /** Mirrors PendingCast.keepPriority — propagated when the pending cast is created. */
+    keepPriority?: boolean;
 };
 
 export type GameState = {
@@ -123,6 +128,10 @@ export type GameState = {
     pendingTarget?: PendingTarget;
     /** Player IDs that auto-pass priority for the rest of this turn. Resets on new turn. */
     autoPassPlayers?: string[];
+    /** Player ID that auto-passes the very next time priority lands on them, then
+     *  is cleared. Set when a player casts/activates without holding Ctrl so they
+     *  don't waste a priority round responding to their own action (CR 117). */
+    singleShotAutoPass?: string;
     /** Active combat state. Set at DECLARE_ATTACKERS, cleared at END_OF_COMBAT. */
     combat?: {
         attackerIds: string[];

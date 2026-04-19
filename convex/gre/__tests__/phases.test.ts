@@ -127,6 +127,119 @@ describe("advancePhase", () => {
                     blockersConfirmed: false,
                 },
             });
+            // Give defender a potential blocker so the phase isn't auto-skipped
+            const p1 = state.players.find((p) => p.id === "p1")!;
+            const p2 = state.players.find((p) => p.id === "p2")!;
+            p1.battlefield.push(
+                makeCard({
+                    id: "c1",
+                    types: ["Creature"],
+                    isAttacking: true,
+                })
+            );
+            p2.battlefield.push(
+                makeCard({ id: "blocker", types: ["Creature"] })
+            );
+            advancePhase(state);
+            expect(state.phase).toBe("DECLARE_BLOCKERS");
+        });
+
+        it("DECLARE_BLOCKERS auto-skips when all attackers are unblockable (landwalk, CR 702.13b)", () => {
+            // Active player p1 attacks with a swampwalker; p2 defender
+            // controls a Swamp → every attacker is unblockable, phase skips.
+            const state = makeGameState({
+                phase: "DECLARE_ATTACKERS",
+                combat: {
+                    attackerIds: ["wraith"],
+                    confirmed: true,
+                    blockerAssignments: {},
+                    blockersConfirmed: false,
+                },
+            });
+            const p1 = state.players.find((p) => p.id === "p1")!;
+            const p2 = state.players.find((p) => p.id === "p2")!;
+            p1.battlefield.push(
+                makeCard({
+                    id: "wraith",
+                    types: ["Creature"],
+                    power: 3,
+                    toughness: 3,
+                    staticAbilities: ["swampwalk"],
+                    isAttacking: true,
+                })
+            );
+            p2.battlefield.push(makeCard({ id: "bears", types: ["Creature"] }));
+            p2.battlefield.push(
+                makeCard({
+                    id: "swamp-1",
+                    types: ["Land"],
+                    subtypes: ["Swamp"],
+                })
+            );
+            const p2LifeBefore = p2.life;
+            advancePhase(state);
+            // Phase advances past DECLARE_BLOCKERS to combat damage, which
+            // auto-applies (wraith unblocked → 3 damage to defender).
+            expect(state.phase).not.toBe("DECLARE_BLOCKERS");
+            expect(state.combat?.blockersConfirmed).toBe(true);
+            expect(p2.life).toBe(p2LifeBefore - 3);
+        });
+
+        it("DECLARE_BLOCKERS auto-skips when all attackers fly and defender has no reach (CR 702.9b)", () => {
+            const state = makeGameState({
+                phase: "DECLARE_ATTACKERS",
+                combat: {
+                    attackerIds: ["serra"],
+                    confirmed: true,
+                    blockerAssignments: {},
+                    blockersConfirmed: false,
+                },
+            });
+            const p1 = state.players.find((p) => p.id === "p1")!;
+            const p2 = state.players.find((p) => p.id === "p2")!;
+            p1.battlefield.push(
+                makeCard({
+                    id: "serra",
+                    types: ["Creature"],
+                    power: 4,
+                    toughness: 4,
+                    staticAbilities: ["flying"],
+                    isAttacking: true,
+                })
+            );
+            p2.battlefield.push(makeCard({ id: "bears", types: ["Creature"] }));
+            advancePhase(state);
+            expect(state.phase).not.toBe("DECLARE_BLOCKERS");
+            expect(state.combat?.blockersConfirmed).toBe(true);
+        });
+
+        it("DECLARE_BLOCKERS is NOT auto-skipped if defender has a reach creature vs flying", () => {
+            const state = makeGameState({
+                phase: "DECLARE_ATTACKERS",
+                combat: {
+                    attackerIds: ["serra"],
+                    confirmed: true,
+                    blockerAssignments: {},
+                    blockersConfirmed: false,
+                },
+            });
+            const p1 = state.players.find((p) => p.id === "p1")!;
+            const p2 = state.players.find((p) => p.id === "p2")!;
+            p1.battlefield.push(
+                makeCard({
+                    id: "serra",
+                    types: ["Creature"],
+                    staticAbilities: ["flying"],
+                    isAttacking: true,
+                })
+            );
+            p2.battlefield.push(
+                makeCard({
+                    id: "spider",
+                    types: ["Creature"],
+                    staticAbilities: ["reach"],
+                })
+            );
             advancePhase(state);
             expect(state.phase).toBe("DECLARE_BLOCKERS");
         });
@@ -894,6 +1007,70 @@ describe("drainAutoPasses", () => {
         // At DRAW, p1 gets priority, not auto-passing → stop
         expect(state.phase).toBe("DRAW");
         expect(state.priorityPlayerId).toBe("p1");
+    });
+
+    // -----------------------------------------------------------------------
+    // singleShotAutoPass — one-shot skip for the caster after a spell hits
+    // the stack (CR 117). Default behavior unless player holds Ctrl on cast.
+    // -----------------------------------------------------------------------
+
+    it("fires and is cleared when priority lands on the flagged player", () => {
+        // p1 just cast Bolt: stack=[Bolt], priority=p2, flag=p1.
+        // p2 passes manually → priority=p1 → singleShot fires → passCount=2 →
+        // top resolves → priority back to active player (p1), flag cleared.
+        const bolt = makeStackItem(
+            { name: "Lightning Bolt", types: ["Instant"] },
+            "p1"
+        );
+        const state = makeGameState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 1,
+            stack: [bolt],
+            singleShotAutoPass: "p1",
+        });
+        drainAutoPasses(state);
+        expect(state.stack).toHaveLength(0);
+        expect(state.singleShotAutoPass).toBeUndefined();
+        expect(state.priorityPlayerId).toBe("p1");
+    });
+
+    it("does not fire when priority is on the other player", () => {
+        // p1 cast with default auto-skip (flag=p1) → priority=p2. p2 has
+        // priority and is NOT flagged → drain must not fire.
+        const bolt = makeStackItem(
+            { name: "Lightning Bolt", types: ["Instant"] },
+            "p1"
+        );
+        const state = makeGameState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+            passCount: 0,
+            stack: [bolt],
+            singleShotAutoPass: "p1",
+        });
+        drainAutoPasses(state);
+        expect(state.priorityPlayerId).toBe("p2");
+        expect(state.passCount).toBe(0);
+        expect(state.singleShotAutoPass).toBe("p1");
+        expect(state.stack).toHaveLength(1);
+    });
+
+    it("clears on new turn", () => {
+        const state = makeGameState({
+            phase: "END_STEP",
+            turn: 1,
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+            autoPassPlayers: ["p1", "p2"],
+            singleShotAutoPass: "p1",
+        });
+        drainAutoPasses(state);
+        expect(state.turn).toBe(2);
+        expect(state.singleShotAutoPass).toBeUndefined();
     });
 });
 

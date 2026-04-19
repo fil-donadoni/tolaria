@@ -4,6 +4,7 @@ import type { CardInstanceState, GameState } from "./state";
 import { drawCard, getOpponentId, getPlayer, resolveTopOfStack } from "./state";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
 import { collectTriggers } from "./triggers";
+import { hasAnyLegalBlock } from "./combat";
 
 /** Ordered sequence of all phases/steps in a turn. */
 const PHASE_ORDER: Phase[] = [
@@ -404,6 +405,7 @@ function advanceTurn(state: GameState): void {
     state.turn += 1;
     state.activePlayerId = getOpponentId(state, state.activePlayerId);
     state.autoPassPlayers = undefined;
+    state.singleShotAutoPass = undefined;
 }
 
 /**
@@ -424,6 +426,19 @@ function emptyManaPools(state: GameState): void {
             }
         }
     }
+}
+
+function defenderHasAnyLegalBlock(state: GameState): boolean {
+    if (!state.combat) return false;
+    const defenderId = getOpponentId(state, state.activePlayerId);
+    const activePlayer = getPlayer(state, state.activePlayerId);
+    const defender = getPlayer(state, defenderId);
+    const attackers: CardInstanceState[] = [];
+    for (const id of state.combat.attackerIds) {
+        const card = activePlayer.battlefield.find((c) => c.id === id);
+        if (card) attackers.push(card);
+    }
+    return hasAnyLegalBlock(attackers, defender.battlefield);
 }
 
 export function advancePhase(state: GameState): Phase[] {
@@ -454,7 +469,26 @@ export function advancePhase(state: GameState): Phase[] {
             state.phase === "END_OF_COMBAT") &&
         !hadAttackers;
 
-    if (AUTO_PHASES.has(state.phase) || skipEmptyCombat) {
+    // Auto-skip DECLARE_BLOCKERS when every declared attacker is unblockable
+    // (e.g. flying with no reach defender, or landwalk on a matching land —
+    // CR 702.9, 702.13). Matches the UX where the defender has no legal
+    // target to assign, avoiding a dead-end priority window.
+    const skipUnblockableCombat =
+        state.phase === "DECLARE_BLOCKERS" &&
+        hadAttackers &&
+        !!state.combat &&
+        !defenderHasAnyLegalBlock(state);
+    if (skipUnblockableCombat && state.combat) {
+        state.combat.blockersConfirmed = true;
+        state.combat.blockerOrder = {};
+        state.combat.blockerOrderConfirmed = true;
+    }
+
+    if (
+        AUTO_PHASES.has(state.phase) ||
+        skipEmptyCombat ||
+        skipUnblockableCombat
+    ) {
         // Auto-phase or empty combat: skip straight through (no priority given)
         traversed.push(...advancePhase(state));
     } else {
@@ -476,7 +510,9 @@ export function drainAutoPasses(state: GameState): void {
     const maxIterations = 50; // safety bound
     for (let i = 0; i < maxIterations; i++) {
         const autoPass = state.autoPassPlayers ?? [];
-        if (!autoPass.includes(state.priorityPlayerId)) break;
+        const singleShot = state.singleShotAutoPass === state.priorityPlayerId;
+        if (!autoPass.includes(state.priorityPlayerId) && !singleShot) break;
+        if (singleShot) state.singleShotAutoPass = undefined;
 
         // Auto-confirm attackers with current selection when auto-passing
         if (

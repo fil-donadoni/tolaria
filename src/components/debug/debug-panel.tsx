@@ -206,6 +206,32 @@ const PRESET_SCENARIOS = [
         phase: "DECLARE_ATTACKERS",
         landCount: 3,
     },
+    {
+        label: "Bog Wraith (swampwalk evasion)",
+        cards: [
+            // Attack with Bog Wraith: opponent controls a Swamp → assigning
+            // Grizzly Bears as a blocker must be rejected (CR 702.13b).
+            // Remove the Swamp (or swap for Forest) to unlock the block.
+            { name: "Bog Wraith", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Swamp", owner: "opp" as const },
+            { name: "Forest", owner: "opp" as const },
+        ],
+        phase: "DECLARE_ATTACKERS",
+        landCount: 4,
+    },
+    {
+        label: "Shanodin Dryads (forestwalk evasion)",
+        cards: [
+            // Attack with Shanodin Dryads: opponent controls a Forest →
+            // declare-blockers phase is auto-skipped (CR 702.13b).
+            { name: "Shanodin Dryads", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Forest", owner: "opp" as const },
+        ],
+        phase: "DECLARE_ATTACKERS",
+        landCount: 4,
+    },
 ];
 
 type DebugPanelProps = {

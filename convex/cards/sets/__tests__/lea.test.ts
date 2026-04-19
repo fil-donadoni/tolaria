@@ -11,6 +11,8 @@ import {
     badlands,
     bayou,
     birdsOfParadise,
+    bogWraith,
+    shanodinDryads,
     castle,
     counterspell,
     ancestralRecall,
@@ -20,6 +22,7 @@ import {
     plateau,
     savannah,
     scrubland,
+    swamp,
     swordsToPlowshares,
     taiga,
     tropicalIsland,
@@ -40,6 +43,7 @@ import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { getActivatedManaColor, hasManaAbility } from "../../../gre/constants";
 import { getLegalTargets } from "../../../gre/rules";
 import { projectPublicState } from "../../../gameProjections";
+import { validateBlockerEligibility } from "../../../gre/combat";
 import type { CardDefinition, CardType } from "../../types";
 import {
     makeInstance,
@@ -406,6 +410,104 @@ describe("Serra Angel (keyword abilities)", () => {
     it("has flying and vigilance", () => {
         expect(serraAngel.staticAbilities).toContain("flying");
         expect(serraAngel.staticAbilities).toContain("vigilance");
+    });
+});
+
+describe("Bog Wraith (swampwalk evasion, CR 702.13b)", () => {
+    it("is a 3/3 Wraith for {3}{B} with swampwalk", () => {
+        expect(bogWraith.manaCost).toEqual({ X: 3, B: 1 });
+        expect(bogWraith.types).toContain("Creature");
+        expect(bogWraith.subtypes).toEqual(["Wraith"]);
+        expect(bogWraith.power).toBe(3);
+        expect(bogWraith.toughness).toBe(3);
+        expect(bogWraith.staticAbilities).toContain("swampwalk");
+    });
+
+    it("cannot be blocked when defending player controls a Swamp", () => {
+        const wraith = makeInstance(bogWraith.id, {
+            id: "wraith",
+            controllerId: "p1",
+        });
+        const bears = makeInstance(savannahLions.id, {
+            id: "bears",
+            controllerId: "p2",
+        });
+        const swampInst = makeInstance(swamp.id, {
+            id: "swamp-1",
+            controllerId: "p2",
+        });
+        const result = validateBlockerEligibility(wraith, bears, [
+            bears,
+            swampInst,
+        ]);
+        expect(result.eligible).toBe(false);
+        if (!result.eligible) expect(result.reason).toMatch(/Swamp/);
+    });
+
+    it("can be blocked when defender controls no Swamp", () => {
+        const wraith = makeInstance(bogWraith.id, { id: "wraith" });
+        const bears = makeInstance(savannahLions.id, {
+            id: "bears",
+            controllerId: "p2",
+        });
+        expect(validateBlockerEligibility(wraith, bears, [bears])).toEqual({
+            eligible: true,
+        });
+    });
+
+    it("dual land with Swamp subtype (Bayou) also triggers swampwalk", () => {
+        const wraith = makeInstance(bogWraith.id, { id: "wraith" });
+        const bears = makeInstance(savannahLions.id, {
+            id: "bears",
+            controllerId: "p2",
+        });
+        const bayouInst = makeInstance(bayou.id, {
+            id: "bayou-1",
+            controllerId: "p2",
+        });
+        expect(
+            validateBlockerEligibility(wraith, bears, [bears, bayouInst])
+                .eligible
+        ).toBe(false);
+    });
+});
+
+describe("Shanodin Dryads (forestwalk evasion, CR 702.13b)", () => {
+    it("is a 1/1 Nymph Dryad for {G} with forestwalk", () => {
+        expect(shanodinDryads.manaCost).toEqual({ G: 1 });
+        expect(shanodinDryads.types).toContain("Creature");
+        expect(shanodinDryads.subtypes).toEqual(["Nymph", "Dryad"]);
+        expect(shanodinDryads.power).toBe(1);
+        expect(shanodinDryads.toughness).toBe(1);
+        expect(shanodinDryads.staticAbilities).toContain("forestwalk");
+    });
+
+    it("cannot be blocked when defender controls a Forest", () => {
+        const dryads = makeInstance(shanodinDryads.id, { id: "dryads" });
+        const bears = makeInstance(savannahLions.id, {
+            id: "bears",
+            controllerId: "p2",
+        });
+        const forestInst = makeInstance(
+            // Reuse Bayou (Swamp + Forest) to exercise the multi-subtype case.
+            bayou.id,
+            { id: "bayou-1", controllerId: "p2" }
+        );
+        expect(
+            validateBlockerEligibility(dryads, bears, [bears, forestInst])
+                .eligible
+        ).toBe(false);
+    });
+
+    it("can be blocked when defender has no Forest", () => {
+        const dryads = makeInstance(shanodinDryads.id, { id: "dryads" });
+        const bears = makeInstance(savannahLions.id, {
+            id: "bears",
+            controllerId: "p2",
+        });
+        expect(validateBlockerEligibility(dryads, bears, [bears])).toEqual({
+            eligible: true,
+        });
     });
 });
 

@@ -10,6 +10,7 @@ import {
     isWaitingOnOpponent,
 } from "~/lib/priority";
 import ActionButton from "./action-button";
+import HotkeysLegend from "./hotkeys-legend";
 
 export default function ActionBar() {
     const {
@@ -245,9 +246,10 @@ export default function ActionBar() {
         );
     }
 
-    if (!buttons.length) return null;
-
     return (
-        <div className="fixed bottom-4 right-4 z-40 flex gap-2">{buttons}</div>
+        <div className="fixed bottom-4 right-4 z-40 flex gap-2 items-center">
+            {buttons}
+            <HotkeysLegend />
+        </div>
     );
 }

@@ -43,7 +43,7 @@ export default function BattlefieldCard({
     onClick: (e: React.MouseEvent) => void;
     style?: React.CSSProperties;
     activatableAbilities?: ActivatableAbility[];
-    onActivateAbility?: (abilityId: string) => void;
+    onActivateAbility?: (abilityId: string, keepPriority: boolean) => void;
 }) {
     const hasAbilities = !!activatableAbilities?.length;
     const { allPlayers } = useGameContext();
@@ -133,7 +133,9 @@ export default function BattlefieldCard({
                 {activatableAbilities.map((a) => (
                     <ContextMenuItem
                         key={a.id}
-                        onClick={() => onActivateAbility?.(a.id)}
+                        onClick={(e) =>
+                            onActivateAbility?.(a.id, e.ctrlKey || e.metaKey)
+                        }
                     >
                         {a.oracleText}
                     </ContextMenuItem>

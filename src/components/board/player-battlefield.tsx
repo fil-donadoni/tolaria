@@ -7,6 +7,7 @@ import { getCardById } from "@convex/cards";
 import {
     isCreature,
     isLand,
+    isLandwalkUnblockable,
     getLandManaColor,
     getActivatedManaColor,
     hasManaAbility,
@@ -155,6 +156,9 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 (c) => c.id === attackerId
             );
             if (!attacker) continue;
+            // Landwalk (CR 702.13b): attacker is unblockable if defender
+            // controls a land of the matching subtype.
+            if (isLandwalkUnblockable(attacker, player.battlefield)) continue;
             const attackerFlies =
                 attacker.staticAbilities?.includes("flying") ?? false;
             if (!attackerFlies || hasFlying || hasReach) return true;
@@ -406,8 +410,18 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         return getStackAbilities(card, player.manaPool);
     }
 
-    function handleActivateAbility(cardInstanceId: string, abilityId: string) {
-        activateAbility({ gameId, playerId, cardInstanceId, abilityId });
+    function handleActivateAbility(
+        cardInstanceId: string,
+        abilityId: string,
+        keepPriority: boolean
+    ) {
+        activateAbility({
+            gameId,
+            playerId,
+            cardInstanceId,
+            abilityId,
+            keepPriority: keepPriority || undefined,
+        });
     }
 
     // --- Rendering ---
@@ -430,8 +444,8 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                         vs={vs}
                         onClick={(e) => handleClickWithEvent(card, e)}
                         activatableAbilities={abilities}
-                        onActivateAbility={(aId) =>
-                            handleActivateAbility(card.id, aId)
+                        onActivateAbility={(aId, keep) =>
+                            handleActivateAbility(card.id, aId, keep)
                         }
                     />
                 </div>
@@ -454,8 +468,8 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                             vs={vs}
                             onClick={(e) => handleClickWithEvent(card, e)}
                             activatableAbilities={abilities}
-                            onActivateAbility={(aId) =>
-                                handleActivateAbility(card.id, aId)
+                            onActivateAbility={(aId, keep) =>
+                                handleActivateAbility(card.id, aId, keep)
                             }
                             style={{
                                 width: "var(--card-w)",

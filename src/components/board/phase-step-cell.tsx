@@ -14,6 +14,34 @@ type PhaseStepCellProps = {
     onToggle: (phase: Phase, side: Side) => void;
 };
 
+function prettyPhaseName(phase: Phase): string {
+    return phase
+        .split("_")
+        .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+        .join(" ");
+}
+
+function stopTooltip(
+    phase: Phase,
+    side: Side,
+    stopOn: boolean
+): React.ReactNode {
+    const who = side === "self" ? "your turn" : "your opponent's turn";
+    const phaseName = prettyPhaseName(phase);
+    return (
+        <div className="max-w-[200px] leading-snug">
+            <div className="font-semibold">
+                {phaseName} — {who}
+            </div>
+            <div className="text-white/70 mt-0.5">
+                {stopOn
+                    ? "Priority will stop here. Click to auto-pass instead."
+                    : "Auto-passing. Click to stop here and take priority."}
+            </div>
+        </div>
+    );
+}
+
 export default function PhaseStepCell({
     phase,
     short,
@@ -29,7 +57,8 @@ export default function PhaseStepCell({
             <PhaseStopDot
                 active={selfStop}
                 onClick={() => onToggle(phase, "self")}
-                label={`Stop on my turn (${phase})`}
+                ariaLabel={`Stop on my turn (${phase})`}
+                tooltip={stopTooltip(phase, "self", selfStop)}
             />
             <div
                 className={`text-[9px] leading-tight px-1 py-px rounded text-center transition-colors flex-1 ${
@@ -44,7 +73,8 @@ export default function PhaseStepCell({
             <PhaseStopDot
                 active={opponentStop}
                 onClick={() => onToggle(phase, "opponent")}
-                label={`Stop on opponent's turn (${phase})`}
+                ariaLabel={`Stop on opponent's turn (${phase})`}
+                tooltip={stopTooltip(phase, "opponent", opponentStop)}
             />
         </div>
     );

@@ -11,6 +11,15 @@ export const LAND_SUBTYPE_MANA: Record<string, Color> = {
     Forest: "G",
 };
 
+/** Landwalk keywords mapped to the land subtype they reference (CR 702.13c-g). */
+export const LANDWALK_KEYWORDS: Record<string, string> = {
+    plainswalk: "Plains",
+    islandwalk: "Island",
+    swampwalk: "Swamp",
+    mountainwalk: "Mountain",
+    forestwalk: "Forest",
+};
+
 /** Card types that represent permanents on the battlefield. */
 export const PERMANENT_TYPES = [
     "Creature",

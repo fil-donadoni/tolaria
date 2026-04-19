@@ -34,7 +34,10 @@ import {
     getActivatedManaColor,
     hasManaAbility,
 } from "./gre/constants";
-import { validateAttackerEligibility } from "./gre/combat";
+import {
+    validateAttackerEligibility,
+    validateBlockerEligibility,
+} from "./gre/combat";
 import { checkGameOverSBA } from "./gre/sba";
 
 const STARTING_HAND_SIZE = 7;
@@ -385,6 +388,10 @@ export const announceCast = mutation({
         gameId: v.id("games"),
         playerId: v.string(),
         cardInstanceId: v.string(),
+        /** If true, the caster keeps priority after the spell hits the stack
+         *  (Ctrl-initiated cast). Default is to auto-skip the caster's next
+         *  priority window so they don't respond to their own spell. */
+        keepPriority: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -428,6 +435,7 @@ export const announceCast = mutation({
                 targetType: cardDef.targetRequirement.type,
                 count: cardDef.targetRequirement.count,
                 selected: [],
+                keepPriority: args.keepPriority,
             };
 
             const now = Date.now();
@@ -474,6 +482,9 @@ export const announceCast = mutation({
             state.stack.push(stackItem);
             state.passCount = 0;
             state.priorityPlayerId = getOpponentId(state, args.playerId);
+            state.singleShotAutoPass = args.keepPriority
+                ? undefined
+                : args.playerId;
             drainAutoPasses(state);
         } else {
             // Enter payment phase for remaining mana
@@ -482,6 +493,7 @@ export const announceCast = mutation({
                 cardInstanceId: args.cardInstanceId,
                 manaCost,
                 tappedLandIds: [],
+                keepPriority: args.keepPriority,
             };
         }
 
@@ -591,9 +603,11 @@ export const tapForPayment = mutation({
             state.stack.push(stackItem);
 
             const cardName = (spellCard.card as { name?: string }).name;
+            const keepPriority = state.pendingCast.keepPriority;
             state.pendingCast = undefined;
             state.passCount = 0;
             state.priorityPlayerId = getOpponentId(state, args.playerId);
+            state.singleShotAutoPass = keepPriority ? undefined : args.playerId;
             drainAutoPasses(state);
 
             const now = Date.now();
@@ -822,6 +836,7 @@ export const selectTarget = mutation({
             // All targets selected — proceed to mana payment
             const targets = [...pt.selected];
             const cardInstanceId = pt.cardInstanceId;
+            const keepPriority = pt.keepPriority;
             state.pendingTarget = undefined;
 
             const player = getPlayer(state, args.playerId);
@@ -852,6 +867,9 @@ export const selectTarget = mutation({
                 state.stack.push(stackItem);
                 state.passCount = 0;
                 state.priorityPlayerId = getOpponentId(state, args.playerId);
+                state.singleShotAutoPass = keepPriority
+                    ? undefined
+                    : args.playerId;
                 drainAutoPasses(state);
             } else {
                 state.pendingCast = {
@@ -859,6 +877,7 @@ export const selectTarget = mutation({
                     cardInstanceId,
                     manaCost,
                     tappedLandIds: [],
+                    keepPriority,
                 };
                 // Store targets temporarily — they'll be added to stack item when payment completes
                 (state.pendingCast as Record<string, unknown>).targets =
@@ -1107,24 +1126,23 @@ export const assignBlockerTarget = mutation({
             throw new Error("Target is not an attacker");
         }
 
-        // Flying check: attacker with flying can only be blocked by creatures with flying or reach (CR 509.1b)
+        // Evasion checks (CR 509.1b): flying (CR 702.9) + landwalk (CR 702.13).
         const activePlayer = getPlayer(state, state.activePlayerId);
         const attacker = activePlayer.battlefield.find(
             (c) => c.id === args.attackerId
         );
-        if (attacker?.staticAbilities.includes("flying")) {
-            const defender = getPlayer(state, args.playerId);
-            const blocker = defender.battlefield.find(
-                (c) => c.id === state.combat!.pendingBlockerId
+        const defender = getPlayer(state, args.playerId);
+        const blocker = defender.battlefield.find(
+            (c) => c.id === state.combat!.pendingBlockerId
+        );
+        if (attacker && blocker) {
+            const check = validateBlockerEligibility(
+                attacker,
+                blocker,
+                defender.battlefield
             );
-            if (
-                blocker &&
-                !blocker.staticAbilities.includes("flying") &&
-                !blocker.staticAbilities.includes("reach")
-            ) {
-                throw new Error(
-                    "Only creatures with flying or reach can block a creature with flying"
-                );
+            if (!check.eligible) {
+                throw new Error(check.reason);
             }
         }
 
@@ -1715,6 +1733,8 @@ export const activateAbility = mutation({
         playerId: v.string(),
         cardInstanceId: v.string(),
         abilityId: v.string(),
+        /** If true, the activator keeps priority after the ability hits the stack. */
+        keepPriority: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -1778,6 +1798,9 @@ export const activateAbility = mutation({
         state.stack.push(stackItem);
         state.passCount = 0;
         state.priorityPlayerId = getOpponentId(state, args.playerId);
+        state.singleShotAutoPass = args.keepPriority
+            ? undefined
+            : args.playerId;
         drainAutoPasses(state);
 
         const now = Date.now();

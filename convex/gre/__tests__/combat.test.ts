@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { validateAttackerEligibility } from "../combat";
+import {
+    validateAttackerEligibility,
+    validateBlockerEligibility,
+} from "../combat";
 import type { CardInstanceState } from "../state";
 import type { CardType } from "../../cards/types";
 
@@ -136,5 +139,139 @@ describe("validateAttackerEligibility", () => {
             staticAbilities: ["flying", "vigilance"],
         });
         expect(validateAttackerEligibility(serra)).toEqual({ eligible: true });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// validateBlockerEligibility (CR 509.1b, 702.9, 702.13)
+// ---------------------------------------------------------------------------
+
+describe("validateBlockerEligibility — flying (CR 702.9b)", () => {
+    it("ground creature cannot block flyer", () => {
+        const serra = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["flying"],
+        });
+        const bears = makeCard({ types: ["Creature"], staticAbilities: [] });
+        const result = validateBlockerEligibility(serra, bears, [bears]);
+        expect(result.eligible).toBe(false);
+        if (!result.eligible) {
+            expect(result.reason).toMatch(/flying|reach/i);
+        }
+    });
+
+    it("creature with reach can block flyer", () => {
+        const serra = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["flying"],
+        });
+        const spider = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["reach"],
+        });
+        expect(validateBlockerEligibility(serra, spider, [spider])).toEqual({
+            eligible: true,
+        });
+    });
+
+    it("creature with flying can block flyer", () => {
+        const serra = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["flying"],
+        });
+        const otherFlyer = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["flying"],
+        });
+        expect(
+            validateBlockerEligibility(serra, otherFlyer, [otherFlyer])
+        ).toEqual({
+            eligible: true,
+        });
+    });
+});
+
+describe("validateBlockerEligibility — landwalk (CR 702.13b)", () => {
+    function makeLand(subtype: string): CardInstanceState {
+        return makeCard({ types: ["Land"], subtypes: [subtype] });
+    }
+
+    it("swampwalker cannot be blocked when defender controls a Swamp", () => {
+        const wraith = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["swampwalk"],
+        });
+        const bears = makeCard({ types: ["Creature"], staticAbilities: [] });
+        const swamp = makeLand("Swamp");
+        const result = validateBlockerEligibility(wraith, bears, [
+            bears,
+            swamp,
+        ]);
+        expect(result.eligible).toBe(false);
+        if (!result.eligible) {
+            expect(result.reason).toMatch(/Swamp/);
+        }
+    });
+
+    it("swampwalker can be blocked when defender has no Swamp", () => {
+        const wraith = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["swampwalk"],
+        });
+        const bears = makeCard({ types: ["Creature"], staticAbilities: [] });
+        const forest = makeLand("Forest");
+        expect(
+            validateBlockerEligibility(wraith, bears, [bears, forest])
+        ).toEqual({ eligible: true });
+    });
+
+    it("dual land (Bayou) satisfies swampwalk via its Swamp subtype", () => {
+        const wraith = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["swampwalk"],
+        });
+        const bears = makeCard({ types: ["Creature"], staticAbilities: [] });
+        const bayou = makeCard({
+            types: ["Land"],
+            subtypes: ["Swamp", "Forest"],
+        });
+        const result = validateBlockerEligibility(wraith, bears, [
+            bears,
+            bayou,
+        ]);
+        expect(result.eligible).toBe(false);
+    });
+
+    it("landwalk is unblockable regardless of blocker abilities", () => {
+        const wraith = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["swampwalk"],
+        });
+        const spider = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["reach", "flying"],
+        });
+        const swamp = makeLand("Swamp");
+        const result = validateBlockerEligibility(wraith, spider, [
+            spider,
+            swamp,
+        ]);
+        expect(result.eligible).toBe(false);
+    });
+
+    it("forestwalk respects Forest subtype", () => {
+        const scout = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["forestwalk"],
+        });
+        const bears = makeCard({ types: ["Creature"], staticAbilities: [] });
+        const forest = makeLand("Forest");
+        const swamp = makeLand("Swamp");
+        expect(
+            validateBlockerEligibility(scout, bears, [bears, swamp])
+        ).toEqual({ eligible: true });
+        expect(
+            validateBlockerEligibility(scout, bears, [bears, forest]).eligible
+        ).toBe(false);
     });
 });
