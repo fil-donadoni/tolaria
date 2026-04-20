@@ -13,6 +13,7 @@ import {
     getPlayer,
     getOpponentId,
     drawCard as drawCardFromLibrary,
+    matchesPermanentFilter,
     moveCard,
     removeFromZone,
     removePermanentTo,
@@ -24,7 +25,14 @@ import {
     isManaCostCovered,
 } from "./gre/state";
 import type { Color } from "./cards/types";
-import { assertLegalAction, getLegalTargets, hasColor } from "./gre/rules";
+import {
+    assertLegalAction,
+    getLegalTargets,
+    getPendingTargetSourceColors,
+    hasColor,
+    isProtectedFromColors,
+} from "./gre/rules";
+import { STATIC_EFFECT_CTX } from "./gre/layers";
 import { projectFullState, projectPublicState } from "./gameProjections";
 import {
     advancePhase,
@@ -178,6 +186,17 @@ async function finalizeGameOver(
 /** Guard: reject actions on a finished game. */
 function assertGameNotOver(state: GameState) {
     if (state.gameOver) throw new Error("Game is over");
+}
+
+/** Guard: reject actions while the engine is suspended awaiting
+ *  mid-resolution player choices (CR 608.2). Priority is frozen in this
+ *  window — only `selectResolutionChoice` is legal. */
+function assertNoPendingChoices(state: GameState) {
+    if ((state.pendingChoices?.length ?? 0) > 0) {
+        throw new Error(
+            "Waiting for resolution choices — complete them before acting"
+        );
+    }
 }
 
 /** Taps a battlefield card as a mana source during a payment phase (pendingCast
@@ -532,6 +551,7 @@ export const playCard = mutation({
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
         assertGameNotOver(state);
+        assertNoPendingChoices(state);
         const player = getPlayer(state, args.playerId);
 
         // Validate: card must be in hand and "play" must be legal
@@ -758,6 +778,7 @@ export const announceCast = mutation({
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
         assertGameNotOver(state);
+        assertNoPendingChoices(state);
         const player = getPlayer(state, args.playerId);
 
         if (state.priorityPlayerId !== args.playerId) {
@@ -792,9 +813,14 @@ export const announceCast = mutation({
 
         // Check if the card requires targets (CR 601.2c)
         if (cardDef.targetRequirement) {
+            // CR 202.2 / 702.16b: source colors derived from the casting
+            // card's mana cost, so getLegalTargets can exclude permanents
+            // with protection from any of those colors.
+            const sourceColors = STATIC_EFFECT_CTX.getColors(cardInHand);
             const legalTargets = getLegalTargets(
                 state,
-                cardDef.targetRequirement
+                cardDef.targetRequirement,
+                sourceColors
             );
             if (legalTargets.length === 0) {
                 throw new Error("No legal targets available");
@@ -1298,6 +1324,16 @@ export const selectTarget = mutation({
                 !hasColor(matchedCard, pt.colorFilter as Color)
             ) {
                 throw new Error(`Target must be ${pt.colorFilter}`);
+            }
+            // CR 702.16b: a permanent with protection from [color] can't be
+            // targeted by a spell/ability whose source has that color.
+            const sourceColors = getPendingTargetSourceColors(
+                state,
+                pt.cardInstanceId,
+                pt.kind ?? "cast"
+            );
+            if (isProtectedFromColors(matchedCard, sourceColors)) {
+                throw new Error("Target has protection from this source");
             }
         } else if (args.targetType === "player") {
             if (!wantsAny && !reqTypes.includes("player")) {
@@ -1995,6 +2031,7 @@ export const passPriority = mutation({
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
         assertGameNotOver(state);
+        assertNoPendingChoices(state);
 
         if (state.priorityPlayerId !== args.playerId) {
             throw new Error("You don't have priority");
@@ -2046,8 +2083,16 @@ export const passPriority = mutation({
         if (state.passCount >= 2 && state.stack.length > 0) {
             // Both players passed consecutively — resolve top of stack (CR 117.3d)
             resolveTopOfStack(state);
-            state.priorityPlayerId = state.activePlayerId;
-            state.passCount = 0;
+            if ((state.pendingChoices?.length ?? 0) > 0) {
+                // Resolution suspended awaiting player choices (CR 608.2).
+                // Hand priority to the chooser; the gate on passPriority and
+                // other priority-driven mutations prevents any action other
+                // than selectResolutionChoice.
+                state.priorityPlayerId = state.pendingChoices![0].playerId;
+            } else {
+                state.priorityPlayerId = state.activePlayerId;
+                state.passCount = 0;
+            }
         } else if (state.passCount >= 2 && state.stack.length === 0) {
             // Both passed with empty stack → advance phase/step
             advancePhase(state);
@@ -2078,6 +2123,113 @@ export const passPriority = mutation({
     },
 });
 
+/** Submit one pick for the currently-active mid-resolution choice (CR 608.2).
+ *  Accumulates `cardInstanceId` into `pendingChoices[0].selected`; auto-
+ *  finalizes when the count is reached by (a) moving the picks into the
+ *  stack item's `collectedChoices`, (b) shifting the head off the queue,
+ *  and (c) if the queue is empty, resuming the resolution via
+ *  `resolveTopOfStack`. If the resume re-suspends on a new choice, priority
+ *  is handed to the next chooser; otherwise priority returns to the active
+ *  player and the pass count resets. */
+export const selectResolutionChoice = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
+        assertGameNotOver(state);
+
+        const queue = state.pendingChoices ?? [];
+        if (queue.length === 0) throw new Error("No pending choice");
+        const head = queue[0];
+        if (head.playerId !== args.playerId) {
+            throw new Error("Not your pending choice");
+        }
+        if (head.selected.includes(args.cardInstanceId)) {
+            throw new Error("Already selected");
+        }
+
+        const player = getPlayer(state, args.playerId);
+        if (head.zone === "battlefield") {
+            const card = player.battlefield.find(
+                (c) => c.id === args.cardInstanceId
+            );
+            if (!card) throw new Error("Card not on battlefield");
+            if (head.filter && !matchesPermanentFilter(card, head.filter)) {
+                throw new Error("Card does not match the required filter");
+            }
+        } else {
+            const card = player.hand.find((c) => c.id === args.cardInstanceId);
+            if (!card) throw new Error("Card not in hand");
+        }
+
+        head.selected.push(args.cardInstanceId);
+
+        if (head.selected.length >= head.count) {
+            // Commit the choice into the stack item's collectedChoices so
+            // the next invocation of the step reads it back via requestChoice.
+            const stackItem = state.stack.find(
+                (s) => s.id === head.stackItemId
+            );
+            if (!stackItem) throw new Error("Stack item not found");
+            const key = `${head.step}:${head.choiceId}`;
+            stackItem.collectedChoices = {
+                ...(stackItem.collectedChoices ?? {}),
+                [key]: head.selected,
+            };
+
+            queue.shift();
+            state.pendingChoices = queue.length > 0 ? queue : undefined;
+
+            // If the queue is empty, resume resolution. The resolve may
+            // enqueue fresh pending choices (next step) — treat that as a
+            // new suspension and hand priority to the new chooser.
+            if ((state.pendingChoices?.length ?? 0) === 0) {
+                resolveTopOfStack(state);
+                if ((state.pendingChoices?.length ?? 0) > 0) {
+                    state.priorityPlayerId = state.pendingChoices![0].playerId;
+                } else {
+                    // Full resolution completed — priority returns to the
+                    // active player (CR 117.3d) and the pass count resets.
+                    state.priorityPlayerId = state.activePlayerId;
+                    state.passCount = 0;
+                    drainAutoPasses(state);
+                }
+                checkGameOverSBA(state);
+            } else {
+                // More choices queued within the same step — move priority
+                // to the next chooser.
+                state.priorityPlayerId = state.pendingChoices![0].playerId;
+            }
+        }
+
+        const now = Date.now();
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            type: "RESOLUTION_CHOICE_SELECTED",
+            player: args.playerId,
+            payload: {
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceId: args.cardInstanceId,
+            },
+            timestamp: now,
+        });
+    },
+});
+
 /** Set auto-pass: automatically pass priority for the rest of this turn. */
 export const endTurn = mutation({
     args: {
@@ -2091,6 +2243,7 @@ export const endTurn = mutation({
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
         assertGameNotOver(state);
+        assertNoPendingChoices(state);
 
         if (state.priorityPlayerId !== args.playerId) {
             throw new Error("You don't have priority");
@@ -2311,6 +2464,7 @@ export const activateAbility = mutation({
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
         assertGameNotOver(state);
+        assertNoPendingChoices(state);
 
         if (state.priorityPlayerId !== args.playerId) {
             throw new Error("You don't have priority");
@@ -2360,7 +2514,14 @@ export const activateAbility = mutation({
             if (ability.cost.tap && card.isTapped) {
                 throw new Error("Card is already tapped");
             }
-            const legal = getLegalTargets(state, ability.targetRequirement);
+            // CR 202.2 / 702.16b: the source's colors come from the
+            // permanent owning the activated ability.
+            const abilitySourceColors = STATIC_EFFECT_CTX.getColors(card);
+            const legal = getLegalTargets(
+                state,
+                ability.targetRequirement,
+                abilitySourceColors
+            );
             if (legal.length === 0) {
                 throw new Error("No legal targets available");
             }
@@ -2498,6 +2659,7 @@ export const tapUntap = mutation({
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
         assertGameNotOver(state);
+        assertNoPendingChoices(state);
         const player = getPlayer(state, args.playerId);
 
         // Cannot manually tap/untap during a payment phase — must go through
@@ -2639,6 +2801,7 @@ export const activatePlayerAbility = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertNoPendingChoices(state);
 
         const player = getPlayer(state, args.playerId);
         const instance = player.grantedAbilities?.find(

@@ -3,6 +3,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingTarget, Player } from "~/types/game";
 import { getCardById } from "@convex/cards";
+import { useDraggable } from "~/hooks/useDraggable";
 
 const TARGET_LABEL: Record<string, string> = {
     Creature: "a creature",
@@ -64,6 +65,7 @@ export default function TargetSelectionBanner({
 }) {
     const cancelTarget = useMutation(api.game.cancelTarget);
     const confirmTargets = useMutation(api.game.confirmTargets);
+    const { offset, dragHandlers } = useDraggable();
 
     const cardInHand = me?.hand.find(
         (c) => c !== null && c.id === pendingTarget.cardInstanceId
@@ -80,8 +82,16 @@ export default function TargetSelectionBanner({
     const showDone = typeof pendingTarget.count !== "number" && !maxReached;
 
     return (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
-            <div className="flex items-center gap-3 bg-amber-900/90 border border-amber-500/50 rounded-lg px-5 py-3 backdrop-blur-sm shadow-lg">
+        <div
+            className="absolute top-1/2 left-1/2 z-50"
+            style={{
+                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+            }}
+        >
+            <div
+                {...dragHandlers}
+                className="flex items-center gap-3 bg-amber-900/90 border border-amber-500/50 rounded-lg px-5 py-3 backdrop-blur-sm shadow-lg cursor-move select-none"
+            >
                 <div className="text-amber-200 text-sm font-medium">
                     <span className="text-white font-bold">{cardName}</span>
                     {" — "}
@@ -91,14 +101,14 @@ export default function TargetSelectionBanner({
                     <button
                         disabled={!minReached}
                         onClick={() => confirmTargets({ gameId, playerId })}
-                        className="ml-2 px-3 py-1 rounded text-xs font-bold bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white transition-colors"
+                        className="ml-2 px-3 py-1 rounded text-xs font-bold bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white transition-colors cursor-pointer"
                     >
                         Done
                     </button>
                 )}
                 <button
                     onClick={() => cancelTarget({ gameId, playerId })}
-                    className="ml-2 px-3 py-1 rounded text-xs font-bold bg-red-600 hover:bg-red-500 text-white transition-colors"
+                    className="ml-2 px-3 py-1 rounded text-xs font-bold bg-red-600 hover:bg-red-500 text-white transition-colors cursor-pointer"
                 >
                     Cancel
                 </button>

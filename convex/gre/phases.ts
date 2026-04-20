@@ -15,6 +15,7 @@ import {
     tickDuration,
 } from "./state";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
+import { isProtectedFromSource } from "./protection";
 import { collectTriggers } from "./triggers";
 import { hasAnyLegalBlock, getRequiredAttackerIds } from "./combat";
 
@@ -348,6 +349,17 @@ export function applyAllCombatDamage(
                             isCombat: true,
                         });
                     } else {
+                        // CR 702.16e: damage from a source with the stated
+                        // quality to a protected permanent is prevented.
+                        const blockerCard = defender.battlefield.find(
+                            (c) => c.id === targetId
+                        );
+                        if (
+                            blockerCard &&
+                            isProtectedFromSource(blockerCard, attacker)
+                        ) {
+                            continue;
+                        }
                         damageReceived[targetId] =
                             (damageReceived[targetId] ?? 0) + damage;
                         events.push({
@@ -371,6 +383,11 @@ export function applyAllCombatDamage(
                 if (!dealsDamageIn(blocker, kind)) continue;
                 const blockerPower = getCardPower(state, blocker);
                 if (blockerPower <= 0) continue;
+                // CR 702.16e: prevent damage from a blocker whose color
+                // matches the attacker's "protection from [color]". (The
+                // symmetric "attacker protected from blocker's color can't
+                // be blocked" case was rejected at block-declaration.)
+                if (isProtectedFromSource(attacker, blocker)) continue;
                 damageReceived[attackerId] =
                     (damageReceived[attackerId] ?? 0) + blockerPower;
                 events.push({
@@ -885,6 +902,13 @@ export function drainAutoPasses(state: GameState): void {
 
         if (state.passCount >= 2 && state.stack.length > 0) {
             resolveTopOfStack(state);
+            if ((state.pendingChoices?.length ?? 0) > 0) {
+                // Resolution suspended on a pending choice (CR 608.2) —
+                // priority moves to the chooser and auto-drain stops;
+                // selectResolutionChoice will resume from here.
+                state.priorityPlayerId = state.pendingChoices![0].playerId;
+                return;
+            }
             state.priorityPlayerId = state.activePlayerId;
             state.passCount = 0;
         } else if (state.passCount >= 2 && state.stack.length === 0) {

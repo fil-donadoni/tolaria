@@ -14,6 +14,7 @@ import {
     getManaChoices,
     getStackAbilities,
     wantsPermanentTarget,
+    matchesPermanentFilter,
     matchesTargetRequirement,
     groupByName,
 } from "~/lib/card-utils";
@@ -39,6 +40,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         pendingCast,
         pendingActivation,
         pendingTarget,
+        pendingChoices,
         combat,
         allPlayers,
     } = useGameContext();
@@ -58,6 +60,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     const selectBlocker = useMutation(api.game.selectBlocker);
     const assignBlockerTarget = useMutation(api.game.assignBlockerTarget);
     const selectTarget = useMutation(api.game.selectTarget);
+    const selectResolutionChoice = useMutation(api.game.selectResolutionChoice);
     const activateAbility = useMutation(api.game.activateAbility);
 
     // Mana choice picker state. `inPayment` routes the selection to
@@ -93,6 +96,17 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         !!pendingTarget &&
         pendingTarget.playerId === playerId &&
         wantsPermanentTarget(pendingTarget.targetType);
+
+    // Mid-resolution choice targeting a battlefield zone (CR 608.2). Only the
+    // chooser's own battlefield receives click routing; the opponent's board
+    // stays inert even for the chooser's own cards on their opponent's side
+    // (Balance never picks from the opponent).
+    const activeChoice = pendingChoices?.[0];
+    const isSelectingChoice =
+        isMe &&
+        !!activeChoice &&
+        activeChoice.playerId === playerId &&
+        activeChoice.zone === "battlefield";
 
     const isSelectingAttackers =
         phase === "DECLARE_ATTACKERS" &&
@@ -189,6 +203,17 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     }
 
     function canInteract(card: CardInstance): boolean {
+        // Mid-resolution choice: only the chooser's own battlefield cards
+        // matching the filter are interactive. Already-picked ids stay clickable
+        // so the player can deselect (not supported yet — future toggle).
+        if (isSelectingChoice && activeChoice) {
+            if (activeChoice.selected.includes(card.id)) return false;
+            return (
+                !activeChoice.filter ||
+                matchesPermanentFilter(card, activeChoice.filter)
+            );
+        }
+
         // During target selection, ONLY valid targets are interactive
         if (isSelectingTarget) {
             return (
@@ -236,13 +261,26 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             pendingTarget &&
             matchesTargetRequirement(card, pendingTarget.targetType);
 
-        const interactive = isSelectingTarget
-            ? !!isValidTarget
-            : (isMe &&
-                  (manaSource ||
-                      (isSelectingAttackers && creature) ||
-                      (isSelectingBlockers && creature))) ||
-              (isBlockerTarget && !!card.isAttacking);
+        const isValidChoice =
+            isSelectingChoice &&
+            !!activeChoice &&
+            (!activeChoice.filter ||
+                matchesPermanentFilter(card, activeChoice.filter));
+
+        const isChoiceSelected =
+            isSelectingChoice &&
+            !!activeChoice &&
+            activeChoice.selected.includes(card.id);
+
+        const interactive = isSelectingChoice
+            ? isValidChoice
+            : isSelectingTarget
+              ? !!isValidTarget
+              : (isMe &&
+                    (manaSource ||
+                        (isSelectingAttackers && creature) ||
+                        (isSelectingBlockers && creature))) ||
+                (isBlockerTarget && !!card.isAttacking);
 
         const enabled = canInteract(card);
 
@@ -300,6 +338,11 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         if (!ringClass && isValidTarget) {
             ringClass = "ring-2 ring-orange-400 rounded-sm";
         }
+        if (!ringClass && isChoiceSelected) {
+            ringClass = "ring-2 ring-violet-400 rounded-sm";
+        } else if (!ringClass && isValidChoice) {
+            ringClass = "ring-2 ring-violet-400/60 rounded-sm";
+        }
 
         // Tooltip for ineligible creatures
         let tooltip: string | undefined;
@@ -347,6 +390,17 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
 
     function handleClick(card: CardInstance) {
         if (!canInteract(card)) return;
+
+        if (isSelectingChoice) {
+            guardMutation(
+                selectResolutionChoice({
+                    gameId,
+                    playerId,
+                    cardInstanceId: card.id,
+                })
+            );
+            return;
+        }
 
         if (
             isSelectingTarget &&
@@ -456,8 +510,9 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     }
 
     function handleClickWithEvent(card: CardInstance, e: React.MouseEvent) {
-        // During target selection, only allow target clicks — skip all other interactions
-        if (isSelectingTarget) {
+        // During mid-resolution choice or target selection, the click is a
+        // pick — skip mana-ability pickers and route straight to handleClick.
+        if (isSelectingChoice || isSelectingTarget) {
             handleClick(card);
             return;
         }
@@ -477,7 +532,13 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     // --- Activated abilities ---
 
     function getActivatable(card: CardInstance) {
-        if (!hasPriority || pendingCast || pendingActivation || pendingTarget) {
+        if (
+            !hasPriority ||
+            pendingCast ||
+            pendingActivation ||
+            pendingTarget ||
+            (pendingChoices && pendingChoices.length > 0)
+        ) {
             return [];
         }
         // UX: while this player is the one picking attackers/blockers, the

@@ -65,6 +65,19 @@ expect(getEffectiveToughness(projected, slimTarget)).toBe(expected);
 - Constants and helpers live in `convex/gre/constants.ts` — never define locally
 - Mana abilities use `useStack: false` (CR 605.3a)
 
+## Primitive reuse (mandatory)
+
+Target scale is ~80k cards. One dedicated `SpellContext` primitive per card does not scale — primitives must be small, orthogonal, and composable.
+
+Before adding a new primitive to `SpellContext`:
+
+1. **Decompose the effect.** Can it be expressed as a sequence of existing primitives? E.g. Timetwister = `moveZone(hand→library)` + `moveZone(graveyard→library)` + `shuffleLibrary` + `drawCards(7)`. No new primitive needed.
+2. **Generalize, don't add.** If an existing primitive is almost right, parametrize it. `drawCards(player, n)` is "move N from library top to hand" — a `moveZone` with position/count parameters may subsume it and more.
+3. **Orthogonality check.** New primitives should represent a general zone/mana/life operation (movement, mutation, lookup), not a card-shaped effect ("shuffleHandAndGraveyardIntoLibrary" fails this test; "moveZone" passes).
+4. **Composition over flags.** Avoid adding boolean flags to existing primitives that change behavior — prefer calling a sequence of simpler primitives.
+
+If after those checks a new primitive is still needed, flag it explicitly in the PR/implementation and document why it couldn't be composed.
+
 ## Card definition checklist
 
 When adding/modifying cards in `convex/cards/sets/`:

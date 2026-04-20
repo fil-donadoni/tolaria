@@ -1,5 +1,6 @@
 import type { CardInstanceState } from "./state";
 import { LANDWALK_KEYWORDS } from "./constants";
+import { isProtectedFromSource } from "./protection";
 
 export type AttackerValidation =
     | { eligible: true }
@@ -80,6 +81,15 @@ export function validateBlockerEligibility(
                 reason: "Only creatures with flying or reach can block a creature with flying",
             };
         }
+    }
+
+    // CR 702.16f: an attacking creature with "protection from [color]" can't
+    // be blocked by creatures of that color.
+    if (isProtectedFromSource(attacker, blocker)) {
+        return {
+            eligible: false,
+            reason: "Attacker has protection from this blocker",
+        };
     }
 
     return { eligible: true };

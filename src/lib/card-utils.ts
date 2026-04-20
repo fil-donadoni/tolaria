@@ -85,6 +85,50 @@ export function wantsPermanentTarget(
     return types.some((t) => t !== "player");
 }
 
+/** Client-side mirror of the backend's matchesPermanentFilter. Returns true
+ *  if the permanent matches every constraint in the filter (AND semantics).
+ *  Used by the mid-resolution choice UI to highlight legal picks.
+ *
+ *  Must stay in sync with `matchesPermanentFilter` in convex/gre/state.ts. */
+export function matchesPermanentFilter(
+    card: CardInstance,
+    filter: {
+        types?: string | string[];
+        subtypes?: string | string[];
+        requireAbility?: string;
+        excludeAbility?: string;
+    }
+): boolean {
+    if (filter.types !== undefined) {
+        const types = Array.isArray(filter.types)
+            ? filter.types
+            : [filter.types];
+        const cardTypes = card.types ?? [];
+        if (!types.some((t) => cardTypes.includes(t))) return false;
+    }
+    if (filter.subtypes !== undefined) {
+        const subs = Array.isArray(filter.subtypes)
+            ? filter.subtypes
+            : [filter.subtypes];
+        const cardSubs = card.subtypes ?? [];
+        if (!subs.some((s) => cardSubs.includes(s))) return false;
+    }
+    const abilities = card.staticAbilities ?? [];
+    if (
+        filter.requireAbility !== undefined &&
+        !abilities.includes(filter.requireAbility)
+    ) {
+        return false;
+    }
+    if (
+        filter.excludeAbility !== undefined &&
+        abilities.includes(filter.excludeAbility)
+    ) {
+        return false;
+    }
+    return true;
+}
+
 /** Returns true if a card on the battlefield matches the pending target requirement. */
 export function matchesTargetRequirement(
     card: CardInstance,

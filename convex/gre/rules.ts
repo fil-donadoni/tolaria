@@ -4,7 +4,15 @@ import type { CardAction } from "./types";
 import { isSorceryTiming } from "./phases";
 import { DAMAGEABLE_PERMANENT_TYPES } from "./constants";
 import { STATIC_EFFECT_CTX } from "./layers";
+import { isProtectedFromColors } from "./protection";
 import { tryGetCardById } from "../cards";
+
+export {
+    getProtectedColors,
+    isProtectedFromColors,
+    isProtectedFromSource,
+    parseProtectionFromColor,
+} from "./protection";
 
 const ALL_HAND_ACTIONS: CardAction[] = [
     "play",
@@ -85,10 +93,14 @@ export function hasColor(card: CardInstanceState, color: Color): boolean {
     return STATIC_EFFECT_CTX.getColors(card).includes(color);
 }
 
-/** Returns all legal targets for a spell/ability with the given target requirement. */
+/** Returns all legal targets for a spell/ability with the given target
+ *  requirement. `sourceColors` are the colors of the casting spell or the
+ *  activating permanent (CR 202.2); when provided, protected permanents
+ *  (CR 702.16b) are excluded. */
 export function getLegalTargets(
     state: GameState,
-    requirement: TargetRequirement
+    requirement: TargetRequirement,
+    sourceColors: readonly Color[] = []
 ): TargetSelection[] {
     const targets: TargetSelection[] = [];
 
@@ -120,6 +132,9 @@ export function getLegalTargets(
                 if (!matchesAny && !matchesExplicit) continue;
                 // CR 202.2: filter by color for "source of color X" choices.
                 if (colorFilter && !hasColor(card, colorFilter)) continue;
+                // CR 702.16b: protected permanents can't be targeted by
+                // spells/abilities of the stated quality.
+                if (isProtectedFromColors(card, sourceColors)) continue;
                 targets.push({ type: "permanent", id: card.id });
             }
         }
@@ -142,6 +157,29 @@ export function getLegalTargets(
     }
 
     return targets;
+}
+
+/** Colors of the source whose target-selection is in progress (CR 202.2).
+ *  Used to enforce CR 702.16b at cast-time target validation. For spells the
+ *  source is the hand card; for activated abilities it's the battlefield
+ *  permanent. Returns an empty array if the source card can't be located. */
+export function getPendingTargetSourceColors(
+    state: GameState,
+    cardInstanceId: string,
+    kind: "cast" | "ability"
+): Color[] {
+    if (kind === "ability") {
+        for (const p of state.players) {
+            const c = p.battlefield.find((x) => x.id === cardInstanceId);
+            if (c) return STATIC_EFFECT_CTX.getColors(c);
+        }
+    } else {
+        for (const p of state.players) {
+            const c = p.hand.find((x) => x.id === cardInstanceId);
+            if (c) return STATIC_EFFECT_CTX.getColors(c);
+        }
+    }
+    return [];
 }
 
 /** Validates that a specific action is legal for a card. Throws if not. */

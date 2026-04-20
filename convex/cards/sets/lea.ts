@@ -1,6 +1,7 @@
 import type {
     ActivatedAbilityContext,
     CardDefinition,
+    PermanentFilter,
     SpellContext,
 } from "../types";
 
@@ -22,12 +23,137 @@ export const armageddon: CardDefinition = {
     },
 };
 
-// export const balance: CardDefinition = {
-//     id: "6f9ea46a-411f-40ce-a873-a905180093f4",
-//     name: "Balance",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Sorcery"],
-// };
+// Balance — "Each player chooses a number of lands they control equal to the
+// number of lands controlled by the player who controls the fewest, then
+// sacrifices the rest. Players discard cards and sacrifice creatures the same
+// way." (CR 608.2, 101.4 APNAP, 701.16 sacrifice, 701.8 discard)
+//
+// Ruling (2016-06-08): the order is lands → discard → creatures, each step
+// applied simultaneously after all players have chosen. Counts are sampled
+// fresh at the start of each step — a creature-land sacrificed in step 1 is
+// not counted as a creature in step 3. Within a step, choices are collected
+// APNAP; each chooser sees the prior choices before deciding (except for
+// hands, which reveal only after all have chosen — naturally modelled here
+// because we apply the discard only after both picks are collected).
+
+/** Generic "each player keeps `min` permanents matching `filter`" step. Used
+ *  by both the lands and creatures passes of Balance. Idempotent across
+ *  replays: after a suspension, `requestChoice` returns stored picks so the
+ *  apply phase runs exactly once per step completion. */
+function balanceEqualizeBattlefield(
+    ctx: SpellContext,
+    filter: PermanentFilter,
+    label: { singular: string; plural: string }
+): void {
+    const players = ctx.apNapOrder();
+    const counts = players.map((p) => ctx.getBattlefieldIds(p, filter).length);
+    const min = Math.min(...counts);
+
+    const keepByPlayer: Record<string, string[] | undefined> = {};
+    for (let i = 0; i < players.length; i++) {
+        const p = players[i];
+        const n = counts[i];
+        if (n <= min) {
+            keepByPlayer[p] = ctx.getBattlefieldIds(p, filter);
+            continue;
+        }
+        if (min === 0) {
+            keepByPlayer[p] = [];
+            continue;
+        }
+        keepByPlayer[p] = ctx.requestChoice({
+            playerId: p,
+            choiceId: p,
+            kind: "keep-permanents",
+            zone: "battlefield",
+            filter,
+            count: min,
+            prompt:
+                min === 1
+                    ? `Choose the ${label.singular} to keep`
+                    : `Choose ${min} ${label.plural} to keep`,
+        });
+    }
+
+    // One or more choices still pending — engine will suspend after return.
+    if (Object.values(keepByPlayer).some((v) => v === undefined)) return;
+
+    // All picks collected — sacrifice the non-chosen permanents simultaneously.
+    for (const p of players) {
+        const keep = new Set(keepByPlayer[p]);
+        for (const id of ctx.getBattlefieldIds(p, filter)) {
+            if (!keep.has(id)) ctx.sacrifice(id);
+        }
+    }
+}
+
+function balanceEqualizeLands(ctx: SpellContext): void {
+    balanceEqualizeBattlefield(
+        ctx,
+        { types: "Land" },
+        { singular: "land", plural: "lands" }
+    );
+}
+
+function balanceEqualizeCreatures(ctx: SpellContext): void {
+    balanceEqualizeBattlefield(
+        ctx,
+        { types: "Creature" },
+        { singular: "creature", plural: "creatures" }
+    );
+}
+
+function balanceEqualizeHand(ctx: SpellContext): void {
+    const players = ctx.apNapOrder();
+    const counts = players.map((p) => ctx.getHandSize(p));
+    const min = Math.min(...counts);
+
+    const keepByPlayer: Record<string, string[] | undefined> = {};
+    for (let i = 0; i < players.length; i++) {
+        const p = players[i];
+        const n = counts[i];
+        if (n <= min) {
+            keepByPlayer[p] = ctx.getHandIds(p);
+            continue;
+        }
+        if (min === 0) {
+            keepByPlayer[p] = [];
+            continue;
+        }
+        keepByPlayer[p] = ctx.requestChoice({
+            playerId: p,
+            choiceId: p,
+            kind: "keep-hand",
+            zone: "hand",
+            count: min,
+            prompt:
+                min === 1
+                    ? `Choose 1 card to keep`
+                    : `Choose ${min} cards to keep`,
+        });
+    }
+
+    if (Object.values(keepByPlayer).some((v) => v === undefined)) return;
+
+    for (const p of players) {
+        const keep = new Set(keepByPlayer[p]);
+        for (const id of ctx.getHandIds(p)) {
+            if (!keep.has(id)) ctx.discardCard(p, id);
+        }
+    }
+}
+
+export const balance: CardDefinition = {
+    id: "6f9ea46a-411f-40ce-a873-a905180093f4",
+    name: "Balance",
+    manaCost: { X: 1, W: 1 },
+    types: ["Sorcery"],
+    resolveSteps: [
+        balanceEqualizeLands,
+        balanceEqualizeHand,
+        balanceEqualizeCreatures,
+    ],
+};
 
 // export const benalishHero: CardDefinition = {
 //     id: "11600105-56c6-4073-a4a6-8469030b39c9",
@@ -406,15 +532,17 @@ export const wallOfSwords: CardDefinition = {
     staticAbilities: ["defender", "flying"],
 };
 
-// export const whiteKnight: CardDefinition = {
-//     id: "50abfba8-c9f9-4ebf-965a-4b425fe83129",
-//     name: "White Knight",
-//     manaCost: { W: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Knight"],
-//     power: 2,
-//     toughness: 2,
-// };
+// White Knight — first strike + protection from black (CR 702.7, 702.16).
+export const whiteKnight: CardDefinition = {
+    id: "50abfba8-c9f9-4ebf-965a-4b425fe83129",
+    name: "White Knight",
+    manaCost: { W: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Knight"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["first strike", "protection from black"],
+};
 
 // export const whiteWard: CardDefinition = {
 //     id: "49b22665-1501-420a-82ad-f71f6768bcf8",
@@ -767,12 +895,24 @@ export const timeWalk: CardDefinition = {
     },
 };
 
-// export const timetwister: CardDefinition = {
-//     id: "9a49dc44-616e-4bdd-8220-0bb71eccc512",
-//     name: "Timetwister",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Sorcery"],
-// };
+// Timetwister — "Each player shuffles their hand and graveyard into their
+// library, then draws seven cards." (CR 121.1, 701.20)
+// Timetwister itself is on the stack during resolution, so it's unaffected
+// by the shuffle; after resolve() it goes to its owner's graveyard normally.
+export const timetwister: CardDefinition = {
+    id: "9a49dc44-616e-4bdd-8220-0bb71eccc512",
+    name: "Timetwister",
+    manaCost: { X: 2, U: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        for (const pid of ctx.allPlayerIds) {
+            ctx.moveZone(pid, "hand", "library");
+            ctx.moveZone(pid, "graveyard", "library");
+            ctx.shuffleLibrary(pid);
+            ctx.drawCards(pid, 7);
+        }
+    },
+};
 
 // export const twiddle: CardDefinition = {
 //     id: "576e811f-26a3-4a7c-bd13-3b1cc3e184eb",
@@ -861,15 +1001,17 @@ export const badMoon: CardDefinition = {
     ],
 };
 
-// export const blackKnight: CardDefinition = {
-//     id: "c1662949-0d69-49a3-8c69-daf10717ed4e",
-//     name: "Black Knight",
-//     manaCost: { B: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Knight"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Black Knight — first strike + protection from white (CR 702.7, 702.16).
+export const blackKnight: CardDefinition = {
+    id: "c1662949-0d69-49a3-8c69-daf10717ed4e",
+    name: "Black Knight",
+    manaCost: { B: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Knight"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["first strike", "protection from white"],
+};
 
 // Bog Wraith — swampwalk (landwalk keyword, CR 702.13b). Enforced at
 // blocker-assignment time by validateBlockerEligibility in gre/combat.ts.

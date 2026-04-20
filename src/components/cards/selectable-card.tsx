@@ -29,9 +29,31 @@ export default function SelectableCard({
         pendingCast,
         pendingActivation,
         pendingTarget,
+        pendingChoices,
     } = useGameContext();
     const playCard = useMutation(api.game.playCard);
     const announceCast = useMutation(api.game.announceCast);
+    const selectResolutionChoice = useMutation(api.game.selectResolutionChoice);
+
+    // Mid-resolution hand pick (CR 608.2). When the chooser clicks one of
+    // their own hand cards during a "keep-hand" step, route to the choice
+    // mutation. Already-picked cards are visually distinct and inert.
+    const activeChoice = pendingChoices?.[0];
+    const isHandChoice =
+        !!activeChoice &&
+        activeChoice.playerId === playerId &&
+        activeChoice.zone === "hand" &&
+        cardInstance.ownerId === playerId;
+    const isChoiceSelected =
+        isHandChoice && activeChoice!.selected.includes(cardInstance.id);
+    const onChoiceClick = () => {
+        if (!activeChoice || isChoiceSelected) return;
+        selectResolutionChoice({
+            gameId,
+            playerId,
+            cardInstanceId: cardInstance.id,
+        });
+    };
 
     const onPlayClick = () => {
         playCard({
@@ -78,7 +100,22 @@ export default function SelectableCard({
         allowedActions.length > 0 &&
         !pendingCast &&
         !pendingActivation &&
-        !pendingTarget;
+        !pendingTarget &&
+        !activeChoice;
+
+    if (isHandChoice) {
+        const ringClass = isChoiceSelected
+            ? "ring-2 ring-violet-400"
+            : "ring-2 ring-violet-400/60 cursor-pointer hover:ring-violet-300";
+        return (
+            <div
+                className={`relative rounded-md ${ringClass}`}
+                onClick={onChoiceClick}
+            >
+                <CardImage card={cardInstance.card} />
+            </div>
+        );
+    }
 
     if (!hasActions) {
         return <CardImage card={cardInstance.card} />;

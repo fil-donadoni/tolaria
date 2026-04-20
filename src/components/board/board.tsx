@@ -18,6 +18,7 @@ import AutoPassController from "./auto-pass-controller";
 import GameOverDialog from "./game-over-dialog";
 import PauseMenuDialog from "./pause-menu-dialog";
 import TargetSelectionBanner from "./target-selection-banner";
+import PendingChoicePrompt from "./pending-choice-prompt";
 
 const POPUP_SELECTORS = [
     '[data-slot="dialog-content"]',
@@ -101,6 +102,7 @@ export default function Board({
     const autoPassPlayers = state.autoPassPlayers;
     const combat = state.combat;
     const pendingTarget = state.pendingTarget;
+    const pendingChoices = state.pendingChoices;
     const undoableBy = state.undoableBy;
     const gameOver = state.gameOver;
     const stackItems = state.stack ?? [];
@@ -125,6 +127,7 @@ export default function Board({
                 pendingCast,
                 pendingActivation,
                 pendingTarget,
+                pendingChoices,
                 autoPassPlayers,
                 undoableBy,
                 combat,
@@ -147,6 +150,12 @@ export default function Board({
                             pendingTarget={pendingTarget}
                             me={me}
                             gameId={gameId}
+                            playerId={playerId}
+                        />
+                    )}
+                    {pendingChoices && pendingChoices.length > 0 && (
+                        <PendingChoicePrompt
+                            choice={pendingChoices[0]}
                             playerId={playerId}
                         />
                     )}

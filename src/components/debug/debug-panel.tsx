@@ -62,6 +62,105 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "Balance (asymmetric lands / hand / creatures → 3-step resolve)",
+        cards: [
+            // Classic asymmetric Balance setup. P1 has a lead across all
+            // three zones — on resolve, they'll be prompted to keep 1 land,
+            // keep 1 card, keep 1 creature (step by step). Castable turn 1
+            // with 2 Plains ({1}{W}).
+            {
+                name: "Balance",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "me" as const, count: 4 },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 2,
+            },
+            {
+                name: "Savannah Lions",
+                owner: "me" as const,
+                count: 3,
+            },
+            { name: "Plains", owner: "opp" as const, count: 1 },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "hand" as const,
+                count: 5,
+            },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Timetwister (each player shuffles hand+gy into library, draws 7)",
+        cards: [
+            // Timetwister castable turn 1 with 3 Islands ({2}{U}). Both
+            // players have hand + library filler so the draw-7 is visible
+            // end-to-end; graveyards are initially empty (the filler preset
+            // doesn't populate gy, but the effect still exercises the
+            // hand→library shuffle + the draw-7 path).
+            {
+                name: "Timetwister",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 3 },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 2,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+                count: 2,
+            },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 12,
+    },
+    {
+        label: "Knights (protection from color: target/block/damage prevented, CR 702.16)",
+        cards: [
+            // Both knights in play. Golden path: WK can't be targeted by
+            // Swords to Plowshares (white), BK can't be targeted by Dark
+            // Ritual-colored... actually use the symmetry: each knight can't
+            // be targeted by a source of the opposite color, can't be blocked
+            // by a creature of that color, and takes no damage from such a
+            // source. Lightning Bolt (red) still hits either knight.
+            { name: "White Knight", owner: "me" as const },
+            { name: "Black Knight", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Serra Angel", owner: "opp" as const },
+            { name: "Hurloon Minotaur", owner: "me" as const },
+            {
+                name: "Swords to Plowshares",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "me" as const },
+            { name: "Swamp", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

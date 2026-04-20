@@ -475,7 +475,7 @@ describe("resolveTopOfStack", () => {
         const state = makeGameState();
         state.stack.push(item);
 
-        const resolved = resolveTopOfStack(state);
+        const resolved = resolveTopOfStack(state)!;
 
         expect(state.stack).toHaveLength(0);
         expect(resolved.zone).toBe("battlefield");
@@ -521,7 +521,7 @@ describe("resolveTopOfStack", () => {
         const state = makeGameState();
         state.stack.push(item);
 
-        const resolved = resolveTopOfStack(state);
+        const resolved = resolveTopOfStack(state)!;
 
         expect(state.stack).toHaveLength(0);
         expect(resolved.zone).toBe("graveyard");
@@ -558,7 +558,7 @@ describe("resolveTopOfStack", () => {
         const state = makeGameState();
         state.stack.push(bolt, lions); // lions on top
 
-        const resolved = resolveTopOfStack(state);
+        const resolved = resolveTopOfStack(state)!;
 
         expect(resolved.id).toBe("lions");
         expect(state.stack).toHaveLength(1);

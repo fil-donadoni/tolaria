@@ -608,7 +608,7 @@ describe("activated ability stack resolution", () => {
             stack: [abilityItem],
         });
 
-        const resolved = resolveTopOfStack(state);
+        const resolved = resolveTopOfStack(state)!;
 
         // Ability item is returned (not placed anywhere)
         expect(resolved.abilityId).toBe(ability.id);

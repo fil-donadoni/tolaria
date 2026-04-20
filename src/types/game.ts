@@ -97,6 +97,7 @@ export interface StackItem extends CardInstance {
 export type {
     PendingActivation,
     PendingCast,
+    PendingChoice,
     PendingTarget,
 } from "@convex/gre/state";
 

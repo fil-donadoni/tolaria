@@ -2,6 +2,11 @@ import type { Phase } from "../gre/types";
 
 type CardId = string;
 
+/** Zones addressable by `SpellContext.moveZone`. Excludes `battlefield`
+ *  (entering/leaving the battlefield needs ETB/LTB handling via destroy/exile)
+ *  and `stack` (stack items are managed by the resolution engine). */
+export type MovableZone = "library" | "hand" | "graveyard" | "exile";
+
 export type Color = "W" | "U" | "B" | "R" | "G" | "C";
 
 export const colors: Color[] = ["W", "U", "B", "R", "G", "C"];
@@ -161,6 +166,11 @@ export interface SpellContext {
     sourceInstanceId: string;
     /** Chosen targets (validated at cast time). */
     targets: TargetSelection[];
+    /** Ids of all players in the game. Used by "each player ~" spells like
+     *  Timetwister and Wheel of Fortune. Order currently follows
+     *  `state.players`; APNAP ordering (CR 101.4) for simultaneous triggers
+     *  is out of initial scope. */
+    allPlayerIds: readonly string[];
     // --- Primitives ---
     dealDamage: (target: TargetSelection, amount: number) => void;
     gainLife: (playerId: string, amount: number) => void;
@@ -186,6 +196,14 @@ export interface SpellContext {
     destroyAll: (filter?: CardType | CardType[] | PermanentFilter) => void;
     /** Player draws N cards one at a time (CR 121.1). Stops if library empties; sets hasDrawnFromEmpty (CR 704.5b). */
     drawCards: (playerId: string, amount: number) => void;
+    /** Moves every card a player owns in `from` to `to` (CR 400.7). Cards are
+     *  appended to the destination in source order. Library order after a
+     *  move is not meaningful — pair with `shuffleLibrary` when the effect
+     *  requires randomization (e.g. Timetwister, Diminishing Returns). */
+    moveZone: (playerId: string, from: MovableZone, to: MovableZone) => void;
+    /** Randomizes the order of a player's library using the seeded PRNG
+     *  (CR 701.20). Deterministic under replay. */
+    shuffleLibrary: (playerId: string) => void;
     /** Counters a spell or ability on the stack (CR 701.5a). Target must be TargetSelection with type "spell". No-op if target no longer on stack (CR 608.2b). */
     counter: (target: TargetSelection) => void;
     /** Player discards `amount` cards chosen uniformly at random (CR 701.8a).
@@ -284,6 +302,53 @@ export interface SpellContext {
      *  delayed triggers. Returns false for players and for permanents no
      *  longer on the battlefield. */
     hasAttackedThisTurn: (target: TargetSelection) => boolean;
+
+    // --- Mid-resolution choices (CR 608.2, 101.4) ---
+
+    /** Requests a player choice during resolution. On first call in a step,
+     *  enqueues a `PendingChoice` onto the game state and returns `undefined`
+     *  — the caller must in that case return early to let the engine suspend.
+     *  On resume (after the player has submitted the choice via
+     *  `selectResolutionChoice`), the call returns the ordered id array the
+     *  player selected. `choiceId` disambiguates multiple enqueues within a
+     *  single step (typically the `playerId`); must be stable across replays. */
+    requestChoice: (req: {
+        playerId: string;
+        choiceId: string;
+        kind: "keep-permanents" | "keep-hand";
+        zone: "battlefield" | "hand";
+        filter?: PermanentFilter;
+        count: number;
+        prompt: string;
+    }) => string[] | undefined;
+
+    /** Active-player-then-non-active-player order (CR 101.4). In 2-player
+     *  games, returns [activePlayerId, opponentId]. Used by spells like
+     *  Balance where each player makes a choice in APNAP order. */
+    apNapOrder: () => string[];
+
+    /** Count of lands controlled by `playerId` (CR 305). */
+    getLandCount: (playerId: string) => number;
+
+    /** Count of creatures controlled by `playerId` (CR 302). */
+    getCreatureCount: (playerId: string) => number;
+
+    /** Number of cards in `playerId`'s hand. */
+    getHandSize: (playerId: string) => number;
+
+    /** Ids of permanents on `playerId`'s battlefield matching the filter. */
+    getBattlefieldIds: (playerId: string, filter?: PermanentFilter) => string[];
+
+    /** Ids of cards in `playerId`'s hand. */
+    getHandIds: (playerId: string) => string[];
+
+    /** Sacrifices a permanent controlled by its current controller (CR 701.16).
+     *  No-op if the id is not on the battlefield. */
+    sacrifice: (cardInstanceId: string) => void;
+
+    /** Discards a specific card from `playerId`'s hand (CR 701.8). No-op if
+     *  the card is no longer in hand. */
+    discardCard: (playerId: string, cardInstanceId: string) => void;
 }
 
 /** Delayed triggered ability template (CR 603.7a). Declared on the
@@ -397,6 +462,18 @@ export interface CardDefinition {
     targetRequirement?: TargetRequirement;
     /** Imperative resolve function — called when the spell resolves from the stack. */
     resolve?: (ctx: SpellContext) => void;
+    /** Multi-step resolve for spells that gather player choices mid-resolution
+     *  (CR 608.2, 101.4). The engine runs steps in order; each step may call
+     *  `SpellContext.requestChoice` to enqueue pending choices. When a step
+     *  enqueues choices, the engine suspends and waits for
+     *  `selectResolutionChoice` mutations. On resume, the same step is
+     *  re-invoked — `requestChoice` now returns the stored selections, the
+     *  step applies effects, and the engine advances to the next step.
+     *
+     *  Use `resolveSteps` XOR `resolve`. If both are present, `resolveSteps`
+     *  wins. Used by Balance and similar "each player chooses / each player
+     *  sacrifices" spells. */
+    resolveSteps?: ((ctx: SpellContext) => void)[];
     /** Permanent enters the battlefield tapped (e.g. Nevinyrral's Disk). */
     entersTapped?: boolean;
     staticAbilities?: string[];

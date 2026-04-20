@@ -4,6 +4,7 @@ import type {
     DurationSpec,
     GameEvent,
     ManaCost as CardManaCost,
+    MovableZone,
     PermanentFilter,
     SpellContext,
     TargetRequirement,
@@ -19,7 +20,8 @@ import {
     PERMANENT_TYPES,
 } from "./constants";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
-import { randomInt } from "./rng";
+import { isProtectedFromSource } from "./protection";
+import { randomInt, seededShuffle } from "./rng";
 
 /** Stored form of a temporary-effect duration. Mirrors `DurationSpec` but
  *  with the symbolic `player` field resolved to a concrete `playerId` at
@@ -217,6 +219,15 @@ export type StackItem = CardInstanceState & {
      *  Holds instance / player ids so the trigger can look up live targets at
      *  fire time (CR 603.7a). */
     delayedPayload?: Record<string, string>;
+    /** Resume checkpoint for a multi-step resolve (CR 608.3). Index into
+     *  `CardDefinition.resolveSteps`. Advanced by the engine after a step
+     *  completes without enqueueing pending choices. Undefined = start from
+     *  step 0. */
+    resolutionStep?: number;
+    /** Player choices already collected during this resolution. Keyed by
+     *  `${step}:${choiceId}` (e.g. "0:p1"). Read by `requestChoice` at resume
+     *  to return prior selections without re-enqueueing them. */
+    collectedChoices?: Record<string, string[]>;
 };
 
 /** A delayed triggered ability waiting to fire (CR 603.7a). Queued on
@@ -279,6 +290,43 @@ export type PendingActivation = {
     targets?: TargetSelection[];
 };
 
+/** Mid-resolution player choice requested by a spell/ability's resolve step
+ *  (CR 608.2, 101.4). Enqueued by `SpellContext.requestChoice`; consumed by
+ *  the `selectResolutionChoice` mutation. While one or more entries are
+ *  present, priority is frozen and no other actions are legal — the engine
+ *  is suspended between resolve steps. FIFO order encodes APNAP: the first
+ *  entry is the choice currently awaiting input. */
+export type PendingChoice = {
+    /** Stack item whose resolve step enqueued this choice. */
+    stackItemId: string;
+    /** Resolution step index (into CardDefinition.resolveSteps) that enqueued
+     *  the choice. Used with `choiceId` to key into
+     *  `StackItem.collectedChoices` on resume. */
+    step: number;
+    /** Deterministic id within a step. Usually equals `playerId` — a step
+     *  that enqueues multiple choices for the same player must disambiguate. */
+    choiceId: string;
+    /** Player who must make the choice. */
+    playerId: string;
+    /** Semantic kind — drives the UI prompt. "keep-permanents" = pick N
+     *  permanents to keep on the battlefield (the rest are sacrificed by the
+     *  step). "keep-hand" = pick N cards in hand to keep (the rest are
+     *  discarded by the step). */
+    kind: "keep-permanents" | "keep-hand";
+    /** Zone of the choosable items — restricts the set offered to the chooser. */
+    zone: "battlefield" | "hand";
+    /** Optional battlefield filter (card types / subtypes / keywords). Ignored
+     *  for hand choices. */
+    filter?: PermanentFilter;
+    /** Exact number of items to pick. The engine auto-finalizes the choice
+     *  when `selected.length === count`. */
+    count: number;
+    /** Ids already selected by the chooser. Order is insertion order. */
+    selected: string[];
+    /** Prompt text shown to the chooser (e.g. "Choose 2 lands to keep"). */
+    prompt: string;
+};
+
 /** Tracks target selection for a spell being announced (CR 601.2c) or an
  *  activated ability with targets (CR 602.2b). */
 export type PendingTarget = {
@@ -332,6 +380,10 @@ export type GameState = {
     pendingActivation?: PendingActivation;
     /** Active target selection in progress (CR 601.2c). */
     pendingTarget?: PendingTarget;
+    /** Mid-resolution choices awaiting player input (CR 608.2, 101.4). FIFO:
+     *  front entry is active. Non-empty blocks priority and further actions —
+     *  the engine is suspended between resolve steps of the top stack item. */
+    pendingChoices?: PendingChoice[];
     /** Player IDs that auto-pass priority for the rest of this turn. Resets on new turn. */
     autoPassPlayers?: string[];
     /** Player ID that auto-passes the very next time priority lands on them, then
@@ -406,13 +458,49 @@ export function consumePreventionIfAny(
     return true;
 }
 
-/** Resolves the top item of the stack (CR 608.3). Returns the resolved item. */
-export function resolveTopOfStack(state: GameState): StackItem {
-    const item = state.stack.pop();
-    if (!item) throw new Error("Stack is empty");
+/** Resolves the top item of the stack (CR 608.3). Returns the resolved
+ *  item, or `null` if the resolution was suspended awaiting mid-resolution
+ *  player choices (CR 608.2, 101.4). Suspension leaves the item on the stack
+ *  with `resolutionStep` checkpointed; callers must wait for pending choices
+ *  to be submitted before re-invoking. */
+export function resolveTopOfStack(state: GameState): StackItem | null {
+    if (state.stack.length === 0) throw new Error("Stack is empty");
 
-    const cardId = (item.card as { id?: string }).id;
+    const top = state.stack[state.stack.length - 1];
+    const cardId = (top.card as { id?: string }).id;
     const cardDef = cardId ? getCardById(cardId) : undefined;
+    const isSpell =
+        !top.abilityId && !top.triggeredAbilityId && !top.delayedTriggerId;
+
+    // --- Stepped spell resolve (CR 608.2, 101.4) ---
+    // Peek-and-pop: the item stays on the stack while steps run so that
+    // suspension between steps preserves it for resume. Only popped after
+    // every step has completed without enqueueing pending choices.
+    if (isSpell && cardDef?.resolveSteps && cardDef.resolveSteps.length > 0) {
+        const start = top.resolutionStep ?? 0;
+        for (let i = start; i < cardDef.resolveSteps.length; i++) {
+            // Commit the current step index BEFORE running the step so that
+            // `requestChoice` inside the step keys its collectedChoices
+            // entries under the correct step. Without this, a replay after
+            // advancing from step N to step N+1 would read stored choices
+            // under the wrong key.
+            top.resolutionStep = i;
+            const ctx = buildSpellContext(state, top);
+            cardDef.resolveSteps[i](ctx);
+            if ((state.pendingChoices?.length ?? 0) > 0) {
+                return null; // suspended — wait for selectResolutionChoice
+            }
+        }
+        // All steps completed — pop and finalize
+        delete top.resolutionStep;
+        delete top.collectedChoices;
+        state.stack.pop();
+        finalizeSpellResolution(state, top, cardDef);
+        return top;
+    }
+
+    // --- Legacy pop-first paths (no stepping) ---
+    const item = state.stack.pop() as StackItem;
 
     // Delayed triggered ability resolution (CR 603.7a). Resolver is looked
     // up on the scheduling card's def; payload carries ids captured at
@@ -453,20 +541,29 @@ export function resolveTopOfStack(state: GameState): StackItem {
         return item;
     }
 
-    const isPermanent = item.types.some((t) =>
-        PERMANENT_TYPES.includes(t as (typeof PERMANENT_TYPES)[number])
-    );
-
-    // Execute spell effects before moving to destination zone (CR 608.2b)
+    // Single-shot spell resolution (CR 608.2b)
     if (cardDef?.resolve) {
         const ctx = buildSpellContext(state, item);
         cardDef.resolve(ctx);
     }
+    finalizeSpellResolution(state, item, cardDef);
+    return item;
+}
 
+/** Moves a resolved spell from the stack to its destination zone (CR 608.3
+ *  for permanents, CR 608.2k for instants/sorceries). Extracted so both
+ *  stepped and single-shot paths share the same transition. */
+function finalizeSpellResolution(
+    state: GameState,
+    item: StackItem,
+    cardDef: { entersTapped?: boolean } | undefined
+): void {
+    const isPermanent = item.types.some((t) =>
+        PERMANENT_TYPES.includes(t as (typeof PERMANENT_TYPES)[number])
+    );
     const controller = getPlayer(state, item.castById);
 
     if (isPermanent) {
-        // Permanent spells enter the battlefield (CR 608.3)
         item.zone = "battlefield";
         item.isTapped = cardDef?.entersTapped === true;
         if (item.types.includes("Creature")) {
@@ -474,13 +571,10 @@ export function resolveTopOfStack(state: GameState): StackItem {
         }
         controller.battlefield.push(item);
     } else {
-        // Instant/Sorcery go to owner's graveyard (CR 608.2k)
         const owner = getPlayer(state, item.ownerId);
         item.zone = "graveyard";
         owner.graveyard.push(item);
     }
-
-    return item;
 }
 
 /** Finds a card on any player's battlefield by instance id. */
@@ -511,7 +605,7 @@ export function removePermanentTo(
 
 /** Predicate: does the card match every constraint in the filter? Omitted
  *  fields don't constrain (AND semantics). */
-function matchesPermanentFilter(
+export function matchesPermanentFilter(
     card: CardInstanceState,
     filter: PermanentFilter
 ): boolean {
@@ -566,6 +660,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         controller: item.castById,
         sourceInstanceId: item.id,
         targets: item.targets ?? [],
+        allPlayerIds: state.players.map((p) => p.id),
 
         dealDamage(target: TargetSelection, amount: number) {
             if (target.type === "player") {
@@ -580,6 +675,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 // CR 120.3: damage can only be dealt to creatures, planeswalkers,
                 // players and battles. Damage on any other permanent is a no-op.
                 if (!isDamageablePermanent(found.card)) return;
+                // CR 702.16e: any damage that would be dealt by sources with
+                // the stated quality to a permanent with protection is
+                // prevented. `item` is the stack item resolving (spell or
+                // ability); its colors come from its mana cost (CR 202.2).
+                if (isProtectedFromSource(found.card, item)) return;
                 // CR 120.3: damage is marked on the creature and accumulates
                 // until CLEANUP (CR 514.2). Lethal damage (CR 704.5g) is
                 // applied inline using the post-accumulation marked total
@@ -686,6 +786,22 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             for (let i = 0; i < amount; i++) {
                 if (drawCard(player) === null) break;
             }
+        },
+        // CR 400.7: general zone-change primitive. Iterates over a snapshot
+        // of source ids so moveCard's splice doesn't perturb iteration.
+        moveZone(playerId: string, from: MovableZone, to: MovableZone): void {
+            if (from === to) return;
+            const player = getPlayer(state, playerId);
+            const fromField = ZONE_TO_FIELD[from];
+            const ids = (player[fromField] as CardInstanceState[]).map(
+                (c) => c.id
+            );
+            for (const id of ids) moveCard(player, id, from, to);
+        },
+        // CR 701.20: randomize a player's library. Uses the seeded PRNG so
+        // replays reproduce the same ordering.
+        shuffleLibrary(playerId: string): void {
+            seededShuffle(state, getPlayer(state, playerId).library);
         },
         // CR 701.5a: to counter a spell is to remove it from the stack and put
         // it into its owner's graveyard. If the target is no longer on the
@@ -897,6 +1013,77 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (target.type !== "permanent") return false;
             const found = findOnBattlefield(state, target.id);
             return found?.card.hasAttackedThisTurn === true;
+        },
+
+        // --- Mid-resolution choices (CR 608.2, 101.4) ---
+        // See PendingChoice in this file for the suspension protocol.
+        requestChoice(req): string[] | undefined {
+            const step = item.resolutionStep ?? 0;
+            const key = `${step}:${req.choiceId}`;
+            const stored = item.collectedChoices?.[key];
+            if (stored) return stored;
+            const entry: PendingChoice = {
+                stackItemId: item.id,
+                step,
+                choiceId: req.choiceId,
+                playerId: req.playerId,
+                kind: req.kind,
+                zone: req.zone,
+                count: req.count,
+                selected: [],
+                prompt: req.prompt,
+            };
+            if (req.filter) entry.filter = req.filter;
+            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            return undefined;
+        },
+        apNapOrder(): string[] {
+            const order = [state.activePlayerId];
+            for (const p of state.players) {
+                if (p.id !== state.activePlayerId) order.push(p.id);
+            }
+            return order;
+        },
+        getLandCount(playerId: string): number {
+            return getPlayer(state, playerId).battlefield.filter((c) =>
+                c.types.includes("Land")
+            ).length;
+        },
+        getCreatureCount(playerId: string): number {
+            return getPlayer(state, playerId).battlefield.filter((c) =>
+                c.types.includes("Creature")
+            ).length;
+        },
+        getHandSize(playerId: string): number {
+            return getPlayer(state, playerId).hand.length;
+        },
+        getBattlefieldIds(
+            playerId: string,
+            filter?: PermanentFilter
+        ): string[] {
+            const bf = getPlayer(state, playerId).battlefield;
+            if (!filter) return bf.map((c) => c.id);
+            return bf
+                .filter((c) => matchesPermanentFilter(c, filter))
+                .map((c) => c.id);
+        },
+        getHandIds(playerId: string): string[] {
+            return getPlayer(state, playerId).hand.map((c) => c.id);
+        },
+        // CR 701.16: to sacrifice a permanent is for its controller to put
+        // it into its owner's graveyard. Indestructible does not prevent
+        // sacrifice (CR 701.16a). No-op if the id is not on the battlefield.
+        sacrifice(cardInstanceId: string): void {
+            removePermanentTo(state, cardInstanceId, "graveyard");
+        },
+        // CR 701.8: to discard a card is to move it from its owner's hand
+        // into that player's graveyard. No-op if the card is no longer in
+        // hand (e.g. already moved by a concurrent step).
+        discardCard(playerId: string, cardInstanceId: string): void {
+            const player = getPlayer(state, playerId);
+            const idx = player.hand.findIndex((c) => c.id === cardInstanceId);
+            if (idx === -1) return;
+            moveCard(player, cardInstanceId, "hand", "graveyard");
         },
     };
 }

@@ -6,6 +6,7 @@ import type {
     GameOver,
     PendingActivation,
     PendingCast,
+    PendingChoice,
     PendingTarget,
     Player,
 } from "~/types/game";
@@ -21,6 +22,7 @@ type GameContext = {
     pendingCast?: PendingCast;
     pendingActivation?: PendingActivation;
     pendingTarget?: PendingTarget;
+    pendingChoices?: PendingChoice[];
     autoPassPlayers?: string[];
     undoableBy?: string;
     combat?: Combat;

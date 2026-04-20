@@ -9,9 +9,11 @@ import { describe, it, expect } from "vitest";
 import {
     badMoon,
     badlands,
+    balance,
     bayou,
     berserk,
     birdsOfParadise,
+    blackKnight,
     bogWraith,
     shanodinDryads,
     castle,
@@ -33,9 +35,11 @@ import {
     swordsToPlowshares,
     taiga,
     timeWalk,
+    timetwister,
     tropicalIsland,
     tundra,
     undergroundSea,
+    whiteKnight,
     wrathOfGod,
     disenchant,
     earthquake,
@@ -47,6 +51,7 @@ import {
     jadeStatue,
     jayemdaeTome,
     juggernaut,
+    plains,
     serraAngel,
     psionicBlast,
     savannahLions,
@@ -64,7 +69,13 @@ import {
     getFixedManaAmount,
     hasManaAbility,
 } from "../../../gre/constants";
-import { getLegalActions, getLegalTargets } from "../../../gre/rules";
+import {
+    getLegalActions,
+    getLegalTargets,
+    getProtectedColors,
+    isProtectedFromSource,
+    parseProtectionFromColor,
+} from "../../../gre/rules";
 import { projectPublicState } from "../../../gameProjections";
 import {
     validateBlockerEligibility,
@@ -911,6 +922,272 @@ describe("Elvish Archers (first strike, CR 702.7)", () => {
         // Archer now dead: ogre's 3 power >= archer's 1 toughness.
         expect(p1.battlefield.find((c) => c.id === "archer")).toBeUndefined();
         expect(p1.graveyard.some((c) => c.id === "archer")).toBe(true);
+    });
+});
+
+describe("Protection keyword helpers (CR 702.16)", () => {
+    it("parses color variants only", () => {
+        expect(parseProtectionFromColor("protection from black")).toBe("B");
+        expect(parseProtectionFromColor("protection from white")).toBe("W");
+        expect(parseProtectionFromColor("protection from blue")).toBe("U");
+        expect(parseProtectionFromColor("protection from red")).toBe("R");
+        expect(parseProtectionFromColor("protection from green")).toBe("G");
+        // Non-color variants return null (not yet supported).
+        expect(
+            parseProtectionFromColor("protection from everything")
+        ).toBeNull();
+        expect(parseProtectionFromColor("flying")).toBeNull();
+    });
+
+    it("collapses duplicate protection entries (CR 702.16m)", () => {
+        const card = {
+            staticAbilities: [
+                "protection from black",
+                "protection from black",
+                "first strike",
+            ],
+        };
+        expect(getProtectedColors(card)).toEqual(["B"]);
+    });
+
+    it("matches only when source color overlaps", () => {
+        const wk = makeInstance(whiteKnight.id, { id: "wk" });
+        const blackSource = makeInstance(bogWraith.id, {
+            id: "src-b",
+            controllerId: "p1",
+        });
+        const redSource = makeInstance(lightningBolt.id, {
+            id: "src-r",
+            controllerId: "p1",
+            zone: "stack",
+        });
+        expect(isProtectedFromSource(wk, blackSource)).toBe(true);
+        expect(isProtectedFromSource(wk, redSource)).toBe(false);
+    });
+});
+
+describe("White Knight (first strike + protection from black, CR 702.7 + 702.16)", () => {
+    it("is a 2/2 Knight for {W}{W} with first strike and protection from black", () => {
+        expect(whiteKnight.manaCost).toEqual({ W: 2 });
+        expect(whiteKnight.types).toContain("Creature");
+        expect(whiteKnight.subtypes).toEqual(["Human", "Knight"]);
+        expect(whiteKnight.power).toBe(2);
+        expect(whiteKnight.toughness).toBe(2);
+        expect(whiteKnight.staticAbilities).toContain("first strike");
+        expect(whiteKnight.staticAbilities).toContain("protection from black");
+    });
+
+    it("CR 702.16b — cannot be targeted by a black-source damage spell", () => {
+        const wk = makeInstance(whiteKnight.id, {
+            id: "wk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [wk] }),
+            ],
+        });
+        const legal = getLegalTargets(state, lightningBolt.targetRequirement!, [
+            "B",
+        ]);
+        const ids = legal.map((t) => t.id);
+        expect(ids).not.toContain("wk");
+        // Players are still legal (players have no color; protection from
+        // color only protects permanents with the ability).
+        expect(ids).toContain("p1");
+        expect(ids).toContain("p2");
+    });
+
+    it("CR 702.16b — can still be targeted by a red-source damage spell", () => {
+        const wk = makeInstance(whiteKnight.id, {
+            id: "wk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [wk] }),
+            ],
+        });
+        const legal = getLegalTargets(state, lightningBolt.targetRequirement!, [
+            "R",
+        ]);
+        expect(legal.map((t) => t.id)).toContain("wk");
+    });
+
+    it("CR 702.16f — as attacker, cannot be blocked by a black creature", () => {
+        const wk = makeInstance(whiteKnight.id, {
+            id: "wk",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const wraith = makeInstance(bogWraith.id, {
+            id: "wraith",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const result = validateBlockerEligibility(wk, wraith, [wraith]);
+        expect(result.eligible).toBe(false);
+    });
+
+    it("CR 702.16e — blocking a black attacker prevents its return damage while WK's first strike still hits back", () => {
+        // Bog Wraith (3/3, black) attacks; White Knight (2/2 first strike,
+        // protection from black) blocks. First-strike step: WK deals 2 to
+        // wraith (toughness 3 → survives with 2 marked). Regular step: wraith
+        // would deal 3 to WK → prevented (CR 702.16e). WK already dealt its
+        // damage in first-strike step. Net: WK unhurt, wraith survives with
+        // 2 marked damage.
+        const wraith = makeInstance(bogWraith.id, {
+            id: "wraith",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const wk = makeInstance(whiteKnight.id, {
+            id: "wk",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const p1 = makePlayer("p1", { battlefield: [wraith] });
+        const p2 = makePlayer("p2", { battlefield: [wk] });
+        const state = makeState({
+            players: [p1, p2],
+            activePlayerId: "p1",
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["wraith"],
+                confirmed: true,
+                blockerAssignments: { wk: "wraith" },
+                blockersConfirmed: true,
+                blockerOrder: { wraith: ["wk"] },
+                blockerOrderConfirmed: true,
+            },
+        });
+
+        advancePhase(state);
+        expect(state.phase).toBe("FIRST_STRIKE_DAMAGE");
+        // Wraith alive with 2 marked damage (3 toughness > 2 first-strike).
+        const wraithAfterFS = p1.battlefield.find((c) => c.id === "wraith")!;
+        expect(wraithAfterFS.damageMarked).toBe(2);
+
+        advancePhase(state);
+        expect(state.phase).toBe("COMBAT_DAMAGE");
+        // WK took no damage (pro from black prevented the 3 incoming).
+        const wkAfter = p2.battlefield.find((c) => c.id === "wk")!;
+        expect(wkAfter.damageMarked ?? 0).toBe(0);
+        // Wraith still alive (marked damage 2 < toughness 3).
+        expect(p1.battlefield.find((c) => c.id === "wraith")).toBeDefined();
+    });
+
+    it("wire format: block rejection survives projectPublicState (regression guard)", () => {
+        // The projection slims `card.card` to { id }. getColors must still
+        // derive the source's color via registry lookup.
+        const wk = makeInstance(whiteKnight.id, {
+            id: "wk",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const wraith = makeInstance(bogWraith.id, {
+            id: "wraith",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wk] }),
+                makePlayer("p2", { battlefield: [wraith] }),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slimWk = projected.players[0].battlefield.find(
+            (c) => c.id === "wk"
+        )! as CardInstanceState;
+        const slimWraith = projected.players[1].battlefield.find(
+            (c) => c.id === "wraith"
+        )! as CardInstanceState;
+        // Block rejected even on slim projection.
+        expect(
+            validateBlockerEligibility(slimWk, slimWraith, [slimWraith])
+                .eligible
+        ).toBe(false);
+        // Protection detection still resolves through the slim projection.
+        expect(isProtectedFromSource(slimWk, slimWraith)).toBe(true);
+    });
+});
+
+describe("Black Knight (first strike + protection from white, CR 702.7 + 702.16)", () => {
+    it("is a 2/2 Knight for {B}{B} with first strike and protection from white", () => {
+        expect(blackKnight.manaCost).toEqual({ B: 2 });
+        expect(blackKnight.types).toContain("Creature");
+        expect(blackKnight.subtypes).toEqual(["Human", "Knight"]);
+        expect(blackKnight.power).toBe(2);
+        expect(blackKnight.toughness).toBe(2);
+        expect(blackKnight.staticAbilities).toContain("first strike");
+        expect(blackKnight.staticAbilities).toContain("protection from white");
+    });
+
+    it("CR 702.16b — cannot be targeted by Swords to Plowshares (white source)", () => {
+        const bk = makeInstance(blackKnight.id, {
+            id: "bk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bk] }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            swordsToPlowshares.targetRequirement!,
+            ["W"]
+        );
+        expect(legal.map((t) => t.id)).not.toContain("bk");
+    });
+
+    it("CR 702.16f — as attacker, cannot be blocked by a white creature", () => {
+        const bk = makeInstance(blackKnight.id, {
+            id: "bk",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const result = validateBlockerEligibility(bk, lion, [lion]);
+        expect(result.eligible).toBe(false);
+    });
+
+    it("wire format: protection detection survives projectPublicState", () => {
+        const bk = makeInstance(blackKnight.id, {
+            id: "bk",
+            controllerId: "p1",
+        });
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bk] }),
+                makePlayer("p2", { battlefield: [lion] }),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBk = projected.players[0].battlefield.find(
+            (c) => c.id === "bk"
+        )! as CardInstanceState;
+        const slimLion = projected.players[1].battlefield.find(
+            (c) => c.id === "lion"
+        )! as CardInstanceState;
+        expect(isProtectedFromSource(slimBk, slimLion)).toBe(true);
     });
 });
 
@@ -1938,6 +2215,126 @@ describe("Time Walk (extra turn after this one, CR 500.7)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Timetwister — "Each player shuffles their hand and graveyard into their
+// library, then draws seven cards." (CR 121.1, 701.20)
+// ---------------------------------------------------------------------------
+
+describe("Timetwister (each player reshuffles + draws 7, CR 121.1 / 701.20)", () => {
+    function libraryCards(
+        owner: string,
+        count: number,
+        prefix: string
+    ): CardInstanceState[] {
+        return Array.from({ length: count }, (_, i) =>
+            makeInstance(grizzlyBearsId(), {
+                id: `${prefix}-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+    }
+
+    it("is a {2}{U} sorcery", () => {
+        expect(timetwister.manaCost).toEqual({ X: 2, U: 1 });
+        expect(timetwister.types).toEqual(["Sorcery"]);
+    });
+
+    it("each player ends with 7 cards in hand, graveyard empty, remainder in library", () => {
+        // p1 totals 10 cards across private zones (3 hand + 2 gy + 5 lib);
+        // p2 totals 15 (4 hand + 1 gy + 10 lib). After resolve, p1 has
+        // Timetwister itself in graveyard (resolved sorcery) so library = 3
+        // and graveyard = 1; p2 has no such contribution so library = 8.
+        const p1 = makePlayer("p1", {
+            hand: libraryCards("p1", 3, "p1-hand").map((c) => ({
+                ...c,
+                zone: "hand",
+            })),
+            graveyard: libraryCards("p1", 2, "p1-gy").map((c) => ({
+                ...c,
+                zone: "graveyard",
+            })),
+            library: libraryCards("p1", 5, "p1-lib"),
+        });
+        const p2 = makePlayer("p2", {
+            hand: libraryCards("p2", 4, "p2-hand").map((c) => ({
+                ...c,
+                zone: "hand",
+            })),
+            graveyard: libraryCards("p2", 1, "p2-gy").map((c) => ({
+                ...c,
+                zone: "graveyard",
+            })),
+            library: libraryCards("p2", 10, "p2-lib"),
+        });
+        const state = makeState({ players: [p1, p2], rngSeed: 42 });
+        pushSpell(state, timetwister.id, "p1");
+        resolveTopOfStack(state);
+
+        expect(state.players[0].hand).toHaveLength(7);
+        // Timetwister itself lands in p1's graveyard after resolution.
+        expect(state.players[0].graveyard).toHaveLength(1);
+        expect(state.players[0].graveyard[0].card.id).toBe(timetwister.id);
+        expect(state.players[0].library).toHaveLength(3);
+
+        expect(state.players[1].hand).toHaveLength(7);
+        expect(state.players[1].graveyard).toHaveLength(0);
+        expect(state.players[1].library).toHaveLength(8);
+    });
+
+    it("shuffles deterministically under the same seed (PRNG replay)", () => {
+        function run(seed: number): string[] {
+            const p1 = makePlayer("p1", {
+                library: libraryCards("p1", 12, "p1-lib"),
+            });
+            const state = makeState({
+                players: [p1, makePlayer("p2")],
+                rngSeed: seed,
+            });
+            pushSpell(state, timetwister.id, "p1");
+            resolveTopOfStack(state);
+            return state.players[0].library.map((c) => c.id);
+        }
+        expect(run(123)).toEqual(run(123));
+        expect(run(123)).not.toEqual(run(456));
+    });
+
+    it("wire format: hand/library/graveyard counts survive projectPublicState", () => {
+        const p1 = makePlayer("p1", {
+            hand: libraryCards("p1", 3, "p1-hand").map((c) => ({
+                ...c,
+                zone: "hand",
+            })),
+            library: libraryCards("p1", 8, "p1-lib"),
+        });
+        const p2 = makePlayer("p2", {
+            hand: libraryCards("p2", 2, "p2-hand").map((c) => ({
+                ...c,
+                zone: "hand",
+            })),
+            library: libraryCards("p2", 9, "p2-lib"),
+        });
+        const state = makeState({ players: [p1, p2], rngSeed: 7 });
+        pushSpell(state, timetwister.id, "p1");
+        resolveTopOfStack(state);
+
+        const projected = projectPublicState(state, 1, "p1");
+        // p1 is the viewer → hand is the fat list of their own cards.
+        expect(projected.players[0].hand).toHaveLength(7);
+        expect(projected.players[0].library.count).toBe(
+            state.players[0].library.length
+        );
+        expect(projected.players[0].graveyard).toHaveLength(1);
+        // p2 is the opponent → hand is projected as null placeholders.
+        expect(projected.players[1].hand).toHaveLength(7);
+        expect(projected.players[1].library.count).toBe(
+            state.players[1].library.length
+        );
+        expect(projected.players[1].graveyard).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Circle of Protection: {color} (CR 615.1, 615.6 — one-shot damage prevention)
 // ---------------------------------------------------------------------------
 
@@ -2415,6 +2812,235 @@ describe("Berserk ({G} — trample + X/+0, delayed destroy if attacked, CR 117.1
         expect(slimOpp.staticAbilities).toContain("trample");
         // Preserve the reference to `bear` so TS doesn't flag the variable.
         expect(bear.id).toBe("bear");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Balance — CR 608.2 (stepped resolve) + 101.4 (APNAP)
+// ---------------------------------------------------------------------------
+
+describe("Balance ({1}{W}, sorcery — equalize lands / cards / creatures)", () => {
+    /** Seeds a state with Balance on the stack and the given per-player
+     *  zone sizes. Uses plains for lands, grizzly bears for creatures and
+     *  hand cards (any card definition works — only the zone matters). */
+    function seed(opts: {
+        p1Lands?: number;
+        p2Lands?: number;
+        p1Creatures?: number;
+        p2Creatures?: number;
+        p1Hand?: number;
+        p2Hand?: number;
+    }) {
+        const mk = (
+            cardId: string,
+            count: number,
+            owner: string,
+            prefix: string,
+            zone: "battlefield" | "hand" = "battlefield"
+        ) =>
+            Array.from({ length: count }, (_, i) =>
+                makeInstance(cardId, {
+                    id: `${prefix}-${i}`,
+                    controllerId: owner,
+                    ownerId: owner,
+                    zone,
+                })
+            );
+        const p1 = makePlayer("p1", {
+            battlefield: [
+                ...mk(plains.id, opts.p1Lands ?? 0, "p1", "p1-land"),
+                ...mk(grizzlyBears.id, opts.p1Creatures ?? 0, "p1", "p1-bear"),
+            ],
+            hand: mk(
+                grizzlyBears.id,
+                opts.p1Hand ?? 0,
+                "p1",
+                "p1-card",
+                "hand"
+            ),
+        });
+        const p2 = makePlayer("p2", {
+            battlefield: [
+                ...mk(plains.id, opts.p2Lands ?? 0, "p2", "p2-land"),
+                ...mk(grizzlyBears.id, opts.p2Creatures ?? 0, "p2", "p2-bear"),
+            ],
+            hand: mk(
+                grizzlyBears.id,
+                opts.p2Hand ?? 0,
+                "p2",
+                "p2-card",
+                "hand"
+            ),
+        });
+        const state = makeState({ players: [p1, p2] });
+        pushSpell(state, balance.id, "p1");
+        return state;
+    }
+
+    /** Mimics selectResolutionChoice for the head pending choice. */
+    function commitHead(state: ReturnType<typeof seed>, picks: string[]) {
+        const queue = state.pendingChoices ?? [];
+        const head = queue[0];
+        const item = state.stack.find((s) => s.id === head.stackItemId)!;
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${head.step}:${head.choiceId}`]: picks,
+        };
+        queue.shift();
+        state.pendingChoices = queue.length > 0 ? queue : undefined;
+    }
+
+    it("no-op when all counts are equal (resolves to graveyard with no choices)", () => {
+        const state = seed({
+            p1Lands: 2,
+            p2Lands: 2,
+            p1Hand: 1,
+            p2Hand: 1,
+            p1Creatures: 1,
+            p2Creatures: 1,
+        });
+        const result = resolveTopOfStack(state);
+        expect(result).not.toBeNull();
+        expect(state.stack.length).toBe(0);
+        expect(state.pendingChoices).toBeUndefined();
+        // Balance itself in p1's graveyard
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+            (result as CardInstanceState).id
+        );
+        // Nothing else moved
+        expect(state.players[0].battlefield.length).toBe(3);
+        expect(state.players[1].battlefield.length).toBe(3);
+    });
+
+    it("equalizes lands: p1 keeps their chosen land, rest go to graveyard", () => {
+        const state = seed({ p1Lands: 3, p2Lands: 1 });
+        resolveTopOfStack(state);
+        expect(state.pendingChoices?.[0].playerId).toBe("p1");
+        expect(state.pendingChoices?.[0].count).toBe(1);
+        commitHead(state, ["p1-land-1"]);
+        resolveTopOfStack(state);
+
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "p1-land-1",
+        ]);
+        const gyIds = state.players[0].graveyard.map((c) => c.id);
+        expect(gyIds).toContain("p1-land-0");
+        expect(gyIds).toContain("p1-land-2");
+        expect(gyIds).toHaveLength(3); // + Balance itself
+    });
+
+    it("min=0: asymmetric wipe — player with 0 forces the other to sacrifice everything", () => {
+        // p1 has 4 lands, p2 has 0 lands → no choice needed (min=0).
+        const state = seed({ p1Lands: 4, p2Lands: 0 });
+        const result = resolveTopOfStack(state);
+        expect(result).not.toBeNull(); // resolves in one shot — no prompt
+        expect(state.players[0].battlefield.length).toBe(0);
+        expect(state.players[0].graveyard.length).toBe(5); // 4 lands + Balance
+    });
+
+    it("preserves creature-land count semantics (ruling): sacrificed as land is not counted as creature", () => {
+        // Model a creature-land inline: a Plains instance with both Land and
+        // Creature types. Step 1 counts it as a land (total lands: 2 for p1
+        // vs 0 for p2 → both sacrificed). Step 3 counts it as a creature
+        // only if still on the battlefield — it is not.
+        const creatureLand = makeInstance(plains.id, {
+            id: "p1-creature-land",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Land", "Creature"],
+            power: 1,
+            toughness: 1,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(plains.id, {
+                            id: "p1-land-0",
+                            controllerId: "p1",
+                        }),
+                        creatureLand,
+                        makeInstance(grizzlyBears.id, {
+                            id: "p1-bear-0",
+                            controllerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, balance.id, "p1");
+        resolveTopOfStack(state);
+        // Both lands (including creature-land) sacrificed (p2 has 0 → min=0).
+        expect(state.stack.length).toBe(0); // no pending choice, resolved
+
+        const bf = state.players[0].battlefield.map((c) => c.id);
+        expect(bf).not.toContain("p1-land-0");
+        expect(bf).not.toContain("p1-creature-land");
+        // The bear survives step 1 and then gets sacrificed by step 3
+        // (only p1 has a creature, min=0 again).
+        expect(bf).not.toContain("p1-bear-0");
+        // Graveyard holds both lands + the bear + Balance itself (4).
+        expect(state.players[0].graveyard.length).toBe(4);
+    });
+
+    it("runs all three steps in order: lands → hand → creatures", () => {
+        const state = seed({
+            p1Lands: 2,
+            p2Lands: 1, // step 1: p1 keeps 1
+            p1Hand: 2,
+            p2Hand: 0, // step 2: min=0, all p1 cards discarded (no prompt)
+            p1Creatures: 2,
+            p2Creatures: 1, // step 3: p1 keeps 1
+        });
+        resolveTopOfStack(state);
+
+        // Suspended on lands step
+        expect(state.stack[0].resolutionStep).toBe(0);
+        expect(state.pendingChoices?.[0].filter?.types).toBe("Land");
+        commitHead(state, ["p1-land-0"]);
+        resolveTopOfStack(state);
+
+        // Lands applied, hand applied (min=0, no prompt), creatures suspends
+        expect(state.players[0].hand.length).toBe(0);
+        expect(state.stack[0].resolutionStep).toBe(2);
+        expect(state.pendingChoices?.[0].filter?.types).toBe("Creature");
+        commitHead(state, ["p1-bear-0"]);
+        resolveTopOfStack(state);
+
+        // Fully resolved
+        expect(state.stack.length).toBe(0);
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "p1-land-0",
+            "p1-bear-0",
+        ]);
+        expect(state.players[1].battlefield.map((c) => c.id).sort()).toEqual([
+            "p2-bear-0",
+            "p2-land-0",
+        ]);
+    });
+
+    it("hand step uses keep semantics: picked cards stay, rest discarded simultaneously", () => {
+        const state = seed({ p1Hand: 3, p2Hand: 1 });
+        resolveTopOfStack(state);
+        expect(state.stack[0].resolutionStep).toBe(1); // lands step skipped
+        expect(state.pendingChoices?.[0].zone).toBe("hand");
+        expect(state.pendingChoices?.[0].kind).toBe("keep-hand");
+        expect(state.pendingChoices?.[0].count).toBe(1);
+
+        commitHead(state, ["p1-card-2"]);
+        resolveTopOfStack(state);
+
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["p1-card-2"]);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["p2-card-0"]);
+        // p1-card-0 and p1-card-1 are in graveyard
+        expect(state.players[0].graveyard.map((c) => c.id).sort()).toContain(
+            "p1-card-0"
+        );
+        expect(state.players[0].graveyard.map((c) => c.id).sort()).toContain(
+            "p1-card-1"
+        );
     });
 });
 
