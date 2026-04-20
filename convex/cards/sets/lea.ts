@@ -119,7 +119,9 @@ function makeCircleOfProtection(args: {
                     const [target] = ctx.targets;
                     if (!target) return;
                     if (target.type === "player") return; // no color
-                    ctx.preventNextDamageFromSource(target.id, ctx.controller);
+                    ctx.preventNextDamageFromSource(target.id, ctx.controller, {
+                        phase: "end-of-turn",
+                    });
                 },
             },
         ],
@@ -678,12 +680,21 @@ export const phantomMonster: CardDefinition = {
 //     toughness: 1,
 // };
 
-// export const psionicBlast: CardDefinition = {
-//     id: "a6a86e6e-bfff-46af-9d36-c912901fea92",
-//     name: "Psionic Blast",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Instant"],
-// };
+// Psionic Blast — deals 4 damage to any target and 2 damage to you.
+// CR 115.4: "any target" = creature/player/planeswalker. CR 120.3: damage
+// to self is a normal damage event (can be prevented/redirected), not life
+// loss — resolved via dealDamage on a player target pointing at the caster.
+export const psionicBlast: CardDefinition = {
+    id: "a6a86e6e-bfff-46af-9d36-c912901fea92",
+    name: "Psionic Blast",
+    manaCost: { X: 2, U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "any", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        ctx.dealDamage(ctx.targets[0], 4);
+        ctx.dealDamage({ type: "player", id: ctx.caster }, 2);
+    },
+};
 
 // export const psychicVenom: CardDefinition = {
 //     id: "f3f5b68a-6b0e-431e-89f0-ff60f17687a5",
@@ -1671,12 +1682,72 @@ export const wallOfStone: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 
-// export const berserk: CardDefinition = {
-//     id: "e173c8ce-2352-405e-ad00-e3bb94ced1ad",
-//     name: "Berserk",
-//     manaCost: { G: 1 },
-//     types: ["Instant"],
-// };
+// Berserk — "Cast this spell only before the combat damage step. Target
+// creature gains trample and gets +X/+0 until end of turn, where X is its
+// power. At the beginning of the next end step, destroy that creature if it
+// attacked this turn." (CR 117.1b, 113.1, 611.1b, 603.7a, 514.2)
+//
+// "+X/+0 where X is its power" resolves at cast time: the creature's current
+// power is snapshotted on resolution and added back. The delayed destroy is
+// scheduled via scheduleDelayedTrigger and looked up on this card's def at
+// end-step fire time.
+const BERSERK_ID = "e173c8ce-2352-405e-ad00-e3bb94ced1ad";
+
+export const berserk: CardDefinition = {
+    id: BERSERK_ID,
+    name: "Berserk",
+    manaCost: { G: 1 },
+    types: ["Instant"],
+    // CR 117.1b — castable only up to (but not including) the combat damage step.
+    castPhaseRestriction: [
+        "UNTAP",
+        "UPKEEP",
+        "DRAW",
+        "PRECOMBAT_MAIN",
+        "BEGINNING_OF_COMBAT",
+        "DECLARE_ATTACKERS",
+        "DECLARE_BLOCKERS",
+        "FIRST_STRIKE_DAMAGE",
+    ],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (!target || target.type !== "permanent") return;
+        // CR 611.1b — static grant applies immediately; trample is read at
+        // combat-damage assignment time.
+        ctx.grantStaticAbility(target, "trample", { phase: "end-of-turn" });
+        // CR 107.3 — X is the creature's power as the spell resolves.
+        const power = ctx.getPower(target);
+        ctx.modifyPower(target, power);
+        // CR 603.7a — destroy fires at the next end step. Payload holds the
+        // creature id so the resolver can look it up after the scheduling
+        // spell has left the stack.
+        ctx.scheduleDelayedTrigger(
+            BERSERK_ID,
+            "destroy-if-attacked",
+            "next-end-step",
+            { targetId: target.id }
+        );
+    },
+    delayedTriggers: [
+        {
+            id: "destroy-if-attacked",
+            oracleText:
+                "At the beginning of the next end step, destroy that creature if it attacked this turn.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                const targetId = payload.targetId;
+                if (!targetId) return;
+                const target = { type: "permanent" as const, id: targetId };
+                // CR 506.2 — only if the creature was declared as an attacker
+                // at any point this turn. destroy() is a no-op when the
+                // permanent has already left the battlefield (CR 603.7b).
+                if (!ctx.hasAttackedThisTurn(target)) return;
+                ctx.destroy(target);
+            },
+        },
+    ],
+};
 
 export const birdsOfParadise: CardDefinition = {
     id: "55fe6449-1f23-43dc-adee-d144cd505b5c",
@@ -1730,7 +1801,9 @@ export const channel: CardDefinition = {
         },
     ],
     resolve: (ctx) => {
-        ctx.grantAbility(ctx.caster, CHANNEL_ID, "channel-mana", "end-of-turn");
+        ctx.grantAbility(ctx.caster, CHANNEL_ID, "channel-mana", {
+            phase: "end-of-turn",
+        });
     },
 };
 
@@ -2332,12 +2405,46 @@ export const icyManipulator: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const jadeStatue: CardDefinition = {
-//     id: "8d82d94b-ceef-4533-a4f2-b6442a61b839",
-//     name: "Jade Statue",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+// Jade Statue — "{2}: This artifact becomes a 3/6 Golem artifact creature
+// until end of combat. Activate only during combat." (CR 208.2, 611.1,
+// 511.3, 602.5). The "activate only during combat" restriction is enforced
+// via `activationPhaseRestriction`; the animate-self effect uses the shared
+// parametric-duration system with `phase: "end-of-combat"` so it reverts
+// automatically at the END_OF_COMBAT step.
+export const jadeStatue: CardDefinition = {
+    id: "8d82d94b-ceef-4533-a4f2-b6442a61b839",
+    name: "Jade Statue",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "jade-statue-animate",
+            oracleText:
+                "{2}: This artifact becomes a 3/6 Golem artifact creature until end of combat. Activate only during combat.",
+            cost: { mana: { X: 2 } },
+            useStack: true,
+            activationPhaseRestriction: [
+                "BEGINNING_OF_COMBAT",
+                "DECLARE_ATTACKERS",
+                "DECLARE_BLOCKERS",
+                "FIRST_STRIKE_DAMAGE",
+                "COMBAT_DAMAGE",
+                "END_OF_COMBAT",
+            ],
+            resolve: (ctx: SpellContext) => {
+                ctx.animateAsCreature(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    {
+                        power: 3,
+                        toughness: 6,
+                        subtype: "Golem",
+                        duration: { phase: "end-of-combat" },
+                    }
+                );
+            },
+        },
+    ],
+};
 
 // Jayemdae Tome — "{4}, {T}: Draw a card." CR 107.1 (mana cost symbols), CR
 // 602.1 (activated abilities), CR 121.1 (drawing a card). Uses the stack

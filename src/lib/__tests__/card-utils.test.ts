@@ -5,7 +5,7 @@ import {
     getStackAbilities,
     getAbilityOracleText,
 } from "../card-utils";
-import type { CardInstance, ManaPool } from "~/types/game";
+import type { CardInstance } from "~/types/game";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -24,8 +24,6 @@ function makeCardInstance(overrides: Partial<CardInstance> = {}): CardInstance {
         ...overrides,
     };
 }
-
-const emptyPool: ManaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
 
 // ---------------------------------------------------------------------------
 // wantsPermanentTarget
@@ -129,15 +127,16 @@ describe("matchesTargetRequirement", () => {
 // ---------------------------------------------------------------------------
 
 describe("getStackAbilities", () => {
-    it("returns stack abilities for Nevinyrral's Disk when costs payable", () => {
+    it("returns stack abilities for Nevinyrral's Disk regardless of pool", () => {
+        // Mana availability is deferred to the server-side pendingActivation
+        // payment phase — the menu offers the ability even with an empty pool.
         const card = makeCardInstance({
             card: { id: "12926dc8-8e6f-4a47-a12b-4d674189615a" },
             types: ["Artifact"],
             isTapped: false,
         });
-        const pool = { ...emptyPool, W: 1 }; // 1 generic mana available
 
-        const abilities = getStackAbilities(card, pool);
+        const abilities = getStackAbilities(card);
 
         expect(abilities).toHaveLength(1);
         expect(abilities[0].id).toBe("nevinyrral-destroy");
@@ -150,19 +149,8 @@ describe("getStackAbilities", () => {
             types: ["Artifact"],
             isTapped: true,
         });
-        const pool = { ...emptyPool, W: 1 };
 
-        expect(getStackAbilities(card, pool)).toHaveLength(0);
-    });
-
-    it("returns empty when not enough mana for Disk", () => {
-        const card = makeCardInstance({
-            card: { id: "12926dc8-8e6f-4a47-a12b-4d674189615a" },
-            types: ["Artifact"],
-            isTapped: false,
-        });
-
-        expect(getStackAbilities(card, emptyPool)).toHaveLength(0);
+        expect(getStackAbilities(card)).toHaveLength(0);
     });
 
     it("returns empty for mana-only abilities (Mox)", () => {
@@ -172,7 +160,7 @@ describe("getStackAbilities", () => {
             isTapped: false,
         });
 
-        expect(getStackAbilities(card, emptyPool)).toHaveLength(0);
+        expect(getStackAbilities(card)).toHaveLength(0);
     });
 
     it("returns empty for creatures without activated abilities", () => {
@@ -181,7 +169,32 @@ describe("getStackAbilities", () => {
             types: ["Creature"],
         });
 
-        expect(getStackAbilities(card, emptyPool)).toHaveLength(0);
+        expect(getStackAbilities(card)).toHaveLength(0);
+    });
+
+    it("filters out phase-restricted abilities outside their allow-list (Jade Statue)", () => {
+        // Jade Statue's animate is activationPhaseRestriction-limited to
+        // combat. Outside combat the menu must hide it (CR 602.5).
+        const card = makeCardInstance({
+            card: { id: "8d82d94b-ceef-4533-a4f2-b6442a61b839" },
+            types: ["Artifact"],
+            isTapped: false,
+        });
+        expect(getStackAbilities(card, "PRECOMBAT_MAIN")).toHaveLength(0);
+        const duringCombat = getStackAbilities(card, "DECLARE_ATTACKERS");
+        expect(duringCombat).toHaveLength(1);
+        expect(duringCombat[0].id).toBe("jade-statue-animate");
+    });
+
+    it("returns phase-restricted ability when `phase` is omitted (no filter applied)", () => {
+        // Backwards-compatible default: callers that don't know the current
+        // phase still see every ability (the server enforces the restriction).
+        const card = makeCardInstance({
+            card: { id: "8d82d94b-ceef-4533-a4f2-b6442a61b839" },
+            types: ["Artifact"],
+            isTapped: false,
+        });
+        expect(getStackAbilities(card)).toHaveLength(1);
     });
 });
 

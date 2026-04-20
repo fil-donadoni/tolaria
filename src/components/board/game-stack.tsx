@@ -6,6 +6,7 @@ import {
     getAbilityOracleText,
     getTriggeredAbilityOracleText,
 } from "~/lib/card-utils";
+import { formatOracleText } from "~/lib/oracle-text";
 import { useGameContext } from "~/hooks/useGameContext";
 
 type GameStackProps = {
@@ -70,8 +71,8 @@ export default function GameStack({ stack }: GameStackProps) {
                         >
                             <CardImage card={item.card} />
                             {abilityText && (
-                                <div className="mt-1 px-1 py-0.5 bg-black/80 rounded text-[10px] text-amber-200 text-center leading-tight max-w-32">
-                                    {abilityText}
+                                <div className="mt-1 p-1 bg-black/80 rounded text-[10px] text-left max-w-32">
+                                    {formatOracleText(abilityText)}
                                 </div>
                             )}
                         </button>

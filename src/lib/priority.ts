@@ -1,6 +1,7 @@
 import type {
     Combat,
     GameOver,
+    PendingActivation,
     PendingCast,
     PendingTarget,
 } from "~/types/game";
@@ -11,6 +12,7 @@ export type HasPriorityCtx = {
     priorityPlayerId: string;
     phase: string;
     pendingCast?: PendingCast;
+    pendingActivation?: PendingActivation;
     pendingTarget?: PendingTarget;
     combat?: Combat;
 };
@@ -68,6 +70,7 @@ export function computeHasPriority(ctx: HasPriorityCtx): boolean {
     return (
         ctx.playerId === ctx.priorityPlayerId &&
         !ctx.pendingCast &&
+        !ctx.pendingActivation &&
         !ctx.pendingTarget &&
         !isSelectingAttackers(ctx) &&
         !isSelectingBlockers(ctx) &&

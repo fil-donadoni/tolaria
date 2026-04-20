@@ -9,7 +9,9 @@ import {
     normalizeManaCost,
     payManaCost,
     resolveTopOfStack,
+    tickDuration,
     type CardInstanceState,
+    type Duration,
     type PlayerState,
     type GameState,
     type StackItem,
@@ -910,5 +912,58 @@ describe("spell resolution: Ancestral Recall", () => {
         expect(p2.hand.map((c) => c.id)).toEqual(["only"]);
         expect(p2.library).toHaveLength(0);
         expect(p2.hasDrawnFromEmpty).toBe(true);
+    });
+});
+
+describe("tickDuration (CR 514.2, 511.3)", () => {
+    it("expires at its own boundary and is untouched at unrelated boundaries", () => {
+        const d: Duration = { phase: "end-of-combat" };
+        // An end-of-combat duration is unchanged at CLEANUP...
+        expect(
+            tickDuration(d, { phase: "CLEANUP", activePlayerId: "p1" })
+        ).toEqual(d);
+        // ...and expires at END_OF_COMBAT.
+        expect(
+            tickDuration(d, { phase: "END_OF_COMBAT", activePlayerId: "p1" })
+        ).toBeNull();
+    });
+
+    it("skip > 0 decrements on match and only expires when it reaches 0", () => {
+        const d: Duration = { phase: "end-of-turn", skip: 1 };
+        const after1 = tickDuration(d, {
+            phase: "CLEANUP",
+            activePlayerId: "p1",
+        });
+        expect(after1).toEqual({ phase: "end-of-turn" });
+        // Second CLEANUP expires the entry.
+        expect(
+            tickDuration(after1!, { phase: "CLEANUP", activePlayerId: "p2" })
+        ).toBeNull();
+    });
+
+    it("player scope: non-matching active player leaves skip untouched", () => {
+        // "until end of your next turn" created on p1's turn. First CLEANUP
+        // is p1's — decrement. Second is p2's — skip stays. Third is p1's —
+        // expire. This is the intended semantics of `playerId`.
+        const created: Duration = {
+            phase: "end-of-turn",
+            skip: 1,
+            playerId: "p1",
+        };
+        const afterP1 = tickDuration(created, {
+            phase: "CLEANUP",
+            activePlayerId: "p1",
+        })!;
+        expect(afterP1).toEqual({ phase: "end-of-turn", playerId: "p1" });
+        // p2's CLEANUP: unchanged.
+        const afterP2 = tickDuration(afterP1, {
+            phase: "CLEANUP",
+            activePlayerId: "p2",
+        })!;
+        expect(afterP2).toEqual(afterP1);
+        // Next p1 CLEANUP: expired.
+        expect(
+            tickDuration(afterP2, { phase: "CLEANUP", activePlayerId: "p1" })
+        ).toBeNull();
     });
 });

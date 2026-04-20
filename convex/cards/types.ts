@@ -1,3 +1,5 @@
+import type { Phase } from "../gre/types";
+
 type CardId = string;
 
 export type Color = "W" | "U" | "B" | "R" | "G" | "C";
@@ -87,6 +89,48 @@ export interface ActivatedAbility {
     manaProduced?: ManaCost;
     /** Multiple mana options the player can choose from (e.g. Talisman: "{T}: Add {U} or {B}"). */
     manaChoices?: ManaCost[];
+    /** Restricts activation timing to a specific subset of phases (CR 602.5).
+     *  When set, the ability is activatable only while `state.phase` is in
+     *  this list. Used by Jade Statue ("activate only during combat"). */
+    activationPhaseRestriction?: Phase[];
+}
+
+// --- Temporary-effect durations (CR 611.2, 514.2, 511.3) ---
+
+/** Card-facing lifetime specification for a temporary effect. Encodes the
+ *  phase boundary at which the effect expires plus optional qualifiers for
+ *  "until end of your next turn"-style phrasings. The SpellContext primitive
+ *  resolves the symbolic `player` field to a concrete playerId before the
+ *  effect is stored — see `Duration` in gre/state.ts for the stored shape.
+ *
+ *  Examples:
+ *    { phase: "end-of-turn" }                          // "until end of turn"
+ *    { phase: "end-of-combat" }                        // "until end of combat"
+ *    { phase: "end-of-turn", skip: 1, player: "controller" }  // "until end of your next turn"
+ */
+export interface DurationSpec {
+    /** Which phase boundary triggers expiry. end-of-turn = CLEANUP (CR 514.2);
+     *  end-of-combat = END_OF_COMBAT step (CR 511.3). */
+    phase: "end-of-turn" | "end-of-combat";
+    /** Number of matching boundaries to skip before the effect expires. 0 =
+     *  next occurrence (default, "this turn/combat"). 1 = one after. */
+    skip?: number;
+    /** Filter the boundary to the effect's controller ("controller") or
+     *  their opponent ("opponent"). Undefined = any active player's boundary
+     *  (default). Resolved to a concrete playerId at creation time. */
+    player?: "controller" | "opponent";
+}
+
+/** Specification passed to `SpellContext.animateAsCreature` — the target
+ *  becomes a creature with the given base P/T and optional subtype, for the
+ *  duration provided (CR 208.2, 611.1). The engine restores the permanent's
+ *  original P/T, types, and subtypes on expiry. */
+export interface AnimateSpec {
+    power: number;
+    toughness: number;
+    /** Optional creature subtype to add while animated (e.g. "Golem"). */
+    subtype?: string;
+    duration: DurationSpec;
 }
 
 // --- Permanent filter (shared by sweeper primitives) ---
@@ -111,6 +155,10 @@ export interface SpellContext {
     caster: string;
     /** The controller of the spell/ability on the stack. */
     controller: string;
+    /** The instance id of the stack item resolving. For activated abilities,
+     *  this equals the id of the source permanent on the battlefield — use
+     *  it to target self (e.g. Jade Statue's animate-self ability). */
+    sourceInstanceId: string;
     /** Chosen targets (validated at cast time). */
     targets: TargetSelection[];
     // --- Primitives ---
@@ -176,14 +224,14 @@ export interface SpellContext {
     /** Grants a player a reference to an activated ability template defined
      *  on another card (CR 113). The template is looked up at activation
      *  time via the card registry — the grant stores only ids, not the
-     *  ability itself. `duration: "end-of-turn"` is purged at CLEANUP
-     *  (CR 514.2). Used by Channel and similar "until end of turn, you may
-     *  ~" effects. */
+     *  ability itself. Purged by the phase-boundary cleanup when `duration`
+     *  expires. Used by Channel and similar "until end of turn, you may ~"
+     *  effects. */
     grantAbility: (
         playerId: string,
         sourceCardId: string,
         abilityId: string,
-        duration: "end-of-turn"
+        duration: DurationSpec
     ) => void;
     /** Schedules an extra turn for `playerId` to be taken after the current
      *  one (CR 500.7). Multiple extra turns stack LIFO — the last one
@@ -191,14 +239,66 @@ export interface SpellContext {
      *  Time Walk and similar effects. */
     takeExtraTurn: (playerId: string) => void;
     /** Records a one-shot prevention effect: the next time the given source
-     *  would deal damage to `playerId` this turn, that damage is prevented
-     *  (CR 615.1, 615.6). The effect is consumed the first time it matches
-     *  and cleared at the end of the turn (CR 514.2). Used by Circle of
-     *  Protection's activated ability. */
+     *  would deal damage to `playerId`, that damage is prevented (CR 615.1,
+     *  615.6). Consumed by the first matching damage event; any unused
+     *  remainder is purged when `duration` expires. Used by Circle of
+     *  Protection's "this turn"-scoped prevent. */
     preventNextDamageFromSource: (
         sourceInstanceId: string,
-        playerId: string
+        playerId: string,
+        duration: DurationSpec
     ) => void;
+    /** Grants a keyword static ability to a permanent for a limited duration
+     *  (CR 113.1, 611.1b). Appends to the target's `staticAbilities` so combat
+     *  and rules checks see it at read time; the phase-boundary purge splices
+     *  it back out when `duration` expires. No-op if target has left the
+     *  battlefield. Used by Berserk's "target creature gains trample until
+     *  end of turn". */
+    grantStaticAbility: (
+        target: TargetSelection,
+        ability: string,
+        duration: DurationSpec
+    ) => void;
+    /** Turns the target permanent into a creature with the specified base
+     *  P/T and optional subtype until `spec.duration` expires (CR 208.2,
+     *  611.1). If the permanent is not already a Creature, "Creature" is
+     *  added to its types for the duration; the engine restores the original
+     *  types, subtypes, and P/T on expiry. Used by Jade Statue and similar
+     *  "becomes a creature" animate effects. No-op if the target has left
+     *  the battlefield. */
+    animateAsCreature: (target: TargetSelection, spec: AnimateSpec) => void;
+    /** Queues a delayed triggered ability that fires at a later phase
+     *  (CR 603.7a). The template is looked up at fire time via
+     *  `getCardById(sourceCardId).delayedTriggers[triggerId]`. `payload` holds
+     *  serializable state (instance / player ids) read by the resolver —
+     *  closures are not permitted so replays reproduce correctly. Used by
+     *  Berserk's "at the beginning of the next end step, destroy ~". */
+    scheduleDelayedTrigger: (
+        sourceCardId: string,
+        triggerId: string,
+        timing: "next-end-step",
+        payload: Record<string, string>
+    ) => void;
+    /** Returns true if the target permanent was declared as an attacker this
+     *  turn (CR 506.2). Used by "destroy it if it attacked this turn"-style
+     *  delayed triggers. Returns false for players and for permanents no
+     *  longer on the battlefield. */
+    hasAttackedThisTurn: (target: TargetSelection) => boolean;
+}
+
+/** Delayed triggered ability template (CR 603.7a). Declared on the
+ *  scheduling card's definition; the engine looks it up by id at fire time
+ *  and calls `resolve` with the payload captured at scheduling. */
+export interface DelayedTriggerDef {
+    /** Local id on `CardDefinition.delayedTriggers`. */
+    id: string;
+    /** Oracle text shown on the stack when the trigger fires. */
+    oracleText: string;
+    /** When the trigger should fire. */
+    timing: "next-end-step";
+    /** Invoked when the trigger resolves from the stack. `payload` carries
+     *  serialized references (ids) chosen at scheduling time. */
+    resolve: (ctx: SpellContext, payload: Record<string, string>) => void;
 }
 
 // --- Continuous static effects (CR 611, 613) ---
@@ -304,9 +404,17 @@ export interface CardDefinition {
     staticEffects?: StaticEffect[];
     activatedAbilities?: ActivatedAbility[];
     triggeredAbilities?: TriggeredAbility[];
+    /** Delayed triggered ability templates (CR 603.7a) scheduled by this
+     *  card's `resolve()`. Looked up by id when a queued instance fires. */
+    delayedTriggers?: DelayedTriggerDef[];
     sbaMods?: string[];
     /** Adds this many generic mana to the total cost for each target beyond
      *  the first (CR 601.2f). Used by Fireball ("costs {1} more to cast for
      *  each target beyond the first"). */
     additionalGenericPerExtraTarget?: number;
+    /** Restricts cast timing to a specific subset of phases (CR 117.1b).
+     *  When set, the spell is castable only while `state.phase` is in this
+     *  list. Used by Berserk ("cast only before the combat damage step") —
+     *  the instant-speed check still applies, this only narrows further. */
+    castPhaseRestriction?: Phase[];
 }

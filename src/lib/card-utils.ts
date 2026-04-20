@@ -1,12 +1,12 @@
-import type { CardInstance, ManaPool } from "~/types/game";
+import type { CardInstance } from "~/types/game";
 import type { Color, ManaCost } from "~/types/cards";
+import type { Phase } from "@convex/gre/types";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
     LAND_SUBTYPE_MANA,
     LANDWALK_KEYWORDS,
 } from "@convex/gre/constants";
 import { getCardById } from "@convex/cards";
-import { isManaCostCovered, normalizeManaCost } from "@convex/gre/state";
 
 export function isLand(card: CardInstance): boolean {
     return card.types?.includes("Land") ?? false;
@@ -100,19 +100,28 @@ export function matchesTargetRequirement(
     return types.some((t) => cardTypes.includes(t as never));
 }
 
-/** Returns stack-using activated abilities that can currently be activated (costs payable). */
+/** Returns stack-using activated abilities the player can currently announce.
+ *  Only the non-mana availability is checked (source not already tapped when
+ *  the ability has {T}); mana is deferred to a `pendingActivation` payment
+ *  phase on the server, mirroring the spell cast flow. `phase` narrows to
+ *  abilities whose `activationPhaseRestriction` (CR 602.5) allows the
+ *  current phase — pass the current game phase to hide abilities like
+ *  Jade Statue's animate outside of combat. */
 export function getStackAbilities(
     card: CardInstance,
-    manaPool: ManaPool
+    phase?: Phase
 ): { id: string; oracleText: string }[] {
     const cardDef = getCardById(card.card.id);
     return (cardDef.activatedAbilities ?? [])
         .filter((a) => {
             if (!a.useStack || !a.oracleText) return false;
             if (a.cost.tap && card.isTapped) return false;
-            if (a.cost.mana) {
-                const cost = normalizeManaCost(a.cost.mana);
-                if (!isManaCostCovered(manaPool, cost)) return false;
+            if (
+                a.activationPhaseRestriction &&
+                phase !== undefined &&
+                !a.activationPhaseRestriction.includes(phase)
+            ) {
+                return false;
             }
             return true;
         })

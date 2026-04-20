@@ -37,6 +37,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         priorityPlayerId,
         phase,
         pendingCast,
+        pendingActivation,
         pendingTarget,
         combat,
         allPlayers,
@@ -47,6 +48,12 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     const tapUntap = useMutation(api.game.tapUntap);
     const tapForPayment = useMutation(api.game.tapForPayment);
     const untapForPayment = useMutation(api.game.untapForPayment);
+    const tapForActivationPayment = useMutation(
+        api.game.tapForActivationPayment
+    );
+    const untapForActivationPayment = useMutation(
+        api.game.untapForActivationPayment
+    );
     const toggleAttacker = useMutation(api.game.toggleAttacker);
     const selectBlocker = useMutation(api.game.selectBlocker);
     const assignBlockerTarget = useMutation(api.game.assignBlockerTarget);
@@ -74,6 +81,11 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
 
     const isPayingCast =
         isMe && !!pendingCast && pendingCast.playerId === playerId;
+
+    const isPayingActivation =
+        isMe && !!pendingActivation && pendingActivation.playerId === playerId;
+
+    const isInPayment = isPayingCast || isPayingActivation;
 
     const hasPriority = isMe && priorityPlayerId === playerId;
 
@@ -200,9 +212,12 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         if (isBlockerTarget && card.isAttacking) return true;
 
         if (!isMe || !hasManaAbility(card)) return false;
-        if (isPayingCast) {
-            return card.isTapped
+        if (isInPayment) {
+            const tappedDuringPayment = isPayingCast
                 ? pendingCast!.tappedLandIds.includes(card.id)
+                : pendingActivation!.tappedLandIds.includes(card.id);
+            return card.isTapped
+                ? tappedDuringPayment
                 : getLandManaColor(card) !== null ||
                       getActivatedManaColor(card) !== null ||
                       getManaChoices(card) !== null;
@@ -386,10 +401,16 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         }
 
         // Mana source tap/untap (lands, mox, etc.)
-        if (isPayingCast) {
+        if (isInPayment) {
+            const tapMutation = isPayingCast
+                ? tapForPayment
+                : tapForActivationPayment;
+            const untapMutation = isPayingCast
+                ? untapForPayment
+                : untapForActivationPayment;
             if (card.isTapped) {
                 guardMutation(
-                    untapForPayment({
+                    untapMutation({
                         gameId,
                         playerId,
                         cardInstanceId: card.id,
@@ -407,7 +428,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 });
             } else {
                 guardMutation(
-                    tapForPayment({
+                    tapMutation({
                         gameId,
                         playerId,
                         cardInstanceId: card.id,
@@ -446,7 +467,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 cardId: card.id,
                 choices,
                 position: { x: e.clientX, y: e.clientY - 50 },
-                inPayment: isPayingCast,
+                inPayment: isInPayment,
             });
             return;
         }
@@ -456,8 +477,17 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     // --- Activated abilities ---
 
     function getActivatable(card: CardInstance) {
-        if (!hasPriority || pendingCast || pendingTarget) return [];
-        return getStackAbilities(card, player.manaPool);
+        if (!hasPriority || pendingCast || pendingActivation || pendingTarget) {
+            return [];
+        }
+        // UX: while this player is the one picking attackers/blockers, the
+        // context menu would compete with the declaration click target.
+        // Suppress it for the declarer only — the other player can still
+        // respond with their own abilities.
+        const isActivePlayer = playerId === activePlayerId;
+        if (phase === "DECLARE_ATTACKERS" && isActivePlayer) return [];
+        if (phase === "DECLARE_BLOCKERS" && !isActivePlayer) return [];
+        return getStackAbilities(card, phase);
     }
 
     function handleActivateAbility(
@@ -595,7 +625,10 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                             manaChoiceIndex: index,
                         };
                         if (manaChoiceState.inPayment) {
-                            guardMutation(tapForPayment(args));
+                            const mutation = isPayingCast
+                                ? tapForPayment
+                                : tapForActivationPayment;
+                            guardMutation(mutation(args));
                         } else {
                             guardMutation(tapUntap(args));
                         }

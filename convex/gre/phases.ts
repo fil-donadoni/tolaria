@@ -1,12 +1,18 @@
 import type { Phase } from "./types";
 import type { GameEvent } from "../cards/types";
-import type { CardInstanceState, GameState } from "./state";
+import type {
+    CardInstanceState,
+    DelayedTriggerInstance,
+    GameState,
+    StackItem,
+} from "./state";
 import {
     consumePreventionIfAny,
     drawCard,
     getOpponentId,
     getPlayer,
     resolveTopOfStack,
+    tickDuration,
 } from "./state";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
 import { collectTriggers } from "./triggers";
@@ -422,6 +428,43 @@ export function applyAllCombatDamage(
     }
 }
 
+/** Dequeue delayed triggers matching `timing`, push them on the stack as
+ *  StackItems, and restart priority at the active player (CR 603.3, 603.7a).
+ *  Controller-as-APNAP ordering isn't implemented — triggers fire in
+ *  scheduling order. */
+function fireDelayedTriggers(
+    state: GameState,
+    timing: DelayedTriggerInstance["timing"]
+): void {
+    if (!state.delayedTriggers?.length) return;
+    const firing: DelayedTriggerInstance[] = [];
+    const remaining: DelayedTriggerInstance[] = [];
+    for (const t of state.delayedTriggers) {
+        (t.timing === timing ? firing : remaining).push(t);
+    }
+    state.delayedTriggers = remaining.length > 0 ? remaining : undefined;
+    if (firing.length === 0) return;
+    for (const t of firing) {
+        const stackItem: StackItem = {
+            id: crypto.randomUUID(),
+            card: { id: t.sourceCardId },
+            controllerId: t.controller,
+            ownerId: t.controller,
+            zone: "stack",
+            types: [],
+            subtypes: [],
+            staticAbilities: [],
+            isTapped: false,
+            castById: t.controller,
+            delayedTriggerId: t.triggerId,
+            delayedPayload: t.payload,
+        };
+        state.stack.push(stackItem);
+    }
+    state.priorityPlayerId = state.activePlayerId;
+    state.passCount = 0;
+}
+
 /** Perform automatic entry actions for the current phase. */
 function performPhaseEntry(state: GameState): void {
     switch (state.phase) {
@@ -484,38 +527,134 @@ function performPhaseEntry(state: GameState): void {
                 }
                 state.combat = undefined;
             }
+            // CR 511.3 — "until end of combat" effects end here.
+            tickAllDurations(state);
+            break;
+        }
+        case "END_STEP": {
+            fireDelayedTriggers(state, "next-end-step");
             break;
         }
         case "CLEANUP":
             // CR 514.2 — "until end of turn" effects end at the cleanup step.
-            // Purge player-granted abilities whose duration has expired.
-            for (const p of state.players) {
-                if (!p.grantedAbilities?.length) continue;
-                const kept = p.grantedAbilities.filter(
-                    (g) => g.duration !== "end-of-turn"
-                );
-                p.grantedAbilities = kept.length > 0 ? kept : undefined;
-            }
-            // CR 514.2 — purge unused one-shot prevention effects from
-            // Circle of Protection et al. An effect that hasn't matched a
-            // damage event by cleanup simply wears off.
-            if (state.preventionEffects?.length) {
-                const kept = state.preventionEffects.filter(
-                    (e) => e.duration !== "end-of-turn"
-                );
-                state.preventionEffects = kept.length > 0 ? kept : undefined;
-            }
-            // CR 514.2 — marked damage is removed from all permanents.
+            tickAllDurations(state);
+            // CR 514.2 — marked damage is removed from all permanents, and
+            // turn-scoped combat flags are cleared.
             for (const p of state.players) {
                 for (const card of p.battlefield) {
                     if (card.damageMarked !== undefined) {
                         card.damageMarked = undefined;
+                    }
+                    if (card.hasAttackedThisTurn) {
+                        card.hasAttackedThisTurn = undefined;
                     }
                 }
             }
             // TODO: hand size check (CR 514.1).
             break;
     }
+}
+
+/** Advances all parametric durations on the current game state by one
+ *  phase-boundary tick. Called from END_OF_COMBAT (CR 511.3) and CLEANUP
+ *  (CR 514.2); `tickDuration` itself filters by phase+playerId so entries
+ *  scoped to a different boundary are left untouched. */
+function tickAllDurations(state: GameState): void {
+    const view = { phase: state.phase, activePlayerId: state.activePlayerId };
+
+    // Player-granted activated abilities (e.g. Channel).
+    for (const p of state.players) {
+        if (!p.grantedAbilities?.length) continue;
+        const kept: typeof p.grantedAbilities = [];
+        for (const grant of p.grantedAbilities) {
+            const next = tickDuration(grant.duration, view);
+            if (next !== null) kept.push({ ...grant, duration: next });
+        }
+        p.grantedAbilities = kept.length > 0 ? kept : undefined;
+    }
+
+    // Granted static keywords (e.g. Berserk's trample). On expiry, splice
+    // one occurrence out of `staticAbilities` so natively-declared
+    // duplicates are left untouched (CR 113.1).
+    for (const p of state.players) {
+        for (const card of p.battlefield) {
+            if (!card.grantedStaticAbilities?.length) continue;
+            const kept: typeof card.grantedStaticAbilities = [];
+            for (const grant of card.grantedStaticAbilities) {
+                const next = tickDuration(grant.duration, view);
+                if (next === null) {
+                    const idx = card.staticAbilities.indexOf(grant.ability);
+                    if (idx !== -1) {
+                        card.staticAbilities = [
+                            ...card.staticAbilities.slice(0, idx),
+                            ...card.staticAbilities.slice(idx + 1),
+                        ];
+                    }
+                } else {
+                    kept.push({ ...grant, duration: next });
+                }
+            }
+            card.grantedStaticAbilities = kept.length > 0 ? kept : undefined;
+        }
+    }
+
+    // One-shot prevention effects (e.g. Circle of Protection). An effect
+    // that hasn't been consumed by the time its duration expires simply
+    // wears off.
+    if (state.preventionEffects?.length) {
+        const kept: typeof state.preventionEffects = [];
+        for (const effect of state.preventionEffects) {
+            const next = tickDuration(effect.duration, view);
+            if (next !== null) kept.push({ ...effect, duration: next });
+        }
+        state.preventionEffects = kept.length > 0 ? kept : undefined;
+    }
+
+    // "Becomes a creature" animations (e.g. Jade Statue). On expiry, splice
+    // back out anything the animation added and restore the pre-animation
+    // P/T so the permanent returns to its original shape.
+    for (const p of state.players) {
+        for (const card of p.battlefield) {
+            if (!card.animation) continue;
+            const next = tickDuration(card.animation.duration, view);
+            if (next === null) {
+                revertAnimation(card);
+            } else {
+                card.animation = { ...card.animation, duration: next };
+            }
+        }
+    }
+}
+
+/** Undoes the mutations applied by `animateAsCreature`, restoring the
+ *  permanent to its pre-animation shape. Safe to call only on a card whose
+ *  `animation` field is set (caller checks). */
+function revertAnimation(card: CardInstanceState): void {
+    const anim = card.animation;
+    if (!anim) return;
+    if (anim.addedSubtype !== undefined) {
+        const idx = card.subtypes.indexOf(anim.addedSubtype);
+        if (idx !== -1) {
+            card.subtypes = [
+                ...card.subtypes.slice(0, idx),
+                ...card.subtypes.slice(idx + 1),
+            ];
+        }
+    }
+    if (anim.addedCreatureType) {
+        const idx = card.types.indexOf("Creature");
+        if (idx !== -1) {
+            card.types = [
+                ...card.types.slice(0, idx),
+                ...card.types.slice(idx + 1),
+            ];
+        }
+    }
+    card.power = anim.savedPower;
+    card.toughness = anim.savedToughness;
+    card.animation = undefined;
+    // CR 704.5g: damage marked on a permanent that's no longer a creature
+    // is irrelevant but harmless — cleared at CLEANUP regardless.
 }
 
 /** Advance turn: increment counter, swap active player, reset autoPass.
@@ -674,6 +813,7 @@ export function drainAutoPasses(state: GameState): void {
                         card.isTapped = true;
                     }
                     card.isAttacking = true;
+                    card.hasAttackedThisTurn = true;
                 }
             }
             state.combat.confirmed = true;

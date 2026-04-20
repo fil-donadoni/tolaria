@@ -94,7 +94,11 @@ export interface StackItem extends CardInstance {
     triggeredAbilityId?: string;
 }
 
-export type { PendingCast, PendingTarget } from "@convex/gre/state";
+export type {
+    PendingActivation,
+    PendingCast,
+    PendingTarget,
+} from "@convex/gre/state";
 
 export interface GameOver {
     winnerId: string;

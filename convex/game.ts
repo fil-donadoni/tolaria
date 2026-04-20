@@ -6,7 +6,9 @@ import { getCardById, getCardByName, getAllCardNames } from "./cards";
 import {
     type CardInstanceState,
     type GameState,
+    type PendingActivation,
     type PendingTarget,
+    type PlayerState,
     type StackItem,
     getPlayer,
     getOpponentId,
@@ -176,6 +178,140 @@ async function finalizeGameOver(
 /** Guard: reject actions on a finished game. */
 function assertGameNotOver(state: GameState) {
     if (state.gameOver) throw new Error("Game is over");
+}
+
+/** Taps a battlefield card as a mana source during a payment phase (pendingCast
+ *  or pendingActivation) and adds its mana to the player's pool. Shared by
+ *  tapForPayment and tapForActivationPayment — the logic is identical, only
+ *  the bookkeeping state differs. Mutates `card`, `player.manaPool`, and
+ *  pushes the card id onto `tappedLandIds`. */
+function tapSourceIntoPayment(
+    player: PlayerState,
+    card: CardInstanceState,
+    manaChoiceIndex: number | undefined,
+    tappedLandIds: string[]
+): void {
+    if (card.isTapped) throw new Error("Card already tapped");
+    const ability = getActivatedManaAbility(card);
+
+    if (ability?.manaChoices) {
+        if (manaChoiceIndex === undefined) {
+            throw new Error("Must choose a mana color");
+        }
+        const chosen = ability.manaChoices[manaChoiceIndex];
+        if (!chosen) throw new Error("Invalid mana choice");
+
+        const isSacrifice = ability.cost.sacrifice === true;
+        if (isSacrifice) {
+            moveCard(player, card.id, "battlefield", "graveyard");
+        } else {
+            card.isTapped = true;
+            card.chosenMana = chosen;
+        }
+        for (const [color, amount] of Object.entries(chosen)) {
+            if (color !== "X" && typeof amount === "number" && amount > 0) {
+                player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
+            }
+        }
+        tappedLandIds.push(card.id);
+        return;
+    }
+
+    const manaColor = getBasicLandMana(card) ?? getActivatedManaColor(card);
+    if (!manaColor) throw new Error("Card does not produce mana");
+    card.isTapped = true;
+    const amount = getFixedManaAmount(card, manaColor);
+    player.manaPool[manaColor] = (player.manaPool[manaColor] ?? 0) + amount;
+    tappedLandIds.push(card.id);
+}
+
+/** Reverses a single tap recorded in `tappedLandIds` — refunds the mana and
+ *  untaps the source. Shared by untapForPayment and untapForActivationPayment. */
+function untapSourceFromPayment(
+    player: PlayerState,
+    card: CardInstanceState
+): void {
+    if (card.chosenMana) {
+        for (const [color, amount] of Object.entries(card.chosenMana)) {
+            if (color !== "X" && typeof amount === "number" && amount > 0) {
+                player.manaPool[color] = Math.max(
+                    0,
+                    (player.manaPool[color] ?? 0) - amount
+                );
+            }
+        }
+        card.chosenMana = undefined;
+    } else {
+        const manaColor = getBasicLandMana(card) ?? getActivatedManaColor(card);
+        if (!manaColor) throw new Error("Card does not produce mana");
+        const amount = getFixedManaAmount(card, manaColor);
+        player.manaPool[manaColor] = Math.max(
+            0,
+            (player.manaPool[manaColor] ?? 0) - amount
+        );
+    }
+    card.isTapped = false;
+}
+
+/** If the activator's pool now covers pendingActivation, pay mana, apply the
+ *  deferred tap/sacrifice costs on the source, push the ability on the stack,
+ *  and swap priority. Mirrors tryAutoCommitPendingCast for abilities. Returns
+ *  the source card name on commit, or null if nothing was committed. */
+function tryAutoCommitPendingActivation(
+    state: GameState,
+    playerId: string
+): { cardInstanceId: string; abilityId: string; cardName?: string } | null {
+    const pa = state.pendingActivation;
+    if (!pa || pa.playerId !== playerId) return null;
+
+    const player = getPlayer(state, playerId);
+    if (!isManaCostCovered(player.manaPool, pa.manaCost)) return null;
+
+    const card = player.battlefield.find((c) => c.id === pa.cardInstanceId);
+    if (!card) {
+        // Source vanished (e.g. removed by an opposing effect). Drop the
+        // payment silently — lands stay tapped (same policy as cancelCast for
+        // sacrificed sources).
+        state.pendingActivation = undefined;
+        return null;
+    }
+
+    payManaCost(player.manaPool, pa.manaCost);
+    commitLandsForCost(player, pa.manaCost);
+
+    // Deferred non-mana costs (CR 602.1) — applied now so cancellation leaves
+    // the source untouched.
+    if (pa.tapSource) {
+        if (card.isTapped) {
+            throw new Error("Source became tapped during payment");
+        }
+        card.isTapped = true;
+    }
+    if (pa.sacrificeSource) {
+        removePermanentTo(state, card.id, "graveyard");
+    }
+
+    const stackItem: StackItem = {
+        ...structuredClone(card),
+        zone: "stack" as const,
+        castById: playerId,
+        abilityId: pa.abilityId,
+        ...(pa.targets && pa.targets.length > 0 ? { targets: pa.targets } : {}),
+    };
+    state.stack.push(stackItem);
+
+    const keepPriority = pa.keepPriority;
+    state.pendingActivation = undefined;
+    state.passCount = 0;
+    state.priorityPlayerId = getOpponentId(state, playerId);
+    state.singleShotAutoPass = keepPriority ? undefined : playerId;
+    drainAutoPasses(state);
+
+    return {
+        cardInstanceId: pa.cardInstanceId,
+        abilityId: pa.abilityId,
+        cardName: (card.card as { name?: string }).name,
+    };
 }
 
 /** If the caster's mana pool now covers pendingCast, pay the cost, move the
@@ -454,6 +590,21 @@ function isTargetCountMaxReached(
     return selected >= count.max;
 }
 
+/** Picks the event type emitted after a finalizeTargetSelection step, based
+ *  on what finalize produced. Spell cast → SPELL_CAST / CAST_ANNOUNCED;
+ *  activated ability → ABILITY_ACTIVATED / ABILITY_ANNOUNCED. */
+function resolveFinalizeEventType(
+    state: GameState,
+    kind: "cast" | "ability"
+): string {
+    if (kind === "ability") {
+        return state.pendingActivation
+            ? "ABILITY_ANNOUNCED"
+            : "ABILITY_ACTIVATED";
+    }
+    return state.pendingCast ? "CAST_ANNOUNCED" : "SPELL_CAST";
+}
+
 /** Finalizes target selection and either places the spell on the stack (if
  *  the caster can already pay) or transitions into the payment phase.
  *  Mutates `state` in place. Handles chosenX propagation and the per-target
@@ -473,8 +624,10 @@ function finalizeTargetSelection(
 
     const player = getPlayer(state, playerId);
 
-    // Activated-ability targeting branch (CR 602.2b). Costs are paid here
-    // — after targets are chosen — and the ability goes on the stack.
+    // Activated-ability targeting branch (CR 602.2b). Targets were chosen
+    // first; costs are paid NOW. If mana isn't in the pool, enter a
+    // pendingActivation payment phase — the already-selected targets ride
+    // along and are re-applied at commit.
     if (kind === "ability") {
         if (!abilityId) throw new Error("pendingTarget.abilityId missing");
         const card = player.battlefield.find((c) => c.id === cardInstanceId);
@@ -484,16 +637,33 @@ function finalizeTargetSelection(
             (a) => a.id === abilityId
         );
         if (!ability) throw new Error("Ability not found");
-
-        if (ability.cost.tap) {
-            if (card.isTapped) throw new Error("Card is already tapped");
-            card.isTapped = true;
+        if (ability.cost.tap && card.isTapped) {
+            throw new Error("Card is already tapped");
         }
-        if (ability.cost.mana) {
-            const manaCost = normalizeManaCost(ability.cost.mana);
-            if (!isManaCostCovered(player.manaPool, manaCost)) {
-                throw new Error("Not enough mana");
-            }
+
+        const manaCost = ability.cost.mana
+            ? normalizeManaCost(ability.cost.mana)
+            : undefined;
+
+        // Enter pendingActivation (deferred commit) if mana isn't covered.
+        if (manaCost && !isManaCostCovered(player.manaPool, manaCost)) {
+            state.pendingActivation = {
+                playerId,
+                cardInstanceId: card.id,
+                abilityId,
+                manaCost,
+                tappedLandIds: [],
+                tapSource: !!ability.cost.tap,
+                sacrificeSource: !!ability.cost.sacrifice,
+                keepPriority,
+                targets,
+            };
+            return;
+        }
+
+        // Commit immediately.
+        if (ability.cost.tap) card.isTapped = true;
+        if (manaCost) {
             payManaCost(player.manaPool, manaCost);
             commitLandsForCost(player, manaCost);
         }
@@ -595,6 +765,9 @@ export const announceCast = mutation({
         }
         if (state.pendingCast) {
             throw new Error("Another spell is already being cast");
+        }
+        if (state.pendingActivation) {
+            throw new Error("An ability is already being activated");
         }
         if (state.pendingTarget) {
             throw new Error("Target selection is in progress");
@@ -928,6 +1101,135 @@ export const cancelCast = mutation({
     },
 });
 
+/** Tap a land during an activated-ability payment phase. Auto-commits the
+ *  ability onto the stack when the mana cost is fully covered. */
+export const tapForActivationPayment = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+        manaChoiceIndex: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
+        assertGameNotOver(state);
+
+        const pa = state.pendingActivation;
+        if (!pa) throw new Error("No ability being activated");
+        if (pa.playerId !== args.playerId) {
+            throw new Error("Not your pending activation");
+        }
+
+        const player = getPlayer(state, args.playerId);
+        const card = player.battlefield.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!card) throw new Error("Card not on battlefield");
+
+        tapSourceIntoPayment(
+            player,
+            card,
+            args.manaChoiceIndex,
+            pa.tappedLandIds
+        );
+
+        const committed = tryAutoCommitPendingActivation(state, args.playerId);
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+
+        if (committed) {
+            await ctx.db.insert("events", {
+                gameId: args.gameId,
+                seq: gameState.seq + 1,
+                type: "ABILITY_ACTIVATED",
+                player: args.playerId,
+                payload: {
+                    cardInstanceId: committed.cardInstanceId,
+                    cardName: committed.cardName,
+                    abilityId: committed.abilityId,
+                },
+                timestamp: Date.now(),
+            });
+        }
+    },
+});
+
+/** Untap a land during activation payment (undo). */
+export const untapForActivationPayment = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
+        assertGameNotOver(state);
+
+        const pa = state.pendingActivation;
+        if (!pa) throw new Error("No ability being activated");
+        if (pa.playerId !== args.playerId) {
+            throw new Error("Not your pending activation");
+        }
+
+        const idx = pa.tappedLandIds.indexOf(args.cardInstanceId);
+        if (idx === -1) {
+            throw new Error("This land was not tapped during this activation");
+        }
+
+        const player = getPlayer(state, args.playerId);
+        const card = player.battlefield.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!card) throw new Error("Cannot undo: source was sacrificed");
+
+        untapSourceFromPayment(player, card);
+        pa.tappedLandIds.splice(idx, 1);
+
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+    },
+});
+
+/** Cancel a pending activation: rollback all taps. The source permanent is
+ *  untouched because tap/sacrifice costs are deferred until commit. */
+export const cancelActivation = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
+        assertGameNotOver(state);
+
+        const pa = state.pendingActivation;
+        if (!pa) throw new Error("No ability being activated");
+        if (pa.playerId !== args.playerId) {
+            throw new Error("Not your pending activation");
+        }
+
+        const player = getPlayer(state, args.playerId);
+        for (const cardId of pa.tappedLandIds) {
+            const card = player.battlefield.find((c) => c.id === cardId);
+            if (!card) continue;
+            untapSourceFromPayment(player, card);
+        }
+
+        state.pendingActivation = undefined;
+
+        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+    },
+});
+
 /** Select a target for a spell being announced (CR 601.2c). */
 export const selectTarget = mutation({
     args: {
@@ -1020,6 +1322,9 @@ export const selectTarget = mutation({
 
         pt.selected.push(target);
 
+        const ptKind = pt.kind ?? "cast";
+        const ptCardInstanceId = pt.cardInstanceId;
+        const ptAbilityId = pt.abilityId;
         const maxReached = isTargetCountMaxReached(
             pt.count,
             pt.selected.length
@@ -1032,16 +1337,22 @@ export const selectTarget = mutation({
         await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
 
         if (!state.pendingTarget) {
+            const eventType = resolveFinalizeEventType(state, ptKind);
             await ctx.db.insert("events", {
                 gameId: args.gameId,
                 seq: gameState.seq + 1,
-                type: state.pendingCast ? "CAST_ANNOUNCED" : "SPELL_CAST",
+                type: eventType,
                 player: args.playerId,
                 payload: {
                     cardInstanceId:
-                        state.pendingCast?.cardInstanceId ?? args.targetId,
+                        state.pendingCast?.cardInstanceId ??
+                        state.pendingActivation?.cardInstanceId ??
+                        ptCardInstanceId,
                     targetType: args.targetType,
                     targetId: args.targetId,
+                    ...(ptKind === "ability" && ptAbilityId
+                        ? { abilityId: ptAbilityId }
+                        : {}),
                 },
                 timestamp: now,
             });
@@ -1077,17 +1388,24 @@ export const confirmTargets = mutation({
                 `At least ${minTargetCount(pt.count)} target(s) required`
             );
         }
+        const ptKind = pt.kind ?? "cast";
+        const ptCardInstanceId = pt.cardInstanceId;
+        const ptAbilityId = pt.abilityId;
         finalizeTargetSelection(state, pt, args.playerId);
 
         const now = Date.now();
         await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        const eventType = resolveFinalizeEventType(state, ptKind);
         await ctx.db.insert("events", {
             gameId: args.gameId,
             seq: gameState.seq + 1,
-            type: state.pendingCast ? "CAST_ANNOUNCED" : "SPELL_CAST",
+            type: eventType,
             player: args.playerId,
             payload: {
-                cardInstanceId: pt.cardInstanceId,
+                cardInstanceId: ptCardInstanceId,
+                ...(ptKind === "ability" && ptAbilityId
+                    ? { abilityId: ptAbilityId }
+                    : {}),
             },
             timestamp: now,
         });
@@ -1215,6 +1533,7 @@ export const confirmAttackers = mutation({
                     card.isTapped = true;
                 }
                 card.isAttacking = true;
+                card.hasAttackedThisTurn = true;
             }
         }
 
@@ -1999,6 +2318,9 @@ export const activateAbility = mutation({
         if (state.pendingCast) {
             throw new Error("Another spell is already being cast");
         }
+        if (state.pendingActivation) {
+            throw new Error("Another ability is already being activated");
+        }
 
         const player = getPlayer(state, args.playerId);
         const card = player.battlefield.find(
@@ -2017,23 +2339,26 @@ export const activateAbility = mutation({
         if (!ability.useStack) {
             throw new Error("Use tapUntap for mana abilities");
         }
+        // CR 602.5 — phase-restricted activated abilities ("activate only
+        // during combat" etc.) are illegal outside their declared phase
+        // allow-list. Mirrors spell-level `castPhaseRestriction`.
+        if (
+            ability.activationPhaseRestriction &&
+            !ability.activationPhaseRestriction.includes(state.phase)
+        ) {
+            throw new Error("Ability cannot be activated during this phase");
+        }
 
         // CR 602.2b: if the ability has targets, choose them before paying
-        // costs. Validate the activation is legal up-front (costs coverable,
-        // at least one legal target) so the player can't strand themselves
-        // in a pendingTarget they can't finalize.
+        // costs. Mana availability is deferred to finalizeTargetSelection
+        // (which enters pendingActivation when the pool doesn't cover the
+        // cost — mirrors the spell announceCast flow).
         if (ability.targetRequirement) {
             if (state.pendingTarget) {
                 throw new Error("Target selection is in progress");
             }
             if (ability.cost.tap && card.isTapped) {
                 throw new Error("Card is already tapped");
-            }
-            if (ability.cost.mana) {
-                const manaCost = normalizeManaCost(ability.cost.mana);
-                if (!isManaCostCovered(player.manaPool, manaCost)) {
-                    throw new Error("Not enough mana");
-                }
             }
             const legal = getLegalTargets(state, ability.targetRequirement);
             if (legal.length === 0) {
@@ -2070,21 +2395,57 @@ export const activateAbility = mutation({
             return;
         }
 
-        // Pay costs (CR 602.2b)
-        if (ability.cost.tap) {
-            if (card.isTapped) throw new Error("Card is already tapped");
-            card.isTapped = true;
+        // Pay costs (CR 602.1). Up-front checks before we mutate anything:
+        if (ability.cost.tap && card.isTapped) {
+            throw new Error("Card is already tapped");
+        }
+        const manaCost = ability.cost.mana
+            ? normalizeManaCost(ability.cost.mana)
+            : undefined;
+
+        // If mana isn't covered, enter a pendingActivation payment phase that
+        // mirrors pendingCast: the player taps lands, and auto-commit applies
+        // the deferred tap/sacrifice and pushes the ability on the stack.
+        // Tap/sacrifice are DEFERRED so cancel leaves the source untouched.
+        if (manaCost && !isManaCostCovered(player.manaPool, manaCost)) {
+            const pending: PendingActivation = {
+                playerId: args.playerId,
+                cardInstanceId: card.id,
+                abilityId: args.abilityId,
+                manaCost,
+                tappedLandIds: [],
+                tapSource: !!ability.cost.tap,
+                sacrificeSource: !!ability.cost.sacrifice,
+                keepPriority: args.keepPriority,
+            };
+            state.pendingActivation = pending;
+
+            const now = Date.now();
+            const nextSeq = gameState.seq + 1;
+            await saveGameState(ctx, args.gameId, nextSeq, state);
+            await ctx.db.insert("events", {
+                gameId: args.gameId,
+                seq: nextSeq,
+                type: "ABILITY_ANNOUNCED",
+                player: args.playerId,
+                payload: {
+                    cardInstanceId: card.id,
+                    cardName: (card.card as { name?: string }).name,
+                    abilityId: args.abilityId,
+                },
+                timestamp: now,
+            });
+            return;
         }
 
-        if (ability.cost.mana) {
-            const manaCost = normalizeManaCost(ability.cost.mana);
-            if (!isManaCostCovered(player.manaPool, manaCost)) {
-                throw new Error("Not enough mana");
-            }
+        // Mana already covered (or no mana cost) — commit immediately.
+        if (ability.cost.tap) {
+            card.isTapped = true;
+        }
+        if (manaCost) {
             payManaCost(player.manaPool, manaCost);
             commitLandsForCost(player, manaCost);
         }
-
         if (ability.cost.sacrifice) {
             removePermanentTo(state, card.id, "graveyard");
         }
@@ -2139,9 +2500,16 @@ export const tapUntap = mutation({
         assertGameNotOver(state);
         const player = getPlayer(state, args.playerId);
 
-        // Cannot manually tap/untap during payment phase
+        // Cannot manually tap/untap during a payment phase — must go through
+        // the specific payment mutation so pendingCast/pendingActivation
+        // bookkeeping stays consistent.
         if (state.pendingCast) {
             throw new Error("Use tapForPayment/untapForPayment during casting");
+        }
+        if (state.pendingActivation) {
+            throw new Error(
+                "Use tapForActivationPayment/untapForActivationPayment during ability activation"
+            );
         }
 
         // CR 605.3b: a mana ability can be activated only while the player
@@ -2283,12 +2651,22 @@ export const activatePlayerAbility = mutation({
             (a) => a.id === instance.abilityId
         );
         if (!ability) throw new Error("Ability template not found");
+        // CR 602.5 — phase-restricted templates are equally illegal when
+        // activated via a player-scoped grant.
+        if (
+            ability.activationPhaseRestriction &&
+            !ability.activationPhaseRestriction.includes(state.phase)
+        ) {
+            throw new Error("Ability cannot be activated during this phase");
+        }
 
         // CR 605.3a — mana abilities can be activated (a) when the player has
         // priority, or (b) while paying a mana cost of a spell/ability. Mirror
         // tapUntap / tapForPayment timing: allow either gate.
         const hasPriority = state.priorityPlayerId === args.playerId;
-        const isInPayment = state.pendingCast?.playerId === args.playerId;
+        const isInPayment =
+            state.pendingCast?.playerId === args.playerId ||
+            state.pendingActivation?.playerId === args.playerId;
         if (!ability.useStack) {
             if (!hasPriority && !isInPayment) {
                 throw new Error(
@@ -2299,6 +2677,9 @@ export const activatePlayerAbility = mutation({
             if (!hasPriority) throw new Error("You don't have priority");
             if (state.pendingCast) {
                 throw new Error("Another spell is already being cast");
+            }
+            if (state.pendingActivation) {
+                throw new Error("Another ability is already being activated");
             }
         }
 
@@ -2384,9 +2765,12 @@ export const activatePlayerAbility = mutation({
             drainAutoPasses(state);
         }
 
-        // If a pendingCast is now payable thanks to the freshly produced mana,
-        // auto-commit the spell to the stack (mirrors tapForPayment).
-        const committed = tryAutoCommitPendingCast(state, args.playerId);
+        // If a pendingCast or pendingActivation is now payable thanks to the
+        // freshly produced mana, auto-commit it (mirrors tapForPayment).
+        const committedCast = tryAutoCommitPendingCast(state, args.playerId);
+        const committedActivation = committedCast
+            ? null
+            : tryAutoCommitPendingActivation(state, args.playerId);
 
         const now = Date.now();
         const nextSeq = gameState.seq + 1;
@@ -2405,15 +2789,29 @@ export const activatePlayerAbility = mutation({
             timestamp: now,
         });
 
-        if (committed) {
+        if (committedCast) {
             await ctx.db.insert("events", {
                 gameId: args.gameId,
                 seq: nextSeq,
                 type: "SPELL_CAST",
                 player: args.playerId,
                 payload: {
-                    cardInstanceId: committed.cardInstanceId,
-                    cardName: committed.cardName,
+                    cardInstanceId: committedCast.cardInstanceId,
+                    cardName: committedCast.cardName,
+                },
+                timestamp: now,
+            });
+        }
+        if (committedActivation) {
+            await ctx.db.insert("events", {
+                gameId: args.gameId,
+                seq: nextSeq,
+                type: "ABILITY_ACTIVATED",
+                player: args.playerId,
+                payload: {
+                    cardInstanceId: committedActivation.cardInstanceId,
+                    cardName: committedActivation.cardName,
+                    abilityId: committedActivation.abilityId,
                 },
                 timestamp: now,
             });
@@ -2563,6 +2961,7 @@ export const debugSetupScenario = mutation({
                     v.union(v.literal("hand"), v.literal("battlefield"))
                 ),
                 tapped: v.optional(v.boolean()),
+                count: v.optional(v.number()),
             })
         ),
         phase: v.optional(v.string()),
@@ -2620,13 +3019,16 @@ export const debugSetupScenario = mutation({
         for (const entry of args.cards) {
             const player = entry.owner === "me" ? p1 : p2;
             const zone = entry.zone ?? "battlefield";
-            const instance = makeInstance(entry.name, player.id, zone, {
-                tapped: entry.tapped,
-            });
-            if (zone === "hand") {
-                player.hand.push(instance);
-            } else {
-                player.battlefield.push(instance);
+            const count = entry.count ?? 1;
+            for (let i = 0; i < count; i++) {
+                const instance = makeInstance(entry.name, player.id, zone, {
+                    tapped: entry.tapped,
+                });
+                if (zone === "hand") {
+                    player.hand.push(instance);
+                } else {
+                    player.battlefield.push(instance);
+                }
             }
         }
 

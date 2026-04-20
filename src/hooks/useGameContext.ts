@@ -1,8 +1,10 @@
 import { createContext, useContext } from "react";
 import type { Id } from "@convex/_generated/dataModel";
+import type { Phase } from "@convex/gre/types";
 import type {
     Combat,
     GameOver,
+    PendingActivation,
     PendingCast,
     PendingTarget,
     Player,
@@ -13,10 +15,11 @@ type GameContext = {
     playerId: string;
     activePlayerId: string;
     priorityPlayerId: string;
-    phase: string;
+    phase: Phase;
     turn: number;
     stackCount: number;
     pendingCast?: PendingCast;
+    pendingActivation?: PendingActivation;
     pendingTarget?: PendingTarget;
     autoPassPlayers?: string[];
     undoableBy?: string;

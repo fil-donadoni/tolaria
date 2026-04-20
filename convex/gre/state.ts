@@ -1,5 +1,7 @@
 import type {
+    AnimateSpec,
     CardType,
+    DurationSpec,
     GameEvent,
     ManaCost as CardManaCost,
     PermanentFilter,
@@ -18,6 +20,63 @@ import {
 } from "./constants";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
 import { randomInt } from "./rng";
+
+/** Stored form of a temporary-effect duration. Mirrors `DurationSpec` but
+ *  with the symbolic `player` field resolved to a concrete `playerId` at
+ *  creation time so purge at replay time is deterministic (CR 611.2).
+ *
+ *  A phase boundary matches when `state.phase === boundaryFor(phase)` AND
+ *  (`playerId === undefined || playerId === state.activePlayerId`). On a
+ *  match with `skip > 0`, skip decrements. On a match with `skip === 0`,
+ *  the effect expires. */
+export type Duration = {
+    phase: "end-of-turn" | "end-of-combat";
+    /** Number of matching boundaries still to skip. Undefined = 0. */
+    skip?: number;
+    /** Resolved at creation time. Undefined = any active player's boundary. */
+    playerId?: string;
+};
+
+/** Converts a card-facing DurationSpec into the stored shape by resolving
+ *  the symbolic `player` field against the effect's controller. */
+export function resolveDuration(
+    spec: DurationSpec,
+    controllerId: string,
+    state: GameState
+): Duration {
+    let playerId: string | undefined;
+    if (spec.player === "controller") playerId = controllerId;
+    else if (spec.player === "opponent")
+        playerId = getOpponentId(state, controllerId);
+    const duration: Duration = { phase: spec.phase };
+    if (spec.skip !== undefined) duration.skip = spec.skip;
+    if (playerId !== undefined) duration.playerId = playerId;
+    return duration;
+}
+
+/** Returns the duration after one phase-boundary tick, or null if it has
+ *  expired. Non-matching boundaries return the duration unchanged. The
+ *  caller is responsible for splicing out expired entries and any side
+ *  effects (e.g. removing granted keywords from `staticAbilities`). */
+export function tickDuration(
+    duration: Duration,
+    view: { phase: Phase; activePlayerId: string }
+): Duration | null {
+    const boundary: Phase =
+        duration.phase === "end-of-turn" ? "CLEANUP" : "END_OF_COMBAT";
+    if (view.phase !== boundary) return duration;
+    if (
+        duration.playerId !== undefined &&
+        duration.playerId !== view.activePlayerId
+    ) {
+        return duration;
+    }
+    const skip = duration.skip ?? 0;
+    if (skip === 0) return null;
+    const next: Duration = { ...duration, skip: skip - 1 };
+    if (next.skip === 0) delete next.skip;
+    return next;
+}
 
 // Re-export for consumers that imported from here previously
 export { getBasicLandMana } from "./constants";
@@ -51,16 +110,45 @@ export type CardInstanceState = {
     isAttacking?: boolean;
     /** Set during combat when this creature is declared as blocker. Cleared at END_OF_COMBAT. */
     isBlocking?: boolean;
+    /** Set when the creature is declared as an attacker this turn (CR 506.2).
+     *  Unlike isAttacking, this is not cleared at END_OF_COMBAT — it persists
+     *  through to CLEANUP so end-step triggers like Berserk's delayed destroy
+     *  ("if it attacked this turn") can see it. */
+    hasAttackedThisTurn?: boolean;
+    /** Keyword abilities granted for a limited duration (CR 113.1 / 611.1b).
+     *  Each entry is also pushed to `staticAbilities` for read-time lookups
+     *  (combat logic inspects `staticAbilities.includes("trample")`) and is
+     *  spliced back out when the parametric `duration` expires. */
+    grantedStaticAbilities?: {
+        ability: string;
+        duration: Duration;
+    }[];
     /** Damage marked on the creature this turn (CR 120.3). Accumulates across
      *  damage events; checked against effective toughness for lethal damage
      *  (CR 704.5g). Removed at CLEANUP (CR 514.2). */
     damageMarked?: number;
+    /** Temporary "becomes a creature" animation (CR 208.2, 611.1). Set by
+     *  `animateAsCreature`; on expiry the engine restores the saved P/T
+     *  and splices back out the types / subtypes that the animation added.
+     *  `savedPower` / `savedToughness` capture the pre-animation values so
+     *  the restore is exact even if later buffs changed `power` / `toughness`. */
+    animation?: {
+        savedPower: number | undefined;
+        savedToughness: number | undefined;
+        /** True if "Creature" was added to `types` by the animation. */
+        addedCreatureType: boolean;
+        /** Subtype added to `subtypes` by the animation (undefined if none
+         *  or already present). Exactly one occurrence is spliced out on
+         *  expiry. */
+        addedSubtype?: string;
+        duration: Duration;
+    };
 };
 
 /** A one-shot damage prevention effect (CR 615.1, 615.6). The next time the
  *  given source would deal damage to `playerId`, that damage is prevented and
- *  this effect is consumed. End-of-turn effects are purged at CLEANUP
- *  (CR 514.2). Used by Circle of Protection. */
+ *  this effect is consumed. An unconsumed effect is purged when its
+ *  parametric `duration` expires. Used by Circle of Protection. */
 export type PreventionEffect = {
     /** Id of the source permanent (on battlefield) or stack item whose next
      *  damage to `playerId` should be prevented. Matched against
@@ -68,8 +156,7 @@ export type PreventionEffect = {
     sourceInstanceId: string;
     /** The player whose incoming damage is prevented. */
     playerId: string;
-    /** "end-of-turn" is removed at CLEANUP (CR 514.2). */
-    duration: "end-of-turn";
+    duration: Duration;
 };
 
 /** A reference to an activated ability template granted to a player by
@@ -82,8 +169,7 @@ export type GrantedAbilityInstance = {
     sourceCardId: string;
     /** The ability's id on that card definition. */
     abilityId: string;
-    /** "end-of-turn" is removed at CLEANUP (CR 514.2). */
-    duration: "end-of-turn";
+    duration: Duration;
     /** Turn on which the grant was created; used for bookkeeping/debug. */
     grantedAtTurn: number;
 };
@@ -123,6 +209,34 @@ export type StackItem = CardInstanceState & {
     triggeredAbilityId?: string;
     /** The originating event captured at trigger time. Passed to resolve(). */
     triggerEvent?: GameEvent;
+    /** If set, this stack item is a delayed triggered ability (CR 603.7a)
+     *  queued by an earlier spell's resolution. The resolve function lives on
+     *  `cardDef.delayedTriggers[triggerId]` and receives `delayedPayload`. */
+    delayedTriggerId?: string;
+    /** Serializable payload captured when the delayed trigger was scheduled.
+     *  Holds instance / player ids so the trigger can look up live targets at
+     *  fire time (CR 603.7a). */
+    delayedPayload?: Record<string, string>;
+};
+
+/** A delayed triggered ability waiting to fire (CR 603.7a). Queued on
+ *  `GameState.delayedTriggers` at spell resolution time and scanned whenever
+ *  the trigger condition (e.g. "at the beginning of the next end step") is
+ *  met. Holds only serializable data — resolve() lives on the card def and is
+ *  looked up at fire time. */
+export type DelayedTriggerInstance = {
+    /** Unique id "delayed-N" from GameState.nextDelayedSeq. */
+    id: string;
+    /** Card def that owns the trigger template. */
+    sourceCardId: string;
+    /** id on `cardDef.delayedTriggers`. */
+    triggerId: string;
+    /** Controller of the delayed trigger (CR 113.7). */
+    controller: string;
+    /** When the trigger should fire. */
+    timing: "next-end-step";
+    /** Payload carried over from the scheduling spell's resolution. */
+    payload: Record<string, string>;
 };
 
 /** Tracks an in-progress spell cast during the payment phase (CR 601.2). */
@@ -137,6 +251,32 @@ export type PendingCast = {
     keepPriority?: boolean;
     /** Value chosen for X at announce time. Propagated to the stack item. */
     chosenX?: number;
+};
+
+/** Tracks an in-progress activated-ability payment (CR 602.1, 602.2b).
+ *  Mirrors PendingCast but for a battlefield source. The ability's tap /
+ *  sacrifice costs are DEFERRED to commit time so cancellation reverts
+ *  cleanly. Mana is paid incrementally by tapping lands, and commit pushes
+ *  the ability on the stack (or resolves it for useStack: false). */
+export type PendingActivation = {
+    playerId: string;
+    /** Source permanent on the battlefield. */
+    cardInstanceId: string;
+    /** Ability id on the source's card definition. */
+    abilityId: string;
+    manaCost: Record<string, number>;
+    /** Land ids tapped during this payment, for rollback on cancel. */
+    tappedLandIds: string[];
+    /** True iff the ability has a {T} cost — applied at commit. */
+    tapSource: boolean;
+    /** True iff the ability has a sacrifice cost — applied at commit. */
+    sacrificeSource: boolean;
+    /** Mirrors PendingCast.keepPriority. */
+    keepPriority?: boolean;
+    /** Targets chosen at target-selection time (CR 602.2b) and propagated to
+     *  the stack item at commit. Empty/undefined for abilities without
+     *  targetRequirement. */
+    targets?: TargetSelection[];
 };
 
 /** Tracks target selection for a spell being announced (CR 601.2c) or an
@@ -187,6 +327,9 @@ export type GameState = {
     rngCounter: number;
     /** Active spell payment in progress (CR 601.2). */
     pendingCast?: PendingCast;
+    /** Active activated-ability payment in progress (CR 602.1). Mutually
+     *  exclusive with pendingCast. */
+    pendingActivation?: PendingActivation;
     /** Active target selection in progress (CR 601.2c). */
     pendingTarget?: PendingTarget;
     /** Player IDs that auto-pass priority for the rest of this turn. Resets on new turn. */
@@ -233,6 +376,12 @@ export type GameState = {
      *  consumed the first time a matching (source, player) damage event
      *  occurs. Cleared at CLEANUP for "end-of-turn" effects (CR 514.2). */
     preventionEffects?: PreventionEffect[];
+    /** Delayed triggered abilities awaiting their firing condition (CR 603.7a).
+     *  Scanned at phase entry for matching `timing`. Each instance fires once
+     *  then is spliced out. */
+    delayedTriggers?: DelayedTriggerInstance[];
+    /** Monotonic counter backing DelayedTriggerInstance.id generation. */
+    nextDelayedSeq?: number;
 };
 
 /** Returns true if a prevention effect matches (source, player) and consumes
@@ -264,6 +413,20 @@ export function resolveTopOfStack(state: GameState): StackItem {
 
     const cardId = (item.card as { id?: string }).id;
     const cardDef = cardId ? getCardById(cardId) : undefined;
+
+    // Delayed triggered ability resolution (CR 603.7a). Resolver is looked
+    // up on the scheduling card's def; payload carries ids captured at
+    // scheduling time.
+    if (item.delayedTriggerId && cardDef) {
+        const trigger = cardDef.delayedTriggers?.find(
+            (t) => t.id === item.delayedTriggerId
+        );
+        if (trigger) {
+            const ctx = buildSpellContext(state, item);
+            trigger.resolve(ctx, item.delayedPayload ?? {});
+        }
+        return item;
+    }
 
     // Triggered ability resolution (CR 603.3). Source permanent stays on
     // battlefield; the trigger vanishes after resolve.
@@ -401,6 +564,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
     return {
         caster: item.castById,
         controller: item.castById,
+        sourceInstanceId: item.id,
         targets: item.targets ?? [],
 
         dealDamage(target: TargetSelection, amount: number) {
@@ -432,18 +596,19 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         },
         preventNextDamageFromSource(
             sourceInstanceId: string,
-            playerId: string
+            playerId: string,
+            duration: DurationSpec
         ): void {
             // CR 615.1, 615.6: "The next time a [source] would deal damage
-            // to [player] this turn, prevent that damage." Stored as a
-            // one-shot replacement effect and consumed by the first
-            // matching damage event.
+            // to [player], prevent that damage." Stored as a one-shot
+            // replacement effect and consumed by the first matching damage
+            // event. `duration` scopes the unconsumed remainder.
             state.preventionEffects = [
                 ...(state.preventionEffects ?? []),
                 {
                     sourceInstanceId,
                     playerId,
-                    duration: "end-of-turn",
+                    duration: resolveDuration(duration, item.castById, state),
                 },
             ];
         },
@@ -489,6 +654,16 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (target.type === "player")
                 throw new Error("Cannot exile a player");
             removePermanentTo(state, target.id, "exile");
+        },
+        // CR 701.20a: to tap a permanent is to turn it sideways from an
+        // untapped position. Already-tapped permanents are unaffected.
+        // Silently no-ops if the target has left the battlefield (CR 608.2b).
+        tap(target: TargetSelection): void {
+            if (target.type === "player")
+                throw new Error("Cannot tap a player");
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.isTapped = true;
         },
         destroyAll(filter?: CardType | CardType[] | PermanentFilter): void {
             const normalized = normalizeDestroyAllFilter(filter);
@@ -607,14 +782,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             playerId: string,
             sourceCardId: string,
             abilityId: string,
-            duration: "end-of-turn"
+            duration: DurationSpec
         ): void {
             state.nextGrantSeq = (state.nextGrantSeq ?? 0) + 1;
             const instance: GrantedAbilityInstance = {
                 id: `grant-${state.nextGrantSeq}`,
                 sourceCardId,
                 abilityId,
-                duration,
+                duration: resolveDuration(duration, item.castById, state),
                 grantedAtTurn: state.turn,
             };
             const player = getPlayer(state, playerId);
@@ -630,6 +805,98 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             // Validate the target player exists (throws if not).
             getPlayer(state, playerId);
             state.extraTurns = [...(state.extraTurns ?? []), playerId];
+        },
+        // CR 113.1 / 611.1b: grants a keyword static ability for a limited
+        // duration. The keyword is pushed to `staticAbilities` so combat
+        // lookups (attacker.staticAbilities.includes("trample")) resolve
+        // without any special casing; the grant is tracked separately so
+        // the phase-boundary purge can splice the duplicate back out.
+        grantStaticAbility(
+            target: TargetSelection,
+            ability: string,
+            duration: DurationSpec
+        ): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.staticAbilities = [
+                ...found.card.staticAbilities,
+                ability,
+            ];
+            found.card.grantedStaticAbilities = [
+                ...(found.card.grantedStaticAbilities ?? []),
+                {
+                    ability,
+                    duration: resolveDuration(duration, item.castById, state),
+                },
+            ];
+        },
+        // CR 208.2, 611.1: turns the target permanent into a creature with
+        // the given base P/T and optional subtype for the duration. We
+        // mutate the instance state directly so all existing readers
+        // (layers, combat, SBAs) see the creature-ness without special
+        // casing; the `animation` record tracks exactly what was added so
+        // the phase-boundary purge can restore the original shape.
+        //
+        // Caveat: this does not currently re-trigger summoning sickness on
+        // a permanent that entered this turn but wasn't a creature at ETB
+        // (CR 302.1). Acceptable for Jade Statue whose typical play pattern
+        // is "play on T_n, animate on T_{n+1}".
+        animateAsCreature(target: TargetSelection, spec: AnimateSpec): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            const card = found.card;
+            if (card.animation) return; // already animated — one at a time
+            const addedCreatureType = !card.types.includes("Creature");
+            const addedSubtype =
+                spec.subtype !== undefined &&
+                !card.subtypes.includes(spec.subtype)
+                    ? spec.subtype
+                    : undefined;
+            card.animation = {
+                savedPower: card.power,
+                savedToughness: card.toughness,
+                addedCreatureType,
+                addedSubtype,
+                duration: resolveDuration(spec.duration, item.castById, state),
+            };
+            if (addedCreatureType) {
+                card.types = [...card.types, "Creature"];
+            }
+            if (addedSubtype !== undefined) {
+                card.subtypes = [...card.subtypes, addedSubtype];
+            }
+            card.power = spec.power;
+            card.toughness = spec.toughness;
+        },
+        // CR 603.7a: queues a delayed triggered ability. The template lives
+        // on the scheduling card's def and is looked up by id when the
+        // firing condition (e.g. END_STEP) is reached.
+        scheduleDelayedTrigger(
+            sourceCardId: string,
+            triggerId: string,
+            timing: "next-end-step",
+            payload: Record<string, string>
+        ): void {
+            state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
+            const instance: DelayedTriggerInstance = {
+                id: `delayed-${state.nextDelayedSeq}`,
+                sourceCardId,
+                triggerId,
+                controller: item.castById,
+                timing,
+                payload,
+            };
+            state.delayedTriggers = [
+                ...(state.delayedTriggers ?? []),
+                instance,
+            ];
+        },
+        hasAttackedThisTurn(target: TargetSelection): boolean {
+            if (target.type !== "permanent") return false;
+            const found = findOnBattlefield(state, target.id);
+            return found?.card.hasAttackedThisTurn === true;
         },
     };
 }

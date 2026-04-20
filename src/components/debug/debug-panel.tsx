@@ -33,6 +33,8 @@ type PresetScenario = {
         owner: "me" | "opp";
         zone?: "hand" | "battlefield";
         tapped?: boolean;
+        /** Number of copies to place in the zone. Default 1. */
+        count?: number;
     }[];
     phase: string;
     landCount: number;

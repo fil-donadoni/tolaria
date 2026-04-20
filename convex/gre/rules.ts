@@ -4,6 +4,7 @@ import type { CardAction } from "./types";
 import { isSorceryTiming } from "./phases";
 import { DAMAGEABLE_PERMANENT_TYPES } from "./constants";
 import { STATIC_EFFECT_CTX } from "./layers";
+import { tryGetCardById } from "../cards";
 
 const ALL_HAND_ACTIONS: CardAction[] = [
     "play",
@@ -50,16 +51,32 @@ export function getLegalActions(
 
     // "Cast" is for all non-land cards
     if (!types.includes("Land")) {
-        if (hasInstantTiming(card)) {
-            // Instants can be cast anytime a player has priority
-            actions.push("cast");
-        } else if (isSorceryTiming(state)) {
-            // Sorcery-speed: main phase, empty stack, active player has priority
+        const baseLegal = hasInstantTiming(card)
+            ? // Instants can be cast anytime a player has priority
+              true
+            : // Sorcery-speed: main phase, empty stack, active player has priority
+              isSorceryTiming(state);
+        if (baseLegal && passesCastPhaseRestriction(state, card)) {
             actions.push("cast");
         }
     }
 
     return actions;
+}
+
+/** CR 117.1b: some spells have phase-limited casting windows (e.g. Berserk
+ *  "cast only before the combat damage step"). Returns true when the card
+ *  either has no restriction or the current phase is in its allow-list. */
+function passesCastPhaseRestriction(
+    state: GameState,
+    card: CardInstanceState
+): boolean {
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId) return true;
+    const def = tryGetCardById(cardId);
+    const restriction = def?.castPhaseRestriction;
+    if (!restriction || restriction.length === 0) return true;
+    return restriction.includes(state.phase);
 }
 
 /** True if the permanent/stack item has at least one of the given color in

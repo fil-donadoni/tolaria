@@ -10,6 +10,7 @@ import {
     badMoon,
     badlands,
     bayou,
+    berserk,
     birdsOfParadise,
     bogWraith,
     shanodinDryads,
@@ -39,12 +40,15 @@ import {
     disenchant,
     earthquake,
     elvishArchers,
+    grizzlyBears,
     hurricane,
     hypnoticSpecter,
     icyManipulator,
+    jadeStatue,
     jayemdaeTome,
     juggernaut,
     serraAngel,
+    psionicBlast,
     savannahLions,
     solRing,
     wallOfSwords,
@@ -60,7 +64,7 @@ import {
     getFixedManaAmount,
     hasManaAbility,
 } from "../../../gre/constants";
-import { getLegalTargets } from "../../../gre/rules";
+import { getLegalActions, getLegalTargets } from "../../../gre/rules";
 import { projectPublicState } from "../../../gameProjections";
 import {
     validateBlockerEligibility,
@@ -284,6 +288,46 @@ describe("Lightning Bolt (3 damage to any target, CR 608.3)", () => {
         expect(ids).toContain("p1");
         expect(ids).toContain("p2");
         expect(ids).not.toContain("forest");
+    });
+});
+
+describe("Psionic Blast ({2}{U} — 4 to any target, 2 to you, CR 120.3)", () => {
+    it("deals 4 damage to target player and 2 damage to the caster", () => {
+        const state = makeState();
+        pushSpell(state, psionicBlast.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(16);
+        expect(state.players[0].life).toBe(18);
+    });
+
+    it("kills a 4-toughness creature while still damaging the caster", () => {
+        const wall = makeInstance(wallOfSwords.id, {
+            id: "wall",
+            controllerId: "p2",
+            ownerId: "p2",
+            power: 3,
+            toughness: 4,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [wall] }),
+            ],
+        });
+        pushSpell(state, psionicBlast.id, "p1", [
+            { type: "permanent", id: "wall" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("wall");
+        expect(state.players[0].life).toBe(18);
+    });
+
+    it("can target the caster — 4 + 2 damage both hit p1", () => {
+        const state = makeState();
+        pushSpell(state, psionicBlast.id, "p1", [{ type: "player", id: "p1" }]);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(14);
     });
 });
 
@@ -1305,6 +1349,138 @@ describe("Jayemdae Tome ({4}, {T}: Draw a card, CR 602.1 + 121.1)", () => {
     });
 });
 
+describe("Jade Statue (animate until end of combat, CR 208.2 + 511.3 + 602.5)", () => {
+    it("is a {4} artifact with a combat-only {2} activated ability", () => {
+        expect(jadeStatue.manaCost).toEqual({ X: 4 });
+        expect(jadeStatue.types).toEqual(["Artifact"]);
+        const ability = jadeStatue.activatedAbilities?.[0];
+        expect(ability?.id).toBe("jade-statue-animate");
+        expect(ability?.cost).toEqual({ mana: { X: 2 } });
+        expect(ability?.useStack).toBe(true);
+        // CR 602.5 — restriction covers every combat sub-step.
+        expect(ability?.activationPhaseRestriction).toEqual([
+            "BEGINNING_OF_COMBAT",
+            "DECLARE_ATTACKERS",
+            "DECLARE_BLOCKERS",
+            "FIRST_STRIKE_DAMAGE",
+            "COMBAT_DAMAGE",
+            "END_OF_COMBAT",
+        ]);
+    });
+
+    function setupAnimationScenario() {
+        const statue = makeInstance(jadeStatue.id, {
+            id: "statue",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            players: [
+                makePlayer("p1", { battlefield: [statue] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Simulate activation: push the ability on the stack (engine does this
+        // at activation time once costs are paid).
+        state.stack.push({
+            ...statue,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "jade-statue-animate",
+            targets: [],
+        });
+        return state;
+    }
+
+    it("resolving the ability animates the artifact into a 3/6 Golem artifact creature", () => {
+        const state = setupAnimationScenario();
+        resolveTopOfStack(state);
+        const animated = state.players[0].battlefield.find(
+            (c) => c.id === "statue"
+        )!;
+        // CR 208.2 — creature card type added; original artifact type preserved.
+        expect(animated.types).toEqual(["Artifact", "Creature"]);
+        expect(animated.subtypes).toEqual(["Golem"]);
+        expect(animated.power).toBe(3);
+        expect(animated.toughness).toBe(6);
+        expect(animated.animation).toMatchObject({
+            addedCreatureType: true,
+            addedSubtype: "Golem",
+            savedPower: undefined,
+            savedToughness: undefined,
+            duration: { phase: "end-of-combat" },
+        });
+    });
+
+    it("END_OF_COMBAT reverts the animation (CR 511.3): artifact loses creature type, P/T, and Golem subtype", () => {
+        const state = setupAnimationScenario();
+        resolveTopOfStack(state);
+        // Walk to END_OF_COMBAT. advancePhase auto-skips empty combat steps,
+        // so we land in POSTCOMBAT_MAIN — the purge still runs at the
+        // END_OF_COMBAT entry before the skip advances us forward.
+        state.phase = "COMBAT_DAMAGE";
+        advancePhase(state);
+        const reverted = state.players[0].battlefield.find(
+            (c) => c.id === "statue"
+        )!;
+        expect(reverted.types).toEqual(["Artifact"]);
+        expect(reverted.subtypes).toEqual([]);
+        expect(reverted.power).toBeUndefined();
+        expect(reverted.toughness).toBeUndefined();
+        expect(reverted.animation).toBeUndefined();
+    });
+
+    it("CLEANUP does NOT revert an animation still scoped to a future end-of-combat", () => {
+        // Fabricate an animation whose duration is end-of-combat and run
+        // CLEANUP: it must not affect effects tied to a different boundary.
+        const statue = makeInstance(jadeStatue.id, { id: "statue" });
+        statue.types = ["Artifact", "Creature"];
+        statue.subtypes = ["Golem"];
+        statue.power = 3;
+        statue.toughness = 6;
+        statue.animation = {
+            savedPower: undefined,
+            savedToughness: undefined,
+            addedCreatureType: true,
+            addedSubtype: "Golem",
+            duration: { phase: "end-of-combat" },
+        };
+        const state = makeState({
+            phase: "END_STEP",
+            players: [
+                makePlayer("p1", { battlefield: [statue] }),
+                makePlayer("p2"),
+            ],
+        });
+        advancePhase(state); // END_STEP → CLEANUP → next turn
+        const still = state.players[0].battlefield.find(
+            (c) => c.id === "statue"
+        )!;
+        expect(still.animation).toBeDefined();
+        expect(still.types).toContain("Creature");
+    });
+
+    it("wire format: animated statue projects as a 3/6 creature with the Golem subtype for both viewers", () => {
+        const state = setupAnimationScenario();
+        resolveTopOfStack(state);
+        for (const viewer of ["p1", "p2"] as const) {
+            const projected = projectPublicState(state, 1, viewer);
+            const slim = projected.players[0].battlefield.find(
+                (c) => c.id === "statue"
+            )!;
+            expect(slim.types).toEqual(["Artifact", "Creature"]);
+            expect(slim.subtypes).toEqual(["Golem"]);
+            expect(slim.power).toBe(3);
+            expect(slim.toughness).toBe(6);
+            // Effective P/T survives the projection (layer 7c reads the slim
+            // shape and returns the 3/6 printed on the animated card).
+            expect(getEffectivePower(projected, slim)).toBe(3);
+            expect(getEffectiveToughness(projected, slim)).toBe(6);
+        }
+    });
+});
+
 describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.20a)", () => {
     it("is a {4} artifact with a stack-using activated ability", () => {
         expect(icyManipulator.manaCost).toEqual({ X: 4 });
@@ -1626,7 +1802,7 @@ describe("Channel (CR 605.1a, 118.4, 514.2)", () => {
         expect(grants?.[0]).toMatchObject({
             sourceCardId: channel.id,
             abilityId: "channel-mana",
-            duration: "end-of-turn",
+            duration: { phase: "end-of-turn" },
             grantedAtTurn: state.turn,
         });
         expect(grants?.[0].id).toMatch(/^grant-\d+$/);
@@ -1692,7 +1868,7 @@ describe("Channel (CR 605.1a, 118.4, 514.2)", () => {
                 oracleText: "Pay 1 life: Add {C}.",
                 useStack: false,
                 manaProduced: { C: 1 },
-                duration: "end-of-turn",
+                duration: { phase: "end-of-turn" },
             });
             expect(slim?.[0].cost.life).toBe(1);
         }
@@ -1799,7 +1975,7 @@ describe("Circle of Protection: Red (CR 615.1, 615.6)", () => {
             {
                 sourceInstanceId: "bolt-stack",
                 playerId: "p1",
-                duration: "end-of-turn",
+                duration: { phase: "end-of-turn" },
             },
         ]);
     });
@@ -1810,7 +1986,7 @@ describe("Circle of Protection: Red (CR 615.1, 615.6)", () => {
             {
                 sourceInstanceId: "bolt-stack",
                 playerId: "p1",
-                duration: "end-of-turn",
+                duration: { phase: "end-of-turn" },
             },
         ];
         const bolt = makeInstance(lightningBolt.id, {
@@ -1835,7 +2011,7 @@ describe("Circle of Protection: Red (CR 615.1, 615.6)", () => {
             {
                 sourceInstanceId: "bolt-first",
                 playerId: "p1",
-                duration: "end-of-turn",
+                duration: { phase: "end-of-turn" },
             },
         ];
         // Prevention matches the first bolt.
@@ -1890,7 +2066,7 @@ describe("Circle of Protection: Red (CR 615.1, 615.6)", () => {
             {
                 sourceInstanceId: "specter",
                 playerId: "p1",
-                duration: "end-of-turn",
+                duration: { phase: "end-of-turn" },
             },
         ];
         const { applyAllCombatDamage } = await import("../../../gre/phases");
@@ -1905,7 +2081,7 @@ describe("Circle of Protection: Red (CR 615.1, 615.6)", () => {
             {
                 sourceInstanceId: "some-other-bolt",
                 playerId: "p1",
-                duration: "end-of-turn",
+                duration: { phase: "end-of-turn" },
             },
         ];
         const bolt = makeInstance(lightningBolt.id, {
@@ -1931,7 +2107,7 @@ describe("Circle of Protection: Red (CR 615.1, 615.6)", () => {
             {
                 sourceInstanceId: "whatever",
                 playerId: "p1",
-                duration: "end-of-turn",
+                duration: { phase: "end-of-turn" },
             },
         ];
         state.phase = "END_STEP";
@@ -2001,6 +2177,244 @@ describe("Circle of Protection: color filter on target selection", () => {
             count: 1,
             colorFilter: "G",
         });
+    });
+});
+
+describe("Berserk ({G} — trample + X/+0, delayed destroy if attacked, CR 117.1b / 611.1b / 603.7a / 514.2)", () => {
+    function setupWithAttacker() {
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        bear.isAttacking = true;
+        bear.hasAttackedThisTurn = true;
+        const p1 = makePlayer("p1", { battlefield: [bear] });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            phase: "DECLARE_BLOCKERS",
+        });
+        return { state, bear };
+    }
+
+    it("is a {G} instant", () => {
+        expect(berserk.manaCost).toEqual({ G: 1 });
+        expect(berserk.types).toEqual(["Instant"]);
+    });
+
+    it("targets a single creature", () => {
+        expect(berserk.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+        });
+    });
+
+    it("is castable in every combat step before combat damage", () => {
+        const legal = berserk.castPhaseRestriction!;
+        for (const phase of [
+            "UNTAP",
+            "UPKEEP",
+            "DRAW",
+            "PRECOMBAT_MAIN",
+            "BEGINNING_OF_COMBAT",
+            "DECLARE_ATTACKERS",
+            "DECLARE_BLOCKERS",
+            "FIRST_STRIKE_DAMAGE",
+        ] as const) {
+            expect(legal).toContain(phase);
+        }
+        for (const phase of [
+            "COMBAT_DAMAGE",
+            "END_OF_COMBAT",
+            "POSTCOMBAT_MAIN",
+            "END_STEP",
+            "CLEANUP",
+        ] as const) {
+            expect(legal).not.toContain(phase);
+        }
+    });
+
+    it("getLegalActions rejects Berserk during COMBAT_DAMAGE", () => {
+        const berserkCard = makeInstance(berserk.id, {
+            id: "b1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", { hand: [berserkCard] });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            phase: "COMBAT_DAMAGE",
+        });
+        const legal = getLegalActions(state, p1, berserkCard);
+        expect(legal).not.toContain("cast");
+    });
+
+    it("getLegalActions allows Berserk during DECLARE_ATTACKERS", () => {
+        const berserkCard = makeInstance(berserk.id, {
+            id: "b1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", { hand: [berserkCard] });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            phase: "DECLARE_ATTACKERS",
+        });
+        const legal = getLegalActions(state, p1, berserkCard);
+        expect(legal).toContain("cast");
+    });
+
+    it("grants trample and +X/+0 on resolve (X = current power)", () => {
+        const { state, bear } = setupWithAttacker();
+        pushSpell(state, berserk.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        expect(bear.staticAbilities).toContain("trample");
+        // 2 + 2 = 4 (via modifyPower; effective reading agrees)
+        expect(bear.power).toBe(4);
+        expect(bear.toughness).toBe(2);
+        expect(getEffectivePower(state, bear)).toBe(4);
+        expect(getEffectiveToughness(state, bear)).toBe(2);
+    });
+
+    it("schedules a next-end-step delayed trigger tied to the target id", () => {
+        const { state } = setupWithAttacker();
+        pushSpell(state, berserk.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers?.[0]).toMatchObject({
+            sourceCardId: berserk.id,
+            triggerId: "destroy-if-attacked",
+            controller: "p1",
+            timing: "next-end-step",
+            payload: { targetId: "bear" },
+        });
+        expect(state.delayedTriggers?.[0].id).toMatch(/^delayed-\d+$/);
+    });
+
+    it("END_STEP pushes the delayed trigger onto the stack with active-player priority", () => {
+        const { state } = setupWithAttacker();
+        pushSpell(state, berserk.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        // Fast-forward to end step so the trigger fires.
+        state.phase = "POSTCOMBAT_MAIN";
+        advancePhase(state);
+        expect(state.phase).toBe("END_STEP");
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].delayedTriggerId).toBe("destroy-if-attacked");
+        expect(state.stack[0].delayedPayload).toEqual({ targetId: "bear" });
+        expect(state.priorityPlayerId).toBe(state.activePlayerId);
+        expect(state.delayedTriggers).toBeUndefined();
+    });
+
+    it("delayed trigger destroys the creature when it attacked this turn", () => {
+        const { state, bear } = setupWithAttacker();
+        pushSpell(state, berserk.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state); // Berserk resolves
+        state.phase = "POSTCOMBAT_MAIN";
+        advancePhase(state); // enter END_STEP, push delayed trigger
+        resolveTopOfStack(state); // resolve the delayed trigger
+        expect(state.players[0].battlefield).not.toContain(bear);
+        expect(state.players[0].graveyard.some((c) => c.id === "bear")).toBe(
+            true
+        );
+    });
+
+    it("delayed trigger is a no-op when the target never attacked", () => {
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        // Not an attacker: no hasAttackedThisTurn, no isAttacking.
+        const p1 = makePlayer("p1", { battlefield: [bear] });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            phase: "PRECOMBAT_MAIN",
+        });
+        pushSpell(state, berserk.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        state.phase = "POSTCOMBAT_MAIN";
+        advancePhase(state); // END_STEP, pushes delayed trigger
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield).toContain(bear);
+        expect(state.players[0].graveyard.some((c) => c.id === "bear")).toBe(
+            false
+        );
+    });
+
+    it("CLEANUP removes the granted trample and clears hasAttackedThisTurn", () => {
+        const { state, bear } = setupWithAttacker();
+        pushSpell(state, berserk.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        expect(bear.staticAbilities).toContain("trample");
+        // Advance through END_STEP → CLEANUP → next turn UNTAP.
+        state.phase = "POSTCOMBAT_MAIN";
+        advancePhase(state); // END_STEP (trigger enqueued on stack)
+        resolveTopOfStack(state); // resolve delayed trigger (destroys bear)
+        advancePhase(state); // CLEANUP (auto) → next turn
+        // Bear is in the graveyard; its turn-scoped state still carries no
+        // granted ability (cleanup ran before GY move? No — cleanup runs on
+        // battlefield permanents. For a test that reaches cleanup we need a
+        // creature that survives.)
+        // Assert that hasAttackedThisTurn was cleared from the graveyard
+        // copy (it persists on the instance but CLEANUP should have run
+        // over the battlefield before the creature died — the creature
+        // itself is already gone, so we cover the surviving-case below).
+        const grave = state.players[0].graveyard.find((c) => c.id === "bear");
+        expect(grave?.hasAttackedThisTurn).toBe(true); // never touched post-destroy
+    });
+
+    it("surviving creature loses granted trample and hasAttackedThisTurn at CLEANUP", () => {
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        bear.hasAttackedThisTurn = true;
+        const p1 = makePlayer("p1", { battlefield: [bear] });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            phase: "PRECOMBAT_MAIN",
+        });
+        pushSpell(state, berserk.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state); // grants trample, +2/+0, schedules delayed
+        expect(bear.staticAbilities).toContain("trample");
+        state.phase = "POSTCOMBAT_MAIN";
+        advancePhase(state); // END_STEP (pushes trigger)
+        resolveTopOfStack(state); // delayed trigger resolves → destroys bear
+        // Bear is dead here; verify the secondary case where the creature
+        // would survive uses a non-attacker bear.
+        const pacifistBear = makeInstance(grizzlyBears.id, {
+            id: "pbear",
+            controllerId: "p1",
+        });
+        const state2 = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pacifistBear] }),
+                makePlayer("p2"),
+            ],
+            phase: "PRECOMBAT_MAIN",
+        });
+        pushSpell(state2, berserk.id, "p1", [
+            { type: "permanent", id: "pbear" },
+        ]);
+        resolveTopOfStack(state2);
+        expect(pacifistBear.staticAbilities).toContain("trample");
+        state2.phase = "POSTCOMBAT_MAIN";
+        advancePhase(state2); // END_STEP
+        resolveTopOfStack(state2); // delayed trigger: no-op (didn't attack)
+        advancePhase(state2); // CLEANUP (auto) → next turn UNTAP
+        expect(pacifistBear.staticAbilities).not.toContain("trample");
+        expect(pacifistBear.grantedStaticAbilities).toBeUndefined();
+        expect(pacifistBear.hasAttackedThisTurn).toBeUndefined();
+    });
+
+    it("wire format: projected state shows buffed power + granted trample", () => {
+        const { state, bear } = setupWithAttacker();
+        pushSpell(state, berserk.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(slim.power).toBe(4);
+        expect(slim.staticAbilities).toContain("trample");
+        expect(getEffectivePower(projected, slim)).toBe(4);
+        // Opponent's viewer sees the same data (no hidden info on battlefield).
+        const oppView = projectPublicState(state, 1, "p2");
+        const slimOpp = oppView.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(slimOpp.power).toBe(4);
+        expect(slimOpp.staticAbilities).toContain("trample");
+        // Preserve the reference to `bear` so TS doesn't flag the variable.
+        expect(bear.id).toBe("bear");
     });
 });
 

@@ -20,6 +20,7 @@ export default function ActionBar() {
         priorityPlayerId,
         phase,
         pendingCast,
+        pendingActivation,
         pendingTarget,
         autoPassPlayers,
         undoableBy,
@@ -29,6 +30,7 @@ export default function ActionBar() {
 
     const undoManaAbility = useMutation(api.game.undoManaAbility);
     const cancelCast = useMutation(api.game.cancelCast);
+    const cancelActivation = useMutation(api.game.cancelActivation);
     const confirmAttackers = useMutation(api.game.confirmAttackers);
     const confirmBlockers = useMutation(api.game.confirmBlockers);
     const confirmDamage = useMutation(api.game.confirmDamage);
@@ -41,12 +43,15 @@ export default function ActionBar() {
         priorityPlayerId,
         phase,
         pendingCast,
+        pendingActivation,
         pendingTarget,
         combat,
     };
 
     const canUndo = undoableBy === playerId;
     const isPayingCast = !!pendingCast && pendingCast.playerId === playerId;
+    const isPayingActivation =
+        !!pendingActivation && pendingActivation.playerId === playerId;
     const isSelectingAttackers = isSelectingAttackersFn(priorityCtx);
     const isSelectingBlockers = isSelectingBlockersFn(priorityCtx);
     const isAssigningDamage = isAssigningDamageFn(priorityCtx);
@@ -164,6 +169,15 @@ export default function ActionBar() {
                 key="cancel-cast"
                 onClick={() => cancelCast({ gameId, playerId })}
                 label="Cancel Cast"
+                color="red"
+            />
+        );
+    } else if (isPayingActivation) {
+        buttons.push(
+            <ActionButton
+                key="cancel-activation"
+                onClick={() => cancelActivation({ gameId, playerId })}
+                label="Cancel Ability"
                 color="red"
             />
         );

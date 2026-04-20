@@ -2,10 +2,16 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Player, GrantedAbility } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
+import { formatOracleText } from "~/lib/oracle-text";
 
 export default function PlayerGrantedAbilities({ player }: { player: Player }) {
-    const { gameId, playerId, priorityPlayerId, pendingCast } =
-        useGameContext();
+    const {
+        gameId,
+        playerId,
+        priorityPlayerId,
+        pendingCast,
+        pendingActivation,
+    } = useGameContext();
     const activate = useMutation(api.game.activatePlayerAbility);
 
     const grants = player.grantedAbilities;
@@ -14,7 +20,9 @@ export default function PlayerGrantedAbilities({ player }: { player: Player }) {
     const isMe = player.id === playerId;
     const canActivate =
         isMe &&
-        (priorityPlayerId === playerId || pendingCast?.playerId === playerId);
+        (priorityPlayerId === playerId ||
+            pendingCast?.playerId === playerId ||
+            pendingActivation?.playerId === playerId);
 
     const handleClick = (grant: GrantedAbility) => {
         if (!canActivate) return;
@@ -47,7 +55,7 @@ export default function PlayerGrantedAbilities({ player }: { player: Player }) {
                                 : "bg-emerald-700 hover:bg-emerald-600 text-white cursor-pointer"
                         }`}
                     >
-                        {grant.oracleText}
+                        {formatOracleText(grant.oracleText)}
                     </button>
                 );
             })}

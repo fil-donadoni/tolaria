@@ -14,6 +14,7 @@ import {
 import { useGameContext } from "~/hooks/useGameContext";
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { isCreature } from "~/lib/card-utils";
+import { formatOracleText } from "~/lib/oracle-text";
 
 export type CardVisualState = {
     interactive: boolean;
@@ -147,7 +148,7 @@ export default function BattlefieldCard({
                             onActivateAbility?.(a.id, e.ctrlKey || e.metaKey)
                         }
                     >
-                        {a.oracleText}
+                        {formatOracleText(a.oracleText)}
                     </ContextMenuItem>
                 ))}
             </ContextMenuContent>

@@ -97,6 +97,7 @@ export default function Board({
     const phase = state.phase ?? "UPKEEP";
     const turn = state.turn ?? 1;
     const pendingCast = state.pendingCast;
+    const pendingActivation = state.pendingActivation;
     const autoPassPlayers = state.autoPassPlayers;
     const combat = state.combat;
     const pendingTarget = state.pendingTarget;
@@ -122,6 +123,7 @@ export default function Board({
                 turn,
                 stackCount: stackItems.length,
                 pendingCast,
+                pendingActivation,
                 pendingTarget,
                 autoPassPlayers,
                 undoableBy,

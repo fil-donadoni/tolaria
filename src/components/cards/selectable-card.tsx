@@ -22,8 +22,14 @@ export default function SelectableCard({
     cardInstance,
     allowedActions = [],
 }: SelectableCardProps) {
-    const { gameId, playerId, debugAllActions, pendingCast, pendingTarget } =
-        useGameContext();
+    const {
+        gameId,
+        playerId,
+        debugAllActions,
+        pendingCast,
+        pendingActivation,
+        pendingTarget,
+    } = useGameContext();
     const playCard = useMutation(api.game.playCard);
     const announceCast = useMutation(api.game.announceCast);
 
@@ -69,7 +75,10 @@ export default function SelectableCard({
     };
 
     const hasActions =
-        allowedActions.length > 0 && !pendingCast && !pendingTarget;
+        allowedActions.length > 0 &&
+        !pendingCast &&
+        !pendingActivation &&
+        !pendingTarget;
 
     if (!hasActions) {
         return <CardImage card={cardInstance.card} />;
