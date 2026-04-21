@@ -85,10 +85,52 @@ function nextPhase(current: Phase): Phase | null {
     return PHASE_ORDER[idx + 1];
 }
 
-/** Untap step: untap all permanents, clear committed/summoning sickness (CR 502.4). */
+/** True if any permanent on either battlefield grants the given static
+ *  ability (CR 611). Used by the untap step to apply Winter Orb-style
+ *  global restrictions without hardcoding card ids. */
+function hasGlobalStaticAbility(state: GameState, ability: string): boolean {
+    for (const p of state.players) {
+        for (const c of p.battlefield) {
+            if (c.staticAbilities.includes(ability)) return true;
+        }
+    }
+    return false;
+}
+
+/** True if the card has one of the types restricted by Winter Orb's
+ *  "artifact, creature, or land" clause. */
+function isAclPermanent(card: CardInstanceState): boolean {
+    return (
+        card.types.includes("Artifact") ||
+        card.types.includes("Creature") ||
+        card.types.includes("Land")
+    );
+}
+
+/** Untap step: untap all permanents, clear committed/summoning sickness
+ *  (CR 502.4). When any permanent grants the `limits-acl-untap` marker
+ *  (Winter Orb / Static Orb), the active player's untap is capped at one
+ *  artifact/creature/land total. Selection is deterministic — first tapped
+ *  ACL in battlefield order — since UNTAP is an auto-phase with no priority
+ *  window (CR 502.1). Non-ACL permanents untap normally. */
 function untapStep(state: GameState): void {
     const player = getPlayer(state, state.activePlayerId);
+    const aclLimited = hasGlobalStaticAbility(state, "limits-acl-untap");
+    const chosenAclUntapId = aclLimited
+        ? (player.battlefield.find((c) => c.isTapped && isAclPermanent(c))
+              ?.id ?? null)
+        : null;
     for (const card of player.battlefield) {
+        if (
+            aclLimited &&
+            isAclPermanent(card) &&
+            card.id !== chosenAclUntapId
+        ) {
+            // Blocked by Winter Orb — permanent stays tapped but stops
+            // counting as "mana committed" so it can be played around at
+            // sorcery speed next turn if the restriction lifts.
+            continue;
+        }
         card.isTapped = false;
         card.manaCommitted = undefined;
         card.isSummoningSick = undefined;
@@ -402,6 +444,22 @@ export function applyAllCombatDamage(
         }
     }
 
+    // CR 120.3: record which sources dealt damage to each victim this turn.
+    // Preserved through CLEANUP (CR 514.2) so post-death lookup triggers
+    // (Sengir Vampire) can inspect the victim after it leaves the battlefield.
+    for (const ev of events) {
+        if (ev.type !== "DAMAGE_DEALT") continue;
+        if (ev.target.type !== "permanent") continue;
+        const hit =
+            activePlayer.battlefield.find((c) => c.id === ev.target.id) ??
+            defender.battlefield.find((c) => c.id === ev.target.id);
+        if (!hit) continue;
+        hit.damagedBySources = [
+            ...(hit.damagedBySources ?? []),
+            ev.sourceInstanceId,
+        ];
+    }
+
     // CR 120.3: accumulate combat damage onto the creature's marked damage,
     // then check CR 704.5g lethal against effective toughness (layer 7c).
     const deadIds = new Set<string>();
@@ -416,7 +474,9 @@ export function applyAllCombatDamage(
         }
     }
 
-    // Move dead creatures to their owner's graveyard
+    // Move dead creatures to their owner's graveyard, emitting CREATURE_DIED
+    // (CR 700.4) so "whenever another creature dies" triggers can fire in the
+    // same collectTriggers pass as the combat DAMAGE_DEALT events.
     for (const player of state.players) {
         const dead = player.battlefield.filter((c) => deadIds.has(c.id));
         for (const card of dead) {
@@ -429,6 +489,12 @@ export function applyAllCombatDamage(
             card.isTapped = false;
             const owner = getPlayer(state, card.ownerId);
             owner.graveyard.push(card);
+            events.push({
+                type: "CREATURE_DIED",
+                creatureInstanceId: card.id,
+                creatureControllerId: card.controllerId,
+                damagedBySources: card.damagedBySources ?? [],
+            });
         }
     }
 
@@ -443,6 +509,24 @@ export function applyAllCombatDamage(
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
     }
+}
+
+/** Emits a PHASE_BEGIN event for the current phase, collects matching
+ *  triggered abilities from all battlefield permanents (CR 603.6a), pushes
+ *  them on the stack, and restarts priority at the active player (CR 117.3c).
+ *  No-op when the scan yields no triggers. Intervening-if conditions are
+ *  the card's responsibility inside `matches()` (CR 603.4). */
+function firePhaseBeginTriggers(state: GameState): void {
+    const event: GameEvent = {
+        type: "PHASE_BEGIN",
+        phase: state.phase,
+        activePlayerId: state.activePlayerId,
+    };
+    const triggers = collectTriggers(state, [event]);
+    if (triggers.length === 0) return;
+    state.stack.push(...triggers);
+    state.priorityPlayerId = state.activePlayerId;
+    state.passCount = 0;
 }
 
 /** Dequeue delayed triggers matching `timing`, push them on the stack as
@@ -565,6 +649,9 @@ function performPhaseEntry(state: GameState): void {
                     if (card.hasAttackedThisTurn) {
                         card.hasAttackedThisTurn = undefined;
                     }
+                    if (card.damagedBySources !== undefined) {
+                        card.damagedBySources = undefined;
+                    }
                 }
             }
             // TODO: hand size check (CR 514.1).
@@ -592,12 +679,19 @@ function tickAllDurations(state: GameState): void {
 
     // Granted static keywords (e.g. Berserk's trample). On expiry, splice
     // one occurrence out of `staticAbilities` so natively-declared
-    // duplicates are left untouched (CR 113.1).
+    // duplicates are left untouched (CR 113.1). Aura-sourced grants have
+    // no duration — they're managed by the aura's lifetime (see
+    // applyAuraStaticEffects / unapplyAuraStaticEffects in state.ts) and
+    // pass through this purge unchanged.
     for (const p of state.players) {
         for (const card of p.battlefield) {
             if (!card.grantedStaticAbilities?.length) continue;
             const kept: typeof card.grantedStaticAbilities = [];
             for (const grant of card.grantedStaticAbilities) {
+                if (!grant.duration) {
+                    kept.push(grant);
+                    continue;
+                }
                 const next = tickDuration(grant.duration, view);
                 if (next === null) {
                     const idx = card.staticAbilities.indexOf(grant.ability);
@@ -745,6 +839,14 @@ export function advancePhase(state: GameState): Phase[] {
     // Check combat state before entry actions (END_OF_COMBAT clears it)
     const hadAttackers = !!state.combat && state.combat.attackerIds.length > 0;
     performPhaseEntry(state);
+
+    // CR 603.6a: fire "at the beginning of ~" triggers after the step's
+    // turn-based actions. Skipped on auto-phases (UNTAP/CLEANUP) which don't
+    // grant priority — triggers scoped to those steps are out of scope for
+    // now and would need to be held until the next priority window.
+    if (!AUTO_PHASES.has(state.phase)) {
+        firePhaseBeginTriggers(state);
+    }
 
     const skipEmptyCombat =
         (state.phase === "DECLARE_BLOCKERS" ||

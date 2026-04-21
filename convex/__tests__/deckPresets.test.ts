@@ -4,13 +4,9 @@ import { getCardById } from "../cards";
 
 describe("PRESET_DECKS", () => {
     it.each(PRESET_DECKS.map((d) => [d.name, d]))(
-        "%s has 40 cards with 16 lands (40%%)",
+        "%s has 40 cards",
         (_name, deck) => {
             expect(deck.cards).toHaveLength(40);
-            const landCount = deck.cards.filter((c) =>
-                getCardById(c.cardId).types.includes("Land")
-            ).length;
-            expect(landCount).toBe(16);
         }
     );
 

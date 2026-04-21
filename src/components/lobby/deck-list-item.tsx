@@ -1,8 +1,8 @@
-import type { Doc } from "@convex/_generated/dataModel";
+import type { DeckPreset } from "@convex/deckPresets";
 import { cn } from "~/lib/utils";
 
 interface DeckListItemProps {
-    deck: Doc<"decks">;
+    deck: DeckPreset;
     isSelected: boolean;
     onFocus: (presetId: string) => void;
 }

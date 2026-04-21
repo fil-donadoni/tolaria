@@ -13,6 +13,7 @@ import type {
     PermanentView,
     StaticEffect,
     StaticEffectContext,
+    StaticEffectStateView,
 } from "../cards/types";
 import { MANA_COLORS } from "./constants";
 
@@ -20,11 +21,9 @@ export type PTBuff = { power: number; toughness: number };
 
 const ZERO: PTBuff = { power: 0, toughness: 0 };
 
-/** Minimal view of GameState the layer system needs. Lets callers pass trimmed state
- *  shapes (e.g. the frontend Player[]) without casting. */
-export interface LayerStateView {
-    players: ReadonlyArray<{ battlefield: ReadonlyArray<PermanentView> }>;
-}
+/** Re-exported for engine callers; the canonical definition lives in types.ts
+ *  so static-effect predicates can reference it without a cycle. */
+export type LayerStateView = StaticEffectStateView;
 
 /** Returns the card definition's static effects, or [] if unknown. */
 function getStaticEffects(card: PermanentView): StaticEffect[] {
@@ -75,12 +74,20 @@ export function getStaticPTBuff(
     for (const player of state.players) {
         for (const source of player.battlefield) {
             for (const effect of getStaticEffects(source)) {
-                if (effect.kind !== "pt-buff") continue;
-                if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
-                    continue;
+                if (effect.kind === "pt-buff") {
+                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                        continue;
+                    }
+                    power += effect.power;
+                    toughness += effect.toughness;
+                } else if (effect.kind === "pt-cda") {
+                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                        continue;
+                    }
+                    const pt = effect.compute(source, state, STATIC_EFFECT_CTX);
+                    power += pt.power;
+                    toughness += pt.toughness;
                 }
-                power += effect.power;
-                toughness += effect.toughness;
             }
         }
     }

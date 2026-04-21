@@ -36,6 +36,7 @@ export default function ActionBar() {
     const confirmDamage = useMutation(api.game.confirmDamage);
     const passPriority = useMutation(api.game.passPriority);
     const endTurn = useMutation(api.game.endTurn);
+    const cancelAutoPass = useMutation(api.game.cancelAutoPass);
 
     const priorityCtx = {
         playerId,
@@ -113,6 +114,10 @@ export default function ActionBar() {
         if (hasPriority && !isAutoPass) endTurn({ gameId, playerId });
     }, [hasPriority, isAutoPass, endTurn, gameId, playerId]);
 
+    const handleCancelAutoPass = useCallback(() => {
+        if (isAutoPass) cancelAutoPass({ gameId, playerId });
+    }, [isAutoPass, cancelAutoPass, gameId, playerId]);
+
     useEffect(() => {
         function onKeyDown(e: KeyboardEvent) {
             if (e.key === "u" && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -132,7 +137,11 @@ export default function ActionBar() {
             }
             if (e.code === "Enter" && !e.repeat) {
                 e.preventDefault();
-                handleEndTurn();
+                if (isAutoPass) {
+                    handleCancelAutoPass();
+                } else {
+                    handleEndTurn();
+                }
             }
         }
         window.addEventListener("keydown", onKeyDown);
@@ -141,6 +150,8 @@ export default function ActionBar() {
         handleUndo,
         handlePass,
         handleEndTurn,
+        handleCancelAutoPass,
+        isAutoPass,
         isSelectingAttackers,
         isSelectingBlockers,
         confirmAttackers,
@@ -251,12 +262,14 @@ export default function ActionBar() {
         );
     } else if (isAutoPass) {
         buttons.push(
-            <div
+            <button
                 key="auto-pass"
-                className="bg-black/60 text-white/60 px-6 py-2 rounded-lg text-sm"
+                onClick={handleCancelAutoPass}
+                className="bg-black/60 hover:bg-black/80 text-white/60 hover:text-white px-6 py-2 rounded-lg text-sm transition-colors shadow-lg"
             >
-                Auto-passing...
-            </div>
+                Auto-passing... (cancel)
+                <span className="ml-2 text-xs opacity-60">[enter]</span>
+            </button>
         );
     }
 

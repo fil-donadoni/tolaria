@@ -30,7 +30,6 @@ function Lobby({ onEnter }: LobbyProps) {
 
     const pageVisible = usePageVisible();
     const decks = useQuery(api.decks.list, pageVisible ? {} : "skip");
-    const seedIfEmpty = useMutation(api.decks.seedIfEmpty);
     const createGame = useMutation(api.game.createGame);
     const joinGame = useMutation(api.game.joinGame);
     const allOpenGames = useQuery(
@@ -44,12 +43,6 @@ function Lobby({ onEnter }: LobbyProps) {
             ),
         [allOpenGames, clientId]
     );
-
-    useEffect(() => {
-        if (decks && decks.length === 0) {
-            void seedIfEmpty({});
-        }
-    }, [decks, seedIfEmpty]);
 
     const selectedDeck = useMemo(
         () => decks?.find((d) => d.presetId === storedPresetId) ?? null,

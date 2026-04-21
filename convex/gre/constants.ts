@@ -75,6 +75,15 @@ export function isLand(card: CardInstanceState): boolean {
     return card.types.includes("Land");
 }
 
+/** True if the card has the "Aura" subtype (CR 303.4). Auras ETB attached
+ *  to an object via `attachedTo` and are subject to SBA 704.5m. */
+export function isAura(card: {
+    types: readonly string[];
+    subtypes: readonly string[];
+}): boolean {
+    return card.types.includes("Enchantment") && card.subtypes.includes("Aura");
+}
+
 /** Returns the mana color produced by a tap mana ability (e.g. Mox), or null. */
 export function getActivatedManaColor(card: CardInstanceState): Color | null {
     const cardDef = getCardById(card.card.id as string);

@@ -105,7 +105,7 @@ export default function SelectableCard({
 
     if (isHandChoice) {
         const ringClass = isChoiceSelected
-            ? "ring-2 ring-violet-400"
+            ? "ring-2 ring-emerald-400"
             : "ring-2 ring-violet-400/60 cursor-pointer hover:ring-violet-300";
         return (
             <div

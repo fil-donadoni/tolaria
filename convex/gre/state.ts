@@ -10,16 +10,21 @@ import type {
     TargetRequirement,
     TargetSelection,
 } from "../cards/types";
-import { getCardById } from "../cards";
+import { getCardById, tryGetCardById } from "../cards";
 import type { Phase, Zone } from "./types";
 import {
     getActivatedManaColor,
     getBasicLandMana,
+    isAura,
     isDamageablePermanent,
     MANA_COLORS,
     PERMANENT_TYPES,
 } from "./constants";
-import { getEffectivePower, getEffectiveToughness } from "./layers";
+import {
+    STATIC_EFFECT_CTX,
+    getEffectivePower,
+    getEffectiveToughness,
+} from "./layers";
 import { isProtectedFromSource } from "./protection";
 import { randomInt, seededShuffle } from "./rng";
 
@@ -120,15 +125,47 @@ export type CardInstanceState = {
     /** Keyword abilities granted for a limited duration (CR 113.1 / 611.1b).
      *  Each entry is also pushed to `staticAbilities` for read-time lookups
      *  (combat logic inspects `staticAbilities.includes("trample")`) and is
-     *  spliced back out when the parametric `duration` expires. */
+     *  spliced back out either when the parametric `duration` expires or,
+     *  for grants sourced from an attached aura, when the aura leaves the
+     *  battlefield. Exactly one of `duration` / `auraId` is set per entry. */
     grantedStaticAbilities?: {
         ability: string;
-        duration: Duration;
+        duration?: Duration;
+        /** Instance id of the aura that produced this grant (CR 303.4e).
+         *  The entry is removed when the aura unattaches or leaves play. */
+        auraId?: string;
     }[];
     /** Damage marked on the creature this turn (CR 120.3). Accumulates across
      *  damage events; checked against effective toughness for lethal damage
      *  (CR 704.5g). Removed at CLEANUP (CR 514.2). */
     damageMarked?: number;
+    /** Instance ids of sources that dealt damage to this creature this turn
+     *  (CR 120.3). Carried into the graveyard with the dying instance so
+     *  "whenever another creature dies, if ~ dealt damage to it this turn"
+     *  triggers (Sengir Vampire) can inspect the victim post-death. Cleared
+     *  at CLEANUP (CR 514.2). */
+    damagedBySources?: string[];
+    /** Instance id of the permanent this card is attached to (CR 303.4b).
+     *  Set on auras when they ETB. Cleared by SBA 704.5m when the host
+     *  becomes illegal. Non-aura permanents leave this undefined. */
+    attachedTo?: string;
+    /** Stack of control-changing effects currently applied to this permanent
+     *  (CR 613.1b, layer 2). Each entry records the aura that imposed the
+     *  change and `previousControllerId` — whoever controlled the card right
+     *  before that aura attached. Top-of-stack determines the current
+     *  `controllerId`; when the stack is empty, control collapses to
+     *  `ownerId` (CR 108.3, owners are immutable).
+     *
+     *  Layering: two CMs stacked on the same creature are resolved by
+     *  timestamp — the latest-applied wins while present. Removing the top
+     *  pops and restores the entry's `previousControllerId`. Removing a
+     *  middle entry (an older CM destroyed while a newer one still applies)
+     *  splices it out and patches the next entry's `previousControllerId`
+     *  so a later pop still lands on the correct value. */
+    controlChanges?: Array<{
+        auraId: string;
+        previousControllerId: string;
+    }>;
     /** Temporary "becomes a creature" animation (CR 208.2, 611.1). Set by
      *  `animateAsCreature`; on expiry the engine restores the saved P/T
      *  and splices back out the types / subtypes that the animation added.
@@ -209,6 +246,11 @@ export type StackItem = CardInstanceState & {
     /** If set, this stack item is a triggered ability (CR 603). The source
      *  permanent stays on the battlefield; the trigger vanishes on resolution. */
     triggeredAbilityId?: string;
+    /** Instance id of the source permanent that produced this trigger (the
+     *  id on the battlefield, not the stack item id). Captured at trigger
+     *  time; read by `SpellContext.sourceInstanceId` on resolution so the
+     *  resolver can re-inspect the source (intervening-if, CR 603.4). */
+    triggerSourceId?: string;
     /** The originating event captured at trigger time. Passed to resolve(). */
     triggerEvent?: GameEvent;
     /** If set, this stack item is a delayed triggered ability (CR 603.7a)
@@ -312,9 +354,9 @@ export type PendingChoice = {
      *  permanents to keep on the battlefield (the rest are sacrificed by the
      *  step). "keep-hand" = pick N cards in hand to keep (the rest are
      *  discarded by the step). */
-    kind: "keep-permanents" | "keep-hand";
+    kind: "keep-permanents" | "keep-hand" | "search-library";
     /** Zone of the choosable items — restricts the set offered to the chooser. */
-    zone: "battlefield" | "hand";
+    zone: "battlefield" | "hand" | "library";
     /** Optional battlefield filter (card types / subtypes / keywords). Ignored
      *  for hand choices. */
     filter?: PermanentFilter;
@@ -564,17 +606,220 @@ function finalizeSpellResolution(
     const controller = getPlayer(state, item.castById);
 
     if (isPermanent) {
+        // CR 303.4: an Aura enters the battlefield attached to its target.
+        // CR 608.2b: re-check target legality at resolution; if illegal, the
+        // aura fizzles to the graveyard (CR 303.4i) instead of entering play.
+        if (isAura(item)) {
+            const target = item.targets?.[0];
+            const host =
+                target && target.type === "permanent"
+                    ? findOnBattlefield(state, target.id)?.card
+                    : null;
+            const isLegalHost =
+                host !== null &&
+                host !== undefined &&
+                isLegalAuraHost(host, item) &&
+                // CR 702.16b: the target can't have acquired protection
+                // matching the aura's color between cast and resolution.
+                !isProtectedFromSource(host, item);
+            if (!isLegalHost) {
+                item.zone = "graveyard";
+                getPlayer(state, item.ownerId).graveyard.push(item);
+                return;
+            }
+            item.attachedTo = host.id;
+        }
         item.zone = "battlefield";
         item.isTapped = cardDef?.entersTapped === true;
         if (item.types.includes("Creature")) {
             item.isSummoningSick = true;
         }
         controller.battlefield.push(item);
+        // CR 303.4e + 611.2 — apply the aura's keyword-grant static effects
+        // to the chosen host. The grant is tracked on the host so it can be
+        // reverted when the aura leaves play (see unapplyAuraStaticEffects).
+        if (isAura(item)) {
+            applyAuraStaticEffects(state, item);
+            // CR 613.1b layer 2 — apply any control-changing static effect
+            // the aura declares (e.g. Control Magic). Runs after keyword
+            // grants so both reads observe a consistent host.
+            applyAuraControlChange(state, item);
+        }
     } else {
         const owner = getPlayer(state, item.ownerId);
         item.zone = "graveyard";
         owner.graveyard.push(item);
     }
+}
+
+/** Applies every `keyword-grant` static effect declared on `aura`'s card
+ *  definition (CR 611). Each granted keyword is pushed into the host's
+ *  `staticAbilities` and recorded in `host.grantedStaticAbilities` with the
+ *  aura's instance id so `unapplyAuraStaticEffects` can splice it back out
+ *  when the aura leaves play. No-op if the aura has no host, no grants, or
+ *  the host is not on the battlefield. */
+export function applyAuraStaticEffects(
+    state: GameState,
+    aura: CardInstanceState
+): void {
+    const hostId = aura.attachedTo;
+    if (!hostId) return;
+    const host = findOnBattlefield(state, hostId)?.card;
+    if (!host) return;
+    const cardId = (aura.card as { id?: string }).id;
+    const def = cardId ? tryGetCardById(cardId) : null;
+    const effects = def?.staticEffects ?? [];
+    for (const effect of effects) {
+        if (effect.kind !== "keyword-grant") continue;
+        if (!effect.applies(host, aura, STATIC_EFFECT_CTX)) continue;
+        host.staticAbilities = [...host.staticAbilities, effect.keyword];
+        host.grantedStaticAbilities = [
+            ...(host.grantedStaticAbilities ?? []),
+            { ability: effect.keyword, auraId: aura.id },
+        ];
+    }
+}
+
+/** Reverse of `applyAuraStaticEffects`: removes every grant this aura put on
+ *  its host. Call before the aura transitions off the battlefield (destroy,
+ *  exile, SBA detach, return to hand). Splices out exactly one occurrence per
+ *  granted keyword so native duplicates on the host are preserved (CR 113.1). */
+export function unapplyAuraStaticEffects(
+    state: GameState,
+    aura: CardInstanceState
+): void {
+    const hostId = aura.attachedTo;
+    if (!hostId) return;
+    const host = findOnBattlefield(state, hostId)?.card;
+    if (!host) return;
+    const grants = host.grantedStaticAbilities ?? [];
+    const kept: typeof grants = [];
+    for (const g of grants) {
+        if (g.auraId !== aura.id) {
+            kept.push(g);
+            continue;
+        }
+        const idx = host.staticAbilities.indexOf(g.ability);
+        if (idx !== -1) {
+            host.staticAbilities = [
+                ...host.staticAbilities.slice(0, idx),
+                ...host.staticAbilities.slice(idx + 1),
+            ];
+        }
+    }
+    host.grantedStaticAbilities = kept.length > 0 ? kept : undefined;
+}
+
+/** CR 303.4 / 702.5a: a host is legal if it satisfies the aura's enchant
+ *  restriction. The restriction is read from the aura's `targetRequirement`
+ *  — e.g. Control Magic enchants creatures, Steal Artifact enchants
+ *  artifacts. Only `CardType` restrictions are supported; `player`/`any`/
+ *  `spell` targets don't make sense for an aura. */
+function isLegalAuraHost(
+    host: CardInstanceState,
+    aura: CardInstanceState
+): boolean {
+    const cardId = (aura.card as { id?: string }).id;
+    const def = cardId ? tryGetCardById(cardId) : null;
+    const req = def?.targetRequirement;
+    if (!req) return false;
+    const types = Array.isArray(req.type) ? req.type : [req.type];
+    for (const t of types) {
+        if (t === "player" || t === "any" || t === "spell") continue;
+        if (host.types.includes(t)) return true;
+    }
+    return false;
+}
+
+/** Applies the first matching `control-change` static effect declared on
+ *  `aura`'s card definition (CR 613.1b, layer 2). Pushes an entry onto the
+ *  host's `controlChanges` stack, flips `controllerId` to the aura's
+ *  controller, moves the host into that player's battlefield array so zone
+ *  iteration stays consistent, and sets summoning sickness (CR 702.10c —
+ *  continuity of control broke). No-op if the aura has no host, no
+ *  control-change effect, or the host is already under the aura's
+ *  controller. */
+export function applyAuraControlChange(
+    state: GameState,
+    aura: CardInstanceState
+): void {
+    const hostId = aura.attachedTo;
+    if (!hostId) return;
+    const found = findOnBattlefield(state, hostId);
+    if (!found) return;
+    const cardId = (aura.card as { id?: string }).id;
+    const def = cardId ? tryGetCardById(cardId) : null;
+    const effects = def?.staticEffects ?? [];
+    const applies = effects.some(
+        (e) =>
+            e.kind === "control-change" &&
+            e.applies(found.card, aura, STATIC_EFFECT_CTX)
+    );
+    if (!applies) return;
+    const newControllerId = aura.controllerId;
+    if (found.card.controllerId === newControllerId) return;
+    const stack = found.card.controlChanges ?? [];
+    found.card.controlChanges = [
+        ...stack,
+        { auraId: aura.id, previousControllerId: found.card.controllerId },
+    ];
+    found.card.controllerId = newControllerId;
+    if (found.card.types.includes("Creature")) {
+        found.card.isSummoningSick = true;
+    }
+    found.player.battlefield.splice(found.idx, 1);
+    getPlayer(state, newControllerId).battlefield.push(found.card);
+}
+
+/** Reverse of `applyAuraControlChange`. Removes this aura's entry from the
+ *  host's `controlChanges` stack:
+ *  - If it's the top entry: pop and restore `controllerId` to the entry's
+ *    `previousControllerId`. When the stack becomes empty, the next CM to
+ *    arrive will see `controllerId === ownerId` (CR 108.3); the collapse
+ *    already happens because the entry popped here carries the owner for
+ *    the first CM in the chain.
+ *  - If it's a middle entry (an older CM destroyed while a newer one is
+ *    still active): splice it out and patch the next entry's
+ *    `previousControllerId` to match, so when that newer CM eventually
+ *    pops it lands on the correct pre-chain value.
+ *
+ *  Resets summoning sickness whenever `controllerId` actually changes
+ *  (CR 702.10c). No-op if the aura is not in the host's stack. */
+export function unapplyAuraControlChange(
+    state: GameState,
+    aura: CardInstanceState
+): void {
+    const hostId = aura.attachedTo;
+    if (!hostId) return;
+    const found = findOnBattlefield(state, hostId);
+    if (!found) return;
+    const stack = found.card.controlChanges ?? [];
+    const idx = stack.findIndex((e) => e.auraId === aura.id);
+    if (idx === -1) return;
+    const entry = stack[idx];
+    const isTop = idx === stack.length - 1;
+    if (!isTop) {
+        // Middle removal: splice and patch the next entry so the chain's
+        // "below me" pointer survives. controllerId does not change here.
+        const patched = stack.slice();
+        patched[idx + 1] = {
+            ...patched[idx + 1],
+            previousControllerId: entry.previousControllerId,
+        };
+        patched.splice(idx, 1);
+        found.card.controlChanges = patched.length > 0 ? patched : undefined;
+        return;
+    }
+    const restoredControllerId = entry.previousControllerId;
+    const nextStack = stack.slice(0, -1);
+    found.card.controlChanges = nextStack.length > 0 ? nextStack : undefined;
+    if (found.card.controllerId === restoredControllerId) return;
+    found.card.controllerId = restoredControllerId;
+    if (found.card.types.includes("Creature")) {
+        found.card.isSummoningSick = true;
+    }
+    found.player.battlefield.splice(found.idx, 1);
+    getPlayer(state, restoredControllerId).battlefield.push(found.card);
 }
 
 /** Finds a card on any player's battlefield by instance id. */
@@ -597,8 +842,20 @@ export function removePermanentTo(
 ): void {
     const found = findOnBattlefield(state, cardId);
     if (!found) return;
+    // CR 611.2 — a static effect from an aura stops applying when the aura
+    // leaves the battlefield. Revert the grant(s) on its host before the
+    // aura moves zones so readers never observe a dangling keyword.
+    if (isAura(found.card)) {
+        // Revert control change first: it may move the host between
+        // battlefield arrays, but `found` still points at the aura (a
+        // different card), so no index invalidation. unapplyAuraStaticEffects
+        // resolves the host through its own findOnBattlefield lookup.
+        unapplyAuraControlChange(state, found.card);
+        unapplyAuraStaticEffects(state, found.card);
+    }
     const [creature] = found.player.battlefield.splice(found.idx, 1);
     creature.zone = toZone;
+    creature.attachedTo = undefined;
     const owner = getPlayer(state, creature.ownerId);
     (owner[toZone] as CardInstanceState[]).push(creature);
 }
@@ -658,7 +915,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
     return {
         caster: item.castById,
         controller: item.castById,
-        sourceInstanceId: item.id,
+        // Triggered abilities (CR 603) get a fresh stack-item id, but their
+        // resolver needs to reference the originating permanent (e.g. for
+        // intervening-if re-check at CR 603.4). `triggerSourceId` is captured
+        // in `buildTriggerItem` for exactly this purpose.
+        sourceInstanceId: item.triggerSourceId ?? item.id,
         targets: item.targets ?? [],
         allPlayerIds: state.players.map((p) => p.id),
 
@@ -745,6 +1006,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (target.type === "player") return target.id;
             return requirePermanent(target).controllerId;
         },
+        getIsTapped(target: TargetSelection): boolean {
+            if (target.type === "player") return false;
+            const found = findOnBattlefield(state, target.id);
+            return found ? found.card.isTapped : false;
+        },
         destroy(target: TargetSelection): void {
             if (target.type === "player")
                 throw new Error("Cannot destroy a player");
@@ -797,6 +1063,21 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 (c) => c.id
             );
             for (const id of ids) moveCard(player, id, from, to);
+        },
+        moveCardById(
+            playerId: string,
+            cardInstanceId: string,
+            from: MovableZone,
+            to: MovableZone
+        ): void {
+            if (from === to) return;
+            const player = getPlayer(state, playerId);
+            const fromField = ZONE_TO_FIELD[from];
+            const exists = (player[fromField] as CardInstanceState[]).some(
+                (c) => c.id === cardInstanceId
+            );
+            if (!exists) return;
+            moveCard(player, cardInstanceId, from, to);
         },
         // CR 701.20: randomize a player's library. Uses the seeded PRNG so
         // replays reproduce the same ordering.

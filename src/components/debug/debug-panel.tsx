@@ -131,6 +131,36 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         libraryCount: 12,
     },
     {
+        label: "Wheel of Fortune (each player discards hand, draws 7)",
+        cards: [
+            // Wheel of Fortune castable turn 1 with 3 Mountains ({2}{R}).
+            // Both players have non-empty hands so the discard step is
+            // visible, and library filler ensures the draw-7 resolves.
+            {
+                name: "Wheel of Fortune",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 3 },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 2,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+                count: 3,
+            },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 12,
+    },
+    {
         label: "Knights (protection from color: target/block/damage prevented, CR 702.16)",
         cards: [
             // Both knights in play. Golden path: WK can't be targeted by
@@ -157,6 +187,250 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Plains", owner: "me" as const, count: 2 },
             { name: "Mountain", owner: "me" as const },
             { name: "Swamp", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Howling Mine (each player's draw step: +1 card if untapped, CR 603.6a)",
+        cards: [
+            // Howling Mine in play untapped. Pass to DRAW step → trigger fires
+            // for the active player (+1 extra draw). Icy Manipulator in play
+            // lets you tap the Mine in response (intervening-if at resolve
+            // cancels the extra draw, CR 603.4).
+            { name: "Howling Mine", owner: "me" as const },
+            { name: "Icy Manipulator", owner: "opp" as const },
+            { name: "Island", owner: "opp" as const, count: 2 },
+            { name: "Plains", owner: "me" as const, count: 2 },
+        ],
+        phase: "UPKEEP",
+        landCount: 0,
+        libraryCount: 10,
+    },
+    {
+        label: "Control Magic on Serra Angel (steal opponent's creature, CR 613.1b + 702.10c)",
+        cards: [
+            // P1 casts Control Magic ({2}{U}{U}) targeting the opponent's
+            // Serra Angel. On resolve, the Angel flips to P1's battlefield
+            // with summoning sickness reset (CR 702.10c) — P1 can't attack
+            // with it the same turn. Killing the Angel (via Lightning Bolt
+            // in hand) detaches the aura via SBA 704.5m; destroying the
+            // aura instead (via Disenchant in opp's hand) reverts control.
+            {
+                name: "Control Magic",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 4 },
+            { name: "Serra Angel", owner: "opp" as const },
+            {
+                name: "Disenchant",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Red Ward on Grizzly Bears (aura grants protection from red, CR 702.16)",
+        cards: [
+            // Exercise the aura system end-to-end: cast Red Ward targeting
+            // the bear → bear gains protection from red → Lightning Bolt
+            // (red) no longer targets the bear, but Disenchant still does.
+            // Killing the bear (e.g. with Swords to Plowshares) detaches
+            // the aura via SBA 704.5m.
+            { name: "Grizzly Bears", owner: "me" as const },
+            {
+                name: "Red Ward",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Disenchant",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Steal Artifact on Sol Ring (aura flips artifact control, CR 613.1b)",
+        cards: [
+            // P1 casts Steal Artifact ({2}{U}{U}) targeting the opponent's
+            // Sol Ring. On resolve, the Sol Ring enters P1's battlefield —
+            // no summoning sickness (artifacts don't get 702.10c). Tap it
+            // for {C}{C} immediately. Destroying the aura (Disenchant in
+            // opp's hand) reverts control back to the opponent.
+            {
+                name: "Steal Artifact",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 4 },
+            { name: "Sol Ring", owner: "opp" as const },
+            {
+                name: "Disenchant",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Winter Orb (active player untaps at most one A/C/L per turn, CR 502.1)",
+        cards: [
+            // Winter Orb on P1's side. P1 has tapped lands and a tapped
+            // creature — on the next UNTAP step only one of them untaps
+            // (deterministic: first tapped A/C/L in battlefield order).
+            // Pass turn repeatedly to observe P2's UNTAP also capped.
+            { name: "Winter Orb", owner: "me" as const },
+            {
+                name: "Plains",
+                owner: "me" as const,
+                count: 3,
+                tapped: true,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                tapped: true,
+            },
+            {
+                name: "Plains",
+                owner: "opp" as const,
+                count: 3,
+                tapped: true,
+            },
+        ],
+        phase: "END_STEP",
+        landCount: 0,
+    },
+    {
+        label: "Braingeyser ({X}{U}{U} → target player draws X, CR 107.3 / 121.1)",
+        cards: [
+            // Braingeyser in hand, 4 Islands in play ({X}{U}{U}): cast with
+            // X=2 for a balanced draw, or target the opponent to mill via
+            // deck size on an empty library. Golden path: choose X=3 → p1
+            // draws 3. Edge case: target opponent with X ≥ library size to
+            // exercise hasDrawnFromEmpty (CR 704.5b).
+            {
+                name: "Braingeyser",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 10,
+    },
+    {
+        label: "Sengir Vampire (combat kill → +1/+1, CR 603.2 / CREATURE_DIED)",
+        cards: [
+            // Sengir Vampire attacks, opponent blocks with a Grizzly Bear (2/2).
+            // Combat damage: Vampire (4/4 flying) deals 4 to the bear (lethal),
+            // the bear can't reach the vampire through flying. CREATURE_DIED
+            // fires, Sengir's trigger resolves → modifyPower/Toughness +1 →
+            // Vampire is 5/5.
+            { name: "Sengir Vampire", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Swamp", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Nightmare (P/T = Swamps you control, CR 604.3 CDA)",
+        cards: [
+            // Nightmare requires {5}{B} to cast; with 6 Swamps in play, cast
+            // it and it enters as a 6/6 flyer. Destroy one Swamp to watch the
+            // CDA recompute to 5/5 live.
+            {
+                name: "Nightmare",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Royal Assassin ({T}: destroy target tapped creature, CR 701.20)",
+        cards: [
+            // Royal Assassin already untapped with summoning sickness off.
+            // Opponent has a tapped Savannah Lions (e.g. just attacked last
+            // turn or was tapped by Icy Manipulator). Activate the assassin's
+            // ability → target lions → resolve, lions in graveyard.
+            {
+                name: "Royal Assassin",
+                owner: "me" as const,
+            },
+            {
+                name: "Savannah Lions",
+                owner: "opp" as const,
+                tapped: true,
+            },
+            { name: "Swamp", owner: "me" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Demonic Tutor (search library for a card, CR 701.19)",
+        cards: [
+            // 2 Swamps for {1}{B}. Resolve → prompt: select a card from
+            // library → card goes to hand, library shuffles.
+            {
+                name: "Demonic Tutor",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 10,
+    },
+    {
+        label: "Drain Life ({X}{B} → X damage, gain X life)",
+        cards: [
+            // 5 Swamps. Cast Drain Life with X=4 targeting opponent: opp loses
+            // 4 life, me gains 4.
+            {
+                name: "Drain Life",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 5 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Sinkhole ({B}{B} → destroy target land)",
+        cards: [
+            // 2 Swamps. Target opponent's Mountain → destroyed.
+            {
+                name: "Sinkhole",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,

@@ -54,7 +54,7 @@ import {
     getRequiredAttackerIds,
     mustAttack,
 } from "./gre/combat";
-import { checkGameOverSBA } from "./gre/sba";
+import { checkStateBasedActions } from "./gre/sba";
 
 const STARTING_HAND_SIZE = 7;
 
@@ -1995,7 +1995,7 @@ export const confirmDamage = mutation({
         state.combat.damageConfirmed = true;
 
         // Check SBA after combat damage (CR 704.5)
-        checkGameOverSBA(state);
+        checkStateBasedActions(state);
 
         if (!state.gameOver) {
             state.priorityPlayerId = state.activePlayerId;
@@ -2105,7 +2105,7 @@ export const passPriority = mutation({
         drainAutoPasses(state);
 
         // Check SBA for game-ending conditions (CR 704.5)
-        checkGameOverSBA(state);
+        checkStateBasedActions(state);
 
         const now = Date.now();
         const nextSeq = gameState.seq + 1;
@@ -2164,9 +2164,14 @@ export const selectResolutionChoice = mutation({
             if (head.filter && !matchesPermanentFilter(card, head.filter)) {
                 throw new Error("Card does not match the required filter");
             }
-        } else {
+        } else if (head.zone === "hand") {
             const card = player.hand.find((c) => c.id === args.cardInstanceId);
             if (!card) throw new Error("Card not in hand");
+        } else {
+            const card = player.library.find(
+                (c) => c.id === args.cardInstanceId
+            );
+            if (!card) throw new Error("Card not in library");
         }
 
         head.selected.push(args.cardInstanceId);
@@ -2201,7 +2206,7 @@ export const selectResolutionChoice = mutation({
                     state.passCount = 0;
                     drainAutoPasses(state);
                 }
-                checkGameOverSBA(state);
+                checkStateBasedActions(state);
             } else {
                 // More choices queued within the same step — move priority
                 // to the next chooser.
@@ -2260,7 +2265,7 @@ export const endTurn = mutation({
         drainAutoPasses(state);
 
         // Check SBA after auto-pass drain (may have resolved combat damage)
-        checkGameOverSBA(state);
+        checkStateBasedActions(state);
 
         const now = Date.now();
         const nextSeq = gameState.seq + 1;
@@ -2271,6 +2276,51 @@ export const endTurn = mutation({
             gameId: args.gameId,
             seq: nextSeq,
             type: "AUTO_PASS_SET",
+            player: args.playerId,
+            payload: {},
+            timestamp: now,
+        });
+    },
+});
+
+/** Cancel auto-pass: stop auto-passing the next time priority returns. Priority
+ *  is NOT reclaimed from the opponent — they keep holding it until they act. */
+export const cancelAutoPass = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+
+        const autoPassPlayers = state.autoPassPlayers ?? [];
+        const wasAutoPass = autoPassPlayers.includes(args.playerId);
+        const wasSingleShot = state.singleShotAutoPass === args.playerId;
+        if (!wasAutoPass && !wasSingleShot) return;
+
+        if (wasAutoPass) {
+            const remaining = autoPassPlayers.filter(
+                (id) => id !== args.playerId
+            );
+            state.autoPassPlayers =
+                remaining.length > 0 ? remaining : undefined;
+        }
+        if (wasSingleShot) {
+            state.singleShotAutoPass = undefined;
+        }
+
+        const now = Date.now();
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state);
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            type: "AUTO_PASS_CANCELLED",
             player: args.playerId,
             payload: {},
             timestamp: now,
@@ -2334,7 +2384,7 @@ export const drawCard = mutation({
         if (player.library.length === 0) {
             // CR 704.5b: attempting to draw from empty library
             player.hasDrawnFromEmpty = true;
-            checkGameOverSBA(state);
+            checkStateBasedActions(state);
 
             const nextSeq = gameState.seq + 1;
             await saveGameState(ctx, args.gameId, nextSeq, state);

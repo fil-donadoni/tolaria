@@ -115,6 +115,7 @@ export function getLegalTargets(
         (t) => t !== "player" && t !== "any" && t !== "spell"
     );
     const colorFilter = requirement.colorFilter;
+    const tappedFilter = requirement.tappedFilter;
 
     // CR 115.4: "any target" means any creature, planeswalker, player, or
     // battle — the four object types that can be damaged (CR 120.3).
@@ -132,6 +133,9 @@ export function getLegalTargets(
                 if (!matchesAny && !matchesExplicit) continue;
                 // CR 202.2: filter by color for "source of color X" choices.
                 if (colorFilter && !hasColor(card, colorFilter)) continue;
+                // CR 701.20: tap-state filter for "target tapped/untapped ~".
+                if (tappedFilter === "tapped" && !card.isTapped) continue;
+                if (tappedFilter === "untapped" && card.isTapped) continue;
                 // CR 702.16b: protected permanents can't be targeted by
                 // spells/abilities of the stated quality.
                 if (isProtectedFromColors(card, sourceColors)) continue;

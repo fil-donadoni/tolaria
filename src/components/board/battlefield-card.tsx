@@ -49,7 +49,10 @@ export default function BattlefieldCard({
     const hasAbilities = !!activatableAbilities?.length;
     const { allPlayers } = useGameContext();
 
-    const cardClassName = `relative transition-all duration-[250ms] flex items-center justify-center shrink-0 ${vs.combatOffset} ${
+    // Scope transitions to transform+opacity only. `transition-all` kept the
+    // layer in an "animating" state and Chrome's compositor served a downsampled
+    // tile for the image inside (random blur on adjacent identical cards).
+    const cardClassName = `relative transition-[transform,opacity] duration-[250ms] flex items-center justify-center shrink-0 ${vs.combatOffset} ${
         hasAbilities && !vs.interactive
             ? "cursor-pointer"
             : vs.interactive
@@ -75,12 +78,17 @@ export default function BattlefieldCard({
     };
 
     // Inner fills the outer box; rotation is purely visual.
+    // `will-change: transform` + `backface-visibility: hidden` pin the layer
+    // bitmap at native resolution during the rotate transition, preventing the
+    // compositor from keeping a low-res tile.
     const innerStyle: React.CSSProperties = {
         position: "absolute",
         inset: 0,
         transform: tapped ? "rotate(90deg)" : "rotate(0deg)",
         transformOrigin: "center",
         transition: "transform 250ms",
+        willChange: "transform",
+        backfaceVisibility: "hidden",
     };
 
     const badgeEl = vs.badge && (

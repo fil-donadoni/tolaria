@@ -3,6 +3,7 @@ import type {
     CardDefinition,
     PermanentFilter,
     SpellContext,
+    TargetSelection,
 } from "../types";
 
 // export const animateWall: CardDefinition = {
@@ -165,13 +166,11 @@ export const balance: CardDefinition = {
 //     toughness: 1,
 // };
 
-// export const blackWard: CardDefinition = {
-//     id: "15967a39-303f-457d-bcde-51837c8d63e1",
-//     name: "Black Ward",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+export const blackWard: CardDefinition = makeColorWard({
+    id: "15967a39-303f-457d-bcde-51837c8d63e1",
+    name: "Black Ward",
+    color: "black",
+});
 
 // export const blazeOfGlory: CardDefinition = {
 //     id: "98fba951-c5bb-497c-9292-ce1b2a1e1247",
@@ -188,13 +187,11 @@ export const balance: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 
-// export const blueWard: CardDefinition = {
-//     id: "93f9f0f2-e1cc-4740-888c-1336c6de0a27",
-//     name: "Blue Ward",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+export const blueWard: CardDefinition = makeColorWard({
+    id: "93f9f0f2-e1cc-4740-888c-1336c6de0a27",
+    name: "Blue Ward",
+    color: "blue",
+});
 
 // Castle — "Untapped creatures you control get +0/+2." (CR 611, 613 — static layer 7c)
 export const castle: CardDefinition = {
@@ -330,13 +327,11 @@ export const disenchant: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 
-// export const greenWard: CardDefinition = {
-//     id: "1f6118b2-fe01-425a-a2ed-6d7c42286c8e",
-//     name: "Green Ward",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+export const greenWard: CardDefinition = makeColorWard({
+    id: "1f6118b2-fe01-425a-a2ed-6d7c42286c8e",
+    name: "Green Ward",
+    color: "green",
+});
 
 // export const guardianAngel: CardDefinition = {
 //     id: "0f84d676-5327-454c-a033-b4498a9d28e2",
@@ -437,13 +432,42 @@ export const pearledUnicorn: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const redWard: CardDefinition = {
-//     id: "e0c64c01-c2aa-470b-88c6-3d3e4a969649",
-//     name: "Red Ward",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Color Ward cycle — {W} Enchant creature; enchanted creature has protection
+// from <color>. All five wards are structurally identical (white-costed
+// auras, CR 611.2 keyword grant). They all carry the 702.16n rider "This
+// effect doesn't remove this Aura" — load-bearing only for White Ward,
+// where aura-color (W) matches granted protection (pro-white) and 702.16c
+// would otherwise detach the aura. The other four are safe either way, but
+// we set the flag faithfully to the oracle text.
+function makeColorWard(args: {
+    id: string;
+    name: string;
+    color: "white" | "blue" | "black" | "red" | "green";
+}): CardDefinition {
+    const keyword = `protection from ${args.color}`;
+    return {
+        id: args.id,
+        name: args.name,
+        manaCost: { W: 1 },
+        types: ["Enchantment"],
+        subtypes: ["Aura"],
+        targetRequirement: { type: "Creature", count: 1 },
+        staticEffects: [
+            {
+                kind: "keyword-grant",
+                applies: (target, source) => target.id === source.attachedTo,
+                keyword,
+            },
+        ],
+        exemptFromProtectionDetach: true,
+    };
+}
+
+export const redWard: CardDefinition = makeColorWard({
+    id: "e0c64c01-c2aa-470b-88c6-3d3e4a969649",
+    name: "Red Ward",
+    color: "red",
+});
 
 // export const resurrection: CardDefinition = {
 //     id: "4fff6e6f-4ebd-4ec8-9443-59efb22d376c",
@@ -544,13 +568,11 @@ export const whiteKnight: CardDefinition = {
     staticAbilities: ["first strike", "protection from black"],
 };
 
-// export const whiteWard: CardDefinition = {
-//     id: "49b22665-1501-420a-82ad-f71f6768bcf8",
-//     name: "White Ward",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+export const whiteWard: CardDefinition = makeColorWard({
+    id: "49b22665-1501-420a-82ad-f71f6768bcf8",
+    name: "White Ward",
+    color: "white",
+});
 
 export const wrathOfGod: CardDefinition = {
     id: "a2788d69-6a3a-42f0-8736-cc6b57755ecd",
@@ -601,12 +623,19 @@ export const ancestralRecall: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const braingeyser: CardDefinition = {
-//     id: "62b19a12-6914-430e-81ce-dcfca47884df",
-//     name: "Braingeyser",
-//     manaCost: { X: "X", U: 2 },
-//     types: ["Sorcery"],
-// };
+// Braingeyser — "Target player draws X cards." (CR 107.3 X cost, 121.1 draw,
+// 601.2b X chosen on cast, 608.3 sorcery resolution).
+export const braingeyser: CardDefinition = {
+    id: "62b19a12-6914-430e-81ce-dcfca47884df",
+    name: "Braingeyser",
+    manaCost: { X: "X", U: 2 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type === "player") ctx.drawCards(target.id, ctx.getX());
+    },
+};
 
 // export const clone: CardDefinition = {
 //     id: "f00d33dd-4eb2-4446-9813-1923d8e2d2f3",
@@ -618,13 +647,23 @@ export const ancestralRecall: CardDefinition = {
 //     toughness: 0,
 // };
 
-// export const controlMagic: CardDefinition = {
-//     id: "7b52f459-c703-4a0b-9114-ff69eec61287",
-//     name: "Control Magic",
-//     manaCost: { X: 2, U: 2 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Control Magic — "Enchant creature. You control enchanted creature."
+// (CR 303.4 aura attachment, 611.2 continuous static ability, 613.1b layer 2
+// control-changing effect, 702.10c summoning sickness reset on control change)
+export const controlMagic: CardDefinition = {
+    id: "7b52f459-c703-4a0b-9114-ff69eec61287",
+    name: "Control Magic",
+    manaCost: { X: 2, U: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "control-change",
+            applies: (target, source) => target.id === source.attachedTo,
+        },
+    ],
+};
 
 // export const copyArtifact: CardDefinition = {
 //     id: "fd5ed955-1193-4e6a-a3e2-f54c1f9bf063",
@@ -870,13 +909,25 @@ export const psionicBlast: CardDefinition = {
 //     types: ["Enchantment"],
 // };
 
-// export const stealArtifact: CardDefinition = {
-//     id: "83316930-d6ad-46ce-9b40-48eea856d95b",
-//     name: "Steal Artifact",
-//     manaCost: { X: 2, U: 2 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Steal Artifact — "Enchant artifact. You control enchanted artifact."
+// (CR 303.4 aura attachment, 611.2 continuous static ability, 613.1b layer 2
+// control-changing effect). Mirrors Control Magic but targets an artifact
+// instead of a creature — artifacts don't get summoning sickness on a
+// control flip, so 702.10c doesn't fire.
+export const stealArtifact: CardDefinition = {
+    id: "83316930-d6ad-46ce-9b40-48eea856d95b",
+    name: "Steal Artifact",
+    manaCost: { X: 2, U: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Artifact", count: 1 },
+    staticEffects: [
+        {
+            kind: "control-change",
+            applies: (target, source) => target.id === source.attachedTo,
+        },
+    ],
+};
 
 // export const thoughtlace: CardDefinition = {
 //     id: "23749375-1416-47a4-9251-52f41fe2fae9",
@@ -1089,19 +1140,50 @@ export const darkRitual: CardDefinition = {
 //     toughness: 5,
 // };
 
-// export const demonicTutor: CardDefinition = {
-//     id: "711d4d54-5520-4de8-9b93-79902ed8e562",
-//     name: "Demonic Tutor",
-//     manaCost: { X: 1, B: 1 },
-//     types: ["Sorcery"],
-// };
+// Demonic Tutor — "Search your library for a card, then shuffle and put that
+// card on top." (CR 701.19 for search, CR 701.20 for shuffle). Modern oracle
+// simplifies to "Search your library for a card, put it into your hand, then
+// shuffle." Implemented as a two-step resolve: step 0 enqueues a
+// search-library pending choice (count=1); step 1 moves the picked card into
+// the caster's hand and shuffles.
+export const demonicTutor: CardDefinition = {
+    id: "711d4d54-5520-4de8-9b93-79902ed8e562",
+    name: "Demonic Tutor",
+    manaCost: { X: 1, B: 1 },
+    types: ["Sorcery"],
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            const picks = ctx.requestChoice({
+                playerId: ctx.caster,
+                choiceId: ctx.caster,
+                kind: "search-library",
+                zone: "library",
+                count: 1,
+                prompt: "Search your library for a card.",
+            });
+            if (!picks || picks.length === 0) return;
+            ctx.moveCardById(ctx.caster, picks[0], "library", "hand");
+            ctx.shuffleLibrary(ctx.caster);
+        },
+    ],
+};
 
-// export const drainLife: CardDefinition = {
-//     id: "5d077a49-73d4-4958-b42a-31b814e110e8",
-//     name: "Drain Life",
-//     manaCost: { X: "X", B: 1 },
-//     types: ["Sorcery"],
-// };
+// Drain Life — "Drain Life deals X damage to any target. You gain life equal
+// to the damage dealt." (CR 107.3 for X, CR 120.1 for damage, CR 118.3 for
+// life gain). The LEA "spend only black mana on X" restriction is out of
+// scope — X is treated as generic here, matching Fireball's payment model.
+export const drainLife: CardDefinition = {
+    id: "5d077a49-73d4-4958-b42a-31b814e110e8",
+    name: "Drain Life",
+    manaCost: { X: "X", B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "any", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const x = ctx.getX();
+        ctx.dealDamage(ctx.targets[0], x);
+        ctx.gainLife(ctx.caster, x);
+    },
+};
 
 // export const drudgeSkeletons: CardDefinition = {
 //     id: "23614289-0d73-4747-a849-5cb67cc97d6a",
@@ -1229,13 +1311,41 @@ export const hypnoticSpecter: CardDefinition = {
 //     toughness: 1,
 // };
 
-// export const nightmare: CardDefinition = {
-//     id: "b8cdd6a7-f772-4ccb-914f-63f52ed54d6b",
-//     name: "Nightmare",
-//     manaCost: { X: 5, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Nightmare", "Horse"],
-// };
+// Nightmare — Flying. "Nightmare's power and toughness are each equal to the
+// number of Swamps you control." (CR 604.3 CDA, layer 7b). Modeled as a
+// pt-cda static effect scoped to the card itself; base 0/0 means the CDA's
+// output is the effective stat line. CR 208.2 still applies: if the CDA
+// returns 0, the card is a 0/0 and dies to SBA unless otherwise buffed.
+export const nightmare: CardDefinition = {
+    id: "b8cdd6a7-f772-4ccb-914f-63f52ed54d6b",
+    name: "Nightmare",
+    manaCost: { X: 5, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Nightmare", "Horse"],
+    power: 0,
+    toughness: 0,
+    staticAbilities: ["flying"],
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: (target, source) => target.id === source.id,
+            compute: (source, state) => {
+                let swamps = 0;
+                for (const player of state.players) {
+                    for (const p of player.battlefield) {
+                        if (
+                            p.controllerId === source.controllerId &&
+                            p.subtypes.includes("Swamp")
+                        ) {
+                            swamps++;
+                        }
+                    }
+                }
+                return { power: swamps, toughness: swamps };
+            },
+        },
+    ],
+};
 
 // export const paralyze: CardDefinition = {
 //     id: "be33a155-de26-43d1-88f1-c926f1b7cb7c",
@@ -1267,15 +1377,38 @@ export const hypnoticSpecter: CardDefinition = {
 //     types: ["Sorcery"],
 // };
 
-// export const royalAssassin: CardDefinition = {
-//     id: "59590768-fa96-4869-8763-9d5ab6ac22ad",
-//     name: "Royal Assassin",
-//     manaCost: { X: 1, B: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Assassin"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Royal Assassin — "{T}: Destroy target tapped creature." (CR 701.20 for
+// tap-state, CR 701.7 for destroy). The tappedFilter on TargetRequirement
+// enforces legality at activation (CR 602.2b); the resolve re-checks at
+// resolution (CR 608.2b) so an opposing Twiddle-style untap fizzles this.
+export const royalAssassin: CardDefinition = {
+    id: "59590768-fa96-4869-8763-9d5ab6ac22ad",
+    name: "Royal Assassin",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Assassin"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "royal-assassin-destroy",
+            oracleText: "{T}: Destroy target tapped creature.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                tappedFilter: "tapped",
+            },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (!target) return;
+                if (!ctx.getIsTapped(target)) return;
+                ctx.destroy(target);
+            },
+        },
+    ],
+};
 
 // export const sacrifice: CardDefinition = {
 //     id: "12164aee-6a27-4246-8d15-2d6dd20d92e9",
@@ -1304,15 +1437,45 @@ export const scatheZombies: CardDefinition = {
 //     toughness: 2,
 // };
 
-// export const sengirVampire: CardDefinition = {
-//     id: "510840f4-7c0e-4b47-8ebf-23c20cac4bd9",
-//     name: "Sengir Vampire",
-//     manaCost: { X: 3, B: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Vampire"],
-//     power: 4,
-//     toughness: 4,
-// };
+// Sengir Vampire — flying, 4/4. "Whenever another creature dies, if Sengir
+// Vampire dealt damage to it this turn, put a +1/+1 counter on Sengir
+// Vampire." (CR 603.2 death trigger, CR 122 counters). Simplification: the
+// engine has no +1/+1 counter state yet, so the counter is modeled as a
+// permanent modifyPower/modifyToughness delta on the source. Functionally
+// equivalent until a "remove counters" effect is needed. Only deaths from
+// the combat damage step emit CREATURE_DIED (see phases.ts) — deaths from
+// spells/abilities do not yet retrigger this, a known limitation.
+export const sengirVampire: CardDefinition = {
+    id: "510840f4-7c0e-4b47-8ebf-23c20cac4bd9",
+    name: "Sengir Vampire",
+    manaCost: { X: 3, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Vampire"],
+    power: 4,
+    toughness: 4,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        {
+            id: "sengir-vampire-counter",
+            oracleText:
+                "Whenever another creature dies, if Sengir Vampire dealt damage to it this turn, put a +1/+1 counter on Sengir Vampire.",
+            event: "CREATURE_DIED",
+            matches: (event, self) => {
+                if (event.type !== "CREATURE_DIED") return false;
+                if (event.creatureInstanceId === self.id) return false;
+                return event.damagedBySources.includes(self.id);
+            },
+            resolve: (ctx) => {
+                const target: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                ctx.modifyPower(target, 1);
+                ctx.modifyToughness(target, 1);
+            },
+        },
+    ],
+};
 
 // export const simulacrum: CardDefinition = {
 //     id: "35c3a78d-cc79-4187-929a-8aa1d1469990",
@@ -1321,12 +1484,18 @@ export const scatheZombies: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const sinkhole: CardDefinition = {
-//     id: "04b31611-9053-4eaf-b392-21bb644fef5f",
-//     name: "Sinkhole",
-//     manaCost: { B: 2 },
-//     types: ["Sorcery"],
-// };
+// Sinkhole — "Destroy target land." (CR 701.7). Targeting uses the generic
+// Land type filter; resolution delegates to the shared destroy primitive.
+export const sinkhole: CardDefinition = {
+    id: "04b31611-9053-4eaf-b392-21bb644fef5f",
+    name: "Sinkhole",
+    manaCost: { B: 2 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "Land", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        ctx.destroy(ctx.targets[0]);
+    },
+};
 
 // export const terror: CardDefinition = {
 //     id: "21004958-2c7e-4a55-bc80-411c4d780106",
@@ -1809,12 +1978,25 @@ export const wallOfStone: CardDefinition = {
     staticAbilities: ["defender"],
 };
 
-// export const wheelOfFortune: CardDefinition = {
-//     id: "67b369c4-faa8-45c8-a1b9-98f228b69682",
-//     name: "Wheel of Fortune",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Sorcery"],
-// };
+// Wheel of Fortune — "Each player discards their hand, then draws seven
+// cards." (CR 701.8, 121.1)
+// Wheel of Fortune itself is on the stack during resolution, so it's not in
+// the caster's hand to be discarded; after resolve() it goes to its owner's
+// graveyard normally.
+export const wheelOfFortune: CardDefinition = {
+    id: "67b369c4-faa8-45c8-a1b9-98f228b69682",
+    name: "Wheel of Fortune",
+    manaCost: { X: 2, R: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        for (const pid of ctx.allPlayerIds) {
+            for (const cardId of ctx.getHandIds(pid)) {
+                ctx.discardCard(pid, cardId);
+            }
+            ctx.drawCards(pid, 7);
+        }
+    },
+};
 
 // export const aspectOfWolf: CardDefinition = {
 //     id: "fd9ac9e6-1395-4fbd-80e2-645f0d910c29",
@@ -2485,12 +2667,45 @@ export const blackLotus: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const howlingMine: CardDefinition = {
-//     id: "51f8f6e1-a451-4262-90d3-5107caf54175",
-//     name: "Howling Mine",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
+// Howling Mine — "At the beginning of each player's draw step, if this
+// artifact is untapped, that player draws an additional card."
+// CR 603.6a (beginning-of-step trigger), CR 603.4 (intervening-if: condition
+// checked at trigger time AND again at resolution). Fires on DRAW for both
+// players — the active player at the time of the trigger is the one who
+// draws, not the artifact's controller.
+export const howlingMine: CardDefinition = {
+    id: "51f8f6e1-a451-4262-90d3-5107caf54175",
+    name: "Howling Mine",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        {
+            id: "howling-mine-draw",
+            oracleText:
+                "At the beginning of each player's draw step, if Howling Mine is untapped, that player draws an additional card.",
+            event: "PHASE_BEGIN",
+            matches: (event, self) => {
+                if (event.type !== "PHASE_BEGIN") return false;
+                if (event.phase !== "DRAW") return false;
+                // CR 603.4: intervening-if — the artifact must be untapped at
+                // the moment the trigger would go on the stack.
+                return !self.isTapped;
+            },
+            resolve: (ctx, event) => {
+                if (event.type !== "PHASE_BEGIN") return;
+                // CR 603.4: intervening-if re-check at resolution. If the
+                // artifact has been tapped (or left the battlefield) between
+                // trigger and resolve, the ability does nothing.
+                const sourceRef: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                if (ctx.getIsTapped(sourceRef)) return;
+                ctx.drawCards(event.activePlayerId, 1);
+            },
+        },
+    ],
+};
 
 // Icy Manipulator — "{1}, {T}: Tap target artifact, creature, or land."
 // CR 701.20a (tap), CR 605 (activated abilities), CR 602.2 (target selection
@@ -2847,12 +3062,19 @@ export const solRing: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const winterOrb: CardDefinition = {
-//     id: "9359f60c-9a27-4e53-b35b-964a121a6fba",
-//     name: "Winter Orb",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
+// Winter Orb — "Players can't untap more than one artifact, creature, or
+// land during their untap steps." (CR 502.1) Encoded as a global static
+// ability keyword; untapStep consults every battlefield for the marker and
+// caps the active player's ACL (artifact/creature/land) untaps at one. The
+// modern Oracle omits the "while Winter Orb is untapped" rider, so the
+// restriction applies regardless of Winter Orb's own state.
+export const winterOrb: CardDefinition = {
+    id: "9359f60c-9a27-4e53-b35b-964a121a6fba",
+    name: "Winter Orb",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    staticAbilities: ["limits-acl-untap"],
+};
 
 // export const woodenSphere: CardDefinition = {
 //     id: "bcae01a2-171b-47cd-87be-f1e4e5314326",

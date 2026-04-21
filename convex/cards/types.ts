@@ -57,6 +57,10 @@ export interface TargetRequirement {
      *  given color (CR 202.2). Used by Circle of Protection's "source of your
      *  choice of color W/U/B/R/G" choice. */
     colorFilter?: Color;
+    /** Restricts legal permanent targets by tap state (CR 701.20). Used by
+     *  "target tapped creature" (Royal Assassin) and "target untapped
+     *  creature" style filters. Ignored for player / spell targets. */
+    tappedFilter?: "tapped" | "untapped";
 }
 
 export interface TargetSelection {
@@ -181,6 +185,10 @@ export interface SpellContext {
     modifyPower: (target: TargetSelection, amount: number) => void;
     modifyToughness: (target: TargetSelection, amount: number) => void;
     getController: (target: TargetSelection) => string;
+    /** Whether the target permanent is tapped (CR 701.20a). Returns false for
+     *  players and for permanents no longer on the battlefield. Used by
+     *  intervening-if checks like Howling Mine's "if ~ is untapped". */
+    getIsTapped: (target: TargetSelection) => boolean;
     destroy: (target: TargetSelection) => void;
     exile: (target: TargetSelection) => void;
     /** Taps a permanent on the battlefield (CR 701.20a). No-op if already
@@ -201,6 +209,16 @@ export interface SpellContext {
      *  move is not meaningful — pair with `shuffleLibrary` when the effect
      *  requires randomization (e.g. Timetwister, Diminishing Returns). */
     moveZone: (playerId: string, from: MovableZone, to: MovableZone) => void;
+    /** Moves a single card a player owns from `from` to `to` by instance id
+     *  (CR 400.7). No-op if the card isn't in `from`. Paired with
+     *  `requestChoice({ zone: "library" })` for tutor-style effects
+     *  (Demonic Tutor) so the player's pick can be routed to hand. */
+    moveCardById: (
+        playerId: string,
+        cardInstanceId: string,
+        from: MovableZone,
+        to: MovableZone
+    ) => void;
     /** Randomizes the order of a player's library using the seeded PRNG
      *  (CR 701.20). Deterministic under replay. */
     shuffleLibrary: (playerId: string) => void;
@@ -315,8 +333,8 @@ export interface SpellContext {
     requestChoice: (req: {
         playerId: string;
         choiceId: string;
-        kind: "keep-permanents" | "keep-hand";
-        zone: "battlefield" | "hand";
+        kind: "keep-permanents" | "keep-hand" | "search-library";
+        zone: "battlefield" | "hand" | "library";
         filter?: PermanentFilter;
         count: number;
         prompt: string;
@@ -384,8 +402,19 @@ export interface PermanentView {
     isTapped: boolean;
     power?: number;
     toughness?: number;
+    /** Set on auras attached to another permanent (CR 303.4b). Predicates
+     *  for keyword-grant effects typically use `target.id === source.attachedTo`. */
+    attachedTo?: string;
     /** Raw card definition reference — predicates read manaCost for color, etc. */
     card: Record<string, unknown>;
+}
+
+/** Minimal read-only view of the battlefield used by characteristic-defining
+ *  abilities (CR 604.3) whose value depends on board state — e.g. Nightmare's
+ *  "P/T equal to Swamps you control". Intentionally a subset of the engine's
+ *  full GameState so layer computation stays pure. */
+export interface StaticEffectStateView {
+    players: ReadonlyArray<{ battlefield: ReadonlyArray<PermanentView> }>;
 }
 
 export interface StaticEffectContext {
@@ -409,14 +438,83 @@ export interface StaticPTBuff {
     toughness: number;
 }
 
-export type StaticEffect = StaticPTBuff;
+/** Characteristic-defining P/T ability (CR 604.3). Used when a creature's
+ *  power and toughness are defined by a game-state lookup rather than a flat
+ *  buff — e.g. Nightmare ("P/T each equal to Swamps you control"). The
+ *  `compute` function is called at stat-read time; its result is added on top
+ *  of the card's base P/T, so cards using this kind typically declare base
+ *  `power: 0` / `toughness: 0`. */
+export interface StaticPTCDA {
+    kind: "pt-cda";
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    compute: (
+        source: PermanentView,
+        state: StaticEffectStateView,
+        ctx: StaticEffectContext
+    ) => { power: number; toughness: number };
+}
+
+/** Continuous static ability that grants a keyword to the enchanted
+ *  permanent (CR 611, 113.1). Typical usage: an Aura grants "protection
+ *  from red" or "flying" to its host. The engine applies the grant
+ *  imperatively when the aura attaches (pushing the keyword into the
+ *  host's `staticAbilities`) and reverses it when the aura leaves the
+ *  battlefield — so every read of `staticAbilities.includes(kw)` observes
+ *  the effect without a per-reader layer-query hop. */
+export interface StaticKeywordGrant {
+    kind: "keyword-grant";
+    /** Predicate: does this grant apply to `target` given `source`? For
+     *  auras, the canonical predicate is `target.id === source.attachedTo`. */
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Keyword string pushed into the host's `staticAbilities` (e.g.
+     *  "protection from red", "flying"). */
+    keyword: string;
+}
+
+/** Continuous control-changing effect (CR 613.1b, layer 2). Typical usage:
+ *  an Aura like Control Magic flips the controller of its enchanted host.
+ *  Applied imperatively when the aura attaches — the host's `controllerId`
+ *  is reassigned to the aura's controller, the host is moved into that
+ *  player's battlefield array, and summoning sickness is reset (CR 702.10c,
+ *  the creature is no longer continuously under its controller's control
+ *  since the beginning of the most recent turn). Reversed when the aura
+ *  leaves play.
+ *
+ *  Multiple simultaneous control-change auras on the same permanent are
+ *  resolved by timestamp (latest-applied wins while present) via the host's
+ *  `controlChanges` stack on `CardInstanceState`. The base controller is
+ *  `ownerId` (CR 108.3) — recovered automatically when the stack empties. */
+export interface StaticControlChange {
+    kind: "control-change";
+    /** Predicate: does this control-change apply to `target` given `source`?
+     *  For auras, the canonical predicate is `target.id === source.attachedTo`. */
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+}
+
+export type StaticEffect =
+    | StaticPTBuff
+    | StaticPTCDA
+    | StaticKeywordGrant
+    | StaticControlChange;
 
 // --- Triggered abilities (CR 603) ---
 // Inline structure mirroring ActivatedAbility: each trigger declares which
 // game event it listens to, a predicate identifying relevant occurrences, and
 // a resolve function invoked from the stack after both players pass priority.
 
-export type GameEventType = "DAMAGE_DEALT";
+export type GameEventType = "DAMAGE_DEALT" | "PHASE_BEGIN" | "CREATURE_DIED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. */
@@ -433,7 +531,34 @@ export interface DamageDealtEvent {
     isCombat: boolean;
 }
 
-export type GameEvent = DamageDealtEvent;
+/** Phase/step entry event emitted by the turn structure at the start of
+ *  each non-auto phase (CR 500.1). Used by "at the beginning of ~" triggers
+ *  (CR 603.6a). `activePlayerId` is the player whose phase it is — the
+ *  trigger's `matches()` decides whether the permanent's controller cares
+ *  (e.g. Howling Mine fires on each player's draw step, regardless of
+ *  owner). */
+export interface PhaseBeginEvent {
+    type: "PHASE_BEGIN";
+    phase: Phase;
+    activePlayerId: string;
+}
+
+/** Death event emitted when a creature moves from battlefield to graveyard
+ *  (CR 700.4). Currently emitted only by the combat damage step (CR 510) —
+ *  deaths from non-combat damage or from direct destroy effects do not yet
+ *  fire this event, because the engine has no general post-resolution trigger
+ *  scan hook. The event carries `damagedBySources` so "if ~ dealt damage to
+ *  it this turn"-style triggers (Sengir Vampire) can inspect the victim
+ *  after it has left the battlefield. */
+export interface CreatureDiedEvent {
+    type: "CREATURE_DIED";
+    creatureInstanceId: string;
+    creatureControllerId: string;
+    /** Instance ids of sources that dealt damage to this creature this turn. */
+    damagedBySources: readonly string[];
+}
+
+export type GameEvent = DamageDealtEvent | PhaseBeginEvent | CreatureDiedEvent;
 
 export interface TriggeredAbility {
     id: string;
@@ -494,4 +619,13 @@ export interface CardDefinition {
      *  list. Used by Berserk ("cast only before the combat damage step") —
      *  the instant-speed check still applies, this only narrows further. */
     castPhaseRestriction?: Phase[];
+    /** CR 702.16n — an Aura that grants the enchanted permanent protection
+     *  from its own color (e.g. White Ward gives pro-white and is itself
+     *  white) normally falls off via 702.16c. Cards with this flag carry
+     *  the "this effect doesn't remove this Aura" rider and bypass the
+     *  protection-detach SBA. Note: the CR exempts only the self-referential
+     *  case; other instances of the same protection on the host still cause
+     *  even an exempt aura to detach, but no multi-source protection cards
+     *  exist in the current set, so we model this as a flat exemption. */
+    exemptFromProtectionDetach?: boolean;
 }

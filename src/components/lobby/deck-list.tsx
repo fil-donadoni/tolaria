@@ -1,8 +1,8 @@
-import type { Doc } from "@convex/_generated/dataModel";
+import type { DeckPreset } from "@convex/deckPresets";
 import DeckListItem from "./deck-list-item";
 
 interface DeckListProps {
-    decks: Doc<"decks">[];
+    decks: DeckPreset[];
     selectedPresetId: string | null;
     onFocus: (presetId: string) => void;
 }
@@ -16,7 +16,7 @@ export default function DeckList({
         <div className="flex w-full max-w-xl flex-col gap-2">
             {decks.map((deck) => (
                 <DeckListItem
-                    key={deck._id}
+                    key={deck.presetId}
                     deck={deck}
                     isSelected={deck.presetId === selectedPresetId}
                     onFocus={onFocus}

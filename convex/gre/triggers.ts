@@ -27,6 +27,7 @@ function buildTriggerItem(
         zone: "stack",
         castById: self.controllerId,
         triggeredAbilityId,
+        triggerSourceId: self.id,
         triggerEvent: event,
     };
 }

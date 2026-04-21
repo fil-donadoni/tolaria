@@ -261,6 +261,13 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             pendingTarget &&
             matchesTargetRequirement(card, pendingTarget.targetType);
 
+        const isTargetSelected =
+            isSelectingTarget &&
+            !!pendingTarget &&
+            pendingTarget.selected.some(
+                (t) => t.type === "permanent" && t.id === card.id
+            );
+
         const isValidChoice =
             isSelectingChoice &&
             !!activeChoice &&
@@ -335,11 +342,13 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 ringClass = "ring-2 ring-red-500 rounded-sm";
             }
         }
-        if (!ringClass && isValidTarget) {
+        if (!ringClass && isTargetSelected) {
+            ringClass = "ring-2 ring-emerald-400 rounded-sm";
+        } else if (!ringClass && isValidTarget) {
             ringClass = "ring-2 ring-orange-400 rounded-sm";
         }
         if (!ringClass && isChoiceSelected) {
-            ringClass = "ring-2 ring-violet-400 rounded-sm";
+            ringClass = "ring-2 ring-emerald-400 rounded-sm";
         } else if (!ringClass && isValidChoice) {
             ringClass = "ring-2 ring-violet-400/60 rounded-sm";
         }
@@ -571,26 +580,95 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
 
     const creatures = player.battlefield.filter(isCreature);
     const lands = player.battlefield.filter((c) => isLand(c) && !isCreature(c));
+    // Auras attached to a host render alongside that host (not in `others`).
+    // Ungrouped Aura leftovers (attachedTo unset or host not on this
+    // battlefield) fall through to `others` so they remain visible.
+    const attachedAurasByHost = useMemo(() => {
+        const map = new Map<string, CardInstance[]>();
+        for (const c of player.battlefield) {
+            if (!c.attachedTo) continue;
+            const hostOnThisSide = player.battlefield.some(
+                (h) => h.id === c.attachedTo
+            );
+            if (!hostOnThisSide) continue;
+            const bucket = map.get(c.attachedTo);
+            if (bucket) bucket.push(c);
+            else map.set(c.attachedTo, [c]);
+        }
+        return map;
+    }, [player.battlefield]);
     const others = player.battlefield.filter(
-        (c) => !isCreature(c) && !isLand(c)
+        (c) =>
+            !isCreature(c) &&
+            !isLand(c) &&
+            !(c.attachedTo && attachedAurasByHost.has(c.attachedTo))
     );
 
+    function renderAttachedAura(aura: CardInstance, index: number) {
+        const vs = getVisualState(aura);
+        const abilities = getActivatable(aura);
+        // Auras peek out from behind the host, up-and-left. Each additional
+        // aura fans further up-left so the stack remains visible. Rendered
+        // BEFORE the host in DOM order so natural painting puts the host on
+        // top (no negative z-index needed).
+        const offset = 22 * (index + 1);
+        return (
+            <div
+                key={aura.id}
+                className="absolute h-full pointer-events-auto"
+                style={{
+                    top: `-${offset}px`,
+                    left: `-${offset}px`,
+                }}
+            >
+                <BattlefieldCard
+                    card={aura}
+                    vs={vs}
+                    onClick={(e) => handleClickWithEvent(aura, e)}
+                    activatableAbilities={abilities}
+                    onActivateAbility={(aId, keep) =>
+                        handleActivateAbility(aura.id, aId, keep)
+                    }
+                />
+            </div>
+        );
+    }
+
     function renderGroup(group: CardInstance[]) {
-        if (group.length === 1) {
-            const card = group[0];
-            const vs = getVisualState(card);
-            const abilities = getActivatable(card);
+        // Creatures with attached auras render as individual columns (no
+        // by-name stacking, since each instance's auras are distinct). The
+        // aura overlays the host up-and-left via absolute positioning.
+        const anyHasAuras = group.some((c) => attachedAurasByHost.has(c.id));
+        if (group.length === 1 || anyHasAuras) {
             return (
-                <div key={card.id} className="flex h-full">
-                    <BattlefieldCard
-                        card={card}
-                        vs={vs}
-                        onClick={(e) => handleClickWithEvent(card, e)}
-                        activatableAbilities={abilities}
-                        onActivateAbility={(aId, keep) =>
-                            handleActivateAbility(card.id, aId, keep)
-                        }
-                    />
+                <div key={group[0].id} className="flex h-full gap-1">
+                    {group.map((card) => {
+                        const vs = getVisualState(card);
+                        const abilities = getActivatable(card);
+                        const attached = attachedAurasByHost.get(card.id) ?? [];
+                        return (
+                            <div key={card.id} className="relative flex h-full">
+                                {attached.map((a, i) =>
+                                    renderAttachedAura(a, i)
+                                )}
+                                <BattlefieldCard
+                                    card={card}
+                                    vs={vs}
+                                    onClick={(e) =>
+                                        handleClickWithEvent(card, e)
+                                    }
+                                    activatableAbilities={abilities}
+                                    onActivateAbility={(aId, keep) =>
+                                        handleActivateAbility(
+                                            card.id,
+                                            aId,
+                                            keep
+                                        )
+                                    }
+                                />
+                            </div>
+                        );
+                    })}
                 </div>
             );
         }

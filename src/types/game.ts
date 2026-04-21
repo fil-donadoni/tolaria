@@ -68,6 +68,9 @@ export interface CardInstance {
     isBlocking?: boolean;
     /** Damage marked on this creature this turn (CR 120.3). Cleared at CLEANUP. */
     damageMarked?: number;
+    /** Id of the permanent this card is attached to (CR 303.4b). Only set
+     *  on auras that ETB attached to a host. */
+    attachedTo?: string;
     legalActions?: CardAction[];
 }
 

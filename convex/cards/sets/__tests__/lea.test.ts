@@ -14,7 +14,13 @@ import {
     berserk,
     birdsOfParadise,
     blackKnight,
+    blackWard,
+    blueWard,
     bogWraith,
+    braingeyser,
+    greenWard,
+    redWard,
+    whiteWard,
     shanodinDryads,
     castle,
     channel,
@@ -23,8 +29,11 @@ import {
     circleOfProtectionRed,
     circleOfProtectionWhite,
     counterspell,
+    controlMagic,
     ancestralRecall,
     darkRitual,
+    demonicTutor,
+    drainLife,
     fireball,
     lightningBolt,
     llanowarElves,
@@ -46,22 +55,32 @@ import {
     elvishArchers,
     grizzlyBears,
     hurricane,
+    howlingMine,
     hypnoticSpecter,
     icyManipulator,
     jadeStatue,
     jayemdaeTome,
     juggernaut,
+    nightmare,
     plains,
     serraAngel,
     psionicBlast,
+    royalAssassin,
     savannahLions,
+    sengirVampire,
+    sinkhole,
     solRing,
+    stealArtifact,
     wallOfSwords,
+    wheelOfFortune,
+    winterOrb,
 } from "../lea";
 import {
     commitLandsForCost,
+    removePermanentTo,
     resolveTopOfStack,
     type CardInstanceState,
+    type GameState,
 } from "../../../gre/state";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import {
@@ -77,6 +96,7 @@ import {
     parseProtectionFromColor,
 } from "../../../gre/rules";
 import { projectPublicState } from "../../../gameProjections";
+import { checkStateBasedActions } from "../../../gre/sba";
 import {
     validateBlockerEligibility,
     mustAttack,
@@ -704,6 +724,116 @@ describe("Ancestral Recall (target player draws 3, CR 608.3)", () => {
     });
 });
 
+describe("Braingeyser ({X}{U}{U} — target player draws X, CR 107.3 / 121.1)", () => {
+    function setup(libSize = 10) {
+        const p2Library = Array.from({ length: libSize }, (_, i) =>
+            makeInstance(grizzlyBearsId(), {
+                id: `p2-lib-${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "library",
+            })
+        );
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { library: p2Library }),
+            ],
+        });
+    }
+
+    it("target player draws X cards on resolution", () => {
+        const state = setup();
+        const item = pushSpell(state, braingeyser.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.chosenX = 4;
+        resolveTopOfStack(state);
+        expect(state.players[1].hand).toHaveLength(4);
+        expect(state.players[1].library).toHaveLength(6);
+    });
+
+    it("can target the caster", () => {
+        const p1Library = Array.from({ length: 5 }, (_, i) =>
+            makeInstance(grizzlyBearsId(), {
+                id: `p1-lib-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: p1Library }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, braingeyser.id, "p1", [
+            { type: "player", id: "p1" },
+        ]);
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(3);
+        expect(state.players[0].library).toHaveLength(2);
+    });
+
+    it("is a no-op when X is 0 (draws no cards)", () => {
+        const state = setup();
+        const item = pushSpell(state, braingeyser.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.chosenX = 0;
+        resolveTopOfStack(state);
+        expect(state.players[1].hand).toHaveLength(0);
+        expect(state.players[1].library).toHaveLength(10);
+    });
+
+    it("stops at empty library and flags hasDrawnFromEmpty (CR 704.5b)", () => {
+        // Library has only 2 cards; X=5 draws 2 and then pulls from empty.
+        const state = setup(2);
+        const item = pushSpell(state, braingeyser.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.chosenX = 5;
+        resolveTopOfStack(state);
+        expect(state.players[1].hand).toHaveLength(2);
+        expect(state.players[1].library).toHaveLength(0);
+        expect(state.players[1].hasDrawnFromEmpty).toBe(true);
+    });
+
+    it("goes to the caster's graveyard after resolving (CR 608.2k)", () => {
+        const state = setup();
+        const item = pushSpell(state, braingeyser.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.chosenX = 1;
+        resolveTopOfStack(state);
+        expect(state.players[0].graveyard).toHaveLength(1);
+        expect((state.players[0].graveyard[0].card as { id: string }).id).toBe(
+            braingeyser.id
+        );
+    });
+
+    it("wire format: chosenX survives projectPublicState", () => {
+        const state = setup();
+        const item = pushSpell(state, braingeyser.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.chosenX = 3;
+        const projected = projectPublicState(state, 1, "p1");
+        const projectedItem = projected.stack[0];
+        expect(projectedItem.chosenX).toBe(3);
+        expect(projectedItem.targets).toEqual([{ type: "player", id: "p2" }]);
+    });
+
+    it("declares a single-player target requirement", () => {
+        expect(braingeyser.targetRequirement).toEqual({
+            type: "player",
+            count: 1,
+        });
+    });
+});
+
 describe("Counterspell (counter target spell, CR 701.5a)", () => {
     it("removes a spell from the stack (doesn't let it resolve)", () => {
         const state = makeState();
@@ -795,6 +925,496 @@ describe("Disenchant (destroy target Artifact/Enchantment, CR 608.3)", () => {
         resolveTopOfStack(state);
         expect(state.players[0].battlefield).toHaveLength(0);
         expect(state.players[0].graveyard[0].id).toBe("castle-target");
+    });
+});
+
+describe("Demonic Tutor (search library, put into hand, CR 701.19)", () => {
+    function commitHead(state: GameState, picks: string[]) {
+        const queue = state.pendingChoices ?? [];
+        const head = queue[0];
+        const item = state.stack.find((s) => s.id === head.stackItemId);
+        if (!item) throw new Error("stack item missing");
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${head.step}:${head.choiceId}`]: picks,
+        };
+        queue.shift();
+        state.pendingChoices = queue.length > 0 ? queue : undefined;
+    }
+
+    it("enqueues a search-library pending choice for the caster", () => {
+        const card = makeInstance(swamp.id, {
+            id: "target-card",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { library: [card] }), makePlayer("p2")],
+        });
+        pushSpell(state, demonicTutor.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.pendingChoices?.[0]).toMatchObject({
+            playerId: "p1",
+            zone: "library",
+            count: 1,
+            kind: "search-library",
+        });
+    });
+
+    it("moves the chosen card into the caster's hand and shuffles library", () => {
+        const wanted = makeInstance(grizzlyBears.id, {
+            id: "wanted",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const others = [
+            makeInstance(swamp.id, {
+                id: "other-1",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+            makeInstance(swamp.id, {
+                id: "other-2",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: [wanted, ...others] }),
+                makePlayer("p2"),
+            ],
+            rngSeed: 1,
+        });
+        pushSpell(state, demonicTutor.id, "p1");
+        resolveTopOfStack(state); // step 0 suspends
+        expect(state.pendingChoices).toHaveLength(1);
+        commitHead(state, ["wanted"]);
+        resolveTopOfStack(state); // step 1 resumes
+
+        const p1 = state.players[0];
+        expect(p1.hand.map((c) => c.id)).toContain("wanted");
+        expect(p1.library.map((c) => c.id)).not.toContain("wanted");
+        expect(p1.library).toHaveLength(2);
+    });
+});
+
+describe("Drain Life (X damage to any target, gain X life, CR 107.3 + 120.1)", () => {
+    it("deals X damage to a player and gains the caster X life", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        const spell = pushSpell(state, drainLife.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        spell.chosenX = 5;
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(15);
+        expect(state.players[0].life).toBe(25);
+    });
+
+    it("deals X damage to a creature and gains the caster X life", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "opp-bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        const spell = pushSpell(state, drainLife.id, "p1", [
+            { type: "permanent", id: "opp-bear" },
+        ]);
+        spell.chosenX = 3;
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(23);
+    });
+
+    it("is a no-op when X is 0", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        const spell = pushSpell(state, drainLife.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        spell.chosenX = 0;
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
+        expect(state.players[1].life).toBe(20);
+    });
+});
+
+describe("Royal Assassin ({T}: destroy target tapped creature, CR 701.20 + 701.7)", () => {
+    function setup() {
+        const assassin = makeInstance(royalAssassin.id, {
+            id: "assassin",
+            isSummoningSick: false,
+        });
+        const victim = makeInstance(savannahLions.id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [assassin] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        return { state, assassin, victim };
+    }
+
+    function activate(
+        state: ReturnType<typeof makeState>,
+        source: CardInstanceState,
+        targetId: string
+    ) {
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "royal-assassin-destroy",
+            targets: [{ type: "permanent", id: targetId }],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("declares a tapped-creature TargetRequirement", () => {
+        const ability = royalAssassin.activatedAbilities?.[0];
+        expect(ability?.cost).toEqual({ tap: true });
+        expect(ability?.useStack).toBe(true);
+        expect(ability?.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+            tappedFilter: "tapped",
+        });
+    });
+
+    it("destroys a tapped creature on resolution", () => {
+        const { state, assassin, victim } = setup();
+        victim.isTapped = true;
+        activate(state, assassin, "victim");
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("victim");
+    });
+
+    it("fizzles silently if target untaps between activation and resolution (CR 608.2b)", () => {
+        const { state, assassin, victim } = setup();
+        victim.isTapped = true;
+        state.stack.push({
+            ...assassin,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "royal-assassin-destroy",
+            targets: [{ type: "permanent", id: "victim" }],
+        });
+        // Opponent untaps the target in response.
+        state.players[1].battlefield[0].isTapped = false;
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(1);
+        expect(state.players[1].graveyard).toHaveLength(0);
+    });
+
+    it("getLegalTargets only returns tapped creatures", () => {
+        const { state, victim } = setup();
+        const tappedBear = makeInstance(grizzlyBears.id, {
+            id: "tapped-bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: true,
+        });
+        state.players[1].battlefield.push(tappedBear);
+        // victim is untapped (default) → should NOT appear; tappedBear should.
+        expect(victim.isTapped).toBe(false);
+        const req = royalAssassin.activatedAbilities?.[0]?.targetRequirement;
+        if (!req) throw new Error("requirement missing");
+        const legal = getLegalTargets(state, req);
+        const ids = legal.map((t) => t.id);
+        expect(ids).toContain("tapped-bear");
+        expect(ids).not.toContain("victim");
+    });
+});
+
+describe("Nightmare (flying, P/T = Swamps you control, CR 604.3 CDA)", () => {
+    function setup(args: { controller: string; swamps: number }) {
+        const nm = makeInstance(nightmare.id, {
+            id: "nm",
+            controllerId: args.controller,
+            ownerId: args.controller,
+        });
+        const battlefield: CardInstanceState[] = [nm];
+        for (let i = 0; i < args.swamps; i++) {
+            battlefield.push(
+                makeInstance(swamp.id, {
+                    id: `swamp-${args.controller}-${i}`,
+                    controllerId: args.controller,
+                    ownerId: args.controller,
+                })
+            );
+        }
+        const players =
+            args.controller === "p1"
+                ? [makePlayer("p1", { battlefield }), makePlayer("p2")]
+                : [makePlayer("p1"), makePlayer("p2", { battlefield })];
+        return makeState({ players });
+    }
+
+    it("has flying as a baseline static ability", () => {
+        expect(nightmare.staticAbilities).toContain("flying");
+    });
+
+    it("P/T equals controller's Swamp count (3)", () => {
+        const state = setup({ controller: "p1", swamps: 3 });
+        const nm = state.players[0].battlefield[0];
+        expect(getEffectivePower(state, nm)).toBe(3);
+        expect(getEffectiveToughness(state, nm)).toBe(3);
+    });
+
+    it("does NOT count opponent's Swamps", () => {
+        const state = setup({ controller: "p1", swamps: 2 });
+        state.players[1].battlefield.push(
+            makeInstance(swamp.id, {
+                id: "opp-swamp",
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const nm = state.players[0].battlefield[0];
+        expect(getEffectivePower(state, nm)).toBe(2);
+        expect(getEffectiveToughness(state, nm)).toBe(2);
+    });
+
+    it("is 0/0 with no Swamps in play (would die to SBA, CR 704.5f)", () => {
+        const state = setup({ controller: "p1", swamps: 0 });
+        const nm = state.players[0].battlefield[0];
+        expect(getEffectivePower(state, nm)).toBe(0);
+        expect(getEffectiveToughness(state, nm)).toBe(0);
+    });
+
+    it("CDA survives the projection boundary (wire format)", () => {
+        const state = setup({ controller: "p1", swamps: 4 });
+        const nm = state.players[0].battlefield[0];
+        expect(getEffectiveToughness(state, nm)).toBe(4);
+        const projected = projectPublicState(state, 0, "p1");
+        const slimNm = projected.players[0].battlefield.find(
+            (c) => c.id === "nm"
+        );
+        if (!slimNm) throw new Error("nm not in projection");
+        expect(getEffectivePower(projected, slimNm)).toBe(4);
+        expect(getEffectiveToughness(projected, slimNm)).toBe(4);
+    });
+});
+
+describe("Sengir Vampire (+1/+1 on damaged-creature death, CR 603.2)", () => {
+    it("has flying and the CREATURE_DIED trigger", () => {
+        expect(sengirVampire.staticAbilities).toContain("flying");
+        const trig = sengirVampire.triggeredAbilities?.[0];
+        expect(trig?.event).toBe("CREATURE_DIED");
+    });
+
+    it("grows +1/+1 when a blocker it damaged dies in combat", async () => {
+        const vampire = makeInstance(sengirVampire.id, {
+            id: "vamp",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [vampire] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+            combat: {
+                attackerIds: ["vamp"],
+                confirmed: true,
+                blockerAssignments: { bear: "vamp" },
+                blockersConfirmed: true,
+            },
+        });
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, { vamp: { bear: 4 } });
+        // Bear is dead and in graveyard
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard).toHaveLength(1);
+        // CREATURE_DIED trigger is on the stack for Sengir Vampire
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "sengir-vampire-counter"
+        );
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield[0];
+        expect(live.power).toBe(5);
+        expect(live.toughness).toBe(5);
+    });
+
+    it("does NOT trigger on the death of a creature it didn't damage", async () => {
+        // Vampire attacks, is blocked by bear1. A second bear (bear2) dies from
+        // damage dealt by another attacker, not by vampire. Vampire's trigger
+        // must not fire for bear2's death.
+        const vampire = makeInstance(sengirVampire.id, {
+            id: "vamp",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const other = makeInstance(grizzlyBears.id, {
+            id: "other",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const bear1 = makeInstance(grizzlyBears.id, {
+            id: "bear1",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const bear2 = makeInstance(grizzlyBears.id, {
+            id: "bear2",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [vampire, other] }),
+                makePlayer("p2", { battlefield: [bear1, bear2] }),
+            ],
+            combat: {
+                attackerIds: ["vamp", "other"],
+                confirmed: true,
+                blockerAssignments: { bear1: "vamp", bear2: "other" },
+                blockersConfirmed: true,
+            },
+        });
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, {
+            vamp: { bear1: 4 },
+            other: { bear2: 2 },
+        });
+        // bear1 (damaged by vamp) and bear2 (damaged by other) are both dead.
+        // Only bear1's death should trigger Sengir Vampire.
+        expect(state.players[1].battlefield).toHaveLength(0);
+        const sengirTriggers = state.stack.filter(
+            (s) => s.triggeredAbilityId === "sengir-vampire-counter"
+        );
+        expect(sengirTriggers).toHaveLength(1);
+    });
+
+    it("does NOT trigger on Sengir Vampire's own death", async () => {
+        const vampire = makeInstance(sengirVampire.id, {
+            id: "vamp",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+            toughness: 1, // make it fragile so it dies to the bear
+            power: 4,
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+            toughness: 10,
+        });
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [vampire] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+            combat: {
+                attackerIds: ["vamp"],
+                confirmed: true,
+                blockerAssignments: { bear: "vamp" },
+                blockersConfirmed: true,
+            },
+        });
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, { vamp: { bear: 4 } });
+        // Vampire damaged the bear but died from the bear's counter-damage.
+        // The bear survived (10 toughness). No CREATURE_DIED for bear →
+        // no Sengir trigger. Vampire's own death must not trigger either
+        // (matches excludes self).
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[1].battlefield).toHaveLength(1);
+        const sengirTriggers = state.stack.filter(
+            (s) => s.triggeredAbilityId === "sengir-vampire-counter"
+        );
+        expect(sengirTriggers).toHaveLength(0);
+    });
+
+    it("clears damagedBySources at CLEANUP (CR 514.2)", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            damagedBySources: ["some-source"],
+        });
+        const state = makeState({
+            phase: "END_STEP",
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        advancePhase(state); // END_STEP → CLEANUP (auto-advances to UNTAP)
+        expect(
+            state.players[1].battlefield[0].damagedBySources
+        ).toBeUndefined();
+    });
+});
+
+describe("Sinkhole (destroy target land, CR 701.7)", () => {
+    it("destroys a target Swamp and sends it to its owner's graveyard", () => {
+        const land = makeInstance(swamp.id, {
+            id: "p1-swamp",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, sinkhole.id, "p2", [
+            { type: "permanent", id: "p1-swamp" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+            "p1-swamp"
+        );
+    });
+
+    it("declares a Land target requirement with count 1", () => {
+        expect(sinkhole.targetRequirement).toEqual({
+            type: "Land",
+            count: 1,
+        });
     });
 });
 
@@ -1191,6 +1811,963 @@ describe("Black Knight (first strike + protection from white, CR 702.7 + 702.16)
     });
 });
 
+describe("Aura core — attach / fizzle / SBA 704.5m (CR 303.4)", () => {
+    it("ETB attached to the chosen creature target", () => {
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [lion] }),
+            ],
+        });
+        pushSpell(state, redWard.id, "p1", [{ type: "permanent", id: "lion" }]);
+        resolveTopOfStack(state);
+        // Aura is on caster's battlefield, attached to lion.
+        const aura = state.players[0].battlefield.find(
+            (c) => c.card.id === redWard.id
+        )!;
+        expect(aura).toBeDefined();
+        expect(aura.attachedTo).toBe("lion");
+    });
+
+    it("CR 608.2b / 303.4i — fizzles if the target is no longer on battlefield at resolution", () => {
+        // Push the aura with a target, then remove the target from
+        // battlefield before resolving (simulates a kill-in-response).
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [lion] }),
+            ],
+        });
+        pushSpell(state, redWard.id, "p1", [{ type: "permanent", id: "lion" }]);
+        // Lion dies before the aura resolves.
+        state.players[1].battlefield = [];
+        resolveTopOfStack(state);
+        // Aura went to caster's graveyard, not battlefield.
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard).toHaveLength(1);
+        expect(state.players[0].graveyard[0].card.id).toBe(redWard.id);
+    });
+
+    it("CR 704.5m — aura whose host leaves play goes to graveyard as SBA", () => {
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [lion] }),
+            ],
+        });
+        pushSpell(state, redWard.id, "p1", [{ type: "permanent", id: "lion" }]);
+        resolveTopOfStack(state);
+        // Aura attached to lion.
+        expect(
+            state.players[0].battlefield.find((c) => c.card.id === redWard.id)
+        ).toBeDefined();
+        // Lion dies (removed from battlefield) — host becomes illegal.
+        state.players[1].battlefield = [];
+        checkStateBasedActions(state);
+        // Aura swept into caster's graveyard, attachedTo cleared.
+        expect(state.players[0].battlefield).toHaveLength(0);
+        const gy = state.players[0].graveyard.find(
+            (c) => c.card.id === redWard.id
+        )!;
+        expect(gy).toBeDefined();
+        expect(gy.attachedTo).toBeUndefined();
+    });
+
+    it("CR 704.5m — aura whose host loses Creature type is detached (currently no such effect, so host deleted proxies the case)", () => {
+        // Exercise the "host no longer satisfies enchant" branch by
+        // constructing a host that isn't a Creature after attach — easiest
+        // way is to hand-attach the aura to a non-creature and run SBA.
+        const tome = makeInstance(jayemdaeTome.id, {
+            id: "tome",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(redWard.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "tome",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tome, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        checkStateBasedActions(state);
+        const battlefieldIds = state.players[0].battlefield.map((c) => c.id);
+        expect(battlefieldIds).not.toContain("aura");
+        expect(battlefieldIds).toContain("tome");
+        expect(state.players[0].graveyard.some((c) => c.id === "aura")).toBe(
+            true
+        );
+    });
+});
+
+describe("Red Ward (Aura keyword-grant → protection from red, CR 611 + 702.16)", () => {
+    it("is a {W} Aura with the right target shape", () => {
+        expect(redWard.manaCost).toEqual({ W: 1 });
+        expect(redWard.types).toEqual(["Enchantment"]);
+        expect(redWard.subtypes).toEqual(["Aura"]);
+        expect(redWard.targetRequirement?.type).toBe("Creature");
+    });
+
+    it("grants 'protection from red' to its host on attach and reverts on detach", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, redWard.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+
+        // Aura attached; host gained the keyword.
+        const bearAfter = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.staticAbilities).toContain("protection from red");
+
+        // Red Lightning Bolt now can't target the bear (CR 702.16b).
+        const legal = getLegalTargets(state, lightningBolt.targetRequirement!, [
+            "R",
+        ]);
+        expect(legal.map((t) => t.id)).not.toContain("bear");
+
+        // Bear dies (say, exiled by Swords to Plowshares). Aura should
+        // detach via SBA and the bear keyword is no longer tracked.
+        state.players[1].battlefield = [];
+        checkStateBasedActions(state);
+        const aura = state.players[0].graveyard.find(
+            (c) => c.card.id === redWard.id
+        )!;
+        expect(aura).toBeDefined();
+        expect(aura.attachedTo).toBeUndefined();
+    });
+
+    it("reverts the grant when the aura is destroyed directly (removePermanentTo)", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, redWard.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        const aura = state.players[0].battlefield.find(
+            (c) => c.card.id === redWard.id
+        )!;
+        // Baseline: keyword is present on the host.
+        expect(bear.staticAbilities).toContain("protection from red");
+
+        // Disenchant-like effect destroys the aura directly.
+        removePermanentTo(state, aura.id, "graveyard");
+
+        // Keyword lifted from the host.
+        expect(bear.staticAbilities).not.toContain("protection from red");
+        expect(bear.grantedStaticAbilities ?? []).toHaveLength(0);
+    });
+
+    it("wire format: granted protection survives projectPublicState", () => {
+        // Regression: the projection slims `card.card`, but the grant lives
+        // on the host's `staticAbilities` array, so a projected bear must
+        // still read as protected via isProtectedFromSource.
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, redWard.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        const redBolt = makeInstance(lightningBolt.id, {
+            id: "src",
+            controllerId: "p2",
+            zone: "stack",
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBear = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )! as CardInstanceState;
+        expect(isProtectedFromSource(slimBear, redBolt)).toBe(true);
+    });
+});
+
+describe("Protection-detach SBA (CR 702.16c + 702.16n)", () => {
+    it("aura WITHOUT the 702.16n exemption is detached when host gains matching protection", () => {
+        // All real ward auras in the set carry the 702.16n rider, so use a
+        // synthetic aura (unregistered id → no card def lookup → no
+        // exemption) with an embedded mana cost to exercise the non-exempt
+        // branch. Blue mana cost + host pro-blue = 702.16c detach.
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const syntheticAura: CardInstanceState = {
+            id: "syn-aura",
+            card: { id: "synthetic-blue-aura", manaCost: { U: 1 } },
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            staticAbilities: [],
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+            attachedTo: "bear",
+        };
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear, syntheticAura] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        // Host acquires protection from blue (simulating another source).
+        bear.staticAbilities = [
+            ...bear.staticAbilities,
+            "protection from blue",
+        ];
+        checkStateBasedActions(state);
+
+        // Aura detached (no exemption) and moved to graveyard.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "syn-aura")
+        ).toBeUndefined();
+        expect(
+            state.players[0].graveyard.find((c) => c.id === "syn-aura")
+        ).toBeDefined();
+    });
+
+    it("aura whose color does NOT match host protection stays attached", () => {
+        // Same setup but host acquires pro-blue. Red Ward is white, pro-blue
+        // doesn't match → aura stays.
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, redWard.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        bear.staticAbilities = [
+            ...bear.staticAbilities,
+            "protection from blue",
+        ];
+        checkStateBasedActions(state);
+        // Aura still attached.
+        expect(
+            state.players[0].battlefield.find((c) => c.card.id === redWard.id)
+        ).toBeDefined();
+    });
+
+    it("CR 608.2b — aura fizzles if target acquires matching protection between cast and resolution", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        // Red Ward (white aura) targeting bear — legal at cast.
+        pushSpell(state, redWard.id, "p1", [{ type: "permanent", id: "bear" }]);
+        // Before resolution, bear gains protection from white.
+        bear.staticAbilities = [
+            ...bear.staticAbilities,
+            "protection from white",
+        ];
+        resolveTopOfStack(state);
+        // Aura fizzled to caster's graveyard, not attached.
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(
+            state.players[0].graveyard.find((c) => c.card.id === redWard.id)
+        ).toBeDefined();
+        // Bear did not gain a new grant from the fizzled aura.
+        expect(bear.staticAbilities).not.toContain("protection from red");
+    });
+});
+
+describe("White Ward (exempt self-referential aura, CR 702.16n)", () => {
+    it("stays attached even though aura-color matches granted protection", () => {
+        // White Ward is a white aura that grants pro-white. Without the
+        // CR 702.16n exemption, the aura would immediately fall off as SBA
+        // after attach. With the exemption (exemptFromProtectionDetach), it
+        // persists.
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, whiteWard.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+
+        // Aura still attached, host has pro-white.
+        const aura = state.players[0].battlefield.find(
+            (c) => c.card.id === whiteWard.id
+        );
+        expect(aura).toBeDefined();
+        expect(bear.staticAbilities).toContain("protection from white");
+    });
+
+    it("all five wards register and carry the 702.16n exemption", () => {
+        for (const ward of [
+            redWard,
+            blueWard,
+            blackWard,
+            greenWard,
+            whiteWard,
+        ]) {
+            expect(ward.manaCost).toEqual({ W: 1 });
+            expect(ward.types).toEqual(["Enchantment"]);
+            expect(ward.subtypes).toEqual(["Aura"]);
+            expect(ward.targetRequirement?.type).toBe("Creature");
+            expect(ward.exemptFromProtectionDetach).toBe(true);
+            expect(ward.staticEffects).toHaveLength(1);
+            expect(ward.staticEffects?.[0].kind).toBe("keyword-grant");
+        }
+    });
+});
+
+describe("Control Magic (Aura control-change, CR 613.1b layer 2 + 702.10c)", () => {
+    it("is a {2}{U}{U} Aura that targets a creature and declares a control-change effect", () => {
+        expect(controlMagic.manaCost).toEqual({ X: 2, U: 2 });
+        expect(controlMagic.types).toEqual(["Enchantment"]);
+        expect(controlMagic.subtypes).toEqual(["Aura"]);
+        expect(controlMagic.targetRequirement?.type).toBe("Creature");
+        expect(controlMagic.staticEffects).toHaveLength(1);
+        expect(controlMagic.staticEffects?.[0].kind).toBe("control-change");
+    });
+
+    it("on resolve, transfers control of the enchanted creature and sets summoning sickness", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, controlMagic.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+
+        // Bear now lives in p1's battlefield array under p1's control.
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain("bear");
+        expect(state.players[1].battlefield.map((c) => c.id)).not.toContain(
+            "bear"
+        );
+        const bearAfter = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.controllerId).toBe("p1");
+        // CR 702.10c — control continuity broke, sickness applies.
+        expect(bearAfter.isSummoningSick).toBe(true);
+        // Bookkeeping for reversal: the stack has one entry (this aura)
+        // with the pre-flip controller as `previousControllerId`.
+        expect(bearAfter.controlChanges).toHaveLength(1);
+        expect(bearAfter.controlChanges?.[0].previousControllerId).toBe("p2");
+
+        // Aura sits on caster's battlefield, attached to the bear.
+        const aura = state.players[0].battlefield.find(
+            (c) => c.card.id === controlMagic.id
+        )!;
+        expect(aura).toBeDefined();
+        expect(aura.attachedTo).toBe("bear");
+        expect(bearAfter.controlChanges?.[0].auraId).toBe(aura.id);
+    });
+
+    it("wire format: the control flip survives projectPublicState", () => {
+        // Regression: the projection maps each player's battlefield array
+        // verbatim (slimming card defs). A controlled creature must therefore
+        // appear in the new controller's projected battlefield with the
+        // updated controllerId — otherwise the client would render it on
+        // the wrong side.
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, controlMagic.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBear = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        );
+        expect(slimBear).toBeDefined();
+        expect(slimBear?.controllerId).toBe("p1");
+        expect(
+            projected.players[1].battlefield.find((c) => c.id === "bear")
+        ).toBeUndefined();
+    });
+
+    it("reverts control when the aura is destroyed (Disenchant-style removal)", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, controlMagic.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const aura = state.players[0].battlefield.find(
+            (c) => c.card.id === controlMagic.id
+        )!;
+
+        // Disenchant the aura directly.
+        removePermanentTo(state, aura.id, "graveyard");
+
+        // Bear returned to p2's battlefield with its original controller.
+        expect(state.players[1].battlefield.map((c) => c.id)).toContain("bear");
+        expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(
+            "bear"
+        );
+        const bearAfter = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.controllerId).toBe("p2");
+        expect(bearAfter.controlChanges).toBeUndefined();
+        // Continuity broke again on reversal — sickness applies until p2's
+        // next untap step.
+        expect(bearAfter.isSummoningSick).toBe(true);
+        // Aura went to its owner's graveyard.
+        expect(
+            state.players[0].graveyard.find(
+                (c) => c.card.id === controlMagic.id
+            )
+        ).toBeDefined();
+    });
+
+    it("host dies → SBA detaches the aura to the caster's graveyard (CR 704.5m)", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, controlMagic.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+
+        // The bear dies (e.g. Lightning Bolt). The host id is gone from
+        // every battlefield array — SBA should sweep the aura into its
+        // caster's graveyard.
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== "bear"
+        );
+        checkStateBasedActions(state);
+
+        expect(
+            state.players[0].battlefield.find(
+                (c) => c.card.id === controlMagic.id
+            )
+        ).toBeUndefined();
+        const auraInGY = state.players[0].graveyard.find(
+            (c) => c.card.id === controlMagic.id
+        )!;
+        expect(auraInGY).toBeDefined();
+        expect(auraInGY.attachedTo).toBeUndefined();
+    });
+
+    it("retargeting own creature is a no-op for the flip (same controller pre/post)", () => {
+        // If the caster already controls the target, the aura attaches but
+        // the control-change predicate still runs; since newControllerId
+        // matches the current controllerId, no stack entry is written and
+        // no battlefield array swap happens.
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, controlMagic.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+
+        const bearAfter = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.controllerId).toBe("p1");
+        expect(bearAfter.controlChanges).toBeUndefined();
+        // Aura is still attached and resident on p1's bf.
+        expect(
+            state.players[0].battlefield.find(
+                (c) => c.card.id === controlMagic.id
+            )?.attachedTo
+        ).toBe("bear");
+    });
+
+    it("stacked CMs: latest wins while present; removing the TOP restores to the layer below (CR 613 layer 2 timestamps)", () => {
+        // P1 owns bear. P2's CM1 steals it → bear on p2. P1's CM2 steals it
+        // back → bear on p1. Removing CM2 first: CR says CM1 is still
+        // active, so bear must revert to p2 (not to owner p1).
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        // CM1 cast by p2 targeting the bear.
+        pushSpell(state, controlMagic.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const cm1 = state.players[1].battlefield.find(
+            (c) => c.card.id === controlMagic.id
+        )!;
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")
+                ?.controllerId
+        ).toBe("p2");
+
+        // CM2 cast by p1 targeting the (now p2-controlled) bear.
+        pushSpell(state, controlMagic.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const cm2 = state.players[0].battlefield.find(
+            (c) => c.card.id === controlMagic.id && c.id !== cm1.id
+        )!;
+        const bearWithBoth = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearWithBoth.controllerId).toBe("p1");
+        expect(bearWithBoth.controlChanges).toHaveLength(2);
+
+        // Disenchant CM2 (top of stack) first → CM1 still applies → bear
+        // must go to p2, NOT back to owner p1.
+        removePermanentTo(state, cm2.id, "graveyard");
+        const bearAfterCm2 = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfterCm2).toBeDefined();
+        expect(bearAfterCm2.controllerId).toBe("p2");
+        expect(bearAfterCm2.controlChanges).toHaveLength(1);
+        expect(bearAfterCm2.controlChanges?.[0].auraId).toBe(cm1.id);
+
+        // Then disenchant CM1 → no more effects → bear collapses to owner.
+        removePermanentTo(state, cm1.id, "graveyard");
+        const bearFinal = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearFinal).toBeDefined();
+        expect(bearFinal.controllerId).toBe("p1");
+        expect(bearFinal.controlChanges).toBeUndefined();
+    });
+
+    it("stacked CMs: removing the MIDDLE entry leaves current controller intact and top pops to owner (CR 108.3)", () => {
+        // Same stacked setup as above, but this time CM1 (bottom of stack)
+        // is destroyed first. CR: CM2 is still active, bear stays on p1.
+        // Then CM2 destroyed → stack empty → bear collapses to owner p1.
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, controlMagic.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const cm1 = state.players[1].battlefield.find(
+            (c) => c.card.id === controlMagic.id
+        )!;
+        pushSpell(state, controlMagic.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const cm2 = state.players[0].battlefield.find(
+            (c) => c.card.id === controlMagic.id && c.id !== cm1.id
+        )!;
+
+        // Disenchant CM1 (middle/bottom) — bear stays on p1 (CM2 still
+        // applies), stack collapses to a single entry.
+        removePermanentTo(state, cm1.id, "graveyard");
+        const bearMid = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearMid.controllerId).toBe("p1");
+        expect(bearMid.controlChanges).toHaveLength(1);
+        expect(bearMid.controlChanges?.[0].auraId).toBe(cm2.id);
+        // The middle-removal patched `previousControllerId` so the remaining
+        // entry now records the pre-chain value (bear's owner = p1).
+        expect(bearMid.controlChanges?.[0].previousControllerId).toBe("p1");
+
+        // Disenchant CM2 — stack empties, bear goes back to owner.
+        removePermanentTo(state, cm2.id, "graveyard");
+        const bearFinal = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearFinal.controllerId).toBe("p1");
+        expect(bearFinal.controlChanges).toBeUndefined();
+    });
+});
+
+describe("Steal Artifact (Aura control-change on artifacts, CR 613.1b layer 2)", () => {
+    it("is a {2}{U}{U} Aura that targets an artifact and declares a control-change effect", () => {
+        expect(stealArtifact.manaCost).toEqual({ X: 2, U: 2 });
+        expect(stealArtifact.types).toEqual(["Enchantment"]);
+        expect(stealArtifact.subtypes).toEqual(["Aura"]);
+        expect(stealArtifact.targetRequirement?.type).toBe("Artifact");
+        expect(stealArtifact.staticEffects).toHaveLength(1);
+        expect(stealArtifact.staticEffects?.[0].kind).toBe("control-change");
+    });
+
+    it("on resolve, transfers control of the enchanted artifact (no summoning sickness — artifacts aren't creatures)", () => {
+        const statue = makeInstance(jadeStatue.id, {
+            id: "statue",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [statue] }),
+            ],
+        });
+        pushSpell(state, stealArtifact.id, "p1", [
+            { type: "permanent", id: "statue" },
+        ]);
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "statue"
+        );
+        expect(state.players[1].battlefield.map((c) => c.id)).not.toContain(
+            "statue"
+        );
+        const statueAfter = state.players[0].battlefield.find(
+            (c) => c.id === "statue"
+        )!;
+        expect(statueAfter.controllerId).toBe("p1");
+        // CR 702.10c scopes summoning sickness to creatures — artifacts
+        // aren't creatures so they don't pick it up on a control flip.
+        expect(statueAfter.isSummoningSick).toBeUndefined();
+        expect(statueAfter.controlChanges).toHaveLength(1);
+        expect(statueAfter.controlChanges?.[0].previousControllerId).toBe("p2");
+
+        const aura = state.players[0].battlefield.find(
+            (c) => c.card.id === stealArtifact.id
+        )!;
+        expect(aura.attachedTo).toBe("statue");
+    });
+
+    it("wire format: the control flip survives projectPublicState", () => {
+        const statue = makeInstance(jadeStatue.id, {
+            id: "statue",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [statue] }),
+            ],
+        });
+        pushSpell(state, stealArtifact.id, "p1", [
+            { type: "permanent", id: "statue" },
+        ]);
+        resolveTopOfStack(state);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimStatue = projected.players[0].battlefield.find(
+            (c) => c.id === "statue"
+        );
+        expect(slimStatue).toBeDefined();
+        expect(slimStatue?.controllerId).toBe("p1");
+        expect(
+            projected.players[1].battlefield.find((c) => c.id === "statue")
+        ).toBeUndefined();
+    });
+
+    it("reverts control when the aura is destroyed (Disenchant-style removal)", () => {
+        const statue = makeInstance(jadeStatue.id, {
+            id: "statue",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [statue] }),
+            ],
+        });
+        pushSpell(state, stealArtifact.id, "p1", [
+            { type: "permanent", id: "statue" },
+        ]);
+        resolveTopOfStack(state);
+        const aura = state.players[0].battlefield.find(
+            (c) => c.card.id === stealArtifact.id
+        )!;
+
+        removePermanentTo(state, aura.id, "graveyard");
+
+        expect(state.players[1].battlefield.map((c) => c.id)).toContain(
+            "statue"
+        );
+        const statueAfter = state.players[1].battlefield.find(
+            (c) => c.id === "statue"
+        )!;
+        expect(statueAfter.controllerId).toBe("p2");
+    });
+
+    it("fizzles when the target leaves the battlefield between cast and resolution (CR 608.2b)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, stealArtifact.id, "p1", [
+            { type: "permanent", id: "ghost-statue" },
+        ]);
+        resolveTopOfStack(state);
+
+        expect(
+            state.players[0].battlefield.find(
+                (c) => c.card.id === stealArtifact.id
+            )
+        ).toBeUndefined();
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(
+            stealArtifact.id
+        );
+    });
+
+    it("SBA detaches the aura when the host loses its artifact type (removed from battlefield)", () => {
+        const statue = makeInstance(jadeStatue.id, {
+            id: "statue",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [statue] }),
+            ],
+        });
+        pushSpell(state, stealArtifact.id, "p1", [
+            { type: "permanent", id: "statue" },
+        ]);
+        resolveTopOfStack(state);
+
+        // Artifact host leaves play.
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== "statue"
+        );
+        checkStateBasedActions(state);
+
+        expect(
+            state.players[0].battlefield.find(
+                (c) => c.card.id === stealArtifact.id
+            )
+        ).toBeUndefined();
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(
+            stealArtifact.id
+        );
+    });
+});
+
+describe("Winter Orb (caps ACL untaps to one per untap step, CR 502.1)", () => {
+    it("is a {2} artifact that declares the global untap-limit marker", () => {
+        expect(winterOrb.manaCost).toEqual({ X: 2 });
+        expect(winterOrb.types).toEqual(["Artifact"]);
+        expect(winterOrb.staticAbilities).toContain("limits-acl-untap");
+    });
+
+    // Drives the incoming player's UNTAP step by advancing from END_STEP:
+    // CLEANUP auto-resolves, turn flips, UNTAP auto-resolves, state settles
+    // in UPKEEP of the intended player.
+    function runUntapFor(playerId: string, state: GameState): void {
+        state.activePlayerId = playerId === "p1" ? "p2" : "p1";
+        state.phase = "END_STEP";
+        advancePhase(state);
+    }
+
+    it("without Winter Orb, every ACL the active player controls untaps", () => {
+        const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
+        const creature = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land1, land2, creature] }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapFor("p1", state);
+
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(false);
+        expect(bf.find((c) => c.id === "l2")?.isTapped).toBe(false);
+        expect(bf.find((c) => c.id === "bear")?.isTapped).toBe(false);
+    });
+
+    it("with Winter Orb in play, the active player untaps at most one ACL", () => {
+        const orb = makeInstance(winterOrb.id, { id: "orb", isTapped: true });
+        const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [orb, land1, land2, bear],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapFor("p1", state);
+
+        const bf = state.players[0].battlefield;
+        const untappedAcl = bf.filter(
+            (c) =>
+                !c.isTapped &&
+                (c.types.includes("Artifact") ||
+                    c.types.includes("Creature") ||
+                    c.types.includes("Land"))
+        );
+        expect(untappedAcl).toHaveLength(1);
+    });
+
+    it("non-ACL permanents (enchantments) untap normally under Winter Orb", () => {
+        const orb = makeInstance(winterOrb.id, { id: "orb", isTapped: false });
+        const land = makeInstance(plains.id, { id: "l1", isTapped: true });
+        // Castle is an Enchantment — not A/C/L, so it's exempt from the cap.
+        const enchant = makeInstance(castle.id, {
+            id: "castle",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [orb, land, enchant] }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapFor("p1", state);
+
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "castle")?.isTapped).toBe(false);
+    });
+
+    it("Winter Orb on the opponent's side still restricts the active player", () => {
+        const orb = makeInstance(winterOrb.id, {
+            id: "orb",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: false,
+        });
+        const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land1, land2] }),
+                makePlayer("p2", { battlefield: [orb] }),
+            ],
+        });
+        runUntapFor("p1", state);
+
+        const bf = state.players[0].battlefield;
+        const untappedCount = bf.filter((c) => !c.isTapped).length;
+        expect(untappedCount).toBe(1);
+    });
+});
+
 describe("Bog Wraith (swampwalk evasion, CR 702.13b)", () => {
     it("is a 3/3 Wraith for {3}{B} with swampwalk", () => {
         expect(bogWraith.manaCost).toEqual({ X: 3, B: 1 });
@@ -1470,6 +3047,149 @@ describe("Hypnotic Specter (keyword abilities + CR 603 trigger)", () => {
         expect(projected.stack[0].triggerEvent).toMatchObject({
             type: "DAMAGE_DEALT",
             target: { type: "player", id: "p2" },
+        });
+    });
+});
+
+describe("Howling Mine (CR 603.6a phase-begin trigger with intervening-if)", () => {
+    function setupAtUpkeep(options: { tapped?: boolean } = {}) {
+        const mine = makeInstance(howlingMine.id, {
+            id: "mine",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: options.tapped ?? false,
+        });
+        // Two cards in each library so the draw step entry action + Howling
+        // Mine's extra draw both succeed.
+        const p1Lib = [
+            makeInstance(llanowarElves.id, {
+                id: "p1-lib-1",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+            makeInstance(llanowarElves.id, {
+                id: "p1-lib-2",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        const p2Lib = [
+            makeInstance(llanowarElves.id, {
+                id: "p2-lib-1",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "library",
+            }),
+            makeInstance(llanowarElves.id, {
+                id: "p2-lib-2",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "library",
+            }),
+        ];
+        return makeState({
+            turn: 2, // turn > 1 so the draw step's turn-based draw fires
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [mine], library: p1Lib }),
+                makePlayer("p2", { library: p2Lib }),
+            ],
+        });
+    }
+
+    it("is a {2} artifact with the phase-begin trigger declared", () => {
+        expect(howlingMine.manaCost).toEqual({ X: 2 });
+        expect(howlingMine.types).toContain("Artifact");
+        const trigger = howlingMine.triggeredAbilities?.[0];
+        expect(trigger?.event).toBe("PHASE_BEGIN");
+        expect(trigger?.oracleText).toMatch(/draw step/i);
+    });
+
+    it("queues the trigger when the active player's draw step begins", () => {
+        const state = setupAtUpkeep();
+        advancePhase(state); // UPKEEP → DRAW (turn-based action + trigger)
+        expect(state.phase).toBe("DRAW");
+        // p1 drew the turn-based card (CR 504.1) and the trigger sits on the stack.
+        expect(state.players[0].hand).toHaveLength(1);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("howling-mine-draw");
+        expect(state.stack[0].triggerEvent).toMatchObject({
+            type: "PHASE_BEGIN",
+            phase: "DRAW",
+            activePlayerId: "p1",
+        });
+        expect(state.priorityPlayerId).toBe("p1");
+    });
+
+    it("resolves into an extra draw for the active player", () => {
+        const state = setupAtUpkeep();
+        advancePhase(state);
+        resolveTopOfStack(state);
+        // Turn-based draw + Howling Mine draw = 2
+        expect(state.players[0].hand).toHaveLength(2);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("fires on the opponent's draw step and draws for them (each player's)", () => {
+        const state = setupAtUpkeep();
+        // Simulate p2's turn at UPKEEP — Howling Mine still on p1's battlefield.
+        state.turn = 3;
+        state.activePlayerId = "p2";
+        state.priorityPlayerId = "p2";
+        state.phase = "UPKEEP";
+        advancePhase(state);
+        expect(state.phase).toBe("DRAW");
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggerEvent).toMatchObject({
+            type: "PHASE_BEGIN",
+            activePlayerId: "p2",
+        });
+        resolveTopOfStack(state);
+        // p2 got 1 turn-based + 1 Howling Mine = 2 cards.
+        expect(state.players[1].hand).toHaveLength(2);
+    });
+
+    it("does NOT fire the trigger while the artifact is tapped (CR 603.4)", () => {
+        const state = setupAtUpkeep({ tapped: true });
+        advancePhase(state);
+        expect(state.phase).toBe("DRAW");
+        expect(state.stack).toHaveLength(0);
+        // p1 only got the turn-based draw.
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+
+    it("intervening-if re-check: if tapped between trigger and resolve, no draw", () => {
+        const state = setupAtUpkeep();
+        advancePhase(state); // trigger enqueued
+        expect(state.stack).toHaveLength(1);
+        // Simulate Icy Manipulator tapping the artifact in response.
+        state.players[0].battlefield[0].isTapped = true;
+        resolveTopOfStack(state);
+        // Only the turn-based draw; intervening-if failed at resolve.
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+
+    it("does NOT fire on non-draw phases", () => {
+        const state = setupAtUpkeep();
+        state.phase = "PRECOMBAT_MAIN";
+        advancePhase(state); // PRECOMBAT_MAIN → BEGINNING_OF_COMBAT
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("wire format: trigger StackItem survives projectPublicState", () => {
+        const state = setupAtUpkeep();
+        advancePhase(state);
+        expect(state.stack).toHaveLength(1);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.stack).toHaveLength(1);
+        expect(projected.stack[0].triggeredAbilityId).toBe("howling-mine-draw");
+        expect(projected.stack[0].triggerEvent).toMatchObject({
+            type: "PHASE_BEGIN",
+            phase: "DRAW",
         });
     });
 });
@@ -2331,6 +4051,121 @@ describe("Timetwister (each player reshuffles + draws 7, CR 121.1 / 701.20)", ()
             state.players[1].library.length
         );
         expect(projected.players[1].graveyard).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Wheel of Fortune — "Each player discards their hand, then draws seven
+// cards." (CR 701.8, 121.1)
+// ---------------------------------------------------------------------------
+
+describe("Wheel of Fortune (each player discards hand + draws 7, CR 701.8 / 121.1)", () => {
+    function libraryCards(
+        owner: string,
+        count: number,
+        prefix: string
+    ): CardInstanceState[] {
+        return Array.from({ length: count }, (_, i) =>
+            makeInstance(grizzlyBearsId(), {
+                id: `${prefix}-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+    }
+
+    it("is a {2}{R} sorcery", () => {
+        expect(wheelOfFortune.manaCost).toEqual({ X: 2, R: 1 });
+        expect(wheelOfFortune.types).toEqual(["Sorcery"]);
+    });
+
+    it("discarded cards land in each player's graveyard, then each draws 7", () => {
+        // p1: 3 in hand, 0 in graveyard, 10 in library → after resolve:
+        //   graveyard = 3 discarded + Wheel itself = 4, hand = 7, library = 3
+        // p2: 4 in hand, 1 in graveyard, 12 in library → after resolve:
+        //   graveyard = 1 + 4 discarded = 5, hand = 7, library = 5
+        const p1 = makePlayer("p1", {
+            hand: libraryCards("p1", 3, "p1-hand").map((c) => ({
+                ...c,
+                zone: "hand",
+            })),
+            library: libraryCards("p1", 10, "p1-lib"),
+        });
+        const p2 = makePlayer("p2", {
+            hand: libraryCards("p2", 4, "p2-hand").map((c) => ({
+                ...c,
+                zone: "hand",
+            })),
+            graveyard: libraryCards("p2", 1, "p2-gy").map((c) => ({
+                ...c,
+                zone: "graveyard",
+            })),
+            library: libraryCards("p2", 12, "p2-lib"),
+        });
+        const state = makeState({ players: [p1, p2] });
+        pushSpell(state, wheelOfFortune.id, "p1");
+        resolveTopOfStack(state);
+
+        expect(state.players[0].hand).toHaveLength(7);
+        expect(state.players[0].graveyard).toHaveLength(4);
+        expect(
+            state.players[0].graveyard.some(
+                (c) => c.card.id === wheelOfFortune.id
+            )
+        ).toBe(true);
+        expect(state.players[0].library).toHaveLength(3);
+
+        expect(state.players[1].hand).toHaveLength(7);
+        expect(state.players[1].graveyard).toHaveLength(5);
+        expect(state.players[1].library).toHaveLength(5);
+    });
+
+    it("is a no-op on an empty hand for the discard step (player still draws 7)", () => {
+        const p1 = makePlayer("p1", {
+            library: libraryCards("p1", 10, "p1-lib"),
+        });
+        const p2 = makePlayer("p2", {
+            library: libraryCards("p2", 10, "p2-lib"),
+        });
+        const state = makeState({ players: [p1, p2] });
+        pushSpell(state, wheelOfFortune.id, "p1");
+        resolveTopOfStack(state);
+
+        expect(state.players[0].hand).toHaveLength(7);
+        expect(state.players[1].hand).toHaveLength(7);
+    });
+
+    it("wire format: hand/library/graveyard counts survive projectPublicState", () => {
+        const p1 = makePlayer("p1", {
+            hand: libraryCards("p1", 2, "p1-hand").map((c) => ({
+                ...c,
+                zone: "hand",
+            })),
+            library: libraryCards("p1", 10, "p1-lib"),
+        });
+        const p2 = makePlayer("p2", {
+            hand: libraryCards("p2", 3, "p2-hand").map((c) => ({
+                ...c,
+                zone: "hand",
+            })),
+            library: libraryCards("p2", 10, "p2-lib"),
+        });
+        const state = makeState({ players: [p1, p2] });
+        pushSpell(state, wheelOfFortune.id, "p1");
+        resolveTopOfStack(state);
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand).toHaveLength(7);
+        expect(projected.players[0].graveyard).toHaveLength(3);
+        expect(projected.players[0].library.count).toBe(
+            state.players[0].library.length
+        );
+        expect(projected.players[1].hand).toHaveLength(7);
+        expect(projected.players[1].graveyard).toHaveLength(3);
+        expect(projected.players[1].library.count).toBe(
+            state.players[1].library.length
+        );
     });
 });
 

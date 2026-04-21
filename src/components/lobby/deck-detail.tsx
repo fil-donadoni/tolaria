@@ -1,9 +1,9 @@
-import type { Doc } from "@convex/_generated/dataModel";
+import type { DeckPreset } from "@convex/deckPresets";
 import { cn } from "~/lib/utils";
 import MoneyPileView from "./money-pile-view";
 
 interface DeckDetailProps {
-    deck: Doc<"decks">;
+    deck: DeckPreset;
     isSelected: boolean;
     onBack: () => void;
     onSelect: () => void;
