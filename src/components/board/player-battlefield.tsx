@@ -619,6 +619,12 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 style={{
                     top: `-${offset}px`,
                     left: `-${offset}px`,
+                    // Explicit width — without it, an absolute box with
+                    // `width: auto` collapses to 0 because the child also
+                    // resolves its width from its parent (host's `width: auto`
+                    // + aspect-ratio chain). Manifested as the aura disappearing
+                    // for the controller while opponent saw it correctly.
+                    width: "var(--card-w)",
                 }}
             >
                 <BattlefieldCard
