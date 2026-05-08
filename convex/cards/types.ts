@@ -212,6 +212,12 @@ export interface SpellContext {
     getIsTapped: (target: TargetSelection) => boolean;
     destroy: (target: TargetSelection) => void;
     exile: (target: TargetSelection) => void;
+    /** Returns a target permanent to its owner's hand (CR 701.10). The card
+     *  becomes a new object on the zone change (CR 400.7) — battlefield-only
+     *  transient state (tapped, marked damage, regen shields, summoning
+     *  sickness, attached/granted-by-aura state) is cleared. No-op if the
+     *  target has left the battlefield (CR 608.2b). */
+    returnToHand: (target: TargetSelection) => void;
     /** Taps a permanent on the battlefield (CR 701.20a). No-op if already
      *  tapped or if the target is no longer on the battlefield (CR 608.2b).
      *  Used by Icy Manipulator and similar "tap target permanent" effects. */

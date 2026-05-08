@@ -972,12 +972,16 @@ export const timetwister: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const unsummon: CardDefinition = {
-//     id: "8512f2c1-6361-4b79-843f-80b6bceeeb99",
-//     name: "Unsummon",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
+export const unsummon: CardDefinition = {
+    id: "8512f2c1-6361-4b79-843f-80b6bceeeb99",
+    name: "Unsummon",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        ctx.returnToHand(ctx.targets[0]);
+    },
+};
 
 // export const vesuvanDoppelganger: CardDefinition = {
 //     id: "768f3a05-bd06-4a23-b9f2-94f6e618fd9f",

@@ -1,5 +1,6 @@
 import type { DeckPreset } from "@convex/deckPresets";
 import { cn } from "~/lib/utils";
+import ManaSymbol from "../cards/mana-symbol";
 import MoneyPileView from "./money-pile-view";
 
 interface DeckDetailProps {
@@ -8,15 +9,6 @@ interface DeckDetailProps {
     onBack: () => void;
     onSelect: () => void;
 }
-
-const COLOR_CLASSES: Record<string, string> = {
-    W: "bg-yellow-100 text-yellow-900",
-    U: "bg-blue-400 text-blue-950",
-    B: "bg-neutral-800 text-white",
-    R: "bg-red-500 text-red-950",
-    G: "bg-green-500 text-green-950",
-    C: "bg-gray-400 text-gray-900",
-};
 
 export default function DeckDetail({
     deck,
@@ -36,18 +28,9 @@ export default function DeckDetail({
                 <div className="flex flex-1 flex-col">
                     <div className="flex items-center gap-3">
                         <h1 className="text-xl font-bold">{deck.name}</h1>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 text-xl">
                             {deck.colors.map((c) => (
-                                <span
-                                    key={c}
-                                    className={cn(
-                                        "inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold",
-                                        COLOR_CLASSES[c] ??
-                                            "bg-white/20 text-white"
-                                    )}
-                                >
-                                    {c}
-                                </span>
+                                <ManaSymbol key={c} symbol={c} />
                             ))}
                         </div>
                         <span className="text-xs text-white/50">

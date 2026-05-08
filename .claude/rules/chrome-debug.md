@@ -1,10 +1,18 @@
 # Chrome Debug Rules
 
-When verifying UI/UX or reproducing gameplay scenarios in Chrome via the
-`claude-in-chrome` MCP, **always use solo mode**. A solo game is a single-user
-match: one user controls both players and the viewer auto-switches to whoever
-currently has priority. This removes the need for two browser tabs and lets
-you reach a playable board with the fewest possible MCP actions.
+**On-demand only.** Do not start Chrome to verify new cards or gameplay
+features by default. The standard verification path is `bun run test` (vitest
+
+- wire format tests) plus a preset scenario in the Debug panel. Launch Chrome
+  only when the user explicitly requests it ("test in Chrome", "open the
+  browser", "verify in the UI", "check it visually", etc.).
+
+When the user does ask for a browser check, use the rules below: verify
+UI/UX or reproduce gameplay scenarios via the `claude-in-chrome` MCP and
+**always use solo mode**. A solo game is a single-user match: one user
+controls both players and the viewer auto-switches to whoever currently has
+priority. This removes the need for two browser tabs and lets you reach a
+playable board with the fewest possible MCP actions.
 
 ## Solo-mode setup (one batch, four actions)
 

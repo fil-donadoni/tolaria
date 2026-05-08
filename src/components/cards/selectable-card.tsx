@@ -121,42 +121,63 @@ export default function SelectableCard({
         return <CardImage card={cardInstance.card} />;
     }
 
+    const actionEntries: {
+        action: CardAction;
+        label: string;
+        handler: (e: React.MouseEvent) => void;
+    }[] = [];
+    if (allowedActions.includes("play"))
+        actionEntries.push({
+            action: "play",
+            label: "Play",
+            handler: onPlayClick,
+        });
+    if (allowedActions.includes("cast"))
+        actionEntries.push({
+            action: "cast",
+            label: "Cast",
+            handler: onCastClick,
+        });
+    if (allowedActions.includes("putToGraveyard"))
+        actionEntries.push({
+            action: "putToGraveyard",
+            label: "Put to graveyard",
+            handler: onDiscardClick,
+        });
+    if (allowedActions.includes("discard"))
+        actionEntries.push({
+            action: "discard",
+            label: "Discard",
+            handler: onDiscardClick,
+        });
+    if (allowedActions.includes("putToExile"))
+        actionEntries.push({
+            action: "putToExile",
+            label: "Exile",
+            handler: onExileClick,
+        });
+
+    if (actionEntries.length === 1) {
+        const { handler } = actionEntries[0];
+        return (
+            <div className="cursor-pointer" onClick={handler}>
+                <CardImage card={cardInstance.card} />
+            </div>
+        );
+    }
+
     return (
         <ContextMenu>
             <ContextMenuTrigger className="flex items-center justify-center rounded-md border border-dashed text-sm">
                 <CardImage card={cardInstance.card} />
             </ContextMenuTrigger>
 
-            <ContextMenuContent className="w-48">
-                {allowedActions.includes("play") && (
-                    <ContextMenuItem inset onClick={onPlayClick}>
-                        Play
+            <ContextMenuContent className="w-fit">
+                {actionEntries.map(({ action, label, handler }) => (
+                    <ContextMenuItem key={action} inset onClick={handler}>
+                        {label}
                     </ContextMenuItem>
-                )}
-
-                {allowedActions.includes("cast") && (
-                    <ContextMenuItem inset onClick={onCastClick}>
-                        Cast
-                    </ContextMenuItem>
-                )}
-
-                {allowedActions.includes("putToGraveyard") && (
-                    <ContextMenuItem inset onClick={onDiscardClick}>
-                        Put to graveyard
-                    </ContextMenuItem>
-                )}
-
-                {allowedActions.includes("discard") && (
-                    <ContextMenuItem inset onClick={onDiscardClick}>
-                        Discard
-                    </ContextMenuItem>
-                )}
-
-                {allowedActions.includes("putToExile") && (
-                    <ContextMenuItem inset onClick={onExileClick}>
-                        Exile
-                    </ContextMenuItem>
-                )}
+                ))}
             </ContextMenuContent>
         </ContextMenu>
     );

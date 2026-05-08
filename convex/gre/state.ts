@@ -902,11 +902,17 @@ export function regenerateOrDestroy(state: GameState, cardId: string): boolean {
     return true;
 }
 
-/** Removes a permanent from battlefield and moves it to the target zone of its owner. */
+/** Removes a permanent from battlefield and moves it to the target zone of its owner.
+ *  When `toZone` is "hand" or "library", the card becomes a new object
+ *  (CR 400.7) and battlefield-only transient state (tap, marked damage, regen
+ *  shields, summoning sickness, combat flags, granted/animation state) is
+ *  cleared so a later re-cast or reanimation re-enters cleanly. For
+ *  graveyard/exile the historical state is preserved (e.g. `damagedBySources`
+ *  is read post-death by Sengir-style triggers). */
 export function removePermanentTo(
     state: GameState,
     cardId: string,
-    toZone: "graveyard" | "exile"
+    toZone: "graveyard" | "exile" | "hand" | "library"
 ): void {
     const found = findOnBattlefield(state, cardId);
     if (!found) return;
@@ -924,8 +930,31 @@ export function removePermanentTo(
     const [creature] = found.player.battlefield.splice(found.idx, 1);
     creature.zone = toZone;
     creature.attachedTo = undefined;
+    if (toZone === "hand" || toZone === "library") {
+        resetBattlefieldTransientState(creature);
+    }
     const owner = getPlayer(state, creature.ownerId);
     (owner[toZone] as CardInstanceState[]).push(creature);
+}
+
+/** CR 400.7 — when a card moves from the battlefield to a non-graveyard /
+ *  non-exile zone (hand, library), it becomes a new object with no memory of
+ *  its previous existence. Strips battlefield-only transient fields so the
+ *  same instance, if it later returns to play, ETBs cleanly. */
+function resetBattlefieldTransientState(card: CardInstanceState): void {
+    card.isTapped = false;
+    delete card.damageMarked;
+    delete card.regenerationShields;
+    delete card.isSummoningSick;
+    delete card.isAttacking;
+    delete card.isBlocking;
+    delete card.hasAttackedThisTurn;
+    delete card.damagedBySources;
+    delete card.controlChanges;
+    delete card.grantedStaticAbilities;
+    delete card.animation;
+    delete card.chosenMana;
+    delete card.manaCommitted;
 }
 
 /** Predicate: does the card match every constraint in the filter? Omitted
@@ -1092,6 +1121,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (target.type === "player")
                 throw new Error("Cannot exile a player");
             removePermanentTo(state, target.id, "exile");
+        },
+        // CR 701.10: to return a permanent to its owner's hand. Routed through
+        // removePermanentTo so aura cleanup (611.2) and transient-state reset
+        // (400.7) happen in the right order. No-op if already off-battlefield
+        // (CR 608.2b).
+        returnToHand(target: TargetSelection): void {
+            if (target.type === "player")
+                throw new Error("Cannot return a player to hand");
+            removePermanentTo(state, target.id, "hand");
         },
         // CR 701.20a: to tap a permanent is to turn it sideways from an
         // untapped position. Already-tapped permanents are unaffected.

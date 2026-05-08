@@ -73,6 +73,23 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Unsummon (return target creature to its owner's hand, CR 701.10)",
+        cards: [
+            // Bounce the opponent's bear back to their hand. After resolution
+            // the bear should leave the battlefield and reappear in opp.hand
+            // as a fresh card (no marked damage, untapped, no summoning sick).
+            {
+                name: "Unsummon",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Regrowth (target card from your graveyard, CR 400.7 / 608.2b)",
         cards: [
             // Cast Regrowth on your own graveyard to recur a Lightning Bolt;

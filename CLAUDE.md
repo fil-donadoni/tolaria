@@ -126,7 +126,9 @@ Claude operates **autonomously**: implements, tests, and validates code end-to-e
 
 ## Chrome Browser Debug (via claude-in-chrome MCP)
 
-When debugging UI issues in the browser:
+**On-demand only.** Do not launch Chrome to verify new cards or gameplay features by default — vitest + wire format tests + preset scenarios are the standard verification. Use Chrome only when the user explicitly asks ("test in Chrome", "open the browser", "verify in the UI", etc.).
+
+When the user does request a browser check:
 
 **Always debug in solo mode.** A solo game is a single-user match where one
 user controls both players and the viewer auto-follows priority. This removes
@@ -174,7 +176,7 @@ workflow.
 5. **Test** — Write tests referencing CR sections, run `bun run test`
 6. **Validate** — `bun run check:all` must pass with zero errors
 7. **Preset scenario** — For any new card or gameplay feature, add a dedicated entry to `PRESET_SCENARIOS` in `src/components/debug/debug-panel.tsx` so the user can load it one-click from the Debug panel and exercise the feature end-to-end. Choose cards/zones/phase/`landCount` that hit the golden path (and ideally a key edge case). Skip only for pure refactors with no user-visible behavior change.
-8. **UI verify** — For frontend changes, test in browser at localhost:5173
+8. **UI verify** — Only when the user explicitly requests browser verification. Do NOT auto-test new cards or gameplay features in Chrome — preset scenarios + vitest + wire format tests are the default verification. The user will ask for a Chrome run when they want one.
 
 ### Quality gates (mandatory, no exceptions)
 
@@ -182,7 +184,7 @@ Before marking any task as done:
 
 1. `bun run check:all` — format + lint + type-check (zero errors)
 2. `bun run test` — vitest suite (zero failures)
-3. For UI changes: visual verification in browser
+3. Browser visual verification is NOT a default gate. Run it only when the user explicitly asks for a Chrome check.
 
 ## Rules Implementation Process
 

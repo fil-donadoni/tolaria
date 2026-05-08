@@ -48,6 +48,7 @@ import {
     tropicalIsland,
     tundra,
     undergroundSea,
+    unsummon,
     whiteKnight,
     wrathOfGod,
     disenchant,
@@ -5188,6 +5189,107 @@ describe("Regrowth (return target card from your graveyard to hand, CR 400.7 / 6
         // No-op: the card stays in exile, the caster's hand stays empty.
         expect(p1.hand.map((c) => c.id)).not.toContain("buried");
         expect(p1.exile.map((c) => c.id)).toContain("buried");
+    });
+});
+
+describe("Unsummon (return target creature to its owner's hand, CR 701.10 / 400.7)", () => {
+    it("returns the target creature from battlefield to its owner's hand", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, unsummon.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const p2 = state.players[1];
+        expect(p2.battlefield.map((c) => c.id)).not.toContain("bear");
+        expect(p2.hand.map((c) => c.id)).toContain("bear");
+        expect(p2.hand[0].zone).toBe("hand");
+    });
+
+    it("clears battlefield-only transient state on the bounced card (CR 400.7)", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: true,
+            damageMarked: 1,
+            isSummoningSick: true,
+            hasAttackedThisTurn: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, unsummon.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const returned = state.players[1].hand.find((c) => c.id === "bear")!;
+        expect(returned.isTapped).toBe(false);
+        expect(returned.damageMarked).toBeUndefined();
+        expect(returned.isSummoningSick).toBeUndefined();
+        expect(returned.hasAttackedThisTurn).toBeUndefined();
+    });
+
+    it("CR 608.2b: silently does nothing if the target left the battlefield before resolution", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, unsummon.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        // Target leaves the battlefield in response (e.g. Lightning Bolt kills it).
+        removePermanentTo(state, "bear", "graveyard");
+        resolveTopOfStack(state);
+        const p2 = state.players[1];
+        expect(p2.hand.map((c) => c.id)).not.toContain("bear");
+        expect(p2.graveyard.map((c) => c.id)).toContain("bear");
+    });
+
+    it("wire format: bounced creature is no longer on the projected battlefield", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, unsummon.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[1].battlefield.map((c) => c.id)).not.toContain(
+            "bear"
+        );
+        // Owner's hand grows by one (the projection lists own-hand cards).
+        const handIds = projected.players[1].hand
+            .filter((c): c is NonNullable<typeof c> => c !== null)
+            .map((c) => c.id);
+        expect(handIds).toContain("bear");
     });
 });
 

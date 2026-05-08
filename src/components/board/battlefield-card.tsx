@@ -58,9 +58,14 @@ export default function BattlefieldCard({
             : vs.interactive
               ? vs.enabled
                   ? "cursor-pointer"
-                  : "cursor-not-allowed opacity-60"
+                  : "cursor-not-allowed"
               : ""
-    } ${vs.dimmed ? "opacity-40" : ""}`;
+    }`;
+
+    const darkenOverlay =
+        (vs.interactive && !vs.enabled) || vs.dimmed ? (
+            <div className="absolute inset-0 bg-black/40 rounded-sm pointer-events-none z-20" />
+        ) : null;
 
     const tapped = card.isTapped;
     const baseWidth = (style?.width as string | undefined) ?? "var(--card-w)";
@@ -119,6 +124,7 @@ export default function BattlefieldCard({
     const inner = (
         <div className={`relative ${vs.ringClass}`} style={innerStyle}>
             <CardImage card={card.card} />
+            {darkenOverlay}
             {badgeEl}
             {ptOverlay}
             {damageOverlay}

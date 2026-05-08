@@ -23,5 +23,4 @@ globs:
 ## After changes
 
 - Run `bun run check:all` — format + lint + type-check must pass
-- Test the UI in browser via dev server (`bun run dev` on port 5173)
-- Verify both the golden path and edge cases visually
+- Browser verification is on-demand only. Do not auto-launch Chrome for new cards or features — run it only when the user explicitly asks.
