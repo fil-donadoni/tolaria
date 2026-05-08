@@ -11,6 +11,7 @@ import {
     drawCard,
     getOpponentId,
     getPlayer,
+    regenerateOrDestroy,
     resolveTopOfStack,
     tickDuration,
 } from "./state";
@@ -476,26 +477,34 @@ export function applyAllCombatDamage(
 
     // Move dead creatures to their owner's graveyard, emitting CREATURE_DIED
     // (CR 700.4) so "whenever another creature dies" triggers can fire in the
-    // same collectTriggers pass as the combat DAMAGE_DEALT events.
-    for (const player of state.players) {
-        const dead = player.battlefield.filter((c) => deadIds.has(c.id));
-        for (const card of dead) {
-            player.battlefield = player.battlefield.filter(
-                (c) => c.id !== card.id
-            );
-            card.zone = "graveyard";
-            card.isAttacking = undefined;
-            card.isBlocking = undefined;
-            card.isTapped = false;
-            const owner = getPlayer(state, card.ownerId);
-            owner.graveyard.push(card);
-            events.push({
-                type: "CREATURE_DIED",
-                creatureInstanceId: card.id,
-                creatureControllerId: card.controllerId,
-                damagedBySources: card.damagedBySources ?? [],
-            });
-        }
+    // same collectTriggers pass as the combat DAMAGE_DEALT events. Each
+    // victim is routed through regenerateOrDestroy (CR 614.5, 701.15a) so a
+    // regen shield can replace the destroy with the heal/tap/leave-combat
+    // rider — those creatures stay on the battlefield and don't fire
+    // CREATURE_DIED.
+    for (const cardId of deadIds) {
+        const carrier =
+            activePlayer.battlefield.find((c) => c.id === cardId) ??
+            defender.battlefield.find((c) => c.id === cardId);
+        if (!carrier) continue;
+        const snapshot = {
+            controllerId: carrier.controllerId,
+            damagedBySources: carrier.damagedBySources ?? [],
+        };
+        const wasDestroyed = regenerateOrDestroy(state, cardId);
+        if (!wasDestroyed) continue;
+        // The destroyed card has already been moved to its owner's graveyard
+        // by removePermanentTo. Reset combat-only flags on the dead instance
+        // for parity with the prior implementation.
+        carrier.isAttacking = undefined;
+        carrier.isBlocking = undefined;
+        carrier.isTapped = false;
+        events.push({
+            type: "CREATURE_DIED",
+            creatureInstanceId: cardId,
+            creatureControllerId: snapshot.controllerId,
+            damagedBySources: snapshot.damagedBySources,
+        });
     }
 
     // Collect triggered abilities fired by this damage step (CR 603.2). Dead
@@ -651,6 +660,11 @@ function performPhaseEntry(state: GameState): void {
                     }
                     if (card.damagedBySources !== undefined) {
                         card.damagedBySources = undefined;
+                    }
+                    // CR 701.15a — regeneration shields apply only "this turn".
+                    // Unused shields wear off here.
+                    if (card.regenerationShields !== undefined) {
+                        card.regenerationShields = undefined;
                     }
                 }
             }

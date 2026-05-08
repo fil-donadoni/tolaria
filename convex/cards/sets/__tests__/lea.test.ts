@@ -65,6 +65,7 @@ import {
     plains,
     serraAngel,
     psionicBlast,
+    regeneration,
     royalAssassin,
     savannahLions,
     sengirVampire,
@@ -4876,6 +4877,228 @@ describe("Balance ({1}{W}, sorcery — equalize lands / cards / creatures)", () 
         expect(state.players[0].graveyard.map((c) => c.id).sort()).toContain(
             "p1-card-1"
         );
+    });
+});
+
+describe("Regeneration ({1}{G} Aura — {G}: Regenerate enchanted creature, CR 701.15a / 614.5)", () => {
+    function setupAttached(args?: {
+        bearOverrides?: Partial<CardInstanceState>;
+    }) {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            ...(args?.bearOverrides ?? {}),
+        });
+        const aura = makeInstance(regeneration.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "bear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [aura] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        return { state, aura, bear };
+    }
+
+    function activateRegen(state: GameState, aura: CardInstanceState) {
+        state.stack.push({
+            ...aura,
+            zone: "stack",
+            castById: aura.controllerId,
+            abilityId: "regeneration-regenerate",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("declares the right shape: {1}{G} Aura targeting Creature with one activated ability", () => {
+        expect(regeneration.manaCost).toEqual({ X: 1, G: 1 });
+        expect(regeneration.types).toEqual(["Enchantment"]);
+        expect(regeneration.subtypes).toEqual(["Aura"]);
+        expect(regeneration.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+        });
+        const ability = regeneration.activatedAbilities?.[0];
+        expect(ability?.id).toBe("regeneration-regenerate");
+        expect(ability?.cost).toEqual({ mana: { G: 1 } });
+        expect(ability?.useStack).toBe(true);
+    });
+
+    it("attaches to the targeted creature on resolution (CR 303.4)", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, regeneration.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const aura = state.players[0].battlefield.find(
+            (c) => c.card.id === regeneration.id
+        )!;
+        expect(aura).toBeDefined();
+        expect(aura.attachedTo).toBe("bear");
+    });
+
+    it("activating {G} stacks one regeneration shield on the enchanted creature", () => {
+        const { state, aura } = setupAttached();
+        activateRegen(state, aura);
+        const target = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(target.regenerationShields).toBe(1);
+    });
+
+    it("destroyAll's per-card destroy is replaced by the regen rider (CR 614.5)", () => {
+        const { state, aura } = setupAttached();
+        activateRegen(state, aura);
+        // Wrath of God calls ctx.destroyAll("Creature"); the per-card path
+        // routes through regenerateOrDestroy, so the shielded bear survives.
+        pushSpell(state, wrathOfGod.id, "p1");
+        resolveTopOfStack(state);
+        const bearAfter = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        );
+        expect(bearAfter).toBeDefined();
+        expect(bearAfter!.regenerationShields).toBeUndefined();
+        expect(bearAfter!.isTapped).toBe(true);
+        expect(
+            state.players[1].graveyard.find((c) => c.id === "bear")
+        ).toBeUndefined();
+    });
+
+    it("lethal damage triggers regen too — heals damageMarked, taps, no graveyard (CR 704.5g + 701.15a)", () => {
+        const { state, aura, bear } = setupAttached();
+        activateRegen(state, aura);
+        // Lightning Bolt for 3 — Grizzly Bears is 2/2, lethal.
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const bearAfter = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        );
+        expect(bearAfter).toBeDefined();
+        expect(bearAfter!.damageMarked).toBeUndefined();
+        expect(bearAfter!.isTapped).toBe(true);
+        expect(bearAfter!.regenerationShields).toBeUndefined();
+        expect(bear.zone).toBe("battlefield");
+    });
+
+    it("multiple activations stack shields, each shield consumed independently", () => {
+        const { state, aura } = setupAttached();
+        activateRegen(state, aura);
+        activateRegen(state, aura);
+        let bear = state.players[1].battlefield.find((c) => c.id === "bear")!;
+        expect(bear.regenerationShields).toBe(2);
+        // First lethal — shield 1 consumed.
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        bear = state.players[1].battlefield.find((c) => c.id === "bear")!;
+        expect(bear.regenerationShields).toBe(1);
+        // Second lethal — shield 2 consumed.
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        bear = state.players[1].battlefield.find((c) => c.id === "bear")!;
+        expect(bear.regenerationShields).toBeUndefined();
+        expect(bear.zone).toBe("battlefield");
+        // Third lethal — no shield, dies.
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")
+        ).toBeUndefined();
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("bear");
+    });
+
+    it("unused shields wear off at CLEANUP (CR 514.2)", () => {
+        const { state, aura } = setupAttached();
+        activateRegen(state, aura);
+        // Shortcut to CLEANUP and run it.
+        state.phase = "END_STEP";
+        advancePhase(state); // → CLEANUP, runs purge, then auto-advances
+        const bear = state.players[1].battlefield.find((c) => c.id === "bear");
+        expect(bear?.regenerationShields).toBeUndefined();
+    });
+
+    it("combat: regen on a blocking creature removes it from combat and clears damage", async () => {
+        const angel = makeInstance(serraAngel.id, {
+            id: "angel",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+            isTapped: true,
+            hasAttackedThisTurn: true,
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const aura = makeInstance(regeneration.id, {
+            id: "aura",
+            controllerId: "p2",
+            ownerId: "p2",
+            attachedTo: "bear",
+        });
+        const state = makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [angel] }),
+                makePlayer("p2", { battlefield: [bear, aura] }),
+            ],
+            combat: {
+                attackerIds: ["angel"],
+                confirmed: true,
+                blockerAssignments: { bear: "angel" },
+                blockersConfirmed: true,
+            },
+        });
+        activateRegen(state, aura);
+        // Angel deals 4 to bear (lethal). The lethal SBA inside
+        // applyAllCombatDamage routes through regenerateOrDestroy → shield.
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, { angel: { bear: 4 } }, "regular");
+        const bearAfter = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        );
+        expect(bearAfter).toBeDefined();
+        expect(bearAfter!.damageMarked).toBeUndefined();
+        expect(bearAfter!.isTapped).toBe(true);
+        expect(bearAfter!.isBlocking).toBeUndefined();
+        expect(bearAfter!.regenerationShields).toBeUndefined();
+        expect(state.combat?.blockerAssignments).not.toHaveProperty("bear");
+    });
+
+    it("wire format: regen shield count survives projectPublicState (regression guard)", () => {
+        const { state, aura } = setupAttached();
+        activateRegen(state, aura);
+        const projected = projectPublicState(state, 1, "p1");
+        const bearProjected = projected.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearProjected.regenerationShields).toBe(1);
     });
 });
 

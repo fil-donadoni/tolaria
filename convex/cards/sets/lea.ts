@@ -2360,13 +2360,36 @@ export const llanowarElves: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const regeneration: CardDefinition = {
-//     id: "b7b7aa34-b4f8-41b4-82ce-ab2e204c3bf4",
-//     name: "Regeneration",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Regeneration — "Enchant creature. {G}: Regenerate enchanted creature."
+// (CR 303.4 aura attachment, 701.15a regenerate, 614.5 destroy replacement,
+// 506.4 remove from combat). The activated ability does not target — the
+// affected creature is determined by the aura's `attachedTo` host. The
+// regen rider is implemented engine-side via regenerateOrDestroy: each
+// shield consumed heals damage, taps, and removes from combat.
+export const regeneration: CardDefinition = {
+    id: "b7b7aa34-b4f8-41b4-82ce-ab2e204c3bf4",
+    name: "Regeneration",
+    manaCost: { X: 1, G: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    activatedAbilities: [
+        {
+            id: "regeneration-regenerate",
+            cost: { mana: { G: 1 } },
+            oracleText: "{G}: Regenerate enchanted creature.",
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                ctx.applyRegenerationShield({
+                    type: "permanent",
+                    id: hostId,
+                });
+            },
+        },
+    ],
+};
 
 // export const regrowth: CardDefinition = {
 //     id: "badc73ec-3728-4246-90c7-5f4eb7051ed5",

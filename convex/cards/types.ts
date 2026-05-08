@@ -367,6 +367,22 @@ export interface SpellContext {
     /** Discards a specific card from `playerId`'s hand (CR 701.8). No-op if
      *  the card is no longer in hand. */
     discardCard: (playerId: string, cardInstanceId: string) => void;
+
+    /** Stacks a regeneration shield on a permanent (CR 701.15a). The next
+     *  time that permanent would be destroyed this turn, the shield is
+     *  consumed and the destroy is replaced with "remove all marked damage,
+     *  tap, remove from combat". Multiple shields stack — each is consumed
+     *  once, in any order, until they expire at CLEANUP (CR 514.2).
+     *
+     *  No-op if the target is no longer on the battlefield. */
+    applyRegenerationShield: (target: TargetSelection) => void;
+
+    /** Reads the `attachedTo` host id of an aura on the battlefield (CR 303.4b).
+     *  Returns undefined if the source is not an aura, isn't on the
+     *  battlefield, or isn't attached. Used by activated abilities on auras
+     *  that target / affect the enchanted permanent without re-targeting it
+     *  (e.g. Regeneration's "{G}: Regenerate enchanted creature."). */
+    getAttachedTo: (sourceInstanceId: string) => string | undefined;
 }
 
 /** Delayed triggered ability template (CR 603.7a). Declared on the

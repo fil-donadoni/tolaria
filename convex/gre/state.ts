@@ -139,6 +139,12 @@ export type CardInstanceState = {
      *  damage events; checked against effective toughness for lethal damage
      *  (CR 704.5g). Removed at CLEANUP (CR 514.2). */
     damageMarked?: number;
+    /** Regeneration shields stacked on this permanent (CR 701.15a). Each shield
+     *  is consumed once: the next time the permanent would be destroyed, the
+     *  shield replaces the destroy with "remove all damage, tap, remove from
+     *  combat" (CR 614.5, 506.4). Unused shields wear off at CLEANUP — the
+     *  ability text says "this turn". */
+    regenerationShields?: number;
     /** Instance ids of sources that dealt damage to this creature this turn
      *  (CR 120.3). Carried into the graveyard with the dying instance so
      *  "whenever another creature dies, if ~ dealt damage to it this turn"
@@ -834,6 +840,57 @@ function findOnBattlefield(
     return null;
 }
 
+/** Replacement-aware destroy (CR 614.5, 701.15a). If the permanent has at
+ *  least one regeneration shield, consume one and apply the regen rider:
+ *  remove all marked damage, tap it, and remove it from combat (CR 506.4).
+ *  The permanent stays on the battlefield. Otherwise, route through
+ *  `removePermanentTo` to the graveyard.
+ *
+ *  Returns true if the permanent was actually destroyed (sent to graveyard),
+ *  false if a shield saved it. Callers that emit follow-up events on death
+ *  (e.g. CREATURE_DIED) should gate on the return value.
+ *
+ *  No-op (returns false) if the id is not on the battlefield. */
+export function regenerateOrDestroy(state: GameState, cardId: string): boolean {
+    const found = findOnBattlefield(state, cardId);
+    if (!found) return false;
+    const shields = found.card.regenerationShields ?? 0;
+    if (shields > 0) {
+        const next = shields - 1;
+        if (next === 0) delete found.card.regenerationShields;
+        else found.card.regenerationShields = next;
+        // CR 701.15a — the regen rider: heal all marked damage, tap, and
+        // remove from combat if attacking or blocking.
+        if (found.card.damageMarked !== undefined) {
+            delete found.card.damageMarked;
+        }
+        found.card.isTapped = true;
+        const wasInCombat =
+            found.card.isAttacking === true || found.card.isBlocking === true;
+        if (found.card.isAttacking) found.card.isAttacking = undefined;
+        if (found.card.isBlocking) found.card.isBlocking = undefined;
+        if (wasInCombat && state.combat) {
+            // Removing from combat (CR 506.4) — strip the creature from any
+            // attacker/blocker bookkeeping so subsequent damage steps and
+            // legality checks ignore it. Blockers that were assigned to this
+            // attacker remain in combat unblocked (we don't auto-cascade,
+            // CR 506.4d's "creatures stop being blocking" is rare and
+            // out-of-scope for this minimal regen pass).
+            state.combat.attackerIds = state.combat.attackerIds.filter(
+                (id) => id !== cardId
+            );
+            if (state.combat.blockerAssignments[cardId] !== undefined) {
+                const next = { ...state.combat.blockerAssignments };
+                delete next[cardId];
+                state.combat.blockerAssignments = next;
+            }
+        }
+        return false;
+    }
+    removePermanentTo(state, cardId, "graveyard");
+    return true;
+}
+
 /** Removes a permanent from battlefield and moves it to the target zone of its owner. */
 export function removePermanentTo(
     state: GameState,
@@ -951,7 +1008,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     found.card.damageMarked >=
                     getEffectiveToughness(state, found.card)
                 ) {
-                    removePermanentTo(state, target.id, "graveyard");
+                    // CR 704.5g lethal → regen shield gets a chance to
+                    // replace the destroy (CR 614.5, 701.15a).
+                    regenerateOrDestroy(state, target.id);
                 }
             }
         },
@@ -1014,7 +1073,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         destroy(target: TargetSelection): void {
             if (target.type === "player")
                 throw new Error("Cannot destroy a player");
-            removePermanentTo(state, target.id, "graveyard");
+            // CR 614.5 / 701.15a — destroy is the canonical replacement
+            // hook for regeneration shields.
+            regenerateOrDestroy(state, target.id);
         },
         exile(target: TargetSelection): void {
             if (target.type === "player")
@@ -1042,7 +1103,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 }
             }
             for (const id of ids) {
-                removePermanentTo(state, id, "graveyard");
+                // Each victim independently gets a chance to consume a
+                // regeneration shield (CR 614.5, 701.15a).
+                regenerateOrDestroy(state, id);
             }
         },
         // CR 121.1: cards are drawn one at a time. Stops if the library empties
@@ -1365,6 +1428,24 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const idx = player.hand.findIndex((c) => c.id === cardInstanceId);
             if (idx === -1) return;
             moveCard(player, cardInstanceId, "hand", "graveyard");
+        },
+        // CR 701.15a: stacks one regeneration shield on the target permanent.
+        // The shield is consumed by the next destroy event on that permanent
+        // (CR 614.5). Silent no-op if the target has left the battlefield
+        // (CR 608.2b).
+        applyRegenerationShield(target: TargetSelection): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.regenerationShields =
+                (found.card.regenerationShields ?? 0) + 1;
+        },
+        // CR 303.4b: an aura is attached to its host. Returns the host id, or
+        // undefined if the source is not on the battlefield or not currently
+        // attached (e.g. between resolve and ETB during projection edge cases).
+        getAttachedTo(sourceInstanceId: string): string | undefined {
+            const found = findOnBattlefield(state, sourceInstanceId);
+            return found?.card.attachedTo;
         },
     };
 }
