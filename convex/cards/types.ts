@@ -42,13 +42,16 @@ export type CardSupertype =
 // --- Targeting ---
 
 export interface TargetRequirement {
-    /** Card type(s) to target, "player", "any", or "spell" (stack target). */
+    /** Card type(s) to target, "player", "any", "spell" (stack target), or
+     *  "card" (any card type — only meaningful when `zone` selects a non-
+     *  battlefield zone such as "graveyard"). */
     type:
         | CardType
         | "player"
         | "any"
         | "spell"
-        | (CardType | "player" | "any" | "spell")[];
+        | "card"
+        | (CardType | "player" | "any" | "spell" | "card")[];
     /** Fixed N, or a range for spells that take a variable number of targets
      *  (CR 601.2c). `max` is open-ended when undefined — capped by legal
      *  target availability. Example: Fireball → { min: 1 }. */
@@ -61,12 +64,30 @@ export interface TargetRequirement {
      *  "target tapped creature" (Royal Assassin) and "target untapped
      *  creature" style filters. Ignored for player / spell targets. */
     tappedFilter?: "tapped" | "untapped";
+    /** Zone the target lives in (CR 109.2 — objects can exist in zones other
+     *  than the battlefield). Default "battlefield". When set to "graveyard",
+     *  legal targets are cards in graveyards filtered by `controller` and
+     *  `type` (CardType filter, or "card" for any). Used by reanimation /
+     *  graveyard-recursion spells (CR 400.7) like Regrowth. */
+    zone?: "battlefield" | "graveyard";
+    /** Restricts legal targets by relationship to the chooser ("you" =
+     *  caster's own zone; "opponent" = an opponent's zone; "any" = any
+     *  player). Default "any". Currently honored only for `zone:
+     *  "graveyard"` — battlefield permanents are filtered separately by
+     *  protection / color rules. Used by Regrowth ("from your graveyard"). */
+    controller?: "you" | "opponent" | "any";
 }
 
 export interface TargetSelection {
-    /** "permanent" = battlefield card, "player" = player, "spell" = stack item. */
-    type: "permanent" | "player" | "spell";
+    /** "permanent" = battlefield card, "player" = player, "spell" = stack
+     *  item, "graveyard-card" = card in a player's graveyard (CR 400.7). */
+    type: "permanent" | "player" | "spell" | "graveyard-card";
     id: string; // cardInstanceId, playerId, or stackItem.id
+    /** Owner of the zone the target lives in. Required for non-battlefield
+     *  zone targets ("graveyard-card") since the same instance id is unique
+     *  per zone but the zone owner is what disambiguates which graveyard the
+     *  card sits in. Unused for permanent / player / spell targets. */
+    playerId?: string;
 }
 
 export interface ActivatedAbilityContext {

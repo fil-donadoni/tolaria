@@ -15,7 +15,7 @@ const modKey = isMac ? "⌘" : "Ctrl";
 const HOTKEYS: HotkeyRow[] = [
     { keys: ["Space"], label: "Pass priority / confirm" },
     { keys: ["Enter"], label: "Pass turn" },
-    { keys: ["U"], label: "Undo mana ability" },
+    { keys: ["U"], label: "Undo / cancel cast" },
     { keys: [modKey, "click"], label: "Keep priority after casting" },
     { keys: ["Esc"], label: "Concede" },
 ];
@@ -24,7 +24,7 @@ export default function HotkeysLegend() {
     return (
         <Popover>
             <PopoverTrigger
-                className="bg-black/60 hover:bg-black/80 text-white/80 p-2 rounded-lg text-sm transition-colors shadow-lg"
+                className="bg-black/60 hover:bg-black/80 text-white/80 p-2 rounded-lg text-sm transition-colors shadow-lg hidden md:inline-flex"
                 aria-label="Show hotkeys"
             >
                 <Keyboard className="w-4 h-4" />

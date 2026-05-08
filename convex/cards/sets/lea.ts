@@ -2391,12 +2391,31 @@ export const regeneration: CardDefinition = {
     ],
 };
 
-// export const regrowth: CardDefinition = {
-//     id: "badc73ec-3728-4246-90c7-5f4eb7051ed5",
-//     name: "Regrowth",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Sorcery"],
-// };
+// Regrowth — "Return target card from your graveyard to your hand."
+// CR 601.2c (target chosen at cast); CR 608.2b (illegal target on resolution
+// → effect does nothing); CR 400.7 (zone change to hand). The
+// `targetRequirement.zone: "graveyard"` + `controller: "you"` + `type: "card"`
+// triple narrows legal targets to any card type sitting in the caster's own
+// graveyard. `moveCardById` is a silent no-op if the card has left the
+// graveyard before resolution, so the legality recheck on resolve is implicit.
+export const regrowth: CardDefinition = {
+    id: "badc73ec-3728-4246-90c7-5f4eb7051ed5",
+    name: "Regrowth",
+    manaCost: { X: 1, G: 1 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "card",
+        count: 1,
+        zone: "graveyard",
+        controller: "you",
+    },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (!t || t.type !== "graveyard-card") return;
+        if (!t.playerId) return;
+        ctx.moveCardById(t.playerId, t.id, "graveyard", "hand");
+    },
+};
 
 export const scrybSprites: CardDefinition = {
     id: "6d929c38-91e6-457c-937a-d1884f4bba44",

@@ -11,8 +11,9 @@ import {
 } from "~/lib/priority";
 import ActionButton from "./action-button";
 import HotkeysLegend from "./hotkeys-legend";
+import PauseMenuButton from "./pause-menu-button";
 
-export default function ActionBar() {
+export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
     const {
         gameId,
         playerId,
@@ -122,7 +123,13 @@ export default function ActionBar() {
         function onKeyDown(e: KeyboardEvent) {
             if (e.key === "u" && !e.metaKey && !e.ctrlKey && !e.altKey) {
                 e.preventDefault();
-                handleUndo();
+                if (isPayingCast) {
+                    cancelCast({ gameId, playerId });
+                } else if (isPayingActivation) {
+                    cancelActivation({ gameId, playerId });
+                } else {
+                    handleUndo();
+                }
                 return;
             }
             if (e.code === "Space" && !e.repeat) {
@@ -152,8 +159,12 @@ export default function ActionBar() {
         handleEndTurn,
         handleCancelAutoPass,
         isAutoPass,
+        isPayingCast,
+        isPayingActivation,
         isSelectingAttackers,
         isSelectingBlockers,
+        cancelCast,
+        cancelActivation,
         confirmAttackers,
         confirmBlockers,
         gameId,
@@ -181,6 +192,7 @@ export default function ActionBar() {
                 onClick={() => cancelCast({ gameId, playerId })}
                 label="Cancel Cast"
                 color="red"
+                shortcut="U"
             />
         );
     } else if (isPayingActivation) {
@@ -190,6 +202,7 @@ export default function ActionBar() {
                 onClick={() => cancelActivation({ gameId, playerId })}
                 label="Cancel Ability"
                 color="red"
+                shortcut="U"
             />
         );
     } else if (isSelectingAttackers) {
@@ -268,7 +281,9 @@ export default function ActionBar() {
                 className="bg-black/60 hover:bg-black/80 text-white/60 hover:text-white px-6 py-2 rounded-lg text-sm transition-colors shadow-lg"
             >
                 Auto-passing... (cancel)
-                <span className="ml-2 text-xs opacity-60">[enter]</span>
+                <span className="ml-2 text-xs opacity-60 hidden md:inline">
+                    [enter]
+                </span>
             </button>
         );
     }
@@ -277,6 +292,7 @@ export default function ActionBar() {
         <div className="fixed bottom-4 right-4 z-40 flex gap-2 items-center">
             {buttons}
             <HotkeysLegend />
+            <PauseMenuButton onOpen={onOpenMenu} />
         </div>
     );
 }

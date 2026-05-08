@@ -797,6 +797,8 @@ function advanceTurn(state: GameState): void {
     }
     state.autoPassPlayers = undefined;
     state.singleShotAutoPass = undefined;
+    // CR 117.2c / 305.2: reset per-turn land drop count at the start of each turn.
+    for (const p of state.players) p.landsPlayedThisTurn = 0;
 }
 
 /**

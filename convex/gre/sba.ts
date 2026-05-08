@@ -93,7 +93,8 @@ function hostMatchesAuraRestriction(
     if (!req) return false;
     const types = Array.isArray(req.type) ? req.type : [req.type];
     for (const t of types) {
-        if (t === "player" || t === "any" || t === "spell") continue;
+        if (t === "player" || t === "any" || t === "spell" || t === "card")
+            continue;
         if (host.types.includes(t)) return true;
     }
     return false;

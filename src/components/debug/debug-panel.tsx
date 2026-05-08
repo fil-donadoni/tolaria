@@ -37,7 +37,7 @@ type PresetScenario = {
     cards: {
         name: string;
         owner: "me" | "opp";
-        zone?: "hand" | "battlefield";
+        zone?: "hand" | "battlefield" | "graveyard";
         tapped?: boolean;
         /** Number of copies to place in the zone. Default 1. */
         count?: number;
@@ -68,6 +68,37 @@ const PRESET_SCENARIOS: PresetScenario[] = [
                 zone: "hand" as const,
             },
             { name: "Mountain", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Regrowth (target card from your graveyard, CR 400.7 / 608.2b)",
+        cards: [
+            // Cast Regrowth on your own graveyard to recur a Lightning Bolt;
+            // the opponent's bear in their graveyard is NOT a legal target
+            // (controller: 'you' filter).
+            {
+                name: "Regrowth",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "graveyard" as const,
+            },
+            { name: "Forest", owner: "me" as const, count: 2 },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,

@@ -233,6 +233,9 @@ export type PlayerState = {
     manaPool: Record<string, number>;
     /** Set when a player attempts to draw from an empty library (CR 704.5b). */
     hasDrawnFromEmpty?: boolean;
+    /** Number of lands played by this player during the current turn
+     *  (CR 305.2 / 117.2c). Reset to 0 at the start of each turn. */
+    landsPlayedThisTurn?: number;
     /** Activated abilities granted by effects (e.g. Channel's "Pay 1 life:
      *  Add {C}." until end of turn). Each entry is a reference to a template
      *  on another card; duration controls when CLEANUP purges it. */
@@ -391,6 +394,13 @@ export type PendingTarget = {
     /** If set, restricts legal targets to sources of the given color
      *  (CR 202.2). Propagated from TargetRequirement.colorFilter. */
     colorFilter?: string;
+    /** Zone the target lives in (CR 109.2). Default "battlefield" — set to
+     *  "graveyard" for reanimation/recursion spells like Regrowth. Propagated
+     *  from TargetRequirement.zone. */
+    zone?: "battlefield" | "graveyard";
+    /** Restricts targets by relationship to the chooser. Propagated from
+     *  TargetRequirement.controller. Honored only when zone is non-default. */
+    controller?: "you" | "opponent" | "any";
     /** Targets already selected. */
     selected: TargetSelection[];
     /** Mirrors PendingCast.keepPriority — propagated when the pending cast is created. */
@@ -731,7 +741,8 @@ function isLegalAuraHost(
     if (!req) return false;
     const types = Array.isArray(req.type) ? req.type : [req.type];
     for (const t of types) {
-        if (t === "player" || t === "any" || t === "spell") continue;
+        if (t === "player" || t === "any" || t === "spell" || t === "card")
+            continue;
         if (host.types.includes(t)) return true;
     }
     return false;

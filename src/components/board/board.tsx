@@ -18,6 +18,7 @@ import AutoPassController from "./auto-pass-controller";
 import GameOverDialog from "./game-over-dialog";
 import PauseMenuDialog from "./pause-menu-dialog";
 import TargetSelectionBanner from "./target-selection-banner";
+import PaymentBanner from "./payment-banner";
 import PendingChoicePrompt from "./pending-choice-prompt";
 
 const POPUP_SELECTORS = [
@@ -164,13 +165,16 @@ export default function Board({
                             playerId={viewerId}
                         />
                     )}
+                    {pendingCast && pendingCast.playerId === viewerId && (
+                        <PaymentBanner pendingCast={pendingCast} me={me} />
+                    )}
                     {pendingChoices && pendingChoices.length > 0 && (
                         <PendingChoicePrompt
                             choice={pendingChoices[0]}
                             playerId={viewerId}
                         />
                     )}
-                    <ActionBar />
+                    <ActionBar onOpenMenu={() => setPauseMenuOpen(true)} />
                     {gameOver && (
                         <GameOverDialog
                             gameOver={gameOver}

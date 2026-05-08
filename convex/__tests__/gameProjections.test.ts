@@ -35,7 +35,9 @@ function makePlayer(
         graveyard: [],
         exile: [],
         battlefield: [],
-        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        // Ample default pool so projection tests aren't gated by canCast's
+        // mana check (CR 601.2f). Tests focused on payment cover that path.
+        manaPool: { W: 5, U: 5, B: 5, R: 5, G: 5, C: 5 },
         ...overrides,
     };
 }

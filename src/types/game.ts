@@ -90,7 +90,11 @@ export interface Combat {
 
 export interface StackItem extends CardInstance {
     castById: string;
-    targets?: { type: "permanent" | "player" | "spell"; id: string }[];
+    targets?: {
+        type: "permanent" | "player" | "spell" | "graveyard-card";
+        id: string;
+        playerId?: string;
+    }[];
     /** If set, this stack item is an activated ability (not a spell). */
     abilityId?: string;
     /** If set, this stack item is a triggered ability (CR 603). */

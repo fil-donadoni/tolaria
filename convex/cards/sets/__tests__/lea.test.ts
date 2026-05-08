@@ -66,6 +66,7 @@ import {
     serraAngel,
     psionicBlast,
     regeneration,
+    regrowth,
     royalAssassin,
     savannahLions,
     sengirVampire,
@@ -4482,7 +4483,10 @@ describe("Berserk ({G} — trample + X/+0, delayed destroy if attacked, CR 117.1
             id: "b1",
             zone: "hand",
         });
-        const p1 = makePlayer("p1", { hand: [berserkCard] });
+        const p1 = makePlayer("p1", {
+            hand: [berserkCard],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 1, C: 0 },
+        });
         const state = makeState({
             players: [p1, makePlayer("p2")],
             phase: "DECLARE_ATTACKERS",
@@ -5099,6 +5103,91 @@ describe("Regeneration ({1}{G} Aura — {G}: Regenerate enchanted creature, CR 7
             (c) => c.id === "bear"
         )!;
         expect(bearProjected.regenerationShields).toBe(1);
+    });
+});
+
+describe("Regrowth (return target card from your graveyard to hand, CR 400.7 / 608.2b)", () => {
+    it("returns the chosen card from the caster's graveyard to their hand", () => {
+        const buried = makeInstance(grizzlyBears.id, {
+            id: "buried-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [buried] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, regrowth.id, "p1", [
+            { type: "graveyard-card", id: "buried-bear", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        const p1 = state.players[0];
+        expect(p1.hand.map((c) => c.id)).toContain("buried-bear");
+        expect(p1.graveyard.map((c) => c.id)).not.toContain("buried-bear");
+    });
+
+    it("getLegalTargets only sees cards in the caster's own graveyard (controller: 'you')", () => {
+        const mine = makeInstance(grizzlyBears.id, {
+            id: "mine",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const theirs = makeInstance(grizzlyBears.id, {
+            id: "theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [mine] }),
+                makePlayer("p2", { graveyard: [theirs] }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            regrowth.targetRequirement!,
+            [],
+            "p1"
+        );
+        expect(legal).toHaveLength(1);
+        expect(legal[0]).toMatchObject({
+            type: "graveyard-card",
+            id: "mine",
+            playerId: "p1",
+        });
+    });
+
+    it("CR 608.2b: silently does nothing if the target left the graveyard before resolution", () => {
+        const buried = makeInstance(grizzlyBears.id, {
+            id: "buried",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [buried] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, regrowth.id, "p1", [
+            { type: "graveyard-card", id: "buried", playerId: "p1" },
+        ]);
+        // Simulate the target being exiled in response (target is now illegal).
+        const p1 = state.players[0];
+        const idx = p1.graveyard.findIndex((c) => c.id === "buried");
+        const [removed] = p1.graveyard.splice(idx, 1);
+        removed.zone = "exile";
+        p1.exile.push(removed);
+        resolveTopOfStack(state);
+        // No-op: the card stays in exile, the caster's hand stays empty.
+        expect(p1.hand.map((c) => c.id)).not.toContain("buried");
+        expect(p1.exile.map((c) => c.id)).toContain("buried");
     });
 });
 

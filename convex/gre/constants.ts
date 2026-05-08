@@ -47,6 +47,11 @@ export function isDamageablePermanent(card: CardInstanceState): boolean {
 /** All six mana colors in canonical order. */
 export const MANA_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
 
+/** Default number of lands a player may play per turn (CR 305.2). Cards
+ *  granting additional drops (Exploration, Azusa) would mutate the per-turn
+ *  budget — out of scope for the current rule set. */
+export const LAND_DROPS_PER_TURN = 1;
+
 /** Mana value of a cost (CR 202.3). Numeric `X` counts as its value; string `X` counts as 0 (unpaid). */
 export function manaValue(cost?: ManaCost): number {
     if (!cost) return 0;

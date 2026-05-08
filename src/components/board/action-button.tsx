@@ -30,7 +30,9 @@ export default function ActionButton({
         >
             {label}
             {shortcut && (
-                <span className="ml-2 text-xs opacity-60">[{shortcut}]</span>
+                <span className="ml-2 text-xs opacity-60 hidden md:inline">
+                    [{shortcut}]
+                </span>
             )}
         </button>
     );

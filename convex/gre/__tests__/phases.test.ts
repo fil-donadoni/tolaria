@@ -503,6 +503,19 @@ describe("advancePhase", () => {
             expect(state.turn).toBe(6);
             expect(state.activePlayerId).toBe("p2");
         });
+
+        it("resets landsPlayedThisTurn for both players (CR 117.2c / 305.2)", () => {
+            const state = makeGameState({
+                phase: "END_STEP",
+                turn: 1,
+                activePlayerId: "p1",
+            });
+            state.players[0].landsPlayedThisTurn = 1;
+            state.players[1].landsPlayedThisTurn = 1;
+            advancePhase(state);
+            expect(state.players[0].landsPlayedThisTurn).toBe(0);
+            expect(state.players[1].landsPlayedThisTurn).toBe(0);
+        });
     });
 
     describe("priority assignment", () => {

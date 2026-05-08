@@ -14,16 +14,34 @@ const TARGET_LABEL: Record<string, string> = {
     player: "a player",
     any: "any target",
     spell: "a spell on the stack",
+    card: "a card",
 };
 
-function formatTargetLabel(targetType: string | string[]): string {
+function formatTargetLabel(
+    targetType: string | string[],
+    zone: PendingTarget["zone"],
+    controller: PendingTarget["controller"]
+): string {
     const types = Array.isArray(targetType) ? targetType : [targetType];
     const labels = types
         .map((t) => TARGET_LABEL[t] ?? t.toLowerCase())
         .filter(Boolean);
-    if (labels.length === 0) return "a target";
-    if (labels.length === 1) return labels[0];
-    return labels.slice(0, -1).join(", ") + " or " + labels[labels.length - 1];
+    let head: string;
+    if (labels.length === 0) head = "a target";
+    else if (labels.length === 1) head = labels[0];
+    else
+        head =
+            labels.slice(0, -1).join(", ") + " or " + labels[labels.length - 1];
+    if (zone === "graveyard") {
+        const owner =
+            controller === "you"
+                ? "your graveyard"
+                : controller === "opponent"
+                  ? "your opponent's graveyard"
+                  : "a graveyard";
+        return `${head} from ${owner}`;
+    }
+    return head;
 }
 
 function describeTargetProgress(
@@ -73,7 +91,11 @@ export default function TargetSelectionBanner({
     const cardName = cardInHand
         ? getCardById(cardInHand.card.id).name
         : "spell";
-    const targetLabel = formatTargetLabel(pendingTarget.targetType);
+    const targetLabel = formatTargetLabel(
+        pendingTarget.targetType,
+        pendingTarget.zone,
+        pendingTarget.controller
+    );
     const { hint, minReached, maxReached } = describeTargetProgress(
         pendingTarget.count,
         pendingTarget.selected.length,

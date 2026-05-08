@@ -650,6 +650,13 @@ export const playCard = mutation({
             "battlefield"
         );
 
+        // CR 305.2: track the land drop. The legality check above already
+        // enforces the per-turn limit; this only records the spend so the
+        // next call to getLegalActions returns no "play" action.
+        if (card.types.includes("Land")) {
+            player.landsPlayedThisTurn = (player.landsPlayedThisTurn ?? 0) + 1;
+        }
+
         const now = Date.now();
         const nextSeq = gameState.seq + 1;
 
@@ -900,7 +907,8 @@ export const announceCast = mutation({
             const legalTargets = getLegalTargets(
                 state,
                 cardDef.targetRequirement,
-                sourceColors
+                sourceColors,
+                args.playerId
             );
             if (legalTargets.length === 0) {
                 throw new Error("No legal targets available");
@@ -914,6 +922,12 @@ export const announceCast = mutation({
                 selected: [],
                 keepPriority: args.keepPriority,
                 chosenX,
+                ...(cardDef.targetRequirement.zone
+                    ? { zone: cardDef.targetRequirement.zone }
+                    : {}),
+                ...(cardDef.targetRequirement.controller
+                    ? { controller: cardDef.targetRequirement.controller }
+                    : {}),
             };
 
             const now = Date.now();
@@ -1344,9 +1358,14 @@ export const selectTarget = mutation({
         targetType: v.union(
             v.literal("permanent"),
             v.literal("player"),
-            v.literal("spell")
+            v.literal("spell"),
+            v.literal("graveyard-card")
         ),
         targetId: v.string(),
+        /** Owner of the zone the target lives in. Required for non-
+         *  battlefield zones (e.g. "graveyard-card") so the same instance id
+         *  is unambiguous; ignored for battlefield/player/spell targets. */
+        targetPlayerId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -1363,11 +1382,13 @@ export const selectTarget = mutation({
         }
 
         const target: {
-            type: "permanent" | "player" | "spell";
+            type: "permanent" | "player" | "spell" | "graveyard-card";
             id: string;
+            playerId?: string;
         } = {
             type: args.targetType,
             id: args.targetId,
+            ...(args.targetPlayerId ? { playerId: args.targetPlayerId } : {}),
         };
 
         // Validate the target exists and matches the requirement
@@ -1377,9 +1398,54 @@ export const selectTarget = mutation({
             : [pt.targetType];
         const wantsAny = reqTypes.includes("any");
 
-        if (args.targetType === "permanent") {
+        if (args.targetType === "graveyard-card") {
+            // CR 109.2 / 400.7: graveyard-zone target. The chooser names a
+            // specific player's graveyard via `targetPlayerId`; the engine
+            // validates that the card sits there, matches the requested
+            // CardType filter, and that the graveyard's owner satisfies the
+            // controller-relationship constraint ("you" / "opponent" / any).
+            if (pt.zone !== "graveyard") {
+                throw new Error("This spell does not target a graveyard card");
+            }
+            if (!args.targetPlayerId) {
+                throw new Error("targetPlayerId required for graveyard target");
+            }
+            const owner = state.players.find(
+                (p) => p.id === args.targetPlayerId
+            );
+            if (!owner) throw new Error("Invalid graveyard owner");
+            const controllerFilter = pt.controller ?? "any";
+            if (controllerFilter === "you" && owner.id !== args.playerId) {
+                throw new Error("Must target a card in your graveyard");
+            }
+            if (controllerFilter === "opponent" && owner.id === args.playerId) {
+                throw new Error("Must target a card in opponent's graveyard");
+            }
+            const matchedCard = owner.graveyard.find(
+                (c) => c.id === args.targetId
+            );
+            if (!matchedCard) throw new Error("Invalid graveyard target");
+            const wantsAnyCard = reqTypes.includes("card");
+            const cardTypes = reqTypes.filter(
+                (t) =>
+                    t !== "player" &&
+                    t !== "any" &&
+                    t !== "spell" &&
+                    t !== "card"
+            );
+            if (
+                !wantsAnyCard &&
+                !cardTypes.some((t) => matchedCard.types.includes(t as never))
+            ) {
+                throw new Error("Card type mismatch for graveyard target");
+            }
+        } else if (args.targetType === "permanent") {
             const permanentTypes = reqTypes.filter(
-                (t) => t !== "player" && t !== "any" && t !== "spell"
+                (t) =>
+                    t !== "player" &&
+                    t !== "any" &&
+                    t !== "spell" &&
+                    t !== "card"
             );
             // CR 115.4 / 120.3: "any target" only matches damageable permanents.
             let matchedCard: CardInstanceState | null = null;
@@ -1466,6 +1532,9 @@ export const selectTarget = mutation({
                         ptCardInstanceId,
                     targetType: args.targetType,
                     targetId: args.targetId,
+                    ...(args.targetPlayerId
+                        ? { targetPlayerId: args.targetPlayerId }
+                        : {}),
                     ...(ptKind === "ability" && ptAbilityId
                         ? { abilityId: ptAbilityId }
                         : {}),
@@ -2650,7 +2719,8 @@ export const activateAbility = mutation({
             const legal = getLegalTargets(
                 state,
                 ability.targetRequirement,
-                abilitySourceColors
+                abilitySourceColors,
+                args.playerId
             );
             if (legal.length === 0) {
                 throw new Error("No legal targets available");
@@ -2665,6 +2735,12 @@ export const activateAbility = mutation({
                 keepPriority: args.keepPriority,
                 kind: "ability",
                 abilityId: args.abilityId,
+                ...(ability.targetRequirement.zone
+                    ? { zone: ability.targetRequirement.zone }
+                    : {}),
+                ...(ability.targetRequirement.controller
+                    ? { controller: ability.targetRequirement.controller }
+                    : {}),
             };
 
             const now = Date.now();
@@ -3251,7 +3327,11 @@ export const debugSetupScenario = mutation({
                 name: v.string(),
                 owner: v.union(v.literal("me"), v.literal("opp")),
                 zone: v.optional(
-                    v.union(v.literal("hand"), v.literal("battlefield"))
+                    v.union(
+                        v.literal("hand"),
+                        v.literal("battlefield"),
+                        v.literal("graveyard")
+                    )
                 ),
                 tapped: v.optional(v.boolean()),
                 count: v.optional(v.number()),
@@ -3272,17 +3352,19 @@ export const debugSetupScenario = mutation({
         const p1 = state.players[0];
         const p2 = state.players[1];
 
-        // Clear battlefields and hands
+        // Clear battlefields, hands, graveyards
         p1.battlefield = [];
         p2.battlefield = [];
         p1.hand = [];
         p2.hand = [];
+        p1.graveyard = [];
+        p2.graveyard = [];
 
         // Helper to create an instance from a card name
         function makeInstance(
             cardName: string,
             controllerId: string,
-            zone: "hand" | "battlefield" | "library",
+            zone: "hand" | "battlefield" | "library" | "graveyard",
             opts?: { tapped?: boolean }
         ) {
             const def = getCardByName(cardName);
@@ -3319,6 +3401,8 @@ export const debugSetupScenario = mutation({
                 });
                 if (zone === "hand") {
                     player.hand.push(instance);
+                } else if (zone === "graveyard") {
+                    player.graveyard.push(instance);
                 } else {
                     player.battlefield.push(instance);
                 }

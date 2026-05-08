@@ -39,7 +39,10 @@ function makePlayer(overrides: Partial<PlayerState> = {}): PlayerState {
         graveyard: [],
         exile: [],
         battlefield: [],
-        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        // Default to ample mana so timing-focused tests aren't gated by the
+        // canCast mana check (CR 601.2f). Tests that exercise the mana check
+        // explicitly override manaPool / battlefield.
+        manaPool: { W: 5, U: 5, B: 5, R: 5, G: 5, C: 5 },
         ...overrides,
     };
 }
@@ -111,6 +114,24 @@ describe("getLegalActions", () => {
 
             const actions = getLegalActions(state, player, card);
             expect(actions).not.toContain("cast");
+        });
+
+        it('blocks "play" once the per-turn land drop is spent (CR 305.2)', () => {
+            const state = makeGameState();
+            const player = makePlayer({ landsPlayedThisTurn: 1 });
+            const card = makeCard(PLAINS);
+
+            const actions = getLegalActions(state, player, card);
+            expect(actions).not.toContain("play");
+        });
+
+        it("treats undefined landsPlayedThisTurn as 0 (CR 305.2)", () => {
+            const state = makeGameState();
+            const player = makePlayer({ landsPlayedThisTurn: undefined });
+            const card = makeCard(PLAINS);
+
+            const actions = getLegalActions(state, player, card);
+            expect(actions).toContain("play");
         });
     });
 
@@ -259,6 +280,105 @@ describe("getLegalActions", () => {
             const card = makeCard(LIGHTNING_BOLT);
 
             expect(getLegalActions(state, player, card)).toContain("cast");
+        });
+    });
+
+    describe("mana availability (CR 601.2f — payment check)", () => {
+        it('blocks "cast" when pool and battlefield cannot cover cost', () => {
+            const state = makeGameState();
+            const player = makePlayer({
+                manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                battlefield: [],
+            });
+            const card = makeCard(LIGHTNING_BOLT);
+            expect(getLegalActions(state, player, card)).not.toContain("cast");
+        });
+
+        it('allows "cast" when pool exactly covers a colored cost', () => {
+            const state = makeGameState();
+            const player = makePlayer({
+                manaPool: { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 },
+                battlefield: [],
+            });
+            const card = makeCard(LIGHTNING_BOLT);
+            expect(getLegalActions(state, player, card)).toContain("cast");
+        });
+
+        it('allows "cast" when an untapped basic land covers the cost', () => {
+            const mountain = makeCard(
+                {
+                    name: "Mountain",
+                    types: ["Land"],
+                    subtypes: ["Mountain"],
+                },
+                { zone: "battlefield", isTapped: false }
+            );
+            const state = makeGameState();
+            const player = makePlayer({
+                manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                battlefield: [mountain],
+            });
+            const card = makeCard(LIGHTNING_BOLT);
+            expect(getLegalActions(state, player, card)).toContain("cast");
+        });
+
+        it('blocks "cast" when the only land is tapped', () => {
+            const mountain = makeCard(
+                {
+                    name: "Mountain",
+                    types: ["Land"],
+                    subtypes: ["Mountain"],
+                },
+                { zone: "battlefield", isTapped: true }
+            );
+            const state = makeGameState();
+            const player = makePlayer({
+                manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                battlefield: [mountain],
+            });
+            const card = makeCard(LIGHTNING_BOLT);
+            expect(getLegalActions(state, player, card)).not.toContain("cast");
+        });
+
+        it('blocks "cast" when only off-color sources are available', () => {
+            const plains = makeCard(
+                {
+                    name: "Plains",
+                    types: ["Land"],
+                    subtypes: ["Plains"],
+                },
+                { zone: "battlefield", isTapped: false }
+            );
+            const state = makeGameState();
+            const player = makePlayer({
+                manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                battlefield: [plains],
+            });
+            const card = makeCard(LIGHTNING_BOLT);
+            expect(getLegalActions(state, player, card)).not.toContain("cast");
+        });
+
+        it('allows "cast" for an X-cost spell when only the fixed portion is payable', () => {
+            const mountain = makeCard(
+                {
+                    name: "Mountain",
+                    types: ["Land"],
+                    subtypes: ["Mountain"],
+                },
+                { zone: "battlefield", isTapped: false }
+            );
+            const state = makeGameState();
+            const player = makePlayer({
+                manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                battlefield: [mountain],
+            });
+            // Fireball-style: { X: "X", R: 1 } — minimum to announce is just R.
+            const fireball = makeCard({
+                name: "Fireball",
+                manaCost: { X: "X", R: 1 },
+                types: ["Sorcery"],
+            });
+            expect(getLegalActions(state, player, fireball)).toContain("cast");
         });
     });
 

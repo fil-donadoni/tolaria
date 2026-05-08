@@ -1,11 +1,22 @@
-import type { Color, TargetRequirement, TargetSelection } from "../cards/types";
+import type {
+    Color,
+    ManaCost,
+    TargetRequirement,
+    TargetSelection,
+} from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import type { CardAction } from "./types";
 import { isSorceryTiming } from "./phases";
-import { DAMAGEABLE_PERMANENT_TYPES } from "./constants";
+import {
+    DAMAGEABLE_PERMANENT_TYPES,
+    LAND_DROPS_PER_TURN,
+    LAND_SUBTYPE_MANA,
+    MANA_COLORS,
+} from "./constants";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { isProtectedFromColors } from "./protection";
 import { tryGetCardById } from "../cards";
+import { normalizeManaCost } from "./state";
 
 export {
     getProtectedColors,
@@ -51,8 +62,10 @@ export function getLegalActions(
     const types = card.types;
 
     // "Play" is for lands only — requires sorcery timing (main phase, empty stack, active player)
+    // and the player must not have already used their per-turn land drops (CR 305.2).
     if (types.includes("Land")) {
-        if (isSorceryTiming(state)) {
+        const landsPlayed = player.landsPlayedThisTurn ?? 0;
+        if (isSorceryTiming(state) && landsPlayed < LAND_DROPS_PER_TURN) {
             actions.push("play");
         }
     }
@@ -64,12 +77,115 @@ export function getLegalActions(
               true
             : // Sorcery-speed: main phase, empty stack, active player has priority
               isSorceryTiming(state);
-        if (baseLegal && passesCastPhaseRestriction(state, card)) {
+        if (
+            baseLegal &&
+            passesCastPhaseRestriction(state, card) &&
+            canPotentiallyPayCost(player, card)
+        ) {
             actions.push("cast");
         }
     }
 
     return actions;
+}
+
+/** Returns the colors a permanent could potentially produce when tapped for
+ *  mana. Considers basic land subtypes (CR 305.6), fixed mana abilities, and
+ *  mana-choice abilities (e.g. dual lands, Talisman). Empty set means the
+ *  card has no mana ability the engine knows about. */
+function getProducibleColors(card: CardInstanceState): Set<Color> {
+    const colors = new Set<Color>();
+
+    // CR 305.6: basic land subtypes grant intrinsic mana abilities.
+    for (const subtype of card.subtypes) {
+        const c = LAND_SUBTYPE_MANA[subtype];
+        if (c) colors.add(c);
+    }
+
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId) return colors;
+    const def = tryGetCardById(cardId);
+    if (!def?.activatedAbilities) return colors;
+
+    for (const ability of def.activatedAbilities) {
+        if (ability.useStack) continue;
+        if (!ability.cost.tap) continue;
+        if (ability.manaProduced) {
+            for (const c of MANA_COLORS) {
+                if ((ability.manaProduced[c] ?? 0) > 0) colors.add(c);
+            }
+        }
+        if (ability.manaChoices) {
+            for (const choice of ability.manaChoices) {
+                for (const c of MANA_COLORS) {
+                    if ((choice[c] ?? 0) > 0) colors.add(c);
+                }
+            }
+        }
+    }
+    return colors;
+}
+
+/** True if the player has enough mana — already in the pool plus what could
+ *  be produced by tapping untapped permanents — to cover the spell's mana
+ *  cost. Conservative: ignores summoning sickness on creature mana sources
+ *  and treats every mana choice as freely available, so it errs toward
+ *  showing the Cast button when payment is theoretically possible.
+ *
+ *  Used by getLegalActions to suppress the Cast UI for spells the player
+ *  cannot pay for (CR 601.2f — failure to pay aborts the cast, but we hide
+ *  the action upstream so the user isn't trapped in pendingCast). */
+function canPotentiallyPayCost(
+    player: PlayerState,
+    card: CardInstanceState
+): boolean {
+    const rawCost = (card.card as { manaCost?: ManaCost }).manaCost;
+    if (!rawCost) return true;
+    // Cost normalized without chosenX: string-X spells pay only their fixed
+    // portion at the minimum (X = 0). User picks X at announcement.
+    const cost = normalizeManaCost(rawCost);
+    const totalRequired =
+        (cost.X ?? 0) + MANA_COLORS.reduce((sum, c) => sum + (cost[c] ?? 0), 0);
+    if (totalRequired === 0) return true;
+
+    // Each source is the set of colors it can supply for this cost slot.
+    const sources: Set<Color>[] = [];
+    for (const c of MANA_COLORS) {
+        const n = player.manaPool[c] ?? 0;
+        for (let i = 0; i < n; i++) sources.push(new Set<Color>([c]));
+    }
+    for (const perm of player.battlefield) {
+        if (perm.isTapped) continue;
+        const colors = getProducibleColors(perm);
+        if (colors.size === 0) continue;
+        sources.push(colors);
+    }
+
+    if (sources.length < totalRequired) return false;
+
+    // Greedy: assign colored requirements first, picking the
+    // least-flexible source able to produce that color. Then count remaining
+    // sources for the generic portion. Optimal for the common case where each
+    // source produces a small color set (basic lands, duals, Mox).
+    const remaining = sources.map((s) => new Set(s));
+    for (const c of MANA_COLORS) {
+        let need = cost[c] ?? 0;
+        while (need > 0) {
+            let bestIdx = -1;
+            let bestSize = Infinity;
+            for (let i = 0; i < remaining.length; i++) {
+                const s = remaining[i];
+                if (s.has(c) && s.size < bestSize) {
+                    bestIdx = i;
+                    bestSize = s.size;
+                }
+            }
+            if (bestIdx === -1) return false;
+            remaining.splice(bestIdx, 1);
+            need--;
+        }
+    }
+    return remaining.length >= (cost.X ?? 0);
 }
 
 /** CR 117.1b: some spells have phase-limited casting windows (e.g. Berserk
@@ -96,11 +212,14 @@ export function hasColor(card: CardInstanceState, color: Color): boolean {
 /** Returns all legal targets for a spell/ability with the given target
  *  requirement. `sourceColors` are the colors of the casting spell or the
  *  activating permanent (CR 202.2); when provided, protected permanents
- *  (CR 702.16b) are excluded. */
+ *  (CR 702.16b) are excluded. `casterId` is required when
+ *  `requirement.controller` is "you" / "opponent" — the relationship is
+ *  resolved relative to the chooser. */
 export function getLegalTargets(
     state: GameState,
     requirement: TargetRequirement,
-    sourceColors: readonly Color[] = []
+    sourceColors: readonly Color[] = [],
+    casterId?: string
 ): TargetSelection[] {
     const targets: TargetSelection[] = [];
 
@@ -108,11 +227,46 @@ export function getLegalTargets(
         ? requirement.type
         : [requirement.type];
 
+    // CR 400.7 / 109.2: graveyard-zone target (Regrowth, etc.). Handled in a
+    // dedicated branch — graveyard cards aren't permanents, so battlefield
+    // filters (color/protection/tap-state) don't apply.
+    if (requirement.zone === "graveyard") {
+        const controllerFilter = requirement.controller ?? "any";
+        const wantsAnyCard = reqTypes.includes("card");
+        const cardTypes = reqTypes.filter(
+            (t) =>
+                t !== "player" && t !== "any" && t !== "spell" && t !== "card"
+        );
+        for (const player of state.players) {
+            if (controllerFilter === "you" && player.id !== casterId) continue;
+            if (
+                controllerFilter === "opponent" &&
+                (casterId === undefined || player.id === casterId)
+            ) {
+                continue;
+            }
+            for (const card of player.graveyard) {
+                if (
+                    !wantsAnyCard &&
+                    !cardTypes.some((t) => card.types.includes(t as never))
+                ) {
+                    continue;
+                }
+                targets.push({
+                    type: "graveyard-card",
+                    id: card.id,
+                    playerId: player.id,
+                });
+            }
+        }
+        return targets;
+    }
+
     // Check for permanent-targeting types (CardType values)
     const wantsAny = reqTypes.includes("any");
     const wantsSpell = reqTypes.includes("spell");
     const permanentTypes = reqTypes.filter(
-        (t) => t !== "player" && t !== "any" && t !== "spell"
+        (t) => t !== "player" && t !== "any" && t !== "spell" && t !== "card"
     );
     const colorFilter = requirement.colorFilter;
     const tappedFilter = requirement.tappedFilter;
