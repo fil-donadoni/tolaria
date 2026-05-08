@@ -31,6 +31,7 @@ function Lobby({ onEnter }: LobbyProps) {
     const pageVisible = usePageVisible();
     const decks = useQuery(api.decks.list, pageVisible ? {} : "skip");
     const createGame = useMutation(api.game.createGame);
+    const createSoloGame = useMutation(api.game.createSoloGame);
     const joinGame = useMutation(api.game.joinGame);
     const allOpenGames = useQuery(
         api.game.listOpenGames,
@@ -84,6 +85,33 @@ function Lobby({ onEnter }: LobbyProps) {
         storePlayerName(name);
         storeSession(id, pid);
         onEnter(id, pid);
+    };
+
+    const handleCreateSolo = async () => {
+        if (!selectedDeck) return;
+        const name = playerName.trim() || "Player";
+        const baseId = getOrCreateClientId();
+        const p1Id = `${baseId}-p1`;
+        const p2Id = `${baseId}-p2`;
+        const deck = deckPayload(selectedDeck);
+        const id = await createSoloGame({
+            name: `${name}'s solo game`,
+            player1: {
+                id: p1Id,
+                name: `${name} (P1)`,
+                bgColor: PLAYER_COLORS[0],
+                deck,
+            },
+            player2: {
+                id: p2Id,
+                name: `${name} (P2)`,
+                bgColor: PLAYER_COLORS[1],
+                deck,
+            },
+        });
+        storePlayerName(name);
+        storeSession(id, p1Id);
+        onEnter(id, p1Id);
     };
 
     const handleJoin = async (targetGameId: Id<"games">) => {
@@ -190,13 +218,23 @@ function Lobby({ onEnter }: LobbyProps) {
                 </button>
             </div>
 
-            <button
-                onClick={handleCreate}
-                disabled={!canPlay}
-                className="rounded bg-white/10 px-6 py-3 text-lg hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-                Create Game
-            </button>
+            <div className="flex items-center gap-3">
+                <button
+                    onClick={handleCreate}
+                    disabled={!canPlay}
+                    className="rounded bg-white/10 px-6 py-3 text-lg hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                    Create Game
+                </button>
+                <button
+                    onClick={handleCreateSolo}
+                    disabled={!canPlay}
+                    className="rounded border border-white/20 bg-transparent px-6 py-3 text-lg hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    title="Single-user game: you control both players, the viewer follows whoever has priority."
+                >
+                    New Solo Game
+                </button>
+            </div>
 
             {openGames && openGames.length > 0 && (
                 <div className="flex flex-col gap-2">

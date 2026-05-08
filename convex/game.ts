@@ -391,10 +391,19 @@ export const getPublicState = query({
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) return null;
+        const game = await ctx.db.get(args.gameId);
+        const state = gameState.state as GameState;
+        // In solo mode, the single user controls both players: the viewer follows
+        // whoever currently has priority so the UI shows that player's hand and
+        // legal actions automatically.
+        const viewerId =
+            game?.solo === true
+                ? (state.priorityPlayerId ?? state.activePlayerId)
+                : args.playerId;
         return projectPublicState(
-            gameState.state as GameState,
+            state,
             gameState.seq,
-            args.playerId,
+            viewerId,
             args.debugAllActions ?? false
         );
     },
@@ -468,6 +477,77 @@ export const createGame = mutation({
             players: [args.player],
             createdAt: now,
             updatedAt: now,
+        });
+
+        return gameId;
+    },
+});
+
+/**
+ * Create a solo game: a single user controls both players. The viewer
+ * auto-follows the priority player on the client. Game starts in "playing"
+ * immediately — no second user needs to join.
+ */
+export const createSoloGame = mutation({
+    args: {
+        name: v.string(),
+        player1: playerValidator,
+        player2: playerValidator,
+    },
+    handler: async (ctx, args) => {
+        if (args.player1.id === args.player2.id) {
+            throw new Error("Solo game players must have distinct ids");
+        }
+
+        const allPlayers = [args.player1, args.player2];
+        const now = Date.now();
+
+        const gameId = await ctx.db.insert("games", {
+            name: args.name,
+            status: "playing",
+            players: allPlayers,
+            solo: true,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        const playersState = allPlayers.map(buildPlayerState);
+
+        const rngSeed = freshSeed();
+        const initialState: GameState = {
+            players: playersState,
+            stack: [],
+            turn: 1,
+            activePlayerId: playersState[0].id,
+            priorityPlayerId: playersState[0].id,
+            passCount: 0,
+            phase: "UNTAP" as Phase,
+            rngSeed,
+            rngCounter: 0,
+        };
+
+        for (const player of initialState.players) {
+            seededShuffle(initialState, player.library);
+            for (let i = 0; i < STARTING_HAND_SIZE; i++)
+                drawCardFromLibrary(player);
+        }
+
+        // UNTAP is auto → advances to UPKEEP (with entry actions along the way)
+        advancePhase(initialState);
+
+        await saveGameState(ctx, gameId, 0, initialState);
+
+        await ctx.db.insert("events", {
+            gameId,
+            seq: 0,
+            type: "GAME_INITIALIZED",
+            player: "system",
+            payload: {
+                playerIds: allPlayers.map((p) => p.id),
+                rngSeed,
+                solo: true,
+            },
+            timestamp: now,
         });
 
         return gameId;

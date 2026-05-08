@@ -56,6 +56,7 @@ function App() {
                     <Board
                         gameId={gameId}
                         playerId={playerId}
+                        solo={game.solo === true}
                         showAllCards={showAllCards}
                         debugAllActions={debugAllActions}
                     />
@@ -70,6 +71,7 @@ function App() {
                             onToggleDebugAllActions={() =>
                                 setDebugAllActions((v) => !v)
                             }
+                            onSwitchGame={handleEnter}
                         />
                     )}
                 </div>

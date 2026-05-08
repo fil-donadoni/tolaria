@@ -56,6 +56,9 @@ export default defineSchema({
         ),
         /** ID of the winning player (set when status transitions to "finished"). */
         winner: v.optional(v.string()),
+        /** Solo (single-user) game: both players belong to the same user. The client
+         * auto-switches its viewer to the player who currently has priority. */
+        solo: v.optional(v.boolean()),
         createdAt: v.number(),
         updatedAt: v.number(),
     }),

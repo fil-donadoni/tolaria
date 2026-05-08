@@ -4,6 +4,12 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { JSONTree } from "react-json-tree";
 import { usePageVisible } from "~/hooks/usePageVisible";
+import {
+    PLAYER_COLORS,
+    getOrCreateClientId,
+    getStoredPlayerName,
+    storeSession,
+} from "~/lib/session";
 import DebugButton from "./debug-button";
 
 const theme = {
@@ -74,6 +80,7 @@ type DebugPanelProps = {
     onToggleShowAllCards: () => void;
     debugAllActions: boolean;
     onToggleDebugAllActions: () => void;
+    onSwitchGame: (gameId: Id<"games">, playerId: string) => void;
 };
 
 export default function DebugPanel({
@@ -82,6 +89,7 @@ export default function DebugPanel({
     onToggleShowAllCards,
     debugAllActions,
     onToggleDebugAllActions,
+    onSwitchGame,
 }: DebugPanelProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [showScenarios, setShowScenarios] = useState(false);
@@ -106,9 +114,42 @@ export default function DebugPanel({
         api.game.getFullState,
         isOpen && pageVisible ? { gameId } : "skip"
     );
+    const game = useQuery(
+        api.game.getGame,
+        isOpen && pageVisible ? { gameId } : "skip"
+    );
     const undo = useMutation(api.game.debugUndo);
     const resetGame = useMutation(api.game.debugResetGame);
     const setupScenario = useMutation(api.game.debugSetupScenario);
+    const createSoloGame = useMutation(api.game.createSoloGame);
+
+    const handleNewSolo = async () => {
+        // Reuse the deck of the first player in the current game so the user
+        // doesn't have to round-trip through the lobby just to restart.
+        const sourceDeck = game?.players[0]?.deck;
+        if (!sourceDeck) return;
+        const name = getStoredPlayerName().trim() || "Player";
+        const baseId = getOrCreateClientId();
+        const p1Id = `${baseId}-p1`;
+        const p2Id = `${baseId}-p2`;
+        const newId = await createSoloGame({
+            name: `${name}'s solo game`,
+            player1: {
+                id: p1Id,
+                name: `${name} (P1)`,
+                bgColor: PLAYER_COLORS[0],
+                deck: sourceDeck,
+            },
+            player2: {
+                id: p2Id,
+                name: `${name} (P2)`,
+                bgColor: PLAYER_COLORS[1],
+                deck: sourceDeck,
+            },
+        });
+        storeSession(newId, p1Id);
+        onSwitchGame(newId, p1Id);
+    };
 
     return (
         <div
@@ -148,6 +189,9 @@ export default function DebugPanel({
                                 variant="danger"
                             >
                                 Reset Game
+                            </DebugButton>
+                            <DebugButton onClick={handleNewSolo}>
+                                {game?.solo ? "Restart Solo" : "New Solo Game"}
                             </DebugButton>
                             <DebugButton
                                 onClick={() => {

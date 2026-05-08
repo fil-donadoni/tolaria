@@ -29,6 +29,8 @@ const POPUP_SELECTORS = [
 type BoardProps = {
     gameId: Id<"games">;
     playerId: string;
+    /** Solo (single-user) game: viewer auto-follows the priority player. */
+    solo: boolean;
     showAllCards: boolean;
     debugAllActions: boolean;
 };
@@ -36,6 +38,7 @@ type BoardProps = {
 export default function Board({
     gameId,
     playerId,
+    solo,
     showAllCards,
     debugAllActions,
 }: BoardProps) {
@@ -107,9 +110,17 @@ export default function Board({
     const gameOver = state.gameOver;
     const stackItems = state.stack ?? [];
 
+    // In solo mode the single user controls both players: the viewer follows
+    // whoever currently has priority (or whoever owns the next pending choice).
+    const viewerId = solo
+        ? (pendingChoices?.[0]?.playerId ??
+          pendingTarget?.playerId ??
+          priorityPlayerId)
+        : playerId;
+
     // Opponent on top, local player on bottom
-    const opponent = allPlayers.find((p) => p.id !== playerId);
-    const me = allPlayers.find((p) => p.id === playerId);
+    const opponent = allPlayers.find((p) => p.id !== viewerId);
+    const me = allPlayers.find((p) => p.id === viewerId);
     const orderedPlayers = [opponent, me].filter(
         (p): p is Player => p !== undefined
     );
@@ -118,7 +129,7 @@ export default function Board({
         <GameContext
             value={{
                 gameId,
-                playerId,
+                playerId: viewerId,
                 activePlayerId,
                 priorityPlayerId,
                 phase,
@@ -145,18 +156,18 @@ export default function Board({
                     ))}
                     <PhaseTracker />
                     {stackItems.length > 0 && <GameStack stack={stackItems} />}
-                    {pendingTarget && pendingTarget.playerId === playerId && (
+                    {pendingTarget && pendingTarget.playerId === viewerId && (
                         <TargetSelectionBanner
                             pendingTarget={pendingTarget}
                             me={me}
                             gameId={gameId}
-                            playerId={playerId}
+                            playerId={viewerId}
                         />
                     )}
                     {pendingChoices && pendingChoices.length > 0 && (
                         <PendingChoicePrompt
                             choice={pendingChoices[0]}
-                            playerId={playerId}
+                            playerId={viewerId}
                         />
                     )}
                     <ActionBar />
@@ -170,7 +181,7 @@ export default function Board({
                         open={pauseMenuOpen}
                         onOpenChange={setPauseMenuOpen}
                         gameId={gameId}
-                        playerId={playerId}
+                        playerId={viewerId}
                     />
                 </div>
             </SkipPhasePrefsContext>
