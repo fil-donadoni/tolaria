@@ -782,3 +782,28 @@ export interface CardDefinition {
      *  exist in the current set, so we model this as a flat exemption. */
     exemptFromProtectionDetach?: boolean;
 }
+
+/** Reprint of an existing `CardDefinition` in another set. The mechanics are
+ *  defined exactly once on the original `CardDefinition`; reprints declare
+ *  only the metadata that varies between physical printings: a per-print
+ *  Scryfall UUID (used for the card image) and the set code.
+ *
+ *  Resolution: the card registry maps both `CardDefinition.id` and every
+ *  `CardPrint.printId` to the same underlying `CardDefinition`, so a
+ *  `getCardById(printId)` lookup transparently returns the original
+ *  mechanics regardless of which printing the deck/instance references.
+ *  The instance retains the print's id (`card.id === printId`) so the image
+ *  layer renders the chosen edition's art. */
+export interface CardPrint {
+    /** Per-print Scryfall UUID. Used as the image lookup key and as the id
+     *  stored on `CardInstanceState.card.id` when the player picks this
+     *  edition. Must be globally unique across all sets. */
+    printId: CardId;
+    /** Id of the original `CardDefinition` whose mechanics this print uses
+     *  (typically the LEA print's Scryfall UUID for cards first printed in
+     *  Alpha). The registry resolves `printId → definitionId → CardDefinition`. */
+    definitionId: CardId;
+    /** Lowercase set code of this printing (e.g. "leb", "2ed"). Informational
+     *  — used by the deck builder UI to label the print. */
+    setCode: string;
+}

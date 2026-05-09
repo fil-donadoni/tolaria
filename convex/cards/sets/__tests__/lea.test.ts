@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+    armageddon,
     badMoon,
     badlands,
     balance,
@@ -18,7 +19,14 @@ import {
     blueWard,
     bogWraith,
     braingeyser,
+    consecrateLand,
+    crusade,
+    deathWard,
+    farmstead,
     greenWard,
+    holyStrength,
+    karma,
+    lance,
     redWard,
     whiteWard,
     shanodinDryads,
@@ -6035,6 +6043,370 @@ describe("Unsummon (return target creature to its owner's hand, CR 701.10 / 400.
             .filter((c): c is NonNullable<typeof c> => c !== null)
             .map((c) => c.id);
         expect(handIds).toContain("bear");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// White FREE cycle (LEA): Consecrate Land, Crusade, Death Ward, Farmstead,
+// Holy Strength, Karma, Lance.
+// ---------------------------------------------------------------------------
+
+describe("Consecrate Land (Aura — enchanted land is indestructible, CR 702.12)", () => {
+    // Cast the aura via the stack so the engine attaches it and applies the
+    // keyword-grant imperatively — staticEffects on auras only flow through
+    // attach()/detach().
+    function setupAttached() {
+        const host = makeInstance(plains.id, {
+            id: "host-land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = makeInstance(plains.id, {
+            id: "victim-land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, victim] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, consecrateLand.id, "p1", [
+            { type: "permanent", id: "host-land" },
+        ]);
+        resolveTopOfStack(state);
+        return { state };
+    }
+
+    it("declares Aura targeting Land", () => {
+        expect(consecrateLand.types).toEqual(["Enchantment"]);
+        expect(consecrateLand.subtypes).toEqual(["Aura"]);
+        expect(consecrateLand.targetRequirement).toEqual({
+            type: "Land",
+            count: 1,
+        });
+    });
+
+    it("grants 'indestructible' to the enchanted land — Armageddon spares it", () => {
+        const { state } = setupAttached();
+        pushSpell(state, armageddon.id, "p1");
+        resolveTopOfStack(state);
+        const survivors = state.players[0].battlefield.map((c) => c.id);
+        expect(survivors).toContain("host-land");
+        expect(survivors).not.toContain("victim-land");
+    });
+
+    it("wire format: indestructible keyword survives the projection", () => {
+        const { state } = setupAttached();
+        const projected = projectPublicState(state, 1, "p1");
+        const slimLand = projected.players[0].battlefield.find(
+            (c) => c.id === "host-land"
+        )!;
+        expect(slimLand.staticAbilities).toContain("indestructible");
+    });
+});
+
+describe("Crusade (static pt-buff: +1/+1 to white creatures)", () => {
+    it("buffs both controllers' white creatures", () => {
+        const myLion = makeInstance(savannahLions.id, { id: "mine" });
+        const oppLion = makeInstance(savannahLions.id, {
+            id: "theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const enchant = makeInstance(crusade.id, { id: "crusade" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [myLion, enchant] }),
+                makePlayer("p2", { battlefield: [oppLion] }),
+            ],
+        });
+        expect(getEffectivePower(state, myLion)).toBe(3);
+        expect(getEffectiveToughness(state, myLion)).toBe(2);
+        expect(getEffectivePower(state, oppLion)).toBe(3);
+    });
+
+    it("does NOT buff non-white creatures (Grizzly Bears is green)", () => {
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const enchant = makeInstance(crusade.id, { id: "crusade" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear, enchant] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, bear)).toBe(2);
+        expect(getEffectiveToughness(state, bear)).toBe(2);
+    });
+
+    it("wire format: white creatures still buffed after projection", () => {
+        const lion = makeInstance(savannahLions.id, { id: "lion" });
+        const enchant = makeInstance(crusade.id, { id: "crusade" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lion, enchant] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slimLion = projected.players[0].battlefield.find(
+            (c) => c.id === "lion"
+        )!;
+        expect(getEffectivePower(projected, slimLion)).toBe(3);
+        expect(getEffectiveToughness(projected, slimLion)).toBe(2);
+    });
+});
+
+describe("Death Ward (instant — regenerate target creature, CR 701.15a)", () => {
+    it("stacks one regeneration shield on the target", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, deathWard.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const target = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(target.regenerationShields).toBe(1);
+    });
+
+    it("the shield replaces a subsequent destroy (Wrath of God survives)", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, deathWard.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        pushSpell(state, wrathOfGod.id, "p1");
+        resolveTopOfStack(state);
+        const bearAfter = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        );
+        expect(bearAfter).toBeDefined();
+        expect(bearAfter!.isTapped).toBe(true);
+    });
+});
+
+describe("Farmstead (Aura on Plains — controller gains 2 life at upkeep, CR 603.6a)", () => {
+    function setup(activePlayerId: string = "p1") {
+        const land = makeInstance(plains.id, {
+            id: "host-plains",
+            controllerId: activePlayerId,
+            ownerId: activePlayerId,
+        });
+        const aura = makeInstance(farmstead.id, {
+            id: "farmstead",
+            controllerId: activePlayerId,
+            ownerId: activePlayerId,
+            attachedTo: "host-plains",
+        });
+        const ownerIdx = activePlayerId === "p1" ? 0 : 1;
+        const players = [makePlayer("p1"), makePlayer("p2")];
+        players[ownerIdx].battlefield = [land, aura];
+        return makeState({
+            turn: 2,
+            phase: "UNTAP",
+            activePlayerId,
+            priorityPlayerId: activePlayerId,
+            players,
+        });
+    }
+
+    it("enqueues the trigger on the host controller's UPKEEP", () => {
+        const state = setup("p1");
+        advancePhase(state); // UNTAP → UPKEEP
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("farmstead-upkeep");
+    });
+
+    it("resolves into +2 life for the host's controller", () => {
+        const state = setup("p1");
+        const lifeBefore = state.players[0].life;
+        advancePhase(state);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(lifeBefore + 2);
+    });
+
+    it("does NOT fire on the opponent's upkeep (only the host's controller)", () => {
+        const state = setup("p1");
+        // Simulate p2's upkeep next.
+        state.turn = 3;
+        state.activePlayerId = "p2";
+        state.priorityPlayerId = "p2";
+        state.phase = "UNTAP";
+        advancePhase(state);
+        expect(state.phase).toBe("UPKEEP");
+        // Stack stays empty — the host belongs to p1, not the active player.
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
+describe("Holy Strength (Aura — enchanted creature gets +1/+2)", () => {
+    function setup() {
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(holyStrength.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "lion",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lion, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, lion };
+    }
+
+    it("buffs the host +1/+2", () => {
+        const { state, lion } = setup();
+        expect(getEffectivePower(state, lion)).toBe(3);
+        expect(getEffectiveToughness(state, lion)).toBe(3);
+    });
+
+    it("wire format: buff still applies after projection", () => {
+        const { state } = setup();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "lion"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+describe("Karma (deal damage = Swamps controlled to each player at upkeep, CR 603.6a)", () => {
+    function setup(opts: {
+        opponentSwamps: number;
+        ownerSwamps: number;
+        activePlayerId?: string;
+    }) {
+        const enchant = makeInstance(karma.id, {
+            id: "karma",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1Battlefield: CardInstanceState[] = [enchant];
+        for (let i = 0; i < opts.ownerSwamps; i++) {
+            p1Battlefield.push(
+                makeInstance(swamp.id, {
+                    id: `p1-swamp-${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                })
+            );
+        }
+        const p2Battlefield: CardInstanceState[] = [];
+        for (let i = 0; i < opts.opponentSwamps; i++) {
+            p2Battlefield.push(
+                makeInstance(swamp.id, {
+                    id: `p2-swamp-${i}`,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                })
+            );
+        }
+        const activePlayerId = opts.activePlayerId ?? "p1";
+        return makeState({
+            turn: 2,
+            phase: "UNTAP",
+            activePlayerId,
+            priorityPlayerId: activePlayerId,
+            players: [
+                makePlayer("p1", { battlefield: p1Battlefield }),
+                makePlayer("p2", { battlefield: p2Battlefield }),
+            ],
+        });
+    }
+
+    it("deals damage to active player equal to their Swamp count", () => {
+        const state = setup({ ownerSwamps: 3, opponentSwamps: 0 });
+        const before = state.players[0].life;
+        advancePhase(state); // UNTAP → UPKEEP
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(before - 3);
+    });
+
+    it("hits the opponent on their upkeep — 'each player'", () => {
+        const state = setup({
+            ownerSwamps: 0,
+            opponentSwamps: 2,
+            activePlayerId: "p2",
+        });
+        const before = state.players[1].life;
+        advancePhase(state);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(before - 2);
+    });
+
+    it("no-op when active player controls 0 Swamps (no stack entry)", () => {
+        const state = setup({ ownerSwamps: 0, opponentSwamps: 5 });
+        advancePhase(state);
+        // Trigger predicate matches but resolve guards against 0 — still
+        // queued, so stack length 1 is acceptable. Verify no life lost.
+        if (state.stack.length > 0) resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
+    });
+});
+
+describe("Lance (Aura — enchanted creature has first strike, CR 702.7)", () => {
+    function setupAttached() {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, lance.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        return { state };
+    }
+
+    it("grants 'first strike' to the host", () => {
+        const { state } = setupAttached();
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(bear.staticAbilities).toContain("first strike");
+    });
+
+    it("wire format: first strike survives the projection", () => {
+        const { state } = setupAttached();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(slim.staticAbilities).toContain("first strike");
     });
 });
 

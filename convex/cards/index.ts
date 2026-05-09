@@ -1,11 +1,57 @@
-import type { CardDefinition } from "./types";
+import type { CardDefinition, CardPrint } from "./types";
 import * as lea from "./sets/lea";
+import * as leb from "./sets/leb";
 
-const allCards: CardDefinition[] = [...Object.values(lea)];
+function isCardPrint(value: unknown): value is CardPrint {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        "printId" in value &&
+        "definitionId" in value &&
+        "setCode" in value
+    );
+}
 
-const registry = new Map<string, CardDefinition>(
+function isCardDefinition(value: unknown): value is CardDefinition {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        "id" in value &&
+        "name" in value &&
+        "types" in value
+    );
+}
+
+const setExports: Record<string, unknown>[] = [lea, leb];
+
+const allCards: CardDefinition[] = setExports.flatMap((set) =>
+    Object.values(set).filter(isCardDefinition)
+);
+
+const allPrints: CardPrint[] = setExports.flatMap((set) =>
+    Object.values(set).filter(isCardPrint)
+);
+
+const definitionRegistry = new Map<string, CardDefinition>(
     allCards.map((card) => [card.id, card])
 );
+
+/** Combined lookup: every `CardDefinition.id` plus every `CardPrint.printId`
+ *  resolves to the same underlying definition. Built once at module load. */
+const registry = new Map<string, CardDefinition>(definitionRegistry);
+
+for (const print of allPrints) {
+    const def = definitionRegistry.get(print.definitionId);
+    if (!def) {
+        throw new Error(
+            `CardPrint ${print.printId} references unknown definitionId ${print.definitionId}`
+        );
+    }
+    if (registry.has(print.printId)) {
+        throw new Error(`Duplicate card id: ${print.printId}`);
+    }
+    registry.set(print.printId, def);
+}
 
 export const getCardById = (cardId: string): CardDefinition => {
     const card = registry.get(cardId);
@@ -34,3 +80,14 @@ export const getCardByName = (name: string): CardDefinition => {
 
 export const getAllCardNames = (): string[] =>
     allCards.map((card) => card.name);
+
+/** All known prints of a card (every Scryfall UUID that resolves to the
+ *  given definition), ordered with the original print first. Used by the
+ *  deck builder UI to let the player pick which edition to include. */
+export const getPrintsForCard = (definitionId: string): string[] => {
+    const ids = [definitionId];
+    for (const print of allPrints) {
+        if (print.definitionId === definitionId) ids.push(print.printId);
+    }
+    return ids;
+};

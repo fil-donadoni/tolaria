@@ -906,6 +906,12 @@ function findOnBattlefield(
 export function regenerateOrDestroy(state: GameState, cardId: string): boolean {
     const found = findOnBattlefield(state, cardId);
     if (!found) return false;
+    // CR 702.12 — permanents with indestructible can't be destroyed. Spell or
+    // ability damage / "destroy" effects skip the graveyard move entirely; the
+    // permanent stays on the battlefield with no replacement rider applied.
+    // (A creature with indestructible and lethal damage marks survives — the
+    // marked damage stays, but SBA 704.5g doesn't fire on it.)
+    if (found.card.staticAbilities.includes("indestructible")) return false;
     const shields = found.card.regenerationShields ?? 0;
     if (shields > 0) {
         const next = shields - 1;

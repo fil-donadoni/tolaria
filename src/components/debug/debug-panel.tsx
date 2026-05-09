@@ -217,6 +217,112 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Crusade (white creatures get +1/+1, CR 611 layer 7c)",
+        cards: [
+            // Both controllers' white creatures benefit from the buff. White
+            // Knight (WW) attacks for 3 with first strike + pro-black; Savannah
+            // Lions become 3/2; opponent's Serra Angel becomes 5/5 flying.
+            // Grizzly Bears (green) is unaffected — verifies color filter.
+            { name: "Crusade", owner: "me" as const, zone: "hand" as const },
+            { name: "Plains", owner: "me" as const, count: 2 },
+            { name: "Savannah Lions", owner: "me" as const },
+            { name: "White Knight", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Serra Angel", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Death Ward (regenerate target creature, CR 701.15a)",
+        cards: [
+            // Counter a Wrath of God: cast Death Ward on Grizzly Bears in
+            // response, then resolve Wrath. The shielded bear taps and stays;
+            // the other creature dies normally.
+            { name: "Death Ward", owner: "me" as const, zone: "hand" as const },
+            { name: "Plains", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Hill Giant", owner: "me" as const },
+            {
+                name: "Wrath of God",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "opp" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Holy Strength + Lance (Aura buffs and first-strike grant)",
+        cards: [
+            // Cast both auras on Grizzly Bears: +1/+2 from Holy Strength makes
+            // it a 3/4, Lance grants first strike. Block a 5/5 Earth Elemental
+            // and watch the bear deal 3 first-strike damage before being
+            // killed back — but it lives if shielded by extra toughness.
+            {
+                name: "Holy Strength",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Lance", owner: "me" as const, zone: "hand" as const },
+            { name: "Plains", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Earth Elemental", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Consecrate Land (enchanted land is indestructible, CR 702.12)",
+        cards: [
+            // Attach Consecrate Land to one of your Plains, then cast
+            // Armageddon: every other land hits the graveyard, the protected
+            // Plains stays. Verifies the new indestructible primitive.
+            {
+                name: "Consecrate Land",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "me" as const, count: 3 },
+            {
+                name: "Armageddon",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Forest", owner: "opp" as const, count: 2 },
+            { name: "Mountain", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Farmstead (host's controller gains 2 life at upkeep, CR 603.6a)",
+        cards: [
+            // Attach Farmstead to your Plains. End the turn: at the start of
+            // your next upkeep the trigger queues and resolves into +2 life.
+            // The opponent's upkeep does NOT fire it — host belongs to you.
+            { name: "Farmstead", owner: "me" as const, zone: "hand" as const },
+            { name: "Plains", owner: "me" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Karma (deal damage = Swamps to each player at upkeep)",
+        cards: [
+            // Karma punishes Swamp-heavy decks. Opponent controls 4 Swamps;
+            // each of their upkeeps queues a 4-damage trigger to themselves.
+            // You control 0 — your upkeep fires a 0-damage no-op.
+            { name: "Karma", owner: "me" as const, zone: "hand" as const },
+            { name: "Plains", owner: "me" as const, count: 4 },
+            { name: "Swamp", owner: "opp" as const, count: 4 },
+            { name: "Hypnotic Specter", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Sea Serpent vs Sinkhole (CR 508.1c attack + CR 603.8 state trigger)",
         cards: [
             // Two-step exercise covering both Sea Serpent abilities:

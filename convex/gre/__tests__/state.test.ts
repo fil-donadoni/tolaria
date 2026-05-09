@@ -8,6 +8,7 @@ import {
     isManaCostCovered,
     normalizeManaCost,
     payManaCost,
+    regenerateOrDestroy,
     resolveTopOfStack,
     tickDuration,
     type CardInstanceState,
@@ -912,6 +913,73 @@ describe("spell resolution: Ancestral Recall", () => {
         expect(p2.hand.map((c) => c.id)).toEqual(["only"]);
         expect(p2.library).toHaveLength(0);
         expect(p2.hasDrawnFromEmpty).toBe(true);
+    });
+});
+
+describe("regenerateOrDestroy (CR 614.5, 701.15a, 702.12)", () => {
+    function setup(
+        opts: {
+            staticAbilities?: string[];
+            shields?: number;
+            isAttacking?: boolean;
+        } = {}
+    ): { state: GameState; cardId: string } {
+        const card = makeCard({
+            id: "victim",
+            staticAbilities: opts.staticAbilities ?? [],
+            zone: "battlefield",
+            regenerationShields: opts.shields,
+            isAttacking: opts.isAttacking,
+        });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [card] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        return { state, cardId: card.id };
+    }
+
+    it("indestructible blocks the destroy entirely (CR 702.12)", () => {
+        const { state, cardId } = setup({
+            staticAbilities: ["indestructible"],
+        });
+        const destroyed = regenerateOrDestroy(state, cardId);
+        expect(destroyed).toBe(false);
+        // Permanent stays on the battlefield, no graveyard move, no regen rider.
+        expect(state.players[0].battlefield).toHaveLength(1);
+        expect(state.players[0].battlefield[0].isTapped).toBe(false);
+        expect(state.players[0].graveyard).toHaveLength(0);
+    });
+
+    it("indestructible takes precedence over regeneration shields", () => {
+        const { state, cardId } = setup({
+            staticAbilities: ["indestructible"],
+            shields: 1,
+        });
+        regenerateOrDestroy(state, cardId);
+        // Shield was NOT consumed — indestructible short-circuits before it.
+        const card = state.players[0].battlefield[0];
+        expect(card.regenerationShields).toBe(1);
+        expect(card.isTapped).toBe(false);
+    });
+
+    it("regeneration shield consumed and rider applied when not indestructible", () => {
+        const { state, cardId } = setup({ shields: 1, isAttacking: true });
+        const destroyed = regenerateOrDestroy(state, cardId);
+        expect(destroyed).toBe(false);
+        const card = state.players[0].battlefield[0];
+        expect(card.regenerationShields).toBeUndefined();
+        expect(card.isTapped).toBe(true);
+        expect(card.isAttacking).toBeUndefined();
+    });
+
+    it("plain destroy with no protections sends the card to graveyard", () => {
+        const { state, cardId } = setup();
+        const destroyed = regenerateOrDestroy(state, cardId);
+        expect(destroyed).toBe(true);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard).toHaveLength(1);
     });
 });
 

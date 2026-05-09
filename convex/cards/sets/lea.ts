@@ -289,13 +289,26 @@ export const circleOfProtectionWhite: CardDefinition = makeCircleOfProtection({
     colorWord: "White",
 });
 
-// export const consecrateLand: CardDefinition = {
-//     id: "d2379f78-c03f-447f-b3c9-10a918d556e9",
-//     name: "Consecrate Land",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Consecrate Land — "Enchant land. Enchanted land is indestructible. Prevent
+// all damage that would be dealt to enchanted land." (CR 303.4 aura attachment,
+// 702.12 indestructible keyword). The damage-prevention clause is innocuous in
+// the current engine — lands are not damageable targets — so the implementation
+// reduces to a `keyword-grant: "indestructible"` static effect on the host.
+export const consecrateLand: CardDefinition = {
+    id: "d2379f78-c03f-447f-b3c9-10a918d556e9",
+    name: "Consecrate Land",
+    manaCost: { W: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1 },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "indestructible",
+        },
+    ],
+};
 
 // export const conversion: CardDefinition = {
 //     id: "13186bc9-8d9c-433b-ba15-121ef94dd68a",
@@ -304,19 +317,40 @@ export const circleOfProtectionWhite: CardDefinition = makeCircleOfProtection({
 //     types: ["Enchantment"],
 // };
 
-// export const crusade: CardDefinition = {
-//     id: "057986c7-20c0-4157-b4df-beae4ef5c66d",
-//     name: "Crusade",
-//     manaCost: { W: 2 },
-//     types: ["Enchantment"],
-// };
+// Crusade — "White creatures get +1/+1." (CR 611 — static layer 7c, color via
+// CR 202.2). Mirrors Bad Moon's structure but filtered on white instead of
+// black. Affects creatures of either controller.
+export const crusade: CardDefinition = {
+    id: "057986c7-20c0-4157-b4df-beae4ef5c66d",
+    name: "Crusade",
+    manaCost: { W: 2 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, _source, ctx) =>
+                ctx.isCreature(target) && ctx.getColors(target).includes("W"),
+            power: 1,
+            toughness: 1,
+        },
+    ],
+};
 
-// export const deathWard: CardDefinition = {
-//     id: "fa5466cc-aa57-4a7f-8b21-d92b2fe02e13",
-//     name: "Death Ward",
-//     manaCost: { W: 1 },
-//     types: ["Instant"],
-// };
+// Death Ward — "Regenerate target creature." (CR 701.15a regenerate, 614.5
+// destroy replacement). Stacks one regen shield on the target via the same
+// primitive used by Regeneration's activated ability — consumed by the next
+// destroy attempt, expiring at CLEANUP if unused (CR 514.2).
+export const deathWard: CardDefinition = {
+    id: "fa5466cc-aa57-4a7f-8b21-d92b2fe02e13",
+    name: "Death Ward",
+    manaCost: { W: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type === "permanent") ctx.applyRegenerationShield(target);
+    },
+};
 
 export const disenchant: CardDefinition = {
     id: "2722d7e2-61c6-4934-9c21-875ee78fd06c",
@@ -327,13 +361,54 @@ export const disenchant: CardDefinition = {
     effect: "destroy-target",
 };
 
-// export const farmstead: CardDefinition = {
-//     id: "3455b006-9ea5-4aef-8ad2-d0701eb0cacf",
-//     name: "Farmstead",
-//     manaCost: { W: 3 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Farmstead — "Enchant land (target a Plains). At the beginning of the upkeep
+// step of enchanted land's controller, that player gains 2 life." (CR 303.4
+// aura attachment, 603.6a beginning-of-step trigger). The trigger fires only
+// on the host's controller's upkeep; the resolver looks up the host via
+// `getAttachedTo` (no targeting at trigger time per CR 603.2) and reads its
+// current controller — so a Farmstead whose host has changed controllers
+// (Control Magic, etc.) follows the new controller automatically.
+export const farmstead: CardDefinition = {
+    id: "3455b006-9ea5-4aef-8ad2-d0701eb0cacf",
+    name: "Farmstead",
+    manaCost: { W: 3 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: {
+        type: "Land",
+        count: 1,
+        subtypeFilter: "Plains",
+    },
+    triggeredAbilities: [
+        {
+            id: "farmstead-upkeep",
+            oracleText:
+                "At the beginning of the upkeep step of enchanted land's controller, that player gains 2 life.",
+            event: "PHASE_BEGIN",
+            matches: (event, self, state) => {
+                if (event.type !== "PHASE_BEGIN") return false;
+                if (event.phase !== "UPKEEP") return false;
+                if (!self.attachedTo) return false;
+                for (const p of state?.players ?? []) {
+                    const host = p.battlefield.find(
+                        (c) => c.id === self.attachedTo
+                    );
+                    if (host) return host.controllerId === event.activePlayerId;
+                }
+                return false;
+            },
+            resolve: (ctx) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                const controller = ctx.getController({
+                    type: "permanent",
+                    id: hostId,
+                });
+                ctx.gainLife(controller, 2);
+            },
+        },
+    ],
+};
 
 export const greenWard: CardDefinition = makeColorWard({
     id: "1f6118b2-fe01-425a-a2ed-6d7c42286c8e",
@@ -363,13 +438,25 @@ export const greenWard: CardDefinition = makeColorWard({
 //     subtypes: ["Aura"],
 // };
 
-// export const holyStrength: CardDefinition = {
-//     id: "e945a4cd-0eb1-4f54-898d-169ce2748a03",
-//     name: "Holy Strength",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Holy Strength — "Enchant creature. Enchanted creature gets +1/+2." (CR 303.4
+// aura attachment, 611 static layer 7c). Plain pt-buff aura — same shape as
+// the future Unholy Strength / Weakness, all reusing AURA_AFFECTS_HOST.
+export const holyStrength: CardDefinition = {
+    id: "e945a4cd-0eb1-4f54-898d-169ce2748a03",
+    name: "Holy Strength",
+    manaCost: { W: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: AURA_AFFECTS_HOST,
+            power: 1,
+            toughness: 2,
+        },
+    ],
+};
 
 // export const islandSanctuary: CardDefinition = {
 //     id: "c15e8a42-89de-42bc-8d5f-33426d207c3a",
@@ -378,20 +465,54 @@ export const greenWard: CardDefinition = makeColorWard({
 //     types: ["Enchantment"],
 // };
 
-// export const karma: CardDefinition = {
-//     id: "6f30ad61-fcb7-4d55-ba86-94de1bf545e4",
-//     name: "Karma",
-//     manaCost: { X: 2, W: 2 },
-//     types: ["Enchantment"],
-// };
+// Karma — "At the beginning of each player's upkeep, Karma deals damage to
+// that player equal to the number of Swamps they control." (CR 603.6a phase
+// trigger, 120.1 damage). Fires on every player's UPKEEP — the active player
+// at trigger time is the one taking the damage, not Karma's controller.
+export const karma: CardDefinition = {
+    id: "6f30ad61-fcb7-4d55-ba86-94de1bf545e4",
+    name: "Karma",
+    manaCost: { X: 2, W: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        {
+            id: "karma-upkeep",
+            oracleText:
+                "At the beginning of each player's upkeep, Karma deals damage to that player equal to the number of Swamps they control.",
+            event: "PHASE_BEGIN",
+            matches: (event) =>
+                event.type === "PHASE_BEGIN" && event.phase === "UPKEEP",
+            resolve: (ctx, event) => {
+                if (event.type !== "PHASE_BEGIN") return;
+                const playerId = event.activePlayerId;
+                const swamps = ctx.getBattlefieldIds(playerId, {
+                    subtypes: "Swamp",
+                }).length;
+                if (swamps > 0) {
+                    ctx.dealDamage({ type: "player", id: playerId }, swamps);
+                }
+            },
+        },
+    ],
+};
 
-// export const lance: CardDefinition = {
-//     id: "ddb633f5-cc4d-4157-8217-def90cb15e24",
-//     name: "Lance",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Lance — "Enchant creature. Enchanted creature has first strike." (CR 303.4
+// aura attachment, 702.7 first strike, 611.2 keyword grant via static effect).
+export const lance: CardDefinition = {
+    id: "ddb633f5-cc4d-4157-8217-def90cb15e24",
+    name: "Lance",
+    manaCost: { W: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "first strike",
+        },
+    ],
+};
 
 // export const mesaPegasus: CardDefinition = {
 //     id: "eaac88da-d19e-4771-944c-3709963d04e7",
