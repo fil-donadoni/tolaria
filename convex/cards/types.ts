@@ -534,7 +534,7 @@ export interface StaticPTCDA {
 export interface StaticKeywordGrant {
     kind: "keyword-grant";
     /** Predicate: does this grant apply to `target` given `source`? For
-     *  auras, the canonical predicate is `target.id === source.attachedTo`. */
+     *  auras, use the exported `AURA_AFFECTS_HOST` constant. */
     applies: (
         target: PermanentView,
         source: PermanentView,
@@ -561,7 +561,7 @@ export interface StaticKeywordGrant {
 export interface StaticControlChange {
     kind: "control-change";
     /** Predicate: does this control-change apply to `target` given `source`?
-     *  For auras, the canonical predicate is `target.id === source.attachedTo`. */
+     *  For auras, use the exported `AURA_AFFECTS_HOST` constant. */
     applies: (
         target: PermanentView,
         source: PermanentView,
@@ -574,6 +574,17 @@ export type StaticEffect =
     | StaticPTCDA
     | StaticKeywordGrant
     | StaticControlChange;
+
+/** Canonical aura predicate: "this static effect applies to my host". Shared
+ *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted
+ *  permanent). Use this constant on `StaticKeywordGrant.applies` /
+ *  `StaticControlChange.applies` instead of inlining the closure so the intent
+ *  is named and changes (e.g. broadening to "host or its controller") happen
+ *  in one place. */
+export const AURA_AFFECTS_HOST: StaticKeywordGrant["applies"] = (
+    target,
+    source
+) => target.id === source.attachedTo;
 
 // --- Triggered abilities (CR 603) ---
 // Inline structure mirroring ActivatedAbility: each trigger declares which
@@ -680,6 +691,11 @@ export interface TriggeredAbility {
     resolve: (ctx: SpellContext, event: GameEvent) => void;
 }
 
+/** Declarative shorthand for one-effect resolve bodies. Each value maps to a
+ *  closure in `convex/cards/effectRegistry.ts`. Add new shorthands as soon as
+ *  the same `resolve` body repeats across two cards (rule of two extraction). */
+export type EffectShorthand = "destroy-target";
+
 /** Full card definition used by the GRE. */
 export interface CardDefinition {
     id: CardId;
@@ -695,6 +711,13 @@ export interface CardDefinition {
     targetRequirement?: TargetRequirement;
     /** Imperative resolve function — called when the spell resolves from the stack. */
     resolve?: (ctx: SpellContext) => void;
+    /** Declarative shorthand for spells whose entire effect maps to a single
+     *  registered primitive (see `convex/cards/effectRegistry.ts`). The engine
+     *  compiles the shorthand into a resolve closure at lookup time. Use this
+     *  for vanilla effects ("destroy target X", "counter target spell") so the
+     *  card definition stays pure data. Mutually exclusive with `resolve` and
+     *  `resolveSteps` — combining them throws at lookup. */
+    effect?: EffectShorthand;
     /** Multi-step resolve for spells that gather player choices mid-resolution
      *  (CR 608.2, 101.4). The engine runs steps in order; each step may call
      *  `SpellContext.requestChoice` to enqueue pending choices. When a step

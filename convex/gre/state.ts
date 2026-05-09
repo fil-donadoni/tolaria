@@ -11,6 +11,7 @@ import type {
     TargetSelection,
 } from "../cards/types";
 import { getCardById, tryGetCardById } from "../cards";
+import { getResolveFn } from "../cards/effectRegistry";
 import type { Phase, Zone } from "./types";
 import {
     getActivatedManaColor,
@@ -634,10 +635,15 @@ export function resolveTopOfStack(state: GameState): StackItem | null {
         return item;
     }
 
-    // Single-shot spell resolution (CR 608.2b)
-    if (cardDef?.resolve) {
-        const ctx = buildSpellContext(state, item);
-        cardDef.resolve(ctx);
+    // Single-shot spell resolution (CR 608.2b). Resolve fn is resolved via
+    // `getResolveFn` so cards declaring `effect: "<shorthand>"` are compiled
+    // through the registry the same as imperative `resolve()` bodies.
+    if (cardDef) {
+        const resolveFn = getResolveFn(cardDef);
+        if (resolveFn) {
+            const ctx = buildSpellContext(state, item);
+            resolveFn(ctx);
+        }
     }
     finalizeSpellResolution(state, item, cardDef);
     return item;
