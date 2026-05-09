@@ -217,6 +217,131 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Plague Rats (P/T scales with copies on the battlefield)",
+        cards: [
+            // Three Rats across both sides — each one is a 3/3 by CDA.
+            { name: "Plague Rats", owner: "me" as const },
+            { name: "Plague Rats", owner: "opp" as const, count: 2 },
+            { name: "Swamp", owner: "me" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Drudge Skeletons + Wall of Bone + Will-o'-the-Wisp ({B} regen)",
+        cards: [
+            // All three black self-regen creatures plus a Lightning Bolt
+            // at one of them — activate {B} regen in response to absorb the
+            // damage. Will-o'-the-Wisp's flying makes it harder to block.
+            { name: "Drudge Skeletons", owner: "me" as const },
+            { name: "Wall of Bone", owner: "me" as const },
+            { name: "Will-o'-the-Wisp", owner: "me" as const },
+            { name: "Swamp", owner: "me" as const, count: 3 },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Mind Twist (target player discards X cards at random)",
+        cards: [
+            // p2 hand stocked with 4 cards. Pay X = 3, watch the seeded PRNG
+            // mill three of them into the graveyard.
+            { name: "Mind Twist", owner: "me" as const, zone: "hand" as const },
+            { name: "Swamp", owner: "me" as const, count: 5 },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Hill Giant",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Forest", owner: "opp" as const, zone: "hand" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Raise Dead (return Creature card from your graveyard to hand)",
+        cards: [
+            // Two creatures in your graveyard, one in opponent's. Targeting
+            // is restricted to your own graveyard via the 'you' filter.
+            { name: "Raise Dead", owner: "me" as const, zone: "hand" as const },
+            { name: "Swamp", owner: "me" as const },
+            {
+                name: "Hypnotic Specter",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Scathe Zombies",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "graveyard" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Unholy Strength + Weakness (mirror Aura buff cycle)",
+        cards: [
+            // Unholy Strength on your bear (+2/+1 → 4/3). Weakness on opp's
+            // Hill Giant (-2/-1 → 1/2). Demonstrates symmetric pt-buff auras.
+            {
+                name: "Unholy Strength",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Weakness", owner: "me" as const, zone: "hand" as const },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Hill Giant", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Cursed Land + Warp Artifact (Aura upkeep ping cycle)",
+        cards: [
+            // Two black "ping at upkeep" auras on different host types: a
+            // land and an artifact. Each host's controller takes 1 damage at
+            // their upkeep. Combined with Karma-style pressure they stack up.
+            {
+                name: "Cursed Land",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Warp Artifact",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 5 },
+            { name: "Mountain", owner: "opp" as const },
+            { name: "Sol Ring", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Flight + Jump (grant flying — Aura permanent, instant temporary)",
         cards: [
             // Flight in hand (permanent grant via aura) and Jump in hand

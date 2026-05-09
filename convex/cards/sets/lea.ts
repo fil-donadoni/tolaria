@@ -1386,13 +1386,47 @@ export const bogWraith: CardDefinition = {
 //     types: ["Sorcery"],
 // };
 
-// export const cursedLand: CardDefinition = {
-//     id: "cf5f3c61-1e54-4eea-bf82-311cfa988e6a",
-//     name: "Cursed Land",
-//     manaCost: { X: 2, B: 2 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Cursed Land — "Enchant land. At the beginning of the upkeep of enchanted
+// land's controller, Cursed Land deals 1 damage to that player." (CR 303.4
+// aura attachment, 603.6a phase trigger). Same shape as Farmstead/Feedback —
+// trigger fires on the host's controller's upkeep only.
+export const cursedLand: CardDefinition = {
+    id: "cf5f3c61-1e54-4eea-bf82-311cfa988e6a",
+    name: "Cursed Land",
+    manaCost: { X: 2, B: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1 },
+    triggeredAbilities: [
+        {
+            id: "cursed-land-upkeep",
+            oracleText:
+                "At the beginning of the upkeep of enchanted land's controller, Cursed Land deals 1 damage to that player.",
+            event: "PHASE_BEGIN",
+            matches: (event, self, state) => {
+                if (event.type !== "PHASE_BEGIN") return false;
+                if (event.phase !== "UPKEEP") return false;
+                if (!self.attachedTo) return false;
+                for (const p of state?.players ?? []) {
+                    const host = p.battlefield.find(
+                        (c) => c.id === self.attachedTo
+                    );
+                    if (host) return host.controllerId === event.activePlayerId;
+                }
+                return false;
+            },
+            resolve: (ctx) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                const controller = ctx.getController({
+                    type: "permanent",
+                    id: hostId,
+                });
+                ctx.dealDamage({ type: "player", id: controller }, 1);
+            },
+        },
+    ],
+};
 
 export const darkRitual: CardDefinition = {
     id: "ebb6664d-23ca-456e-9916-afcd6f26aa7f",
@@ -1487,15 +1521,32 @@ export const drainLife: CardDefinition = {
     },
 };
 
-// export const drudgeSkeletons: CardDefinition = {
-//     id: "23614289-0d73-4747-a849-5cb67cc97d6a",
-//     name: "Drudge Skeletons",
-//     manaCost: { X: 1, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Skeleton"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Drudge Skeletons — "{B}: Regenerate Drudge Skeletons." (CR 701.15a regen,
+// 614.5 destroy replacement). Self-targeting via `ctx.sourceInstanceId`, no
+// targetRequirement on the activated ability.
+export const drudgeSkeletons: CardDefinition = {
+    id: "23614289-0d73-4747-a849-5cb67cc97d6a",
+    name: "Drudge Skeletons",
+    manaCost: { X: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Skeleton"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "drudge-skeletons-regenerate",
+            oracleText: "{B}: Regenerate Drudge Skeletons.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.applyRegenerationShield({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
 
 // export const evilPresence: CardDefinition = {
 //     id: "0551d66e-8cd4-48f0-aa17-15f26be9d85f",
@@ -1586,12 +1637,22 @@ export const hypnoticSpecter: CardDefinition = {
 //     toughness: 7,
 // };
 
-// export const mindTwist: CardDefinition = {
-//     id: "eee9e106-a248-49d2-b8c8-6bbcd56ce739",
-//     name: "Mind Twist",
-//     manaCost: { X: "X", B: 1 },
-//     types: ["Sorcery"],
-// };
+// Mind Twist — "Target player discards X cards at random." (CR 107.3 X cost,
+// 701.8a random discard). Routes through `discardAtRandom` which uses the
+// game's seeded PRNG for deterministic replays.
+export const mindTwist: CardDefinition = {
+    id: "eee9e106-a248-49d2-b8c8-6bbcd56ce739",
+    name: "Mind Twist",
+    manaCost: { X: "X", B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type === "player") {
+            ctx.discardAtRandom(target.id, ctx.getX());
+        }
+    },
+};
 
 // export const netherShadow: CardDefinition = {
 //     id: "f13ad58a-6f9b-420a-bac1-40929f5e616a",
@@ -1664,20 +1725,59 @@ export const nightmare: CardDefinition = {
 //     types: ["Enchantment"],
 // };
 
-// export const plagueRats: CardDefinition = {
-//     id: "b3724e40-0622-4aee-9334-6c9fff88bcd5",
-//     name: "Plague Rats",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Rat"],
-// };
+// Plague Rats — "Plague Rats's power and toughness are each equal to the
+// number of creatures named Plague Rats on the battlefield." (CR 604.3 CDA,
+// 207.2 name match). Same pt-cda shape as Nightmare; counts every Plague
+// Rats across both battlefields, regardless of controller.
+export const plagueRats: CardDefinition = {
+    id: "b3724e40-0622-4aee-9334-6c9fff88bcd5",
+    name: "Plague Rats",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Rat"],
+    power: 0,
+    toughness: 0,
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: EFFECT_AFFECTS_SELF,
+            compute: (_source, state) => {
+                let count = 0;
+                for (const player of state.players) {
+                    for (const p of player.battlefield) {
+                        const cardId = (p.card as { id?: string }).id;
+                        if (cardId === "b3724e40-0622-4aee-9334-6c9fff88bcd5") {
+                            count++;
+                        }
+                    }
+                }
+                return { power: count, toughness: count };
+            },
+        },
+    ],
+};
 
-// export const raiseDead: CardDefinition = {
-//     id: "ce07bede-2219-427c-a61a-56518751de42",
-//     name: "Raise Dead",
-//     manaCost: { B: 1 },
-//     types: ["Sorcery"],
-// };
+// Raise Dead — "Return target creature card from your graveyard to your hand."
+// (CR 400.7 zone change, 608.2b illegal target → no-op). Mirrors Regrowth's
+// targeting shape but constrained to Creature cards.
+export const raiseDead: CardDefinition = {
+    id: "ce07bede-2219-427c-a61a-56518751de42",
+    name: "Raise Dead",
+    manaCost: { B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "Creature",
+        count: 1,
+        zone: "graveyard",
+        controller: "you",
+    },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (!t || t.type !== "graveyard-card") return;
+        if (!t.playerId) return;
+        ctx.moveCardById(t.playerId, t.id, "graveyard", "hand");
+    },
+};
 
 // Royal Assassin — "{T}: Destroy target tapped creature." (CR 701.20 for
 // tap-state, CR 701.7 for destroy). The tappedFilter on TargetRequirement
@@ -1804,49 +1904,138 @@ export const sinkhole: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const unholyStrength: CardDefinition = {
-//     id: "90563f90-0127-4164-b43b-f0321dc63a1d",
-//     name: "Unholy Strength",
-//     manaCost: { B: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Unholy Strength — "Enchanted creature gets +2/+1." Mirror of Holy Strength.
+export const unholyStrength: CardDefinition = {
+    id: "90563f90-0127-4164-b43b-f0321dc63a1d",
+    name: "Unholy Strength",
+    manaCost: { B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: AURA_AFFECTS_HOST,
+            power: 2,
+            toughness: 1,
+        },
+    ],
+};
 
-// export const wallOfBone: CardDefinition = {
-//     id: "ae20d442-a544-4a03-9ebf-5ecb137c67dd",
-//     name: "Wall of Bone",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Skeleton", "Wall"],
-//     power: 1,
-//     toughness: 4,
-// };
+// Wall of Bone — "Defender. {B}: Regenerate Wall of Bone." Same regen shape as
+// Drudge Skeletons; blocked from attacking by the Defender keyword (CR 702.3).
+export const wallOfBone: CardDefinition = {
+    id: "ae20d442-a544-4a03-9ebf-5ecb137c67dd",
+    name: "Wall of Bone",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Skeleton", "Wall"],
+    power: 1,
+    toughness: 4,
+    staticAbilities: ["defender"],
+    activatedAbilities: [
+        {
+            id: "wall-of-bone-regenerate",
+            oracleText: "{B}: Regenerate Wall of Bone.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.applyRegenerationShield({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
 
-// export const warpArtifact: CardDefinition = {
-//     id: "9e5e07a2-fbdf-4c4c-996a-fce40bab5de5",
-//     name: "Warp Artifact",
-//     manaCost: { B: 2 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Warp Artifact — "Enchant artifact. At the beginning of the upkeep of
+// enchanted artifact's controller, Warp Artifact deals 1 damage to that
+// player." Mirror of Cursed Land/Feedback, hosting on Artifact instead.
+export const warpArtifact: CardDefinition = {
+    id: "9e5e07a2-fbdf-4c4c-996a-fce40bab5de5",
+    name: "Warp Artifact",
+    manaCost: { B: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Artifact", count: 1 },
+    triggeredAbilities: [
+        {
+            id: "warp-artifact-upkeep",
+            oracleText:
+                "At the beginning of the upkeep of enchanted artifact's controller, Warp Artifact deals 1 damage to that player.",
+            event: "PHASE_BEGIN",
+            matches: (event, self, state) => {
+                if (event.type !== "PHASE_BEGIN") return false;
+                if (event.phase !== "UPKEEP") return false;
+                if (!self.attachedTo) return false;
+                for (const p of state?.players ?? []) {
+                    const host = p.battlefield.find(
+                        (c) => c.id === self.attachedTo
+                    );
+                    if (host) return host.controllerId === event.activePlayerId;
+                }
+                return false;
+            },
+            resolve: (ctx) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                const controller = ctx.getController({
+                    type: "permanent",
+                    id: hostId,
+                });
+                ctx.dealDamage({ type: "player", id: controller }, 1);
+            },
+        },
+    ],
+};
 
-// export const weakness: CardDefinition = {
-//     id: "36ca06a1-9b9a-49a2-9c47-9b72228621bc",
-//     name: "Weakness",
-//     manaCost: { B: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Weakness — "Enchanted creature gets -2/-1." Negative pt-buff aura. Lethal
+// at -1 toughness if base + buffs ≤ 1; SBA 704.5g sweeps the resulting
+// 0-toughness creature on the next checkpoint.
+export const weakness: CardDefinition = {
+    id: "36ca06a1-9b9a-49a2-9c47-9b72228621bc",
+    name: "Weakness",
+    manaCost: { B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: AURA_AFFECTS_HOST,
+            power: -2,
+            toughness: -1,
+        },
+    ],
+};
 
-// export const willOTheWisp: CardDefinition = {
-//     id: "a1a6f8e9-7bc1-4151-b55f-acf877b1a7a6",
-//     name: "Will-o'-the-Wisp",
-//     manaCost: { B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Spirit"],
-//     power: 0,
-//     toughness: 1,
-// };
+// Will-o'-the-Wisp — "Flying. {B}: Regenerate Will-o'-the-Wisp." Flying static
+// + self-regen activated. Same shape as Drudge Skeletons / Wall of Bone.
+export const willOTheWisp: CardDefinition = {
+    id: "a1a6f8e9-7bc1-4151-b55f-acf877b1a7a6",
+    name: "Will-o'-the-Wisp",
+    manaCost: { B: 1 },
+    types: ["Creature"],
+    subtypes: ["Spirit"],
+    power: 0,
+    toughness: 1,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "will-o-the-wisp-regenerate",
+            oracleText: "{B}: Regenerate Will-o'-the-Wisp.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.applyRegenerationShield({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
 
 // export const wordOfCommand: CardDefinition = {
 //     id: "96c21429-98d3-416b-be00-6aa9c4c5a006",

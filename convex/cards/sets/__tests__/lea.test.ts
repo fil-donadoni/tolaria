@@ -21,7 +21,9 @@ import {
     braingeyser,
     consecrateLand,
     crusade,
+    cursedLand,
     deathWard,
+    drudgeSkeletons,
     farmstead,
     feedback,
     flight,
@@ -30,8 +32,16 @@ import {
     jump,
     karma,
     lance,
+    mindTwist,
     pirateShip,
+    plagueRats,
     prodigalSorcerer,
+    raiseDead,
+    unholyStrength,
+    wallOfBone,
+    warpArtifact,
+    weakness,
+    willOTheWisp,
     redWard,
     whiteWard,
     shanodinDryads,
@@ -6668,6 +6678,367 @@ describe("Prodigal Sorcerer ({T}: 1 dmg to any target — original Tim)", () => 
             "lion"
         );
         expect(state.players[1].graveyard.map((c) => c.id)).toContain("lion");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Black FREE cycle (LEA): Cursed Land, Drudge Skeletons, Mind Twist, Plague
+// Rats, Raise Dead, Unholy Strength, Wall of Bone, Warp Artifact, Weakness,
+// Will-o'-the-Wisp.
+// ---------------------------------------------------------------------------
+
+describe("Cursed Land (Aura on Land — 1 dmg to host's controller at upkeep)", () => {
+    function setup(activePlayerId: string) {
+        const land = makeInstance(plains.id, {
+            id: "host-land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(cursedLand.id, {
+            id: "curse",
+            controllerId: "p2",
+            ownerId: "p2",
+            attachedTo: "host-land",
+        });
+        return makeState({
+            turn: 2,
+            phase: "UNTAP",
+            activePlayerId,
+            priorityPlayerId: activePlayerId,
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2", { battlefield: [aura] }),
+            ],
+        });
+    }
+
+    it("queues + resolves into 1 damage to the host's controller at their upkeep", () => {
+        const state = setup("p1");
+        const before = state.players[0].life;
+        advancePhase(state);
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(before - 1);
+    });
+
+    it("does NOT fire on the aura controller's upkeep", () => {
+        const state = setup("p2");
+        advancePhase(state);
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
+describe("Drudge Skeletons ({B}: regenerate self, CR 701.15a)", () => {
+    function setup() {
+        const skel = makeInstance(drudgeSkeletons.id, {
+            id: "skel",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [skel] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    function activate(state: GameState, source: CardInstanceState) {
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "drudge-skeletons-regenerate",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("stacks one regen shield on resolution", () => {
+        const state = setup();
+        const skel = state.players[0].battlefield[0];
+        activate(state, skel);
+        const after = state.players[0].battlefield[0];
+        expect(after.regenerationShields).toBe(1);
+    });
+
+    it("survives Wrath of God after activation (regen rider replaces destroy)", () => {
+        const state = setup();
+        const skel = state.players[0].battlefield[0];
+        activate(state, skel);
+        pushSpell(state, wrathOfGod.id, "p1");
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find((c) => c.id === "skel");
+        expect(after).toBeDefined();
+        expect(after!.isTapped).toBe(true);
+    });
+});
+
+describe("Mind Twist (X cards at random from target player's hand)", () => {
+    it("discards X cards at random from target player", () => {
+        const filler = (id: string, controllerId: string) =>
+            makeInstance(grizzlyBears.id, {
+                id,
+                controllerId,
+                ownerId: controllerId,
+                zone: "hand",
+            });
+        const p2Hand = [
+            filler("h1", "p2"),
+            filler("h2", "p2"),
+            filler("h3", "p2"),
+            filler("h4", "p2"),
+        ];
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand: p2Hand })],
+        });
+        // Pay X = 3 via the stack item's chosen X.
+        state.stack.push({
+            ...makeInstance(mindTwist.id, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "stack",
+            }),
+            castById: "p1",
+            chosenX: 3,
+            targets: [{ type: "player", id: "p2" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[1].hand).toHaveLength(1);
+        expect(state.players[1].graveyard).toHaveLength(3);
+    });
+});
+
+describe("Plague Rats (P/T = number of Plague Rats on the battlefield, CR 604.3)", () => {
+    it("scales with the number of Plague Rats across both battlefields", () => {
+        const r1 = makeInstance(plagueRats.id, { id: "r1" });
+        const r2 = makeInstance(plagueRats.id, {
+            id: "r2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const r3 = makeInstance(plagueRats.id, {
+            id: "r3",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [r1] }),
+                makePlayer("p2", { battlefield: [r2, r3] }),
+            ],
+        });
+        expect(getEffectivePower(state, r1)).toBe(3);
+        expect(getEffectiveToughness(state, r1)).toBe(3);
+    });
+
+    it("a lone Plague Rats counts itself (1/1)", () => {
+        const r = makeInstance(plagueRats.id, { id: "lone" });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [r] }), makePlayer("p2")],
+        });
+        expect(getEffectivePower(state, r)).toBe(1);
+    });
+
+    it("wire format: pt-cda survives the projection", () => {
+        const r = makeInstance(plagueRats.id, { id: "wire" });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [r] }), makePlayer("p2")],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "wire"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(1);
+    });
+});
+
+describe("Raise Dead (return target Creature card from your graveyard, CR 400.7)", () => {
+    it("returns a creature from your graveyard to your hand", () => {
+        const dead = makeInstance(grizzlyBears.id, {
+            id: "dead",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, raiseDead.id, "p1", [
+            { type: "graveyard-card", id: "dead", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        // The Raise Dead spell itself enters the graveyard on resolve, so the
+        // assertion is "the targeted card is no longer there", not length 0.
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "dead"
+        );
+        expect(state.players[0].hand.map((c) => c.id)).toContain("dead");
+    });
+
+    it("targeting filter excludes opponent's graveyard (controller: 'you')", () => {
+        const dead = makeInstance(grizzlyBears.id, {
+            id: "opp-dead",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { graveyard: [dead] }),
+            ],
+        });
+        const req = raiseDead.targetRequirement;
+        if (!req) throw new Error("requirement missing");
+        const legal = getLegalTargets(state, req, [], "p1");
+        const ids = legal.map((t) => t.id);
+        expect(ids).not.toContain("opp-dead");
+    });
+});
+
+describe("Unholy Strength + Weakness (pt-buff aura mirror cycle)", () => {
+    it("Unholy Strength buffs host +2/+1", () => {
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, unholyStrength.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectivePower(state, after)).toBe(4);
+        expect(getEffectiveToughness(state, after)).toBe(3);
+    });
+
+    it("Weakness debuffs host -2/-1", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, weakness.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const after = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectivePower(state, after)).toBe(0);
+        expect(getEffectiveToughness(state, after)).toBe(1);
+    });
+});
+
+describe("Wall of Bone (defender + {B} regen)", () => {
+    it("declares defender and a {B} regen activated ability", () => {
+        expect(wallOfBone.staticAbilities).toContain("defender");
+        const ability = wallOfBone.activatedAbilities?.[0];
+        expect(ability?.cost).toEqual({ mana: { B: 1 } });
+        expect(ability?.useStack).toBe(true);
+    });
+
+    it("activating regen shields self", () => {
+        const wob = makeInstance(wallOfBone.id, {
+            id: "wob",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wob] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...wob,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "wall-of-bone-regenerate",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield[0].regenerationShields).toBe(1);
+    });
+});
+
+describe("Warp Artifact (Aura on Artifact — 1 dmg to host's controller at upkeep)", () => {
+    function setup(activePlayerId: string) {
+        const ring = makeInstance(solRing.id, {
+            id: "host-art",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(warpArtifact.id, {
+            id: "warp",
+            controllerId: "p2",
+            ownerId: "p2",
+            attachedTo: "host-art",
+        });
+        return makeState({
+            turn: 2,
+            phase: "UNTAP",
+            activePlayerId,
+            priorityPlayerId: activePlayerId,
+            players: [
+                makePlayer("p1", { battlefield: [ring] }),
+                makePlayer("p2", { battlefield: [aura] }),
+            ],
+        });
+    }
+
+    it("deals 1 to host's controller on their upkeep", () => {
+        const state = setup("p1");
+        const before = state.players[0].life;
+        advancePhase(state);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(before - 1);
+    });
+});
+
+describe("Will-o'-the-Wisp (flying + {B} regen)", () => {
+    it("flying static + regen activated", () => {
+        expect(willOTheWisp.staticAbilities).toContain("flying");
+        const ability = willOTheWisp.activatedAbilities?.[0];
+        expect(ability?.cost).toEqual({ mana: { B: 1 } });
+    });
+
+    it("activating regen shields self", () => {
+        const wisp = makeInstance(willOTheWisp.id, {
+            id: "wisp",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wisp] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...wisp,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "will-o-the-wisp-regenerate",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield[0].regenerationShields).toBe(1);
     });
 });
 
