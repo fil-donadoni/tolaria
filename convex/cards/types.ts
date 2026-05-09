@@ -222,6 +222,11 @@ export interface SpellContext {
      *  tapped or if the target is no longer on the battlefield (CR 608.2b).
      *  Used by Icy Manipulator and similar "tap target permanent" effects. */
     tap: (target: TargetSelection) => void;
+    /** Untaps a permanent on the battlefield (CR 701.20b). No-op if already
+     *  untapped or if the target is no longer on the battlefield (CR 608.2b).
+     *  Used by Twiddle's untap mode and similar "untap target permanent"
+     *  effects. */
+    untap: (target: TargetSelection) => void;
     /** Destroys every permanent on the battlefield matching the filter
      *  (CR 701.7). Shorthand `CardType | CardType[]` is equivalent to
      *  `{ types }`. The object form supports compounding types, subtypes, and

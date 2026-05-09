@@ -73,6 +73,24 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Twiddle (toggle tap state on artifact/creature/land, CR 701.20)",
+        cards: [
+            // Twiddle the opponent's tapped land to untap it (the only useful
+            // mode is forced; pre-modal-cast infra). Verify the bear in play
+            // also becomes a legal target.
+            {
+                name: "Twiddle",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const },
+            { name: "Mountain", owner: "opp" as const, tapped: true },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Unsummon (return target creature to its owner's hand, CR 701.10)",
         cards: [
             // Bounce the opponent's bear back to their hand. After resolution

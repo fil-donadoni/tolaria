@@ -914,19 +914,24 @@ export function removePermanentTo(
     cardId: string,
     toZone: "graveyard" | "exile" | "hand" | "library"
 ): void {
+    const initial = findOnBattlefield(state, cardId);
+    if (!initial) return;
+    // CR 611.2 — a static effect from an aura stops applying when the aura
+    // leaves the battlefield. Revert the grant(s) before the move so readers
+    // never observe a dangling keyword.
+    if (isAura(initial.card)) {
+        unapplyAuraControlChange(state, initial.card);
+        unapplyAuraStaticEffects(state, initial.card);
+    } else {
+        // Host leaving: revert every aura attached to it. Orphan auras stay
+        // on the battlefield with stale `attachedTo`; `checkAuraAttachmentSBA`
+        // (CR 704.5n) sweeps them on the next SBA scan.
+        unapplyAurasAttachedTo(state, cardId);
+    }
+    // Re-locate after unapply: a reversed control-change may have moved the
+    // host between players' battlefield arrays, invalidating `initial.idx`.
     const found = findOnBattlefield(state, cardId);
     if (!found) return;
-    // CR 611.2 — a static effect from an aura stops applying when the aura
-    // leaves the battlefield. Revert the grant(s) on its host before the
-    // aura moves zones so readers never observe a dangling keyword.
-    if (isAura(found.card)) {
-        // Revert control change first: it may move the host between
-        // battlefield arrays, but `found` still points at the aura (a
-        // different card), so no index invalidation. unapplyAuraStaticEffects
-        // resolves the host through its own findOnBattlefield lookup.
-        unapplyAuraControlChange(state, found.card);
-        unapplyAuraStaticEffects(state, found.card);
-    }
     const [creature] = found.player.battlefield.splice(found.idx, 1);
     creature.zone = toZone;
     creature.attachedTo = undefined;
@@ -935,6 +940,23 @@ export function removePermanentTo(
     }
     const owner = getPlayer(state, creature.ownerId);
     (owner[toZone] as CardInstanceState[]).push(creature);
+}
+
+/** Reverses every aura currently attached to `hostId` — keyword grants and
+ *  control changes — without removing the auras themselves. Called when the
+ *  host leaves the battlefield so the host doesn't carry dangling grants
+ *  into its destination zone (CR 611.2). The orphan auras are left on the
+ *  battlefield with stale `attachedTo` and are cleaned up by
+ *  `checkAuraAttachmentSBA` (CR 704.5n). */
+function unapplyAurasAttachedTo(state: GameState, hostId: string): void {
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            if (card.attachedTo !== hostId) continue;
+            if (!isAura(card)) continue;
+            unapplyAuraControlChange(state, card);
+            unapplyAuraStaticEffects(state, card);
+        }
+    }
 }
 
 /** CR 400.7 — when a card moves from the battlefield to a non-graveyard /
@@ -1140,6 +1162,16 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             found.card.isTapped = true;
+        },
+        // CR 701.20b: to untap a permanent is to rotate it back to upright.
+        // Already-untapped permanents are unaffected. Silently no-ops if the
+        // target has left the battlefield (CR 608.2b).
+        untap(target: TargetSelection): void {
+            if (target.type === "player")
+                throw new Error("Cannot untap a player");
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.isTapped = false;
         },
         destroyAll(filter?: CardType | CardType[] | PermanentFilter): void {
             const normalized = normalizeDestroyAllFilter(filter);

@@ -965,12 +965,29 @@ export const timetwister: CardDefinition = {
     },
 };
 
-// export const twiddle: CardDefinition = {
-//     id: "576e811f-26a3-4a7c-bd13-3b1cc3e184eb",
-//     name: "Twiddle",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
+// CR 701.20: oracle reads "you may tap or untap target ~". Modal-spell
+// infrastructure (CR 700.2) is not implemented yet, so the resolve toggles
+// the target's tap state — the only mode-with-effect for any board state.
+// Replace with explicit mode selection once modal cast UI lands.
+export const twiddle: CardDefinition = {
+    id: "576e811f-26a3-4a7c-bd13-3b1cc3e184eb",
+    name: "Twiddle",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: ["Artifact", "Creature", "Land"],
+        count: 1,
+    },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (!target) return;
+        if (ctx.getIsTapped(target)) {
+            ctx.untap(target);
+        } else {
+            ctx.tap(target);
+        }
+    },
+};
 
 export const unsummon: CardDefinition = {
     id: "8512f2c1-6361-4b79-843f-80b6bceeeb99",

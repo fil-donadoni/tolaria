@@ -47,6 +47,7 @@ import {
     timetwister,
     tropicalIsland,
     tundra,
+    twiddle,
     undergroundSea,
     unsummon,
     whiteKnight,
@@ -59,6 +60,7 @@ import {
     howlingMine,
     hypnoticSpecter,
     icyManipulator,
+    island,
     jadeStatue,
     jayemdaeTome,
     juggernaut,
@@ -5192,6 +5194,100 @@ describe("Regrowth (return target card from your graveyard to hand, CR 400.7 / 6
     });
 });
 
+describe("Twiddle (toggle tap state on artifact/creature/land, CR 701.20)", () => {
+    it("taps an untapped target", () => {
+        const land = makeInstance(grizzlyBears.id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        pushSpell(state, twiddle.id, "p1", [{ type: "permanent", id: "land" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield[0].isTapped).toBe(true);
+    });
+
+    it("untaps a tapped target", () => {
+        const land = makeInstance(grizzlyBears.id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        pushSpell(state, twiddle.id, "p1", [{ type: "permanent", id: "land" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield[0].isTapped).toBe(false);
+    });
+
+    it("getLegalTargets returns artifacts, creatures, and lands (and excludes other types)", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const tome = makeInstance(jayemdaeTome.id, {
+            id: "tome",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const isle = makeInstance(island.id, {
+            id: "isle",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(controlMagic.id, {
+            id: "cm",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tome, isle, aura] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            twiddle.targetRequirement!,
+            [],
+            "p1"
+        );
+        const ids = legal.map((t) => t.id).sort();
+        expect(ids).toEqual(["bear", "isle", "tome"]);
+    });
+
+    it("CR 608.2b: silently does nothing if the target left the battlefield before resolution", () => {
+        const land = makeInstance(grizzlyBears.id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        pushSpell(state, twiddle.id, "p1", [{ type: "permanent", id: "land" }]);
+        removePermanentTo(state, "land", "graveyard");
+        // Should not throw — primitive silently no-ops.
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+});
+
 describe("Unsummon (return target creature to its owner's hand, CR 701.10 / 400.7)", () => {
     it("returns the target creature from battlefield to its owner's hand", () => {
         const bear = makeInstance(grizzlyBears.id, {
@@ -5263,6 +5359,86 @@ describe("Unsummon (return target creature to its owner's hand, CR 701.10 / 400.
         const p2 = state.players[1];
         expect(p2.hand.map((c) => c.id)).not.toContain("bear");
         expect(p2.graveyard.map((c) => c.id)).toContain("bear");
+    });
+
+    it("strips aura-granted keywords from a bounced host (CR 611.2)", () => {
+        // Bear with Red Ward attached grants "protection from red". Bouncing
+        // the bear must lift the grant before the host enters its hand —
+        // otherwise a re-cast bear would carry stale protection.
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, redWard.id, "p2", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        expect(bear.staticAbilities).toContain("protection from red");
+
+        pushSpell(state, unsummon.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+
+        const returned = state.players[1].hand.find((c) => c.id === "bear")!;
+        expect(returned.staticAbilities).not.toContain("protection from red");
+        expect(returned.grantedStaticAbilities ?? []).toHaveLength(0);
+
+        // The orphan aura is still on the battlefield with stale attachedTo;
+        // SBA sweeps it to the graveyard (CR 704.5n).
+        checkStateBasedActions(state);
+        const aura = state.players[1].graveyard.find(
+            (c) => c.card.id === redWard.id
+        )!;
+        expect(aura).toBeDefined();
+        expect(aura.attachedTo).toBeUndefined();
+    });
+
+    it("strips aura-granted control change from a bounced host (CR 611.2 / 613.1b)", () => {
+        // Bear under p2 control via p1's Control Magic. Bouncing the bear
+        // must collapse the control stack so the host returns to its owner
+        // (p2) clean. The orphan Control Magic is then swept by SBA.
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, controlMagic.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        // Control flipped to p1.
+        const stolen = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(stolen.controllerId).toBe("p1");
+
+        pushSpell(state, unsummon.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+
+        const returned = state.players[1].hand.find((c) => c.id === "bear")!;
+        expect(returned.controlChanges).toBeUndefined();
+        expect(returned.controllerId).toBe("p2");
+
+        checkStateBasedActions(state);
+        const aura = state.players[0].graveyard.find(
+            (c) => c.card.id === controlMagic.id
+        )!;
+        expect(aura).toBeDefined();
+        expect(aura.attachedTo).toBeUndefined();
     });
 
     it("wire format: bounced creature is no longer on the projected battlefield", () => {
