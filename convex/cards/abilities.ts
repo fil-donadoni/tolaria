@@ -31,6 +31,20 @@ export function makeTapForMana(args: {
     };
 }
 
+/** Color words used by the protection-from-X keyword (CR 702.16). Keep this
+ *  in lowercase and aligned with the Oracle text — the engine's protection
+ *  parser splits on the literal `protection from <color>` substring. */
+type ProtectionColor = "white" | "blue" | "black" | "red" | "green";
+
+/** Builds the static-ability strings for the classic "Knight cycle" creatures
+ *  (first strike + protection from the opposing color). Used by White Knight,
+ *  Black Knight; future cycles like Order of Leitbur / Order of the Ebon Hand
+ *  add an activated pump on top — they reuse this baseline as their starting
+ *  `staticAbilities` array. */
+export const knightStaticAbilities = (
+    protectionFrom: ProtectionColor
+): string[] => ["first strike", `protection from ${protectionFrom}`];
+
 const COLOR_TO_LAND_SUBTYPE: Record<Color, string> = {
     W: "Plains",
     U: "Island",

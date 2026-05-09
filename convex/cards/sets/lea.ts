@@ -5,8 +5,16 @@ import type {
     SpellContext,
     TargetSelection,
 } from "../types";
-import { AURA_AFFECTS_HOST } from "../types";
-import { makeDualLand, makeTapForMana } from "../abilities";
+import {
+    AURA_AFFECTS_HOST,
+    EFFECT_AFFECTS_SELF,
+    TARGET_ACL_PERMANENT,
+} from "../types";
+import {
+    knightStaticAbilities,
+    makeDualLand,
+    makeTapForMana,
+} from "../abilities";
 
 // export const animateWall: CardDefinition = {
 //     id: "d5c83259-9b90-47c2-b48e-c7d78519e792",
@@ -565,7 +573,7 @@ export const whiteKnight: CardDefinition = {
     subtypes: ["Human", "Knight"],
     power: 2,
     toughness: 2,
-    staticAbilities: ["first strike", "protection from black"],
+    staticAbilities: knightStaticAbilities("black"),
 };
 
 export const whiteWard: CardDefinition = makeColorWard({
@@ -987,12 +995,12 @@ export const timetwister: CardDefinition = {
     manaCost: { X: 2, U: 1 },
     types: ["Sorcery"],
     resolve: (ctx: SpellContext) => {
-        for (const pid of ctx.allPlayerIds) {
+        ctx.forEachPlayer((pid) => {
             ctx.moveZone(pid, "hand", "library");
             ctx.moveZone(pid, "graveyard", "library");
             ctx.shuffleLibrary(pid);
             ctx.drawCards(pid, 7);
-        }
+        });
     },
 };
 
@@ -1005,10 +1013,7 @@ export const twiddle: CardDefinition = {
     name: "Twiddle",
     manaCost: { U: 1 },
     types: ["Instant"],
-    targetRequirement: {
-        type: ["Artifact", "Creature", "Land"],
-        count: 1,
-    },
+    targetRequirement: TARGET_ACL_PERMANENT,
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (!target) return;
@@ -1063,13 +1068,13 @@ export const volcanicEruption: CardDefinition = {
         // CR 608.2b: re-validate each target on resolution. A target that's
         // no longer a Mountain on the battlefield is silently skipped.
         const mountainIds = new Set<string>();
-        for (const playerId of ctx.allPlayerIds) {
+        ctx.forEachPlayer((playerId) => {
             for (const id of ctx.getBattlefieldIds(playerId, {
                 subtypes: "Mountain",
             })) {
                 mountainIds.add(id);
             }
-        }
+        });
         let destroyed = 0;
         for (const target of ctx.targets) {
             if (target.type !== "permanent") continue;
@@ -1150,7 +1155,7 @@ export const blackKnight: CardDefinition = {
     subtypes: ["Human", "Knight"],
     power: 2,
     toughness: 2,
-    staticAbilities: ["first strike", "protection from white"],
+    staticAbilities: knightStaticAbilities("white"),
 };
 
 // Bog Wraith — swampwalk (landwalk keyword, CR 702.13b). Enforced at
@@ -1417,7 +1422,7 @@ export const nightmare: CardDefinition = {
     staticEffects: [
         {
             kind: "pt-cda",
-            applies: (target, source) => target.id === source.id,
+            applies: EFFECT_AFFECTS_SELF,
             compute: (source, state) => {
                 let swamps = 0;
                 for (const player of state.players) {
@@ -2076,12 +2081,12 @@ export const wheelOfFortune: CardDefinition = {
     manaCost: { X: 2, R: 1 },
     types: ["Sorcery"],
     resolve: (ctx: SpellContext) => {
-        for (const pid of ctx.allPlayerIds) {
+        ctx.forEachPlayer((pid) => {
             for (const cardId of ctx.getHandIds(pid)) {
                 ctx.discardCard(pid, cardId);
             }
             ctx.drawCards(pid, 7);
-        }
+        });
     },
 };
 
@@ -2845,10 +2850,7 @@ export const icyManipulator: CardDefinition = {
             oracleText: "{1}, {T}: Tap target artifact, creature, or land.",
             cost: { tap: true, mana: { X: 1 } },
             useStack: true,
-            targetRequirement: {
-                type: ["Artifact", "Creature", "Land"],
-                count: 1,
-            },
+            targetRequirement: TARGET_ACL_PERMANENT,
             resolve: (ctx: SpellContext) => {
                 const [target] = ctx.targets;
                 if (!target) return;

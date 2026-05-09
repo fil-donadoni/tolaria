@@ -208,6 +208,10 @@ export interface SpellContext {
      *  `state.players`; APNAP ordering (CR 101.4) for simultaneous triggers
      *  is out of initial scope. */
     allPlayerIds: readonly string[];
+    /** Iterates `fn` over every player id in `allPlayerIds` order. Sugar for
+     *  the canonical `for (const pid of ctx.allPlayerIds)` pattern. Use this
+     *  for "each player ~" spells (Timetwister, Wheel of Fortune). */
+    forEachPlayer: (fn: (playerId: string) => void) => void;
     // --- Primitives ---
     dealDamage: (target: TargetSelection, amount: number) => void;
     gainLife: (playerId: string, amount: number) => void;
@@ -585,6 +589,24 @@ export const AURA_AFFECTS_HOST: StaticKeywordGrant["applies"] = (
     target,
     source
 ) => target.id === source.attachedTo;
+
+/** Canonical "this static effect applies to its source" predicate, used by
+ *  self-buffing CDA effects (e.g. Nightmare's flying-Swamp scaling — only the
+ *  source itself receives the P/T). Counterpart of `AURA_AFFECTS_HOST` for
+ *  effects that don't depend on `attachedTo`. */
+export const EFFECT_AFFECTS_SELF: StaticKeywordGrant["applies"] = (
+    target,
+    source
+) => target.id === source.id;
+
+/** Canonical "tap target artifact, creature, or land" target shape (Twiddle,
+ *  Icy Manipulator, Lifelace-style cards). Pre-Walls/Planeswalkers/Battles
+ *  targeting trio — keep the shape named so future ACL-targeting prints
+ *  share one source of truth. */
+export const TARGET_ACL_PERMANENT: TargetRequirement = {
+    type: ["Artifact", "Creature", "Land"],
+    count: 1,
+};
 
 // --- Triggered abilities (CR 603) ---
 // Inline structure mirroring ActivatedAbility: each trigger declares which

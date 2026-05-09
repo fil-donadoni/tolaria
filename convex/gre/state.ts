@@ -1083,6 +1083,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         targets: item.targets ?? [],
         allPlayerIds: state.players.map((p) => p.id),
 
+        forEachPlayer(fn: (playerId: string) => void) {
+            for (const p of state.players) fn(p.id);
+        },
+
         dealDamage(target: TargetSelection, amount: number) {
             if (target.type === "player") {
                 // CR 615.1: a prevention effect replaces the would-be damage
