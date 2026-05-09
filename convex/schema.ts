@@ -29,6 +29,25 @@ export default defineSchema({
             })
         ),
     }).index("by_presetId", ["presetId"]),
+    /**
+     * Search/filter index for the deck-builder UI. One row per
+     * `CardDefinition` (reprints not duplicated). Populated by
+     * `cardIndex.syncCardIndex`, which walks every card declared in
+     * `convex/cards/sets/*.ts`. The frontend queries `cardIndex.list` to drive
+     * the builder's results grid; oracle text is aggregated from every
+     * text-bearing field on the definition (keywords + ability oracle text +
+     * intrinsic basic-land mana lines).
+     */
+    card_index: defineTable({
+        cardId: v.string(),
+        name: v.string(),
+        nameLower: v.string(),
+        types: v.array(v.string()),
+        subtypes: v.array(v.string()),
+        colors: v.array(v.string()),
+        manaValue: v.number(),
+        oracleText: v.string(),
+    }).index("by_cardId", ["cardId"]),
     games: defineTable({
         name: v.string(),
         status: v.union(

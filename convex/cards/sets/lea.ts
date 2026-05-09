@@ -920,15 +920,38 @@ export const jump: CardDefinition = {
 //     types: ["Enchantment"],
 // };
 
-// export const lordOfAtlantis: CardDefinition = {
-//     id: "210c4a90-fc7a-4c76-aeaa-20a005e45386",
-//     name: "Lord of Atlantis",
-//     manaCost: { U: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Merfolk"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Lord of Atlantis — "Other Merfolk creatures get +1/+1 and have islandwalk."
+// (CR 611 layer 7c, 702.13c landwalk). Lord-style static effects: pt-buff at
+// stat-read time, keyword-grant applied imperatively at battlefield
+// entry/exit.
+export const lordOfAtlantis: CardDefinition = {
+    id: "210c4a90-fc7a-4c76-aeaa-20a005e45386",
+    name: "Lord of Atlantis",
+    manaCost: { U: 2 },
+    types: ["Creature"],
+    subtypes: ["Merfolk"],
+    power: 2,
+    toughness: 2,
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, source, ctx) =>
+                ctx.isCreature(target) &&
+                target.id !== source.id &&
+                ctx.hasSubtype(target, "Merfolk"),
+            power: 1,
+            toughness: 1,
+        },
+        {
+            kind: "keyword-grant",
+            applies: (target, source, ctx) =>
+                ctx.isCreature(target) &&
+                target.id !== source.id &&
+                ctx.hasSubtype(target, "Merfolk"),
+            keyword: "islandwalk",
+        },
+    ],
+};
 
 // export const magicalHack: CardDefinition = {
 //     id: "2bd4202c-0477-45aa-82fd-83c85d6d4bef",
@@ -2236,10 +2259,10 @@ export const goblinBalloonBrigade: CardDefinition = {
 };
 
 // Goblin King — "Other Goblins get +1/+1 and have mountainwalk." (CR 611
-// static layer 7c). Only the pt-buff half is wired here: lord-style keyword
-// grants to non-aura subtype groups need a layer-system extension that scans
-// non-aura keyword-grant effects at read time. Tracked alongside Lord of
-// Atlantis / Zombie Master in the white/green/black batches.
+// layer 7c, 702.13c landwalk). Both halves wired via lord-style static
+// effects: pt-buff applied at stat-read time, keyword-grant applied
+// imperatively at battlefield entry/exit (see `applyExistingGrantsTo` /
+// `applySourceStaticEffects` in gre/state.ts).
 export const goblinKing: CardDefinition = {
     id: "5873672d-37ea-4c0f-97f3-12b74fde112d",
     name: "Goblin King",
@@ -2257,6 +2280,14 @@ export const goblinKing: CardDefinition = {
                 ctx.hasSubtype(target, "Goblin"),
             power: 1,
             toughness: 1,
+        },
+        {
+            kind: "keyword-grant",
+            applies: (target, source, ctx) =>
+                ctx.isCreature(target) &&
+                target.id !== source.id &&
+                ctx.hasSubtype(target, "Goblin"),
+            keyword: "mountainwalk",
         },
     ],
 };
@@ -2863,12 +2894,16 @@ export const hurricane: CardDefinition = {
     },
 };
 
-// export const iceStorm: CardDefinition = {
-//     id: "9914836e-2fa6-4390-94b2-431427848a54",
-//     name: "Ice Storm",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Sorcery"],
-// };
+// Ice Storm — "Destroy target land." (CR 701.7). Identical shape to Sinkhole
+// / Stone Rain, distinct only in cost / color.
+export const iceStorm: CardDefinition = {
+    id: "9914836e-2fa6-4390-94b2-431427848a54",
+    name: "Ice Storm",
+    manaCost: { X: 2, G: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "Land", count: 1 },
+    effect: "destroy-target",
+};
 
 // export const instillEnergy: CardDefinition = {
 //     id: "5bd38716-874c-4e3c-a315-837839a6258c",
@@ -2896,15 +2931,31 @@ export const ironrootTreefolk: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 
-// export const leyDruid: CardDefinition = {
-//     id: "f9232508-d363-4ef3-987a-741f6bff331f",
-//     name: "Ley Druid",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Druid"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Ley Druid — "{T}: Untap target land." (CR 605 activated ability, 701.20a
+// untap). Stack-using ability (not a mana ability per CR 605.1a — produces no
+// mana directly).
+export const leyDruid: CardDefinition = {
+    id: "f9232508-d363-4ef3-987a-741f6bff331f",
+    name: "Ley Druid",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Druid"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "ley-druid-untap",
+            oracleText: "{T}: Untap target land.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Land", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") ctx.untap(target);
+            },
+        },
+    ],
+};
 
 // export const lifeforce: CardDefinition = {
 //     id: "e292577e-6232-44fa-a9c2-cc09949c6ed3",
@@ -3046,12 +3097,19 @@ export const shanodinDryads: CardDefinition = {
     staticAbilities: ["forestwalk"],
 };
 
-// export const streamOfLife: CardDefinition = {
-//     id: "aa1c4d4b-2645-4cd9-823e-3c9bb2eb48f9",
-//     name: "Stream of Life",
-//     manaCost: { X: "X", G: 1 },
-//     types: ["Sorcery"],
-// };
+// Stream of Life — "Target player gains X life." (CR 107.3 X cost, 118.3
+// life gain).
+export const streamOfLife: CardDefinition = {
+    id: "aa1c4d4b-2645-4cd9-823e-3c9bb2eb48f9",
+    name: "Stream of Life",
+    manaCost: { X: "X", G: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type === "player") ctx.gainLife(target.id, ctx.getX());
+    },
+};
 
 // export const thicketBasilisk: CardDefinition = {
 //     id: "e92cce01-b3bd-4307-aae5-9a7c8fa386ab",
@@ -3103,15 +3161,17 @@ export const tsunami: CardDefinition = {
 //     toughness: 2,
 // };
 
-// export const wallOfBrambles: CardDefinition = {
-//     id: "af2a4558-db6e-41b2-aff6-b164d93282a0",
-//     name: "Wall of Brambles",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Plant", "Wall"],
-//     power: 2,
-//     toughness: 3,
-// };
+// Wall of Brambles — vanilla 2/3 Plant Wall with defender (CR 702.3).
+export const wallOfBrambles: CardDefinition = {
+    id: "af2a4558-db6e-41b2-aff6-b164d93282a0",
+    name: "Wall of Brambles",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Plant", "Wall"],
+    power: 2,
+    toughness: 3,
+    staticAbilities: ["defender"],
+};
 
 export const wallOfIce: CardDefinition = {
     id: "cc743a03-867c-4bb0-8fb0-2bcaa0a8a756",
@@ -3222,12 +3282,27 @@ export const blackLotus: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const celestialPrism: CardDefinition = {
-//     id: "a47417cb-1ea7-4f65-ba06-e27a99373114",
-//     name: "Celestial Prism",
-//     manaCost: { X: 3 },
-//     types: ["Artifact"],
-// };
+// Celestial Prism — "{2}, {T}: Add one mana of any color." (CR 605.1a mana
+// ability, 605.3a useStack: false). The choice of color is presented to the
+// activator at activation time via `manaChoices`.
+export const celestialPrism: CardDefinition = {
+    id: "a47417cb-1ea7-4f65-ba06-e27a99373114",
+    name: "Celestial Prism",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "celestial-prism-mana",
+            oracleText: "{2}, {T}: Add one mana of any color.",
+            cost: { mana: { X: 2 }, tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ W: 1 });
+            },
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
+        },
+    ],
+};
 
 // export const chaosOrb: CardDefinition = {
 //     id: "92274971-7c4a-4326-b0fe-75e2d124f718",
@@ -3253,12 +3328,30 @@ export const blackLotus: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const copperTablet: CardDefinition = {
-//     id: "30935e4a-013e-4c46-ad05-304df8e5dfa4",
-//     name: "Copper Tablet",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
+// Copper Tablet — "At the beginning of each player's upkeep, Copper Tablet
+// deals 1 damage to that player." (CR 603.6a phase trigger, 120.1 damage).
+// Symmetric ping at every upkeep — same shape as Karma but flat 1 damage,
+// not Swamp-scaled.
+export const copperTablet: CardDefinition = {
+    id: "30935e4a-013e-4c46-ad05-304df8e5dfa4",
+    name: "Copper Tablet",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        {
+            id: "copper-tablet-upkeep",
+            oracleText:
+                "At the beginning of each player's upkeep, Copper Tablet deals 1 damage to that player.",
+            event: "PHASE_BEGIN",
+            matches: (event) =>
+                event.type === "PHASE_BEGIN" && event.phase === "UPKEEP",
+            resolve: (ctx, event) => {
+                if (event.type !== "PHASE_BEGIN") return;
+                ctx.dealDamage({ type: "player", id: event.activePlayerId }, 1);
+            },
+        },
+    ],
+};
 
 // export const crystalRod: CardDefinition = {
 //     id: "76693233-7961-4b7e-80f2-ed90e494c4aa",
@@ -3622,12 +3715,28 @@ export const obsianusGolem: CardDefinition = {
     toughness: 6,
 };
 
-// export const rodOfRuin: CardDefinition = {
-//     id: "af957200-c538-4f52-b105-6db7a7abb4dc",
-//     name: "Rod of Ruin",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+// Rod of Ruin — "{3}, {T}: Rod of Ruin deals 1 damage to any target." (CR
+// 605 activated ability, 120.1 damage). Same shape as Prodigal Sorcerer's
+// ping but on an artifact body.
+export const rodOfRuin: CardDefinition = {
+    id: "af957200-c538-4f52-b105-6db7a7abb4dc",
+    name: "Rod of Ruin",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "rod-of-ruin-shoot",
+            oracleText: "{3}, {T}: Rod of Ruin deals 1 damage to any target.",
+            cost: { mana: { X: 3 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target) ctx.dealDamage(target, 1);
+            },
+        },
+    ],
+};
 
 export const solRing: CardDefinition = {
     id: "c4300d24-1cae-4dd5-be7e-38cc677cf5bd",

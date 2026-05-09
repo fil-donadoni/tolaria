@@ -692,11 +692,15 @@ function finalizeSpellResolution(
             item.isSummoningSick = true;
         }
         controller.battlefield.push(item);
-        // CR 303.4e + 611.2 — apply the aura's keyword-grant static effects
-        // to the chosen host. The grant is tracked on the host so it can be
-        // reverted when the aura leaves play (see unapplyAuraStaticEffects).
+        // CR 611.2 — first absorb any existing battlefield source's
+        // keyword-grant effects that match this new permanent (e.g. Goblin
+        // King's "Goblins have mountainwalk" reaches a Goblin entering after
+        // the King). Then push out this permanent's own keyword-grants to
+        // every matching permanent (aura → host via AURA_AFFECTS_HOST;
+        // lord-style → all matching subtype/etc.).
+        applyExistingGrantsTo(state, item);
+        applySourceStaticEffects(state, item);
         if (isAura(item)) {
-            applyAuraStaticEffects(state, item);
             // CR 613.1b layer 2 — apply any control-changing static effect
             // the aura declares (e.g. Control Magic). Runs after keyword
             // grants so both reads observe a consistent host.
@@ -709,62 +713,116 @@ function finalizeSpellResolution(
     }
 }
 
-/** Applies every `keyword-grant` static effect declared on `aura`'s card
- *  definition (CR 611). Each granted keyword is pushed into the host's
- *  `staticAbilities` and recorded in `host.grantedStaticAbilities` with the
- *  aura's instance id so `unapplyAuraStaticEffects` can splice it back out
- *  when the aura leaves play. No-op if the aura has no host, no grants, or
- *  the host is not on the battlefield. */
-export function applyAuraStaticEffects(
+/** Applies every `keyword-grant` static effect declared on `source`'s card
+ *  definition (CR 611) by scanning the whole battlefield and pushing the
+ *  granted keyword into every permanent for which `applies(target, source)`
+ *  returns true. For auras the canonical `AURA_AFFECTS_HOST` predicate
+ *  narrows the match to a single host (CR 303.4e); lord-style sources like
+ *  Goblin King ("other Goblins have mountainwalk") use a subtype-based
+ *  predicate and grant the keyword to every matching permanent. The grant is
+ *  recorded on each affected permanent's `grantedStaticAbilities` keyed by
+ *  `source.id` so `unapplySourceStaticEffects` can splice it back out when
+ *  the source leaves play. No-op if the source has no keyword-grant effects
+ *  or no permanent matches its predicate. */
+export function applySourceStaticEffects(
     state: GameState,
-    aura: CardInstanceState
+    source: CardInstanceState
 ): void {
-    const hostId = aura.attachedTo;
-    if (!hostId) return;
-    const host = findOnBattlefield(state, hostId)?.card;
-    if (!host) return;
-    const cardId = (aura.card as { id?: string }).id;
+    const cardId = (source.card as { id?: string }).id;
     const def = cardId ? tryGetCardById(cardId) : null;
     const effects = def?.staticEffects ?? [];
-    for (const effect of effects) {
-        if (effect.kind !== "keyword-grant") continue;
-        if (!effect.applies(host, aura, STATIC_EFFECT_CTX)) continue;
-        host.staticAbilities = [...host.staticAbilities, effect.keyword];
-        host.grantedStaticAbilities = [
-            ...(host.grantedStaticAbilities ?? []),
-            { ability: effect.keyword, auraId: aura.id },
-        ];
+    if (effects.length === 0) return;
+    for (const player of state.players) {
+        for (const target of player.battlefield) {
+            for (const effect of effects) {
+                if (effect.kind !== "keyword-grant") continue;
+                if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                    continue;
+                }
+                target.staticAbilities = [
+                    ...target.staticAbilities,
+                    effect.keyword,
+                ];
+                target.grantedStaticAbilities = [
+                    ...(target.grantedStaticAbilities ?? []),
+                    { ability: effect.keyword, auraId: source.id },
+                ];
+            }
+        }
     }
 }
 
-/** Reverse of `applyAuraStaticEffects`: removes every grant this aura put on
- *  its host. Call before the aura transitions off the battlefield (destroy,
- *  exile, SBA detach, return to hand). Splices out exactly one occurrence per
- *  granted keyword so native duplicates on the host are preserved (CR 113.1). */
-export function unapplyAuraStaticEffects(
+/** Aura-flavored alias kept for back-compat at the call site that resolves an
+ *  aura cast. Behaves identically to `applySourceStaticEffects`. */
+export const applyAuraStaticEffects = applySourceStaticEffects;
+
+/** Reverse of `applySourceStaticEffects`: walks the whole battlefield and
+ *  splices out every grant whose `auraId` matches `source.id`. Call before
+ *  the source transitions off the battlefield (destroy, exile, SBA detach,
+ *  return to hand). Splices exactly one occurrence per granted keyword so
+ *  native duplicates on a target are preserved (CR 113.1). */
+export function unapplySourceStaticEffects(
     state: GameState,
-    aura: CardInstanceState
+    source: CardInstanceState
 ): void {
-    const hostId = aura.attachedTo;
-    if (!hostId) return;
-    const host = findOnBattlefield(state, hostId)?.card;
-    if (!host) return;
-    const grants = host.grantedStaticAbilities ?? [];
-    const kept: typeof grants = [];
-    for (const g of grants) {
-        if (g.auraId !== aura.id) {
-            kept.push(g);
-            continue;
-        }
-        const idx = host.staticAbilities.indexOf(g.ability);
-        if (idx !== -1) {
-            host.staticAbilities = [
-                ...host.staticAbilities.slice(0, idx),
-                ...host.staticAbilities.slice(idx + 1),
-            ];
+    for (const player of state.players) {
+        for (const target of player.battlefield) {
+            const grants = target.grantedStaticAbilities;
+            if (!grants || grants.length === 0) continue;
+            const kept: typeof grants = [];
+            for (const g of grants) {
+                if (g.auraId !== source.id) {
+                    kept.push(g);
+                    continue;
+                }
+                const idx = target.staticAbilities.indexOf(g.ability);
+                if (idx !== -1) {
+                    target.staticAbilities = [
+                        ...target.staticAbilities.slice(0, idx),
+                        ...target.staticAbilities.slice(idx + 1),
+                    ];
+                }
+            }
+            target.grantedStaticAbilities = kept.length > 0 ? kept : undefined;
         }
     }
-    host.grantedStaticAbilities = kept.length > 0 ? kept : undefined;
+}
+
+/** Aura-flavored alias kept for back-compat. */
+export const unapplyAuraStaticEffects = unapplySourceStaticEffects;
+
+/** Applies every existing battlefield source's `keyword-grant` static effects
+ *  to a newly-arrived permanent. Called from `finalizeSpellResolution` so
+ *  lord-style buffs (Goblin King → mountainwalk on each Goblin) reach a
+ *  Goblin that enters the battlefield AFTER the King is already in play.
+ *  Skips the new permanent's own keyword-grants — those are applied via
+ *  `applySourceStaticEffects(state, newPermanent)` separately. */
+export function applyExistingGrantsTo(
+    state: GameState,
+    newPermanent: CardInstanceState
+): void {
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            if (source.id === newPermanent.id) continue;
+            const cardId = (source.card as { id?: string }).id;
+            const def = cardId ? tryGetCardById(cardId) : null;
+            const effects = def?.staticEffects ?? [];
+            for (const effect of effects) {
+                if (effect.kind !== "keyword-grant") continue;
+                if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
+                    continue;
+                }
+                newPermanent.staticAbilities = [
+                    ...newPermanent.staticAbilities,
+                    effect.keyword,
+                ];
+                newPermanent.grantedStaticAbilities = [
+                    ...(newPermanent.grantedStaticAbilities ?? []),
+                    { ability: effect.keyword, auraId: source.id },
+                ];
+            }
+        }
+    }
 }
 
 /** CR 303.4 / 702.5a: a host is legal if it satisfies the aura's enchant
@@ -963,16 +1021,17 @@ export function removePermanentTo(
 ): void {
     const initial = findOnBattlefield(state, cardId);
     if (!initial) return;
-    // CR 611.2 — a static effect from an aura stops applying when the aura
+    // CR 611.2 — a static effect from a source stops applying when the source
     // leaves the battlefield. Revert the grant(s) before the move so readers
-    // never observe a dangling keyword.
+    // never observe a dangling keyword. Auras additionally need their
+    // control-change unapplied; non-aura hosts need any auras attached to
+    // them reverted (orphan auras stay on the battlefield with stale
+    // `attachedTo` and are swept by `checkAuraAttachmentSBA`, CR 704.5n).
     if (isAura(initial.card)) {
         unapplyAuraControlChange(state, initial.card);
-        unapplyAuraStaticEffects(state, initial.card);
+        unapplySourceStaticEffects(state, initial.card);
     } else {
-        // Host leaving: revert every aura attached to it. Orphan auras stay
-        // on the battlefield with stale `attachedTo`; `checkAuraAttachmentSBA`
-        // (CR 704.5n) sweeps them on the next SBA scan.
+        unapplySourceStaticEffects(state, initial.card);
         unapplyAurasAttachedTo(state, cardId);
     }
     // Re-locate after unapply: a reversed control-change may have moved the

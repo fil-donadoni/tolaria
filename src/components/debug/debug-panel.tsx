@@ -217,14 +217,69 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
-        label: "Goblin King (other Goblins +1/+1; lord pt-buff)",
+        label: "Celestial Prism + Rod of Ruin + Copper Tablet (artifact suite)",
         cards: [
-            // King + two Mons's Goblin Raiders. Raiders become 2/2; King stays
-            // 2/2 (excludes self). Mountainwalk grant is deferred — pt-buff
-            // only for now.
+            // Three colorless artifacts in play. Celestial Prism fixes mana
+            // for any color. Rod of Ruin pings any target for {3}{T}. Copper
+            // Tablet inflicts 1 dmg to each player at every upkeep.
+            { name: "Celestial Prism", owner: "me" as const },
+            { name: "Rod of Ruin", owner: "me" as const },
+            { name: "Copper Tablet", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+            { name: "Hill Giant", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Lord of Atlantis (other Merfolk +1/+1, islandwalk; lord)",
+        cards: [
+            // Lord + two Merfolk of the Pearl Trident → both Merfolk become
+            // 2/2 with islandwalk; if opp controls an Island, neither can be
+            // blocked. Lord stays 2/2 (excludes self).
+            { name: "Lord of Atlantis", owner: "me" as const },
+            {
+                name: "Merfolk of the Pearl Trident",
+                owner: "me" as const,
+                count: 2,
+            },
+            { name: "Island", owner: "me" as const, count: 3 },
+            { name: "Island", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Ice Storm + Stream of Life + Ley Druid + Wall of Brambles",
+        cards: [
+            // Ice Storm in hand to destroy a target Land. Stream of Life
+            // payable for X = 4 (4 life back). Ley Druid taps a tapped land.
+            // Wall of Brambles holds the line on defense.
+            { name: "Ice Storm", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Stream of Life",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Ley Druid", owner: "me" as const },
+            { name: "Wall of Brambles", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 5 },
+            { name: "Mountain", owner: "opp" as const, tapped: true },
+            { name: "Hill Giant", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Goblin King (other Goblins +1/+1, mountainwalk; lord)",
+        cards: [
+            // King + two Mons's Goblin Raiders. Raiders become 2/2 with
+            // mountainwalk; if opp controls a Mountain, the rats can't be
+            // blocked. King stays 2/2 (excludes self).
             { name: "Goblin King", owner: "me" as const },
             { name: "Mons's Goblin Raiders", owner: "me" as const, count: 2 },
             { name: "Mountain", owner: "me" as const, count: 3 },
+            { name: "Mountain", owner: "opp" as const },
             { name: "Grizzly Bears", owner: "opp" as const },
         ],
         phase: "PRECOMBAT_MAIN",

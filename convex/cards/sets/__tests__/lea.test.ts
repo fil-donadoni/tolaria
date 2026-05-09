@@ -20,7 +20,9 @@ import {
     bogWraith,
     braingeyser,
     burrowing,
+    celestialPrism,
     consecrateLand,
+    copperTablet,
     crusade,
     cursedLand,
     deathWard,
@@ -32,10 +34,14 @@ import {
     goblinKing,
     greenWard,
     holyStrength,
+    iceStorm,
     jump,
     karma,
     keldonWarlord,
     lance,
+    leyDruid,
+    lordOfAtlantis,
+    merfolkOfThePearlTrident,
     mindTwist,
     monssGoblinRaiders,
     orcishArtillery,
@@ -43,12 +49,15 @@ import {
     plagueRats,
     prodigalSorcerer,
     raiseDead,
+    rodOfRuin,
     shatter,
     stoneRain,
+    streamOfLife,
     tunnel,
     unholyStrength,
     uthdenTroll,
     wallOfBone,
+    wallOfBrambles,
     warpArtifact,
     weakness,
     willOTheWisp,
@@ -7329,6 +7338,363 @@ describe("Uthden Troll ({R}: regenerate self)", () => {
         });
         resolveTopOfStack(state);
         expect(state.players[0].battlefield[0].regenerationShields).toBe(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Green FREE cycle (LEA): Ice Storm, Ley Druid, Stream of Life, Wall of
+// Brambles. Plus Lord of Atlantis (blue, was missed in the blue batch).
+// ---------------------------------------------------------------------------
+
+describe("Ice Storm (destroy target land)", () => {
+    it("destroys an opponent's Land", () => {
+        const land = makeInstance(plains.id, {
+            id: "victim-land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        pushSpell(state, iceStorm.id, "p1", [
+            { type: "permanent", id: "victim-land" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain(
+            "victim-land"
+        );
+    });
+});
+
+describe("Ley Druid ({T}: untap target land)", () => {
+    it("untaps a tapped land on resolution", () => {
+        const druid = makeInstance(leyDruid.id, {
+            id: "druid",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const tapped = makeInstance(plains.id, {
+            id: "p1-plains",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [druid, tapped] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...druid,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "ley-druid-untap",
+            targets: [{ type: "permanent", id: "p1-plains" }],
+        });
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "p1-plains"
+        )!;
+        expect(after.isTapped).toBe(false);
+    });
+});
+
+describe("Stream of Life (target player gains X life)", () => {
+    it("gains X life for the targeted player", () => {
+        const state = makeState();
+        state.stack.push({
+            ...makeInstance(streamOfLife.id, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "stack",
+            }),
+            castById: "p1",
+            chosenX: 5,
+            targets: [{ type: "player", id: "p1" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(25);
+    });
+});
+
+describe("Wall of Brambles (vanilla 2/3 defender)", () => {
+    it("declares defender, no other abilities", () => {
+        expect(wallOfBrambles.staticAbilities).toEqual(["defender"]);
+        expect(wallOfBrambles.power).toBe(2);
+        expect(wallOfBrambles.toughness).toBe(3);
+    });
+
+    it("cannot attack (defender restriction, CR 702.3)", () => {
+        const wob = makeInstance(wallOfBrambles.id, {
+            id: "wob",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wob] }),
+                makePlayer("p2"),
+            ],
+        });
+        const result = validateAttackerEligibility(
+            state.players[0].battlefield[0],
+            state.players[1].battlefield
+        );
+        expect(result.eligible).toBe(false);
+    });
+});
+
+describe("Lord of Atlantis (other Merfolk get +1/+1; lord pt-buff — blue)", () => {
+    it("buffs other Merfolk +1/+1 across both controllers, excludes self", () => {
+        const lord = makeInstance(lordOfAtlantis.id, { id: "lord" });
+        const myFolk = makeInstance(merfolkOfThePearlTrident.id, {
+            id: "mine",
+        });
+        const oppFolk = makeInstance(merfolkOfThePearlTrident.id, {
+            id: "theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lord, myFolk] }),
+                makePlayer("p2", { battlefield: [oppFolk] }),
+            ],
+        });
+        // Both Merfolk become 2/2.
+        expect(getEffectivePower(state, myFolk)).toBe(2);
+        expect(getEffectivePower(state, oppFolk)).toBe(2);
+        // Lord stays 2/2 (excludes itself).
+        expect(getEffectivePower(state, lord)).toBe(2);
+        expect(getEffectiveToughness(state, lord)).toBe(2);
+    });
+
+    it("does NOT buff non-Merfolk", () => {
+        const lord = makeInstance(lordOfAtlantis.id, { id: "lord" });
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lord, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, bear)).toBe(2);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Artifact FREE cycle (LEA): Celestial Prism, Copper Tablet, Rod of Ruin.
+// ---------------------------------------------------------------------------
+
+describe("Celestial Prism ({2}, {T}: add one mana of any color)", () => {
+    it("declares manaChoices for all 5 colors", () => {
+        const ability = celestialPrism.activatedAbilities?.[0];
+        expect(ability?.cost).toEqual({ mana: { X: 2 }, tap: true });
+        expect(ability?.useStack).toBe(false);
+        expect(ability?.manaChoices).toHaveLength(5);
+        const colors = (ability?.manaChoices ?? []).map(
+            (c) => Object.keys(c)[0]
+        );
+        expect(colors).toEqual(["W", "U", "B", "R", "G"]);
+    });
+});
+
+describe("Copper Tablet (1 dmg to each player at their upkeep)", () => {
+    function setup(activePlayerId: string = "p1") {
+        const tablet = makeInstance(copperTablet.id, {
+            id: "tablet",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        return makeState({
+            turn: 2,
+            phase: "UNTAP",
+            activePlayerId,
+            priorityPlayerId: activePlayerId,
+            players: [
+                makePlayer("p1", { battlefield: [tablet] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("queues + resolves into 1 damage to active player on their upkeep", () => {
+        const state = setup("p1");
+        const before = state.players[0].life;
+        advancePhase(state); // UNTAP → UPKEEP
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(before - 1);
+    });
+
+    it("hits the opponent on their upkeep (symmetric)", () => {
+        const state = setup("p2");
+        const before = state.players[1].life;
+        advancePhase(state);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(before - 1);
+    });
+});
+
+describe("Rod of Ruin ({3}, {T}: 1 damage to any target)", () => {
+    it("deals 1 damage to a target player on resolution", () => {
+        const rod = makeInstance(rodOfRuin.id, {
+            id: "rod",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [rod] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...rod,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "rod-of-ruin-shoot",
+            targets: [{ type: "player", id: "p2" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(19);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Lord-style keyword grant (CR 611): Goblin King mountainwalk + Lord of
+// Atlantis islandwalk. Exercises the engine's source-enters / target-enters
+// /source-leaves hooks for non-aura keyword grants.
+// ---------------------------------------------------------------------------
+
+describe("Lord-style keyword grant — Goblin King mountainwalk", () => {
+    it("entering King grants mountainwalk to existing Goblins", () => {
+        const goblin = makeInstance(monssGoblinRaiders.id, { id: "rat" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [goblin] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Goblin starts with no mountainwalk.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "rat")!
+                .staticAbilities
+        ).not.toContain("mountainwalk");
+        // Cast Goblin King — its keyword-grant should reach the existing rat.
+        pushSpell(state, goblinKing.id, "p1");
+        resolveTopOfStack(state);
+        const ratAfter = state.players[0].battlefield.find(
+            (c) => c.id === "rat"
+        )!;
+        expect(ratAfter.staticAbilities).toContain("mountainwalk");
+    });
+
+    it("a new Goblin entering picks up an existing King's mountainwalk", () => {
+        const king = makeInstance(goblinKing.id, { id: "king" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [king] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, monssGoblinRaiders.id, "p1");
+        resolveTopOfStack(state);
+        const newRat = state.players[0].battlefield.find(
+            (c) => c.id !== "king"
+        )!;
+        expect(newRat.staticAbilities).toContain("mountainwalk");
+    });
+
+    it("when the King leaves, the grant is removed from existing Goblins", () => {
+        const king = makeInstance(goblinKing.id, { id: "king" });
+        const goblin = makeInstance(monssGoblinRaiders.id, {
+            id: "rat",
+            staticAbilities: ["mountainwalk"],
+            grantedStaticAbilities: [
+                { ability: "mountainwalk", auraId: "king" },
+            ],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [king, goblin] }),
+                makePlayer("p2"),
+            ],
+        });
+        removePermanentTo(state, "king", "graveyard");
+        const ratAfter = state.players[0].battlefield.find(
+            (c) => c.id === "rat"
+        )!;
+        expect(ratAfter.staticAbilities).not.toContain("mountainwalk");
+        expect(ratAfter.grantedStaticAbilities).toBeUndefined();
+    });
+
+    it("does NOT grant mountainwalk to non-Goblin creatures", () => {
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, goblinKing.id, "p1");
+        resolveTopOfStack(state);
+        const bearAfter = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.staticAbilities).not.toContain("mountainwalk");
+    });
+
+    it("wire format: mountainwalk grant survives the projection", () => {
+        const goblin = makeInstance(monssGoblinRaiders.id, { id: "rat" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [goblin] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, goblinKing.id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slimRat = projected.players[0].battlefield.find(
+            (c) => c.id === "rat"
+        )!;
+        expect(slimRat.staticAbilities).toContain("mountainwalk");
+    });
+});
+
+describe("Lord-style keyword grant — Lord of Atlantis islandwalk", () => {
+    it("entering Lord grants islandwalk to existing Merfolk", () => {
+        const folk = makeInstance(merfolkOfThePearlTrident.id, {
+            id: "folk",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [folk] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, lordOfAtlantis.id, "p1");
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "folk"
+        )!;
+        expect(after.staticAbilities).toContain("islandwalk");
+    });
+
+    it("does NOT grant islandwalk to itself (excludes source)", () => {
+        const state = makeState();
+        pushSpell(state, lordOfAtlantis.id, "p1");
+        resolveTopOfStack(state);
+        const lord = state.players[0].battlefield[0];
+        expect(lord.staticAbilities ?? []).not.toContain("islandwalk");
     });
 });
 

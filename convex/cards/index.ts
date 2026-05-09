@@ -81,6 +81,12 @@ export const getCardByName = (name: string): CardDefinition => {
 export const getAllCardNames = (): string[] =>
     allCards.map((card) => card.name);
 
+/** All registered `CardDefinition`s in load order. Reprints are not included
+ *  — each `CardPrint` resolves to the same definition, so callers iterating
+ *  cards-as-data (deck builder index, card catalog) should consume this and
+ *  use `getPrintsForCard` to enumerate printings. */
+export const getAllCards = (): CardDefinition[] => allCards;
+
 /** All known prints of a card (every Scryfall UUID that resolves to the
  *  given definition), ordered with the original print first. Used by the
  *  deck builder UI to let the player pick which edition to include. */

@@ -7,6 +7,7 @@
 // scopes/filters to maintain.
 
 import { tryGetCardById } from "../cards";
+import { getColorsFromCost } from "../cards/colors";
 import type {
     Color,
     ManaCost,
@@ -15,7 +16,6 @@ import type {
     StaticEffectContext,
     StaticEffectStateView,
 } from "../cards/types";
-import { MANA_COLORS } from "./constants";
 
 export type PTBuff = { power: number; toughness: number };
 
@@ -41,13 +41,7 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
         const cardId = (card.card as { id?: string }).id;
         const cost =
             embedded ?? (cardId ? tryGetCardById(cardId)?.manaCost : undefined);
-        if (!cost) return [];
-        const colors: Color[] = [];
-        for (const c of MANA_COLORS) {
-            if (c === "C") continue;
-            if ((cost[c] ?? 0) > 0) colors.push(c);
-        }
-        return colors;
+        return getColorsFromCost(cost);
     },
     isCreature(card: PermanentView): boolean {
         return card.types.includes("Creature");

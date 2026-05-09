@@ -2,7 +2,7 @@
 name: new-card
 description: Generate a CardDefinition for a new MTG card in convex/cards/sets/. Fetches oracle data from Scryfall, maps to the CardDefinition interface, and validates against CR.
 argument-hint: "<card name>"
-allowed-tools: Bash(curl:*) WebFetch(domain:api.scryfall.com) WebFetch(domain:scryfall.com) WebFetch(domain:yawgatog.com)
+allowed-tools: Bash(curl:*) Bash(bunx convex run:*) WebFetch(domain:api.scryfall.com) WebFetch(domain:scryfall.com) WebFetch(domain:yawgatog.com)
 ---
 
 # New Card Definition Generator
@@ -107,6 +107,27 @@ For each ability on the card, classify:
 
 Report clearly what works and what needs engine extensions.
 
+### Step 7 — Sync card_index (mandatory last step)
+
+The deck builder reads its searchable card list from the Convex `card_index`
+table (see `convex/cardIndex.ts`). The table is **not** auto-rebuilt — newly
+added `CardDefinition`s only appear in the builder after the sync runs.
+
+Always run as the final step, after the new card and any reprint stubs have
+been uncommented:
+
+```sh
+bunx convex run cardIndex:syncCardIndex
+```
+
+The mutation is idempotent: it upserts every card by id, patches drift, and
+deletes rows for cards removed from `convex/cards/sets/*.ts`. Output reports
+`{ inserted, updated, removed, total }`.
+
+Skipping this step leaves the deck builder showing stale data (missing card,
+stale colors / oracle text). The "Sync library" button in the deck builder
+header runs the same mutation if the user prefers triggering it from the UI.
+
 ## Validation checklist
 
 - [ ] ManaCost matches Scryfall oracle
@@ -117,3 +138,4 @@ Report clearly what works and what needs engine extensions.
 - [ ] resolve() uses only existing SpellContext methods
 - [ ] ID is a valid UUID
 - [ ] All matching `CardPrint` stubs in `convex/cards/sets/*.ts` uncommented (Step 5b)
+- [ ] `bunx convex run cardIndex:syncCardIndex` ran successfully (Step 7)

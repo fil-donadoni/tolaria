@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import type { DeckPreset } from "@convex/deckPresets";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import {
     PLAYER_COLORS,
@@ -13,12 +14,22 @@ import {
     storePlayerName,
     storeSession,
 } from "~/lib/session";
-import DeckList from "./deck-list";
+import {
+    type UserDeck,
+    deleteUserDeck,
+    getUserDeck,
+    isUserDeckId,
+    listUserDecks,
+} from "~/lib/userDecks";
+import DeckBuilder from "./deck-builder/deck-builder";
 import DeckDetail from "./deck-detail";
+import DeckList from "./deck-list";
 
 interface LobbyProps {
     onEnter: (gameId: Id<"games">, playerId: string) => void;
 }
+
+type LobbyMode = "list" | "builder";
 
 function Lobby({ onEnter }: LobbyProps) {
     const [playerName, setPlayerName] = useState(() => getStoredPlayerName());
@@ -26,10 +37,15 @@ function Lobby({ onEnter }: LobbyProps) {
         getStoredDeckPresetId()
     );
     const [focusedPresetId, setFocusedPresetId] = useState<string | null>(null);
+    const [mode, setMode] = useState<LobbyMode>("list");
+    const [editingDeckId, setEditingDeckId] = useState<string | null>(null);
+    const [userDecks, setUserDecks] = useState<UserDeck[]>(() =>
+        listUserDecks()
+    );
     const clientId = useMemo(() => getOrCreateClientId(), []);
 
     const pageVisible = usePageVisible();
-    const decks = useQuery(api.decks.list, pageVisible ? {} : "skip");
+    const presetDecks = useQuery(api.decks.list, pageVisible ? {} : "skip");
     const createGame = useMutation(api.game.createGame);
     const createSoloGame = useMutation(api.game.createSoloGame);
     const joinGame = useMutation(api.game.joinGame);
@@ -45,24 +61,33 @@ function Lobby({ onEnter }: LobbyProps) {
         [allOpenGames, clientId]
     );
 
+    const allDecks = useMemo<DeckPreset[]>(
+        () => [...userDecks, ...(presetDecks ?? [])],
+        [userDecks, presetDecks]
+    );
+
     const selectedDeck = useMemo(
-        () => decks?.find((d) => d.presetId === storedPresetId) ?? null,
-        [decks, storedPresetId]
+        () => allDecks.find((d) => d.presetId === storedPresetId) ?? null,
+        [allDecks, storedPresetId]
     );
     const focusedDeck = useMemo(
-        () => decks?.find((d) => d.presetId === focusedPresetId) ?? null,
-        [decks, focusedPresetId]
+        () => allDecks.find((d) => d.presetId === focusedPresetId) ?? null,
+        [allDecks, focusedPresetId]
     );
 
     useEffect(() => {
-        if (decks && storedPresetId && !selectedDeck) {
+        if (presetDecks && storedPresetId && !selectedDeck) {
             clearDeckPresetId();
         }
-    }, [decks, storedPresetId, selectedDeck]);
+    }, [presetDecks, storedPresetId, selectedDeck]);
+
+    const refreshUserDecks = useCallback(() => {
+        setUserDecks(listUserDecks());
+    }, []);
 
     const canPlay = !!selectedDeck && playerName.trim().length > 0;
 
-    const deckPayload = (d: NonNullable<typeof selectedDeck>) => ({
+    const deckPayload = (d: DeckPreset) => ({
         id: d.presetId,
         name: d.name,
         format: d.format,
@@ -143,6 +168,44 @@ function Lobby({ onEnter }: LobbyProps) {
         clearDeckPresetId();
     };
 
+    const handleEditDeck = (presetId: string) => {
+        setEditingDeckId(presetId);
+        setMode("builder");
+    };
+
+    const handleDeleteDeck = (presetId: string) => {
+        const deck = userDecks.find((d) => d.presetId === presetId);
+        if (!deck) return;
+        if (!window.confirm(`Delete "${deck.name}"?`)) return;
+        deleteUserDeck(presetId);
+        refreshUserDecks();
+        if (storedPresetId === presetId) {
+            setStoredPresetId(null);
+            clearDeckPresetId();
+        }
+    };
+
+    const handleNewDeck = () => {
+        setEditingDeckId(null);
+        setMode("builder");
+    };
+
+    const handleBuilderClose = (savedPresetId: string | null) => {
+        refreshUserDecks();
+        setMode("list");
+        setEditingDeckId(null);
+        if (savedPresetId) {
+            setFocusedPresetId(savedPresetId);
+        }
+    };
+
+    if (mode === "builder") {
+        const initial = editingDeckId ? getUserDeck(editingDeckId) : null;
+        return (
+            <DeckBuilder initialDeck={initial} onClose={handleBuilderClose} />
+        );
+    }
+
     if (focusedDeck) {
         return (
             <DeckDetail
@@ -157,7 +220,7 @@ function Lobby({ onEnter }: LobbyProps) {
         );
     }
 
-    if (decks === undefined) {
+    if (presetDecks === undefined) {
         return (
             <div className="flex h-screen items-center justify-center text-white">
                 Loading...
@@ -165,23 +228,51 @@ function Lobby({ onEnter }: LobbyProps) {
         );
     }
 
-    if (decks.length === 0) {
-        return (
-            <div className="flex h-screen items-center justify-center text-white">
-                Loading decks...
-            </div>
-        );
-    }
+    const renderUserActions = (deck: DeckPreset) => (
+        <>
+            <button
+                onClick={() => handleEditDeck(deck.presetId)}
+                className="rounded border border-white/20 bg-white/5 px-3 py-2 text-xs hover:bg-white/10"
+                title="Edit deck"
+            >
+                Edit
+            </button>
+            <button
+                onClick={() => handleDeleteDeck(deck.presetId)}
+                className="rounded border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200 hover:bg-rose-500/20"
+                title="Delete deck"
+            >
+                Delete
+            </button>
+        </>
+    );
 
     if (!selectedDeck) {
         return (
-            <div className="flex h-screen flex-col items-center justify-center gap-6 text-white">
+            <div className="flex min-h-screen flex-col items-center gap-6 px-6 py-12 text-white">
                 <h1 className="text-2xl font-bold">Tolaria</h1>
                 <p className="text-sm text-white/60">
                     Select a deck to continue.
                 </p>
                 <DeckList
-                    decks={decks}
+                    title="My Decks"
+                    decks={userDecks}
+                    selectedPresetId={null}
+                    onFocus={setFocusedPresetId}
+                    emptyLabel="No saved decks yet. Create one to start building."
+                    renderActions={renderUserActions}
+                    headerExtra={
+                        <button
+                            onClick={handleNewDeck}
+                            className="rounded bg-emerald-500/80 px-3 py-1.5 text-xs font-semibold text-emerald-950 hover:bg-emerald-400"
+                        >
+                            + Create New Deck
+                        </button>
+                    }
+                />
+                <DeckList
+                    title="Built-in Decks"
+                    decks={presetDecks}
                     selectedPresetId={null}
                     onFocus={setFocusedPresetId}
                 />
@@ -189,8 +280,10 @@ function Lobby({ onEnter }: LobbyProps) {
         );
     }
 
+    const selectedIsUserDeck = isUserDeckId(selectedDeck.presetId);
+
     return (
-        <div className="flex h-screen flex-col items-center justify-center gap-6 text-white">
+        <div className="flex min-h-screen flex-col items-center gap-6 px-6 py-12 text-white">
             <h1 className="text-2xl font-bold">Tolaria</h1>
 
             <input
@@ -204,12 +297,25 @@ function Lobby({ onEnter }: LobbyProps) {
             <div className="flex items-center gap-3 rounded border border-white/10 bg-white/5 px-4 py-2 text-sm">
                 <span className="text-white/60">Deck:</span>
                 <span className="font-semibold">{selectedDeck.name}</span>
+                {selectedIsUserDeck && (
+                    <span className="rounded bg-sky-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-300">
+                        Custom
+                    </span>
+                )}
                 <button
                     onClick={() => setFocusedPresetId(selectedDeck.presetId)}
                     className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
                 >
                     View
                 </button>
+                {selectedIsUserDeck && (
+                    <button
+                        onClick={() => handleEditDeck(selectedDeck.presetId)}
+                        className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
+                    >
+                        Edit
+                    </button>
+                )}
                 <button
                     onClick={handleChangeDeck}
                     className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
