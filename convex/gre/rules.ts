@@ -278,6 +278,11 @@ export function getLegalTargets(
     );
     const colorFilter = requirement.colorFilter;
     const tappedFilter = requirement.tappedFilter;
+    const subtypeFilter = requirement.subtypeFilter
+        ? Array.isArray(requirement.subtypeFilter)
+            ? requirement.subtypeFilter
+            : [requirement.subtypeFilter]
+        : undefined;
 
     // CR 115.4: "any target" means any creature, planeswalker, player, or
     // battle — the four object types that can be damaged (CR 120.3).
@@ -293,6 +298,15 @@ export function getLegalTargets(
                     card.types.includes(t as never)
                 );
                 if (!matchesAny && !matchesExplicit) continue;
+                // CR 205.3: subtype filter for "target Mountains"-style
+                // spells. At least one declared subtype must be present on
+                // the permanent (basic Mountain, dual lands like Plateau, ...).
+                if (
+                    subtypeFilter &&
+                    !subtypeFilter.some((s) => card.subtypes.includes(s))
+                ) {
+                    continue;
+                }
                 // CR 202.2: filter by color for "source of color X" choices.
                 if (colorFilter && !hasColor(card, colorFilter)) continue;
                 // CR 701.20: tap-state filter for "target tapped/untapped ~".

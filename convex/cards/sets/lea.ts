@@ -1041,12 +1041,49 @@ export const unsummon: CardDefinition = {
 //     toughness: 0,
 // };
 
-// export const volcanicEruption: CardDefinition = {
-//     id: "a80582b1-09db-45f8-b362-0e5207a5a8e6",
-//     name: "Volcanic Eruption",
-//     manaCost: { X: "X", U: 3 },
-//     types: ["Sorcery"],
-// };
+// Volcanic Eruption — "Destroy X target Mountains. Volcanic Eruption deals
+// damage to each creature and each player equal to the number of Mountains
+// put into a graveyard this way." (CR 107.3 — X chosen on cast / 601.2c —
+// X-bound target count / 205.3 — subtype filter "Mountain" matches basic
+// Mountain plus duals like Plateau / Taiga / Badlands / 614.5 — destroy
+// returns false if a regen shield saves the land, so the damage count only
+// reflects lands actually moved to graveyards / 120.3 — second-clause damage
+// to each creature and each player.)
+export const volcanicEruption: CardDefinition = {
+    id: "a80582b1-09db-45f8-b362-0e5207a5a8e6",
+    name: "Volcanic Eruption",
+    manaCost: { X: "X", U: 3 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "Land",
+        subtypeFilter: "Mountain",
+        count: "X",
+    },
+    resolve: (ctx: SpellContext) => {
+        // CR 608.2b: re-validate each target on resolution. A target that's
+        // no longer a Mountain on the battlefield is silently skipped.
+        const mountainIds = new Set<string>();
+        for (const playerId of ctx.allPlayerIds) {
+            for (const id of ctx.getBattlefieldIds(playerId, {
+                subtypes: "Mountain",
+            })) {
+                mountainIds.add(id);
+            }
+        }
+        let destroyed = 0;
+        for (const target of ctx.targets) {
+            if (target.type !== "permanent") continue;
+            if (!mountainIds.has(target.id)) continue;
+            // CR 614.5 — destroy reports actual graveyard movement.
+            if (ctx.destroy(target)) destroyed++;
+        }
+        if (destroyed === 0) return;
+        ctx.dealDamageToEach(destroyed, {
+            creatures: true,
+            players: true,
+        });
+    },
+};
 
 export const wallOfAir: CardDefinition = {
     id: "da56fdf3-6a8f-4833-a5c3-197650cc4889",

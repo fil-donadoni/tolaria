@@ -54,12 +54,24 @@ export interface TargetRequirement {
         | (CardType | "player" | "any" | "spell" | "card")[];
     /** Fixed N, or a range for spells that take a variable number of targets
      *  (CR 601.2c). `max` is open-ended when undefined — capped by legal
-     *  target availability. Example: Fireball → { min: 1 }. */
-    count: number | { min: number; max?: number };
+     *  target availability. Example: Fireball → { min: 1 }.
+     *
+     *  Special string `"X"` means "exactly the chosen value of X" (CR 107.3 /
+     *  601.2c, e.g. Volcanic Eruption "Destroy X target Mountains"). The count
+     *  is resolved against `chosenX` at cast announcement — pendingTarget
+     *  stores the resulting fixed N. When chosenX is 0, the spell skips
+     *  target selection entirely. */
+    count: number | "X" | { min: number; max?: number };
     /** If set, restricts legal targets to permanents and stack spells of the
      *  given color (CR 202.2). Used by Circle of Protection's "source of your
      *  choice of color W/U/B/R/G" choice. */
     colorFilter?: Color;
+    /** Restricts legal permanent targets to those whose `subtypes` include at
+     *  least one of these (CR 205.3). Single string is a shorthand for one
+     *  subtype. Used by spells like Volcanic Eruption ("X target Mountains")
+     *  or Stone Rain ("target land" with no extra subtype constraint — that
+     *  case omits this field). Ignored for player / spell / graveyard targets. */
+    subtypeFilter?: string | string[];
     /** Restricts legal permanent targets by tap state (CR 701.20). Used by
      *  "target tapped creature" (Royal Assassin) and "target untapped
      *  creature" style filters. Ignored for player / spell targets. */
@@ -210,7 +222,13 @@ export interface SpellContext {
      *  players and for permanents no longer on the battlefield. Used by
      *  intervening-if checks like Howling Mine's "if ~ is untapped". */
     getIsTapped: (target: TargetSelection) => boolean;
-    destroy: (target: TargetSelection) => void;
+    /** Destroys a permanent (CR 701.7). Routes through the regeneration /
+     *  indestructible replacement layer. Returns true if the permanent was
+     *  actually moved to the graveyard, false if a regen shield (or future
+     *  indestructible) saved it or if the target had already left the
+     *  battlefield. Used by spells like Volcanic Eruption that must count
+     *  "permanents put into a graveyard this way" (CR 614.5, 701.15a). */
+    destroy: (target: TargetSelection) => boolean;
     exile: (target: TargetSelection) => void;
     /** Returns a target permanent to its owner's hand (CR 701.10). The card
      *  becomes a new object on the zone change (CR 400.7) — battlefield-only

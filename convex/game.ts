@@ -702,6 +702,23 @@ function minTargetCount(count: number | { min: number; max?: number }): number {
     return typeof count === "number" ? count : count.min;
 }
 
+/** Resolves the literal `"X"` target-count form to a fixed number using the
+ *  cast's `chosenX` (CR 107.3 / 601.2c). Returns the input unchanged for
+ *  numeric / range counts. Used only on the cast path — activated abilities
+ *  don't carry chosenX, so passing `"X"` without chosenX throws. */
+function resolveTargetCount(
+    count: number | "X" | { min: number; max?: number },
+    chosenX: number | undefined
+): number | { min: number; max?: number } {
+    if (count === "X") {
+        if (chosenX === undefined) {
+            throw new Error('Target count "X" requires chosenX');
+        }
+        return chosenX;
+    }
+    return count;
+}
+
 /** True when the selected targets have reached the maximum allowed for this
  *  requirement. Fixed N → selected >= N; range → selected >= max (undefined
  *  max means no upper limit, so this never triggers auto-advance). */
@@ -915,8 +932,18 @@ export const announceCast = mutation({
         }
         const chosenX = hasX ? args.chosenX : undefined;
 
-        // Check if the card requires targets (CR 601.2c)
-        if (cardDef.targetRequirement) {
+        // Check if the card requires targets (CR 601.2c). When `count: "X"`
+        // resolves to 0 (X chosen as 0), the spell takes no targets — fall
+        // through to the no-target cast path (CR 107.3, e.g. Volcanic
+        // Eruption with X=0 destroys 0 Mountains and deals 0 damage).
+        const resolvedCount = cardDef.targetRequirement
+            ? resolveTargetCount(cardDef.targetRequirement.count, chosenX)
+            : undefined;
+        const requiresTargets =
+            cardDef.targetRequirement !== undefined &&
+            (typeof resolvedCount !== "number" || resolvedCount > 0);
+
+        if (cardDef.targetRequirement && requiresTargets) {
             // CR 202.2 / 702.16b: source colors derived from the casting
             // card's mana cost, so getLegalTargets can exclude permanents
             // with protection from any of those colors.
@@ -930,12 +957,22 @@ export const announceCast = mutation({
             if (legalTargets.length === 0) {
                 throw new Error("No legal targets available");
             }
+            // CR 601.2c: must be able to choose enough legal targets.
+            const required = minTargetCount(resolvedCount!);
+            if (legalTargets.length < required) {
+                throw new Error("Not enough legal targets");
+            }
+            const subtypeFilter = cardDef.targetRequirement.subtypeFilter
+                ? Array.isArray(cardDef.targetRequirement.subtypeFilter)
+                    ? cardDef.targetRequirement.subtypeFilter
+                    : [cardDef.targetRequirement.subtypeFilter]
+                : undefined;
             // Enter target selection phase before mana payment
             state.pendingTarget = {
                 playerId: args.playerId,
                 cardInstanceId: args.cardInstanceId,
                 targetType: cardDef.targetRequirement.type,
-                count: cardDef.targetRequirement.count,
+                count: resolvedCount!,
                 selected: [],
                 keepPriority: args.keepPriority,
                 chosenX,
@@ -945,6 +982,7 @@ export const announceCast = mutation({
                 ...(cardDef.targetRequirement.controller
                     ? { controller: cardDef.targetRequirement.controller }
                     : {}),
+                ...(subtypeFilter ? { subtypeFilter } : {}),
             };
 
             const now = Date.now();
@@ -1481,6 +1519,17 @@ export const selectTarget = mutation({
                 }
             }
             if (!matchedCard) throw new Error("Invalid target");
+            // CR 205.3: subtype-restricted choice (e.g. "target Mountains").
+            if (pt.subtypeFilter && pt.subtypeFilter.length > 0) {
+                const matchedSubtype = pt.subtypeFilter.some((s) =>
+                    matchedCard!.subtypes.includes(s)
+                );
+                if (!matchedSubtype) {
+                    throw new Error(
+                        `Target must be ${pt.subtypeFilter.join(" or ")}`
+                    );
+                }
+            }
             // CR 202.2: color-restricted choice (e.g. Circle of Protection).
             if (
                 pt.colorFilter &&
@@ -2847,11 +2896,23 @@ export const activateAbility = mutation({
             if (legal.length === 0) {
                 throw new Error("No legal targets available");
             }
+            // Activated abilities don't carry chosenX, so "X"-bound counts
+            // aren't supported here (none in the current set). Resolution
+            // throws if a card declares one — caught by the helper.
+            const abilityCount = resolveTargetCount(
+                ability.targetRequirement.count,
+                undefined
+            );
+            const abilitySubtypeFilter = ability.targetRequirement.subtypeFilter
+                ? Array.isArray(ability.targetRequirement.subtypeFilter)
+                    ? ability.targetRequirement.subtypeFilter
+                    : [ability.targetRequirement.subtypeFilter]
+                : undefined;
             state.pendingTarget = {
                 playerId: args.playerId,
                 cardInstanceId: card.id,
                 targetType: ability.targetRequirement.type,
-                count: ability.targetRequirement.count,
+                count: abilityCount,
                 colorFilter: ability.targetRequirement.colorFilter,
                 selected: [],
                 keepPriority: args.keepPriority,
@@ -2862,6 +2923,9 @@ export const activateAbility = mutation({
                     : {}),
                 ...(ability.targetRequirement.controller
                     ? { controller: ability.targetRequirement.controller }
+                    : {}),
+                ...(abilitySubtypeFilter
+                    ? { subtypeFilter: abilitySubtypeFilter }
                     : {}),
             };
 

@@ -398,6 +398,10 @@ export type PendingTarget = {
     /** If set, restricts legal targets to sources of the given color
      *  (CR 202.2). Propagated from TargetRequirement.colorFilter. */
     colorFilter?: string;
+    /** If set, restricts legal permanent targets by subtype (CR 205.3).
+     *  Propagated from TargetRequirement.subtypeFilter. Match if the
+     *  permanent's subtypes include at least one of these. */
+    subtypeFilter?: string[];
     /** Zone the target lives in (CR 109.2). Default "battlefield" — set to
      *  "graveyard" for reanimation/recursion spells like Regrowth. Propagated
      *  from TargetRequirement.zone. */
@@ -1163,12 +1167,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const found = findOnBattlefield(state, target.id);
             return found ? found.card.isTapped : false;
         },
-        destroy(target: TargetSelection): void {
+        destroy(target: TargetSelection): boolean {
             if (target.type === "player")
                 throw new Error("Cannot destroy a player");
             // CR 614.5 / 701.15a — destroy is the canonical replacement
-            // hook for regeneration shields.
-            regenerateOrDestroy(state, target.id);
+            // hook for regeneration shields. Return value reports whether
+            // the permanent actually moved to the graveyard (false if a
+            // shield saved it or the target had already left play).
+            return regenerateOrDestroy(state, target.id);
         },
         exile(target: TargetSelection): void {
             if (target.type === "player")

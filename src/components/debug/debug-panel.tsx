@@ -191,6 +191,32 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Volcanic Eruption (X target Mountains; X dmg to each creature/player, CR 107.3 / 205.3 / 614.5)",
+        cards: [
+            // Volcanic Eruption costs {X}{U}{U}{U}. With six Islands the
+            // caster can pay X=3 and still cast — pick three of the four
+            // opponent Mountains, then watch the eruption: three Mountains
+            // hit graveyards and 3 damage goes to every creature and player.
+            // Plateau is "Land — Mountain Plains" so it's a legal target too,
+            // exercising the subtype filter (CR 205.3). Savannah Lions
+            // (2 toughness) dies; Serra Angel (4 toughness, flying) survives
+            // — flying does NOT save anything here (CR 120.3).
+            {
+                name: "Volcanic Eruption",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 6 },
+            { name: "Mountain", owner: "opp" as const, count: 3 },
+            { name: "Plateau", owner: "opp" as const },
+            { name: "Savannah Lions", owner: "opp" as const },
+            { name: "Serra Angel", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Sea Serpent vs Sinkhole (CR 508.1c attack + CR 603.8 state trigger)",
         cards: [
             // Two-step exercise covering both Sea Serpent abilities:

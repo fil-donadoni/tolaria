@@ -77,6 +77,8 @@ import {
     sinkhole,
     solRing,
     stealArtifact,
+    mountain,
+    volcanicEruption,
     wallOfSwords,
     wheelOfFortune,
     winterOrb,
@@ -611,6 +613,195 @@ describe("Hurricane ({X}{G} — X damage to each flying creature and each player
         expect(ids).toContain("ground");
         expect(ids).not.toContain("flier");
         expect(p2.life).toBe(16);
+    });
+});
+
+describe("Volcanic Eruption ({X}{U}{U}{U} — destroy X target Mountains, deal that many to each creature/player, CR 107.3 / 205.3 / 614.5 / 120.3)", () => {
+    function makeMountain(id: string, controllerId: string): CardInstanceState {
+        return makeInstance(mountain.id, {
+            id,
+            controllerId,
+            ownerId: controllerId,
+        });
+    }
+
+    function setupBoard() {
+        const m1 = makeMountain("mtn-1", "p2");
+        const m2 = makeMountain("mtn-2", "p2");
+        const m3 = makeMountain("mtn-3", "p2");
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const flier = makeInstance(serraAngel.id, {
+            id: "flier",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [flier] }),
+                makePlayer("p2", { battlefield: [m1, m2, m3, lion] }),
+            ],
+        });
+    }
+
+    it("declares X-bound count and Mountain subtype filter", () => {
+        expect(volcanicEruption.targetRequirement).toEqual({
+            type: "Land",
+            subtypeFilter: "Mountain",
+            count: "X",
+        });
+    });
+
+    it("destroys X Mountains and deals X damage to each creature and each player", () => {
+        const state = setupBoard();
+        const item = pushSpell(state, volcanicEruption.id, "p1", [
+            { type: "permanent", id: "mtn-1" },
+            { type: "permanent", id: "mtn-2" },
+        ]);
+        item.chosenX = 2;
+        resolveTopOfStack(state);
+
+        // Two Mountains gone from p2's battlefield.
+        const p2 = state.players[1];
+        expect(p2.battlefield.find((c) => c.id === "mtn-1")).toBeUndefined();
+        expect(p2.battlefield.find((c) => c.id === "mtn-2")).toBeUndefined();
+        expect(p2.battlefield.find((c) => c.id === "mtn-3")).toBeDefined();
+
+        // Savannah Lions (toughness 1) dies to 2 damage; Serra Angel
+        // (toughness 4) survives with 2 marked damage.
+        expect(p2.battlefield.find((c) => c.id === "lion")).toBeUndefined();
+        const flier = state.players[0].battlefield.find(
+            (c) => c.id === "flier"
+        );
+        expect(flier?.damageMarked).toBe(2);
+
+        // Mountains + Lions in p2's graveyard.
+        const p2GraveIds = p2.graveyard.map((c) => c.id);
+        expect(p2GraveIds).toEqual(
+            expect.arrayContaining(["mtn-1", "mtn-2", "lion"])
+        );
+        // Volcanic Eruption itself goes to its caster's graveyard (CR 608.2k).
+        expect((state.players[0].graveyard[0].card as { id: string }).id).toBe(
+            volcanicEruption.id
+        );
+
+        // Both players take 2.
+        expect(state.players[0].life).toBe(18);
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("treats dual lands with the Mountain subtype as legal targets (CR 205.3)", () => {
+        // Plateau is "Land — Mountain Plains" — has the Mountain subtype.
+        const dual = makeInstance(plateau.id, {
+            id: "plateau",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [dual] }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            volcanicEruption.targetRequirement!
+        );
+        expect(legal.map((t) => t.id)).toContain("plateau");
+    });
+
+    it("excludes non-Mountain lands from legal targets", () => {
+        // Underground Sea (Island Swamp) — no Mountain subtype, must NOT match.
+        const sea = makeInstance(undergroundSea.id, {
+            id: "sea",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [sea] }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            volcanicEruption.targetRequirement!
+        );
+        expect(legal).toHaveLength(0);
+    });
+
+    it("skips a target that is no longer a Mountain on resolution (CR 608.2b)", () => {
+        // Pre-stage: caster picked two targets, but mtn-2 has already left
+        // the battlefield (removed before resolution). Only mtn-1 is still a
+        // Mountain — Volcanic Eruption deals 1 damage, not 2.
+        const state = setupBoard();
+        // Surgically remove mtn-2 from the battlefield.
+        const p2 = state.players[1];
+        p2.battlefield = p2.battlefield.filter((c) => c.id !== "mtn-2");
+
+        const item = pushSpell(state, volcanicEruption.id, "p1", [
+            { type: "permanent", id: "mtn-1" },
+            { type: "permanent", id: "mtn-2" },
+        ]);
+        item.chosenX = 2;
+        resolveTopOfStack(state);
+
+        // Only mtn-1 was destroyed → damage = 1.
+        expect(p2.battlefield.find((c) => c.id === "mtn-1")).toBeUndefined();
+        expect(state.players[0].life).toBe(19);
+        expect(state.players[1].life).toBe(19);
+        // Savannah Lions (toughness 1) dies even to 1 damage.
+        expect(p2.battlefield.find((c) => c.id === "lion")).toBeUndefined();
+        // Serra Angel (toughness 4) survives with 1 marked damage.
+        const flier = state.players[0].battlefield.find(
+            (c) => c.id === "flier"
+        );
+        expect(flier?.damageMarked).toBe(1);
+    });
+
+    it("is a no-op when no Mountains were destroyed (avoids spurious 0 damage)", () => {
+        const state = setupBoard();
+        // Surgically remove every Mountain before resolution — every chosen
+        // target is now off-battlefield.
+        const p2 = state.players[1];
+        p2.battlefield = p2.battlefield.filter(
+            (c) => !c.subtypes.includes("Mountain")
+        );
+        const item = pushSpell(state, volcanicEruption.id, "p1", [
+            { type: "permanent", id: "mtn-1" },
+            { type: "permanent", id: "mtn-2" },
+        ]);
+        item.chosenX = 2;
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
+        expect(state.players[1].life).toBe(20);
+        const lion = p2.battlefield.find((c) => c.id === "lion");
+        expect(lion?.damageMarked).toBeUndefined();
+    });
+
+    it("wire format: destroyed Mountains and damaged creatures survive projection", () => {
+        const state = setupBoard();
+        const item = pushSpell(state, volcanicEruption.id, "p1", [
+            { type: "permanent", id: "mtn-1" },
+            { type: "permanent", id: "mtn-2" },
+        ]);
+        item.chosenX = 2;
+        resolveTopOfStack(state);
+
+        const projected = projectPublicState(state, 2, "p2");
+        const p2 = projected.players.find((p) => p.id === "p2")!;
+        const ids = p2.battlefield.map((c) => c.id);
+        expect(ids).not.toContain("mtn-1");
+        expect(ids).not.toContain("mtn-2");
+        expect(ids).toContain("mtn-3");
+        // Savannah Lions died → not on the projected board.
+        expect(ids).not.toContain("lion");
+        expect(p2.life).toBe(18);
+        const p1 = projected.players.find((p) => p.id === "p1")!;
+        expect(p1.life).toBe(18);
     });
 });
 
