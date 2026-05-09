@@ -68,6 +68,35 @@ Present the complete `CardDefinition` export for `convex/cards/sets/{set}.ts`.
 
 Follow existing patterns in the file (read it first to match style).
 
+### Step 5b — Uncomment matching reprints (mandatory)
+
+After the new `CardDefinition` is in place, search every other set file in
+`convex/cards/sets/` for `CardPrint` stubs whose `definitionId` matches the
+new card's `id`. Reprints are stored as commented blocks like:
+
+```ts
+// export const animateWallLeb: CardPrint = {
+//     printId: "5c5b4738-20bb-465d-b67e-c6146dce9d0b",
+//     definitionId: "d5c83259-9b90-47c2-b48e-c7d78519e792", // animateWall (stub)
+//     setCode: "leb",
+// };
+```
+
+For every match:
+
+1. Uncomment the entire block (remove the leading `// ` from each line).
+2. Drop the trailing ` (stub)` annotation on the `definitionId` line.
+
+Quick locator:
+
+```sh
+grep -rn "definitionId: \"<NEW_CARD_ID>\"" convex/cards/sets/
+```
+
+This keeps reprint coverage in sync with implementation: as soon as a
+`CardDefinition` becomes real, every print that references it goes live in
+the registry without a separate follow-up.
+
 ### Step 6 — Ability assessment
 
 For each ability on the card, classify:
@@ -87,3 +116,4 @@ Report clearly what works and what needs engine extensions.
 - [ ] TargetRequirement set for targeted spells
 - [ ] resolve() uses only existing SpellContext methods
 - [ ] ID is a valid UUID
+- [ ] All matching `CardPrint` stubs in `convex/cards/sets/*.ts` uncommented (Step 5b)

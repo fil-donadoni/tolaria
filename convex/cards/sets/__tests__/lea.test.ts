@@ -23,10 +23,15 @@ import {
     crusade,
     deathWard,
     farmstead,
+    feedback,
+    flight,
     greenWard,
     holyStrength,
+    jump,
     karma,
     lance,
+    pirateShip,
+    prodigalSorcerer,
     redWard,
     whiteWard,
     shanodinDryads,
@@ -6407,6 +6412,262 @@ describe("Lance (Aura — enchanted creature has first strike, CR 702.7)", () =>
             (c) => c.id === "bear"
         )!;
         expect(slim.staticAbilities).toContain("first strike");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Blue FREE cycle (LEA): Feedback, Flight, Jump, Pirate Ship,
+// Prodigal Sorcerer.
+// ---------------------------------------------------------------------------
+
+describe("Feedback (Aura on Enchantment — 1 dmg to host's controller at upkeep)", () => {
+    // Host always belongs to p1; aura always to p2. Trigger should fire on
+    // p1's upkeep only.
+    function setup(activePlayerId: string) {
+        const hostEnchant = makeInstance(badMoon.id, {
+            id: "host-ench",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(feedback.id, {
+            id: "feedback",
+            controllerId: "p2",
+            ownerId: "p2",
+            attachedTo: "host-ench",
+        });
+        return makeState({
+            turn: 2,
+            phase: "UNTAP",
+            activePlayerId,
+            priorityPlayerId: activePlayerId,
+            players: [
+                makePlayer("p1", { battlefield: [hostEnchant] }),
+                makePlayer("p2", { battlefield: [aura] }),
+            ],
+        });
+    }
+
+    it("declares Aura targeting Enchantment", () => {
+        expect(feedback.types).toEqual(["Enchantment"]);
+        expect(feedback.subtypes).toEqual(["Aura"]);
+        expect(feedback.targetRequirement).toEqual({
+            type: "Enchantment",
+            count: 1,
+        });
+    });
+
+    it("queues + resolves into 1 damage to host's controller at their upkeep", () => {
+        const state = setup("p1");
+        const before = state.players[0].life;
+        advancePhase(state); // UNTAP → UPKEEP
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("feedback-upkeep");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(before - 1);
+    });
+
+    it("does NOT fire on a non-host-controller's upkeep", () => {
+        const state = setup("p2");
+        advancePhase(state);
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
+describe("Flight (Aura — enchanted creature has flying, CR 702.9)", () => {
+    function setupAttached() {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, flight.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        return { state };
+    }
+
+    it("grants 'flying' to the host", () => {
+        const { state } = setupAttached();
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(bear.staticAbilities).toContain("flying");
+    });
+
+    it("wire format: flying survives the projection", () => {
+        const { state } = setupAttached();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(slim.staticAbilities).toContain("flying");
+    });
+});
+
+describe("Jump (instant — target creature gains flying until end of turn)", () => {
+    it("grants flying for the rest of the turn (duration = end-of-turn)", () => {
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, jump.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(after.staticAbilities).toContain("flying");
+    });
+
+    it("the temporary grant expires at CLEANUP (CR 514.2)", () => {
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, jump.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        // Walk turn until CLEANUP fires.
+        for (let i = 0; i < 12 && state.phase !== "CLEANUP"; i++) {
+            advancePhase(state);
+        }
+        // After CLEANUP processing, pump should be gone.
+        advancePhase(state);
+        const bearAfter = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.staticAbilities).not.toContain("flying");
+    });
+});
+
+describe("Pirate Ship ({T}: 1 dmg + can't attack unless defender controls Island)", () => {
+    function setup(opts: { defenderHasIsland: boolean }) {
+        const ship = makeInstance(pirateShip.id, {
+            id: "ship",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const p2Lands = opts.defenderHasIsland
+            ? [
+                  makeInstance(island.id, {
+                      id: "p2-isle",
+                      controllerId: "p2",
+                      ownerId: "p2",
+                  }),
+              ]
+            : [];
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ship] }),
+                makePlayer("p2", { battlefield: p2Lands }),
+            ],
+        });
+    }
+
+    it("can attack when defender controls an Island", () => {
+        const state = setup({ defenderHasIsland: true });
+        const ship = state.players[0].battlefield[0];
+        const result = validateAttackerEligibility(
+            ship,
+            state.players[1].battlefield
+        );
+        expect(result.eligible).toBe(true);
+    });
+
+    it("cannot attack when defender has no Island", () => {
+        const state = setup({ defenderHasIsland: false });
+        const ship = state.players[0].battlefield[0];
+        const result = validateAttackerEligibility(
+            ship,
+            state.players[1].battlefield
+        );
+        expect(result.eligible).toBe(false);
+    });
+
+    it("activated {T} ability deals 1 to a target player", () => {
+        const state = setup({ defenderHasIsland: true });
+        const ship = state.players[0].battlefield[0];
+        state.stack.push({
+            ...ship,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "pirate-ship-zap",
+            targets: [{ type: "player", id: "p2" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(19);
+    });
+});
+
+describe("Prodigal Sorcerer ({T}: 1 dmg to any target — original Tim)", () => {
+    function setup() {
+        const tim = makeInstance(prodigalSorcerer.id, {
+            id: "tim",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tim] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("declares a 'tap, target any, deal 1' activated ability", () => {
+        const ability = prodigalSorcerer.activatedAbilities?.[0];
+        expect(ability?.cost).toEqual({ tap: true });
+        expect(ability?.useStack).toBe(true);
+        expect(ability?.targetRequirement?.type).toBe("any");
+    });
+
+    it("deals 1 damage to a target player", () => {
+        const state = setup();
+        const tim = state.players[0].battlefield[0];
+        state.stack.push({
+            ...tim,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "prodigal-sorcerer-zap",
+            targets: [{ type: "player", id: "p2" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("kills a 1-toughness creature", () => {
+        const state = setup();
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(lion);
+        const tim = state.players[0].battlefield[0];
+        state.stack.push({
+            ...tim,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "prodigal-sorcerer-zap",
+            targets: [{ type: "permanent", id: "lion" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).not.toContain(
+            "lion"
+        );
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("lion");
     });
 });
 

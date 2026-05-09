@@ -829,21 +829,65 @@ export const counterspell: CardDefinition = {
 //     types: ["Sorcery"],
 // };
 
-// export const feedback: CardDefinition = {
-//     id: "0eb8f591-d763-49bf-8ef9-86265aaa72f7",
-//     name: "Feedback",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Feedback — "Enchant enchantment. At the beginning of the upkeep of enchanted
+// enchantment's controller, Feedback deals 1 damage to that player." (CR 303.4
+// aura attachment to a non-creature host, 603.6a phase trigger). Trigger fires
+// only on the host's controller's upkeep — same lookup pattern as Farmstead.
+export const feedback: CardDefinition = {
+    id: "0eb8f591-d763-49bf-8ef9-86265aaa72f7",
+    name: "Feedback",
+    manaCost: { X: 2, U: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Enchantment", count: 1 },
+    triggeredAbilities: [
+        {
+            id: "feedback-upkeep",
+            oracleText:
+                "At the beginning of the upkeep of enchanted enchantment's controller, Feedback deals 1 damage to that player.",
+            event: "PHASE_BEGIN",
+            matches: (event, self, state) => {
+                if (event.type !== "PHASE_BEGIN") return false;
+                if (event.phase !== "UPKEEP") return false;
+                if (!self.attachedTo) return false;
+                for (const p of state?.players ?? []) {
+                    const host = p.battlefield.find(
+                        (c) => c.id === self.attachedTo
+                    );
+                    if (host) return host.controllerId === event.activePlayerId;
+                }
+                return false;
+            },
+            resolve: (ctx) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                const controller = ctx.getController({
+                    type: "permanent",
+                    id: hostId,
+                });
+                ctx.dealDamage({ type: "player", id: controller }, 1);
+            },
+        },
+    ],
+};
 
-// export const flight: CardDefinition = {
-//     id: "67c7784b-6b79-4268-a714-895c82809aff",
-//     name: "Flight",
-//     manaCost: { U: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Flight — "Enchant creature. Enchanted creature has flying." (CR 303.4 aura
+// attachment, 702.9 flying, 611.2 keyword grant via static effect).
+export const flight: CardDefinition = {
+    id: "67c7784b-6b79-4268-a714-895c82809aff",
+    name: "Flight",
+    manaCost: { U: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "flying",
+        },
+    ],
+};
 
 // export const invisibility: CardDefinition = {
 //     id: "1858ac51-e6a7-48d7-8759-166070ca13d8",
@@ -853,12 +897,21 @@ export const counterspell: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 
-// export const jump: CardDefinition = {
-//     id: "cb3f4b11-ad1b-48e2-a500-787d351b0174",
-//     name: "Jump",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
+// Jump — "Target creature gains flying until end of turn." (CR 702.9 flying,
+// 611.1b temporary keyword grant with end-of-turn duration).
+export const jump: CardDefinition = {
+    id: "cb3f4b11-ad1b-48e2-a500-787d351b0174",
+    name: "Jump",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type === "permanent") {
+            ctx.grantStaticAbility(target, "flying", { phase: "end-of-turn" });
+        }
+    },
+};
 
 // export const lifetap: CardDefinition = {
 //     id: "11add837-7ee4-4104-b031-c161bce459ae",
@@ -941,15 +994,34 @@ export const phantomMonster: CardDefinition = {
     staticAbilities: ["flying"],
 };
 
-// export const pirateShip: CardDefinition = {
-//     id: "d0a7cb23-d229-43c5-addd-dcf423984b0c",
-//     name: "Pirate Ship",
-//     manaCost: { X: 4, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Pirate"],
-//     power: 4,
-//     toughness: 3,
-// };
+// Pirate Ship — "Pirate Ship can't attack unless defender controls an Island.
+// {T}: Pirate Ship deals 1 damage to any target." (CR 508.1c attack
+// restriction, 605 activated ability, 120.1 damage). The attack restriction
+// is enforced by combat.ts via the `cant-attack-unless-defender-controls-X`
+// static keyword (same pattern as Sea Serpent).
+export const pirateShip: CardDefinition = {
+    id: "d0a7cb23-d229-43c5-addd-dcf423984b0c",
+    name: "Pirate Ship",
+    manaCost: { X: 4, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Pirate"],
+    power: 4,
+    toughness: 3,
+    staticAbilities: ["cant-attack-unless-defender-controls-Island"],
+    activatedAbilities: [
+        {
+            id: "pirate-ship-zap",
+            oracleText: "{T}: Pirate Ship deals 1 damage to any target.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target) ctx.dealDamage(target, 1);
+            },
+        },
+    ],
+};
 
 // export const powerLeak: CardDefinition = {
 //     id: "ccc982b6-35b2-4e33-ace2-86cb79123e4f",
@@ -966,15 +1038,30 @@ export const phantomMonster: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const prodigalSorcerer: CardDefinition = {
-//     id: "e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a",
-//     name: "Prodigal Sorcerer",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Wizard", "Sorcerer"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Prodigal Sorcerer — "{T}: Prodigal Sorcerer deals 1 damage to any target."
+// (CR 605 activated ability, 120.1 damage). The original "Tim".
+export const prodigalSorcerer: CardDefinition = {
+    id: "e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a",
+    name: "Prodigal Sorcerer",
+    manaCost: { X: 2, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard", "Sorcerer"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "prodigal-sorcerer-zap",
+            oracleText: "{T}: Prodigal Sorcerer deals 1 damage to any target.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target) ctx.dealDamage(target, 1);
+            },
+        },
+    ],
+};
 
 // Psionic Blast — deals 4 damage to any target and 2 damage to you.
 // CR 115.4: "any target" = creature/player/planeswalker. CR 120.3: damage

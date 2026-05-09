@@ -217,6 +217,62 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Flight + Jump (grant flying — Aura permanent, instant temporary)",
+        cards: [
+            // Flight in hand (permanent grant via aura) and Jump in hand
+            // (instant grant for the rest of the turn). Cast both on Grizzly
+            // Bears to verify the keyword stacks (one persistent, one expiring
+            // at CLEANUP).
+            { name: "Flight", owner: "me" as const, zone: "hand" as const },
+            { name: "Jump", owner: "me" as const, zone: "hand" as const },
+            { name: "Island", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Hill Giant", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Pirate Ship (can't attack unless defender controls Island; {T}: 1 dmg)",
+        cards: [
+            // p2 controls an Island so the attack restriction is satisfied —
+            // Pirate Ship can swing for 4. Also exercise the {T} ping at any
+            // target. With p2's Island removed, attacking is illegal.
+            { name: "Pirate Ship", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 4 },
+            { name: "Island", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Prodigal Sorcerer ({T}: 1 dmg to any target — original Tim)",
+        cards: [
+            // Tap Tim to ping a 1-toughness creature off the battlefield.
+            // Repeats every untap step; Hypnotic Specter (2/2) survives one
+            // ping but not two.
+            { name: "Prodigal Sorcerer", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 2 },
+            { name: "Hypnotic Specter", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Feedback (1 dmg to host enchantment's controller at upkeep)",
+        cards: [
+            // Attach Feedback to the opponent's Bad Moon. Each of their
+            // upkeeps queues 1 damage to them — slow burn, doesn't tick on
+            // your upkeep.
+            { name: "Feedback", owner: "me" as const, zone: "hand" as const },
+            { name: "Island", owner: "me" as const, count: 3 },
+            { name: "Bad Moon", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Crusade (white creatures get +1/+1, CR 611 layer 7c)",
         cards: [
             // Both controllers' white creatures benefit from the buff. White
