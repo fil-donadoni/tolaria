@@ -2,6 +2,7 @@ import type { CardInstanceState, GameState } from "./state";
 import { getOpponentId, removePermanentTo } from "./state";
 import { isAura } from "./constants";
 import { isProtectedFromSource } from "./protection";
+import { applyStateTriggers } from "./triggers";
 import { tryGetCardById } from "../cards";
 
 /**
@@ -126,8 +127,17 @@ function findOnBattlefield(
 
 /** Runs every SBA once. Currently: aura attachments (CR 704.5m), game-over
  *  (CR 704.5a/b). Expand as more SBAs come online (706.5c/d/e for legend
- *  rule, +1/-1 counter cancellation, etc.). */
+ *  rule, +1/-1 counter cancellation, etc.).
+ *
+ *  Per CR 117.5, after SBA resolution and before priority is granted, the
+ *  game scans for state-triggered abilities (CR 603.8) and puts them on the
+ *  stack. The two checkpoints are coupled at every priority handoff, so we
+ *  fold the state-trigger scan into this entry point. */
 export function checkStateBasedActions(state: GameState): void {
     checkAuraAttachmentSBA(state);
     checkGameOverSBA(state);
+    if (state.gameOver) return;
+    // CR 117.5: state triggers go on the stack after SBA. Don't scan if the
+    // game ended — there's no priority handoff to satisfy.
+    applyStateTriggers(state);
 }

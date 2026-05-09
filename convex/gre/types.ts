@@ -16,6 +16,7 @@ export type CardAction =
     | "putToHand";
 
 export type Phase =
+    | "MULLIGAN"
     | "UNTAP"
     | "UPKEEP"
     | "DRAW"

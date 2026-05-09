@@ -10,7 +10,7 @@
 // battlefield-declaration order. That's deterministic but not the rules-
 // correct ordering for controlled simultaneous triggers.
 
-import type { GameEvent } from "../cards/types";
+import type { GameEvent, StateCheckEvent } from "../cards/types";
 import { tryGetCardById } from "../cards";
 import type { CardInstanceState, GameState, StackItem } from "./state";
 import { getPlayer } from "./state";
@@ -57,11 +57,70 @@ export function collectTriggers(
             for (const ability of abilities) {
                 for (const event of events) {
                     if (event.type !== ability.event) continue;
-                    if (!ability.matches(event, permanent)) continue;
+                    if (!ability.matches(event, permanent, state)) continue;
                     out.push(buildTriggerItem(permanent, ability.id, event));
                 }
             }
         }
     }
     return out;
+}
+
+/** True if a state trigger from `(sourceInstanceId, abilityId)` is currently
+ *  on the stack. CR 603.8 — a state-triggered ability does not trigger again
+ *  until it has resolved, been countered, or otherwise left the stack. */
+function stateTriggerAlreadyOnStack(
+    state: GameState,
+    sourceInstanceId: string,
+    abilityId: string
+): boolean {
+    return state.stack.some(
+        (item) =>
+            item.triggerSourceId === sourceInstanceId &&
+            item.triggeredAbilityId === abilityId &&
+            item.triggerEvent?.type === "STATE_CHECK"
+    );
+}
+
+/** Scans all battlefield permanents for state-triggered abilities (CR 603.8)
+ *  whose persistent condition is currently met. Skips abilities whose trigger
+ *  is already on the stack to satisfy the no-retrigger clause of CR 603.8. */
+export function collectStateTriggers(state: GameState): StackItem[] {
+    const event: StateCheckEvent = { type: "STATE_CHECK" };
+    const active = getPlayer(state, state.activePlayerId);
+    const opponents = state.players.filter(
+        (p) => p.id !== state.activePlayerId
+    );
+    const ordered = [active, ...opponents];
+
+    const out: StackItem[] = [];
+    for (const player of ordered) {
+        for (const permanent of player.battlefield) {
+            const cardId = (permanent.card as { id?: string }).id;
+            if (!cardId) continue;
+            const def = tryGetCardById(cardId);
+            const abilities = def?.triggeredAbilities;
+            if (!abilities || abilities.length === 0) continue;
+            for (const ability of abilities) {
+                if (ability.event !== "STATE_CHECK") continue;
+                if (stateTriggerAlreadyOnStack(state, permanent.id, ability.id))
+                    continue;
+                if (!ability.matches(event, permanent, state)) continue;
+                out.push(buildTriggerItem(permanent, ability.id, event));
+            }
+        }
+    }
+    return out;
+}
+
+/** Pushes any newly-triggered state abilities onto the stack and restarts
+ *  priority at the active player (CR 117.3c). Called from the stable
+ *  checkpoint that follows SBA evaluation (CR 117.5). */
+export function applyStateTriggers(state: GameState): boolean {
+    const triggers = collectStateTriggers(state);
+    if (triggers.length === 0) return false;
+    state.stack.push(...triggers);
+    state.priorityPlayerId = state.activePlayerId;
+    state.passCount = 0;
+    return true;
 }

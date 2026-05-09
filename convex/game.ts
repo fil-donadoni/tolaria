@@ -40,6 +40,11 @@ import {
     applyAllCombatDamage,
 } from "./gre/phases";
 import { freshSeed, seededShuffle } from "./gre/rng";
+import {
+    applyMulliganBottomChoice,
+    makeMulliganState,
+    recordDeclaration,
+} from "./gre/mulligan";
 import type { Phase } from "./gre/types";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
@@ -57,7 +62,7 @@ import {
 } from "./gre/combat";
 import { checkStateBasedActions } from "./gre/sba";
 
-const STARTING_HAND_SIZE = 7;
+export const STARTING_HAND_SIZE = 7;
 
 type DeckInput = {
     id: string;
@@ -538,8 +543,11 @@ export const createSoloGame = mutation({
                 drawCardFromLibrary(player);
         }
 
-        // UNTAP is auto → advances to UPKEEP (with entry actions along the way)
-        advancePhase(initialState);
+        // CR 103.5: enter the mulligan phase — declarations begin with the
+        // starting player. advancePhase is deferred to finalizeMulligan.
+        initialState.phase = "MULLIGAN" as Phase;
+        initialState.mulligan = makeMulliganState(initialState);
+        initialState.priorityPlayerId = initialState.mulligan.declaringPlayerId;
 
         await saveGameState(ctx, gameId, 0, initialState);
 
@@ -604,8 +612,11 @@ export const joinGame = mutation({
                 drawCardFromLibrary(player);
         }
 
-        // UNTAP is auto → advances to UPKEEP (with entry actions along the way)
-        advancePhase(initialState);
+        // CR 103.5: enter the mulligan phase — declarations begin with the
+        // starting player. advancePhase is deferred to finalizeMulligan.
+        initialState.phase = "MULLIGAN" as Phase;
+        initialState.mulligan = makeMulliganState(initialState);
+        initialState.priorityPlayerId = initialState.mulligan.declaringPlayerId;
 
         await saveGameState(ctx, args.gameId, 0, initialState);
 
@@ -1660,10 +1671,14 @@ export const toggleAttacker = mutation({
         );
         if (!card) throw new Error("Card not on battlefield");
 
+        const defenderBattlefield = getPlayer(
+            state,
+            getOpponentId(state, args.playerId)
+        ).battlefield;
         const idx = state.combat.attackerIds.indexOf(args.cardInstanceId);
         if (idx !== -1) {
             // CR 508.1d: can't deselect a creature required to attack
-            if (mustAttack(card)) {
+            if (mustAttack(card, defenderBattlefield)) {
                 throw new Error(
                     `${card.card.name as string} must attack this combat if able`
                 );
@@ -1671,7 +1686,10 @@ export const toggleAttacker = mutation({
             state.combat.attackerIds.splice(idx, 1);
         } else {
             // Select — must be eligible
-            const validation = validateAttackerEligibility(card);
+            const validation = validateAttackerEligibility(
+                card,
+                defenderBattlefield
+            );
             if (!validation.eligible) {
                 throw new Error(validation.reason);
             }
@@ -1710,7 +1728,14 @@ export const confirmAttackers = mutation({
 
         // CR 508.1d: auto-include any eligible creature required to attack
         // that the player didn't manually select.
-        for (const requiredId of getRequiredAttackerIds(player.battlefield)) {
+        const defenderBattlefield = getPlayer(
+            state,
+            getOpponentId(state, args.playerId)
+        ).battlefield;
+        for (const requiredId of getRequiredAttackerIds(
+            player.battlefield,
+            defenderBattlefield
+        )) {
             if (!state.combat.attackerIds.includes(requiredId)) {
                 state.combat.attackerIds.push(requiredId);
             }
@@ -2188,6 +2213,11 @@ export const passPriority = mutation({
         assertGameNotOver(state);
         assertNoPendingChoices(state);
 
+        // CR 103.5: no priority is given during the pre-game mulligan phase.
+        if (state.phase === "MULLIGAN") {
+            throw new Error("Cannot pass priority during mulligan phase");
+        }
+
         if (state.priorityPlayerId !== args.playerId) {
             throw new Error("You don't have priority");
         }
@@ -2332,40 +2362,64 @@ export const selectResolutionChoice = mutation({
         head.selected.push(args.cardInstanceId);
 
         if (head.selected.length >= head.count) {
-            // Commit the choice into the stack item's collectedChoices so
-            // the next invocation of the step reads it back via requestChoice.
-            const stackItem = state.stack.find(
-                (s) => s.id === head.stackItemId
-            );
-            if (!stackItem) throw new Error("Stack item not found");
-            const key = `${head.step}:${head.choiceId}`;
-            stackItem.collectedChoices = {
-                ...(stackItem.collectedChoices ?? {}),
-                [key]: head.selected,
-            };
-
-            queue.shift();
-            state.pendingChoices = queue.length > 0 ? queue : undefined;
-
-            // If the queue is empty, resume resolution. The resolve may
-            // enqueue fresh pending choices (next step) — treat that as a
-            // new suspension and hand priority to the new chooser.
-            if ((state.pendingChoices?.length ?? 0) === 0) {
-                resolveTopOfStack(state);
-                if ((state.pendingChoices?.length ?? 0) > 0) {
-                    state.priorityPlayerId = state.pendingChoices![0].playerId;
-                } else {
-                    // Full resolution completed — priority returns to the
-                    // active player (CR 117.3d) and the pass count resets.
+            if (head.kind === "mulligan-bottom") {
+                // Pre-game mulligan bottoming (CR 103.5) — no stack item; the
+                // mulligan module moves the picks to the bottom of the
+                // library, pops the queue, and either advances priority to
+                // the next chooser or finalizes the mulligan phase
+                // (advancing to UPKEEP of turn 1).
+                applyMulliganBottomChoice(state);
+                state.pendingChoices =
+                    (state.pendingChoices?.length ?? 0) > 0
+                        ? state.pendingChoices
+                        : undefined;
+                if ((state.pendingChoices?.length ?? 0) === 0) {
+                    // finalizeMulligan ran — priority is set by advancePhase.
                     state.priorityPlayerId = state.activePlayerId;
                     state.passCount = 0;
                     drainAutoPasses(state);
                 }
-                checkStateBasedActions(state);
+                // SBA not run during MULLIGAN (no game-over conditions apply
+                // pre-game, CR 704.3); after finalizeMulligan we're in UPKEEP
+                // and the next mutation will run SBA as usual.
             } else {
-                // More choices queued within the same step — move priority
-                // to the next chooser.
-                state.priorityPlayerId = state.pendingChoices![0].playerId;
+                // Mid-resolution choice (CR 608.2) — commit into the stack
+                // item's collectedChoices so the next invocation of the step
+                // reads it back via requestChoice.
+                const stackItem = state.stack.find(
+                    (s) => s.id === head.stackItemId
+                );
+                if (!stackItem) throw new Error("Stack item not found");
+                const key = `${head.step}:${head.choiceId}`;
+                stackItem.collectedChoices = {
+                    ...(stackItem.collectedChoices ?? {}),
+                    [key]: head.selected,
+                };
+
+                queue.shift();
+                state.pendingChoices = queue.length > 0 ? queue : undefined;
+
+                // If the queue is empty, resume resolution. The resolve may
+                // enqueue fresh pending choices (next step) — treat that as a
+                // new suspension and hand priority to the new chooser.
+                if ((state.pendingChoices?.length ?? 0) === 0) {
+                    resolveTopOfStack(state);
+                    if ((state.pendingChoices?.length ?? 0) > 0) {
+                        state.priorityPlayerId =
+                            state.pendingChoices![0].playerId;
+                    } else {
+                        // Full resolution completed — priority returns to the
+                        // active player (CR 117.3d) and the pass count resets.
+                        state.priorityPlayerId = state.activePlayerId;
+                        state.passCount = 0;
+                        drainAutoPasses(state);
+                    }
+                    checkStateBasedActions(state);
+                } else {
+                    // More choices queued within the same step — move
+                    // priority to the next chooser.
+                    state.priorityPlayerId = state.pendingChoices![0].playerId;
+                }
             }
         }
 
@@ -2390,6 +2444,59 @@ export const selectResolutionChoice = mutation({
     },
 });
 
+/** Declare keep / mulligan during the pre-game mulligan phase (CR 103.5,
+ *  London mulligan). Sequential per round in turn order from the starting
+ *  player. Once every still-unlocked player has declared this round, the
+ *  mulligan engine executes the round (mull players reshuffle + redraw 7,
+ *  keep players lock). When all players are locked, bottoming PendingChoices
+ *  are enqueued for any player who took at least one mulligan; their picks
+ *  are applied via `selectResolutionChoice` (kind "mulligan-bottom"). */
+export const declareMulligan = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        decision: v.union(v.literal("keep"), v.literal("mull")),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
+        assertGameNotOver(state);
+
+        if (state.phase !== "MULLIGAN") {
+            throw new Error("Mulligan declarations only legal during MULLIGAN");
+        }
+        if (!state.mulligan) {
+            throw new Error("Mulligan state missing");
+        }
+        if (state.mulligan.bottoming) {
+            throw new Error("Cannot declare mulligan during bottoming");
+        }
+
+        recordDeclaration(state, args.playerId, args.decision);
+
+        const now = Date.now();
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state);
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            type: "MULLIGAN_DECLARED",
+            player: args.playerId,
+            payload: {
+                decision: args.decision,
+                mulligansTaken: state.mulligan?.mulligansTaken ?? null,
+                bottoming: state.mulligan?.bottoming ?? false,
+                phase: state.phase,
+            },
+            timestamp: now,
+        });
+    },
+});
+
 /** Set auto-pass: automatically pass priority for the rest of this turn. */
 export const endTurn = mutation({
     args: {
@@ -2404,6 +2511,10 @@ export const endTurn = mutation({
         state.undoableBy = undefined;
         assertGameNotOver(state);
         assertNoPendingChoices(state);
+
+        if (state.phase === "MULLIGAN") {
+            throw new Error("Cannot end turn during mulligan phase");
+        }
 
         if (state.priorityPlayerId !== args.playerId) {
             throw new Error("You don't have priority");
@@ -3319,7 +3430,9 @@ export const debugResetGame = mutation({
             for (let i = 0; i < STARTING_HAND_SIZE; i++)
                 drawCardFromLibrary(player);
         }
-        advancePhase(initialState);
+        initialState.phase = "MULLIGAN" as Phase;
+        initialState.mulligan = makeMulliganState(initialState);
+        initialState.priorityPlayerId = initialState.mulligan.declaringPlayerId;
 
         await saveGameState(ctx, args.gameId, 0, initialState);
 

@@ -169,6 +169,53 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "Sinkhole (destroy target land, CR 701.7)",
+        cards: [
+            // Sinkhole costs {B}{B}{1}: three Swamps cover the cost. Two
+            // legal targets in play — opponent's Mountain and Forest — to
+            // exercise the Land target picker. The opponent's Grizzly Bears
+            // is NOT a legal target (Sinkhole reads "target land"), so
+            // clicking it during target selection should be rejected.
+            {
+                name: "Sinkhole",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 3 },
+            { name: "Mountain", owner: "opp" as const },
+            { name: "Forest", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Sea Serpent vs Sinkhole (CR 508.1c attack + CR 603.8 state trigger)",
+        cards: [
+            // Two-step exercise covering both Sea Serpent abilities:
+            //  1. Attack: defender controls an Island, so Sea Serpent CAN
+            //     legally attack (CR 508.1c). Declare it as attacker to
+            //     verify the restriction's positive case.
+            //  2. State trigger: pass priority back to the opponent, who
+            //     casts Sinkhole on the only Island we control. After
+            //     Sinkhole resolves we control 0 Islands — the next stable
+            //     checkpoint scans state triggers (CR 117.5 + 603.8) and
+            //     queues the sacrifice on the stack. Resolving it sends
+            //     Sea Serpent to the graveyard.
+            { name: "Sea Serpent", owner: "me" as const },
+            { name: "Island", owner: "me" as const },
+            { name: "Island", owner: "opp" as const },
+            { name: "Swamp", owner: "opp" as const, count: 2 },
+            {
+                name: "Sinkhole",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

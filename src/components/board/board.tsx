@@ -21,6 +21,7 @@ import PauseMenuDialog from "./pause-menu-dialog";
 import TargetSelectionBanner from "./target-selection-banner";
 import PaymentBanner from "./payment-banner";
 import PendingChoicePrompt from "./pending-choice-prompt";
+import MulliganPrompt from "./mulligan-prompt";
 
 const POPUP_SELECTORS = [
     '[data-slot="dialog-content"]',
@@ -108,6 +109,7 @@ export default function Board({
     const combat = state.combat;
     const pendingTarget = state.pendingTarget;
     const pendingChoices = state.pendingChoices;
+    const mulligan = state.mulligan;
     const undoableBy = state.undoableBy;
     const gameOver = state.gameOver;
     const stackItems = state.stack ?? [];
@@ -181,6 +183,14 @@ export default function Board({
                         <PendingChoicePrompt
                             choice={pendingChoices[0]}
                             playerId={viewerId}
+                        />
+                    )}
+                    {mulligan && !mulligan.bottoming && (
+                        <MulliganPrompt
+                            gameId={gameId}
+                            viewerId={viewerId}
+                            mulligan={mulligan}
+                            allPlayers={allPlayers}
                         />
                     )}
                     <ActionBar onOpenMenu={() => setPauseMenuOpen(true)} />

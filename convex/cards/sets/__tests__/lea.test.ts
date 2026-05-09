@@ -72,6 +72,7 @@ import {
     regrowth,
     royalAssassin,
     savannahLions,
+    seaSerpent,
     sengirVampire,
     sinkhole,
     solRing,
@@ -103,6 +104,7 @@ import {
 import { projectPublicState } from "../../../gameProjections";
 import { checkStateBasedActions } from "../../../gre/sba";
 import {
+    validateAttackerEligibility,
     validateBlockerEligibility,
     mustAttack,
     getRequiredAttackerIds,
@@ -1389,6 +1391,190 @@ describe("Sengir Vampire (+1/+1 on damaged-creature death, CR 603.2)", () => {
         expect(
             state.players[1].battlefield[0].damagedBySources
         ).toBeUndefined();
+    });
+});
+
+describe("Sea Serpent (CR 508.1c attack restriction + CR 603.8 state trigger)", () => {
+    function setup(opts: {
+        controllerHasIsland: boolean;
+        defenderHasIsland: boolean;
+    }) {
+        const serpent = makeInstance(seaSerpent.id, {
+            id: "serpent",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const p1Lands = opts.controllerHasIsland
+            ? [
+                  makeInstance(island.id, {
+                      id: "p1-isle",
+                      controllerId: "p1",
+                      ownerId: "p1",
+                  }),
+              ]
+            : [];
+        const p2Lands = opts.defenderHasIsland
+            ? [
+                  makeInstance(island.id, {
+                      id: "p2-isle",
+                      controllerId: "p2",
+                      ownerId: "p2",
+                  }),
+              ]
+            : [];
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [serpent, ...p1Lands] }),
+                makePlayer("p2", { battlefield: p2Lands }),
+            ],
+        });
+    }
+
+    it("can attack when defending player controls an Island", () => {
+        const state = setup({
+            controllerHasIsland: true,
+            defenderHasIsland: true,
+        });
+        const serpent = state.players[0].battlefield[0];
+        const result = validateAttackerEligibility(
+            serpent,
+            state.players[1].battlefield
+        );
+        expect(result).toEqual({ eligible: true });
+    });
+
+    it("cannot attack when defending player has no Island", () => {
+        const state = setup({
+            controllerHasIsland: true,
+            defenderHasIsland: false,
+        });
+        const serpent = state.players[0].battlefield[0];
+        const result = validateAttackerEligibility(
+            serpent,
+            state.players[1].battlefield
+        );
+        expect(result.eligible).toBe(false);
+        if (!result.eligible) {
+            expect(result.reason).toMatch(/Island/);
+        }
+    });
+
+    it("ignores controller's Islands — only defender's count for the attack restriction", () => {
+        // p1 controls an Island, p2 does not. Serpent still cannot attack
+        // because the restriction reads "defending player controls an Island".
+        const state = setup({
+            controllerHasIsland: true,
+            defenderHasIsland: false,
+        });
+        const serpent = state.players[0].battlefield[0];
+        expect(
+            validateAttackerEligibility(serpent, state.players[1].battlefield)
+                .eligible
+        ).toBe(false);
+    });
+
+    it("state trigger queues a sacrifice when controller has no Islands", () => {
+        // Serpent in play, controller has zero Islands. The first SBA pass
+        // schedules the sacrifice trigger on the stack (CR 117.5 + 603.8).
+        const state = setup({
+            controllerHasIsland: false,
+            defenderHasIsland: true,
+        });
+        expect(state.stack).toHaveLength(0);
+        checkStateBasedActions(state);
+        expect(state.stack).toHaveLength(1);
+        const item = state.stack[0];
+        expect(item.triggeredAbilityId).toBe(
+            "sea-serpent-no-islands-sacrifice"
+        );
+        expect(item.triggerSourceId).toBe("serpent");
+        expect(item.triggerEvent?.type).toBe("STATE_CHECK");
+    });
+
+    it("does NOT trigger a second time while the first trigger is on the stack (CR 603.8)", () => {
+        const state = setup({
+            controllerHasIsland: false,
+            defenderHasIsland: false,
+        });
+        checkStateBasedActions(state);
+        expect(state.stack).toHaveLength(1);
+        // Subsequent SBA passes (e.g. another priority handoff) must not pile
+        // up duplicate triggers — the state trigger holds itself off until
+        // the existing copy resolves or otherwise leaves the stack.
+        checkStateBasedActions(state);
+        checkStateBasedActions(state);
+        expect(state.stack).toHaveLength(1);
+    });
+
+    it("does NOT trigger when controller has at least one Island", () => {
+        const state = setup({
+            controllerHasIsland: true,
+            defenderHasIsland: false,
+        });
+        checkStateBasedActions(state);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("on resolve, sends Sea Serpent to its owner's graveyard", () => {
+        const state = setup({
+            controllerHasIsland: false,
+            defenderHasIsland: false,
+        });
+        checkStateBasedActions(state);
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+            "serpent"
+        );
+    });
+
+    it("re-triggers after the first sacrifice trigger leaves the stack if the condition still holds", () => {
+        // Two Sea Serpents: the trigger fires once per source even after a
+        // separate trigger of the same kind has resolved. After resolution,
+        // a fresh SBA pass produces a new trigger for any remaining serpent
+        // whose controller still has no Islands.
+        const state = setup({
+            controllerHasIsland: false,
+            defenderHasIsland: false,
+        });
+        const second = makeInstance(seaSerpent.id, {
+            id: "serpent2",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        state.players[0].battlefield.push(second);
+        checkStateBasedActions(state);
+        expect(state.stack).toHaveLength(2);
+        resolveTopOfStack(state);
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.id).sort()).toEqual([
+            "serpent",
+            "serpent2",
+        ]);
+    });
+
+    it("wire format: attack restriction survives projectPublicState", () => {
+        // The projection slims `card.card` to `{ id }`. The restriction
+        // logic reads `staticAbilities` and the defender battlefield's
+        // `subtypes` — both of which the projection preserves.
+        const state = setup({
+            controllerHasIsland: true,
+            defenderHasIsland: false,
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const projectedSerpent = projected.players[0].battlefield.find(
+            (c) => c.id === "serpent"
+        )!;
+        const projectedDefender = projected.players[1].battlefield;
+        const result = validateAttackerEligibility(
+            projectedSerpent as CardInstanceState,
+            projectedDefender as CardInstanceState[]
+        );
+        expect(result.eligible).toBe(false);
     });
 });
 

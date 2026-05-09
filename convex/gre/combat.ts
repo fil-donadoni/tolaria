@@ -6,9 +6,17 @@ export type AttackerValidation =
     | { eligible: true }
     | { eligible: false; reason: string };
 
-/** Validates whether a card instance is eligible to be declared as an attacker (CR 508.1a-d). */
+/** Validates whether a card instance is eligible to be declared as an attacker
+ *  (CR 508.1a-d). `defenderBattlefield` (CR 508.1c) lets the check evaluate
+ *  conditional restrictions whose predicate depends on the defending player's
+ *  permanents (Sea Serpent: "can't attack unless defending player controls an
+ *  Island"). When omitted the conditional checks are skipped — call sites
+ *  that don't yet plumb the defender battlefield retain the previous
+ *  behavior, which only matters for the few cards that carry such
+ *  restrictions. */
 export function validateAttackerEligibility(
-    card: CardInstanceState
+    card: CardInstanceState,
+    defenderBattlefield?: CardInstanceState[]
 ): AttackerValidation {
     if (!card.types.includes("Creature")) {
         return { eligible: false, reason: "Only creatures can attack" };
@@ -24,6 +32,29 @@ export function validateAttackerEligibility(
     }
     if (card.isSummoningSick) {
         return { eligible: false, reason: "Creature has summoning sickness" };
+    }
+    if (defenderBattlefield) {
+        // CR 508.1c — conditional attack restriction. Sea Serpent: "can't
+        // attack unless defending player controls an Island." Encoded as a
+        // `cant-attack-unless-defender-controls-<Subtype>` static ability so
+        // additional cards with the same shape (Merfolk of the Pearl Trident
+        // variants, Reef Pirates, etc.) can opt in by changing the subtype.
+        for (const ability of card.staticAbilities) {
+            const match = ability.match(
+                /^cant-attack-unless-defender-controls-(.+)$/
+            );
+            if (!match) continue;
+            const requiredSubtype = match[1];
+            const ok = defenderBattlefield.some((c) =>
+                c.subtypes.includes(requiredSubtype)
+            );
+            if (!ok) {
+                return {
+                    eligible: false,
+                    reason: `${card.card.name as string} can't attack unless defending player controls a ${requiredSubtype}`,
+                };
+            }
+        }
     }
     return { eligible: true };
 }
@@ -101,16 +132,22 @@ export function validateBlockerEligibility(
  * requirement but no legal attack (tapped, sick, defender, etc.) are not
  * required — CR 508.1d only forces requirements that can be obeyed.
  */
-export function mustAttack(card: CardInstanceState): boolean {
+export function mustAttack(
+    card: CardInstanceState,
+    defenderBattlefield?: CardInstanceState[]
+): boolean {
     if (!card.staticAbilities.includes("attacks-if-able")) return false;
-    return validateAttackerEligibility(card).eligible;
+    return validateAttackerEligibility(card, defenderBattlefield).eligible;
 }
 
 /** Ids of creatures on `battlefield` that are required to attack this combat. */
 export function getRequiredAttackerIds(
-    battlefield: CardInstanceState[]
+    battlefield: CardInstanceState[],
+    defenderBattlefield?: CardInstanceState[]
 ): string[] {
-    return battlefield.filter(mustAttack).map((c) => c.id);
+    return battlefield
+        .filter((c) => mustAttack(c, defenderBattlefield))
+        .map((c) => c.id);
 }
 
 /**

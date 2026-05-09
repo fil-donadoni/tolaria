@@ -23,6 +23,8 @@ export default function PendingChoicePrompt({
 
     const chooserName =
         allPlayers.find((p) => p.id === choice.playerId)?.name ?? "opponent";
+    const sourceLabel =
+        choice.kind === "mulligan-bottom" ? "Mulligan" : "Balance";
 
     return (
         <div
@@ -39,7 +41,7 @@ export default function PendingChoicePrompt({
                     <>
                         <div className="text-violet-100 text-sm font-medium">
                             <span className="text-white font-bold">
-                                Balance
+                                {sourceLabel}
                             </span>
                             {" — "}
                             {choice.prompt}

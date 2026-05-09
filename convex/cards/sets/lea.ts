@@ -871,15 +871,46 @@ export const psionicBlast: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 
-// export const seaSerpent: CardDefinition = {
-//     id: "d0b333b7-db4d-4439-b0de-60414cbf8d7b",
-//     name: "Sea Serpent",
-//     manaCost: { X: 5, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Serpent"],
-//     power: 5,
-//     toughness: 5,
-// };
+// CR 508.1c — "can't attack unless defending player controls an Island" is
+// encoded as a generic `cant-attack-unless-defender-controls-Island` static
+// ability so the same restriction shape is reusable for other cards (Reef
+// Pirates, Phantom Monster variants).
+// CR 603.8 — "When you control no Islands, sacrifice this creature" is a
+// state-triggered ability: the trigger fires as soon as the condition becomes
+// true, then doesn't trigger again until it has resolved or otherwise left
+// the stack. The engine scans for state triggers as part of every stable
+// checkpoint after SBA evaluation (CR 117.5).
+export const seaSerpent: CardDefinition = {
+    id: "d0b333b7-db4d-4439-b0de-60414cbf8d7b",
+    name: "Sea Serpent",
+    manaCost: { X: 5, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Serpent"],
+    power: 5,
+    toughness: 5,
+    staticAbilities: ["cant-attack-unless-defender-controls-Island"],
+    triggeredAbilities: [
+        {
+            id: "sea-serpent-no-islands-sacrifice",
+            oracleText: "When you control no Islands, sacrifice Sea Serpent.",
+            event: "STATE_CHECK",
+            matches: (event, self, state) => {
+                if (event.type !== "STATE_CHECK") return false;
+                if (!state) return false;
+                const controller = state.players.find(
+                    (p) => p.id === self.controllerId
+                );
+                if (!controller) return false;
+                return !controller.battlefield.some((c) =>
+                    c.subtypes.includes("Island")
+                );
+            },
+            resolve: (ctx) => {
+                ctx.sacrifice(ctx.sourceInstanceId);
+            },
+        },
+    ],
+};
 
 // export const sirensCall: CardDefinition = {
 //     id: "d992b336-3b6e-43e1-8662-d85664349b44",

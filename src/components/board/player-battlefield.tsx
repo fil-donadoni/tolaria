@@ -226,7 +226,23 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         if (isSelectingAttackers && isCreature(card)) {
             if (selectedAttackerIds.includes(card.id)) return true;
             if (card.staticAbilities?.includes("defender")) return false;
-            return !card.isTapped && !card.isSummoningSick;
+            if (card.isTapped || card.isSummoningSick) return false;
+            // CR 508.1c — conditional attack restriction tied to a defender
+            // subtype. Server enforces; UI mirrors so the option isn't even
+            // offered.
+            for (const ab of card.staticAbilities ?? []) {
+                const m = ab.match(
+                    /^cant-attack-unless-defender-controls-(.+)$/
+                );
+                if (!m) continue;
+                const requiredSubtype = m[1];
+                const defender = allPlayers.find((p) => p.id !== player.id);
+                const ok = !!defender?.battlefield.some((c) =>
+                    c.subtypes?.includes(requiredSubtype)
+                );
+                if (!ok) return false;
+            }
+            return true;
         }
 
         if (isSelectingBlockers && isCreature(card)) {

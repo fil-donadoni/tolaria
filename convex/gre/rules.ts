@@ -55,6 +55,11 @@ export function getLegalActions(
 
     const actions: CardAction[] = [];
 
+    // CR 103.5 — no actions on hand cards during the pre-game mulligan phase.
+    if (state.phase === "MULLIGAN") {
+        return actions;
+    }
+
     // CR 117.1: a player can only take actions while they have priority.
     if (state.priorityPlayerId !== player.id) {
         return actions;

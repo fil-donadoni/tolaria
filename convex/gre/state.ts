@@ -363,7 +363,11 @@ export type PendingChoice = {
      *  permanents to keep on the battlefield (the rest are sacrificed by the
      *  step). "keep-hand" = pick N cards in hand to keep (the rest are
      *  discarded by the step). */
-    kind: "keep-permanents" | "keep-hand" | "search-library";
+    kind:
+        | "keep-permanents"
+        | "keep-hand"
+        | "search-library"
+        | "mulligan-bottom";
     /** Zone of the choosable items — restricts the set offered to the chooser. */
     zone: "battlefield" | "hand" | "library";
     /** Optional battlefield filter (card types / subtypes / keywords). Ignored
@@ -414,6 +418,29 @@ export type PendingTarget = {
     /** For `kind: "ability"` only — id of the activated ability template on
      *  the source card definition. */
     abilityId?: string;
+};
+
+/** Pre-game mulligan tracking (CR 103.5, London mulligan). Present only while
+ *  `phase === "MULLIGAN"`. After all players have locked in their opening hand
+ *  and any required bottoming choices have resolved, this field is cleared and
+ *  the engine advances to UNTAP / UPKEEP of turn 1. */
+export type MulliganState = {
+    /** Cumulative mulligans taken per player, parallel to `GameState.players`.
+     *  Drives how many cards must be put on the bottom after the player keeps. */
+    mulligansTaken: number[];
+    /** Per-player declaration in the current round: "keep" | "mull" | null
+     *  (null = not yet declared this round). Resets after each round executes. */
+    declarations: ("keep" | "mull" | null)[];
+    /** Per-player lock — once true, the player has chosen to keep and no
+     *  further mulligans are allowed (CR 103.5). */
+    locked: boolean[];
+    /** Player currently expected to declare in the active round (sequential
+     *  declarations in turn order from the starting player, CR 103.5). Empty
+     *  string while bottoming. */
+    declaringPlayerId: string;
+    /** True once all players are locked. The engine has enqueued one
+     *  `mulligan-bottom` PendingChoice per player with `mulligansTaken > 0`. */
+    bottoming: boolean;
 };
 
 export type GameState = {
@@ -472,6 +499,10 @@ export type GameState = {
      *  generate deterministic `grant-N` ids for GrantedAbilityInstance so
      *  replays reproduce the same ids. */
     nextGrantSeq?: number;
+    /** Pre-game mulligan tracking (CR 103.5). Set during init, cleared by
+     *  `finalizeMulligan` when all opening hands are locked and any required
+     *  bottoming choices have resolved. */
+    mulligan?: MulliganState;
     /** Set when a player loses the game. Contains winner/loser info. */
     gameOver?: {
         winnerId: string;
@@ -1564,7 +1595,9 @@ export function drawCard(player: PlayerState): CardInstanceState | null {
     return moveCard(player, player.library[0].id, "library", "hand");
 }
 
-/** Moves a card between player zones (not stack). Returns the moved card. */
+/** Moves a card between player zones (not stack). Returns the moved card.
+ *  Card is appended to the destination zone (library push = bottom, since
+ *  drawCard reads from index 0). */
 export function moveCard(
     player: PlayerState,
     cardInstanceId: string,

@@ -562,7 +562,11 @@ export type StaticEffect =
 // game event it listens to, a predicate identifying relevant occurrences, and
 // a resolve function invoked from the stack after both players pass priority.
 
-export type GameEventType = "DAMAGE_DEALT" | "PHASE_BEGIN" | "CREATURE_DIED";
+export type GameEventType =
+    | "DAMAGE_DEALT"
+    | "PHASE_BEGIN"
+    | "CREATURE_DIED"
+    | "STATE_CHECK";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. */
@@ -606,7 +610,39 @@ export interface CreatureDiedEvent {
     damagedBySources: readonly string[];
 }
 
-export type GameEvent = DamageDealtEvent | PhaseBeginEvent | CreatureDiedEvent;
+/** State trigger probe (CR 603.8) emitted at every stable checkpoint where a
+ *  player would gain priority. Carries no payload — `matches()` reads
+ *  `state` to decide whether the trigger condition is currently met. */
+export interface StateCheckEvent {
+    type: "STATE_CHECK";
+}
+
+export type GameEvent =
+    | DamageDealtEvent
+    | PhaseBeginEvent
+    | CreatureDiedEvent
+    | StateCheckEvent;
+
+/** Read-only window over the live `GameState` exposed to `matches()` for
+ *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can
+ *  inspect persistent game conditions ("controller has no Islands",
+ *  "opponent has 13 life") without coupling to engine-internal types. The
+ *  engine passes its full `GameState` here at the call site — this view only
+ *  describes the fields cards may rely on. */
+export interface TriggerStateView {
+    players: ReadonlyArray<{
+        id: string;
+        life: number;
+        battlefield: ReadonlyArray<{
+            id: string;
+            controllerId: string;
+            ownerId: string;
+            types: ReadonlyArray<string>;
+            subtypes: ReadonlyArray<string>;
+            staticAbilities: ReadonlyArray<string>;
+        }>;
+    }>;
+}
 
 export interface TriggeredAbility {
     id: string;
@@ -614,8 +650,14 @@ export interface TriggeredAbility {
     oracleText: string;
     /** Which event kind can fire this ability. Used to index-filter before matches(). */
     event: GameEventType;
-    /** True if `event` triggers this ability on the permanent carrying it. */
-    matches: (event: GameEvent, self: PermanentView) => boolean;
+    /** True if `event` triggers this ability on the permanent carrying it.
+     *  `state` is supplied for state triggers (CR 603.8) that need to inspect
+     *  persistent game conditions. */
+    matches: (
+        event: GameEvent,
+        self: PermanentView,
+        state?: TriggerStateView
+    ) => boolean;
     /** Effect run when the trigger resolves from the stack. */
     resolve: (ctx: SpellContext, event: GameEvent) => void;
 }

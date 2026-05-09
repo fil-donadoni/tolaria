@@ -102,6 +102,7 @@ export interface StackItem extends CardInstance {
 }
 
 export type {
+    MulliganState,
     PendingActivation,
     PendingCast,
     PendingChoice,
