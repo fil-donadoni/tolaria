@@ -10,6 +10,7 @@ import {
     useSkipPhasePrefsState,
 } from "~/hooks/useSkipPhasePreferences";
 import { preloadCardImages } from "~/lib/image-preload";
+import { computeSoloViewerId } from "~/lib/priority";
 import PlayerBoard from "./player-board";
 import GameStack from "./game-stack";
 import PhaseTracker from "./phase-tracker";
@@ -112,11 +113,19 @@ export default function Board({
     const stackItems = state.stack ?? [];
 
     // In solo mode the single user controls both players: the viewer follows
-    // whoever currently has priority (or whoever owns the next pending choice).
+    // whoever currently has priority (or whoever owns the next pending action).
     const viewerId = solo
-        ? (pendingChoices?.[0]?.playerId ??
-          pendingTarget?.playerId ??
-          priorityPlayerId)
+        ? computeSoloViewerId({
+              activePlayerId,
+              priorityPlayerId,
+              phase,
+              combat,
+              pendingCast,
+              pendingActivation,
+              pendingTarget,
+              pendingChoices,
+              playerIds: allPlayers.map((p) => p.id),
+          })
         : playerId;
 
     // Opponent on top, local player on bottom

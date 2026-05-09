@@ -3,6 +3,7 @@ import type {
     GameOver,
     PendingActivation,
     PendingCast,
+    PendingChoice,
     PendingTarget,
 } from "~/types/game";
 
@@ -86,4 +87,39 @@ export function computeAutoPassBlocked(ctx: AutoPassBlockedCtx): boolean {
     if (ctx.stackCount > 0) return true;
     if (ctx.undoableBy === ctx.playerId) return true;
     return false;
+}
+
+export type SoloViewerCtx = {
+    activePlayerId: string;
+    priorityPlayerId: string;
+    phase: string;
+    combat?: Combat;
+    pendingCast?: PendingCast;
+    pendingActivation?: PendingActivation;
+    pendingTarget?: PendingTarget;
+    pendingChoices?: PendingChoice[];
+    playerIds: readonly string[];
+};
+
+// CR 509.1 — defender declares blockers as a turn-based action before the
+// active player receives priority in DECLARE_BLOCKERS. priorityPlayerId still
+// reads as active during that window, so solo viewer must steer to the
+// defender (or any other player owning a pending action) explicitly.
+export function computeSoloViewerId(ctx: SoloViewerCtx): string {
+    const choiceOwner = ctx.pendingChoices?.[0]?.playerId;
+    if (choiceOwner) return choiceOwner;
+    if (ctx.pendingTarget?.playerId) return ctx.pendingTarget.playerId;
+    if (ctx.pendingCast?.playerId) return ctx.pendingCast.playerId;
+    if (ctx.pendingActivation?.playerId) return ctx.pendingActivation.playerId;
+
+    if (
+        ctx.phase === "DECLARE_BLOCKERS" &&
+        ctx.combat &&
+        !ctx.combat.blockersConfirmed
+    ) {
+        const defender = ctx.playerIds.find((id) => id !== ctx.activePlayerId);
+        if (defender) return defender;
+    }
+
+    return ctx.priorityPlayerId;
 }

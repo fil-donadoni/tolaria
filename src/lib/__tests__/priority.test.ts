@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
     computeHasPriority,
     computeAutoPassBlocked,
+    computeSoloViewerId,
     type HasPriorityCtx,
     type AutoPassBlockedCtx,
+    type SoloViewerCtx,
 } from "../priority";
 import type { Combat } from "~/types/game";
 
@@ -151,5 +153,130 @@ describe("computeAutoPassBlocked", () => {
         expect(
             computeAutoPassBlocked(makeAutoPassCtx({ priorityPlayerId: "p2" }))
         ).toBe(true);
+    });
+});
+
+function makeSoloCtx(overrides: Partial<SoloViewerCtx> = {}): SoloViewerCtx {
+    return {
+        activePlayerId: "p1",
+        priorityPlayerId: "p1",
+        phase: "PRECOMBAT_MAIN",
+        playerIds: ["p1", "p2"],
+        ...overrides,
+    };
+}
+
+describe("computeSoloViewerId", () => {
+    it("returns priority player by default", () => {
+        expect(computeSoloViewerId(makeSoloCtx())).toBe("p1");
+    });
+
+    it("follows priority when it switches mid-phase", () => {
+        expect(
+            computeSoloViewerId(makeSoloCtx({ priorityPlayerId: "p2" }))
+        ).toBe("p2");
+    });
+
+    it("switches to defender when blockers must be declared", () => {
+        // CR 509.1 — defender declares blockers as a turn-based action before
+        // the active player gets priority. priorityPlayerId still reads as
+        // active during this window.
+        expect(
+            computeSoloViewerId(
+                makeSoloCtx({
+                    phase: "DECLARE_BLOCKERS",
+                    activePlayerId: "p1",
+                    priorityPlayerId: "p1",
+                    combat: {
+                        attackerIds: ["a"],
+                        confirmed: true,
+                        blockerAssignments: {},
+                        blockersConfirmed: false,
+                    },
+                })
+            )
+        ).toBe("p2");
+    });
+
+    it("returns to active player after blockers confirmed", () => {
+        expect(
+            computeSoloViewerId(
+                makeSoloCtx({
+                    phase: "DECLARE_BLOCKERS",
+                    activePlayerId: "p1",
+                    priorityPlayerId: "p1",
+                    combat: {
+                        attackerIds: ["a"],
+                        confirmed: true,
+                        blockerAssignments: {},
+                        blockersConfirmed: true,
+                    },
+                })
+            )
+        ).toBe("p1");
+    });
+
+    it("pending choice owner wins over priority and combat", () => {
+        expect(
+            computeSoloViewerId(
+                makeSoloCtx({
+                    phase: "DECLARE_BLOCKERS",
+                    priorityPlayerId: "p1",
+                    activePlayerId: "p1",
+                    combat: {
+                        attackerIds: ["a"],
+                        confirmed: true,
+                        blockerAssignments: {},
+                        blockersConfirmed: false,
+                    },
+                    pendingChoices: [
+                        {
+                            stackItemId: "s",
+                            step: 0,
+                            choiceId: "c",
+                            playerId: "p1",
+                            kind: "keep-permanents",
+                            zone: "battlefield",
+                            count: 1,
+                            selected: [],
+                            prompt: "",
+                        },
+                    ],
+                })
+            )
+        ).toBe("p1");
+    });
+
+    it("pending target owner wins over priority", () => {
+        expect(
+            computeSoloViewerId(
+                makeSoloCtx({
+                    priorityPlayerId: "p1",
+                    pendingTarget: {
+                        playerId: "p2",
+                        cardInstanceId: "c",
+                        targetType: "any",
+                        count: 1,
+                        selected: [],
+                    },
+                })
+            )
+        ).toBe("p2");
+    });
+
+    it("pending cast owner wins over priority", () => {
+        expect(
+            computeSoloViewerId(
+                makeSoloCtx({
+                    priorityPlayerId: "p1",
+                    pendingCast: {
+                        playerId: "p2",
+                        cardInstanceId: "c",
+                        manaCost: {},
+                        tappedLandIds: [],
+                    },
+                })
+            )
+        ).toBe("p2");
     });
 });
