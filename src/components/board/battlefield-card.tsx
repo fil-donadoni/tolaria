@@ -104,30 +104,29 @@ export default function BattlefieldCard({
         </div>
     );
 
-    // Effective P/T overlay for creatures (CR 611, 613 — layer 7c static buffs).
-    const ptOverlay = isCreature(card) ? (
-        <div className="absolute bottom-1.5 right-1.5 bg-black p-0.5 rounded-xs text-[10px] font-bold text-white leading-none pointer-events-none z-10 drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]">
-            {effectivePower(allPlayers, card)}/
-            {effectiveToughness(allPlayers, card)}
+    // Effective P/T (CR 611, 613 — layer 7c static buffs) and marked damage
+    // (CR 120.3, cleared at CLEANUP CR 514.2). Damage stacks above P/T on the
+    // bottom-right; hidden when 0/undefined.
+    const ptDamageStack = isCreature(card) ? (
+        <div className="absolute bottom-1.5 right-1.5 flex flex-col items-end gap-0.5 pointer-events-none z-10">
+            {(card.damageMarked ?? 0) > 0 && (
+                <div className="bg-red-600 px-1 py-0.5 rounded-xs text-[10px] font-bold text-white leading-none drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]">
+                    {card.damageMarked}
+                </div>
+            )}
+            <div className="bg-black p-0.5 rounded-xs text-[10px] font-bold text-white leading-none drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]">
+                {effectivePower(allPlayers, card)}/
+                {effectiveToughness(allPlayers, card)}
+            </div>
         </div>
     ) : null;
-
-    // Marked damage overlay (CR 120.3). Accumulates across the turn until
-    // CLEANUP (CR 514.2). Hidden when 0/undefined.
-    const damageOverlay =
-        isCreature(card) && (card.damageMarked ?? 0) > 0 ? (
-            <div className="absolute bottom-1.5 left-1.5 bg-red-600 px-1 py-0.5 rounded-xs text-[10px] font-bold text-white leading-none pointer-events-none z-10 drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]">
-                {card.damageMarked}
-            </div>
-        ) : null;
 
     const inner = (
         <div className={`relative ${vs.ringClass}`} style={innerStyle}>
             <CardImage card={card.card} />
             {darkenOverlay}
             {badgeEl}
-            {ptOverlay}
-            {damageOverlay}
+            {ptDamageStack}
         </div>
     );
 

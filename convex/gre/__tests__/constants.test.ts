@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { manaValue } from "../constants";
+import { isTapLockedBySummoningSickness, manaValue } from "../constants";
+import { makeInstance } from "../../cards/__tests__/setup";
 
 describe("manaValue (CR 202.3)", () => {
     it("returns 0 when cost is undefined (lands)", () => {
@@ -24,5 +25,31 @@ describe("manaValue (CR 202.3)", () => {
 
     it("returns 0 for the empty cost (Mox)", () => {
         expect(manaValue({})).toBe(0);
+    });
+});
+
+describe("isTapLockedBySummoningSickness (CR 302.1)", () => {
+    it("locks a creature with summoning sickness", () => {
+        const card = makeInstance("55fe6449-1f23-43dc-adee-d144cd505b5c", {
+            isSummoningSick: true,
+        });
+        expect(isTapLockedBySummoningSickness(card)).toBe(true);
+    });
+
+    it("does not lock a creature without summoning sickness", () => {
+        const card = makeInstance("55fe6449-1f23-43dc-adee-d144cd505b5c", {
+            isSummoningSick: false,
+        });
+        expect(isTapLockedBySummoningSickness(card)).toBe(false);
+    });
+
+    it("never locks a non-creature even when flagged sick", () => {
+        // Mox Sapphire (artifact) — summoning sickness only applies to
+        // creatures (CR 302.1). Mana abilities of non-creature permanents
+        // are usable on the turn they ETB.
+        const mox = makeInstance("82da0972-b17b-4600-9efd-e9430a0db04b", {
+            isSummoningSick: true,
+        });
+        expect(isTapLockedBySummoningSickness(mox)).toBe(false);
     });
 });

@@ -76,6 +76,18 @@ export function isCreature(card: CardInstanceState): boolean {
     return card.types.includes("Creature");
 }
 
+/** CR 302.1 — a creature's activated ability with the tap or untap symbol in
+ *  its activation cost can't be activated unless the creature has been under
+ *  its controller's control continuously since the start of that controller's
+ *  most recent turn. Applies to mana abilities and stack abilities alike
+ *  (Birds of Paradise, Llanowar Elves, Prodigal Sorcerer). Non-creature
+ *  permanents (Mox, Sol Ring, lands) ignore summoning sickness. */
+export function isTapLockedBySummoningSickness(
+    card: CardInstanceState
+): boolean {
+    return !!card.isSummoningSick && isCreature(card);
+}
+
 export function isLand(card: CardInstanceState): boolean {
     return card.types.includes("Land");
 }

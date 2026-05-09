@@ -12,6 +12,7 @@ import {
     LAND_DROPS_PER_TURN,
     LAND_SUBTYPE_MANA,
     MANA_COLORS,
+    isTapLockedBySummoningSickness,
 } from "./constants";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { isProtectedFromColors } from "./protection";
@@ -128,9 +129,9 @@ function getProducibleColors(card: CardInstanceState): Set<Color> {
 
 /** True if the player has enough mana — already in the pool plus what could
  *  be produced by tapping untapped permanents — to cover the spell's mana
- *  cost. Conservative: ignores summoning sickness on creature mana sources
- *  and treats every mana choice as freely available, so it errs toward
- *  showing the Cast button when payment is theoretically possible.
+ *  cost. Excludes creatures with summoning sickness (CR 302.1). Treats every
+ *  mana choice as freely available, so it errs toward showing the Cast
+ *  button when payment is theoretically possible.
  *
  *  Used by getLegalActions to suppress the Cast UI for spells the player
  *  cannot pay for (CR 601.2f — failure to pay aborts the cast, but we hide
@@ -156,6 +157,8 @@ function canPotentiallyPayCost(
     }
     for (const perm of player.battlefield) {
         if (perm.isTapped) continue;
+        // CR 302.1 — creature with summoning sickness can't pay {T}.
+        if (isTapLockedBySummoningSickness(perm)) continue;
         const colors = getProducibleColors(perm);
         if (colors.size === 0) continue;
         sources.push(colors);

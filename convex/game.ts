@@ -47,6 +47,7 @@ import {
     getActivatedManaColor,
     getFixedManaAmount,
     hasManaAbility,
+    isTapLockedBySummoningSickness,
 } from "./gre/constants";
 import {
     validateAttackerEligibility,
@@ -211,6 +212,11 @@ function tapSourceIntoPayment(
     tappedLandIds: string[]
 ): void {
     if (card.isTapped) throw new Error("Card already tapped");
+    // CR 302.1 — creatures with summoning sickness cannot pay a {T} cost.
+    // Lands and other non-creature mana sources are unaffected.
+    if (isTapLockedBySummoningSickness(card)) {
+        throw new Error("Creature has summoning sickness");
+    }
     const ability = getActivatedManaAbility(card);
 
     if (ability?.manaChoices) {
@@ -2713,6 +2719,11 @@ export const activateAbility = mutation({
             if (ability.cost.tap && card.isTapped) {
                 throw new Error("Card is already tapped");
             }
+            // CR 302.1 — creatures with summoning sickness cannot pay a {T}
+            // cost on an activated ability (mana or otherwise).
+            if (ability.cost.tap && isTapLockedBySummoningSickness(card)) {
+                throw new Error("Creature has summoning sickness");
+            }
             // CR 202.2 / 702.16b: the source's colors come from the
             // permanent owning the activated ability.
             const abilitySourceColors = STATIC_EFFECT_CTX.getColors(card);
@@ -2765,6 +2776,10 @@ export const activateAbility = mutation({
         // Pay costs (CR 602.1). Up-front checks before we mutate anything:
         if (ability.cost.tap && card.isTapped) {
             throw new Error("Card is already tapped");
+        }
+        // CR 302.1 — creatures with summoning sickness cannot pay a {T} cost.
+        if (ability.cost.tap && isTapLockedBySummoningSickness(card)) {
+            throw new Error("Creature has summoning sickness");
         }
         const manaCost = ability.cost.mana
             ? normalizeManaCost(ability.cost.mana)
@@ -2902,6 +2917,15 @@ export const tapUntap = mutation({
         // Sacrifice abilities are one-way — cannot "untap"
         if (isSacrifice && wasTapped) {
             throw new Error("Cannot untap a sacrifice ability");
+        }
+
+        // CR 302.1 — creatures with summoning sickness cannot activate an
+        // ability whose cost includes {T}. Untap (refunding floating mana)
+        // is allowed since it reverses an earlier activation, not a fresh one.
+        const requiresTap =
+            !!getBasicLandMana(card) || ability?.cost.tap === true;
+        if (!wasTapped && requiresTap && isTapLockedBySummoningSickness(card)) {
+            throw new Error("Creature has summoning sickness");
         }
 
         // Block untap if mana was spent on a cast
@@ -3335,6 +3359,8 @@ export const debugSetupScenario = mutation({
                 ),
                 tapped: v.optional(v.boolean()),
                 count: v.optional(v.number()),
+                /** Marked damage (CR 120.3) on a battlefield creature. */
+                damageMarked: v.optional(v.number()),
             })
         ),
         phase: v.optional(v.string()),
@@ -3404,6 +3430,10 @@ export const debugSetupScenario = mutation({
                 } else if (zone === "graveyard") {
                     player.graveyard.push(instance);
                 } else {
+                    if (entry.damageMarked && entry.damageMarked > 0) {
+                        (instance as CardInstanceState).damageMarked =
+                            entry.damageMarked;
+                    }
                     player.battlefield.push(instance);
                 }
             }

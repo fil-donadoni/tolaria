@@ -41,6 +41,8 @@ type PresetScenario = {
         tapped?: boolean;
         /** Number of copies to place in the zone. Default 1. */
         count?: number;
+        /** Marked damage (CR 120.3) on a battlefield creature. */
+        damageMarked?: number;
     }[];
     phase: string;
     landCount: number;
@@ -103,6 +105,35 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             },
             { name: "Island", owner: "me" as const },
             { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Damage marked overlay (red badge above P/T, CR 120.3)",
+        cards: [
+            // Each creature has different marked-damage state to exercise the
+            // overlay UI: no badge (0 / undefined), small (1), and near-lethal
+            // (toughness-1). Cleared at CLEANUP per CR 514.2.
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                damageMarked: 1,
+            },
+            {
+                name: "Hill Giant",
+                owner: "me" as const,
+                damageMarked: 2,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+            },
+            {
+                name: "Serra Angel",
+                owner: "opp" as const,
+                damageMarked: 3,
+            },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,

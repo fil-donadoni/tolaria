@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { getLegalActions, assertLegalAction } from "../rules";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import type { CardType } from "../../cards/types";
+import { makeInstance } from "../../cards/__tests__/setup";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -356,6 +357,41 @@ describe("getLegalActions", () => {
             });
             const card = makeCard(LIGHTNING_BOLT);
             expect(getLegalActions(state, player, card)).not.toContain("cast");
+        });
+
+        it("ignores a summoning-sick creature mana source (CR 302.1)", () => {
+            // Birds of Paradise just ETB'd: mana ability requires {T} but
+            // the creature can't tap on the turn it entered — so it cannot
+            // satisfy a {G} cost on a Giant Growth in hand.
+            const birds = makeInstance("55fe6449-1f23-43dc-adee-d144cd505b5c", {
+                zone: "battlefield",
+                isSummoningSick: true,
+            });
+            const state = makeGameState();
+            const player = makePlayer({
+                manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                battlefield: [birds],
+            });
+            const giantGrowth = makeCard(GIANT_GROWTH);
+            expect(getLegalActions(state, player, giantGrowth)).not.toContain(
+                "cast"
+            );
+        });
+
+        it("counts a creature mana source once summoning sickness has worn off", () => {
+            const birds = makeInstance("55fe6449-1f23-43dc-adee-d144cd505b5c", {
+                zone: "battlefield",
+                isSummoningSick: false,
+            });
+            const state = makeGameState();
+            const player = makePlayer({
+                manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                battlefield: [birds],
+            });
+            const giantGrowth = makeCard(GIANT_GROWTH);
+            expect(getLegalActions(state, player, giantGrowth)).toContain(
+                "cast"
+            );
         });
 
         it('allows "cast" for an X-cost spell when only the fixed portion is payable', () => {

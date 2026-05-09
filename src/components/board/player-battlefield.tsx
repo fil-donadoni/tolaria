@@ -17,6 +17,7 @@ import {
     matchesPermanentFilter,
     matchesTargetRequirement,
     groupByName,
+    isTapLockedBySummoningSickness,
 } from "~/lib/card-utils";
 import { COMBAT_GROUP_RING, COMBAT_GROUP_BG } from "~/lib/combat-colors";
 import BattlefieldCard, { type CardVisualState } from "./battlefield-card";
@@ -237,6 +238,12 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         if (isBlockerTarget && card.isAttacking) return true;
 
         if (!isMe || !hasManaAbility(card)) return false;
+        // CR 302.1 — creatures with summoning sickness can't pay {T}, so
+        // their mana ability isn't activatable. Untapping (refunding floating
+        // mana) is still allowed — it reverses an earlier activation.
+        if (isTapLockedBySummoningSickness(card) && !card.isTapped) {
+            return false;
+        }
         if (isInPayment) {
             const tappedDuringPayment = isPayingCast
                 ? pendingCast!.tappedLandIds.includes(card.id)

@@ -16,6 +16,13 @@ export function isCreature(card: CardInstance): boolean {
     return card.types?.includes("Creature") ?? false;
 }
 
+/** CR 302.1 — a creature with summoning sickness cannot pay the {T} or {Q}
+ *  cost of an activated ability. Mirrors `isTapLockedBySummoningSickness`
+ *  in convex/gre/constants.ts. */
+export function isTapLockedBySummoningSickness(card: CardInstance): boolean {
+    return !!card.isSummoningSick && isCreature(card);
+}
+
 /**
  * Returns true if `attacker` has a landwalk keyword (CR 702.13b) for a land
  * subtype present anywhere in `defenderBattlefield`. Such an attacker can't
@@ -156,10 +163,13 @@ export function getStackAbilities(
     phase?: Phase
 ): { id: string; oracleText: string }[] {
     const cardDef = getCardById(card.card.id);
+    const tapLocked = isTapLockedBySummoningSickness(card);
     return (cardDef.activatedAbilities ?? [])
         .filter((a) => {
             if (!a.useStack || !a.oracleText) return false;
             if (a.cost.tap && card.isTapped) return false;
+            // CR 302.1 — creature with summoning sickness can't pay {T}.
+            if (a.cost.tap && tapLocked) return false;
             if (
                 a.activationPhaseRestriction &&
                 phase !== undefined &&
