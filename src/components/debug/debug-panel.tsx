@@ -217,6 +217,89 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Goblin King (other Goblins +1/+1; lord pt-buff)",
+        cards: [
+            // King + two Mons's Goblin Raiders. Raiders become 2/2; King stays
+            // 2/2 (excludes self). Mountainwalk grant is deferred — pt-buff
+            // only for now.
+            { name: "Goblin King", owner: "me" as const },
+            { name: "Mons's Goblin Raiders", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "me" as const, count: 3 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Keldon Warlord (P/T = other creatures you control)",
+        cards: [
+            // Lone Warlord = 0/0 dies to SBA. Add three creatures and it
+            // becomes 3/3.
+            { name: "Keldon Warlord", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const, count: 3 },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Goblin Balloon Brigade ({R}: gain flying eot — temp keyword)",
+        cards: [
+            // Activate {R} to gain flying for the turn — verify it expires at
+            // CLEANUP. Try to attack over Wall of Swords (which has flying).
+            { name: "Goblin Balloon Brigade", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            { name: "Wall of Swords", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Orcish Artillery ({T}: 2 dmg target + 3 self-damage)",
+        cards: [
+            // Tap Orcish Artillery to ping a creature for 2 — taking 3 to the
+            // face yourself. Hill Giant (3 toughness) survives the 2 damage.
+            { name: "Orcish Artillery", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            { name: "Hill Giant", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Shatter / Stone Rain / Tunnel (destroy-target shorthand cycle)",
+        cards: [
+            // Three target-destroy spells in hand. Cast Shatter on Sol Ring,
+            // Stone Rain on a Plains, Tunnel on Wall of Swords. Verify the
+            // type / subtype filters at target selection.
+            { name: "Shatter", owner: "me" as const, zone: "hand" as const },
+            { name: "Stone Rain", owner: "me" as const, zone: "hand" as const },
+            { name: "Tunnel", owner: "me" as const, zone: "hand" as const },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+            { name: "Sol Ring", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const },
+            { name: "Wall of Swords", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Burrowing + Uthden Troll (mountainwalk + regen)",
+        cards: [
+            // Cast Burrowing on Uthden Troll: 2/2 with mountainwalk + {R}
+            // regen. Hard to block and hard to kill once the opp has any
+            // Mountain in play.
+            { name: "Burrowing", owner: "me" as const, zone: "hand" as const },
+            { name: "Uthden Troll", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "opp" as const },
+            { name: "Hill Giant", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Plague Rats (P/T scales with copies on the battlefield)",
         cards: [
             // Three Rats across both sides — each one is a 3/3 by CDA.

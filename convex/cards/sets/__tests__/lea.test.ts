@@ -19,6 +19,7 @@ import {
     blueWard,
     bogWraith,
     braingeyser,
+    burrowing,
     consecrateLand,
     crusade,
     cursedLand,
@@ -27,17 +28,26 @@ import {
     farmstead,
     feedback,
     flight,
+    goblinBalloonBrigade,
+    goblinKing,
     greenWard,
     holyStrength,
     jump,
     karma,
+    keldonWarlord,
     lance,
     mindTwist,
+    monssGoblinRaiders,
+    orcishArtillery,
     pirateShip,
     plagueRats,
     prodigalSorcerer,
     raiseDead,
+    shatter,
+    stoneRain,
+    tunnel,
     unholyStrength,
+    uthdenTroll,
     wallOfBone,
     warpArtifact,
     weakness,
@@ -7035,6 +7045,286 @@ describe("Will-o'-the-Wisp (flying + {B} regen)", () => {
             zone: "stack",
             castById: "p1",
             abilityId: "will-o-the-wisp-regenerate",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield[0].regenerationShields).toBe(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Red FREE cycle (LEA): Burrowing, Goblin Balloon Brigade, Goblin King,
+// Keldon Warlord, Orcish Artillery, Shatter, Stone Rain, Tunnel,
+// Uthden Troll.
+// ---------------------------------------------------------------------------
+
+describe("Burrowing (Aura — host has mountainwalk, CR 702.13c)", () => {
+    function setupAttached() {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, burrowing.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        return { state };
+    }
+
+    it("grants mountainwalk to host", () => {
+        const { state } = setupAttached();
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(bear.staticAbilities).toContain("mountainwalk");
+    });
+
+    it("wire format: mountainwalk survives the projection", () => {
+        const { state } = setupAttached();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(slim.staticAbilities).toContain("mountainwalk");
+    });
+});
+
+describe("Goblin Balloon Brigade ({R}: gain flying until end of turn)", () => {
+    function setup() {
+        const bb = makeInstance(goblinBalloonBrigade.id, {
+            id: "bb",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bb] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    function activate(state: GameState, source: CardInstanceState) {
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "goblin-balloon-brigade-fly",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("grants flying to itself on activation", () => {
+        const state = setup();
+        const bb = state.players[0].battlefield[0];
+        expect(bb.staticAbilities).not.toContain("flying");
+        activate(state, bb);
+        const after = state.players[0].battlefield[0];
+        expect(after.staticAbilities).toContain("flying");
+    });
+});
+
+describe("Goblin King (other Goblins get +1/+1; lord pt-buff)", () => {
+    it("buffs other Goblins +1/+1 and excludes itself", () => {
+        const king = makeInstance(goblinKing.id, { id: "king" });
+        const goblin = makeInstance(monssGoblinRaiders.id, { id: "raider" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [king, goblin] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Raider gets buffed.
+        expect(getEffectivePower(state, goblin)).toBe(2);
+        expect(getEffectiveToughness(state, goblin)).toBe(2);
+        // King does NOT buff itself.
+        expect(getEffectivePower(state, king)).toBe(2);
+        expect(getEffectiveToughness(state, king)).toBe(2);
+    });
+
+    it("buffs opponent's Goblins too (subtype-only filter)", () => {
+        const king = makeInstance(goblinKing.id, { id: "king" });
+        const oppGoblin = makeInstance(monssGoblinRaiders.id, {
+            id: "opp-rat",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [king] }),
+                makePlayer("p2", { battlefield: [oppGoblin] }),
+            ],
+        });
+        expect(getEffectivePower(state, oppGoblin)).toBe(2);
+    });
+
+    it("does NOT buff non-Goblin creatures", () => {
+        const king = makeInstance(goblinKing.id, { id: "king" });
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [king, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, bear)).toBe(2);
+    });
+});
+
+describe("Keldon Warlord (P/T = number of OTHER creatures you control)", () => {
+    it("scales with creatures you control, excluding itself", () => {
+        const warlord = makeInstance(keldonWarlord.id, { id: "warlord" });
+        const c1 = makeInstance(grizzlyBears.id, { id: "c1" });
+        const c2 = makeInstance(grizzlyBears.id, { id: "c2" });
+        const oppCreature = makeInstance(grizzlyBears.id, {
+            id: "opp",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [warlord, c1, c2] }),
+                makePlayer("p2", { battlefield: [oppCreature] }),
+            ],
+        });
+        // 2 other creatures controlled → 2/2.
+        expect(getEffectivePower(state, warlord)).toBe(2);
+        expect(getEffectiveToughness(state, warlord)).toBe(2);
+    });
+
+    it("a lone Warlord is 0/0 (dies to SBA)", () => {
+        const warlord = makeInstance(keldonWarlord.id, { id: "warlord" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [warlord] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, warlord)).toBe(0);
+        expect(getEffectiveToughness(state, warlord)).toBe(0);
+    });
+});
+
+describe("Orcish Artillery ({T}: 2 dmg to any target + 3 dmg to self)", () => {
+    function setup() {
+        const oa = makeInstance(orcishArtillery.id, {
+            id: "oa",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [oa] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("deals 2 to a target opponent and 3 to the controller", () => {
+        const state = setup();
+        const oa = state.players[0].battlefield[0];
+        state.stack.push({
+            ...oa,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "orcish-artillery-shoot",
+            targets: [{ type: "player", id: "p2" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(17); // self-damage
+        expect(state.players[1].life).toBe(18); // target damage
+    });
+});
+
+describe("Shatter / Stone Rain / Tunnel (destroy-target shorthand)", () => {
+    it("Shatter destroys an artifact, ignores creatures", () => {
+        const ring = makeInstance(solRing.id, {
+            id: "ring",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [ring] }),
+            ],
+        });
+        pushSpell(state, shatter.id, "p1", [{ type: "permanent", id: "ring" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).not.toContain(
+            "ring"
+        );
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("ring");
+    });
+
+    it("Stone Rain destroys a target Land", () => {
+        const land = makeInstance(plains.id, {
+            id: "victim-land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        pushSpell(state, stoneRain.id, "p1", [
+            { type: "permanent", id: "victim-land" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+    });
+
+    it("Tunnel only targets Walls (subtypeFilter)", () => {
+        expect(tunnel.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+            subtypeFilter: "Wall",
+        });
+        const wall = makeInstance(wallOfSwords.id, {
+            id: "wall",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [wall] }),
+            ],
+        });
+        pushSpell(state, tunnel.id, "p1", [{ type: "permanent", id: "wall" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("wall");
+    });
+});
+
+describe("Uthden Troll ({R}: regenerate self)", () => {
+    it("activating regen shields self", () => {
+        const troll = makeInstance(uthdenTroll.id, {
+            id: "troll",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [troll] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...troll,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "uthden-troll-regenerate",
             targets: [],
         });
         resolveTopOfStack(state);

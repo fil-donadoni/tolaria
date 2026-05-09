@@ -2054,13 +2054,23 @@ export const willOTheWisp: CardDefinition = {
 //     toughness: 3,
 // };
 
-// export const burrowing: CardDefinition = {
-//     id: "a14c05e4-8df3-450b-8a98-5028e73b14c1",
-//     name: "Burrowing",
-//     manaCost: { R: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Burrowing — "Enchant creature. Enchanted creature has mountainwalk." (CR
+// 303.4 aura attachment, 702.13c landwalk, 611.2 keyword grant).
+export const burrowing: CardDefinition = {
+    id: "a14c05e4-8df3-450b-8a98-5028e73b14c1",
+    name: "Burrowing",
+    manaCost: { R: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "mountainwalk",
+        },
+    ],
+};
 
 // export const chaoslace: CardDefinition = {
 //     id: "72ea2048-57bc-43d5-8987-33ca727f1a97",
@@ -2196,25 +2206,60 @@ export const flashfires: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const goblinBalloonBrigade: CardDefinition = {
-//     id: "5129b422-7a35-4bc5-b14b-c814012a0d8f",
-//     name: "Goblin Balloon Brigade",
-//     manaCost: { R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Goblin", "Warrior"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Goblin Balloon Brigade — "{R}: Goblin Balloon Brigade gains flying until
+// end of turn." (CR 702.9 flying, 611.1b temporary keyword grant). The grant
+// targets self via `ctx.sourceInstanceId`, expires at CLEANUP.
+export const goblinBalloonBrigade: CardDefinition = {
+    id: "5129b422-7a35-4bc5-b14b-c814012a0d8f",
+    name: "Goblin Balloon Brigade",
+    manaCost: { R: 1 },
+    types: ["Creature"],
+    subtypes: ["Goblin", "Warrior"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "goblin-balloon-brigade-fly",
+            oracleText:
+                "{R}: Goblin Balloon Brigade gains flying until end of turn.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.grantStaticAbility(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "flying",
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 
-// export const goblinKing: CardDefinition = {
-//     id: "5873672d-37ea-4c0f-97f3-12b74fde112d",
-//     name: "Goblin King",
-//     manaCost: { X: 1, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Goblin"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Goblin King — "Other Goblins get +1/+1 and have mountainwalk." (CR 611
+// static layer 7c). Only the pt-buff half is wired here: lord-style keyword
+// grants to non-aura subtype groups need a layer-system extension that scans
+// non-aura keyword-grant effects at read time. Tracked alongside Lord of
+// Atlantis / Zombie Master in the white/green/black batches.
+export const goblinKing: CardDefinition = {
+    id: "5873672d-37ea-4c0f-97f3-12b74fde112d",
+    name: "Goblin King",
+    manaCost: { X: 1, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Goblin"],
+    power: 2,
+    toughness: 2,
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, source, ctx) =>
+                ctx.isCreature(target) &&
+                target.id !== source.id &&
+                ctx.hasSubtype(target, "Goblin"),
+            power: 1,
+            toughness: 1,
+        },
+    ],
+};
 
 // export const graniteGargoyle: CardDefinition = {
 //     id: "f15bf2b2-6848-4fbd-b89a-8d8da8ae1cdc",
@@ -2266,13 +2311,40 @@ export const hurloonMinotaur: CardDefinition = {
 //     toughness: 2,
 // };
 
-// export const keldonWarlord: CardDefinition = {
-//     id: "8fe3fd83-969c-4add-888f-86f4306b067c",
-//     name: "Keldon Warlord",
-//     manaCost: { X: 2, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Barbarian"],
-// };
+// Keldon Warlord — "Keldon Warlord's power and toughness are each equal to
+// the number of other creatures you control." (CR 604.3 CDA, layer 7b). Same
+// pt-cda shape as Nightmare; counts every creature controlled by source's
+// controller, excluding the Warlord itself.
+export const keldonWarlord: CardDefinition = {
+    id: "8fe3fd83-969c-4add-888f-86f4306b067c",
+    name: "Keldon Warlord",
+    manaCost: { X: 2, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Barbarian"],
+    power: 0,
+    toughness: 0,
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: EFFECT_AFFECTS_SELF,
+            compute: (source, state, ctx) => {
+                let count = 0;
+                for (const player of state.players) {
+                    for (const p of player.battlefield) {
+                        if (
+                            p.controllerId === source.controllerId &&
+                            p.id !== source.id &&
+                            ctx.isCreature(p)
+                        ) {
+                            count++;
+                        }
+                    }
+                }
+                return { power: count, toughness: count };
+            },
+        },
+    ],
+};
 
 export const lightningBolt: CardDefinition = {
     id: "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
@@ -2309,15 +2381,35 @@ export const monssGoblinRaiders: CardDefinition = {
     toughness: 1,
 };
 
-// export const orcishArtillery: CardDefinition = {
-//     id: "a97208b1-a91b-4129-8a00-2f97b418accc",
-//     name: "Orcish Artillery",
-//     manaCost: { X: 1, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Orc", "Warrior"],
-//     power: 1,
-//     toughness: 3,
-// };
+// Orcish Artillery — "{T}: Orcish Artillery deals 2 damage to any target and
+// 3 damage to you." (CR 605 activated ability, 120.1 damage). Both damage
+// events resolve in the same effect call — the self-damage is a normal
+// damage to a player target (preventable / redirectable per CR 615), not
+// life loss.
+export const orcishArtillery: CardDefinition = {
+    id: "a97208b1-a91b-4129-8a00-2f97b418accc",
+    name: "Orcish Artillery",
+    manaCost: { X: 1, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Orc", "Warrior"],
+    power: 1,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "orcish-artillery-shoot",
+            oracleText:
+                "{T}: Orcish Artillery deals 2 damage to any target and 3 damage to you.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target) ctx.dealDamage(target, 2);
+                ctx.dealDamage({ type: "player", id: ctx.controller }, 3);
+            },
+        },
+    ],
+};
 
 // export const orcishOriflamme: CardDefinition = {
 //     id: "911538ea-322c-4c40-a9c3-35e47fe60fce",
@@ -2378,12 +2470,16 @@ export const rocOfKherRidges: CardDefinition = {
 //     toughness: 2,
 // };
 
-// export const shatter: CardDefinition = {
-//     id: "50dc7fc1-cb6a-4c68-b993-1a25cf16226e",
-//     name: "Shatter",
-//     manaCost: { X: 1, R: 1 },
-//     types: ["Instant"],
-// };
+// Shatter — "Destroy target artifact." (CR 701.7). Declarative shorthand via
+// the shared destroy-target effect, same shape as Sinkhole / Disenchant.
+export const shatter: CardDefinition = {
+    id: "50dc7fc1-cb6a-4c68-b993-1a25cf16226e",
+    name: "Shatter",
+    manaCost: { X: 1, R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Artifact", count: 1 },
+    effect: "destroy-target",
+};
 
 // export const shivanDragon: CardDefinition = {
 //     id: "fefbf149-f988-4f8b-9f53-56f5878116a6",
@@ -2412,19 +2508,30 @@ export const rocOfKherRidges: CardDefinition = {
 //     toughness: 4,
 // };
 
-// export const stoneRain: CardDefinition = {
-//     id: "57ff74cb-a2ed-4123-ac42-f72f9820049e",
-//     name: "Stone Rain",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Sorcery"],
-// };
+// Stone Rain — "Destroy target land." (CR 701.7). Identical shape to Sinkhole
+// modulo cost / type.
+export const stoneRain: CardDefinition = {
+    id: "57ff74cb-a2ed-4123-ac42-f72f9820049e",
+    name: "Stone Rain",
+    manaCost: { X: 2, R: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "Land", count: 1 },
+    effect: "destroy-target",
+};
 
-// export const tunnel: CardDefinition = {
-//     id: "b21ebc9f-a93e-4d18-b3e8-8459e3abbf31",
-//     name: "Tunnel",
-//     manaCost: { R: 1 },
-//     types: ["Instant"],
-// };
+// Tunnel — "Destroy target Wall." (CR 205.3 subtype filter, 701.7 destroy).
+export const tunnel: CardDefinition = {
+    id: "b21ebc9f-a93e-4d18-b3e8-8459e3abbf31",
+    name: "Tunnel",
+    manaCost: { R: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: "Creature",
+        count: 1,
+        subtypeFilter: "Wall",
+    },
+    effect: "destroy-target",
+};
 
 // export const twoHeadedGiantOfForiys: CardDefinition = {
 //     id: "31c687dc-ee0c-4e54-a2b3-5d8e633b3245",
@@ -2436,15 +2543,31 @@ export const rocOfKherRidges: CardDefinition = {
 //     toughness: 4,
 // };
 
-// export const uthdenTroll: CardDefinition = {
-//     id: "2ff21a6f-83a7-4bf3-a078-294e303232cc",
-//     name: "Uthden Troll",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Troll"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Uthden Troll — "{R}: Regenerate Uthden Troll." Same self-regen shape as
+// Drudge Skeletons / Wall of Bone / Will-o'-the-Wisp.
+export const uthdenTroll: CardDefinition = {
+    id: "2ff21a6f-83a7-4bf3-a078-294e303232cc",
+    name: "Uthden Troll",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Troll"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "uthden-troll-regenerate",
+            oracleText: "{R}: Regenerate Uthden Troll.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.applyRegenerationShield({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
 
 // export const wallOfFire: CardDefinition = {
 //     id: "efcf12cd-fb70-444e-9641-73ffa0e8f16e",
