@@ -232,6 +232,29 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Zombie Master (other Zombies have swampwalk + {B}: regen)",
+        cards: [
+            // Master + two Scathe Zombies. Each Zombie keeps its base 2/2
+            // (no pt-buff in oracle) but gains swampwalk and a {B}:
+            // Regenerate ability granted by the Master. Activate {B} on a
+            // Zombie before opp's Wrath of God to shield it. Master itself
+            // does NOT have the regen ability or swampwalk (predicate
+            // excludes self).
+            { name: "Zombie Master", owner: "me" as const },
+            { name: "Scathe Zombies", owner: "me" as const, count: 2 },
+            { name: "Swamp", owner: "me" as const, count: 4 },
+            { name: "Swamp", owner: "opp" as const },
+            {
+                name: "Wrath of God",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "opp" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Lord of Atlantis (other Merfolk +1/+1, islandwalk; lord)",
         cards: [
             // Lord + two Merfolk of the Pearl Trident → both Merfolk become

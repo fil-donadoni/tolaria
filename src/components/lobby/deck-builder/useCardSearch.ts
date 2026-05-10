@@ -3,7 +3,6 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 
 export interface CardIndexEntry {
-    _id: string;
     cardId: string;
     name: string;
     nameLower: string;
@@ -79,13 +78,28 @@ function matchesManaValue(mv: number, selected: number[]): boolean {
     return selected.includes(mv);
 }
 
+export function hasAnyFilter(filters: CardSearchFilters): boolean {
+    return (
+        filters.text.trim().length > 0 ||
+        filters.colors.length > 0 ||
+        filters.includeColorless ||
+        filters.types.length > 0 ||
+        filters.manaValues.length > 0
+    );
+}
+
 export function useCardSearch(filters: CardSearchFilters): {
     entries: CardIndexEntry[] | undefined;
     total: number;
+    /** True when no filter is set — caller should suppress result rendering
+     *  (and the associated image fetches) until the user narrows the set. */
+    idle: boolean;
 } {
     const all = useQuery(api.cardIndex.list, {});
+    const idle = !hasAnyFilter(filters);
     const entries = useMemo(() => {
         if (!all) return undefined;
+        if (idle) return [];
         const filtered = all.filter(
             (e) =>
                 matchesText(e, filters.text) &&
@@ -96,7 +110,7 @@ export function useCardSearch(filters: CardSearchFilters): {
         return filtered.sort(
             (a, b) => a.manaValue - b.manaValue || a.name.localeCompare(b.name)
         );
-    }, [all, filters]);
+    }, [all, filters, idle]);
 
-    return { entries, total: all?.length ?? 0 };
+    return { entries, total: all?.length ?? 0, idle };
 }

@@ -136,6 +136,18 @@ export type CardInstanceState = {
          *  The entry is removed when the aura unattaches or leaves play. */
         auraId?: string;
     }[];
+    /** Activated abilities granted to this permanent by a lord-style static
+     *  effect (CR 113.1, 611). Each entry references an ability template on
+     *  another card def — the template is looked up at activation time via
+     *  `getCardById(sourceCardId).activatedAbilities`. The grant is keyed by
+     *  `auraId` (the granting source's instance id) so it can be spliced out
+     *  when the source leaves play. Used by Zombie Master ("Other Zombies
+     *  have '{B}: Regenerate this creature.'"). */
+    grantedActivatedAbilities?: {
+        sourceCardId: string;
+        abilityId: string;
+        auraId: string;
+    }[];
     /** Damage marked on the creature this turn (CR 120.3). Accumulates across
      *  damage events; checked against effective toughness for lethal damage
      *  (CR 704.5g). Removed at CLEANUP (CR 514.2). */
@@ -253,6 +265,13 @@ export type StackItem = CardInstanceState & {
     chosenX?: number;
     /** If set, this stack item is an activated ability (not a spell). Source permanent stays on battlefield. */
     abilityId?: string;
+    /** When the activated ability was GRANTED to the source by another card
+     *  (CR 113.1, e.g. Zombie Master's "{B}: Regenerate this creature."), the
+     *  template lives on the granting card's def, not on the source's own
+     *  card def. Set to the granting card def id; resolveTopOfStack uses it
+     *  to look up `activatedAbilities[abilityId]`. Undefined for native
+     *  activated abilities. */
+    grantedSourceCardId?: string;
     /** If set, this stack item is a triggered ability (CR 603). The source
      *  permanent stays on the battlefield; the trigger vanishes on resolution. */
     triggeredAbilityId?: string;
@@ -340,6 +359,11 @@ export type PendingActivation = {
      *  the stack item at commit. Empty/undefined for abilities without
      *  targetRequirement. */
     targets?: TargetSelection[];
+    /** Source card def id when the ability was granted to the activator's
+     *  permanent by another card (CR 113.1). Pipes through to StackItem so
+     *  resolveTopOfStack reads the correct template. Undefined for native
+     *  activated abilities. */
+    grantedSourceCardId?: string;
 };
 
 /** Mid-resolution player choice requested by a spell/ability's resolve step
@@ -423,6 +447,12 @@ export type PendingTarget = {
     /** For `kind: "ability"` only — id of the activated ability template on
      *  the source card definition. */
     abilityId?: string;
+    /** For `kind: "ability"` only — set when the activated ability was granted
+     *  to the source by another card (CR 113.1, e.g. Zombie Master granting
+     *  "{B}: Regenerate ~" to other Zombies). The template is looked up via
+     *  this card def id; the ability resolves with the source permanent as
+     *  `ctx.sourceInstanceId`. Undefined for native activated abilities. */
+    grantedSourceCardId?: string;
 };
 
 /** Pre-game mulligan tracking (CR 103.5, London mulligan). Present only while
@@ -623,11 +653,21 @@ export function resolveTopOfStack(state: GameState): StackItem | null {
         return item;
     }
 
-    // Activated ability resolution — execute effect and discard (CR 602.2)
-    if (item.abilityId && cardDef) {
-        const ability = cardDef.activatedAbilities?.find(
-            (a) => a.id === item.abilityId
-        );
+    // Activated ability resolution — execute effect and discard (CR 602.2).
+    // For abilities granted by another card (CR 113.1), the template is read
+    // from the granting card's `grantTemplates` via `grantedSourceCardId`.
+    if (item.abilityId) {
+        let ability;
+        if (item.grantedSourceCardId) {
+            const grantingDef = tryGetCardById(item.grantedSourceCardId);
+            ability = grantingDef?.grantTemplates?.find(
+                (a) => a.id === item.abilityId
+            );
+        } else {
+            ability = cardDef?.activatedAbilities?.find(
+                (a) => a.id === item.abilityId
+            );
+        }
         if (ability?.resolve) {
             const ctx = buildSpellContext(state, item);
             ability.resolve(ctx);
@@ -735,18 +775,31 @@ export function applySourceStaticEffects(
     for (const player of state.players) {
         for (const target of player.battlefield) {
             for (const effect of effects) {
-                if (effect.kind !== "keyword-grant") continue;
-                if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
-                    continue;
+                if (effect.kind === "keyword-grant") {
+                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                        continue;
+                    }
+                    target.staticAbilities = [
+                        ...target.staticAbilities,
+                        effect.keyword,
+                    ];
+                    target.grantedStaticAbilities = [
+                        ...(target.grantedStaticAbilities ?? []),
+                        { ability: effect.keyword, auraId: source.id },
+                    ];
+                } else if (effect.kind === "activated-grant" && cardId) {
+                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                        continue;
+                    }
+                    target.grantedActivatedAbilities = [
+                        ...(target.grantedActivatedAbilities ?? []),
+                        {
+                            sourceCardId: cardId,
+                            abilityId: effect.abilityId,
+                            auraId: source.id,
+                        },
+                    ];
                 }
-                target.staticAbilities = [
-                    ...target.staticAbilities,
-                    effect.keyword,
-                ];
-                target.grantedStaticAbilities = [
-                    ...(target.grantedStaticAbilities ?? []),
-                    { ability: effect.keyword, auraId: source.id },
-                ];
             }
         }
     }
@@ -768,22 +821,30 @@ export function unapplySourceStaticEffects(
     for (const player of state.players) {
         for (const target of player.battlefield) {
             const grants = target.grantedStaticAbilities;
-            if (!grants || grants.length === 0) continue;
-            const kept: typeof grants = [];
-            for (const g of grants) {
-                if (g.auraId !== source.id) {
-                    kept.push(g);
-                    continue;
+            if (grants && grants.length > 0) {
+                const kept: typeof grants = [];
+                for (const g of grants) {
+                    if (g.auraId !== source.id) {
+                        kept.push(g);
+                        continue;
+                    }
+                    const idx = target.staticAbilities.indexOf(g.ability);
+                    if (idx !== -1) {
+                        target.staticAbilities = [
+                            ...target.staticAbilities.slice(0, idx),
+                            ...target.staticAbilities.slice(idx + 1),
+                        ];
+                    }
                 }
-                const idx = target.staticAbilities.indexOf(g.ability);
-                if (idx !== -1) {
-                    target.staticAbilities = [
-                        ...target.staticAbilities.slice(0, idx),
-                        ...target.staticAbilities.slice(idx + 1),
-                    ];
-                }
+                target.grantedStaticAbilities =
+                    kept.length > 0 ? kept : undefined;
             }
-            target.grantedStaticAbilities = kept.length > 0 ? kept : undefined;
+            const activated = target.grantedActivatedAbilities;
+            if (activated && activated.length > 0) {
+                const keptA = activated.filter((g) => g.auraId !== source.id);
+                target.grantedActivatedAbilities =
+                    keptA.length > 0 ? keptA : undefined;
+            }
         }
     }
 }
@@ -808,18 +869,35 @@ export function applyExistingGrantsTo(
             const def = cardId ? tryGetCardById(cardId) : null;
             const effects = def?.staticEffects ?? [];
             for (const effect of effects) {
-                if (effect.kind !== "keyword-grant") continue;
-                if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
-                    continue;
+                if (effect.kind === "keyword-grant") {
+                    if (
+                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
+                    ) {
+                        continue;
+                    }
+                    newPermanent.staticAbilities = [
+                        ...newPermanent.staticAbilities,
+                        effect.keyword,
+                    ];
+                    newPermanent.grantedStaticAbilities = [
+                        ...(newPermanent.grantedStaticAbilities ?? []),
+                        { ability: effect.keyword, auraId: source.id },
+                    ];
+                } else if (effect.kind === "activated-grant" && cardId) {
+                    if (
+                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
+                    ) {
+                        continue;
+                    }
+                    newPermanent.grantedActivatedAbilities = [
+                        ...(newPermanent.grantedActivatedAbilities ?? []),
+                        {
+                            sourceCardId: cardId,
+                            abilityId: effect.abilityId,
+                            auraId: source.id,
+                        },
+                    ];
                 }
-                newPermanent.staticAbilities = [
-                    ...newPermanent.staticAbilities,
-                    effect.keyword,
-                ];
-                newPermanent.grantedStaticAbilities = [
-                    ...(newPermanent.grantedStaticAbilities ?? []),
-                    { ability: effect.keyword, auraId: source.id },
-                ];
             }
         }
     }
@@ -956,12 +1034,21 @@ function findOnBattlefield(
  *  The permanent stays on the battlefield. Otherwise, route through
  *  `removePermanentTo` to the graveyard.
  *
+ *  When `opts.cantBeRegenerated` is true (Wrath of God, Terror, etc.), the
+ *  regeneration replacement is suppressed (CR 701.15c) — shields stay
+ *  unspent and the permanent goes to the graveyard. Indestructible still
+ *  protects (CR 702.12).
+ *
  *  Returns true if the permanent was actually destroyed (sent to graveyard),
  *  false if a shield saved it. Callers that emit follow-up events on death
  *  (e.g. CREATURE_DIED) should gate on the return value.
  *
  *  No-op (returns false) if the id is not on the battlefield. */
-export function regenerateOrDestroy(state: GameState, cardId: string): boolean {
+export function regenerateOrDestroy(
+    state: GameState,
+    cardId: string,
+    opts?: { cantBeRegenerated?: boolean }
+): boolean {
     const found = findOnBattlefield(state, cardId);
     if (!found) return false;
     // CR 702.12 — permanents with indestructible can't be destroyed. Spell or
@@ -971,7 +1058,7 @@ export function regenerateOrDestroy(state: GameState, cardId: string): boolean {
     // marked damage stays, but SBA 704.5g doesn't fire on it.)
     if (found.card.staticAbilities.includes("indestructible")) return false;
     const shields = found.card.regenerationShields ?? 0;
-    if (shields > 0) {
+    if (shields > 0 && !opts?.cantBeRegenerated) {
         const next = shields - 1;
         if (next === 0) delete found.card.regenerationShields;
         else found.card.regenerationShields = next;
@@ -1080,6 +1167,7 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.damagedBySources;
     delete card.controlChanges;
     delete card.grantedStaticAbilities;
+    delete card.grantedActivatedAbilities;
     delete card.animation;
     delete card.chosenMana;
     delete card.manaCommitted;
@@ -1242,14 +1330,19 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const found = findOnBattlefield(state, target.id);
             return found ? found.card.isTapped : false;
         },
-        destroy(target: TargetSelection): boolean {
+        destroy(
+            target: TargetSelection,
+            opts?: { cantBeRegenerated?: boolean }
+        ): boolean {
             if (target.type === "player")
                 throw new Error("Cannot destroy a player");
             // CR 614.5 / 701.15a — destroy is the canonical replacement
-            // hook for regeneration shields. Return value reports whether
-            // the permanent actually moved to the graveyard (false if a
-            // shield saved it or the target had already left play).
-            return regenerateOrDestroy(state, target.id);
+            // hook for regeneration shields. `cantBeRegenerated` suppresses
+            // that replacement (CR 701.15c, e.g. Terror, Wrath of God).
+            // Return value reports whether the permanent actually moved to
+            // the graveyard (false if a shield saved it, indestructible
+            // protected it, or the target had already left play).
+            return regenerateOrDestroy(state, target.id, opts);
         },
         exile(target: TargetSelection): void {
             if (target.type === "player")
@@ -1285,7 +1378,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (!found) return;
             found.card.isTapped = false;
         },
-        destroyAll(filter?: CardType | CardType[] | PermanentFilter): void {
+        destroyAll(
+            filter?: CardType | CardType[] | PermanentFilter,
+            opts?: { cantBeRegenerated?: boolean }
+        ): void {
             const normalized = normalizeDestroyAllFilter(filter);
             const ids: string[] = [];
             for (const player of state.players) {
@@ -1297,8 +1393,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             }
             for (const id of ids) {
                 // Each victim independently gets a chance to consume a
-                // regeneration shield (CR 614.5, 701.15a).
-                regenerateOrDestroy(state, id);
+                // regeneration shield (CR 614.5, 701.15a) — unless the caller
+                // opts out via `cantBeRegenerated` (CR 701.15c).
+                regenerateOrDestroy(state, id, opts);
             }
         },
         // CR 121.1: cards are drawn one at a time. Stops if the library empties

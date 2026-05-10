@@ -86,13 +86,48 @@ export function getLegalActions(
         if (
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
-            canPotentiallyPayCost(player, card)
+            canPotentiallyPayCost(player, card) &&
+            hasEnoughLegalTargets(state, player, card)
         ) {
             actions.push("cast");
         }
     }
 
     return actions;
+}
+
+/** CR 601.2c: a spell with required targets can only be cast if enough legal
+ *  targets exist. Used by getLegalActions to suppress the Cast UI for spells
+ *  that would fail target selection (e.g. Lightning Bolt with no creatures or
+ *  players to target — only relevant if all candidates are protected, since
+ *  players are normally targetable). For "X" target counts the player can
+ *  still pick X = 0 and skip target selection (CR 107.3), so cast stays
+ *  legal regardless of board state. */
+function hasEnoughLegalTargets(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState
+): boolean {
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId) return true;
+    const def = tryGetCardById(cardId);
+    const requirement = def?.targetRequirement;
+    if (!requirement) return true;
+    // X = 0 path is always available; cast remains legal even with no targets.
+    if (requirement.count === "X") return true;
+    const required =
+        typeof requirement.count === "number"
+            ? requirement.count
+            : requirement.count.min;
+    if (required <= 0) return true;
+    const sourceColors = STATIC_EFFECT_CTX.getColors(card);
+    const legalTargets = getLegalTargets(
+        state,
+        requirement,
+        sourceColors,
+        player.id
+    );
+    return legalTargets.length >= required;
 }
 
 /** Returns the colors a permanent could potentially produce when tapped for

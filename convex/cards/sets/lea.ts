@@ -703,13 +703,17 @@ export const whiteWard: CardDefinition = makeColorWard({
     color: "white",
 });
 
+// Wrath of God — "Destroy all creatures. They can't be regenerated."
+// (CR 701.7, 701.15c). The `cantBeRegenerated` rider suppresses any
+// regeneration shields the victims may have stacked; indestructible still
+// protects (CR 702.12).
 export const wrathOfGod: CardDefinition = {
     id: "a2788d69-6a3a-42f0-8736-cc6b57755ecd",
     name: "Wrath of God",
     manaCost: { X: 2, W: 2 },
     types: ["Sorcery"],
     resolve: (ctx: SpellContext) => {
-        ctx.destroyAll("Creature");
+        ctx.destroyAll("Creature", { cantBeRegenerated: true });
     },
 };
 
@@ -2067,15 +2071,55 @@ export const willOTheWisp: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const zombieMaster: CardDefinition = {
-//     id: "3d4255a0-d445-4c00-b936-bbf07851e1c8",
-//     name: "Zombie Master",
-//     manaCost: { X: 1, B: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Zombie"],
-//     power: 2,
-//     toughness: 3,
-// };
+// Zombie Master — "Other Zombie creatures you control have swampwalk. Other
+// Zombies have '{B}: Regenerate this creature.'" (CR 611, 702.13c landwalk,
+// 113.1 granted activated ability). Two lord-style static effects:
+// keyword-grant (swampwalk) + activated-grant (regen). Master itself is
+// excluded via the `target.id !== source.id` predicate. No pt-buff — the
+// original LEA text and current Oracle both omit it. The granted regen
+// template lives on `grantTemplates` so Zombie Master itself does NOT expose
+// it as a native activated ability.
+export const zombieMaster: CardDefinition = {
+    id: "3d4255a0-d445-4c00-b936-bbf07851e1c8",
+    name: "Zombie Master",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 2,
+    toughness: 3,
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: (target, source, ctx) =>
+                ctx.isCreature(target) &&
+                target.id !== source.id &&
+                ctx.hasSubtype(target, "Zombie"),
+            keyword: "swampwalk",
+        },
+        {
+            kind: "activated-grant",
+            applies: (target, source, ctx) =>
+                ctx.isCreature(target) &&
+                target.id !== source.id &&
+                ctx.hasSubtype(target, "Zombie"),
+            abilityId: "zombie-master-regenerate",
+        },
+    ],
+    grantTemplates: [
+        {
+            id: "zombie-master-regenerate",
+            oracleText: "{B}: Regenerate this creature.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.applyRegenerationShield({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
 
 // Burrowing — "Enchant creature. Enchanted creature has mountainwalk." (CR
 // 303.4 aura attachment, 702.13c landwalk, 611.2 keyword grant).

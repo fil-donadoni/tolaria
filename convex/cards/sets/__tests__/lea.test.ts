@@ -61,6 +61,8 @@ import {
     warpArtifact,
     weakness,
     willOTheWisp,
+    zombieMaster,
+    scatheZombies,
     redWard,
     whiteWard,
     shanodinDryads,
@@ -132,6 +134,7 @@ import {
 } from "../lea";
 import {
     commitLandsForCost,
+    regenerateOrDestroy,
     removePermanentTo,
     resolveTopOfStack,
     type CardInstanceState,
@@ -1135,7 +1138,7 @@ describe("Swords to Plowshares (exile + gain life = power, CR 608.3)", () => {
     });
 });
 
-describe("Wrath of God (destroy all creatures, CR 608.3)", () => {
+describe("Wrath of God (destroy all creatures, can't regenerate, CR 701.15c)", () => {
     it("moves every creature to its owner's graveyard", () => {
         const angel = makeInstance(serraAngel.id, { id: "angel" });
         const lion = makeInstance(savannahLions.id, {
@@ -1155,6 +1158,48 @@ describe("Wrath of God (destroy all creatures, CR 608.3)", () => {
         expect(state.players[1].battlefield).toHaveLength(0);
         expect(state.players[0].graveyard.map((c) => c.id)).toContain("angel");
         expect(state.players[1].graveyard.map((c) => c.id)).toContain("lion");
+    });
+
+    it("regeneration shields are NOT consumed — the rider suppresses them", () => {
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+            regenerationShields: 1,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [lion] }),
+            ],
+        });
+        pushSpell(state, wrathOfGod.id, "p1");
+        resolveTopOfStack(state);
+        // Lion in graveyard, not in play — Wrath bypassed the shield.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "lion")
+        ).toBeUndefined();
+        expect(
+            state.players[1].graveyard.find((c) => c.id === "lion")
+        ).toBeDefined();
+    });
+
+    it("indestructible creatures still survive (CR 702.12)", () => {
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            staticAbilities: ["indestructible"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lion] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, wrathOfGod.id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "lion")
+        ).toBeDefined();
     });
 });
 
@@ -5097,12 +5142,17 @@ describe("Berserk ({G} — trample + X/+0, delayed destroy if attacked, CR 117.1
             id: "b1",
             zone: "hand",
         });
+        const target = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            zone: "battlefield",
+        });
         const p1 = makePlayer("p1", {
             hand: [berserkCard],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 1, C: 0 },
         });
+        const p2 = makePlayer("p2", { battlefield: [target] });
         const state = makeState({
-            players: [p1, makePlayer("p2")],
+            players: [p1, p2],
             phase: "DECLARE_ATTACKERS",
         });
         const legal = getLegalActions(state, p1, berserkCard);
@@ -5583,10 +5633,11 @@ describe("Regeneration ({1}{G} Aura — {G}: Regenerate enchanted creature, CR 7
     it("destroyAll's per-card destroy is replaced by the regen rider (CR 614.5)", () => {
         const { state, aura } = setupAttached();
         activateRegen(state, aura);
-        // Wrath of God calls ctx.destroyAll("Creature"); the per-card path
-        // routes through regenerateOrDestroy, so the shielded bear survives.
-        pushSpell(state, wrathOfGod.id, "p1");
-        resolveTopOfStack(state);
+        // Drive destroy directly via regenerateOrDestroy to model a
+        // regen-honoring mass effect (Wrath of God carries the
+        // can't-be-regenerated rider, CR 701.15c, so it would NOT trigger
+        // the regen path here — exercised by the dedicated Wrath test).
+        regenerateOrDestroy(state, "bear");
         const bearAfter = state.players[1].battlefield.find(
             (c) => c.id === "bear"
         );
@@ -5596,6 +5647,22 @@ describe("Regeneration ({1}{G} Aura — {G}: Regenerate enchanted creature, CR 7
         expect(
             state.players[1].graveyard.find((c) => c.id === "bear")
         ).toBeUndefined();
+    });
+
+    it("Wrath of God's `cantBeRegenerated` rider bypasses the shield (CR 701.15c)", () => {
+        const { state, aura } = setupAttached();
+        activateRegen(state, aura);
+        // Shield is on the bear — Wrath prevents the replacement, so the
+        // bear hits the graveyard and the shield stays unspent on the way
+        // out (it's purged with the rest of transient state).
+        pushSpell(state, wrathOfGod.id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")
+        ).toBeUndefined();
+        expect(
+            state.players[1].graveyard.find((c) => c.id === "bear")
+        ).toBeDefined();
     });
 
     it("lethal damage triggers regen too — heals damageMarked, taps, no graveyard (CR 704.5g + 701.15a)", () => {
@@ -6215,7 +6282,7 @@ describe("Death Ward (instant — regenerate target creature, CR 701.15a)", () =
         expect(target.regenerationShields).toBe(1);
     });
 
-    it("the shield replaces a subsequent destroy (Wrath of God survives)", () => {
+    it("the shield replaces a subsequent regen-honoring destroy (CR 614.5)", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
             controllerId: "p2",
@@ -6231,13 +6298,45 @@ describe("Death Ward (instant — regenerate target creature, CR 701.15a)", () =
             { type: "permanent", id: "bear" },
         ]);
         resolveTopOfStack(state);
-        pushSpell(state, wrathOfGod.id, "p1");
-        resolveTopOfStack(state);
+        // Use a regen-honoring destroy (no can't-be-regenerated rider). Wrath
+        // would suppress the shield (CR 701.15c) — exercised separately.
+        regenerateOrDestroy(state, "bear");
         const bearAfter = state.players[1].battlefield.find(
             (c) => c.id === "bear"
         );
         expect(bearAfter).toBeDefined();
         expect(bearAfter!.isTapped).toBe(true);
+        expect(bearAfter!.regenerationShields).toBeUndefined();
+    });
+
+    // CR 601.2c — a spell can't be announced if there aren't enough legal
+    // targets. getLegalActions suppresses "cast" for creature-only target
+    // spells when no creatures exist on either battlefield.
+    it("getLegalActions rejects cast with no creatures on the battlefield", () => {
+        const dw = makeInstance(deathWard.id, { id: "dw1", zone: "hand" });
+        const p1 = makePlayer("p1", {
+            hand: [dw],
+            manaPool: { W: 1, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        const legal = getLegalActions(state, p1, dw);
+        expect(legal).not.toContain("cast");
+    });
+
+    it("getLegalActions allows cast when a creature is on the battlefield", () => {
+        const dw = makeInstance(deathWard.id, { id: "dw1", zone: "hand" });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            zone: "battlefield",
+        });
+        const p1 = makePlayer("p1", {
+            hand: [dw],
+            manaPool: { W: 1, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const p2 = makePlayer("p2", { battlefield: [bear] });
+        const state = makeState({ players: [p1, p2] });
+        const legal = getLegalActions(state, p1, dw);
+        expect(legal).toContain("cast");
     });
 });
 
@@ -6782,12 +6881,14 @@ describe("Drudge Skeletons ({B}: regenerate self, CR 701.15a)", () => {
         expect(after.regenerationShields).toBe(1);
     });
 
-    it("survives Wrath of God after activation (regen rider replaces destroy)", () => {
+    it("survives a regen-honoring destroy after activation", () => {
+        // Plain destroy (e.g. Lightning Bolt lethal damage) honors the
+        // shield. Wrath of God's `cantBeRegenerated` rider would suppress it
+        // — exercised separately on the Wrath test.
         const state = setup();
         const skel = state.players[0].battlefield[0];
         activate(state, skel);
-        pushSpell(state, wrathOfGod.id, "p1");
-        resolveTopOfStack(state);
+        regenerateOrDestroy(state, skel.id);
         const after = state.players[0].battlefield.find((c) => c.id === "skel");
         expect(after).toBeDefined();
         expect(after!.isTapped).toBe(true);
@@ -7695,6 +7796,152 @@ describe("Lord-style keyword grant — Lord of Atlantis islandwalk", () => {
         resolveTopOfStack(state);
         const lord = state.players[0].battlefield[0];
         expect(lord.staticAbilities ?? []).not.toContain("islandwalk");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Zombie Master (CR 113.1 granted activated ability + lord-style pt-buff +
+// keyword-grant). Exercises the new `activated-grant` static effect kind and
+// the `grantedActivatedAbilities` activation lookup path end-to-end.
+// ---------------------------------------------------------------------------
+
+describe("Zombie Master (lord swampwalk + granted regen, no pt-buff)", () => {
+    it("entering Master grants swampwalk and regen ability to existing Zombies (P/T unchanged)", () => {
+        const zombie = makeInstance(scatheZombies.id, { id: "zomb" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [zombie] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Pre-state: vanilla zombie.
+        expect(zombie.staticAbilities).not.toContain("swampwalk");
+        expect(zombie.grantedActivatedAbilities).toBeUndefined();
+        expect(getEffectivePower(state, zombie)).toBe(2);
+        // Cast Master.
+        pushSpell(state, zombieMaster.id, "p1");
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "zomb"
+        )!;
+        expect(after.staticAbilities).toContain("swampwalk");
+        expect(after.grantedActivatedAbilities).toHaveLength(1);
+        expect(after.grantedActivatedAbilities![0].abilityId).toBe(
+            "zombie-master-regenerate"
+        );
+        // Oracle has no P/T buff — Scathe Zombies stays 2/2.
+        expect(getEffectivePower(state, after)).toBe(2);
+        expect(getEffectiveToughness(state, after)).toBe(2);
+    });
+
+    it("Zombie Master does NOT grant the regen ability to itself", () => {
+        const state = makeState();
+        pushSpell(state, zombieMaster.id, "p1");
+        resolveTopOfStack(state);
+        const master = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === zombieMaster.id
+        )!;
+        expect(master.grantedActivatedAbilities ?? []).toHaveLength(0);
+        expect(master.staticAbilities ?? []).not.toContain("swampwalk");
+    });
+
+    it("a Zombie entering with Master in play picks up swampwalk + regen grant", () => {
+        const master = makeInstance(zombieMaster.id, { id: "master" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [master] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, scatheZombies.id, "p1");
+        resolveTopOfStack(state);
+        const newZ = state.players[0].battlefield.find(
+            (c) => c.id !== "master"
+        )!;
+        expect(newZ.staticAbilities).toContain("swampwalk");
+        expect(newZ.grantedActivatedAbilities).toHaveLength(1);
+        expect(getEffectivePower(state, newZ)).toBe(2);
+    });
+
+    it("when Master leaves, Zombies lose grant entries (swampwalk + regen)", () => {
+        const master = makeInstance(zombieMaster.id, { id: "master" });
+        const zombie = makeInstance(scatheZombies.id, {
+            id: "zomb",
+            staticAbilities: ["swampwalk"],
+            grantedStaticAbilities: [
+                { ability: "swampwalk", auraId: "master" },
+            ],
+            grantedActivatedAbilities: [
+                {
+                    sourceCardId: zombieMaster.id,
+                    abilityId: "zombie-master-regenerate",
+                    auraId: "master",
+                },
+            ],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [master, zombie] }),
+                makePlayer("p2"),
+            ],
+        });
+        removePermanentTo(state, "master", "graveyard");
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "zomb"
+        )!;
+        expect(after.staticAbilities).not.toContain("swampwalk");
+        expect(after.grantedActivatedAbilities).toBeUndefined();
+    });
+
+    it("activating the granted regen on a Zombie shields it (no shield on Master)", () => {
+        const master = makeInstance(zombieMaster.id, { id: "master" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [master] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, scatheZombies.id, "p1");
+        resolveTopOfStack(state);
+        const newZ = state.players[0].battlefield.find(
+            (c) => c.id !== "master"
+        )!;
+        // Activate the granted regen on the new Zombie.
+        state.stack.push({
+            ...newZ,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "zombie-master-regenerate",
+            grantedSourceCardId: zombieMaster.id,
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const zAfter = state.players[0].battlefield.find(
+            (c) => c.id === newZ.id
+        )!;
+        expect(zAfter.regenerationShields).toBe(1);
+        const masterAfter = state.players[0].battlefield.find(
+            (c) => c.id === "master"
+        )!;
+        expect(masterAfter.regenerationShields).toBeUndefined();
+    });
+
+    it("wire format: grantedActivatedAbilities survive the projection", () => {
+        const zombie = makeInstance(scatheZombies.id, { id: "zomb" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [zombie] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, zombieMaster.id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "zomb"
+        )!;
+        expect(slim.staticAbilities).toContain("swampwalk");
+        expect(slim.grantedActivatedAbilities).toHaveLength(1);
     });
 });
 

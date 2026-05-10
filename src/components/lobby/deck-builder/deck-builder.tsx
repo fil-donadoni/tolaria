@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation } from "convex/react";
-import { api } from "@convex/_generated/api";
+import { useCallback, useRef, useState } from "react";
 import { getCardById } from "@convex/cards";
 import { getCardColors } from "@convex/cards/colors";
 import {
     type UserDeck,
     createEmptyUserDeck,
+    listUserDecks,
+    nextDeckName,
     saveUserDeck,
     touchDeck,
 } from "~/lib/userDecks";
@@ -49,70 +49,63 @@ export default function DeckBuilder({
     onClose,
 }: DeckBuilderProps) {
     const [deck, setDeck] = useState<UserDeck>(
-        () => initialDeck ?? createEmptyUserDeck("New Deck")
+        () => initialDeck ?? createEmptyUserDeck(nextDeckName(listUserDecks()))
     );
     const [filters, setFilters] = useState<CardSearchFilters>(DEFAULT_FILTERS);
-    const [syncing, setSyncing] = useState(false);
-    const syncedRef = useRef(false);
-    const syncCardIndex = useMutation(api.cardIndex.syncCardIndex);
+    // Track whether the deck has been written to localStorage at least once.
+    // Empty drafts stay virtual until the first edit so a user opening the
+    // builder and bailing out doesn't leave behind an empty "Deck N".
+    const persistedRef = useRef(initialDeck !== null);
 
-    const { entries, total } = useCardSearch(filters);
+    const { entries, idle } = useCardSearch(filters);
 
-    // Bootstrap the card_index table on first builder open if it's empty.
-    // Idempotent: subsequent runs upsert and only patch changed rows.
-    useEffect(() => {
-        if (syncedRef.current) return;
-        if (entries === undefined) return;
-        if (total > 0) {
-            syncedRef.current = true;
-            return;
-        }
-        syncedRef.current = true;
-        setSyncing(true);
-        syncCardIndex({})
-            .catch(() => {})
-            .finally(() => setSyncing(false));
-    }, [entries, total, syncCardIndex]);
-
-    const handleManualSync = useCallback(async () => {
-        setSyncing(true);
-        try {
-            await syncCardIndex({});
-        } finally {
-            setSyncing(false);
-        }
-    }, [syncCardIndex]);
-
-    const setName = useCallback((name: string) => {
-        setDeck((d) => ({ ...d, name }));
-    }, []);
-
-    const handleAdd = useCallback((cardId: string, cardName: string) => {
-        setDeck((d) => ({
-            ...d,
-            cards: [...d.cards, { cardId, cardName }],
-        }));
-    }, []);
-
-    const handleRemove = useCallback((cardId: string) => {
-        setDeck((d) => {
-            const idx = d.cards.findIndex((c) => c.cardId === cardId);
-            if (idx < 0) return d;
-            const next = [...d.cards];
-            next.splice(idx, 1);
-            return { ...d, cards: next };
+    const updateDeck = useCallback((updater: (deck: UserDeck) => UserDeck) => {
+        setDeck((current) => {
+            const updated = updater(current);
+            const next = touchDeck(updated, {
+                colors: computeDeckColors(updated.cards),
+            });
+            if (persistedRef.current || next.cards.length > 0) {
+                saveUserDeck(next);
+                persistedRef.current = true;
+            }
+            return next;
         });
     }, []);
 
-    const handleSave = useCallback(() => {
-        const trimmed = deck.name.trim() || "Untitled Deck";
-        const next = touchDeck(deck, {
-            name: trimmed,
-            colors: computeDeckColors(deck.cards),
-        });
-        saveUserDeck(next);
-        onClose(next.presetId);
-    }, [deck, onClose]);
+    const handleSetName = useCallback(
+        (name: string) => {
+            updateDeck((d) => ({ ...d, name }));
+        },
+        [updateDeck]
+    );
+
+    const handleAdd = useCallback(
+        (cardId: string, cardName: string) => {
+            updateDeck((d) => ({
+                ...d,
+                cards: [...d.cards, { cardId, cardName }],
+            }));
+        },
+        [updateDeck]
+    );
+
+    const handleRemove = useCallback(
+        (cardId: string) => {
+            updateDeck((d) => {
+                const idx = d.cards.findIndex((c) => c.cardId === cardId);
+                if (idx < 0) return d;
+                const next = [...d.cards];
+                next.splice(idx, 1);
+                return { ...d, cards: next };
+            });
+        },
+        [updateDeck]
+    );
+
+    const handleDone = useCallback(() => {
+        onClose(persistedRef.current ? deck.presetId : null);
+    }, [deck.presetId, onClose]);
 
     const toggleColor = useCallback((color: string) => {
         setFilters((f) => ({
@@ -153,14 +146,12 @@ export default function DeckBuilder({
         setFilters((f) => ({ ...f, text }));
     }, []);
 
-    const canSave = useMemo(() => deck.name.trim().length > 0, [deck.name]);
-
     return (
         <div className="flex h-screen flex-col bg-neutral-950 text-white">
             <div className="flex flex-col gap-3 border-b border-white/10 bg-black/40 px-6 py-3">
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={() => onClose(null)}
+                        onClick={handleDone}
                         className="rounded border border-white/20 bg-white/5 px-3 py-1.5 text-sm hover:bg-white/10"
                     >
                         ← Back
@@ -169,14 +160,6 @@ export default function DeckBuilder({
                         {initialDeck ? "Edit Deck" : "New Deck"}
                     </h1>
                     <SearchBar value={filters.text} onChange={setText} />
-                    <button
-                        onClick={handleManualSync}
-                        disabled={syncing}
-                        className="rounded border border-white/20 bg-white/5 px-3 py-1.5 text-xs hover:bg-white/10 disabled:opacity-40"
-                        title="Re-sync the card library from the implemented sets."
-                    >
-                        {syncing ? "Syncing…" : "Sync library"}
-                    </button>
                 </div>
                 <div className="flex flex-wrap items-center gap-4">
                     <ColorFilter
@@ -200,7 +183,11 @@ export default function DeckBuilder({
 
             <div className="grid flex-1 grid-rows-2 overflow-hidden">
                 <div className="overflow-y-auto border-b border-white/10">
-                    <ResultsGrid entries={entries} onAdd={handleAdd} />
+                    <ResultsGrid
+                        entries={entries}
+                        idle={idle}
+                        onAdd={handleAdd}
+                    />
                 </div>
                 <div className="overflow-y-auto">
                     <DeckPileArea cards={deck.cards} onRemove={handleRemove} />
@@ -209,10 +196,8 @@ export default function DeckBuilder({
 
             <SaveDeckBar
                 name={deck.name}
-                onChangeName={setName}
-                canSave={canSave}
-                onSave={handleSave}
-                onCancel={() => onClose(null)}
+                onChangeName={handleSetName}
+                onDone={handleDone}
                 cardCount={deck.cards.length}
             />
         </div>

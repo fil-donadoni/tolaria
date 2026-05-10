@@ -164,32 +164,66 @@ export function getStackAbilities(
 ): { id: string; oracleText: string }[] {
     const cardDef = getCardById(card.card.id);
     const tapLocked = isTapLockedBySummoningSickness(card);
-    return (cardDef.activatedAbilities ?? [])
-        .filter((a) => {
-            if (!a.useStack || !a.oracleText) return false;
-            if (a.cost.tap && card.isTapped) return false;
-            // CR 302.1 — creature with summoning sickness can't pay {T}.
-            if (a.cost.tap && tapLocked) return false;
-            if (
-                a.activationPhaseRestriction &&
-                phase !== undefined &&
-                !a.activationPhaseRestriction.includes(phase)
-            ) {
-                return false;
-            }
-            return true;
-        })
+    const filterAbility = (a: {
+        useStack: boolean;
+        oracleText: string;
+        cost: { tap?: boolean };
+        activationPhaseRestriction?: ReadonlyArray<Phase>;
+    }): boolean => {
+        if (!a.useStack || !a.oracleText) return false;
+        if (a.cost.tap && card.isTapped) return false;
+        // CR 302.1 — creature with summoning sickness can't pay {T}.
+        if (a.cost.tap && tapLocked) return false;
+        if (
+            a.activationPhaseRestriction &&
+            phase !== undefined &&
+            !a.activationPhaseRestriction.includes(phase)
+        ) {
+            return false;
+        }
+        return true;
+    };
+    const native = (cardDef.activatedAbilities ?? [])
+        .filter(filterAbility)
         .map((a) => ({ id: a.id, oracleText: a.oracleText }));
+    // CR 113.1 — abilities granted to this permanent by another card (e.g.
+    // Zombie Master's "{B}: Regenerate ~"). Resolve template via the
+    // granting card's def.
+    const granted: { id: string; oracleText: string }[] = [];
+    for (const grant of card.grantedActivatedAbilities ?? []) {
+        const sourceDef = getCardById(grant.sourceCardId);
+        const tmpl = sourceDef.grantTemplates?.find(
+            (a) => a.id === grant.abilityId
+        );
+        if (!tmpl) continue;
+        if (!filterAbility(tmpl)) continue;
+        granted.push({ id: tmpl.id, oracleText: tmpl.oracleText });
+    }
+    return [...native, ...granted];
 }
 
-/** Returns the oracle text for an activated ability by id, or null. */
+/** Returns the oracle text for an activated ability by id, or null. Checks
+ *  the card's own definition first, then any granted-activated entries on the
+ *  passed instance (resolved via the granting card's def). */
 export function getAbilityOracleText(
     cardId: string,
-    abilityId: string
+    abilityId: string,
+    grantedActivatedAbilities?: ReadonlyArray<{
+        sourceCardId: string;
+        abilityId: string;
+    }>
 ): string | null {
     const cardDef = getCardById(cardId);
     const ability = cardDef.activatedAbilities?.find((a) => a.id === abilityId);
-    return ability?.oracleText ?? null;
+    if (ability?.oracleText) return ability.oracleText;
+    for (const grant of grantedActivatedAbilities ?? []) {
+        if (grant.abilityId !== abilityId) continue;
+        const tmpl = getCardById(grant.sourceCardId).grantTemplates?.find(
+            (a) => a.id === abilityId
+        );
+        if (tmpl?.oracleText) return tmpl.oracleText;
+    }
+    return null;
 }
 
 /** Returns the oracle text for a triggered ability by id, or null. */

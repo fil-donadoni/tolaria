@@ -17,6 +17,7 @@ import {
     moveCard,
     removeFromZone,
     removePermanentTo,
+    applySourceStaticEffects,
     getBasicLandMana,
     payManaCost,
     commitLandsForCost,
@@ -327,6 +328,9 @@ function tryAutoCommitPendingActivation(
         castById: playerId,
         abilityId: pa.abilityId,
         ...(pa.targets && pa.targets.length > 0 ? { targets: pa.targets } : {}),
+        ...(pa.grantedSourceCardId
+            ? { grantedSourceCardId: pa.grantedSourceCardId }
+            : {}),
     };
     state.stack.push(stackItem);
 
@@ -696,6 +700,40 @@ export const playCard = mutation({
     },
 });
 
+/** Resolves an activated ability id on a battlefield card. Returns the
+ *  template and, when the ability was granted to this permanent by another
+ *  card (CR 113.1, e.g. Zombie Master's "{B}: Regenerate ~" grant), the
+ *  granting card def id. Returns null if no matching ability exists. */
+function resolveActivatedAbility(
+    card: CardInstanceState,
+    abilityId: string
+): {
+    ability: NonNullable<
+        ReturnType<typeof getCardById>["activatedAbilities"]
+    >[number];
+    grantedSourceCardId?: string;
+} | null {
+    const cardId = (card.card as { id?: string }).id;
+    if (cardId) {
+        const native = getCardById(cardId).activatedAbilities?.find(
+            (a) => a.id === abilityId
+        );
+        if (native) return { ability: native };
+    }
+    const grant = card.grantedActivatedAbilities?.find(
+        (g) => g.abilityId === abilityId
+    );
+    if (grant) {
+        const tmpl = getCardById(grant.sourceCardId).grantTemplates?.find(
+            (a) => a.id === abilityId
+        );
+        if (tmpl) {
+            return { ability: tmpl, grantedSourceCardId: grant.sourceCardId };
+        }
+    }
+    return null;
+}
+
 /** Minimum number of targets required for a TargetRequirement.count value.
  *  Fixed N → N; range → min. Used to validate confirmTargets (CR 601.2c). */
 function minTargetCount(count: number | { min: number; max?: number }): number {
@@ -773,11 +811,11 @@ function finalizeTargetSelection(
         if (!abilityId) throw new Error("pendingTarget.abilityId missing");
         const card = player.battlefield.find((c) => c.id === cardInstanceId);
         if (!card) throw new Error("Ability source not on battlefield");
-        const cardDef = getCardById((card.card as { id: string }).id);
-        const ability = cardDef.activatedAbilities?.find(
-            (a) => a.id === abilityId
-        );
-        if (!ability) throw new Error("Ability not found");
+        const resolved = resolveActivatedAbility(card, abilityId);
+        if (!resolved) throw new Error("Ability not found");
+        const ability = resolved.ability;
+        const grantedSourceCardId =
+            pt.grantedSourceCardId ?? resolved.grantedSourceCardId;
         if (ability.cost.tap && card.isTapped) {
             throw new Error("Card is already tapped");
         }
@@ -798,6 +836,7 @@ function finalizeTargetSelection(
                 sacrificeSource: !!ability.cost.sacrifice,
                 keepPriority,
                 targets,
+                ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
             };
             return;
         }
@@ -818,6 +857,7 @@ function finalizeTargetSelection(
             castById: playerId,
             abilityId,
             targets,
+            ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
         };
         state.stack.push(stackItem);
         state.passCount = 0;
@@ -2850,11 +2890,10 @@ export const activateAbility = mutation({
         const cardId = (card.card as { id?: string }).id;
         if (!cardId) throw new Error("Card has no definition");
 
-        const cardDef = getCardById(cardId);
-        const ability = cardDef.activatedAbilities?.find(
-            (a) => a.id === args.abilityId
-        );
-        if (!ability) throw new Error("Ability not found");
+        const resolved = resolveActivatedAbility(card, args.abilityId);
+        if (!resolved) throw new Error("Ability not found");
+        const ability = resolved.ability;
+        const grantedSourceCardId = resolved.grantedSourceCardId;
         if (!ability.useStack) {
             throw new Error("Use tapUntap for mana abilities");
         }
@@ -2918,6 +2957,7 @@ export const activateAbility = mutation({
                 keepPriority: args.keepPriority,
                 kind: "ability",
                 abilityId: args.abilityId,
+                ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
                 ...(ability.targetRequirement.zone
                     ? { zone: ability.targetRequirement.zone }
                     : {}),
@@ -2974,6 +3014,7 @@ export const activateAbility = mutation({
                 tapSource: !!ability.cost.tap,
                 sacrificeSource: !!ability.cost.sacrifice,
                 keepPriority: args.keepPriority,
+                ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
             };
             state.pendingActivation = pending;
 
@@ -3013,6 +3054,7 @@ export const activateAbility = mutation({
             zone: "stack" as const,
             castById: args.playerId,
             abilityId: args.abilityId,
+            ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
         };
         state.stack.push(stackItem);
         state.passCount = 0;
@@ -3630,6 +3672,19 @@ export const debugSetupScenario = mutation({
             for (let i = 0; i < args.libraryCount; i++) {
                 p1.library.push(makeInstance("Plains", p1.id, "library"));
                 p2.library.push(makeInstance("Plains", p2.id, "library"));
+            }
+        }
+
+        // CR 611.2 — replay continuous keyword-grant / activated-grant static
+        // effects across the freshly-built battlefield. The placement loop
+        // bypasses `finalizeSpellResolution`'s entry hooks, so a Zombie Master
+        // dropped via the scenario doesn't naturally reach its Zombies. One
+        // pass per source is enough: each call walks every permanent and
+        // pushes matching grants — order-independent because the predicate is
+        // a function of subtype/id, not of timestamp.
+        for (const player of state.players) {
+            for (const source of player.battlefield) {
+                applySourceStaticEffects(state, source);
             }
         }
 

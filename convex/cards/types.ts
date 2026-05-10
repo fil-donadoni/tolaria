@@ -228,11 +228,18 @@ export interface SpellContext {
     getIsTapped: (target: TargetSelection) => boolean;
     /** Destroys a permanent (CR 701.7). Routes through the regeneration /
      *  indestructible replacement layer. Returns true if the permanent was
-     *  actually moved to the graveyard, false if a regen shield (or future
-     *  indestructible) saved it or if the target had already left the
+     *  actually moved to the graveyard, false if a regen shield or
+     *  indestructible saved it or if the target had already left the
      *  battlefield. Used by spells like Volcanic Eruption that must count
-     *  "permanents put into a graveyard this way" (CR 614.5, 701.15a). */
-    destroy: (target: TargetSelection) => boolean;
+     *  "permanents put into a graveyard this way" (CR 614.5, 701.15a).
+     *
+     *  Pass `cantBeRegenerated: true` (Terror, Disintegrate) to suppress the
+     *  regen shield replacement (CR 701.15c) — indestructible still
+     *  protects. */
+    destroy: (
+        target: TargetSelection,
+        opts?: { cantBeRegenerated?: boolean }
+    ) => boolean;
     exile: (target: TargetSelection) => void;
     /** Returns a target permanent to its owner's hand (CR 701.10). The card
      *  becomes a new object on the zone change (CR 400.7) — battlefield-only
@@ -254,8 +261,15 @@ export interface SpellContext {
      *  `{ types }`. The object form supports compounding types, subtypes, and
      *  keyword requirements — e.g. `{ types: "Creature", excludeAbility: "flying" }`
      *  for "destroy all non-flying creatures". Undefined filter destroys every
-     *  permanent. */
-    destroyAll: (filter?: CardType | CardType[] | PermanentFilter) => void;
+     *  permanent.
+     *
+     *  Pass `opts.cantBeRegenerated: true` (Wrath of God, Damnation) to
+     *  suppress the regen shield replacement (CR 701.15c) — indestructible
+     *  still protects. */
+    destroyAll: (
+        filter?: CardType | CardType[] | PermanentFilter,
+        opts?: { cantBeRegenerated?: boolean }
+    ) => void;
     /** Player draws N cards one at a time (CR 121.1). Stops if library empties; sets hasDrawnFromEmpty (CR 704.5b). */
     drawCards: (playerId: string, amount: number) => void;
     /** Moves every card a player owns in `from` to `to` (CR 400.7). Cards are
@@ -573,11 +587,38 @@ export interface StaticControlChange {
     ) => boolean;
 }
 
+/** Continuous static ability that grants an activated ability to matching
+ *  permanents (CR 611, 113.1). Typical usage: a lord like Zombie Master
+ *  grants "{B}: Regenerate this creature." to every other Zombie. The
+ *  template lives on the granting card's `grantTemplates[]` (kept off
+ *  `activatedAbilities` so the source itself doesn't expose a native copy of
+ *  the ability). The grant is applied imperatively when the source or a
+ *  matching permanent enters the battlefield, and reversed when the source
+ *  leaves play.
+ *
+ *  Resolution semantics: when the granted ability is activated on a target,
+ *  the engine resolves it with the target as the source permanent (so e.g.
+ *  Zombie Master's regen shields the Zombie that activated it, not the
+ *  Master itself). Cost payment, target requirement and effect body are read
+ *  from the template on the granting card's def. */
+export interface StaticActivatedGrant {
+    kind: "activated-grant";
+    /** Predicate: does this grant apply to `target` given `source`? */
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Id on `source.grantTemplates[]` to grant. */
+    abilityId: string;
+}
+
 export type StaticEffect =
     | StaticPTBuff
     | StaticPTCDA
     | StaticKeywordGrant
-    | StaticControlChange;
+    | StaticControlChange
+    | StaticActivatedGrant;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
  *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted
@@ -758,6 +799,13 @@ export interface CardDefinition {
     /** Continuous static effects (CR 611). Applied at stat-read time by the layer system. */
     staticEffects?: StaticEffect[];
     activatedAbilities?: ActivatedAbility[];
+    /** Activated-ability templates GRANTED to other permanents by a
+     *  StaticActivatedGrant on this card's `staticEffects` (CR 113.1, 611).
+     *  Kept separate from `activatedAbilities` so the source itself does not
+     *  expose them as native activated abilities — only matching permanents
+     *  receive a reference via `grantedActivatedAbilities`. The `id` on each
+     *  template is the value referenced by the grant's `abilityId` field. */
+    grantTemplates?: ActivatedAbility[];
     triggeredAbilities?: TriggeredAbility[];
     /** Delayed triggered ability templates (CR 603.7a) scheduled by this
      *  card's `resolve()`. Looked up by id when a queued instance fires. */
