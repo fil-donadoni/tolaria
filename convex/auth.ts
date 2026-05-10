@@ -29,10 +29,18 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
                 if (typeof email !== "string" || email.trim().length === 0) {
                     throw new Error("email is required");
                 }
-                return {
-                    email: email.trim().toLowerCase(),
-                    nickname: normalizeNickname(params.nickname),
+                const normalizedEmail = email.trim().toLowerCase();
+                // Password provider invokes `profile()` on both signUp and
+                // signIn flows. Nickname is required only at sign-up; on
+                // sign-in the existing user record already has it, and
+                // params.nickname is undefined.
+                const out: Record<string, string> = {
+                    email: normalizedEmail,
                 };
+                if (params.flow === "signUp") {
+                    out.nickname = normalizeNickname(params.nickname);
+                }
+                return out as { email: string; nickname: string };
             },
         }),
     ],
