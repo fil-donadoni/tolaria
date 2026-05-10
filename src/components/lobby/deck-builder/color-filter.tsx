@@ -16,7 +16,7 @@ interface ColorFilterProps {
 const MODE_LABELS: Record<ColorMode, string> = {
     "include-any": "At least one",
     "include-all": "All of these",
-    exact: "Only one",
+    "at-most": "At most these",
 };
 
 export default function ColorFilter({

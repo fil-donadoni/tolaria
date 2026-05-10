@@ -79,7 +79,7 @@ export default function GameStack({ stack }: GameStackProps) {
                                     zIndex: reversed.length - i,
                                 }}
                             >
-                                <CardImage card={item.card} />
+                                <CardImage card={item} />
                                 {abilityText && (
                                     <div className="mt-1 p-1 bg-black/80 rounded text-[10px] text-left max-w-32">
                                         {formatOracleText(abilityText)}

@@ -90,12 +90,63 @@ export function getStaticPTBuff(
     return { power, toughness };
 }
 
+/** Sum of one-shot temporary P/T modifications stored on `target`
+ *  (CR 611.1, 611.2). Independent from static effects: these mods live on
+ *  the permanent itself and are purged by phase-boundary cleanup. */
+function getTemporaryPTBuff(target: PermanentView): PTBuff {
+    const mods = target.temporaryPTMods;
+    if (!mods?.length) return ZERO;
+    let power = 0;
+    let toughness = 0;
+    for (const m of mods) {
+        power += m.power;
+        toughness += m.toughness;
+    }
+    if (power === 0 && toughness === 0) return ZERO;
+    return { power, toughness };
+}
+
+/** Per-counter-type contribution to layer 7d (CR 613.4d, 122.1d). Only the
+ *  P/T-modifying built-in types are recognized here; other types (corpse,
+ *  mire, charge, vitality) are inert to the layer system and are read by
+ *  card-specific abilities directly. */
+const COUNTER_PT_CONTRIBUTION: Record<string, PTBuff> = {
+    "+1/+1": { power: 1, toughness: 1 },
+    "-1/-1": { power: -1, toughness: -1 },
+    "+1/+0": { power: 1, toughness: 0 },
+    "-1/-0": { power: -1, toughness: 0 },
+    "+0/+1": { power: 0, toughness: 1 },
+    "-0/-1": { power: 0, toughness: -1 },
+};
+
+/** Sum of P/T contributions from counters on `target` (layer 7d). Reads from
+ *  `target.counters` and folds in only types with a non-zero P/T effect. */
+function getCounterPTBuff(target: PermanentView): PTBuff {
+    const counters = target.counters;
+    if (!counters) return ZERO;
+    let power = 0;
+    let toughness = 0;
+    for (const [type, count] of Object.entries(counters)) {
+        const contribution = COUNTER_PT_CONTRIBUTION[type];
+        if (!contribution || count === 0) continue;
+        power += contribution.power * count;
+        toughness += contribution.toughness * count;
+    }
+    if (power === 0 && toughness === 0) return ZERO;
+    return { power, toughness };
+}
+
 /** Effective power after static P/T buffs. Not floored (combat damage floors separately). */
 export function getEffectivePower(
     state: LayerStateView,
     target: PermanentView
 ): number {
-    return (target.power ?? 0) + getStaticPTBuff(state, target).power;
+    return (
+        (target.power ?? 0) +
+        getStaticPTBuff(state, target).power +
+        getTemporaryPTBuff(target).power +
+        getCounterPTBuff(target).power
+    );
 }
 
 /** Effective toughness after static P/T buffs. */
@@ -103,5 +154,10 @@ export function getEffectiveToughness(
     state: LayerStateView,
     target: PermanentView
 ): number {
-    return (target.toughness ?? 0) + getStaticPTBuff(state, target).toughness;
+    return (
+        (target.toughness ?? 0) +
+        getStaticPTBuff(state, target).toughness +
+        getTemporaryPTBuff(target).toughness +
+        getCounterPTBuff(target).toughness
+    );
 }

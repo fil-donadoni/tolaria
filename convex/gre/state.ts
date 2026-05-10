@@ -28,6 +28,7 @@ import {
 } from "./layers";
 import { isProtectedFromSource } from "./protection";
 import { randomInt, seededShuffle } from "./rng";
+import { collectTriggers } from "./triggers";
 
 /** Stored form of a temporary-effect duration. Mirrors `DurationSpec` but
  *  with the symbolic `player` field resolved to a concrete `playerId` at
@@ -123,6 +124,12 @@ export type CardInstanceState = {
      *  through to CLEANUP so end-step triggers like Berserk's delayed destroy
      *  ("if it attacked this turn") can see it. */
     hasAttackedThisTurn?: boolean;
+    /** Set when the creature is declared as a blocker this turn. Mirrors
+     *  `hasAttackedThisTurn`: persists past END_OF_COMBAT (which clears
+     *  `isBlocking`) so end-of-combat triggers like Clockwork Beast's
+     *  "if it attacked or blocked this combat" can see it. Cleared at
+     *  CLEANUP. */
+    hasBlockedThisTurn?: boolean;
     /** Keyword abilities granted for a limited duration (CR 113.1 / 611.1b).
      *  Each entry is also pushed to `staticAbilities` for read-time lookups
      *  (combat logic inspects `staticAbilities.includes("trample")`) and is
@@ -201,6 +208,23 @@ export type CardInstanceState = {
         addedSubtype?: string;
         duration: Duration;
     };
+    /** Temporary P/T modifications scoped to a phase boundary (CR 611.1,
+     *  611.2). Pushed by `addTemporaryPTBuff` ("until end of turn" /
+     *  "until end of combat" pump effects). Each entry contributes additively
+     *  to effective power/toughness at read time and is spliced out by
+     *  `tickAllDurations` when its `duration` expires (CR 514.2, 511.3). */
+    temporaryPTMods?: {
+        power: number;
+        toughness: number;
+        duration: Duration;
+    }[];
+    /** Counters on this permanent (CR 122). Map of counter type → count.
+     *  Layer 7d folds P/T-modifying types (+1/+1, +1/+0, ...) into effective
+     *  stat reads. Mutated by `addCounter`/`removeCounter`. Cleared on
+     *  hand/library moves via `resetBattlefieldTransientState`; preserved on
+     *  graveyard/exile so post-death lookups can read the moment-of-death
+     *  count. */
+    counters?: Record<string, number>;
 };
 
 /** A one-shot damage prevention effect (CR 615.1, 615.6). The next time the
@@ -558,6 +582,17 @@ export type GameState = {
     delayedTriggers?: DelayedTriggerInstance[];
     /** Monotonic counter backing DelayedTriggerInstance.id generation. */
     nextDelayedSeq?: number;
+    /** Buffer of game events emitted during the current action that have not
+     *  yet been scanned for triggered abilities (CR 603.2). Filled by the
+     *  state mutators (CREATURE_DIED on death, etc.) and drained by the
+     *  caller (combat damage step, `resolveTopOfStack`) which runs
+     *  `collectTriggers` and pushes any matching abilities onto the stack. */
+    pendingEvents?: GameEvent[];
+    /** Count of creatures that have died this turn. Incremented in
+     *  `removePermanentTo` whenever a creature moves battlefield→graveyard;
+     *  reset at turn start. Read by Scavenging Ghoul and similar
+     *  count-based triggers. */
+    deathsThisTurn?: number;
 };
 
 /** Returns true if a prevention effect matches (source, player) and consumes
@@ -586,8 +621,36 @@ export function consumePreventionIfAny(
  *  item, or `null` if the resolution was suspended awaiting mid-resolution
  *  player choices (CR 608.2, 101.4). Suspension leaves the item on the stack
  *  with `resolutionStep` checkpointed; callers must wait for pending choices
- *  to be submitted before re-invoking. */
+ *  to be submitted before re-invoking.
+ *
+ *  After a successful resolution, drains `state.pendingEvents` and pushes any
+ *  matching triggered abilities (CR 603.2) onto the stack, restarting priority
+ *  at the active player (CR 117.3c). Suspended resolutions skip the scan —
+ *  events emitted partway through a stepped resolve are deferred to the
+ *  resume call that completes the spell. */
 export function resolveTopOfStack(state: GameState): StackItem | null {
+    const result = resolveTopOfStackInner(state);
+    if (result !== null) {
+        processPendingActionTriggers(state);
+    }
+    return result;
+}
+
+/** Drains `state.pendingEvents`, scans for matching triggered abilities, and
+ *  pushes them onto the stack (CR 603.2). Hands priority back to the active
+ *  player (CR 117.3c) when at least one trigger lands on the stack. Safe to
+ *  call repeatedly — a no-op when the queue is empty. */
+function processPendingActionTriggers(state: GameState): void {
+    const events = flushPendingEvents(state);
+    if (events.length === 0) return;
+    const triggers = collectTriggers(state, events);
+    if (triggers.length === 0) return;
+    state.stack.push(...triggers);
+    state.priorityPlayerId = state.activePlayerId;
+    state.passCount = 0;
+}
+
+function resolveTopOfStackInner(state: GameState): StackItem | null {
     if (state.stack.length === 0) throw new Error("Stack is empty");
 
     const top = state.stack[state.stack.length - 1];
@@ -695,7 +758,14 @@ export function resolveTopOfStack(state: GameState): StackItem | null {
 function finalizeSpellResolution(
     state: GameState,
     item: StackItem,
-    cardDef: { entersTapped?: boolean } | undefined
+    cardDef:
+        | {
+              entersTapped?: boolean;
+              entersWith?: {
+                  counters?: { type: string; count: number | "X" }[];
+              };
+          }
+        | undefined
 ): void {
     const isPermanent = item.types.some((t) =>
         PERMANENT_TYPES.includes(t as (typeof PERMANENT_TYPES)[number])
@@ -732,6 +802,24 @@ function finalizeSpellResolution(
             item.isSummoningSick = true;
         }
         controller.battlefield.push(item);
+        // CR 122.1, 614.1c — apply ETB-counters before the layer system runs
+        // so effective P/T reads include them immediately (Rock Hydra,
+        // Clockwork Beast).
+        const etbCounters = cardDef?.entersWith?.counters;
+        if (etbCounters && etbCounters.length > 0) {
+            const counters: Record<string, number> = {
+                ...(item.counters ?? {}),
+            };
+            for (const entry of etbCounters) {
+                const n =
+                    entry.count === "X"
+                        ? Math.max(0, item.chosenX ?? 0)
+                        : entry.count;
+                if (n <= 0) continue;
+                counters[entry.type] = (counters[entry.type] ?? 0) + n;
+            }
+            if (Object.keys(counters).length > 0) item.counters = counters;
+        }
         // CR 611.2 — first absorb any existing battlefield source's
         // keyword-grant effects that match this new permanent (e.g. Goblin
         // King's "Goblins have mountainwalk" reaches a Goblin entering after
@@ -1126,6 +1214,17 @@ export function removePermanentTo(
     const found = findOnBattlefield(state, cardId);
     if (!found) return;
     const [creature] = found.player.battlefield.splice(found.idx, 1);
+    const wasCreature = creature.types.includes("Creature");
+    const snapshotControllerId = creature.controllerId;
+    const snapshotDamagedBy = creature.damagedBySources ?? [];
+    // CR 603.10 last known information — capture effective P/T before the
+    // card leaves play so death triggers ("damage equal to that creature's
+    // toughness") read the moment-of-death values. Layered buffs from sources
+    // still on the battlefield are folded in here.
+    const snapshotPower = wasCreature ? getEffectivePower(state, creature) : 0;
+    const snapshotToughness = wasCreature
+        ? getEffectiveToughness(state, creature)
+        : 0;
     creature.zone = toZone;
     creature.attachedTo = undefined;
     if (toZone === "hand" || toZone === "library") {
@@ -1133,6 +1232,38 @@ export function removePermanentTo(
     }
     const owner = getPlayer(state, creature.ownerId);
     (owner[toZone] as CardInstanceState[]).push(creature);
+    // CR 700.4 — a creature "dies" when it's put into a graveyard from the
+    // battlefield. Queued on `pendingEvents` so the caller can scan for
+    // matching triggers (CR 603.2) once the current action settles.
+    if (toZone === "graveyard" && wasCreature) {
+        state.pendingEvents = [
+            ...(state.pendingEvents ?? []),
+            {
+                type: "CREATURE_DIED",
+                creatureInstanceId: cardId,
+                creatureControllerId: snapshotControllerId,
+                damagedBySources: snapshotDamagedBy,
+                creaturePower: snapshotPower,
+                creatureToughness: snapshotToughness,
+            },
+        ];
+        // Running tally of creatures that have died this turn. Read by
+        // triggers like Scavenging Ghoul ("for each creature that died this
+        // turn"). Reset at turn start (CR 514.2 — strictly speaking this is
+        // bookkeeping derived from the event log, not an SBA).
+        state.deathsThisTurn = (state.deathsThisTurn ?? 0) + 1;
+    }
+}
+
+/** Drains the pending event queue, returning all queued events in FIFO order
+ *  and clearing the buffer. Used by the engine after each action to feed
+ *  `collectTriggers` (CR 603.2) and push any newly-matched triggered abilities
+ *  onto the stack. */
+export function flushPendingEvents(state: GameState): GameEvent[] {
+    const out = state.pendingEvents ?? [];
+    if (out.length === 0) return [];
+    state.pendingEvents = undefined;
+    return out;
 }
 
 /** Reverses every aura currently attached to `hostId` — keyword grants and
@@ -1164,6 +1295,7 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.isAttacking;
     delete card.isBlocking;
     delete card.hasAttackedThisTurn;
+    delete card.hasBlockedThisTurn;
     delete card.damagedBySources;
     delete card.controlChanges;
     delete card.grantedStaticAbilities;
@@ -1171,6 +1303,8 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.animation;
     delete card.chosenMana;
     delete card.manaCommitted;
+    delete card.counters;
+    delete card.temporaryPTMods;
 }
 
 /** Predicate: does the card match every constraint in the filter? Omitted
@@ -1247,6 +1381,17 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 // (the spell/ability dealing the damage).
                 if (consumePreventionIfAny(state, item.id, target.id)) return;
                 getPlayer(state, target.id).life -= amount;
+                state.pendingEvents = [
+                    ...(state.pendingEvents ?? []),
+                    {
+                        type: "DAMAGE_DEALT",
+                        sourceInstanceId: item.id,
+                        sourceControllerId: item.controllerId,
+                        target,
+                        amount,
+                        isCombat: false,
+                    },
+                ];
             } else {
                 const found = findOnBattlefield(state, target.id);
                 if (!found) return;
@@ -1264,6 +1409,21 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 // compared to effective toughness (layer 7c).
                 found.card.damageMarked =
                     (found.card.damageMarked ?? 0) + amount;
+                found.card.damagedBySources = [
+                    ...(found.card.damagedBySources ?? []),
+                    item.id,
+                ];
+                state.pendingEvents = [
+                    ...(state.pendingEvents ?? []),
+                    {
+                        type: "DAMAGE_DEALT",
+                        sourceInstanceId: item.id,
+                        sourceControllerId: item.controllerId,
+                        target,
+                        amount,
+                        isCombat: false,
+                    },
+                ];
                 if (
                     found.card.damageMarked >=
                     getEffectiveToughness(state, found.card)
@@ -1320,6 +1480,71 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (target.type === "player") return;
             const card = requirePermanent(target);
             card.toughness = (card.toughness ?? 0) + amount;
+        },
+        // CR 611.1, 611.2: layered P/T modification scoped to a phase boundary.
+        // Stored as a list on the card so the cleanup pass can splice each
+        // entry out independently when its duration expires; effective P/T
+        // reads sum these on top of base + static buffs.
+        addTemporaryPTBuff(
+            target: TargetSelection,
+            power: number,
+            toughness: number,
+            duration: DurationSpec
+        ): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.temporaryPTMods = [
+                ...(found.card.temporaryPTMods ?? []),
+                {
+                    power,
+                    toughness,
+                    duration: resolveDuration(duration, item.castById, state),
+                },
+            ];
+        },
+        // CR 122.1: put `count` counters of `type` on the permanent. Stored
+        // on the card itself so wire-format projection carries them; layer 7d
+        // reads them at stat-lookup time for P/T-modifying types.
+        addCounter(target: TargetSelection, type: string, count: number): void {
+            if (count <= 0) return;
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            const next = { ...(found.card.counters ?? {}) };
+            next[type] = (next[type] ?? 0) + count;
+            found.card.counters = next;
+        },
+        // CR 122.6: remove up to `count` counters of `type`. Returns the
+        // number actually removed (clamped to current count).
+        removeCounter(
+            target: TargetSelection,
+            type: string,
+            count: number
+        ): number {
+            if (count <= 0) return 0;
+            if (target.type !== "permanent") return 0;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return 0;
+            const current = found.card.counters?.[type] ?? 0;
+            if (current === 0) return 0;
+            const removed = Math.min(count, current);
+            const remaining = current - removed;
+            const next = { ...(found.card.counters ?? {}) };
+            if (remaining === 0) delete next[type];
+            else next[type] = remaining;
+            found.card.counters =
+                Object.keys(next).length > 0 ? next : undefined;
+            return removed;
+        },
+        getCounterCount(target: TargetSelection, type: string): number {
+            if (target.type !== "permanent") return 0;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return 0;
+            return found.card.counters?.[type] ?? 0;
+        },
+        getDeathsThisTurn(): number {
+            return state.deathsThisTurn ?? 0;
         },
         getController(target: TargetSelection): string {
             if (target.type === "player") return target.id;

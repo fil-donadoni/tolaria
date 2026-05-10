@@ -103,7 +103,7 @@ export default function CardsPile({
                                 const inner = isFaceDown ? (
                                     <CardBack />
                                 ) : (
-                                    <CardImage card={cardInstance.card} />
+                                    <CardImage card={cardInstance} />
                                 );
                                 const clickable = !isFaceDown && !!onCardClick;
                                 return (

@@ -123,7 +123,7 @@ export default function BattlefieldCard({
 
     const inner = (
         <div className={`relative ${vs.ringClass}`} style={innerStyle}>
-            <CardImage card={card.card} />
+            <CardImage card={card} />
             {darkenOverlay}
             {badgeEl}
             {ptDamageStack}

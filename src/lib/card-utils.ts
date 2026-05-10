@@ -6,7 +6,7 @@ import {
     LAND_SUBTYPE_MANA,
     LANDWALK_KEYWORDS,
 } from "@convex/gre/constants";
-import { getCardById } from "@convex/cards";
+import { getCardById, tryGetCardById } from "@convex/cards";
 
 export function isLand(card: CardInstance): boolean {
     return card.types?.includes("Land") ?? false;
@@ -236,6 +236,128 @@ export function getTriggeredAbilityOracleText(
         (a) => a.id === triggeredAbilityId
     );
     return ability?.oracleText ?? null;
+}
+
+/** Display state for a card ability in the zoom panel.
+ *  - "native": present on the CardDefinition and still effective.
+ *  - "granted": added at runtime by an aura/effect (not on the def).
+ *  - "lost": present on the CardDefinition but removed at runtime
+ *    (e.g. a Wall losing Defender). Computed by diffing native vs
+ *    instance.staticAbilities — backend has no explicit field for this. */
+export type AbilityDisplayState = "native" | "granted" | "lost";
+
+export type DisplayKeyword = {
+    name: string;
+    state: AbilityDisplayState;
+};
+
+export type DisplayActivated = {
+    id: string;
+    oracleText: string;
+    state: "native" | "granted";
+};
+
+export type DisplayTriggered = {
+    id: string;
+    oracleText: string;
+};
+
+export type DisplayAbilities = {
+    keywords: DisplayKeyword[];
+    activated: DisplayActivated[];
+    triggered: DisplayTriggered[];
+};
+
+/** Resolves the abilities to display in the zoom panel for a card. When
+ *  `instance` is provided, runtime overrides are reflected:
+ *  - keywords on the def but not on the instance are tagged "lost"
+ *  - keywords on the instance but not on the def are tagged "granted"
+ *  - granted activated abilities (CR 113.1) are appended via grantTemplates
+ *  Without an instance, returns the static def view (used by deck builder, etc.). */
+export function getDisplayAbilities(
+    cardId: string,
+    instance?: CardInstance
+): DisplayAbilities {
+    const def = tryGetCardById(cardId);
+    if (!def) return { keywords: [], activated: [], triggered: [] };
+    const nativeKw = def.staticAbilities ?? [];
+    const effectiveKw = instance?.staticAbilities ?? nativeKw;
+    const nativeSet = new Set(nativeKw);
+    const effectiveSet = new Set(effectiveKw);
+
+    const keywords: DisplayKeyword[] = [];
+    for (const k of nativeKw) {
+        keywords.push({
+            name: k,
+            state: effectiveSet.has(k) ? "native" : "lost",
+        });
+    }
+    for (const k of effectiveKw) {
+        if (!nativeSet.has(k)) keywords.push({ name: k, state: "granted" });
+    }
+
+    const activated: DisplayActivated[] = (def.activatedAbilities ?? [])
+        .filter((a) => a.oracleText)
+        .map((a) => ({
+            id: a.id,
+            oracleText: a.oracleText,
+            state: "native" as const,
+        }));
+    for (const grant of instance?.grantedActivatedAbilities ?? []) {
+        const sourceDef = tryGetCardById(grant.sourceCardId);
+        const tmpl = sourceDef?.grantTemplates?.find(
+            (a) => a.id === grant.abilityId
+        );
+        if (!tmpl?.oracleText) continue;
+        activated.push({
+            id: tmpl.id,
+            oracleText: tmpl.oracleText,
+            state: "granted",
+        });
+    }
+
+    const triggered: DisplayTriggered[] = (def.triggeredAbilities ?? [])
+        .filter((a) => a.oracleText)
+        .map((a) => ({ id: a.id, oracleText: a.oracleText }));
+
+    return { keywords, activated, triggered };
+}
+
+/** Capitalizes the first letter of a keyword for display. Matches the user
+ *  preference of "name only, no reminder text" for static keywords. */
+export function capitalizeKeyword(k: string): string {
+    if (!k) return k;
+    return k.charAt(0).toUpperCase() + k.slice(1);
+}
+
+/** Builds an MTG-style type line: "[Supertypes] [Types] — [Subtypes]".
+ *  The em-dash separator is omitted when there are no subtypes. */
+export function formatTypeLine(
+    types: string[] | undefined,
+    subtypes: string[] | undefined,
+    supertypes: string[] | undefined
+): string {
+    const left = [...(supertypes ?? []), ...(types ?? [])].join(" ");
+    const right = (subtypes ?? []).join(" ");
+    return right ? `${left} — ${right}` : left;
+}
+
+const MANA_DISPLAY_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
+
+/** Serializes a ManaCost into the symbol-token form used by formatOracleText
+ *  (e.g. `{ X: 2, R: 1 }` → "{2}{R}"). String X (variable cost) renders as
+ *  "{X}". Returns "" when undefined or empty. */
+export function manaCostToString(cost?: ManaCost): string {
+    if (!cost) return "";
+    const parts: string[] = [];
+    const x = cost.X;
+    if (typeof x === "string") parts.push(`{${x}}`);
+    else if (typeof x === "number" && x > 0) parts.push(`{${x}}`);
+    for (const c of MANA_DISPLAY_COLORS) {
+        const n = cost[c] ?? 0;
+        for (let i = 0; i < n; i++) parts.push(`{${c}}`);
+    }
+    return parts.join("");
 }
 
 export function groupByName(cards: CardInstance[]): CardInstance[][] {

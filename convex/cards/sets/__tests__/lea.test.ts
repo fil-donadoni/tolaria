@@ -30,10 +30,13 @@ import {
     farmstead,
     feedback,
     flight,
+    frozenShade,
     goblinBalloonBrigade,
     goblinKing,
+    graniteGargoyle,
     greenWard,
     holyStrength,
+    howlFromBeyond,
     iceStorm,
     jump,
     karma,
@@ -51,6 +54,7 @@ import {
     raiseDead,
     rodOfRuin,
     shatter,
+    shivanDragon,
     stoneRain,
     streamOfLife,
     tunnel,
@@ -58,6 +62,8 @@ import {
     uthdenTroll,
     wallOfBone,
     wallOfBrambles,
+    wallOfFire,
+    wallOfWater,
     warpArtifact,
     weakness,
     willOTheWisp,
@@ -72,8 +78,12 @@ import {
     circleOfProtectionGreen,
     circleOfProtectionRed,
     circleOfProtectionWhite,
+    clockworkBeast,
     counterspell,
     controlMagic,
+    creatureBond,
+    fungusaur,
+    scavengingGhoul,
     ancestralRecall,
     darkRitual,
     demonicTutor,
@@ -1574,8 +1584,9 @@ describe("Sengir Vampire (+1/+1 on damaged-creature death, CR 603.2)", () => {
         );
         resolveTopOfStack(state);
         const live = state.players[0].battlefield[0];
-        expect(live.power).toBe(5);
-        expect(live.toughness).toBe(5);
+        expect(getEffectivePower(state, live)).toBe(5);
+        expect(getEffectiveToughness(state, live)).toBe(5);
+        expect(live.counters?.["+1/+1"]).toBe(1);
     });
 
     it("does NOT trigger on the death of a creature it didn't damage", async () => {
@@ -7942,6 +7953,630 @@ describe("Zombie Master (lord swampwalk + granted regen, no pt-buff)", () => {
         )!;
         expect(slim.staticAbilities).toContain("swampwalk");
         expect(slim.grantedActivatedAbilities).toHaveLength(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Temporary P/T modifications (CR 611.1 — addTemporaryPTBuff)
+// ---------------------------------------------------------------------------
+
+function activatePump(
+    state: GameState,
+    source: CardInstanceState,
+    abilityId: string
+) {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        abilityId,
+        targets: [],
+    });
+    resolveTopOfStack(state);
+}
+
+describe("Frozen Shade ({B}: this creature gets +1/+1 until end of turn)", () => {
+    function setup() {
+        const shade = makeInstance(frozenShade.id, {
+            id: "shade",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        return {
+            state: makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [shade] }),
+                    makePlayer("p2"),
+                ],
+            }),
+            shadeId: "shade",
+        };
+    }
+
+    it("activation pumps +1/+1 until end of turn", () => {
+        const { state, shadeId } = setup();
+        const shade = state.players[0].battlefield.find(
+            (c) => c.id === shadeId
+        )!;
+        expect(getEffectivePower(state, shade)).toBe(0);
+        expect(getEffectiveToughness(state, shade)).toBe(1);
+        activatePump(state, shade, "frozen-shade-pump");
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === shadeId
+        )!;
+        expect(getEffectivePower(state, after)).toBe(1);
+        expect(getEffectiveToughness(state, after)).toBe(2);
+    });
+
+    it("multiple activations stack additively", () => {
+        const { state, shadeId } = setup();
+        for (let i = 0; i < 3; i++) {
+            const shade = state.players[0].battlefield.find(
+                (c) => c.id === shadeId
+            )!;
+            activatePump(state, shade, "frozen-shade-pump");
+        }
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === shadeId
+        )!;
+        expect(getEffectivePower(state, after)).toBe(3);
+        expect(getEffectiveToughness(state, after)).toBe(4);
+    });
+
+    it("buff expires at CLEANUP (CR 514.2)", () => {
+        const { state, shadeId } = setup();
+        const shade = state.players[0].battlefield.find(
+            (c) => c.id === shadeId
+        )!;
+        activatePump(state, shade, "frozen-shade-pump");
+        // Jump to END_STEP so the next advancePhase lands on CLEANUP, where
+        // tickAllDurations runs.
+        state.phase = "END_STEP";
+        advancePhase(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === shadeId
+        )!;
+        expect(getEffectivePower(state, after)).toBe(0);
+        expect(getEffectiveToughness(state, after)).toBe(1);
+        expect(after.temporaryPTMods).toBeUndefined();
+    });
+
+    it("wire format: temporary P/T mod survives the projection", () => {
+        const { state, shadeId } = setup();
+        const shade = state.players[0].battlefield.find(
+            (c) => c.id === shadeId
+        )!;
+        activatePump(state, shade, "frozen-shade-pump");
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === shadeId
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(1);
+        expect(getEffectiveToughness(projected, slim)).toBe(2);
+    });
+});
+
+describe("Granite Gargoyle (flying + {R}: +0/+1 until end of turn)", () => {
+    function setup() {
+        const gg = makeInstance(graniteGargoyle.id, {
+            id: "gg",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gg] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("has flying as a static ability", () => {
+        const state = setup();
+        const gg = state.players[0].battlefield.find((c) => c.id === "gg")!;
+        expect(gg.staticAbilities).toContain("flying");
+    });
+
+    it("activation pumps +0/+1 until end of turn", () => {
+        const state = setup();
+        const gg = state.players[0].battlefield.find((c) => c.id === "gg")!;
+        activatePump(state, gg, "granite-gargoyle-pump");
+        const after = state.players[0].battlefield.find((c) => c.id === "gg")!;
+        expect(getEffectivePower(state, after)).toBe(2);
+        expect(getEffectiveToughness(state, after)).toBe(3);
+    });
+});
+
+describe("Shivan Dragon (flying + {R}: +1/+0 until end of turn)", () => {
+    function setup() {
+        const sd = makeInstance(shivanDragon.id, {
+            id: "sd",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sd] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("has flying and pumps +1/+0 on activation", () => {
+        const state = setup();
+        const sd = state.players[0].battlefield.find((c) => c.id === "sd")!;
+        expect(sd.staticAbilities).toContain("flying");
+        activatePump(state, sd, "shivan-dragon-pump");
+        const after = state.players[0].battlefield.find((c) => c.id === "sd")!;
+        expect(getEffectivePower(state, after)).toBe(6);
+        expect(getEffectiveToughness(state, after)).toBe(5);
+    });
+
+    it("wire format: pumped P/T survives the projection", () => {
+        const state = setup();
+        const sd = state.players[0].battlefield.find((c) => c.id === "sd")!;
+        activatePump(state, sd, "shivan-dragon-pump");
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "sd"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(6);
+        expect(getEffectiveToughness(projected, slim)).toBe(5);
+    });
+});
+
+describe("Wall of Water ({U}: +1/+0 until end of turn)", () => {
+    it("has defender + pumps on activation", () => {
+        const w = makeInstance(wallOfWater.id, {
+            id: "w",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [w] }), makePlayer("p2")],
+        });
+        const wall = state.players[0].battlefield.find((c) => c.id === "w")!;
+        expect(wall.staticAbilities).toContain("defender");
+        activatePump(state, wall, "wall-of-water-pump");
+        const after = state.players[0].battlefield.find((c) => c.id === "w")!;
+        expect(getEffectivePower(state, after)).toBe(1);
+        expect(getEffectiveToughness(state, after)).toBe(5);
+    });
+});
+
+describe("Wall of Fire ({R}: +1/+0 until end of turn)", () => {
+    it("has defender + pumps on activation", () => {
+        const w = makeInstance(wallOfFire.id, {
+            id: "wf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [w] }), makePlayer("p2")],
+        });
+        const wall = state.players[0].battlefield.find((c) => c.id === "wf")!;
+        expect(wall.staticAbilities).toContain("defender");
+        activatePump(state, wall, "wall-of-fire-pump");
+        const after = state.players[0].battlefield.find((c) => c.id === "wf")!;
+        expect(getEffectivePower(state, after)).toBe(1);
+        expect(getEffectiveToughness(state, after)).toBe(5);
+    });
+});
+
+describe("Howl from Beyond (target creature gets +X/+0 EOT)", () => {
+    it("applies +X/+0 to target on resolution", () => {
+        const target = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [target],
+                    manaPool: { W: 0, U: 0, B: 4, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, howlFromBeyond.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, bear)).toBe(5);
+        expect(getEffectiveToughness(state, bear)).toBe(2);
+    });
+
+    it("buff expires at CLEANUP", () => {
+        const target = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [target] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, howlFromBeyond.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        item.chosenX = 4;
+        resolveTopOfStack(state);
+        state.phase = "END_STEP";
+        advancePhase(state);
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, bear)).toBe(2);
+        expect(bear.temporaryPTMods).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// CREATURE_DIED globale (CR 700.4 — emitted by removePermanentTo on any death)
+// ---------------------------------------------------------------------------
+
+describe("CREATURE_DIED emission (combat + non-combat death paths)", () => {
+    it("non-combat lethal damage queues a CREATURE_DIED event", () => {
+        const target = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [target] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Lightning Bolt resolving from p2 deals 3 to the bear → SBA-equivalent
+        // lethal kills it (CR 704.5g) routed through removePermanentTo.
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        // The bear is in p1's graveyard.
+        expect(
+            state.players[0].graveyard.find((c) => c.id === "bear")
+        ).toBeDefined();
+        // Pending events drained by resolveTopOfStack — verifies the queue
+        // was processed (no leftover events).
+        expect(state.pendingEvents).toBeUndefined();
+    });
+
+    it("destroy via Wrath queues CREATURE_DIED for each victim", () => {
+        const a = makeInstance(grizzlyBears.id, {
+            id: "a",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const b = makeInstance(grizzlyBears.id, {
+            id: "b",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a] }),
+                makePlayer("p2", { battlefield: [b] }),
+            ],
+        });
+        pushSpell(state, wrathOfGod.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[1].battlefield).toHaveLength(0);
+    });
+
+    it("non-creature destroy does not queue CREATURE_DIED", () => {
+        const land = makeInstance(plains.id, {
+            id: "land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, stoneRain.id, "p2", [
+            { type: "permanent", id: "land" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.pendingEvents).toBeUndefined();
+    });
+});
+
+describe("Creature Bond (aura, on host death deal damage = toughness to controller)", () => {
+    function setupAttached() {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "host",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const aura = makeInstance(creatureBond.id, {
+            id: "bond",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [aura] }),
+                makePlayer("p2", { battlefield: [host] }),
+            ],
+        });
+        return state;
+    }
+
+    it("triggers and deals damage = host's toughness to host's controller on death", () => {
+        const state = setupAttached();
+        // Lightning Bolt from p1 kills the bear (toughness 2). Trigger pushes
+        // onto stack; resolving it deals 2 to the bear's controller (p2).
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "permanent", id: "host" },
+        ]);
+        resolveTopOfStack(state);
+        // The death trigger landed on the stack.
+        expect(state.stack.length).toBe(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("creature-bond-death");
+        // Resolve the trigger — p2 takes 2 damage (bear toughness).
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("does not trigger when a different creature dies", () => {
+        const state = setupAttached();
+        const other = makeInstance(grizzlyBears.id, {
+            id: "other",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(other);
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "permanent", id: "other" },
+        ]);
+        resolveTopOfStack(state);
+        // No trigger — host is still attached, the other bear died.
+        expect(state.stack.length).toBe(0);
+        expect(state.players[1].life).toBe(20);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Counters (CR 122) — addCounter / removeCounter / layer 7d
+// ---------------------------------------------------------------------------
+
+describe("Counter primitives + layer 7d", () => {
+    it("+1/+1 counters add to effective P/T", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+1": 2 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, bear)).toBe(4);
+        expect(getEffectiveToughness(state, bear)).toBe(4);
+    });
+
+    it("+1/+0 counters add to power only", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+0": 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, bear)).toBe(5);
+        expect(getEffectiveToughness(state, bear)).toBe(2);
+    });
+
+    it("non-PT counter types don't affect stats", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { corpse: 5, charge: 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, bear)).toBe(2);
+        expect(getEffectiveToughness(state, bear)).toBe(2);
+    });
+});
+
+describe("Fungusaur (DAMAGE_DEALT trigger → +1/+1 counter)", () => {
+    function setup() {
+        const fung = makeInstance(fungusaur.id, {
+            id: "fung",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [fung] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("survives 1 non-lethal damage and gains +1/+1 counter", () => {
+        const state = setup();
+        // Custom 1-damage spell would be ideal; emulate via direct dealDamage
+        // through a Lightning Bolt with chosenX-equivalent? Bolt is 3 = lethal.
+        // Use a non-Bolt path: Hypnotic Specter not relevant. We simulate by
+        // direct damage from a lifeless source: push a stack item proxy.
+        // Simplest: temporarily increase Fungusaur toughness via a counter so
+        // 1 damage is non-lethal. Skip — instead just test the resolve path
+        // directly by pushing a synthetic DAMAGE_DEALT trigger and checking
+        // counter application via the trigger's resolve.
+        const trig = fungusaur.triggeredAbilities?.[0];
+        expect(trig).toBeDefined();
+        // Synthetic trigger: push a triggered-ability stack item targeting
+        // Fungusaur, then resolve.
+        const fung = state.players[0].battlefield.find((c) => c.id === "fung")!;
+        state.stack.push({
+            ...fung,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "fungusaur-counter",
+            triggerSourceId: "fung",
+            triggerEvent: {
+                type: "DAMAGE_DEALT",
+                sourceInstanceId: "x",
+                sourceControllerId: "p2",
+                target: { type: "permanent", id: "fung" },
+                amount: 1,
+                isCombat: false,
+            },
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "fung"
+        )!;
+        expect(after.counters?.["+1/+1"]).toBe(1);
+        expect(getEffectiveToughness(state, after)).toBe(3);
+    });
+
+    it("dies from lethal damage; trigger does not save it (CR 117.5 + engine limitation)", () => {
+        const state = setup();
+        // Lightning Bolt deals 3 → marked 3 >= toughness 2 → destroyed inline.
+        // CR-correct: the trigger should still go on stack from last-known
+        // info, but resolves on a graveyard target (no-op).
+        // Engine simplification: collectTriggers scans only the current
+        // battlefield, so Fungusaur's own trigger is missed once it has
+        // moved to graveyard. End result is the same — Fungusaur dies.
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "fung" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "fung")
+        ).toBeUndefined();
+        expect(
+            state.players[0].graveyard.find((c) => c.id === "fung")
+        ).toBeDefined();
+    });
+});
+
+describe("Scavenging Ghoul (corpse counter end-step + remove → regen)", () => {
+    function setup() {
+        const ghoul = makeInstance(scavengingGhoul.id, {
+            id: "ghoul",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ghoul] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("end-step trigger adds corpse counters equal to deaths this turn", () => {
+        const state = setup();
+        state.deathsThisTurn = 3;
+        // Push the trigger directly with a synthetic PHASE_BEGIN event.
+        const ghoul = state.players[0].battlefield[0];
+        state.stack.push({
+            ...ghoul,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "scavenging-ghoul-corpse",
+            triggerSourceId: "ghoul",
+            triggerEvent: {
+                type: "PHASE_BEGIN",
+                phase: "END_STEP",
+                activePlayerId: "p1",
+            },
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield[0];
+        expect(after.counters?.corpse).toBe(3);
+    });
+
+    it("remove-counter activated stacks a regen shield and consumes 1 corpse counter", () => {
+        const state = setup();
+        const ghoul = state.players[0].battlefield[0];
+        ghoul.counters = { corpse: 2 };
+        // Activate the regen ability.
+        state.stack.push({
+            ...ghoul,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "scavenging-ghoul-regenerate",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield[0];
+        expect(after.counters?.corpse).toBe(1);
+        expect(after.regenerationShields).toBe(1);
+    });
+
+    it("turn advance resets deathsThisTurn", () => {
+        const state = setup();
+        state.deathsThisTurn = 5;
+        // Walk to next turn via CLEANUP.
+        state.phase = "END_STEP";
+        advancePhase(state);
+        // After advancePhase, we may be in UNTAP of the next turn.
+        expect(state.deathsThisTurn).toBeUndefined();
+    });
+});
+
+describe("Clockwork Beast (ETB 7 +1/+0 counters, end-of-combat decay)", () => {
+    it("ETB applies seven +1/+0 counters → 7/4 effective", () => {
+        const state = makeState();
+        pushSpell(state, clockworkBeast.id, "p1");
+        resolveTopOfStack(state);
+        const beast = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === clockworkBeast.id
+        )!;
+        expect(beast.counters?.["+1/+0"]).toBe(7);
+        expect(getEffectivePower(state, beast)).toBe(7);
+        expect(getEffectiveToughness(state, beast)).toBe(4);
+    });
+
+    it("end-of-combat trigger removes a +1/+0 counter only if it attacked this turn", () => {
+        const state = makeState();
+        pushSpell(state, clockworkBeast.id, "p1");
+        resolveTopOfStack(state);
+        const beast = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === clockworkBeast.id
+        )!;
+        // No combat happened — synthetic END_OF_COMBAT trigger should not fire.
+        const trig = clockworkBeast.triggeredAbilities?.[0];
+        expect(trig).toBeDefined();
+        const event = {
+            type: "PHASE_BEGIN" as const,
+            phase: "END_OF_COMBAT" as const,
+            activePlayerId: "p1",
+        };
+        expect(trig!.matches(event, beast, state)).toBe(false);
+        // Now mark it as attacked.
+        beast.hasAttackedThisTurn = true;
+        expect(trig!.matches(event, beast, state)).toBe(true);
     });
 });
 

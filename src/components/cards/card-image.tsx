@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { getImageUrl } from "~/lib/images";
-import { getCardById } from "@convex/cards";
+import { tryGetCardById } from "@convex/cards";
+import type { CardInstance } from "~/types/game";
 import CardPreview from "./card-preview";
 
 // `contain: paint` + promoted layer keep Chrome's compositor from shipping
@@ -12,16 +13,33 @@ const STABLE_LAYER: React.CSSProperties = {
     backfaceVisibility: "hidden",
 };
 
-function CardImageImpl({ card }: { card: { id: string } }) {
-    const name = getCardById(card.id).name;
+type CardImageProps = {
+    card: CardInstance | { id: string };
+};
+
+function isCardInstance(
+    card: CardInstance | { id: string }
+): card is CardInstance {
+    return "controllerId" in card;
+}
+
+function getDefId(card: CardInstance | { id: string }): string {
+    return isCardInstance(card) ? card.card.id : card.id;
+}
+
+function CardImageImpl({ card }: CardImageProps) {
+    const cardInstance = isCardInstance(card) ? card : undefined;
+    const defId = getDefId(card);
+    const def = tryGetCardById(defId);
+    const name = def?.name ?? defId;
     return (
-        <CardPreview cardId={card.id} cardName={name}>
+        <CardPreview cardId={defId} cardName={name} cardInstance={cardInstance}>
             <div
                 className="relative w-full h-full rounded-sm overflow-hidden"
                 style={STABLE_LAYER}
             >
                 <img
-                    src={getImageUrl(card.id)}
+                    src={getImageUrl(defId)}
                     className="w-full h-full object-cover block"
                     alt={name}
                     decoding="async"
@@ -32,8 +50,13 @@ function CardImageImpl({ card }: { card: { id: string } }) {
     );
 }
 
+// Memo on def id only — CardImage is invoked thousands of times per render and
+// repaints would re-trigger Chrome's compositor downsample. Override changes
+// (granted/lost abilities, P/T) reflect on the next zoom invocation rather
+// than mid-zoom; the cost of always re-rendering on parent reference churn is
+// not worth that edge case.
 const CardImage = memo(
     CardImageImpl,
-    (prev, next) => prev.card.id === next.card.id
+    (prev, next) => getDefId(prev.card) === getDefId(next.card)
 );
 export default CardImage;

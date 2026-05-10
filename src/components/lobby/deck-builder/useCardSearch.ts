@@ -8,12 +8,13 @@ export interface CardIndexEntry {
     nameLower: string;
     types: string[];
     subtypes: string[];
+    supertypes: string[];
     colors: string[];
     manaValue: number;
     oracleText: string;
 }
 
-export type ColorMode = "exact" | "include-all" | "include-any";
+export type ColorMode = "at-most" | "include-all" | "include-any";
 
 export interface CardSearchFilters {
     text: string;
@@ -35,9 +36,6 @@ export const DEFAULT_FILTERS: CardSearchFilters = {
     manaValues: [],
 };
 
-const setEqual = (a: string[], b: string[]) =>
-    a.length === b.length && a.every((c) => b.includes(c));
-
 function matchesColors(
     cardColors: string[],
     filters: CardSearchFilters
@@ -47,10 +45,11 @@ function matchesColors(
 
     if (filters.includeColorless && cardColors.length === 0) return true;
     if (!hasColorSelection) return false;
+    if (cardColors.length === 0) return false;
 
     switch (filters.colorMode) {
-        case "exact":
-            return setEqual(cardColors, filters.colors);
+        case "at-most":
+            return cardColors.every((c) => filters.colors.includes(c));
         case "include-all":
             return filters.colors.every((c) => cardColors.includes(c));
         case "include-any":
@@ -67,9 +66,14 @@ function matchesText(entry: CardIndexEntry, text: string): boolean {
     );
 }
 
-function matchesTypes(types: string[], selected: string[]): boolean {
+function matchesTypes(entry: CardIndexEntry, selected: string[]): boolean {
     if (selected.length === 0) return true;
-    return selected.some((t) => types.includes(t));
+    return selected.some(
+        (t) =>
+            entry.types.includes(t) ||
+            entry.subtypes.includes(t) ||
+            entry.supertypes.includes(t)
+    );
 }
 
 function matchesManaValue(mv: number, selected: number[]): boolean {
@@ -104,7 +108,7 @@ export function useCardSearch(filters: CardSearchFilters): {
             (e) =>
                 matchesText(e, filters.text) &&
                 matchesColors(e.colors, filters) &&
-                matchesTypes(e.types, filters.types) &&
+                matchesTypes(e, filters.types) &&
                 matchesManaValue(e.manaValue, filters.manaValues)
         );
         return filtered.sort(

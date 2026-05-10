@@ -75,6 +75,79 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Counters (CR 122) — Sengir, Fungusaur, Clockwork Beast",
+        cards: [
+            // Sengir trades with a bear → +1/+1 counter on Sengir.
+            // Fungusaur takes a non-lethal hit → +1/+1 counter survives.
+            // Clockwork Beast ETBs with seven +1/+0 counters.
+            { name: "Sengir Vampire", owner: "me" as const },
+            { name: "Fungusaur", owner: "me" as const },
+            { name: "Clockwork Beast", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
+        label: "Scavenging Ghoul (corpse counters from deaths-this-turn)",
+        cards: [
+            // Cast Wrath, four bears die → at end step, Ghoul gets 4 corpse
+            // counters; remove counters as activated regen.
+            { name: "Scavenging Ghoul", owner: "me" as const },
+            {
+                name: "Wrath of God",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Grizzly Bears", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+    {
+        label: "Creature Bond (aura, on host death deal toughness to controller)",
+        cards: [
+            // Cast Creature Bond on the opponent's bear, then Lightning Bolt
+            // it. The death trigger fires (CR 700.4 / 603.2) and Creature
+            // Bond deals 2 (bear's toughness) to the opponent.
+            {
+                name: "Creature Bond",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+    {
+        label: "Pump activations ({R}/{B}/{U}: +N/+N until EOT, CR 611.1)",
+        cards: [
+            // Sample of self-pump and one-shot pump effects exercising the
+            // new addTemporaryPTBuff primitive. Activate the abilities to
+            // see effective P/T jump; passing through CLEANUP wipes them.
+            { name: "Frozen Shade", owner: "me" as const },
+            { name: "Granite Gargoyle", owner: "me" as const },
+            { name: "Shivan Dragon", owner: "me" as const },
+            { name: "Wall of Water", owner: "me" as const },
+            { name: "Wall of Fire", owner: "me" as const },
+            {
+                name: "Howl from Beyond",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
         label: "Twiddle (toggle tap state on artifact/creature/land, CR 701.20)",
         cards: [
             // Twiddle the opponent's tapped land to untap it (the only useful

@@ -16,6 +16,7 @@ import ManaValueFilter from "./mana-value-filter";
 import ResultsGrid from "./results-grid";
 import SaveDeckBar from "./save-deck-bar";
 import SearchBar from "./search-bar";
+import SubtypeCombobox from "./subtype-combobox";
 import TypeFilter from "./type-filter";
 import {
     DEFAULT_FILTERS,
@@ -171,6 +172,10 @@ export default function DeckBuilder({
                         onChangeMode={setColorMode}
                     />
                     <TypeFilter
+                        selected={filters.types}
+                        onToggle={toggleType}
+                    />
+                    <SubtypeCombobox
                         selected={filters.types}
                         onToggle={toggleType}
                     />

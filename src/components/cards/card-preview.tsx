@@ -1,17 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { tryGetCardById } from "@convex/cards";
 import { getImageUrl } from "~/lib/images";
+import {
+    capitalizeKeyword,
+    formatTypeLine,
+    getDisplayAbilities,
+    manaCostToString,
+    type AbilityDisplayState,
+} from "~/lib/card-utils";
+import { formatOracleText } from "~/lib/oracle-text";
+import type { CardInstance } from "~/types/game";
 
 const ZOOM_WIDTH = 128 * 2;
 const ZOOM_ASPECT = 7 / 5;
 const ZOOM_HEIGHT = ZOOM_WIDTH * ZOOM_ASPECT;
 const GAP = 8;
+const VIEWPORT_PAD = 8;
 
 function computeZoomPosition(cardRect: DOMRect) {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
-    // Horizontal: right if fits, otherwise left
     let left: number;
     if (cardRect.right + GAP + ZOOM_WIDTH <= vw) {
         left = cardRect.right + GAP;
@@ -19,28 +29,68 @@ function computeZoomPosition(cardRect: DOMRect) {
         left = cardRect.left - GAP - ZOOM_WIDTH;
     }
 
-    // Vertical: centered on card, clamped to viewport
     const cardCenterY = cardRect.top + cardRect.height / 2;
     let top = cardCenterY - ZOOM_HEIGHT / 2;
 
-    if (top < 0) {
-        top = cardRect.top;
-    } else if (top + ZOOM_HEIGHT > vh) {
-        top = cardRect.bottom - ZOOM_HEIGHT;
+    if (top < VIEWPORT_PAD) {
+        top = VIEWPORT_PAD;
+    } else if (top + ZOOM_HEIGHT > vh - VIEWPORT_PAD) {
+        top = Math.max(VIEWPORT_PAD, vh - VIEWPORT_PAD - ZOOM_HEIGHT);
     }
 
     return { top, left };
 }
 
+const KEYWORD_STATE_CLASS: Record<AbilityDisplayState, string> = {
+    native: "text-zinc-100",
+    granted: "text-emerald-400",
+    lost: "text-zinc-400 line-through opacity-70",
+};
+
+function KeywordRow({
+    name,
+    state,
+}: {
+    name: string;
+    state: AbilityDisplayState;
+}) {
+    const prefix = state === "granted" ? "[+] " : "";
+    return (
+        <div className={KEYWORD_STATE_CLASS[state]}>
+            {prefix}
+            {capitalizeKeyword(name)}
+        </div>
+    );
+}
+
+function AbilityRow({
+    text,
+    state,
+}: {
+    text: string;
+    state: "native" | "granted";
+}) {
+    const cls = state === "granted" ? "text-emerald-400" : "text-zinc-100";
+    const prefix = state === "granted" ? "[+] " : "";
+    return (
+        <div className={cls}>
+            {prefix}
+            {formatOracleText(text)}
+        </div>
+    );
+}
+
 type CardPreviewProps = {
     cardId: string;
     cardName: string;
+    cardInstance?: CardInstance;
     children: React.ReactNode;
 };
 
 export default function CardPreview({
     cardId,
     cardName,
+    cardInstance,
     children,
 }: CardPreviewProps) {
     const [showZoom, setShowZoom] = useState(false);
@@ -96,6 +146,28 @@ export default function CardPreview({
         e.stopPropagation();
     }, []);
 
+    const def = tryGetCardById(cardId);
+    const abilities = def
+        ? getDisplayAbilities(cardId, cardInstance)
+        : { keywords: [], activated: [], triggered: [] };
+    const manaCost = manaCostToString(def?.manaCost);
+    const typeLine = formatTypeLine(
+        cardInstance?.types ?? def?.types,
+        cardInstance?.subtypes ?? def?.subtypes,
+        def?.supertypes
+    );
+    const types = cardInstance?.types ?? def?.types ?? [];
+    const isCreatureCard = types.includes("Creature");
+    const power = cardInstance?.power ?? def?.power;
+    const toughness = cardInstance?.toughness ?? def?.toughness;
+    const hasPT =
+        isCreatureCard && (power !== undefined || toughness !== undefined);
+    const hasBody =
+        abilities.keywords.length > 0 ||
+        abilities.activated.length > 0 ||
+        abilities.triggered.length > 0;
+    const displayName = def?.name ?? cardName;
+
     return (
         <div
             ref={containerRef}
@@ -114,18 +186,66 @@ export default function CardPreview({
             {showZoom &&
                 createPortal(
                     <div
-                        className="pointer-events-none fixed z-100"
+                        className="pointer-events-none fixed z-100 flex flex-col rounded-2xl shadow-2xl bg-zinc-900/95 backdrop-blur-sm overflow-hidden"
                         style={{
                             top: position.top,
                             left: position.left,
                             width: ZOOM_WIDTH,
+                            maxHeight: `calc(100vh - ${VIEWPORT_PAD * 2}px)`,
                         }}
                     >
                         <img
                             src={getImageUrl(cardId)}
-                            className="rounded-2xl shadow-2xl"
+                            className="w-full block"
                             alt={cardName}
                         />
+                        <div className="p-3 text-xs text-white space-y-2 overflow-y-auto">
+                            <div className="flex items-baseline justify-between gap-2">
+                                <span className="font-semibold truncate">
+                                    {displayName}
+                                </span>
+                                {manaCost && (
+                                    <span className="shrink-0 text-sm leading-none">
+                                        {formatOracleText(manaCost)}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="text-zinc-300">{typeLine}</div>
+                            {hasBody && (
+                                <div className="border-t border-zinc-700 pt-2 space-y-1.5">
+                                    {abilities.keywords.length > 0 && (
+                                        <div className="space-y-0.5">
+                                            {abilities.keywords.map((k, i) => (
+                                                <KeywordRow
+                                                    key={`kw-${i}-${k.name}`}
+                                                    name={k.name}
+                                                    state={k.state}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+                                    {abilities.activated.map((a, i) => (
+                                        <AbilityRow
+                                            key={`act-${i}-${a.id}`}
+                                            text={a.oracleText}
+                                            state={a.state}
+                                        />
+                                    ))}
+                                    {abilities.triggered.map((t, i) => (
+                                        <AbilityRow
+                                            key={`tr-${i}-${t.id}`}
+                                            text={t.oracleText}
+                                            state="native"
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                            {hasPT && (
+                                <div className="text-right font-semibold text-sm border-t border-zinc-700 pt-2">
+                                    {power ?? 0}/{toughness ?? 0}
+                                </div>
+                            )}
+                        </div>
                     </div>,
                     document.body
                 )}

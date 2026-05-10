@@ -112,13 +112,13 @@ export default function SelectableCard({
                 className={`relative rounded-md ${ringClass}`}
                 onClick={onChoiceClick}
             >
-                <CardImage card={cardInstance.card} />
+                <CardImage card={cardInstance} />
             </div>
         );
     }
 
     if (!hasActions) {
-        return <CardImage card={cardInstance.card} />;
+        return <CardImage card={cardInstance} />;
     }
 
     const actionEntries: {
@@ -161,7 +161,7 @@ export default function SelectableCard({
         const { handler } = actionEntries[0];
         return (
             <div className="cursor-pointer" onClick={handler}>
-                <CardImage card={cardInstance.card} />
+                <CardImage card={cardInstance} />
             </div>
         );
     }
@@ -169,7 +169,7 @@ export default function SelectableCard({
     return (
         <ContextMenu>
             <ContextMenuTrigger className="flex items-center justify-center rounded-md border border-dashed text-sm">
-                <CardImage card={cardInstance.card} />
+                <CardImage card={cardInstance} />
             </ContextMenuTrigger>
 
             <ContextMenuContent className="w-fit">

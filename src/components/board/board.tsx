@@ -177,8 +177,20 @@ export default function Board({
                         />
                     )}
                     {pendingCast && pendingCast.playerId === viewerId && (
-                        <PaymentBanner pendingCast={pendingCast} me={me} />
+                        <PaymentBanner
+                            kind="cast"
+                            pendingCast={pendingCast}
+                            me={me}
+                        />
                     )}
+                    {pendingActivation &&
+                        pendingActivation.playerId === viewerId && (
+                            <PaymentBanner
+                                kind="activation"
+                                pendingActivation={pendingActivation}
+                                me={me}
+                            />
+                        )}
                     {pendingChoices && pendingChoices.length > 0 && (
                         <PendingChoicePrompt
                             choice={pendingChoices[0]}

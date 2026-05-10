@@ -9,6 +9,7 @@ import type {
 import {
     consumePreventionIfAny,
     drawCard,
+    flushPendingEvents,
     getOpponentId,
     getPlayer,
     regenerateOrDestroy,
@@ -475,22 +476,18 @@ export function applyAllCombatDamage(
         }
     }
 
-    // Move dead creatures to their owner's graveyard, emitting CREATURE_DIED
-    // (CR 700.4) so "whenever another creature dies" triggers can fire in the
-    // same collectTriggers pass as the combat DAMAGE_DEALT events. Each
-    // victim is routed through regenerateOrDestroy (CR 614.5, 701.15a) so a
-    // regen shield can replace the destroy with the heal/tap/leave-combat
-    // rider — those creatures stay on the battlefield and don't fire
-    // CREATURE_DIED.
+    // Move dead creatures to their owner's graveyard. Each victim is routed
+    // through regenerateOrDestroy (CR 614.5, 701.15a) so a regen shield can
+    // replace the destroy with the heal/tap/leave-combat rider — those
+    // creatures stay on the battlefield. Actual deaths emit CREATURE_DIED
+    // (CR 700.4) into `state.pendingEvents` from `removePermanentTo`; we
+    // drain the queue below so the combat collectTriggers pass sees both
+    // DAMAGE_DEALT and CREATURE_DIED in one go.
     for (const cardId of deadIds) {
         const carrier =
             activePlayer.battlefield.find((c) => c.id === cardId) ??
             defender.battlefield.find((c) => c.id === cardId);
         if (!carrier) continue;
-        const snapshot = {
-            controllerId: carrier.controllerId,
-            damagedBySources: carrier.damagedBySources ?? [],
-        };
         const wasDestroyed = regenerateOrDestroy(state, cardId);
         if (!wasDestroyed) continue;
         // The destroyed card has already been moved to its owner's graveyard
@@ -499,13 +496,10 @@ export function applyAllCombatDamage(
         carrier.isAttacking = undefined;
         carrier.isBlocking = undefined;
         carrier.isTapped = false;
-        events.push({
-            type: "CREATURE_DIED",
-            creatureInstanceId: cardId,
-            creatureControllerId: snapshot.controllerId,
-            damagedBySources: snapshot.damagedBySources,
-        });
     }
+    // Drain CREATURE_DIED events queued by removePermanentTo so this step's
+    // trigger scan sees them alongside DAMAGE_DEALT (CR 603.2).
+    events.push(...flushPendingEvents(state));
 
     // Collect triggered abilities fired by this damage step (CR 603.2). Dead
     // permanents are already gone, so their own triggers are skipped — that's
@@ -658,6 +652,9 @@ function performPhaseEntry(state: GameState): void {
                     if (card.hasAttackedThisTurn) {
                         card.hasAttackedThisTurn = undefined;
                     }
+                    if (card.hasBlockedThisTurn) {
+                        card.hasBlockedThisTurn = undefined;
+                    }
                     if (card.damagedBySources !== undefined) {
                         card.damagedBySources = undefined;
                     }
@@ -749,6 +746,21 @@ function tickAllDurations(state: GameState): void {
             }
         }
     }
+
+    // Temporary P/T modifications (e.g. Firebreathing's `{R}: ~ gets +1/+0
+    // until end of turn`). Purged at the same boundary as `grantedStaticAbilities`
+    // and `preventionEffects`.
+    for (const p of state.players) {
+        for (const card of p.battlefield) {
+            if (!card.temporaryPTMods?.length) continue;
+            const kept: typeof card.temporaryPTMods = [];
+            for (const mod of card.temporaryPTMods) {
+                const next = tickDuration(mod.duration, view);
+                if (next !== null) kept.push({ ...mod, duration: next });
+            }
+            card.temporaryPTMods = kept.length > 0 ? kept : undefined;
+        }
+    }
 }
 
 /** Undoes the mutations applied by `animateAsCreature`, restoring the
@@ -799,6 +811,8 @@ function advanceTurn(state: GameState): void {
     state.singleShotAutoPass = undefined;
     // CR 117.2c / 305.2: reset per-turn land drop count at the start of each turn.
     for (const p of state.players) p.landsPlayedThisTurn = 0;
+    // Reset the per-turn deaths tally so end-step counts are turn-scoped.
+    state.deathsThisTurn = undefined;
 }
 
 /**
@@ -970,7 +984,10 @@ export function drainAutoPasses(state: GameState): void {
                 const card = defender.battlefield.find(
                     (c) => c.id === blockerId
                 );
-                if (card) card.isBlocking = true;
+                if (card) {
+                    card.isBlocking = true;
+                    card.hasBlockedThisTurn = true;
+                }
             }
             state.combat.pendingBlockerId = undefined;
             state.combat.blockersConfirmed = true;

@@ -221,6 +221,41 @@ export interface SpellContext {
     getToughness: (target: TargetSelection) => number;
     modifyPower: (target: TargetSelection, amount: number) => void;
     modifyToughness: (target: TargetSelection, amount: number) => void;
+    /** Adds a temporary P/T modification to `target` that expires at the
+     *  end of `duration` (CR 611.1, 611.2). The modification stacks with any
+     *  static `pt-buff` / `pt-cda` and other temporary mods on the same
+     *  permanent — all are summed at read time. The phase-boundary cleanup
+     *  (END_OF_COMBAT for "until end of combat", CLEANUP for "until end of
+     *  turn", CR 514.2 / 511.3) splices expired entries off the permanent.
+     *  No-op if the target has left the battlefield. Used by pump activations
+     *  ("{R}: ~ gets +1/+0 until end of turn") and one-shot pump spells
+     *  ("Howl from Beyond"). */
+    addTemporaryPTBuff: (
+        target: TargetSelection,
+        power: number,
+        toughness: number,
+        duration: DurationSpec
+    ) => void;
+    /** Puts `count` counters of type `type` on `target` (CR 122.1). No-op if
+     *  the target has left the battlefield. Counter type is a free-form string
+     *  ("+1/+1", "+1/+0", "corpse", "charge", ...). P/T-modifying types are
+     *  recognized at stat-read time by layer 7d. */
+    addCounter: (target: TargetSelection, type: string, count: number) => void;
+    /** Removes up to `count` counters of `type` from `target`. Returns the
+     *  number actually removed (clamped to the current count). No-op if the
+     *  target has left the battlefield or has no counters of that type. */
+    removeCounter: (
+        target: TargetSelection,
+        type: string,
+        count: number
+    ) => number;
+    /** Reads the count of a given counter type on `target` (CR 122.6). Returns
+     *  0 if the target has no counters of that type or has left play. */
+    getCounterCount: (target: TargetSelection, type: string) => number;
+    /** Number of creatures that have died this turn (CR 603 — running tally
+     *  scoped per turn, reset at turn start). Read by triggers like
+     *  Scavenging Ghoul's end-step "for each creature that died this turn". */
+    getDeathsThisTurn: () => number;
     getController: (target: TargetSelection) => string;
     /** Whether the target permanent is tapped (CR 701.20a). Returns false for
      *  players and for permanents no longer on the battlefield. Used by
@@ -489,6 +524,24 @@ export interface PermanentView {
     /** Set on auras attached to another permanent (CR 303.4b). Predicates
      *  for keyword-grant effects typically use `target.id === source.attachedTo`. */
     attachedTo?: string;
+    /** True if the creature was declared as an attacker this turn (CR 506.2).
+     *  Persists past END_OF_COMBAT so end-of-combat / end-step triggers can
+     *  read it. */
+    hasAttackedThisTurn?: boolean;
+    /** True if the creature was declared as a blocker this turn. Mirrors
+     *  `hasAttackedThisTurn` for end-of-combat triggers like Clockwork Beast. */
+    hasBlockedThisTurn?: boolean;
+    /** One-shot P/T modifications scoped to a phase boundary (CR 611.1, 611.2).
+     *  Each entry adds to `power`/`toughness` at read time; the engine purges
+     *  entries whose `duration` has expired during phase-boundary cleanup
+     *  (END_OF_COMBAT or CLEANUP). Used by "+X/+Y until end of turn" spells
+     *  and pump activations (Firebreathing, Howl from Beyond, ...). */
+    temporaryPTMods?: ReadonlyArray<{ power: number; toughness: number }>;
+    /** Counters on this permanent (CR 122). Map of counter type → count.
+     *  Layer 7d (P/T-modifying counters: +1/+1, +1/+0, +0/+1, -1/-1, -0/-1,
+     *  -1/-0) contributes at stat-read time. Other types are inert to layers
+     *  and read by card-specific abilities only. */
+    counters?: Readonly<Record<string, number>>;
     /** Raw card definition reference — predicates read manaCost for color, etc. */
     card: Record<string, unknown>;
 }
@@ -688,18 +741,24 @@ export interface PhaseBeginEvent {
 }
 
 /** Death event emitted when a creature moves from battlefield to graveyard
- *  (CR 700.4). Currently emitted only by the combat damage step (CR 510) —
- *  deaths from non-combat damage or from direct destroy effects do not yet
- *  fire this event, because the engine has no general post-resolution trigger
- *  scan hook. The event carries `damagedBySources` so "if ~ dealt damage to
- *  it this turn"-style triggers (Sengir Vampire) can inspect the victim
- *  after it has left the battlefield. */
+ *  (CR 700.4). Emitted by `removePermanentTo` for any death path — combat
+ *  damage, non-combat damage SBA (CR 704.5g), destroy effects, sacrifice.
+ *  The event carries `damagedBySources` so "if ~ dealt damage to it this
+ *  turn"-style triggers (Sengir Vampire) can inspect the victim after it
+ *  has left the battlefield. */
 export interface CreatureDiedEvent {
     type: "CREATURE_DIED";
     creatureInstanceId: string;
     creatureControllerId: string;
     /** Instance ids of sources that dealt damage to this creature this turn. */
     damagedBySources: readonly string[];
+    /** Effective power of the dying creature snapshotted at the moment it
+     *  left the battlefield (CR 603.10 last known information). Used by
+     *  triggers like "deals damage equal to that creature's power". */
+    creaturePower: number;
+    /** Effective toughness snapshotted at the moment the creature left the
+     *  battlefield (CR 603.10). Used by triggers like Creature Bond. */
+    creatureToughness: number;
 }
 
 /** State trigger probe (CR 603.8) emitted at every stable checkpoint where a
@@ -795,6 +854,12 @@ export interface CardDefinition {
     resolveSteps?: ((ctx: SpellContext) => void)[];
     /** Permanent enters the battlefield tapped (e.g. Nevinyrral's Disk). */
     entersTapped?: boolean;
+    /** Counters placed on the permanent when it enters the battlefield
+     *  (CR 122.1, 614.1c). Each entry is a counter type and a count, where
+     *  `count: "X"` reads the value chosen for X at cast time (CR 107.3) —
+     *  used by Rock Hydra ("enters with X +1/+1 counters"). Applied by
+     *  `finalizeSpellResolution` after the permanent is on the battlefield. */
+    entersWith?: { counters?: { type: string; count: number | "X" }[] };
     staticAbilities?: string[];
     /** Continuous static effects (CR 611). Applied at stat-read time by the layer system. */
     staticEffects?: StaticEffect[];

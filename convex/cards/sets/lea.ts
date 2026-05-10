@@ -818,13 +818,39 @@ export const counterspell: CardDefinition = {
     },
 };
 
-// export const creatureBond: CardDefinition = {
-//     id: "ee4bd7d1-77e5-46e5-a594-c24469e88c4c",
-//     name: "Creature Bond",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Creature Bond — "Enchant creature. When enchanted creature dies, this Aura
+// deals damage equal to that creature's toughness to the creature's
+// controller." (CR 303.4 aura attachment, 603.2 death trigger, 603.10 last
+// known information for the host's toughness). The trigger fires before SBA
+// orphan-aura cleanup so `self.attachedTo` is still set when matched; the
+// resolve reads the host's toughness from the event snapshot.
+export const creatureBond: CardDefinition = {
+    id: "ee4bd7d1-77e5-46e5-a594-c24469e88c4c",
+    name: "Creature Bond",
+    manaCost: { X: 1, U: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    triggeredAbilities: [
+        {
+            id: "creature-bond-death",
+            oracleText:
+                "When enchanted creature dies, Creature Bond deals damage equal to that creature's toughness to the creature's controller.",
+            event: "CREATURE_DIED",
+            matches: (event, self) => {
+                if (event.type !== "CREATURE_DIED") return false;
+                return event.creatureInstanceId === self.attachedTo;
+            },
+            resolve: (ctx, event) => {
+                if (event.type !== "CREATURE_DIED") return;
+                ctx.dealDamage(
+                    { type: "player", id: event.creatureControllerId },
+                    event.creatureToughness
+                );
+            },
+        },
+    ],
+};
 
 // export const drainPower: CardDefinition = {
 //     id: "ea3830c5-cc66-453e-9e53-0636e00ee0ee",
@@ -1336,15 +1362,34 @@ export const wallOfAir: CardDefinition = {
     staticAbilities: ["defender", "flying"],
 };
 
-// export const wallOfWater: CardDefinition = {
-//     id: "41faed1a-ded8-49ee-8e2a-c60d377775d7",
-//     name: "Wall of Water",
-//     manaCost: { X: 1, U: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Wall"],
-//     power: 0,
-//     toughness: 5,
-// };
+// Wall of Water — defender + "{U}: This creature gets +1/+0 until end of turn."
+// (CR 702.3 defender, 611.1 temp P/T mod).
+export const wallOfWater: CardDefinition = {
+    id: "41faed1a-ded8-49ee-8e2a-c60d377775d7",
+    name: "Wall of Water",
+    manaCost: { X: 1, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 5,
+    staticAbilities: ["defender"],
+    activatedAbilities: [
+        {
+            id: "wall-of-water-pump",
+            oracleText: "{U}: This creature gets +1/+0 until end of turn.",
+            cost: { mana: { U: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 
 export const waterElemental: CardDefinition = {
     id: "8de940d6-98c0-46a9-b5fd-e2b0899ea19e",
@@ -1591,15 +1636,34 @@ export const drudgeSkeletons: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 
-// export const frozenShade: CardDefinition = {
-//     id: "d0bd76c8-4cff-4c15-9686-7a299b589814",
-//     name: "Frozen Shade",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Shade"],
-//     power: 0,
-//     toughness: 1,
-// };
+// Frozen Shade — "{B}: This creature gets +1/+1 until end of turn." (CR 113.1
+// activated, 611.1 temporary P/T modification). Self-targeting pump using
+// the new `addTemporaryPTBuff` primitive.
+export const frozenShade: CardDefinition = {
+    id: "d0bd76c8-4cff-4c15-9686-7a299b589814",
+    name: "Frozen Shade",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Shade"],
+    power: 0,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "frozen-shade-pump",
+            oracleText: "{B}: This creature gets +1/+1 until end of turn.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 
 // export const gloom: CardDefinition = {
 //     id: "a8d10bc7-daeb-4c0d-9e4a-8eae8d11699f",
@@ -1608,12 +1672,22 @@ export const drudgeSkeletons: CardDefinition = {
 //     types: ["Enchantment"],
 // };
 
-// export const howlFromBeyond: CardDefinition = {
-//     id: "67ec17e1-174b-4d07-a27f-91a333c4b2fb",
-//     name: "Howl from Beyond",
-//     manaCost: { X: "X", B: 1 },
-//     types: ["Instant"],
-// };
+// Howl from Beyond — "Target creature gets +X/+0 until end of turn." (CR 107.3
+// X cost, 611.1 temp P/T mod). Single-target pump scaled by paid X.
+export const howlFromBeyond: CardDefinition = {
+    id: "67ec17e1-174b-4d07-a27f-91a333c4b2fb",
+    name: "Howl from Beyond",
+    manaCost: { X: "X", B: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "permanent") return;
+        ctx.addTemporaryPTBuff(target, ctx.getX(), 0, {
+            phase: "end-of-turn",
+        });
+    },
+};
 
 // Hypnotic Specter — CR 603 triggered ability on combat/spell damage to an
 // opponent. The random discard uses the game's seeded PRNG (CR 701.8a).
@@ -1856,24 +1930,68 @@ export const scatheZombies: CardDefinition = {
     toughness: 2,
 };
 
-// export const scavengingGhoul: CardDefinition = {
-//     id: "426984e0-88e1-4a2d-9a1c-798b95864df3",
-//     name: "Scavenging Ghoul",
-//     manaCost: { X: 3, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Zombie"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Scavenging Ghoul — "At the beginning of each end step, put a corpse counter
+// on this creature for each creature that died this turn. / Remove a corpse
+// counter from this creature: Regenerate this creature." (CR 603.6a end-step
+// trigger, CR 122.1 counter, CR 701.15a regenerate). The deaths-this-turn
+// tally is maintained on `GameState.deathsThisTurn` and reset on advanceTurn.
+export const scavengingGhoul: CardDefinition = {
+    id: "426984e0-88e1-4a2d-9a1c-798b95864df3",
+    name: "Scavenging Ghoul",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        {
+            id: "scavenging-ghoul-corpse",
+            oracleText:
+                "At the beginning of each end step, put a corpse counter on this creature for each creature that died this turn.",
+            event: "PHASE_BEGIN",
+            matches: (event) => {
+                if (event.type !== "PHASE_BEGIN") return false;
+                return event.phase === "END_STEP";
+            },
+            resolve: (ctx) => {
+                const n = ctx.getDeathsThisTurn();
+                if (n <= 0) return;
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "corpse",
+                    n
+                );
+            },
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "scavenging-ghoul-regenerate",
+            oracleText:
+                "Remove a corpse counter from this creature: Regenerate this creature.",
+            cost: {},
+            useStack: true,
+            // CR 605.4 — non-mana cost paid as part of activation. The cost
+            // (remove a corpse counter) is enforced inside resolve since the
+            // engine has no declarative non-mana cost framework yet; this is
+            // a simplification but functionally identical for the only legal
+            // pattern (you can only activate this if you have a counter to
+            // remove, and the regen shield only stacks on a successful pay).
+            resolve: (ctx: SpellContext) => {
+                const self: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                if (ctx.removeCounter(self, "corpse", 1) === 0) return;
+                ctx.applyRegenerationShield(self);
+            },
+        },
+    ],
+};
 
 // Sengir Vampire — flying, 4/4. "Whenever another creature dies, if Sengir
 // Vampire dealt damage to it this turn, put a +1/+1 counter on Sengir
-// Vampire." (CR 603.2 death trigger, CR 122 counters). Simplification: the
-// engine has no +1/+1 counter state yet, so the counter is modeled as a
-// permanent modifyPower/modifyToughness delta on the source. Functionally
-// equivalent until a "remove counters" effect is needed. Only deaths from
-// the combat damage step emit CREATURE_DIED (see phases.ts) — deaths from
-// spells/abilities do not yet retrigger this, a known limitation.
+// Vampire." (CR 603.2 death trigger, CR 122.1 +1/+1 counter, layer 7d).
 export const sengirVampire: CardDefinition = {
     id: "510840f4-7c0e-4b47-8ebf-23c20cac4bd9",
     name: "Sengir Vampire",
@@ -1895,12 +2013,11 @@ export const sengirVampire: CardDefinition = {
                 return event.damagedBySources.includes(self.id);
             },
             resolve: (ctx) => {
-                const target: TargetSelection = {
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                };
-                ctx.modifyPower(target, 1);
-                ctx.modifyToughness(target, 1);
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "+1/+1",
+                    1
+                );
             },
         },
     ],
@@ -2336,15 +2453,34 @@ export const goblinKing: CardDefinition = {
     ],
 };
 
-// export const graniteGargoyle: CardDefinition = {
-//     id: "f15bf2b2-6848-4fbd-b89a-8d8da8ae1cdc",
-//     name: "Granite Gargoyle",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Gargoyle"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Granite Gargoyle — flying + "{R}: This creature gets +0/+1 until end of turn."
+// (CR 702.9 flying, 611.1 temp P/T mod).
+export const graniteGargoyle: CardDefinition = {
+    id: "f15bf2b2-6848-4fbd-b89a-8d8da8ae1cdc",
+    name: "Granite Gargoyle",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Gargoyle"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "granite-gargoyle-pump",
+            oracleText: "{R}: This creature gets +0/+1 until end of turn.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    0,
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 
 export const grayOgre: CardDefinition = {
     id: "73ae5276-b607-4f23-a9d2-e8cc7b8e3693",
@@ -2556,15 +2692,34 @@ export const shatter: CardDefinition = {
     effect: "destroy-target",
 };
 
-// export const shivanDragon: CardDefinition = {
-//     id: "fefbf149-f988-4f8b-9f53-56f5878116a6",
-//     name: "Shivan Dragon",
-//     manaCost: { X: 4, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Dragon"],
-//     power: 5,
-//     toughness: 5,
-// };
+// Shivan Dragon — flying + "{R}: This creature gets +1/+0 until end of turn."
+// (CR 702.9 flying, 611.1 temp P/T mod).
+export const shivanDragon: CardDefinition = {
+    id: "fefbf149-f988-4f8b-9f53-56f5878116a6",
+    name: "Shivan Dragon",
+    manaCost: { X: 4, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Dragon"],
+    power: 5,
+    toughness: 5,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "shivan-dragon-pump",
+            oracleText: "{R}: This creature gets +1/+0 until end of turn.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 
 // export const smoke: CardDefinition = {
 //     id: "7c67788e-d713-47c3-ab9f-b8a6212ae24f",
@@ -2644,15 +2799,34 @@ export const uthdenTroll: CardDefinition = {
     ],
 };
 
-// export const wallOfFire: CardDefinition = {
-//     id: "efcf12cd-fb70-444e-9641-73ffa0e8f16e",
-//     name: "Wall of Fire",
-//     manaCost: { X: 1, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Wall"],
-//     power: 0,
-//     toughness: 5,
-// };
+// Wall of Fire — defender + "{R}: This creature gets +1/+0 until end of turn."
+// (CR 702.3 defender, 611.1 temp P/T mod).
+export const wallOfFire: CardDefinition = {
+    id: "efcf12cd-fb70-444e-9641-73ffa0e8f16e",
+    name: "Wall of Fire",
+    manaCost: { X: 1, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 5,
+    staticAbilities: ["defender"],
+    activatedAbilities: [
+        {
+            id: "wall-of-fire-pump",
+            oracleText: "{R}: This creature gets +1/+0 until end of turn.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 
 export const wallOfStone: CardDefinition = {
     id: "140e567c-6e4a-42b0-8084-d6c9695ae802",
@@ -2873,15 +3047,39 @@ export const elvishArchers: CardDefinition = {
 //     toughness: 8,
 // };
 
-// export const fungusaur: CardDefinition = {
-//     id: "5ad89f0d-b09b-40a0-84d6-3ee60dec7e23",
-//     name: "Fungusaur",
-//     manaCost: { X: 3, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Fungus", "Dinosaur"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Fungusaur — "Whenever this creature is dealt damage, put a +1/+1 counter
+// on it." (CR 603.2 damage trigger, CR 122.1 counter, CR 117.5 SBA-before-
+// triggers ordering — lethal damage kills Fungusaur before the counter is
+// applied, matching the official ruling).
+export const fungusaur: CardDefinition = {
+    id: "5ad89f0d-b09b-40a0-84d6-3ee60dec7e23",
+    name: "Fungusaur",
+    manaCost: { X: 3, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Fungus", "Dinosaur"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        {
+            id: "fungusaur-counter",
+            oracleText:
+                "Whenever this creature is dealt damage, put a +1/+1 counter on it.",
+            event: "DAMAGE_DEALT",
+            matches: (event, self) => {
+                if (event.type !== "DAMAGE_DEALT") return false;
+                if (event.target.type !== "permanent") return false;
+                return event.target.id === self.id;
+            },
+            resolve: (ctx) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "+1/+1",
+                    1
+                );
+            },
+        },
+    ],
+};
 
 // export const gaeasLiege: CardDefinition = {
 //     id: "e2b15221-c8b0-4861-9f8b-8a65834ad499",
@@ -3355,15 +3553,47 @@ export const celestialPrism: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const clockworkBeast: CardDefinition = {
-//     id: "27f916a2-0ace-44b5-99dc-72979af34db9",
-//     name: "Clockwork Beast",
-//     manaCost: { X: 6 },
-//     types: ["Artifact", "Creature"],
-//     subtypes: ["Beast"],
-//     power: 0,
-//     toughness: 4,
-// };
+// Clockwork Beast — "This creature enters with seven +1/+0 counters on it. /
+// At end of combat, if this creature attacked or blocked this combat, remove
+// a +1/+0 counter from it. / {X}, {T}: Put up to X +1/+0 counters on this
+// creature. Activate only if it has fewer than seven +1/+0 counters on it."
+// (CR 122.1, 614.1c ETB counters; CR 603.6a end-of-combat trigger; layer 7d).
+// Simplification: the {X},{T} recharge ability is deferred — `activateAbility`
+// has no chosenX input pipeline yet for activated abilities. The ETB and
+// decay loop work fully; recharge will land with a separate change.
+export const clockworkBeast: CardDefinition = {
+    id: "27f916a2-0ace-44b5-99dc-72979af34db9",
+    name: "Clockwork Beast",
+    manaCost: { X: 6 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Beast"],
+    power: 0,
+    toughness: 4,
+    entersWith: { counters: [{ type: "+1/+0", count: 7 }] },
+    triggeredAbilities: [
+        {
+            id: "clockwork-beast-decay",
+            oracleText:
+                "At end of combat, if this creature attacked or blocked this combat, remove a +1/+0 counter from it.",
+            event: "PHASE_BEGIN",
+            matches: (event, self) => {
+                if (event.type !== "PHASE_BEGIN") return false;
+                if (event.phase !== "END_OF_COMBAT") return false;
+                return (
+                    self.hasAttackedThisTurn === true ||
+                    self.hasBlockedThisTurn === true
+                );
+            },
+            resolve: (ctx) => {
+                ctx.removeCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "+1/+0",
+                    1
+                );
+            },
+        },
+    ],
+};
 
 // export const conservator: CardDefinition = {
 //     id: "c7824e2a-4eff-4f72-9216-0db30a4f4252",

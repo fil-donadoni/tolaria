@@ -1,22 +1,38 @@
-import type { PendingCast, Player } from "~/types/game";
+import type { PendingActivation, PendingCast, Player } from "~/types/game";
 import { getCardById } from "@convex/cards";
 import { useDraggable } from "~/hooks/useDraggable";
 
-export default function PaymentBanner({
-    pendingCast,
-    me,
-}: {
-    pendingCast: PendingCast;
-    me: Player | undefined;
-}) {
+type Props =
+    | {
+          kind: "cast";
+          pendingCast: PendingCast;
+          me: Player | undefined;
+      }
+    | {
+          kind: "activation";
+          pendingActivation: PendingActivation;
+          me: Player | undefined;
+      };
+
+export default function PaymentBanner(props: Props) {
     const { offset, dragHandlers } = useDraggable();
 
-    const cardInHand = me?.hand.find(
-        (c) => c !== null && c.id === pendingCast.cardInstanceId
-    );
-    const cardName = cardInHand
-        ? getCardById(cardInHand.card.id).name
-        : "spell";
+    let cardName: string;
+    let subtitle: string;
+
+    if (props.kind === "cast") {
+        const cardInHand = props.me?.hand.find(
+            (c) => c !== null && c.id === props.pendingCast.cardInstanceId
+        );
+        cardName = cardInHand ? getCardById(cardInHand.card.id).name : "spell";
+        subtitle = " — pay the casting costs";
+    } else {
+        const source = props.me?.battlefield.find(
+            (c) => c.id === props.pendingActivation.cardInstanceId
+        );
+        cardName = source ? getCardById(source.card.id).name : "ability";
+        subtitle = " — pay the activation costs";
+    }
 
     return (
         <div
@@ -31,7 +47,7 @@ export default function PaymentBanner({
             >
                 <div className="text-amber-200 text-sm font-medium">
                     <span className="text-white font-bold">{cardName}</span>
-                    {" — pay the casting costs"}
+                    {subtitle}
                 </div>
             </div>
         </div>

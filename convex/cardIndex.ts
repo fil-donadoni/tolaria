@@ -19,6 +19,7 @@ export interface CardIndexRow {
     nameLower: string;
     types: string[];
     subtypes: string[];
+    supertypes: string[];
     colors: string[];
     manaValue: number;
     oracleText: string;
@@ -33,6 +34,7 @@ export const list = query({
             nameLower: def.name.toLowerCase(),
             types: [...def.types] as string[],
             subtypes: [...(def.subtypes ?? [])],
+            supertypes: [...(def.supertypes ?? [])] as string[],
             colors: getCardColors(def) as string[],
             manaValue: manaValue(def.manaCost),
             oracleText: aggregateOracleText(def).searchable,
