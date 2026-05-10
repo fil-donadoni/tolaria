@@ -1,7 +1,8 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { tryGetCardById } from "@convex/cards";
-import { ART_CROP_RATIO, getArtCropImageUrl, getImageUrl } from "~/lib/images";
+import { ART_CROP_RATIO, getArtCropImageUrl } from "~/lib/images";
+import CardImageLoader from "./card-image-loader";
 import {
     capitalizeKeyword,
     formatTypeLine,
@@ -15,29 +16,50 @@ import { GameContext } from "~/hooks/useGameContext";
 import type { CardInstance } from "~/types/game";
 
 const ZOOM_WIDTH = 128 * 2;
-const ZOOM_ASPECT = 7 / 5;
-const ZOOM_HEIGHT = ZOOM_WIDTH * ZOOM_ASPECT;
 const GAP = 8;
 const VIEWPORT_PAD = 8;
+const HOVER_DELAY_MS = 300;
 
-function computeZoomPosition(cardRect: DOMRect) {
+// Clamp the zoom panel so it sits next to the anchored card without ever
+// overflowing the viewport. Vertical height varies with oracle text length, so
+// it is measured post-mount instead of assuming a fixed aspect.
+function clampZoomPosition(
+    cardRect: DOMRect,
+    zoomWidth: number,
+    zoomHeight: number
+): { top: number; left: number } {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
     let left: number;
-    if (cardRect.right + GAP + ZOOM_WIDTH <= vw) {
+    const fitsRight = cardRect.right + GAP + zoomWidth <= vw - VIEWPORT_PAD;
+    const fitsLeft = cardRect.left - GAP - zoomWidth >= VIEWPORT_PAD;
+    if (fitsRight) {
         left = cardRect.right + GAP;
+    } else if (fitsLeft) {
+        left = cardRect.left - GAP - zoomWidth;
     } else {
-        left = cardRect.left - GAP - ZOOM_WIDTH;
+        const gapRight = vw - cardRect.right;
+        const gapLeft = cardRect.left;
+        left =
+            gapRight >= gapLeft
+                ? cardRect.right + GAP
+                : cardRect.left - GAP - zoomWidth;
     }
+    left = Math.max(
+        VIEWPORT_PAD,
+        Math.min(left, vw - VIEWPORT_PAD - zoomWidth)
+    );
 
     const cardCenterY = cardRect.top + cardRect.height / 2;
-    let top = cardCenterY - ZOOM_HEIGHT / 2;
-
-    if (top < VIEWPORT_PAD) {
+    let top = cardCenterY - zoomHeight / 2;
+    const maxTop = vh - VIEWPORT_PAD - zoomHeight;
+    if (maxTop < VIEWPORT_PAD) {
         top = VIEWPORT_PAD;
-    } else if (top + ZOOM_HEIGHT > vh - VIEWPORT_PAD) {
-        top = Math.max(VIEWPORT_PAD, vh - VIEWPORT_PAD - ZOOM_HEIGHT);
+    } else if (top < VIEWPORT_PAD) {
+        top = VIEWPORT_PAD;
+    } else if (top > maxTop) {
+        top = maxTop;
     }
 
     return { top, left };
@@ -97,21 +119,77 @@ export default function CardPreview({
 }: CardPreviewProps) {
     const [showZoom, setShowZoom] = useState(false);
     const [position, setPosition] = useState({ top: 0, left: 0 });
+    const [measured, setMeasured] = useState(false);
+    const [zoomImgLoaded, setZoomImgLoaded] = useState(false);
     const isHovered = useRef(false);
+    const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const zoomRef = useRef<HTMLDivElement>(null);
 
-    const updatePosition = useCallback(() => {
-        const el = containerRef.current;
-        if (!el) return;
-        const rect = el.getBoundingClientRect();
-        setPosition(computeZoomPosition(rect));
+    const openZoom = useCallback(() => {
+        setMeasured(false);
+        setZoomImgLoaded(false);
+        setShowZoom(true);
     }, []);
+
+    const recomputePosition = useCallback(() => {
+        const anchor = containerRef.current;
+        const zoom = zoomRef.current;
+        if (!anchor || !zoom) return;
+        const cardRect = anchor.getBoundingClientRect();
+        const zoomRect = zoom.getBoundingClientRect();
+        setPosition(
+            clampZoomPosition(cardRect, zoomRect.width, zoomRect.height)
+        );
+        setMeasured(true);
+    }, []);
+
+    // Callback ref measures synchronously when the zoom div mounts, so the
+    // first paint already has the correct (clamped) position. Variable-height
+    // oracle text never overflows the viewport.
+    const zoomCallbackRef = useCallback((node: HTMLDivElement | null) => {
+        zoomRef.current = node;
+        if (!node) return;
+        const anchor = containerRef.current;
+        if (!anchor) return;
+        const cardRect = anchor.getBoundingClientRect();
+        const zoomRect = node.getBoundingClientRect();
+        setPosition(
+            clampZoomPosition(cardRect, zoomRect.width, zoomRect.height)
+        );
+        setMeasured(true);
+    }, []);
+
+    const clearHoverTimeout = useCallback(() => {
+        if (hoverTimeoutRef.current !== null) {
+            clearTimeout(hoverTimeoutRef.current);
+            hoverTimeoutRef.current = null;
+        }
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            if (hoverTimeoutRef.current !== null) {
+                clearTimeout(hoverTimeoutRef.current);
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!showZoom) return;
+        const handler = () => recomputePosition();
+        window.addEventListener("resize", handler);
+        window.addEventListener("scroll", handler, true);
+        return () => {
+            window.removeEventListener("resize", handler);
+            window.removeEventListener("scroll", handler, true);
+        };
+    }, [showZoom, recomputePosition]);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "z" && isHovered.current) {
-                updatePosition();
-                setShowZoom(true);
+                openZoom();
             }
         };
         const handleKeyUp = (e: KeyboardEvent) => {
@@ -125,22 +203,21 @@ export default function CardPreview({
             window.removeEventListener("keydown", handleKeyDown);
             window.removeEventListener("keyup", handleKeyUp);
         };
-    }, [updatePosition]);
+    }, [openZoom]);
 
     const handleMouseDown = useCallback(
         (e: React.MouseEvent) => {
             if (e.button !== 2) return;
             e.preventDefault();
             e.stopPropagation();
-            updatePosition();
-            setShowZoom(true);
+            openZoom();
             const onUp = () => {
                 setShowZoom(false);
                 window.removeEventListener("mouseup", onUp);
             };
             window.addEventListener("mouseup", onUp);
         },
-        [updatePosition]
+        [openZoom]
     );
 
     const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -160,6 +237,16 @@ export default function CardPreview({
     );
     const types = cardInstance?.types ?? def?.types ?? [];
     const isCreatureCard = types.includes("Creature");
+    const isSpellCard = types.includes("Instant") || types.includes("Sorcery");
+    const hasStructuredAbilities =
+        (def?.staticAbilities?.length ?? 0) > 0 ||
+        (def?.activatedAbilities?.length ?? 0) > 0 ||
+        (def?.triggeredAbilities?.length ?? 0) > 0;
+    const showOracleText =
+        !!def?.oracleText && (isSpellCard || !hasStructuredAbilities);
+    const oracleParagraphs = showOracleText
+        ? def!.oracleText!.split("\n").filter((p) => p.length > 0)
+        : null;
     const basePower = def?.power;
     const baseToughness = def?.toughness;
     const gameCtx = useContext(GameContext);
@@ -186,16 +273,16 @@ export default function CardPreview({
         abilities.activated.length > 0 ||
         abilities.triggered.length > 0;
     const displayName = def?.name ?? cardName;
-    // Zoom variants per zone: hand hides the text panel (player should
-    // only see the printed face), battlefield swaps the full card art for
-    // the Scryfall art_crop (since the printed type/rules are already
-    // implied by board state and the art crop reads better at zoom size).
-    const isHand = cardInstance?.zone === "hand";
-    const isBattlefield = cardInstance?.zone === "battlefield";
-    const imageSrc = isBattlefield
-        ? getArtCropImageUrl(cardId)
-        : getImageUrl(cardId);
-    const showTextPanel = !isHand;
+    const imageSrc = getArtCropImageUrl(cardId);
+    const showOwner =
+        !!cardInstance &&
+        !!gameCtx &&
+        cardInstance.zone === "battlefield" &&
+        cardInstance.controllerId !== gameCtx.playerId;
+    const ownerName = showOwner
+        ? (gameCtx.allPlayers.find((p) => p.id === cardInstance.ownerId)
+              ?.name ?? null)
+        : null;
 
     return (
         <div
@@ -203,9 +290,15 @@ export default function CardPreview({
             className="w-full h-full"
             onMouseEnter={() => {
                 isHovered.current = true;
+                clearHoverTimeout();
+                hoverTimeoutRef.current = setTimeout(() => {
+                    if (!isHovered.current) return;
+                    openZoom();
+                }, HOVER_DELAY_MS);
             }}
             onMouseLeave={() => {
                 isHovered.current = false;
+                clearHoverTimeout();
                 setShowZoom(false);
             }}
             onMouseDown={handleMouseDown}
@@ -215,91 +308,104 @@ export default function CardPreview({
             {showZoom &&
                 createPortal(
                     <div
+                        ref={zoomCallbackRef}
                         className="pointer-events-none fixed z-100 flex flex-col rounded-2xl shadow-2xl bg-zinc-900/95 backdrop-blur-sm overflow-hidden"
                         style={{
                             top: position.top,
                             left: position.left,
                             width: ZOOM_WIDTH,
                             maxHeight: `calc(100vh - ${VIEWPORT_PAD * 2}px)`,
+                            opacity: measured ? 1 : 0,
                         }}
                     >
-                        <img
-                            src={imageSrc}
-                            className="w-full block"
-                            alt={cardName}
-                            style={
-                                isBattlefield
-                                    ? {
-                                          aspectRatio: ART_CROP_RATIO,
-                                          objectFit: "cover",
-                                      }
-                                    : undefined
-                            }
-                        />
-                        {showTextPanel && (
-                            <div className="p-3 text-xs text-white space-y-2 overflow-y-auto">
-                                <div className="flex items-baseline justify-between gap-2">
-                                    <span className="font-semibold truncate">
-                                        {displayName}
+                        <div
+                            className="relative w-full"
+                            style={{ aspectRatio: ART_CROP_RATIO }}
+                        >
+                            <img
+                                src={imageSrc}
+                                className="w-full h-full block"
+                                alt={cardName}
+                                style={{ objectFit: "cover" }}
+                                onLoad={() => setZoomImgLoaded(true)}
+                                onError={() => setZoomImgLoaded(true)}
+                            />
+                            {!zoomImgLoaded && <CardImageLoader />}
+                        </div>
+                        <div className="p-3 text-xs text-white space-y-2 overflow-y-auto">
+                            <div className="flex items-baseline justify-between gap-2">
+                                <span className="font-semibold truncate">
+                                    {displayName}
+                                </span>
+                                {manaCost && (
+                                    <span className="shrink-0 text-sm leading-none">
+                                        {formatOracleText(manaCost)}
                                     </span>
-                                    {manaCost && (
-                                        <span className="shrink-0 text-sm leading-none">
-                                            {formatOracleText(manaCost)}
+                                )}
+                            </div>
+                            <div className="text-zinc-300">{typeLine}</div>
+                            {oracleParagraphs && (
+                                <div className="border-t border-zinc-700 pt-2 space-y-1.5 text-zinc-100">
+                                    {oracleParagraphs.map((p, i) => (
+                                        <div key={`oracle-${i}`}>
+                                            {formatOracleText(p)}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            {hasBody && (
+                                <div className="border-t border-zinc-700 pt-2 space-y-1.5">
+                                    {abilities.keywords.length > 0 && (
+                                        <div className="space-y-0.5">
+                                            {abilities.keywords.map((k, i) => (
+                                                <KeywordRow
+                                                    key={`kw-${i}-${k.name}`}
+                                                    name={k.name}
+                                                    state={k.state}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+                                    {abilities.activated.map((a, i) => (
+                                        <AbilityRow
+                                            key={`act-${i}-${a.id}`}
+                                            text={a.oracleText}
+                                            state={a.state}
+                                        />
+                                    ))}
+                                    {abilities.triggered.map((t, i) => (
+                                        <AbilityRow
+                                            key={`tr-${i}-${t.id}`}
+                                            text={t.oracleText}
+                                            state="native"
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                            {hasPT && (
+                                <div className="text-right font-semibold text-sm border-t border-zinc-700 pt-2 flex justify-end items-baseline gap-2">
+                                    <span
+                                        className={
+                                            ptModified
+                                                ? "text-emerald-400"
+                                                : "text-white"
+                                        }
+                                    >
+                                        {effPower ?? 0}/{effToughness ?? 0}
+                                    </span>
+                                    {ptModified && (
+                                        <span className="text-red-400 text-xs font-normal">
+                                            ({basePower}/{baseToughness})
                                         </span>
                                     )}
                                 </div>
-                                <div className="text-zinc-300">{typeLine}</div>
-                                {hasBody && (
-                                    <div className="border-t border-zinc-700 pt-2 space-y-1.5">
-                                        {abilities.keywords.length > 0 && (
-                                            <div className="space-y-0.5">
-                                                {abilities.keywords.map(
-                                                    (k, i) => (
-                                                        <KeywordRow
-                                                            key={`kw-${i}-${k.name}`}
-                                                            name={k.name}
-                                                            state={k.state}
-                                                        />
-                                                    )
-                                                )}
-                                            </div>
-                                        )}
-                                        {abilities.activated.map((a, i) => (
-                                            <AbilityRow
-                                                key={`act-${i}-${a.id}`}
-                                                text={a.oracleText}
-                                                state={a.state}
-                                            />
-                                        ))}
-                                        {abilities.triggered.map((t, i) => (
-                                            <AbilityRow
-                                                key={`tr-${i}-${t.id}`}
-                                                text={t.oracleText}
-                                                state="native"
-                                            />
-                                        ))}
-                                    </div>
-                                )}
-                                {hasPT && (
-                                    <div className="text-right font-semibold text-sm border-t border-zinc-700 pt-2 flex justify-end items-baseline gap-2">
-                                        <span
-                                            className={
-                                                ptModified
-                                                    ? "text-emerald-400"
-                                                    : "text-white"
-                                            }
-                                        >
-                                            {effPower ?? 0}/{effToughness ?? 0}
-                                        </span>
-                                        {ptModified && (
-                                            <span className="text-red-400 text-xs font-normal">
-                                                ({basePower}/{baseToughness})
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                            )}
+                            {ownerName && (
+                                <div className="text-zinc-400 border-t pt-2 text-xs italic">
+                                    Owner: {ownerName}
+                                </div>
+                            )}
+                        </div>
                     </div>,
                     document.body
                 )}

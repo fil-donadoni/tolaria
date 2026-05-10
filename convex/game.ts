@@ -26,9 +26,11 @@ import {
     normalizeManaCost,
     isManaCostCovered,
     emitSpellCastEvent,
+    emitPermanentTapped,
+    discardPermanentTappedEvent,
     processPendingActionTriggers,
 } from "./gre/state";
-import type { Color } from "./cards/types";
+import type { Color, ManaCost } from "./cards/types";
 import {
     assertLegalAction,
     getLegalTargets,
@@ -36,7 +38,7 @@ import {
     hasColor,
     isProtectedFromColors,
 } from "./gre/rules";
-import { STATIC_EFFECT_CTX } from "./gre/layers";
+import { STATIC_EFFECT_CTX, getEffectivePower } from "./gre/layers";
 import { projectFullState, projectPublicState } from "./gameProjections";
 import {
     advancePhase,
@@ -46,6 +48,7 @@ import {
 import { freshSeed, seededShuffle } from "./gre/rng";
 import {
     applyMulliganBottomChoice,
+    finalizeMulligan,
     makeMulliganState,
     recordDeclaration,
 } from "./gre/mulligan";
@@ -200,13 +203,27 @@ function assertGameNotOver(state: GameState) {
 
 /** Guard: reject actions while the engine is suspended awaiting
  *  mid-resolution player choices (CR 608.2). Priority is frozen in this
- *  window — only `selectResolutionChoice` is legal. */
-function assertNoPendingChoices(state: GameState) {
-    if ((state.pendingChoices?.length ?? 0) > 0) {
-        throw new Error(
-            "Waiting for resolution choices — complete them before acting"
-        );
+ *  window — only `selectResolutionChoice` is legal.
+ *
+ *  CR 117.3a exception: while a player is being asked an optional may-pay
+ *  question, they may activate mana abilities to make the mana required.
+ *  Pass `allowManaForMayPay: true` from the tap/untap mana mutations so
+ *  they can run during the pending may-pay's payment window for that
+ *  player. Other mid-resolution choice kinds keep the strict guard. */
+function assertNoPendingChoices(
+    state: GameState,
+    opts: { allowManaForMayPay?: { playerId: string } } = {}
+) {
+    const queue = state.pendingChoices ?? [];
+    if (queue.length === 0) return;
+    const head = queue[0];
+    const allow = opts.allowManaForMayPay;
+    if (allow && head.kind === "may-pay" && head.playerId === allow.playerId) {
+        return;
     }
+    throw new Error(
+        "Waiting for resolution choices — complete them before acting"
+    );
 }
 
 /** Taps a battlefield card as a mana source during a payment phase (pendingCast
@@ -215,6 +232,7 @@ function assertNoPendingChoices(state: GameState) {
  *  the bookkeeping state differs. Mutates `card`, `player.manaPool`, and
  *  pushes the card id onto `tappedLandIds`. */
 function tapSourceIntoPayment(
+    state: GameState,
     player: PlayerState,
     card: CardInstanceState,
     manaChoiceIndex: number | undefined,
@@ -236,6 +254,10 @@ function tapSourceIntoPayment(
         if (!chosen) throw new Error("Invalid mana choice");
 
         const isSacrifice = ability.cost.sacrifice === true;
+        // CR 605.2 — emit "tapped for mana" before the sacrifice path moves
+        // the card off the battlefield, so the event carries the permanent's
+        // pre-sacrifice types/subtypes for trigger predicates.
+        emitPermanentTapped(state, card, true, chosen);
         if (isSacrifice) {
             moveCard(player, card.id, "battlefield", "graveyard");
         } else {
@@ -256,15 +278,18 @@ function tapSourceIntoPayment(
     card.isTapped = true;
     const amount = getFixedManaAmount(card, manaColor);
     player.manaPool[manaColor] = (player.manaPool[manaColor] ?? 0) + amount;
+    emitPermanentTapped(state, card, true, { [manaColor]: amount } as ManaCost);
     tappedLandIds.push(card.id);
 }
 
 /** Reverses a single tap recorded in `tappedLandIds` — refunds the mana and
  *  untaps the source. Shared by untapForPayment and untapForActivationPayment. */
 function untapSourceFromPayment(
+    state: GameState,
     player: PlayerState,
     card: CardInstanceState
 ): void {
+    discardPermanentTappedEvent(state, card.id);
     if (card.chosenMana) {
         for (const [color, amount] of Object.entries(card.chosenMana)) {
             if (color !== "X" && typeof amount === "number" && amount > 0) {
@@ -347,6 +372,11 @@ function tryAutoCommitPendingActivation(
     state.priorityPlayerId = getOpponentId(state, playerId);
     state.singleShotAutoPass = keepPriority ? undefined : playerId;
     drainAutoPasses(state);
+
+    // CR 603.2 — flush PERMANENT_TAPPED events queued during payment so
+    // mana-tap triggers (Manabarbs / Mana Flare / Wild Growth) land on top
+    // of the freshly-pushed activated ability.
+    processPendingActionTriggers(state);
 
     return {
         cardInstanceId: pa.cardInstanceId,
@@ -461,6 +491,23 @@ export const getGame = query({
     },
     handler: async (ctx, args) => {
         return await ctx.db.get(args.gameId);
+    },
+});
+
+/** Returns the unique set of card IDs across both players' decks for a game.
+ *  Used by the client to preload all card images at game start. */
+export const getGameCardIds = query({
+    args: {
+        gameId: v.id("games"),
+    },
+    handler: async (ctx, args) => {
+        const game = await ctx.db.get(args.gameId);
+        if (!game) return [];
+        const ids = new Set<string>();
+        for (const p of game.players) {
+            for (const c of p.deck.cards) ids.add(c.cardId);
+        }
+        return Array.from(ids);
     },
 });
 
@@ -1071,6 +1118,9 @@ export const announceCast = mutation({
                     ? { controller: cardDef.targetRequirement.controller }
                     : {}),
                 ...(subtypeFilter ? { subtypeFilter } : {}),
+                ...(cardDef.targetRequirement.powerFilter
+                    ? { powerFilter: cardDef.targetRequirement.powerFilter }
+                    : {}),
             };
 
             const now = Date.now();
@@ -1193,6 +1243,10 @@ export const tapForPayment = mutation({
             if (!chosen) throw new Error("Invalid mana choice");
 
             const isSacrifice = ability.cost.sacrifice === true;
+            // CR 605.2 — emit "tapped for mana" before any sacrifice path
+            // moves the card off the battlefield, so the event still carries
+            // the permanent's pre-sacrifice types/subtypes.
+            emitPermanentTapped(state, card, true, chosen);
             if (isSacrifice) {
                 // Move to graveyard instead of tapping. Cannot be undone via
                 // untapForPayment — sacrifice is a one-way payment.
@@ -1218,6 +1272,9 @@ export const tapForPayment = mutation({
             const amount = getFixedManaAmount(card, manaColor);
             player.manaPool[manaColor] =
                 (player.manaPool[manaColor] ?? 0) + amount;
+            emitPermanentTapped(state, card, true, {
+                [manaColor]: amount,
+            } as ManaCost);
             state.pendingCast.tappedLandIds.push(card.id);
         }
 
@@ -1299,6 +1356,7 @@ export const untapForPayment = mutation({
         }
 
         card.isTapped = false;
+        discardPermanentTappedEvent(state, card.id);
         state.pendingCast.tappedLandIds.splice(idx, 1);
 
         await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
@@ -1330,6 +1388,7 @@ export const cancelCast = mutation({
         // un-sacrificed, so their mana contribution is left in the pool —
         // the empty-pool step at phase end will drain it.
         for (const cardId of state.pendingCast.tappedLandIds) {
+            discardPermanentTappedEvent(state, cardId);
             const card = player.battlefield.find((c) => c.id === cardId);
             if (!card) continue;
             card.isTapped = false;
@@ -1396,6 +1455,7 @@ export const tapForActivationPayment = mutation({
         if (!card) throw new Error("Card not on battlefield");
 
         tapSourceIntoPayment(
+            state,
             player,
             card,
             args.manaChoiceIndex,
@@ -1454,7 +1514,7 @@ export const untapForActivationPayment = mutation({
         );
         if (!card) throw new Error("Cannot undo: source was sacrificed");
 
-        untapSourceFromPayment(player, card);
+        untapSourceFromPayment(state, player, card);
         pa.tappedLandIds.splice(idx, 1);
 
         await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
@@ -1486,7 +1546,7 @@ export const cancelActivation = mutation({
         for (const cardId of pa.tappedLandIds) {
             const card = player.battlefield.find((c) => c.id === cardId);
             if (!card) continue;
-            untapSourceFromPayment(player, card);
+            untapSourceFromPayment(state, player, card);
         }
 
         state.pendingActivation = undefined;
@@ -1626,6 +1686,26 @@ export const selectTarget = mutation({
                 !hasColor(matchedCard, pt.colorFilter as Color)
             ) {
                 throw new Error(`Target must be ${pt.colorFilter}`);
+            }
+            // CR 613 layer 7c: power-bounded target (Dwarven Warriors).
+            if (pt.powerFilter) {
+                const power = getEffectivePower(state, matchedCard);
+                if (
+                    pt.powerFilter.min !== undefined &&
+                    power < pt.powerFilter.min
+                ) {
+                    throw new Error(
+                        `Target must have power ≥ ${pt.powerFilter.min}`
+                    );
+                }
+                if (
+                    pt.powerFilter.max !== undefined &&
+                    power > pt.powerFilter.max
+                ) {
+                    throw new Error(
+                        `Target must have power ≤ ${pt.powerFilter.max}`
+                    );
+                }
             }
             // CR 702.16b: a permanent with protection from [color] can't be
             // targeted by a spell/ability whose source has that color.
@@ -2014,7 +2094,8 @@ export const assignBlockerTarget = mutation({
             const check = validateBlockerEligibility(
                 attacker,
                 blocker,
-                defender.battlefield
+                defender.battlefield,
+                state
             );
             if (!check.eligible) {
                 throw new Error(check.reason);
@@ -3144,6 +3225,9 @@ export const activateAbility = mutation({
                 ...(abilitySubtypeFilter
                     ? { subtypeFilter: abilitySubtypeFilter }
                     : {}),
+                ...(ability.targetRequirement.powerFilter
+                    ? { powerFilter: ability.targetRequirement.powerFilter }
+                    : {}),
             };
 
             const now = Date.now();
@@ -3310,7 +3394,17 @@ export const tapUntap = mutation({
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
         assertGameNotOver(state);
-        assertNoPendingChoices(state);
+        // CR 117.3a / 605.3b — while answering a may-pay choice, the player
+        // may activate mana abilities to make the mana the cost requires.
+        // Other pending-choice kinds (keep-permanents, etc.) still freeze
+        // priority and reject mana ability activation.
+        const mayPayHead = state.pendingChoices?.[0];
+        const isMayPayPaymentWindow =
+            mayPayHead?.kind === "may-pay" &&
+            mayPayHead.playerId === args.playerId;
+        assertNoPendingChoices(state, {
+            allowManaForMayPay: { playerId: args.playerId },
+        });
         const player = getPlayer(state, args.playerId);
 
         // Cannot manually tap/untap during a payment phase — must go through
@@ -3327,7 +3421,11 @@ export const tapUntap = mutation({
 
         // CR 605.3b: a mana ability can be activated only while the player
         // has priority (or while paying a mana cost — handled above).
-        if (state.priorityPlayerId !== args.playerId) {
+        // Mana payment for an active may-pay choice also qualifies.
+        if (
+            !isMayPayPaymentWindow &&
+            state.priorityPlayerId !== args.playerId
+        ) {
             throw new Error("Cannot activate mana ability without priority");
         }
 
@@ -3363,6 +3461,11 @@ export const tapUntap = mutation({
             throw new Error("Cannot untap: mana already spent");
         }
 
+        // Track produced mana so we can carry it on the PERMANENT_TAPPED event
+        // (CR 605.2 / 603.2 — Mana Flare reads `manaProduced` to add the
+        // matching color). Set on the tap branches, undefined on untap.
+        let producedThisActivation: ManaCost | undefined;
+
         // Determine mana to add/remove
         if (ability?.manaChoices) {
             // Choice-based mana ability (e.g. Birds of Paradise, Black Lotus)
@@ -3372,6 +3475,12 @@ export const tapUntap = mutation({
                 }
                 const chosen = ability.manaChoices[args.manaChoiceIndex];
                 if (!chosen) throw new Error("Invalid mana choice");
+
+                // CR 605.2 — emit before any sacrifice path moves the card off
+                // the battlefield, so the event still carries the source's
+                // pre-sacrifice types/subtypes.
+                emitPermanentTapped(state, card, true, chosen);
+                producedThisActivation = chosen;
 
                 // Pay cost: tap (+ sacrifice if required)
                 if (isSacrifice) {
@@ -3428,6 +3537,15 @@ export const tapUntap = mutation({
                 if (!wasTapped) {
                     player.manaPool[manaColor] =
                         (player.manaPool[manaColor] ?? 0) + amount;
+                    producedThisActivation = {
+                        [manaColor]: amount,
+                    } as ManaCost;
+                    emitPermanentTapped(
+                        state,
+                        card,
+                        true,
+                        producedThisActivation
+                    );
                 } else {
                     player.manaPool[manaColor] =
                         (player.manaPool[manaColor] ?? 0) - amount;
@@ -3435,8 +3553,21 @@ export const tapUntap = mutation({
             }
         }
 
-        // Mana ability activation is undoable
-        state.undoableBy = args.playerId;
+        // CR 603.2 — flush the PERMANENT_TAPPED event into a trigger pass so
+        // Manabarbs / Mana Flare / Wild Growth land on the stack right after
+        // the mana ability resolves. Skip on untap (no event was emitted).
+        const stackBefore = state.stack.length;
+        if (producedThisActivation) {
+            processPendingActionTriggers(state);
+        }
+        const triggersFired = state.stack.length > stackBefore;
+
+        // Mana ability activation is undoable, but only when no triggered
+        // ability landed on the stack — undoing the tap would leave the
+        // trigger orphaned with no source event.
+        if (!triggersFired) {
+            state.undoableBy = args.playerId;
+        }
 
         // Save updated state
         await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
@@ -3807,6 +3938,15 @@ export const debugSetupScenario = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         state.undoableBy = undefined;
+
+        // If the game is still in the pre-game mulligan phase (CR 103.5),
+        // confirm the mulligan for both players so the scenario takes over a
+        // clean turn-1 state. The scenario's own `phase` override (later in
+        // this handler) wins if specified.
+        if (state.mulligan) {
+            finalizeMulligan(state);
+        }
+
         const p1 = state.players[0];
         const p2 = state.players[1];
 

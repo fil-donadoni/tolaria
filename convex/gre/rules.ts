@@ -14,7 +14,7 @@ import {
     MANA_COLORS,
     isTapLockedBySummoningSickness,
 } from "./constants";
-import { STATIC_EFFECT_CTX } from "./layers";
+import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
 import { isProtectedFromColors } from "./protection";
 import { tryGetCardById } from "../cards";
 import { normalizeManaCost } from "./state";
@@ -313,6 +313,7 @@ export function getLegalTargets(
     );
     const colorFilter = requirement.colorFilter;
     const tappedFilter = requirement.tappedFilter;
+    const powerFilter = requirement.powerFilter;
     const subtypeFilter = requirement.subtypeFilter
         ? Array.isArray(requirement.subtypeFilter)
             ? requirement.subtypeFilter
@@ -347,6 +348,21 @@ export function getLegalTargets(
                 // CR 701.20: tap-state filter for "target tapped/untapped ~".
                 if (tappedFilter === "tapped" && !card.isTapped) continue;
                 if (tappedFilter === "untapped" && card.isTapped) continue;
+                // CR 613 layer 7c: power filter reads effective power so
+                // current buffs/debuffs are honored at target selection.
+                if (powerFilter) {
+                    const power = getEffectivePower(state, card);
+                    if (
+                        powerFilter.min !== undefined &&
+                        power < powerFilter.min
+                    )
+                        continue;
+                    if (
+                        powerFilter.max !== undefined &&
+                        power > powerFilter.max
+                    )
+                        continue;
+                }
                 // CR 702.16b: protected permanents can't be targeted by
                 // spells/abilities of the stated quality.
                 if (isProtectedFromColors(card, sourceColors)) continue;

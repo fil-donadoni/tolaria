@@ -4,6 +4,8 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { PendingChoice } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useDraggable } from "~/hooks/useDraggable";
+import { isManaCostCovered, manaCostToString } from "~/lib/card-utils";
+import { formatOracleText } from "~/lib/oracle-text";
 
 /** Banner shown at the top-center of the board while a mid-resolution
  *  player choice is active (CR 608.2). Displays the prompt, the progress
@@ -39,6 +41,19 @@ export default function PendingChoicePrompt({
               : "Balance";
 
     const isMayPay = choice.kind === "may-pay";
+    // Disable "Pay" until the chooser's mana pool covers the cost (CR 117.6).
+    // The chooser may activate mana abilities while the may-pay window is open
+    // (CR 117.3a) — `tapUntap` already allows this and the button will enable
+    // as soon as the pool can cover the full cost.
+    const chooser = allPlayers.find((p) => p.id === choice.playerId);
+    const canPay =
+        !isMayPay ||
+        !choice.cost ||
+        (chooser ? isManaCostCovered(chooser.manaPool, choice.cost) : false);
+    const costSymbols =
+        isMayPay && choice.cost
+            ? formatOracleText(manaCostToString(choice.cost))
+            : null;
 
     return (
         <div
@@ -64,7 +79,8 @@ export default function PendingChoicePrompt({
                             <div className="flex gap-2 mt-1">
                                 <button
                                     type="button"
-                                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-white text-xs font-semibold"
+                                    disabled={!canPay}
+                                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-white/50 disabled:cursor-not-allowed disabled:hover:bg-slate-700 rounded text-white text-xs font-semibold inline-flex items-center gap-1"
                                     onClick={() =>
                                         submitMayPay({
                                             gameId,
@@ -73,7 +89,16 @@ export default function PendingChoicePrompt({
                                         })
                                     }
                                 >
-                                    {choice.cost ? "Pay" : "Yes"}
+                                    {choice.cost ? (
+                                        <>
+                                            <span>Pay</span>
+                                            <span className="inline-flex items-center">
+                                                {costSymbols}
+                                            </span>
+                                        </>
+                                    ) : (
+                                        "Yes"
+                                    )}
                                 </button>
                                 <button
                                     type="button"

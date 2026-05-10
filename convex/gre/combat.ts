@@ -1,6 +1,8 @@
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState, GameState } from "./state";
 import { LANDWALK_KEYWORDS } from "./constants";
 import { isProtectedFromSource } from "./protection";
+import { getEffectivePower } from "./layers";
+import { hasColor } from "./rules";
 
 export type AttackerValidation =
     | { eligible: true }
@@ -69,12 +71,32 @@ export type BlockerValidation =
  *  - Flying (CR 702.9b): only flying/reach can block a flier.
  *  - Landwalk (CR 702.13b): attacker can't be blocked at all as long as
  *    the defender controls a land of the matching subtype.
+ *  - Unblockable (CR 509.1b): no creature can block.
+ *  - Wall-only (Invisibility, CR 509.1b): only Walls can block.
+ *  - Fear (CR 702.36b): only artifact and/or black creatures can block.
+ *  - Power-bound block restriction (Ironclaw Orcs, CR 509.1b): blocker
+ *    can't block creatures with effective power ≥ 2.
+ *
+ * `state` is optional — required only for the power-bound restriction so
+ * the validator can call `getEffectivePower(state, attacker)` (CR 613 layer
+ * 7c). Callers without state degrade gracefully to `attacker.power ?? 0`.
  */
 export function validateBlockerEligibility(
     attacker: CardInstanceState,
     blocker: CardInstanceState,
-    defenderBattlefield: CardInstanceState[]
+    defenderBattlefield: CardInstanceState[],
+    state?: GameState
 ): BlockerValidation {
+    // CR 509.1b — global "can't be blocked" (Dwarven Warriors temporary
+    // grant). Encoded as an `unblockable` static ability that may be granted
+    // for end-of-turn via `grantStaticAbility`.
+    if (attacker.staticAbilities.includes("unblockable")) {
+        return {
+            eligible: false,
+            reason: "Attacker can't be blocked",
+        };
+    }
+
     for (const [keyword, subtype] of Object.entries(LANDWALK_KEYWORDS)) {
         if (!attacker.staticAbilities.includes(keyword)) continue;
         const hasLand = defenderBattlefield.some(
@@ -102,6 +124,31 @@ export function validateBlockerEligibility(
         };
     }
 
+    // CR 509.1b — Invisibility-style "can be blocked only by Walls".
+    if (
+        attacker.staticAbilities.includes("cant-be-blocked-except-by-wall") &&
+        !blocker.subtypes.includes("Wall")
+    ) {
+        return {
+            eligible: false,
+            reason: "Attacker can be blocked only by Walls",
+        };
+    }
+
+    // CR 702.36b — Fear: "This creature can't be blocked except by artifact
+    // creatures and/or black creatures." Color check uses hasColor so
+    // hybrid / multicolor blockers including Black still count.
+    if (
+        attacker.staticAbilities.includes("fear") &&
+        !blocker.types.includes("Artifact") &&
+        !hasColor(blocker, "B")
+    ) {
+        return {
+            eligible: false,
+            reason: "Attacker has fear — only artifact or black creatures can block",
+        };
+    }
+
     if (attacker.staticAbilities.includes("flying")) {
         if (
             !blocker.staticAbilities.includes("flying") &&
@@ -110,6 +157,21 @@ export function validateBlockerEligibility(
             return {
                 eligible: false,
                 reason: "Only creatures with flying or reach can block a creature with flying",
+            };
+        }
+    }
+
+    // CR 509.1b — Ironclaw Orcs: "can't block creatures with power 2 or
+    // greater." Predicate is on the blocker; reads the attacker's effective
+    // power so layer-7c buffs (Crusade, Bad Moon, etc.) are honored.
+    if (blocker.staticAbilities.includes("cant-block-power-2-or-greater")) {
+        const power = state
+            ? getEffectivePower(state, attacker)
+            : (attacker.power ?? 0);
+        if (power >= 2) {
+            return {
+                eligible: false,
+                reason: "Blocker can't block creatures with power 2 or greater",
             };
         }
     }
@@ -158,7 +220,8 @@ export function getRequiredAttackerIds(
  */
 export function hasAnyLegalBlock(
     attackers: CardInstanceState[],
-    defenderBattlefield: CardInstanceState[]
+    defenderBattlefield: CardInstanceState[],
+    state?: GameState
 ): boolean {
     const candidates = defenderBattlefield.filter(
         (c) => c.types.includes("Creature") && !c.isTapped
@@ -169,7 +232,8 @@ export function hasAnyLegalBlock(
                 validateBlockerEligibility(
                     attacker,
                     blocker,
-                    defenderBattlefield
+                    defenderBattlefield,
+                    state
                 ).eligible
             ) {
                 return true;

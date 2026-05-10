@@ -242,6 +242,18 @@ export type PreventionEffect = {
     duration: Duration;
 };
 
+/** A damage-prevention shield on a specific target (CR 615.1). Absorbs up to
+ *  `remaining` damage from any source per event, decrementing as it consumes.
+ *  An entry whose `remaining` reaches 0 is purged immediately. Unconsumed
+ *  remainder wears off when `duration` expires. Used by Samite Healer,
+ *  Conservator, and other prevent-N-to-target effects. */
+export type TargetPreventionShield = {
+    targetType: "permanent" | "player";
+    targetId: string;
+    remaining: number;
+    duration: Duration;
+};
+
 /** A reference to an activated ability template granted to a player by
  *  another card's effect (CR 113.1). Stores only ids — the actual ability
  *  is resolved at activation time via `getCardById(sourceCardId)`. */
@@ -468,6 +480,10 @@ export type PendingTarget = {
      *  Propagated from TargetRequirement.subtypeFilter. Match if the
      *  permanent's subtypes include at least one of these. */
     subtypeFilter?: string[];
+    /** If set, restricts legal permanent targets by effective power
+     *  (CR 613 layer 7c). Propagated from TargetRequirement.powerFilter.
+     *  Both bounds inclusive. */
+    powerFilter?: { min?: number; max?: number };
     /** Zone the target lives in (CR 109.2). Default "battlefield" — set to
      *  "graveyard" for reanimation/recursion spells like Regrowth. Propagated
      *  from TargetRequirement.zone. */
@@ -593,6 +609,10 @@ export type GameState = {
      *  consumed the first time a matching (source, player) damage event
      *  occurs. Cleared at CLEANUP for "end-of-turn" effects (CR 514.2). */
     preventionEffects?: PreventionEffect[];
+    /** Active damage-absorption shields on specific targets (CR 615.1).
+     *  Decremented per damage event; entry purged at 0 or at `duration`
+     *  expiry. Source-agnostic — any source's damage is reduced. */
+    targetPreventionShields?: TargetPreventionShield[];
     /** Delayed triggered abilities awaiting their firing condition (CR 603.7a).
      *  Scanned at phase entry for matching `timing`. Each instance fires once
      *  then is spliced out. */
@@ -632,6 +652,37 @@ export function consumePreventionIfAny(
         state.preventionEffects = undefined;
     }
     return true;
+}
+
+/** Reduces an incoming damage amount by any matching `targetPreventionShields`
+ *  on `state` (CR 615.1). Shields are consumed in declaration order until the
+ *  damage is fully absorbed or no shields remain. Returns the residual damage
+ *  the caller should actually apply (0 = fully prevented). Mutates the shield
+ *  list in place — entries reduced to 0 are spliced out, and the field is
+ *  cleared when empty. */
+export function applyTargetPrevention(
+    state: GameState,
+    targetType: "permanent" | "player",
+    targetId: string,
+    amount: number
+): number {
+    if (amount <= 0) return amount;
+    const shields = state.targetPreventionShields;
+    if (!shields || shields.length === 0) return amount;
+    let remaining = amount;
+    for (const s of shields) {
+        if (remaining <= 0) break;
+        if (s.targetType !== targetType) continue;
+        if (s.targetId !== targetId) continue;
+        const absorbed = Math.min(s.remaining, remaining);
+        s.remaining -= absorbed;
+        remaining -= absorbed;
+    }
+    state.targetPreventionShields = shields.filter((s) => s.remaining > 0);
+    if (state.targetPreventionShields.length === 0) {
+        state.targetPreventionShields = undefined;
+    }
+    return remaining;
 }
 
 /** Resolves the top item of the stack (CR 608.3). Returns the resolved
@@ -703,56 +754,71 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         return top;
     }
 
-    // --- Legacy pop-first paths (no stepping) ---
-    const item = state.stack.pop() as StackItem;
+    // --- Peek-and-pop for non-stepped paths ---
+    // Run the resolve handler against the top of the stack without popping
+    // first. If the handler suspends by enqueueing a pending choice (CR
+    // 608.2 / 117.3a — e.g. `requestMayPay`, `requestChoice`), leave the
+    // item on the stack so the resume mutations (`submitMayPay`,
+    // `selectResolutionChoice`) can locate it via `stackItemId` and write
+    // back `collectedChoices`. The next `resolveTopOfStack` call replays
+    // the resolve which now reads the stored answer and runs to completion.
 
     // Delayed triggered ability resolution (CR 603.7a). Resolver is looked
     // up on the scheduling card's def; payload carries ids captured at
     // scheduling time.
-    if (item.delayedTriggerId && cardDef) {
+    if (top.delayedTriggerId && cardDef) {
         const trigger = cardDef.delayedTriggers?.find(
-            (t) => t.id === item.delayedTriggerId
+            (t) => t.id === top.delayedTriggerId
         );
         if (trigger) {
-            const ctx = buildSpellContext(state, item);
-            trigger.resolve(ctx, item.delayedPayload ?? {});
+            const ctx = buildSpellContext(state, top);
+            trigger.resolve(ctx, top.delayedPayload ?? {});
+            if ((state.pendingChoices?.length ?? 0) > 0) return null;
         }
-        return item;
+        delete top.collectedChoices;
+        state.stack.pop();
+        return top;
     }
 
     // Triggered ability resolution (CR 603.3). Source permanent stays on
     // battlefield; the trigger vanishes after resolve.
-    if (item.triggeredAbilityId && cardDef && item.triggerEvent) {
+    if (top.triggeredAbilityId && cardDef && top.triggerEvent) {
         const ability = cardDef.triggeredAbilities?.find(
-            (a) => a.id === item.triggeredAbilityId
+            (a) => a.id === top.triggeredAbilityId
         );
         if (ability) {
-            const ctx = buildSpellContext(state, item);
-            ability.resolve(ctx, item.triggerEvent);
+            const ctx = buildSpellContext(state, top);
+            ability.resolve(ctx, top.triggerEvent);
+            if ((state.pendingChoices?.length ?? 0) > 0) return null;
         }
-        return item;
+        delete top.collectedChoices;
+        state.stack.pop();
+        return top;
     }
 
     // Activated ability resolution — execute effect and discard (CR 602.2).
     // For abilities granted by another card (CR 113.1), the template is read
     // from the granting card's `grantTemplates` via `grantedSourceCardId`.
-    if (item.abilityId) {
+    if (top.abilityId) {
         let ability;
-        if (item.grantedSourceCardId) {
-            const grantingDef = tryGetCardById(item.grantedSourceCardId);
+        if (top.grantedSourceCardId) {
+            const grantingDef = tryGetCardById(top.grantedSourceCardId);
             ability = grantingDef?.grantTemplates?.find(
-                (a) => a.id === item.abilityId
+                (a) => a.id === top.abilityId
             );
         } else {
             ability = cardDef?.activatedAbilities?.find(
-                (a) => a.id === item.abilityId
+                (a) => a.id === top.abilityId
             );
         }
         if (ability?.resolve) {
-            const ctx = buildSpellContext(state, item);
+            const ctx = buildSpellContext(state, top);
             ability.resolve(ctx);
+            if ((state.pendingChoices?.length ?? 0) > 0) return null;
         }
-        return item;
+        delete top.collectedChoices;
+        state.stack.pop();
+        return top;
     }
 
     // Single-shot spell resolution (CR 608.2b). Resolve fn is resolved via
@@ -761,12 +827,15 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     if (cardDef) {
         const resolveFn = getResolveFn(cardDef);
         if (resolveFn) {
-            const ctx = buildSpellContext(state, item);
+            const ctx = buildSpellContext(state, top);
             resolveFn(ctx);
+            if ((state.pendingChoices?.length ?? 0) > 0) return null;
         }
     }
-    finalizeSpellResolution(state, item, cardDef);
-    return item;
+    delete top.collectedChoices;
+    state.stack.pop();
+    finalizeSpellResolution(state, top, cardDef);
+    return top;
 }
 
 /** Moves a resolved spell from the stack to its destination zone (CR 608.3
@@ -1294,6 +1363,44 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     ];
 }
 
+/** Emits a PERMANENT_TAPPED event for a permanent that just transitioned from
+ *  untapped to tapped (CR 701.20a). `forMana: true` marks the canonical
+ *  "tapped for mana" condition (CR 605) read by Manabarbs / Mana Flare /
+ *  Wild Growth; non-mana taps still emit so triggers like Lifetap fire. */
+export function emitPermanentTapped(
+    state: GameState,
+    card: CardInstanceState,
+    forMana: boolean,
+    manaProduced?: CardManaCost
+): void {
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "PERMANENT_TAPPED",
+            permanentId: card.id,
+            controllerId: card.controllerId,
+            permanentTypes: [...card.types],
+            permanentSubtypes: [...card.subtypes],
+            forMana,
+            ...(manaProduced ? { manaProduced } : {}),
+        },
+    ];
+}
+
+/** Removes any queued PERMANENT_TAPPED event for `permanentId`. Called by
+ *  payment-rollback paths (untapForPayment, cancelCast, cancelActivation) so
+ *  a tap that was undone before commit doesn't fire its triggers. */
+export function discardPermanentTappedEvent(
+    state: GameState,
+    permanentId: string
+): void {
+    if (!state.pendingEvents) return;
+    const filtered = state.pendingEvents.filter(
+        (e) => !(e.type === "PERMANENT_TAPPED" && e.permanentId === permanentId)
+    );
+    state.pendingEvents = filtered.length === 0 ? undefined : filtered;
+}
+
 /** Drains the pending event queue, returning all queued events in FIFO order
  *  and clearing the buffer. Used by the engine after each action to feed
  *  `collectTriggers` (CR 603.2) and push any newly-matched triggered abilities
@@ -1419,7 +1526,16 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 // with nothing. Matched against the current stack item's id
                 // (the spell/ability dealing the damage).
                 if (consumePreventionIfAny(state, item.id, target.id)) return;
-                getPlayer(state, target.id).life -= amount;
+                // CR 615.1: target-keyed prevention shields absorb up to N
+                // damage per event regardless of source.
+                const reduced = applyTargetPrevention(
+                    state,
+                    "player",
+                    target.id,
+                    amount
+                );
+                if (reduced <= 0) return;
+                getPlayer(state, target.id).life -= reduced;
                 state.pendingEvents = [
                     ...(state.pendingEvents ?? []),
                     {
@@ -1427,7 +1543,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                         sourceInstanceId: item.id,
                         sourceControllerId: item.controllerId,
                         target,
-                        amount,
+                        amount: reduced,
                         isCombat: false,
                     },
                 ];
@@ -1442,12 +1558,19 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 // prevented. `item` is the stack item resolving (spell or
                 // ability); its colors come from its mana cost (CR 202.2).
                 if (isProtectedFromSource(found.card, item)) return;
+                const reduced = applyTargetPrevention(
+                    state,
+                    "permanent",
+                    target.id,
+                    amount
+                );
+                if (reduced <= 0) return;
                 // CR 120.3: damage is marked on the creature and accumulates
                 // until CLEANUP (CR 514.2). Lethal damage (CR 704.5g) is
                 // applied inline using the post-accumulation marked total
                 // compared to effective toughness (layer 7c).
                 found.card.damageMarked =
-                    (found.card.damageMarked ?? 0) + amount;
+                    (found.card.damageMarked ?? 0) + reduced;
                 found.card.damagedBySources = [
                     ...(found.card.damagedBySources ?? []),
                     item.id,
@@ -1459,7 +1582,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                         sourceInstanceId: item.id,
                         sourceControllerId: item.controllerId,
                         target,
-                        amount,
+                        amount: reduced,
                         isCombat: false,
                     },
                 ];
@@ -1487,6 +1610,32 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 {
                     sourceInstanceId,
                     playerId,
+                    duration: resolveDuration(duration, item.castById, state),
+                },
+            ];
+        },
+        preventNextNDamageToTarget(
+            target: TargetSelection,
+            amount: number,
+            duration: DurationSpec
+        ): void {
+            // CR 615.1: damage absorption shield on the target. Decremented
+            // per damage event regardless of source. Permanent target must
+            // still be on the battlefield; a stale id silently no-ops.
+            if (amount <= 0) return;
+            if (target.type === "permanent") {
+                if (!findOnBattlefield(state, target.id)) return;
+            } else if (target.type === "player") {
+                // player target is always valid (CR 109.5 — players persist).
+            } else {
+                return;
+            }
+            state.targetPreventionShields = [
+                ...(state.targetPreventionShields ?? []),
+                {
+                    targetType: target.type,
+                    targetId: target.id,
+                    remaining: amount,
                     duration: resolveDuration(duration, item.castById, state),
                 },
             ];
@@ -1728,6 +1877,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         },
         addMana(cost: CardManaCost): void {
             const player = getPlayer(state, item.castById);
+            for (const [color, amount] of Object.entries(cost)) {
+                if (color === "X" || typeof amount !== "number" || amount <= 0)
+                    continue;
+                player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
+            }
+        },
+        addManaTo(playerId: string, cost: CardManaCost): void {
+            const player = getPlayer(state, playerId);
             for (const [color, amount] of Object.entries(cost)) {
                 if (color === "X" || typeof amount !== "number" || amount <= 0)
                     continue;

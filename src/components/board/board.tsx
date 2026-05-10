@@ -9,7 +9,7 @@ import {
     SkipPhasePrefsContext,
     useSkipPhasePrefsState,
 } from "~/hooks/useSkipPhasePreferences";
-import { preloadCardImages } from "~/lib/image-preload";
+import { preloadArtCropImages, preloadCardImages } from "~/lib/image-preload";
 import { computeSoloViewerId } from "~/lib/priority";
 import PlayerBoard from "./player-board";
 import GameStack from "./game-stack";
@@ -18,6 +18,7 @@ import ActionBar from "./action-bar";
 import AutoPassController from "./auto-pass-controller";
 import GameOverDialog from "./game-over-dialog";
 import PauseMenuDialog from "./pause-menu-dialog";
+import TargetArrowsOverlay from "./target-arrows-overlay";
 import TargetSelectionBanner from "./target-selection-banner";
 import PaymentBanner from "./payment-banner";
 import PendingChoicePrompt from "./pending-choice-prompt";
@@ -59,6 +60,16 @@ export default function Board({
         pageVisible && showAllCards ? { gameId, debugAllActions } : "skip"
     );
     const state = showAllCards ? fullState : publicState;
+
+    const gameCardIds = useQuery(
+        api.game.getGameCardIds,
+        pageVisible ? { gameId } : "skip"
+    );
+    useEffect(() => {
+        if (!gameCardIds || gameCardIds.length === 0) return;
+        preloadCardImages(gameCardIds);
+        preloadArtCropImages(gameCardIds);
+    }, [gameCardIds]);
 
     const players = state?.players;
     const stack = state?.stack;
@@ -168,6 +179,7 @@ export default function Board({
                     ))}
                     <PhaseTracker />
                     {stackItems.length > 0 && <GameStack stack={stackItems} />}
+                    <TargetArrowsOverlay stack={stackItems} />
                     {pendingTarget && pendingTarget.playerId === viewerId && (
                         <TargetSelectionBanner
                             pendingTarget={pendingTarget}

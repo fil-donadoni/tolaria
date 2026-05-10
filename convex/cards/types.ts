@@ -76,6 +76,11 @@ export interface TargetRequirement {
      *  "target tapped creature" (Royal Assassin) and "target untapped
      *  creature" style filters. Ignored for player / spell targets. */
     tappedFilter?: "tapped" | "untapped";
+    /** Restricts legal permanent targets by effective power (CR 613 layer 7c).
+     *  Both bounds are inclusive. Used by "target creature with power 2 or
+     *  less" (Dwarven Warriors) and the modern "target creature with power 4
+     *  or greater" pattern. Ignored for player / spell targets. */
+    powerFilter?: { min?: number; max?: number };
     /** Zone the target lives in (CR 109.2 — objects can exist in zones other
      *  than the battlefield). Default "battlefield". When set to "graveyard",
      *  legal targets are cards in graveyards filtered by `controller` and
@@ -347,6 +352,11 @@ export interface SpellContext {
     /** Adds mana to the caster's mana pool (CR 106.1, 605.4). Mirrors the
      *  mana-ability primitive; used by "add ~" spells like Dark Ritual. */
     addMana: (cost: ManaCost) => void;
+    /** Adds mana to a specific player's mana pool (CR 106.1, 605.4). Used by
+     *  triggers like Mana Flare ("that player adds one mana...") and Wild
+     *  Growth ("its controller adds an additional {G}") that target a player
+     *  other than the trigger's controller. */
+    addManaTo: (playerId: string, cost: ManaCost) => void;
     /** Value chosen for X at cast-time (CR 107.3, 601.2b). 0 if the spell
      *  has no X in its cost. Read by spells like Fireball on resolution. */
     getX: () => number;
@@ -398,6 +408,21 @@ export interface SpellContext {
     preventNextDamageFromSource: (
         sourceInstanceId: string,
         playerId: string,
+        duration: DurationSpec
+    ) => void;
+    /** Records a damage-prevention shield on `target` that absorbs up to
+     *  `amount` total damage from any source (CR 615.1, 615.6). Each damage
+     *  event reduces the shield by the absorbed amount; an event whose damage
+     *  is fully absorbed is replaced with nothing. Multiple shields on the
+     *  same target are consumed in declaration order. The unconsumed
+     *  remainder is purged at `duration` expiry. Used by Samite Healer
+     *  ("prevent the next 1 damage to any target this turn"), Conservator
+     *  ("prevent the next 2 damage to you this turn"), and similar
+     *  prevent-N-to-target effects. No-op if target has left play / amount
+     *  ≤ 0. */
+    preventNextNDamageToTarget: (
+        target: TargetSelection,
+        amount: number,
         duration: DurationSpec
     ) => void;
     /** Grants a keyword static ability to a permanent for a limited duration
@@ -739,6 +764,7 @@ export type GameEventType =
     | "PHASE_BEGIN"
     | "CREATURE_DIED"
     | "SPELL_CAST"
+    | "PERMANENT_TAPPED"
     | "STATE_CHECK";
 
 /** Damage event emitted whenever a source inflicts damage on a target
@@ -811,6 +837,25 @@ export interface SpellCastEvent {
     spellColors: ReadonlyArray<Color>;
 }
 
+/** Tap event emitted whenever a permanent transitions from untapped to
+ *  tapped (CR 701.20a). Carries `forMana: true` when the tap is paying the
+ *  cost of a mana ability (CR 605) — the canonical "tapped for mana"
+ *  trigger condition for Mana Flare, Manabarbs, Wild Growth. Emitted from
+ *  every tap site (twiddle/spell tap, combat declaration, mana abilities,
+ *  regen rider) so triggers like Lifetap ("becomes tapped") see them all. */
+export interface PermanentTappedEvent {
+    type: "PERMANENT_TAPPED";
+    permanentId: string;
+    controllerId: string;
+    permanentTypes: ReadonlyArray<CardType>;
+    permanentSubtypes: ReadonlyArray<string>;
+    forMana: boolean;
+    /** Mana produced by the activated ability that did this tap. Set only
+     *  when `forMana` is true. Used by Mana Flare ("adds one mana of any
+     *  type that land produced"). */
+    manaProduced?: ManaCost;
+}
+
 /** State trigger probe (CR 603.8) emitted at every stable checkpoint where a
  *  player would gain priority. Carries no payload — `matches()` reads
  *  `state` to decide whether the trigger condition is currently met. */
@@ -823,6 +868,7 @@ export type GameEvent =
     | PhaseBeginEvent
     | CreatureDiedEvent
     | SpellCastEvent
+    | PermanentTappedEvent
     | StateCheckEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
@@ -880,6 +926,12 @@ export interface CardDefinition {
     power?: number;
     toughness?: number;
     loyalty?: number;
+    /** Printed Oracle text (read-only, display/reference only). Mirrors the
+     *  card's printed rules text from Scryfall. The engine does NOT parse this
+     *  string — behavior comes from `resolve`/`activatedAbilities`/etc.
+     *  Surfaced in the card preview for spells (Instant/Sorcery), and useful
+     *  for cross-checking implementation against the printed rules. */
+    oracleText?: string;
     /** Target requirements declared at cast time (CR 601.2c). */
     targetRequirement?: TargetRequirement;
     /** Imperative resolve function — called when the spell resolves from the stack. */

@@ -626,27 +626,37 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     const creatures = player.battlefield.filter(isCreature);
     const lands = player.battlefield.filter((c) => isLand(c) && !isCreature(c));
     // Auras attached to a host render alongside that host (not in `others`).
-    // Ungrouped Aura leftovers (attachedTo unset or host not on this
-    // battlefield) fall through to `others` so they remain visible.
+    // The aura's controller may differ from the host's (e.g. Warp Artifact on
+    // an opponent's artifact, CR 303.4): scan all battlefields for auras
+    // whose host sits on this side, not just `player.battlefield`.
+    // Ungrouped Aura leftovers (attachedTo unset or host nowhere on the
+    // board) fall through to `others` so they remain visible.
     const attachedAurasByHost = useMemo(() => {
         const map = new Map<string, CardInstance[]>();
-        for (const c of player.battlefield) {
-            if (!c.attachedTo) continue;
-            const hostOnThisSide = player.battlefield.some(
-                (h) => h.id === c.attachedTo
-            );
-            if (!hostOnThisSide) continue;
-            const bucket = map.get(c.attachedTo);
-            if (bucket) bucket.push(c);
-            else map.set(c.attachedTo, [c]);
+        const hostsOnThisSide = new Set(player.battlefield.map((c) => c.id));
+        for (const p of allPlayers) {
+            for (const c of p.battlefield) {
+                if (!c.attachedTo) continue;
+                if (!hostsOnThisSide.has(c.attachedTo)) continue;
+                const bucket = map.get(c.attachedTo);
+                if (bucket) bucket.push(c);
+                else map.set(c.attachedTo, [c]);
+            }
         }
         return map;
-    }, [player.battlefield]);
+    }, [player.battlefield, allPlayers]);
+    const hostExistsAnywhere = useMemo(() => {
+        const ids = new Set<string>();
+        for (const p of allPlayers) {
+            for (const c of p.battlefield) ids.add(c.id);
+        }
+        return ids;
+    }, [allPlayers]);
     const others = player.battlefield.filter(
         (c) =>
             !isCreature(c) &&
             !isLand(c) &&
-            !(c.attachedTo && attachedAurasByHost.has(c.attachedTo))
+            !(c.attachedTo && hostExistsAnywhere.has(c.attachedTo))
     );
 
     function renderAttachedAura(aura: CardInstance, index: number) {

@@ -1,4 +1,4 @@
-import type { CardInstance } from "~/types/game";
+import type { CardInstance, ManaPool } from "~/types/game";
 import type { Color, ManaCost } from "~/types/cards";
 import type { Phase } from "@convex/gre/types";
 import type { PermanentView, TriggerStateView } from "@convex/cards/types";
@@ -366,6 +366,23 @@ export function formatTypeLine(
 }
 
 const MANA_DISPLAY_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
+
+/** Returns true if `pool` fully covers a numeric `cost` (CR 117.6). Mirrors
+ *  the server-side `isManaCostCovered` for UI affordances such as enabling
+ *  the "Pay" button on a may-pay prompt only when the player's mana pool
+ *  can actually pay the cost. Treats `cost.X` as additional generic mana
+ *  payable from any color. Does NOT handle `X: "X"` (variable cost) — by
+ *  the time the cost reaches the UI it has been normalized to a number. */
+export function isManaCostCovered(pool: ManaPool, cost: ManaCost): boolean {
+    let coloredRemaining = 0;
+    for (const c of MANA_DISPLAY_COLORS) {
+        const need = cost[c] ?? 0;
+        if (need > 0 && (pool[c] ?? 0) < need) return false;
+        coloredRemaining += (pool[c] ?? 0) - need;
+    }
+    const generic = typeof cost.X === "number" ? cost.X : 0;
+    return coloredRemaining >= generic;
+}
 
 /** Serializes a ManaCost into the symbol-token form used by formatOracleText
  *  (e.g. `{ X: 2, R: 1 }` → "{2}{R}"). String X (variable cost) renders as

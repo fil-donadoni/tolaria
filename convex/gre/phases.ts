@@ -7,6 +7,7 @@ import type {
     StackItem,
 } from "./state";
 import {
+    applyTargetPrevention,
     consumePreventionIfAny,
     drawCard,
     flushPendingEvents,
@@ -357,15 +358,23 @@ export function applyAllCombatDamage(
                     defenderId
                 );
                 if (!prevented) {
-                    defender.life -= attackerPower;
-                    events.push({
-                        type: "DAMAGE_DEALT",
-                        sourceInstanceId: attacker.id,
-                        sourceControllerId: attacker.controllerId,
-                        target: { type: "player", id: defenderId },
-                        amount: attackerPower,
-                        isCombat: true,
-                    });
+                    const reduced = applyTargetPrevention(
+                        state,
+                        "player",
+                        defenderId,
+                        attackerPower
+                    );
+                    if (reduced > 0) {
+                        defender.life -= reduced;
+                        events.push({
+                            type: "DAMAGE_DEALT",
+                            sourceInstanceId: attacker.id,
+                            sourceControllerId: attacker.controllerId,
+                            target: { type: "player", id: defenderId },
+                            amount: reduced,
+                            isCombat: true,
+                        });
+                    }
                 }
             }
         } else {
@@ -383,13 +392,20 @@ export function applyAllCombatDamage(
                             defenderId
                         );
                         if (prevented) continue;
-                        defender.life -= damage;
+                        const reduced = applyTargetPrevention(
+                            state,
+                            "player",
+                            defenderId,
+                            damage
+                        );
+                        if (reduced <= 0) continue;
+                        defender.life -= reduced;
                         events.push({
                             type: "DAMAGE_DEALT",
                             sourceInstanceId: attacker.id,
                             sourceControllerId: attacker.controllerId,
                             target: { type: "player", id: defenderId },
-                            amount: damage,
+                            amount: reduced,
                             isCombat: true,
                         });
                     } else {
@@ -404,14 +420,21 @@ export function applyAllCombatDamage(
                         ) {
                             continue;
                         }
+                        const reduced = applyTargetPrevention(
+                            state,
+                            "permanent",
+                            targetId,
+                            damage
+                        );
+                        if (reduced <= 0) continue;
                         damageReceived[targetId] =
-                            (damageReceived[targetId] ?? 0) + damage;
+                            (damageReceived[targetId] ?? 0) + reduced;
                         events.push({
                             type: "DAMAGE_DEALT",
                             sourceInstanceId: attacker.id,
                             sourceControllerId: attacker.controllerId,
                             target: { type: "permanent", id: targetId },
-                            amount: damage,
+                            amount: reduced,
                             isCombat: true,
                         });
                     }
@@ -432,14 +455,21 @@ export function applyAllCombatDamage(
                 // symmetric "attacker protected from blocker's color can't
                 // be blocked" case was rejected at block-declaration.)
                 if (isProtectedFromSource(attacker, blocker)) continue;
+                const reduced = applyTargetPrevention(
+                    state,
+                    "permanent",
+                    attackerId,
+                    blockerPower
+                );
+                if (reduced <= 0) continue;
                 damageReceived[attackerId] =
-                    (damageReceived[attackerId] ?? 0) + blockerPower;
+                    (damageReceived[attackerId] ?? 0) + reduced;
                 events.push({
                     type: "DAMAGE_DEALT",
                     sourceInstanceId: blocker.id,
                     sourceControllerId: blocker.controllerId,
                     target: { type: "permanent", id: attackerId },
-                    amount: blockerPower,
+                    amount: reduced,
                     isCombat: true,
                 });
             }
@@ -732,6 +762,17 @@ function tickAllDurations(state: GameState): void {
         state.preventionEffects = kept.length > 0 ? kept : undefined;
     }
 
+    // Target-keyed prevention shields (e.g. Samite Healer, Conservator).
+    // Unconsumed remainder wears off at the same boundary.
+    if (state.targetPreventionShields?.length) {
+        const kept: typeof state.targetPreventionShields = [];
+        for (const shield of state.targetPreventionShields) {
+            const next = tickDuration(shield.duration, view);
+            if (next !== null) kept.push({ ...shield, duration: next });
+        }
+        state.targetPreventionShields = kept.length > 0 ? kept : undefined;
+    }
+
     // "Becomes a creature" animations (e.g. Jade Statue). On expiry, splice
     // back out anything the animation added and restore the pre-animation
     // P/T so the permanent returns to its original shape.
@@ -845,7 +886,7 @@ function defenderHasAnyLegalBlock(state: GameState): boolean {
         const card = activePlayer.battlefield.find((c) => c.id === id);
         if (card) attackers.push(card);
     }
-    return hasAnyLegalBlock(attackers, defender.battlefield);
+    return hasAnyLegalBlock(attackers, defender.battlefield, state);
 }
 
 export function advancePhase(state: GameState): Phase[] {

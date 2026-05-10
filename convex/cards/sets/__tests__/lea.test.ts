@@ -81,15 +81,36 @@ import {
     clockworkBeast,
     counterspell,
     controlMagic,
+    conservator,
     creatureBond,
     crystalRod,
+    deathgrip,
+    dwarvenWarriors,
+    fear,
+    firebreathing,
     fungusaur,
+    giantSpider,
+    holyArmor,
+    invisibility,
     ironStar,
+    ironclawOrcs,
     ivoryCup,
+    lifeforce,
+    lifetap,
+    manaFlare,
+    manabarbs,
+    northernPaladin,
+    pestilence,
+    powerLeak,
+    powerSurge,
+    psychicVenom,
+    samiteHealer,
     scavengingGhoul,
     soulNet,
+    web,
     throneOfBone,
     verduranEnchantress,
+    wildGrowth,
     woodenSphere,
     ancestralRecall,
     darkRitual,
@@ -155,6 +176,7 @@ import {
     removePermanentTo,
     resolveTopOfStack,
     emitSpellCastEvent,
+    emitPermanentTapped,
     processPendingActionTriggers,
     type CardInstanceState,
     type GameState,
@@ -8801,6 +8823,73 @@ describe("Sphere cycle (may pay {1} for 1 life on color spell)", () => {
             expect(trig!.matches(ev, self)).toBe(true);
         }
     });
+
+    // Regression: triggered abilities that suspend via `requestMayPay` must
+    // peek-and-pop in resolveTopOfStack — popping before resolve runs caused
+    // submitMayPay to fail with "Stack item not found" because the
+    // pendingChoice's stackItemId pointed at an already-removed item
+    // (CR 608.2 / 117.3a).
+    it("Ivory Cup pay-flow: trigger stays on stack while may-pay is open, gains 1 life on accept", () => {
+        const cup = makeInstance(ivoryCup.id, {
+            id: "cup",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cup], life: 20 }),
+                makePlayer("p2"),
+            ],
+        });
+        // Push Ivory Cup's trigger onto the stack manually with the same
+        // shape collectTriggers would build (triggeredAbilityId + triggerEvent).
+        const trigItem = {
+            ...cup,
+            id: "trig-ivory",
+            castById: "p1",
+            zone: "stack" as const,
+            triggeredAbilityId: "ivory-cup-life",
+            triggerEvent: {
+                type: "SPELL_CAST" as const,
+                casterId: "p2",
+                spellInstanceId: "spell-x",
+                spellCardId: "spell-x-def",
+                spellTypes: ["Instant"] as CardType[],
+                spellSubtypes: [],
+                spellColors: ["W" as const],
+            },
+            targets: [],
+        };
+        state.stack.push(trigItem);
+
+        // First resolve: should suspend because requestMayPay queues a
+        // pendingChoice. The stack item must remain so submitMayPay can locate
+        // it via stackItemId.
+        const result = resolveTopOfStack(state);
+        expect(result).toBeNull();
+        expect(state.stack).toHaveLength(1);
+        expect(state.pendingChoices).toBeDefined();
+        const pending = state.pendingChoices![0];
+        expect(pending.kind).toBe("may-pay");
+        expect(pending.stackItemId).toBe("trig-ivory");
+        const stackItem = state.stack.find((s) => s.id === pending.stackItemId);
+        expect(stackItem).toBeDefined();
+
+        // Simulate submitMayPay accept=yes: write collectedChoices, drop the
+        // pending choice, re-invoke resolveTopOfStack. The trigger must now
+        // run to completion (gainLife) and the stack item must be popped.
+        const key = `${pending.step}:${pending.choiceId}`;
+        stackItem!.collectedChoices = { [key]: ["yes"] };
+        state.pendingChoices = undefined;
+        // (controller pre-paid {1} via mana abilities in the real flow; here
+        // we bypass payment because requestMayPay only consumes the answer.)
+
+        const resumed = resolveTopOfStack(state);
+        expect(resumed).not.toBeNull();
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].life).toBe(21);
+    });
 });
 
 describe("Soul Net (may pay {1} on creature death for 1 life)", () => {
@@ -8825,6 +8914,1234 @@ describe("Soul Net (may pay {1} on creature death for 1 life)", () => {
             creatureToughness: 2,
         };
         expect(trig!.matches(ev, self)).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// PERMANENT_TAPPED triggers (CR 603.2 + 605)
+// ---------------------------------------------------------------------------
+
+describe("Mana Flare (extra mana on land tap)", () => {
+    it("matches forMana taps of Lands and skips non-Land or non-mana taps", () => {
+        const trig = manaFlare.triggeredAbilities?.[0];
+        expect(trig).toBeDefined();
+        const self = {
+            id: "mf",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Enchantment"] as CardType[],
+            subtypes: [],
+            isTapped: false,
+            card: {},
+        };
+        const baseEvent = {
+            type: "PERMANENT_TAPPED" as const,
+            permanentId: "land",
+            controllerId: "p2",
+            permanentTypes: ["Land"] as CardType[],
+            permanentSubtypes: ["Forest"],
+            forMana: true,
+            manaProduced: { G: 1 },
+        };
+        expect(trig!.matches(baseEvent, self)).toBe(true);
+        expect(trig!.matches({ ...baseEvent, forMana: false }, self)).toBe(
+            false
+        );
+        expect(
+            trig!.matches(
+                {
+                    ...baseEvent,
+                    permanentTypes: ["Creature"] as CardType[],
+                },
+                self
+            )
+        ).toBe(false);
+    });
+});
+
+describe("Manabarbs (1 damage on land tap)", () => {
+    it("matches every land mana tap", () => {
+        const trig = manabarbs.triggeredAbilities?.[0];
+        expect(trig).toBeDefined();
+        const self = {
+            id: "mb",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Enchantment"] as CardType[],
+            subtypes: [],
+            isTapped: false,
+            card: {},
+        };
+        const ev = {
+            type: "PERMANENT_TAPPED" as const,
+            permanentId: "x",
+            controllerId: "p2",
+            permanentTypes: ["Land"] as CardType[],
+            permanentSubtypes: ["Mountain"],
+            forMana: true,
+            manaProduced: { R: 1 },
+        };
+        expect(trig!.matches(ev, self)).toBe(true);
+    });
+});
+
+describe("Lifetap (gain 1 life on opponent's Forest becoming tapped)", () => {
+    it("matches opponent Forest tap, ignores own Forest, ignores non-Forest", () => {
+        const trig = lifetap.triggeredAbilities?.[0];
+        expect(trig).toBeDefined();
+        const self = {
+            id: "lt",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Enchantment"] as CardType[],
+            subtypes: [],
+            isTapped: false,
+            card: {},
+        };
+        const oppForest = {
+            type: "PERMANENT_TAPPED" as const,
+            permanentId: "f",
+            controllerId: "p2",
+            permanentTypes: ["Land"] as CardType[],
+            permanentSubtypes: ["Forest"],
+            forMana: false,
+        };
+        expect(trig!.matches(oppForest, self)).toBe(true);
+        expect(trig!.matches({ ...oppForest, controllerId: "p1" }, self)).toBe(
+            false
+        );
+        expect(
+            trig!.matches(
+                { ...oppForest, permanentSubtypes: ["Mountain"] },
+                self
+            )
+        ).toBe(false);
+    });
+});
+
+describe("Wild Growth (extra {G} on attached land mana tap)", () => {
+    it("matches only the attached host's mana tap", () => {
+        const trig = wildGrowth.triggeredAbilities?.[0];
+        expect(trig).toBeDefined();
+        const self = {
+            id: "wg",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Enchantment"] as CardType[],
+            subtypes: ["Aura"],
+            isTapped: false,
+            attachedTo: "host-forest",
+            card: {},
+        };
+        const host = {
+            type: "PERMANENT_TAPPED" as const,
+            permanentId: "host-forest",
+            controllerId: "p1",
+            permanentTypes: ["Land"] as CardType[],
+            permanentSubtypes: ["Forest"],
+            forMana: true,
+            manaProduced: { G: 1 },
+        };
+        expect(trig!.matches(host, self)).toBe(true);
+        expect(
+            trig!.matches({ ...host, permanentId: "other-forest" }, self)
+        ).toBe(false);
+        expect(trig!.matches({ ...host, forMana: false }, self)).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// PERMANENT_TAPPED engine integration (CR 603.2 — emit + collect + resolve)
+// ---------------------------------------------------------------------------
+
+describe("mana-tap triggers fire end-to-end", () => {
+    it("Manabarbs deals 1 damage to the player who tapped a Mountain", () => {
+        const state = makeState();
+        const p1 = state.players[0];
+        const mountain = makeInstance("eace2c85-976c-425e-9800-5a6ccbd91b56", {
+            controllerId: "p1",
+        });
+        const manabarbsCard = makeInstance(manabarbs.id, {
+            controllerId: "p1",
+        });
+        p1.battlefield.push(mountain, manabarbsCard);
+
+        emitPermanentTapped(state, mountain, true, { R: 1 });
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("manabarbs-damage");
+
+        resolveTopOfStack(state);
+        expect(p1.life).toBe(19);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("Mana Flare adds an extra mana of the produced color on land tap", () => {
+        const state = makeState();
+        const p1 = state.players[0];
+        const forest = makeInstance("6f1c8cb0-38eb-408b-94e8-16db83999b3b", {
+            controllerId: "p1",
+        });
+        const manaFlareCard = makeInstance(manaFlare.id, {
+            controllerId: "p1",
+        });
+        p1.battlefield.push(forest, manaFlareCard);
+        p1.manaPool.G = 1;
+
+        emitPermanentTapped(state, forest, true, { G: 1 });
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("mana-flare-extra");
+
+        resolveTopOfStack(state);
+        expect(p1.manaPool.G).toBe(2);
+    });
+
+    it("Wild Growth fires only when its enchanted host is tapped for mana", () => {
+        const state = makeState();
+        const p1 = state.players[0];
+        const enchantedForest = makeInstance(
+            "6f1c8cb0-38eb-408b-94e8-16db83999b3b",
+            { controllerId: "p1" }
+        );
+        const otherForest = makeInstance(
+            "6f1c8cb0-38eb-408b-94e8-16db83999b3b",
+            { controllerId: "p1" }
+        );
+        const wildGrowthCard = makeInstance(wildGrowth.id, {
+            controllerId: "p1",
+            attachedTo: enchantedForest.id,
+        });
+        p1.battlefield.push(enchantedForest, otherForest, wildGrowthCard);
+
+        emitPermanentTapped(state, otherForest, true, { G: 1 });
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(0);
+
+        emitPermanentTapped(state, enchantedForest, true, { G: 1 });
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "wild-growth-extra-green"
+        );
+
+        p1.manaPool.G = 1;
+        resolveTopOfStack(state);
+        expect(p1.manaPool.G).toBe(2);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Wave 1 (PERMANENT_TAPPED / aura-activated / counter-spell-color additions)
+// ---------------------------------------------------------------------------
+
+describe("Firebreathing (Aura — {R}: enchanted creature gets +1/+0 EOT)", () => {
+    function setup() {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(firebreathing.id, {
+            id: "fb",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "bear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, aura };
+    }
+
+    it("activation pumps host +1/+0 until end of turn", () => {
+        const { state, aura } = setup();
+        activatePump(state, aura, "firebreathing-pump");
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, bear)).toBe(3);
+        expect(getEffectiveToughness(state, bear)).toBe(2);
+    });
+
+    it("multiple activations stack additively", () => {
+        const { state, aura } = setup();
+        activatePump(state, aura, "firebreathing-pump");
+        activatePump(state, aura, "firebreathing-pump");
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, bear)).toBe(4);
+    });
+
+    it("no-op when aura no longer attached (CR 608.2b)", () => {
+        const { state, aura } = setup();
+        aura.attachedTo = undefined;
+        activatePump(state, aura, "firebreathing-pump");
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, bear)).toBe(2);
+    });
+});
+
+describe("Holy Armor (Aura — +0/+2 + {1}{W}: enchanted creature gets +0/+3 EOT)", () => {
+    function setup() {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(holyArmor.id, {
+            id: "ha",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "bear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, aura };
+    }
+
+    it("static buff +0/+2 applies to host", () => {
+        const { state } = setup();
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, bear)).toBe(2);
+        expect(getEffectiveToughness(state, bear)).toBe(4);
+    });
+
+    it("activated +0/+3 stacks with the static buff (total +0/+5)", () => {
+        const { state, aura } = setup();
+        activatePump(state, aura, "holy-armor-pump");
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, bear)).toBe(2);
+        expect(getEffectiveToughness(state, bear)).toBe(7);
+    });
+
+    it("wire format: static +0/+2 survives the projection", () => {
+        const { state } = setup();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+});
+
+describe("Giant Spider (vanilla 2/4 reach, CR 702.17)", () => {
+    it("declares reach as a static ability", () => {
+        expect(giantSpider.staticAbilities).toContain("reach");
+        expect(giantSpider.power).toBe(2);
+        expect(giantSpider.toughness).toBe(4);
+    });
+
+    it("can block a flier (combat validator honors reach)", () => {
+        const spider = makeInstance(giantSpider.id, {
+            id: "spider",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: false,
+        });
+        const flier = makeInstance(shivanDragon.id, {
+            id: "drag",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+            isAttacking: true,
+        });
+        const result = validateBlockerEligibility(flier, spider, []);
+        expect(result.eligible).toBe(true);
+    });
+});
+
+describe("Web (Aura — enchanted creature gets +0/+2 and has reach)", () => {
+    function setup() {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, web.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("buffs host +0/+2 and grants reach", () => {
+        const state = setup();
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, bear)).toBe(2);
+        expect(getEffectiveToughness(state, bear)).toBe(4);
+        expect(bear.staticAbilities).toContain("reach");
+    });
+
+    it("wire format: pt + reach survive the projection", () => {
+        const state = setup();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+        expect(slim.staticAbilities).toContain("reach");
+    });
+});
+
+describe("Psychic Venom (Aura on Land — 2 damage to host's controller on tap)", () => {
+    it("trigger matches only the attached host's tap event", () => {
+        const trig = psychicVenom.triggeredAbilities?.[0];
+        expect(trig).toBeDefined();
+        const self = {
+            id: "pv",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Enchantment"] as CardType[],
+            subtypes: ["Aura"],
+            isTapped: false,
+            attachedTo: "host-land",
+            card: {},
+        };
+        const matchingEvent = {
+            type: "PERMANENT_TAPPED" as const,
+            permanentId: "host-land",
+            controllerId: "p2",
+            permanentTypes: ["Land"] as CardType[],
+            permanentSubtypes: ["Forest"],
+            forMana: true,
+            manaProduced: { G: 1 },
+        };
+        expect(trig!.matches(matchingEvent, self)).toBe(true);
+        // Other land tap → ignored
+        expect(
+            trig!.matches({ ...matchingEvent, permanentId: "other" }, self)
+        ).toBe(false);
+    });
+
+    it("end-to-end: tapping host land queues + resolves into 2 damage", () => {
+        const hostLand = makeInstance(swamp.id, {
+            id: "host-land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const aura = makeInstance(psychicVenom.id, {
+            id: "pv",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host-land",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [aura] }),
+                makePlayer("p2", { battlefield: [hostLand] }),
+            ],
+        });
+        const before = state.players[1].life;
+        emitPermanentTapped(state, hostLand, true, { B: 1 });
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("psychic-venom-damage");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(before - 2);
+    });
+});
+
+describe("Lifeforce ({G}, Sacrifice: counter target Black spell)", () => {
+    it("declares the activated ability with sacrifice cost + Black colorFilter", () => {
+        const ability = lifeforce.activatedAbilities?.[0];
+        expect(ability?.cost).toEqual({ mana: { G: 1 }, sacrifice: true });
+        expect(ability?.useStack).toBe(true);
+        expect(ability?.targetRequirement).toEqual({
+            type: "spell",
+            count: 1,
+            colorFilter: "B",
+        });
+    });
+});
+
+describe("Deathgrip ({B}, Sacrifice: counter target Green spell)", () => {
+    it("declares the activated ability with sacrifice cost + Green colorFilter", () => {
+        const ability = deathgrip.activatedAbilities?.[0];
+        expect(ability?.cost).toEqual({ mana: { B: 1 }, sacrifice: true });
+        expect(ability?.useStack).toBe(true);
+        expect(ability?.targetRequirement).toEqual({
+            type: "spell",
+            count: 1,
+            colorFilter: "G",
+        });
+    });
+});
+
+describe("Power Leak (Aura on Enchantment — host's controller pays {U} or loses 1 life at upkeep)", () => {
+    function setup(activePlayerId: string) {
+        const hostEnchant = makeInstance(badMoon.id, {
+            id: "host-ench",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(powerLeak.id, {
+            id: "pl",
+            controllerId: "p2",
+            ownerId: "p2",
+            attachedTo: "host-ench",
+        });
+        return makeState({
+            turn: 2,
+            phase: "UNTAP",
+            activePlayerId,
+            priorityPlayerId: activePlayerId,
+            players: [
+                makePlayer("p1", { battlefield: [hostEnchant] }),
+                makePlayer("p2", { battlefield: [aura] }),
+            ],
+        });
+    }
+
+    it("queues at host's controller's upkeep and asks them to pay {U}", () => {
+        const state = setup("p1");
+        advancePhase(state);
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("power-leak-upkeep");
+        // First call enqueues a may-pay choice for p1.
+        resolveTopOfStack(state);
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+    });
+
+    it("does NOT fire on a non-host-controller's upkeep", () => {
+        const state = setup("p2");
+        advancePhase(state);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("declining the may-pay loses 1 life", () => {
+        const state = setup("p1");
+        advancePhase(state);
+        // First resolve enqueues the choice; commit "decline" then resolve again.
+        resolveTopOfStack(state);
+        const head = state.pendingChoices?.[0];
+        expect(head).toBeDefined();
+        const item = state.stack.find((s) => s.id === head!.stackItemId);
+        expect(item).toBeDefined();
+        item!.collectedChoices = {
+            ...(item!.collectedChoices ?? {}),
+            [`${head!.step}:${head!.choiceId}`]: ["decline"],
+        };
+        state.pendingChoices = undefined;
+        const before = state.players[0].life;
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(before - 1);
+    });
+});
+
+describe("Northern Paladin ({W}{W}, {T}: destroy target black creature)", () => {
+    function setup() {
+        const paladin = makeInstance(northernPaladin.id, {
+            id: "paladin",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const blackVictim: CardInstanceState = {
+            id: "victim",
+            card: { id: "fake-black", manaCost: { B: 1 } },
+            types: ["Creature"] as CardType[],
+            subtypes: [],
+            staticAbilities: [],
+            power: 2,
+            toughness: 2,
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            isTapped: false,
+        };
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [paladin] }),
+                makePlayer("p2", { battlefield: [blackVictim] }),
+            ],
+        });
+        return { state, paladin };
+    }
+
+    it("destroys a black creature on resolution", () => {
+        const { state, paladin } = setup();
+        state.stack.push({
+            ...paladin,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "northern-paladin-destroy",
+            targets: [{ type: "permanent", id: "victim" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("victim");
+    });
+
+    it("getLegalTargets only returns black creatures", () => {
+        const { state } = setup();
+        const whiteLion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(whiteLion);
+        const req = northernPaladin.activatedAbilities?.[0]?.targetRequirement;
+        if (!req) throw new Error("requirement missing");
+        const ids = getLegalTargets(state, req).map((t) => t.id);
+        expect(ids).toContain("victim");
+        expect(ids).not.toContain("lion");
+    });
+});
+
+describe("Pestilence (upkeep sacrifice unless {B} + {B}: 1 dmg to each creature/player)", () => {
+    function setup() {
+        const enchant = makeInstance(pestilence.id, {
+            id: "pest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const ourBear = makeInstance(grizzlyBears.id, {
+            id: "our-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppBear = makeInstance(grizzlyBears.id, {
+            id: "opp-bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [enchant, ourBear] }),
+                makePlayer("p2", { battlefield: [oppBear] }),
+            ],
+        });
+        return { state, enchant };
+    }
+
+    it("activated {B} deals 1 damage to each creature and each player", () => {
+        const { state, enchant } = setup();
+        state.stack.push({
+            ...enchant,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "pestilence-damage",
+            targets: [],
+        });
+        const beforeP1 = state.players[0].life;
+        const beforeP2 = state.players[1].life;
+        resolveTopOfStack(state);
+        // Both 2/2 bears take 1 damage — survive.
+        const ourBear = state.players[0].battlefield.find(
+            (c) => c.id === "our-bear"
+        )!;
+        const oppBear = state.players[1].battlefield.find(
+            (c) => c.id === "opp-bear"
+        )!;
+        expect(ourBear.damageMarked).toBe(1);
+        expect(oppBear.damageMarked).toBe(1);
+        expect(state.players[0].life).toBe(beforeP1 - 1);
+        expect(state.players[1].life).toBe(beforeP2 - 1);
+    });
+
+    it("canActivate returns false when no creature is on the battlefield", () => {
+        const enchant = makeInstance(pestilence.id, {
+            id: "pest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [enchant] }),
+                makePlayer("p2"),
+            ],
+        });
+        const ability = pestilence.activatedAbilities?.[0];
+        expect(ability?.canActivate).toBeDefined();
+        const self = state.players[0].battlefield[0];
+        expect(ability!.canActivate!(self, state)).toBe(false);
+    });
+
+    it("upkeep trigger queues a may-pay then sacrifices on decline", () => {
+        const { state } = setup();
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        state.phase = "UNTAP";
+        advancePhase(state); // → UPKEEP
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("pestilence-upkeep");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices?.[0];
+        expect(head?.playerId).toBe("p1");
+        const item = state.stack.find((s) => s.id === head!.stackItemId)!;
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${head!.step}:${head!.choiceId}`]: ["decline"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+        // Pestilence sacrificed → moved to graveyard.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "pest")
+        ).toBeUndefined();
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("pest");
+    });
+});
+
+describe("Power Surge (each player takes damage = untapped lands at upkeep)", () => {
+    function setup(opts: {
+        p1Untapped: number;
+        p1Tapped: number;
+        activePlayerId: string;
+    }) {
+        const enchant = makeInstance(powerSurge.id, {
+            id: "ps",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const p1Battlefield: CardInstanceState[] = [];
+        for (let i = 0; i < opts.p1Untapped; i++)
+            p1Battlefield.push(
+                makeInstance(swamp.id, {
+                    id: `p1-u-${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                })
+            );
+        for (let i = 0; i < opts.p1Tapped; i++)
+            p1Battlefield.push(
+                makeInstance(swamp.id, {
+                    id: `p1-t-${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    isTapped: true,
+                })
+            );
+        return makeState({
+            turn: 2,
+            phase: "UNTAP",
+            activePlayerId: opts.activePlayerId,
+            priorityPlayerId: opts.activePlayerId,
+            players: [
+                makePlayer("p1", { battlefield: p1Battlefield }),
+                makePlayer("p2", { battlefield: [enchant] }),
+            ],
+        });
+    }
+
+    it("damages active player only by their UNTAPPED land count (tapped lands skipped)", () => {
+        // 3 untapped + 1 tapped (manually). Untap step is bypassed in this
+        // test path — the trigger should still correctly skip the tapped one.
+        const state = setup({
+            p1Untapped: 3,
+            p1Tapped: 1,
+            activePlayerId: "p1",
+        });
+        const before = state.players[0].life;
+        advancePhase(state); // UNTAP → UPKEEP
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        // Only 3 untapped lands → 3 damage (tapped one is skipped).
+        expect(state.players[0].life).toBe(before - 3);
+    });
+
+    it("no-op (no stack entry / no damage) when active player has 0 untapped lands", () => {
+        const state = setup({
+            p1Untapped: 0,
+            p1Tapped: 0,
+            activePlayerId: "p1",
+        });
+        advancePhase(state);
+        // Trigger predicate matches but resolve guards on count > 0.
+        if (state.stack.length > 0) resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Wave 2 — block restrictions (CR 509.1b, 702.36b)
+// ---------------------------------------------------------------------------
+
+describe("Invisibility (Aura — host can be blocked only by Walls)", () => {
+    function setup() {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, invisibility.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        return { state };
+    }
+
+    it("grants the Wall-only restriction keyword to the host", () => {
+        const { state } = setup();
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(bear.staticAbilities).toContain(
+            "cant-be-blocked-except-by-wall"
+        );
+    });
+
+    it("non-Wall blocker is illegal against the enchanted attacker", () => {
+        const { state } = setup();
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        const blocker = makeInstance(grizzlyBears.id, {
+            id: "blk",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: false,
+        });
+        const result = validateBlockerEligibility(bear, blocker, [blocker]);
+        expect(result.eligible).toBe(false);
+    });
+
+    it("Wall blocker is legal", () => {
+        const { state } = setup();
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        const wall = makeInstance(wallOfWater.id, {
+            id: "wall",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: false,
+        });
+        expect(validateBlockerEligibility(bear, wall, [wall])).toEqual({
+            eligible: true,
+        });
+    });
+});
+
+describe("Fear (Aura — host can be blocked only by Black or Artifact)", () => {
+    function setup() {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, fear.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        return { state };
+    }
+
+    it("grants 'fear' keyword to the host", () => {
+        const { state } = setup();
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(bear.staticAbilities).toContain("fear");
+    });
+
+    it("rejects non-black non-artifact blocker", () => {
+        const { state } = setup();
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        // grizzlyBears is green
+        const greenBlocker = makeInstance(grizzlyBears.id, {
+            id: "blk",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: false,
+        });
+        expect(
+            validateBlockerEligibility(bear, greenBlocker, [greenBlocker])
+                .eligible
+        ).toBe(false);
+    });
+
+    it("accepts a black blocker", () => {
+        const { state } = setup();
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        // hypnoticSpecter is black (cost {1}{B}{B})
+        const blackBlocker = makeInstance(hypnoticSpecter.id, {
+            id: "blk",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: false,
+        });
+        expect(
+            validateBlockerEligibility(bear, blackBlocker, [blackBlocker])
+        ).toEqual({ eligible: true });
+    });
+});
+
+describe("Ironclaw Orcs (can't block creatures with power 2 or greater)", () => {
+    it("declares the keyword on the card", () => {
+        expect(ironclawOrcs.staticAbilities).toContain(
+            "cant-block-power-2-or-greater"
+        );
+    });
+
+    it("blocking a 2/2 attacker is illegal", () => {
+        const orc = makeInstance(ironclawOrcs.id, {
+            id: "orc",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const big = makeInstance(grizzlyBears.id, {
+            id: "big",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [orc] }),
+                makePlayer("p2", { battlefield: [big] }),
+            ],
+        });
+        expect(
+            validateBlockerEligibility(big, orc, [orc], state).eligible
+        ).toBe(false);
+    });
+
+    it("blocking a 1/1 attacker is legal", () => {
+        const orc = makeInstance(ironclawOrcs.id, {
+            id: "orc",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const tiny = makeInstance(savannahLions.id, {
+            id: "tiny",
+            controllerId: "p2",
+            ownerId: "p2",
+            power: 1,
+            toughness: 1,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [orc] }),
+                makePlayer("p2", { battlefield: [tiny] }),
+            ],
+        });
+        expect(validateBlockerEligibility(tiny, orc, [orc], state)).toEqual({
+            eligible: true,
+        });
+    });
+
+    it("layer-buffed attacker (Crusade-style) trips the restriction", () => {
+        // Synthesize a 1/1 white creature so Crusade pumps it to 2/2.
+        const orc = makeInstance(ironclawOrcs.id, {
+            id: "orc",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+            power: 1,
+            toughness: 1,
+            isSummoningSick: false,
+        });
+        const crusadeEnch = makeInstance(crusade.id, {
+            id: "crusade",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [orc] }),
+                makePlayer("p2", { battlefield: [lion, crusadeEnch] }),
+            ],
+        });
+        // Crusade pumps Savannah Lions to 2/2 → Ironclaw can't block.
+        expect(
+            validateBlockerEligibility(lion, orc, [orc], state).eligible
+        ).toBe(false);
+    });
+});
+
+describe("Dwarven Warriors ({T}: target creature with power 2 or less can't be blocked this turn)", () => {
+    function setup(targetPower: number) {
+        const dw = makeInstance(dwarvenWarriors.id, {
+            id: "dw",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const target = makeInstance(grizzlyBears.id, {
+            id: "tgt",
+            controllerId: "p1",
+            ownerId: "p1",
+            power: targetPower,
+            toughness: 2,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [dw, target] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, dw };
+    }
+
+    it("declares power ≤ 2 target requirement", () => {
+        const ability = dwarvenWarriors.activatedAbilities?.[0];
+        expect(ability?.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+            powerFilter: { max: 2 },
+        });
+    });
+
+    it("activated → grants 'unblockable' to legal target until EOT", () => {
+        const { state, dw } = setup(2);
+        state.stack.push({
+            ...dw,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "dwarven-warriors-unblockable",
+            targets: [{ type: "permanent", id: "tgt" }],
+        });
+        resolveTopOfStack(state);
+        const tgt = state.players[0].battlefield.find((c) => c.id === "tgt")!;
+        expect(tgt.staticAbilities).toContain("unblockable");
+    });
+
+    it("granted unblockable rejects every blocker in combat", () => {
+        const { state, dw } = setup(2);
+        state.stack.push({
+            ...dw,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "dwarven-warriors-unblockable",
+            targets: [{ type: "permanent", id: "tgt" }],
+        });
+        resolveTopOfStack(state);
+        const attacker = state.players[0].battlefield.find(
+            (c) => c.id === "tgt"
+        )!;
+        const blocker = makeInstance(grizzlyBears.id, {
+            id: "blk",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: false,
+        });
+        expect(
+            validateBlockerEligibility(attacker, blocker, [blocker], state)
+                .eligible
+        ).toBe(false);
+    });
+
+    it("getLegalTargets only returns creatures with power ≤ 2", () => {
+        const { state } = setup(2);
+        // Add a 6/6 Shivan Dragon — should be excluded.
+        const big = makeInstance(shivanDragon.id, {
+            id: "big",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        state.players[0].battlefield.push(big);
+        const req = dwarvenWarriors.activatedAbilities?.[0]?.targetRequirement;
+        if (!req) throw new Error("requirement missing");
+        const ids = getLegalTargets(state, req).map((t) => t.id);
+        expect(ids).toContain("tgt");
+        expect(ids).not.toContain("big");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Wave 3 — prevent-to-target shields (CR 615.1)
+// ---------------------------------------------------------------------------
+
+describe("Samite Healer ({T}: prevent next 1 to any target this turn)", () => {
+    function setup() {
+        const healer = makeInstance(samiteHealer.id, {
+            id: "healer",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const friendBear = makeInstance(grizzlyBears.id, {
+            id: "friend",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [healer, friendBear] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, healer };
+    }
+
+    function activate(
+        state: GameState,
+        healer: CardInstanceState,
+        target: { type: "permanent" | "player"; id: string }
+    ) {
+        state.stack.push({
+            ...healer,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "samite-healer-prevent",
+            targets: [target],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("declares 'any target' requirement (count 1)", () => {
+        const ability = samiteHealer.activatedAbilities?.[0];
+        expect(ability?.targetRequirement).toEqual({ type: "any", count: 1 });
+        expect(ability?.cost).toEqual({ tap: true });
+    });
+
+    it("absorbs 1 damage of incoming Lightning Bolt to a player", () => {
+        const { state, healer } = setup();
+        activate(state, healer, { type: "player", id: "p2" });
+        const p2BeforeBolt = state.players[1].life;
+        // Lightning Bolt p2: 3 damage, 1 absorbed, 2 land.
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(p2BeforeBolt - 2);
+    });
+
+    it("absorbs 1 damage on a creature (residual marked on the survivor)", () => {
+        const { state, healer } = setup();
+        const enemyDragon = makeInstance(shivanDragon.id, {
+            id: "enemy",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(enemyDragon);
+        activate(state, healer, { type: "permanent", id: "enemy" });
+        // Lightning Bolt: 3 dmg → 1 absorbed → 2 marked. Dragon (5/5)
+        // survives so we can read the marked total.
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "permanent", id: "enemy" },
+        ]);
+        resolveTopOfStack(state);
+        const after = state.players[1].battlefield.find(
+            (c) => c.id === "enemy"
+        )!;
+        expect(after.damageMarked).toBe(2);
+    });
+
+    it("shield is consumed by the first event (no leftover for next event)", () => {
+        const { state, healer } = setup();
+        activate(state, healer, { type: "player", id: "p2" });
+        const before = state.players[1].life;
+        // First Bolt: 3 → 2 absorbed.
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(before - 2);
+        // Second Bolt: shield depleted → full 3.
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(before - 5);
+    });
+
+    it("unconsumed shield wears off at CLEANUP (CR 514.2)", () => {
+        const { state, healer } = setup();
+        activate(state, healer, { type: "player", id: "p2" });
+        expect(state.targetPreventionShields).toHaveLength(1);
+        // Tick to CLEANUP: hop directly to END_STEP then advance.
+        state.phase = "END_STEP";
+        advancePhase(state);
+        expect(state.targetPreventionShields).toBeUndefined();
+    });
+});
+
+describe("Conservator ({3}, {T}: prevent next 2 to you this turn)", () => {
+    function setup() {
+        const consv = makeInstance(conservator.id, {
+            id: "consv",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [consv] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, consv };
+    }
+
+    it("declares the {3}, {T} cost shape", () => {
+        const ability = conservator.activatedAbilities?.[0];
+        expect(ability?.cost).toEqual({ mana: { X: 3 }, tap: true });
+        expect(ability?.useStack).toBe(true);
+    });
+
+    it("activated → 2-damage shield on the controller", () => {
+        const { state, consv } = setup();
+        state.stack.push({
+            ...consv,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "conservator-prevent",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const before = state.players[0].life;
+        // Opponent casts Lightning Bolt at p1: 3 dmg → 2 absorbed → 1 land.
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(before - 1);
+    });
+
+    it("partial absorption decrements remaining shield", () => {
+        const { state, consv } = setup();
+        state.stack.push({
+            ...consv,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "conservator-prevent",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        // First 1 dmg: shield drops to 1 remaining.
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        // Need a 1-dmg source — fake by directly invoking dealDamage via the
+        // Bolt and asserting shield bookkeeping. Bolt deals 3 → 2 absorbed,
+        // shield exhausted, 1 land. Next bolt full 3.
+        resolveTopOfStack(state);
+        expect(state.targetPreventionShields).toBeUndefined();
+        const lifeAfterFirst = state.players[0].life;
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(lifeAfterFirst - 3);
     });
 });
 

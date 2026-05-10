@@ -63,6 +63,9 @@ const COLOR_TO_LAND_SUBTYPE: Record<Color, string> = {
 export function makeDualLand(args: {
     id: string;
     name: string;
+    /** Optional printed Oracle text — forwarded onto the resulting
+     *  `CardDefinition` for display in the card preview and reference. */
+    oracleText?: string;
     colors: [Color, Color];
 }): CardDefinition {
     const [c1, c2] = args.colors;
@@ -70,6 +73,7 @@ export function makeDualLand(args: {
     return {
         id: args.id,
         name: args.name,
+        oracleText: args.oracleText,
         types: ["Land"],
         subtypes: [COLOR_TO_LAND_SUBTYPE[c1], COLOR_TO_LAND_SUBTYPE[c2]],
         activatedAbilities: [
