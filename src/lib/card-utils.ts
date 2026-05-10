@@ -1,6 +1,7 @@
 import type { CardInstance } from "~/types/game";
 import type { Color, ManaCost } from "~/types/cards";
 import type { Phase } from "@convex/gre/types";
+import type { PermanentView, TriggerStateView } from "@convex/cards/types";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
     LAND_SUBTYPE_MANA,
@@ -167,8 +168,15 @@ export function getStackAbilities(
     const filterAbility = (a: {
         useStack: boolean;
         oracleText: string;
-        cost: { tap?: boolean };
+        cost: {
+            tap?: boolean;
+            removeCounter?: { type: string; count: number };
+        };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
+        canActivate?: (
+            source: PermanentView,
+            state: TriggerStateView
+        ) => boolean;
     }): boolean => {
         if (!a.useStack || !a.oracleText) return false;
         if (a.cost.tap && card.isTapped) return false;
@@ -180,6 +188,21 @@ export function getStackAbilities(
             !a.activationPhaseRestriction.includes(phase)
         ) {
             return false;
+        }
+        // CR 122.6 — counter-removal cost is only legal if the source has
+        // enough counters of the declared type.
+        if (a.cost.removeCounter) {
+            const have = card.counters?.[a.cost.removeCounter.type] ?? 0;
+            if (have < a.cost.removeCounter.count) return false;
+        }
+        // CR 602.5b — ability-specific activation precondition. Read against
+        // the source's current state; an empty state view is sufficient for
+        // predicates that only inspect the source (e.g. Clockwork Beast's
+        // counter cap), and acceptable as a UI hint for predicates that
+        // would need more — server-side validation is authoritative.
+        if (a.canActivate !== undefined) {
+            const view = { players: [] };
+            if (!a.canActivate(card as PermanentView, view)) return false;
         }
         return true;
     };

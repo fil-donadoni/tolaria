@@ -95,8 +95,15 @@ describe("togglePhaseStop", () => {
     });
 
     it("initializes a phase with no prior entry", () => {
-        const next = togglePhaseStop(DEFAULT_SKIP_PREFS, "UPKEEP", "self");
-        expect(next.UPKEEP).toEqual({ self: true, opponent: false });
+        const next = togglePhaseStop(
+            DEFAULT_SKIP_PREFS,
+            "BEGINNING_OF_COMBAT",
+            "self"
+        );
+        expect(next.BEGINNING_OF_COMBAT).toEqual({
+            self: true,
+            opponent: false,
+        });
     });
 });
 
@@ -106,9 +113,9 @@ describe("isPhaseSkipped", () => {
     });
 
     it("false when phase has no entry", () => {
-        expect(isPhaseSkipped(DEFAULT_SKIP_PREFS, "UPKEEP", "self")).toBe(
-            false
-        );
+        expect(
+            isPhaseSkipped(DEFAULT_SKIP_PREFS, "BEGINNING_OF_COMBAT", "self")
+        ).toBe(false);
     });
 });
 

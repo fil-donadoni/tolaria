@@ -75,6 +75,22 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "SPELL_CAST trigger — Verduran + Sphere cycle + Soul Net",
+        cards: [
+            // Verduran on the battlefield. Cast Castle (enchantment) → may-pay
+            // prompts to draw a card. Crystal Rod fires on any blue spell
+            // → may pay {1} for 1 life. Soul Net fires on creature death.
+            { name: "Verduran Enchantress", owner: "me" as const },
+            { name: "Crystal Rod", owner: "me" as const },
+            { name: "Soul Net", owner: "me" as const },
+            { name: "Castle", owner: "me" as const, zone: "hand" as const },
+            { name: "Lightning Bolt", owner: "me" as const, zone: "hand" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
         label: "Counters (CR 122) — Sengir, Fungusaur, Clockwork Beast",
         cards: [
             // Sengir trades with a bear → +1/+1 counter on Sengir.

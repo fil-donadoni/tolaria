@@ -1,3 +1,6 @@
+import { useMutation } from "convex/react";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import type { PendingChoice } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useDraggable } from "~/hooks/useDraggable";
@@ -7,16 +10,21 @@ import { useDraggable } from "~/hooks/useDraggable";
  *  (selected / count) for the chooser, or a waiting state for the opponent.
  *  Card selection itself happens inline on the battlefield / hand —
  *  `player-battlefield` and `selectable-card` detect the pending choice and
- *  route clicks to `selectResolutionChoice`. */
+ *  route clicks to `selectResolutionChoice`. For `kind: "may-pay"` choices,
+ *  the prompt renders Pay/Skip buttons inline that submit through
+ *  `submitMayPay`. */
 export default function PendingChoicePrompt({
     choice,
     playerId,
+    gameId,
 }: {
     choice: PendingChoice;
     playerId: string;
+    gameId: Id<"games">;
 }) {
     const { allPlayers } = useGameContext();
     const { offset, dragHandlers } = useDraggable();
+    const submitMayPay = useMutation(api.game.submitMayPay);
     const isChooser = choice.playerId === playerId;
     const selected = choice.selected.length;
     const remaining = Math.max(0, choice.count - selected);
@@ -24,7 +32,13 @@ export default function PendingChoicePrompt({
     const chooserName =
         allPlayers.find((p) => p.id === choice.playerId)?.name ?? "opponent";
     const sourceLabel =
-        choice.kind === "mulligan-bottom" ? "Mulligan" : "Balance";
+        choice.kind === "mulligan-bottom"
+            ? "Mulligan"
+            : choice.kind === "may-pay"
+              ? "Optional"
+              : "Balance";
+
+    const isMayPay = choice.kind === "may-pay";
 
     return (
         <div
@@ -46,11 +60,42 @@ export default function PendingChoicePrompt({
                             {" — "}
                             {choice.prompt}
                         </div>
-                        <div className="text-violet-300 text-xs">
-                            {remaining > 0
-                                ? `${selected} / ${choice.count} selected — click ${remaining === 1 ? "one more" : `${remaining} more`}`
-                                : "Submitting..."}
-                        </div>
+                        {isMayPay ? (
+                            <div className="flex gap-2 mt-1">
+                                <button
+                                    type="button"
+                                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-white text-xs font-semibold"
+                                    onClick={() =>
+                                        submitMayPay({
+                                            gameId,
+                                            playerId,
+                                            accept: true,
+                                        })
+                                    }
+                                >
+                                    {choice.cost ? "Pay" : "Yes"}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-white text-xs font-semibold"
+                                    onClick={() =>
+                                        submitMayPay({
+                                            gameId,
+                                            playerId,
+                                            accept: false,
+                                        })
+                                    }
+                                >
+                                    {choice.cost ? "Skip" : "No"}
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="text-violet-300 text-xs">
+                                {remaining > 0
+                                    ? `${selected} / ${choice.count} selected — click ${remaining === 1 ? "one more" : `${remaining} more`}`
+                                    : "Submitting..."}
+                            </div>
+                        )}
                     </>
                 ) : (
                     <div className="text-violet-100 text-sm font-medium">

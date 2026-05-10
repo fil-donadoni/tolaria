@@ -9,7 +9,12 @@ import {
     type PhaseSkipPrefs,
 } from "~/lib/skip-phase-prefs";
 
-export function useAutoPassPhases(prefs: PhaseSkipPrefs): void {
+/** `delayMs` overrides the default debounce (AUTO_PASS_DELAY_MS). Solo mode
+ *  passes 0 so the viewer doesn't flash through skipped phases. */
+export function useAutoPassPhases(
+    prefs: PhaseSkipPrefs,
+    delayMs: number = AUTO_PASS_DELAY_MS
+): void {
     const ctx = useGameContext();
     const pageVisible = usePageVisible();
     const passPriority = useMutation(api.game.passPriority);
@@ -62,13 +67,14 @@ export function useAutoPassPhases(prefs: PhaseSkipPrefs): void {
                 .finally(() => {
                     inFlight.current = false;
                 });
-        }, AUTO_PASS_DELAY_MS);
+        }, delayMs);
 
         return () => {
             window.clearTimeout(timer);
         };
     }, [
         prefs,
+        delayMs,
         pageVisible,
         gameId,
         playerId,

@@ -29,6 +29,7 @@ import {
 import { isProtectedFromSource } from "./protection";
 import { randomInt, seededShuffle } from "./rng";
 import { collectTriggers } from "./triggers";
+import { getColorsFromCost } from "../cards/colors";
 
 /** Stored form of a temporary-effect duration. Mirrors `DurationSpec` but
  *  with the symbolic `player` field resolved to a concrete `playerId` at
@@ -377,6 +378,13 @@ export type PendingActivation = {
     tapSource: boolean;
     /** True iff the ability has a sacrifice cost — applied at commit. */
     sacrificeSource: boolean;
+    /** Counter-removal cost (CR 122.6 — "Remove a [type] counter from this
+     *  creature"). Applied at commit. */
+    removeCounterCost?: { type: string; count: number };
+    /** Value chosen for X at activation announcement (CR 107.3 / 601.2b).
+     *  Forwarded to the stack item at commit so resolve reads it via
+     *  SpellContext.getX(). */
+    chosenX?: number;
     /** Mirrors PendingCast.keepPriority. */
     keepPriority?: boolean;
     /** Targets chosen at target-selection time (CR 602.2b) and propagated to
@@ -411,24 +419,33 @@ export type PendingChoice = {
     /** Semantic kind — drives the UI prompt. "keep-permanents" = pick N
      *  permanents to keep on the battlefield (the rest are sacrificed by the
      *  step). "keep-hand" = pick N cards in hand to keep (the rest are
-     *  discarded by the step). */
+     *  discarded by the step). "may-pay" = optional yes/no answer with an
+     *  optional mana cost paid on accept (Soul Net's "you may pay {1}",
+     *  Verduran Enchantress's "may draw a card" — `cost` undefined for the
+     *  cost-less variant). */
     kind:
         | "keep-permanents"
         | "keep-hand"
         | "search-library"
-        | "mulligan-bottom";
-    /** Zone of the choosable items — restricts the set offered to the chooser. */
-    zone: "battlefield" | "hand" | "library";
+        | "mulligan-bottom"
+        | "may-pay";
+    /** Zone of the choosable items — restricts the set offered to the chooser.
+     *  Undefined for choice kinds that don't pick from a zone (`may-pay`). */
+    zone?: "battlefield" | "hand" | "library";
     /** Optional battlefield filter (card types / subtypes / keywords). Ignored
      *  for hand choices. */
     filter?: PermanentFilter;
-    /** Exact number of items to pick. The engine auto-finalizes the choice
-     *  when `selected.length === count`. */
+    /** Exact number of items to pick. For `may-pay`, this is always 1 and the
+     *  selection is the literal string "yes" or "no". */
     count: number;
-    /** Ids already selected by the chooser. Order is insertion order. */
+    /** Ids already selected by the chooser. For `may-pay`, the entry is
+     *  "yes" or "no" — committed by `submitMayPay`. */
     selected: string[];
     /** Prompt text shown to the chooser (e.g. "Choose 2 lands to keep"). */
     prompt: string;
+    /** For `kind: "may-pay"`, the mana cost paid on accept (CR 117.3a /
+     *  118.4). Undefined for cost-less yes/no choices ("may draw a card"). */
+    cost?: ManaCost;
 };
 
 /** Tracks target selection for a spell being announced (CR 601.2c) or an
@@ -640,7 +657,7 @@ export function resolveTopOfStack(state: GameState): StackItem | null {
  *  pushes them onto the stack (CR 603.2). Hands priority back to the active
  *  player (CR 117.3c) when at least one trigger lands on the stack. Safe to
  *  call repeatedly — a no-op when the queue is empty. */
-function processPendingActionTriggers(state: GameState): void {
+export function processPendingActionTriggers(state: GameState): void {
     const events = flushPendingEvents(state);
     if (events.length === 0) return;
     const triggers = collectTriggers(state, events);
@@ -1253,6 +1270,28 @@ export function removePermanentTo(
         // bookkeeping derived from the event log, not an SBA).
         state.deathsThisTurn = (state.deathsThisTurn ?? 0) + 1;
     }
+}
+
+/** Emits a SPELL_CAST event for a freshly-pushed stack item (CR 601.2i).
+ *  Reads the spell's card definition to derive types, subtypes, and colors
+ *  so trigger predicates can filter without re-resolving the registry. */
+export function emitSpellCastEvent(state: GameState, item: StackItem): void {
+    const cardId = (item.card as { id?: string }).id;
+    if (!cardId) return;
+    const def = tryGetCardById(cardId);
+    const colors = def?.manaCost ? getColorsFromCost(def.manaCost) : [];
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "SPELL_CAST",
+            casterId: item.castById,
+            spellInstanceId: item.id,
+            spellCardId: cardId,
+            spellTypes: item.types,
+            spellSubtypes: item.subtypes,
+            spellColors: colors,
+        },
+    ];
 }
 
 /** Drains the pending event queue, returning all queued events in FIFO order
@@ -1896,6 +1935,25 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },
+        requestMayPay(req): boolean | undefined {
+            const step = item.resolutionStep ?? 0;
+            const key = `${step}:${req.choiceId}`;
+            const stored = item.collectedChoices?.[key];
+            if (stored) return stored[0] === "yes";
+            const entry: PendingChoice = {
+                stackItemId: item.id,
+                step,
+                choiceId: req.choiceId,
+                playerId: req.playerId,
+                kind: "may-pay",
+                count: 1,
+                selected: [],
+                prompt: req.prompt,
+            };
+            if (req.cost) entry.cost = req.cost;
+            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            return undefined;
+        },
         apNapOrder(): string[] {
             const order = [state.activePlayerId];
             for (const p of state.players) {
@@ -2075,6 +2133,24 @@ export function checkManaCost(
     }
 
     return null;
+}
+
+/** Removes counters from `card` to satisfy a `removeCounter` activation cost
+ *  (CR 122.6 / 602.1). Caller must validate availability beforehand —
+ *  throws if the card has fewer counters than the cost requires. */
+export function payRemoveCounterCost(
+    card: CardInstanceState,
+    cost: { type: string; count: number }
+): void {
+    const have = card.counters?.[cost.type] ?? 0;
+    if (have < cost.count) {
+        throw new Error("Not enough counters to pay activation cost");
+    }
+    const remaining = have - cost.count;
+    const next = { ...(card.counters ?? {}) };
+    if (remaining === 0) delete next[cost.type];
+    else next[cost.type] = remaining;
+    card.counters = Object.keys(next).length > 0 ? next : undefined;
 }
 
 /** Deducts mana cost from pool. Colored first, then generic (greedy: highest pool first). */

@@ -11,6 +11,7 @@ export const SKIP_PREFS_KEY = "tolaria:skipPhasePrefs:v1";
 export const AUTO_PASS_DELAY_MS = 120;
 
 export const DEFAULT_SKIP_PREFS: PhaseSkipPrefs = {
+    UPKEEP: { self: true, opponent: true },
     DRAW: { self: true, opponent: true },
     FIRST_STRIKE_DAMAGE: { self: true, opponent: true },
     COMBAT_DAMAGE: { self: true, opponent: true },

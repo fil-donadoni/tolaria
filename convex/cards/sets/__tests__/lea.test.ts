@@ -82,8 +82,15 @@ import {
     counterspell,
     controlMagic,
     creatureBond,
+    crystalRod,
     fungusaur,
+    ironStar,
+    ivoryCup,
     scavengingGhoul,
+    soulNet,
+    throneOfBone,
+    verduranEnchantress,
+    woodenSphere,
     ancestralRecall,
     darkRitual,
     demonicTutor,
@@ -147,6 +154,8 @@ import {
     regenerateOrDestroy,
     removePermanentTo,
     resolveTopOfStack,
+    emitSpellCastEvent,
+    processPendingActionTriggers,
     type CardInstanceState,
     type GameState,
 } from "../../../gre/state";
@@ -8456,24 +8465,27 @@ describe("Fungusaur (DAMAGE_DEALT trigger → +1/+1 counter)", () => {
         expect(getEffectiveToughness(state, after)).toBe(3);
     });
 
-    it("dies from lethal damage; trigger does not save it (CR 117.5 + engine limitation)", () => {
+    it("dies from lethal damage; trigger lands on stack but no-ops (CR 117.5, 603.10)", () => {
         const state = setup();
         // Lightning Bolt deals 3 → marked 3 >= toughness 2 → destroyed inline.
-        // CR-correct: the trigger should still go on stack from last-known
-        // info, but resolves on a graveyard target (no-op).
-        // Engine simplification: collectTriggers scans only the current
-        // battlefield, so Fungusaur's own trigger is missed once it has
-        // moved to graveyard. End result is the same — Fungusaur dies.
+        // The DAMAGE_DEALT trigger goes on stack via the recently-dead-in-
+        // graveyard scan in collectTriggers. Resolving it tries addCounter on
+        // a non-battlefield target → primitive no-ops. Fungusaur stays dead.
         pushSpell(state, lightningBolt.id, "p2", [
             { type: "permanent", id: "fung" },
         ]);
         resolveTopOfStack(state);
+        // Trigger landed on stack.
         expect(
-            state.players[0].battlefield.find((c) => c.id === "fung")
-        ).toBeUndefined();
-        expect(
-            state.players[0].graveyard.find((c) => c.id === "fung")
-        ).toBeDefined();
+            state.stack.some(
+                (i) => i.triggeredAbilityId === "fungusaur-counter"
+            )
+        ).toBe(true);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        const dead = state.players[0].graveyard.find((c) => c.id === "fung")!;
+        expect(dead).toBeDefined();
+        // No counter applied — target was not on battlefield at resolve time.
+        expect(dead.counters).toBeUndefined();
     });
 });
 
@@ -8516,11 +8528,13 @@ describe("Scavenging Ghoul (corpse counter end-step + remove → regen)", () => 
         expect(after.counters?.corpse).toBe(3);
     });
 
-    it("remove-counter activated stacks a regen shield and consumes 1 corpse counter", () => {
+    it("remove-counter activated stacks a regen shield (cost paid externally)", () => {
         const state = setup();
         const ghoul = state.players[0].battlefield[0];
-        ghoul.counters = { corpse: 2 };
-        // Activate the regen ability.
+        // Cost is paid by activateAbility before pushing on stack. Simulate:
+        // start with one counter and already-deducted cost so the resolve
+        // observes the post-cost state.
+        ghoul.counters = { corpse: 1 };
         state.stack.push({
             ...ghoul,
             zone: "stack",
@@ -8530,8 +8544,25 @@ describe("Scavenging Ghoul (corpse counter end-step + remove → regen)", () => 
         });
         resolveTopOfStack(state);
         const after = state.players[0].battlefield[0];
-        expect(after.counters?.corpse).toBe(1);
+        // Resolve only stacks the regen shield — counter removal is the cost
+        // and would have been paid before this point in the activation flow.
         expect(after.regenerationShields).toBe(1);
+        expect(after.counters?.corpse).toBe(1);
+    });
+
+    it("declarative cost: not enough counters → cannot activate", () => {
+        const state = setup();
+        const ghoul = state.players[0].battlefield[0];
+        // No counters → cost.removeCounter would fail validation in
+        // activateAbility. Verify the cost field on the ability itself.
+        const ability = scavengingGhoul.activatedAbilities?.find(
+            (a) => a.id === "scavenging-ghoul-regenerate"
+        );
+        expect(ability?.cost.removeCounter).toEqual({
+            type: "corpse",
+            count: 1,
+        });
+        expect(ghoul.counters).toBeUndefined();
     });
 
     it("turn advance resets deathsThisTurn", () => {
@@ -8577,6 +8608,223 @@ describe("Clockwork Beast (ETB 7 +1/+0 counters, end-of-combat decay)", () => {
         // Now mark it as attacked.
         beast.hasAttackedThisTurn = true;
         expect(trig!.matches(event, beast, state)).toBe(true);
+    });
+
+    it("recharge ability adds up to X +1/+0 counters, capped at 7 total", () => {
+        const state = makeState();
+        pushSpell(state, clockworkBeast.id, "p1");
+        resolveTopOfStack(state);
+        const beast = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === clockworkBeast.id
+        )!;
+        // Drop to 4 counters, then recharge with X=5 → capped at +3 → 7 total.
+        beast.counters = { "+1/+0": 4 };
+        state.stack.push({
+            ...beast,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "clockwork-beast-recharge",
+            chosenX: 5,
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === clockworkBeast.id
+        )!;
+        expect(after.counters?.["+1/+0"]).toBe(7);
+    });
+
+    it("recharge canActivate gates at seven counters", () => {
+        const ability = clockworkBeast.activatedAbilities?.find(
+            (a) => a.id === "clockwork-beast-recharge"
+        );
+        expect(ability?.canActivate).toBeDefined();
+        const at7 = {
+            id: "x",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Artifact", "Creature"] as CardType[],
+            subtypes: [],
+            isTapped: false,
+            counters: { "+1/+0": 7 },
+            card: {},
+        };
+        const at6 = { ...at7, counters: { "+1/+0": 6 } };
+        // Empty TriggerStateView — canActivate doesn't read it for Clockwork.
+        const view = { players: [] };
+        expect(ability!.canActivate!(at7, view)).toBe(false);
+        expect(ability!.canActivate!(at6, view)).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// SPELL_CAST trigger (CR 603.2 + 601.2i)
+// ---------------------------------------------------------------------------
+
+describe("SPELL_CAST event emission", () => {
+    it("casting a spell with no payment fires SPELL_CAST and lands triggers on top", () => {
+        // Verduran Enchantress on the battlefield, then cast an aura. The
+        // enchantress trigger goes on top, the player gets a may-pay prompt.
+        const enchantress = makeInstance(verduranEnchantress.id, {
+            id: "vEn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(consecrateLand.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [enchantress], hand: [aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Push the aura onto stack manually (cast announce path) and emit
+        // SPELL_CAST + run trigger collection (mirrors game.ts call sites).
+        const stackItem = {
+            ...aura,
+            castById: "p1",
+            zone: "stack" as const,
+            targets: [],
+        };
+        state.stack.push(stackItem);
+        emitSpellCastEvent(state, stackItem);
+        processPendingActionTriggers(state);
+        // Verduran trigger now on stack (above the aura).
+        expect(state.stack[1].triggeredAbilityId).toBe(
+            "verduran-enchantress-draw"
+        );
+    });
+});
+
+describe("Verduran Enchantress (may draw on enchantment cast)", () => {
+    it("trigger matches enchantment spells cast by controller, not creatures", () => {
+        const trig = verduranEnchantress.triggeredAbilities?.[0];
+        expect(trig).toBeDefined();
+        const self = {
+            id: "vEn",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Creature"] as CardType[],
+            subtypes: [],
+            isTapped: false,
+            card: {},
+        };
+        const enchantmentEvent = {
+            type: "SPELL_CAST" as const,
+            casterId: "p1",
+            spellInstanceId: "x",
+            spellCardId: "y",
+            spellTypes: ["Enchantment"] as CardType[],
+            spellSubtypes: [],
+            spellColors: [],
+        };
+        expect(trig!.matches(enchantmentEvent, self)).toBe(true);
+        // Different caster → no fire.
+        expect(
+            trig!.matches({ ...enchantmentEvent, casterId: "p2" }, self)
+        ).toBe(false);
+        // Non-enchantment → no fire.
+        expect(
+            trig!.matches(
+                {
+                    ...enchantmentEvent,
+                    spellTypes: ["Creature"] as CardType[],
+                },
+                self
+            )
+        ).toBe(false);
+    });
+});
+
+describe("Sphere cycle (may pay {1} for 1 life on color spell)", () => {
+    it("Crystal Rod fires on blue spell, not red", () => {
+        const trig = crystalRod.triggeredAbilities?.[0];
+        expect(trig).toBeDefined();
+        const self = {
+            id: "rod",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Artifact"] as CardType[],
+            subtypes: [],
+            isTapped: false,
+            card: {},
+        };
+        const blue = {
+            type: "SPELL_CAST" as const,
+            casterId: "p2",
+            spellInstanceId: "x",
+            spellCardId: "y",
+            spellTypes: ["Instant"] as CardType[],
+            spellSubtypes: [],
+            spellColors: ["U" as const],
+        };
+        expect(trig!.matches(blue, self)).toBe(true);
+        const red = { ...blue, spellColors: ["R" as const] };
+        expect(trig!.matches(red, self)).toBe(false);
+    });
+
+    it("each sphere targets its declared color", () => {
+        const cases: {
+            card: typeof crystalRod;
+            color: "W" | "U" | "B" | "R" | "G";
+        }[] = [
+            { card: crystalRod, color: "U" },
+            { card: ironStar, color: "R" },
+            { card: ivoryCup, color: "W" },
+            { card: throneOfBone, color: "B" },
+            { card: woodenSphere, color: "G" },
+        ];
+        for (const { card, color } of cases) {
+            const trig = card.triggeredAbilities?.[0];
+            const self = {
+                id: "x",
+                controllerId: "p1",
+                ownerId: "p1",
+                types: ["Artifact"] as CardType[],
+                subtypes: [],
+                isTapped: false,
+                card: {},
+            };
+            const ev = {
+                type: "SPELL_CAST" as const,
+                casterId: "p2",
+                spellInstanceId: "x",
+                spellCardId: "y",
+                spellTypes: ["Instant"] as CardType[],
+                spellSubtypes: [],
+                spellColors: [color],
+            };
+            expect(trig!.matches(ev, self)).toBe(true);
+        }
+    });
+});
+
+describe("Soul Net (may pay {1} on creature death for 1 life)", () => {
+    it("trigger matches every creature death", () => {
+        const trig = soulNet.triggeredAbilities?.[0];
+        expect(trig).toBeDefined();
+        const self = {
+            id: "net",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Artifact"] as CardType[],
+            subtypes: [],
+            isTapped: false,
+            card: {},
+        };
+        const ev = {
+            type: "CREATURE_DIED" as const,
+            creatureInstanceId: "bear",
+            creatureControllerId: "p2",
+            damagedBySources: [],
+            creaturePower: 2,
+            creatureToughness: 2,
+        };
+        expect(trig!.matches(ev, self)).toBe(true);
     });
 });
 

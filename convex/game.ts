@@ -20,10 +20,13 @@ import {
     applySourceStaticEffects,
     getBasicLandMana,
     payManaCost,
+    payRemoveCounterCost,
     commitLandsForCost,
     resolveTopOfStack,
     normalizeManaCost,
     isManaCostCovered,
+    emitSpellCastEvent,
+    processPendingActionTriggers,
 } from "./gre/state";
 import type { Color } from "./cards/types";
 import {
@@ -318,6 +321,9 @@ function tryAutoCommitPendingActivation(
         }
         card.isTapped = true;
     }
+    if (pa.removeCounterCost) {
+        payRemoveCounterCost(card, pa.removeCounterCost);
+    }
     if (pa.sacrificeSource) {
         removePermanentTo(state, card.id, "graveyard");
     }
@@ -328,6 +334,7 @@ function tryAutoCommitPendingActivation(
         castById: playerId,
         abilityId: pa.abilityId,
         ...(pa.targets && pa.targets.length > 0 ? { targets: pa.targets } : {}),
+        ...(pa.chosenX !== undefined ? { chosenX: pa.chosenX } : {}),
         ...(pa.grantedSourceCardId
             ? { grantedSourceCardId: pa.grantedSourceCardId }
             : {}),
@@ -390,6 +397,12 @@ function tryAutoCommitPendingCast(
     state.priorityPlayerId = getOpponentId(state, playerId);
     state.singleShotAutoPass = keepPriority ? undefined : playerId;
     drainAutoPasses(state);
+
+    // CR 601.2i — the spell is now on the stack. Emit SPELL_CAST and run a
+    // trigger pass so abilities like Verduran Enchantress and the sphere
+    // cycle land on top before either player gets priority.
+    emitSpellCastEvent(state, stackItem);
+    processPendingActionTriggers(state);
 
     return { cardInstanceId: spellCard.id, cardName };
 }
@@ -819,9 +832,30 @@ function finalizeTargetSelection(
         if (ability.cost.tap && card.isTapped) {
             throw new Error("Card is already tapped");
         }
+        if (ability.cost.removeCounter) {
+            const have = card.counters?.[ability.cost.removeCounter.type] ?? 0;
+            if (have < ability.cost.removeCounter.count) {
+                throw new Error("Not enough counters to pay activation cost");
+            }
+        }
+        if (
+            ability.canActivate !== undefined &&
+            !ability.canActivate(card, state)
+        ) {
+            throw new Error("Ability cannot be activated right now");
+        }
 
+        const hasXInCost =
+            ability.cost.mana?.X !== undefined &&
+            typeof ability.cost.mana.X === "string";
+        const abilityChosenX = hasXInCost ? chosenX : undefined;
+        if (hasXInCost && abilityChosenX === undefined) {
+            throw new Error("This ability requires a chosen X value");
+        }
         const manaCost = ability.cost.mana
-            ? normalizeManaCost(ability.cost.mana)
+            ? normalizeManaCost(ability.cost.mana, {
+                  chosenX: abilityChosenX,
+              })
             : undefined;
 
         // Enter pendingActivation (deferred commit) if mana isn't covered.
@@ -834,6 +868,12 @@ function finalizeTargetSelection(
                 tappedLandIds: [],
                 tapSource: !!ability.cost.tap,
                 sacrificeSource: !!ability.cost.sacrifice,
+                ...(ability.cost.removeCounter
+                    ? { removeCounterCost: { ...ability.cost.removeCounter } }
+                    : {}),
+                ...(abilityChosenX !== undefined
+                    ? { chosenX: abilityChosenX }
+                    : {}),
                 keepPriority,
                 targets,
                 ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
@@ -847,6 +887,9 @@ function finalizeTargetSelection(
             payManaCost(player.manaPool, manaCost);
             commitLandsForCost(player, manaCost);
         }
+        if (ability.cost.removeCounter) {
+            payRemoveCounterCost(card, ability.cost.removeCounter);
+        }
         if (ability.cost.sacrifice) {
             removePermanentTo(state, card.id, "graveyard");
         }
@@ -857,6 +900,9 @@ function finalizeTargetSelection(
             castById: playerId,
             abilityId,
             targets,
+            ...(abilityChosenX !== undefined
+                ? { chosenX: abilityChosenX }
+                : {}),
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
         };
         state.stack.push(stackItem);
@@ -904,6 +950,8 @@ function finalizeTargetSelection(
         state.priorityPlayerId = getOpponentId(state, playerId);
         state.singleShotAutoPass = keepPriority ? undefined : playerId;
         drainAutoPasses(state);
+        emitSpellCastEvent(state, stackItem);
+        processPendingActionTriggers(state);
     } else {
         state.pendingCast = {
             playerId,
@@ -1074,6 +1122,8 @@ export const announceCast = mutation({
                 ? undefined
                 : args.playerId;
             drainAutoPasses(state);
+            emitSpellCastEvent(state, stackItem);
+            processPendingActionTriggers(state);
         } else {
             // Enter payment phase for remaining mana
             state.pendingCast = {
@@ -2425,6 +2475,9 @@ export const selectResolutionChoice = mutation({
         if (head.playerId !== args.playerId) {
             throw new Error("Not your pending choice");
         }
+        if (head.kind === "may-pay") {
+            throw new Error("Use submitMayPay for may-pay choices");
+        }
         if (head.selected.includes(args.cardInstanceId)) {
             throw new Error("Already selected");
         }
@@ -2527,6 +2580,98 @@ export const selectResolutionChoice = mutation({
                 step: head.step,
                 choiceId: head.choiceId,
                 cardInstanceId: args.cardInstanceId,
+            },
+            timestamp: now,
+        });
+    },
+});
+
+/** Submits a yes/no decision to a pending `may-pay` choice (CR 117.3a / 118.4).
+ *  When `accept` is true and the choice carries a mana cost, the cost is
+ *  validated against the player's mana pool and paid; if the pool can't
+ *  cover, the call throws (forcing the player to either tap mana abilities
+ *  before submitting or decline). Lands tapped to make mana for this
+ *  payment go through the normal `tapForPayment` flow. */
+export const submitMayPay = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        accept: v.boolean(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        state.undoableBy = undefined;
+        assertGameNotOver(state);
+
+        const queue = state.pendingChoices ?? [];
+        if (queue.length === 0) throw new Error("No pending choice");
+        const head = queue[0];
+        if (head.kind !== "may-pay") {
+            throw new Error("Pending choice is not a may-pay");
+        }
+        if (head.playerId !== args.playerId) {
+            throw new Error("Not your pending choice");
+        }
+
+        if (args.accept && head.cost) {
+            const player = getPlayer(state, args.playerId);
+            const normalized = normalizeManaCost(head.cost);
+            if (!isManaCostCovered(player.manaPool, normalized)) {
+                throw new Error(
+                    "Cannot pay the cost from your current mana pool"
+                );
+            }
+            payManaCost(player.manaPool, normalized);
+            commitLandsForCost(player, normalized);
+        }
+
+        head.selected = [args.accept ? "yes" : "no"];
+
+        // Commit into the stack item's collectedChoices so the resolve step
+        // re-invocation reads the answer back via requestMayPay.
+        const stackItem = state.stack.find((s) => s.id === head.stackItemId);
+        if (!stackItem) throw new Error("Stack item not found");
+        const key = `${head.step}:${head.choiceId}`;
+        stackItem.collectedChoices = {
+            ...(stackItem.collectedChoices ?? {}),
+            [key]: head.selected,
+        };
+
+        queue.shift();
+        state.pendingChoices = queue.length > 0 ? queue : undefined;
+
+        if ((state.pendingChoices?.length ?? 0) === 0) {
+            resolveTopOfStack(state);
+            if ((state.pendingChoices?.length ?? 0) > 0) {
+                state.priorityPlayerId = state.pendingChoices![0].playerId;
+            } else {
+                state.priorityPlayerId = state.activePlayerId;
+                state.passCount = 0;
+                drainAutoPasses(state);
+            }
+            checkStateBasedActions(state);
+        } else {
+            state.priorityPlayerId = state.pendingChoices![0].playerId;
+        }
+
+        const now = Date.now();
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
+
+        await ctx.db.insert("events", {
+            gameId: args.gameId,
+            seq: nextSeq,
+            type: "RESOLUTION_CHOICE_SELECTED",
+            player: args.playerId,
+            payload: {
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                accept: args.accept,
             },
             timestamp: now,
         });
@@ -2861,6 +3006,10 @@ export const activateAbility = mutation({
         abilityId: v.string(),
         /** If true, the activator keeps priority after the ability hits the stack. */
         keepPriority: v.optional(v.boolean()),
+        /** Value chosen for X at activation time for abilities with X in
+         *  their mana cost (CR 107.3 / 601.2b). Ignored for abilities without
+         *  X in their cost. */
+        chosenX: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -2923,6 +3072,34 @@ export const activateAbility = mutation({
             if (ability.cost.tap && isTapLockedBySummoningSickness(card)) {
                 throw new Error("Creature has summoning sickness");
             }
+            if (ability.cost.removeCounter) {
+                const have =
+                    card.counters?.[ability.cost.removeCounter.type] ?? 0;
+                if (have < ability.cost.removeCounter.count) {
+                    throw new Error(
+                        "Not enough counters to pay activation cost"
+                    );
+                }
+            }
+            if (
+                ability.canActivate !== undefined &&
+                !ability.canActivate(card, state)
+            ) {
+                throw new Error("Ability cannot be activated right now");
+            }
+            // CR 107.3 / 601.2b — chosenX must accompany abilities with X in
+            // their mana cost. Stashed on pendingTarget; finalizeTargetSelection
+            // forwards it to pendingActivation / the stack item.
+            const targetHasXInCost =
+                ability.cost.mana?.X !== undefined &&
+                typeof ability.cost.mana.X === "string";
+            if (
+                targetHasXInCost &&
+                (args.chosenX === undefined || args.chosenX < 0)
+            ) {
+                throw new Error("This ability requires a chosen X value");
+            }
+            const targetChosenX = targetHasXInCost ? args.chosenX : undefined;
             // CR 202.2 / 702.16b: the source's colors come from the
             // permanent owning the activated ability.
             const abilitySourceColors = STATIC_EFFECT_CTX.getColors(card);
@@ -2935,12 +3112,9 @@ export const activateAbility = mutation({
             if (legal.length === 0) {
                 throw new Error("No legal targets available");
             }
-            // Activated abilities don't carry chosenX, so "X"-bound counts
-            // aren't supported here (none in the current set). Resolution
-            // throws if a card declares one — caught by the helper.
             const abilityCount = resolveTargetCount(
                 ability.targetRequirement.count,
-                undefined
+                targetChosenX
             );
             const abilitySubtypeFilter = ability.targetRequirement.subtypeFilter
                 ? Array.isArray(ability.targetRequirement.subtypeFilter)
@@ -2957,6 +3131,9 @@ export const activateAbility = mutation({
                 keepPriority: args.keepPriority,
                 kind: "ability",
                 abilityId: args.abilityId,
+                ...(targetChosenX !== undefined
+                    ? { chosenX: targetChosenX }
+                    : {}),
                 ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
                 ...(ability.targetRequirement.zone
                     ? { zone: ability.targetRequirement.zone }
@@ -2996,8 +3173,36 @@ export const activateAbility = mutation({
         if (ability.cost.tap && isTapLockedBySummoningSickness(card)) {
             throw new Error("Creature has summoning sickness");
         }
+        // CR 122.6 — counter-removal cost: source must have enough counters
+        // of the declared type. Validated up-front so we never enter a
+        // pendingActivation that can't be paid.
+        if (ability.cost.removeCounter) {
+            const have = card.counters?.[ability.cost.removeCounter.type] ?? 0;
+            if (have < ability.cost.removeCounter.count) {
+                throw new Error("Not enough counters to pay activation cost");
+            }
+        }
+        // CR 602.5 — activated abilities may declare a custom precondition
+        // (e.g. Clockwork Beast: "Activate only if it has fewer than seven
+        // +1/+0 counters on it.") read against current source state.
+        if (
+            ability.canActivate !== undefined &&
+            !ability.canActivate(card, state)
+        ) {
+            throw new Error("Ability cannot be activated right now");
+        }
+        // CR 107.3 / 601.2b — chosenX is required for abilities whose mana
+        // cost has X. Validate up-front; pass to normalizeManaCost so the
+        // generic portion includes X * (the chosen value).
+        const hasXInCost =
+            ability.cost.mana?.X !== undefined &&
+            typeof ability.cost.mana.X === "string";
+        if (hasXInCost && (args.chosenX === undefined || args.chosenX < 0)) {
+            throw new Error("This ability requires a chosen X value");
+        }
+        const chosenX = hasXInCost ? args.chosenX : undefined;
         const manaCost = ability.cost.mana
-            ? normalizeManaCost(ability.cost.mana)
+            ? normalizeManaCost(ability.cost.mana, { chosenX })
             : undefined;
 
         // If mana isn't covered, enter a pendingActivation payment phase that
@@ -3013,6 +3218,10 @@ export const activateAbility = mutation({
                 tappedLandIds: [],
                 tapSource: !!ability.cost.tap,
                 sacrificeSource: !!ability.cost.sacrifice,
+                ...(ability.cost.removeCounter
+                    ? { removeCounterCost: { ...ability.cost.removeCounter } }
+                    : {}),
+                ...(chosenX !== undefined ? { chosenX } : {}),
                 keepPriority: args.keepPriority,
                 ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
             };
@@ -3044,6 +3253,9 @@ export const activateAbility = mutation({
             payManaCost(player.manaPool, manaCost);
             commitLandsForCost(player, manaCost);
         }
+        if (ability.cost.removeCounter) {
+            payRemoveCounterCost(card, ability.cost.removeCounter);
+        }
         if (ability.cost.sacrifice) {
             removePermanentTo(state, card.id, "graveyard");
         }
@@ -3054,6 +3266,7 @@ export const activateAbility = mutation({
             zone: "stack" as const,
             castById: args.playerId,
             abilityId: args.abilityId,
+            ...(chosenX !== undefined ? { chosenX } : {}),
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
         };
         state.stack.push(stackItem);

@@ -1,6 +1,7 @@
 import type {
     ActivatedAbilityContext,
     CardDefinition,
+    Color,
     PermanentFilter,
     SpellContext,
     TargetSelection,
@@ -1969,21 +1970,13 @@ export const scavengingGhoul: CardDefinition = {
             id: "scavenging-ghoul-regenerate",
             oracleText:
                 "Remove a corpse counter from this creature: Regenerate this creature.",
-            cost: {},
+            cost: { removeCounter: { type: "corpse", count: 1 } },
             useStack: true,
-            // CR 605.4 — non-mana cost paid as part of activation. The cost
-            // (remove a corpse counter) is enforced inside resolve since the
-            // engine has no declarative non-mana cost framework yet; this is
-            // a simplification but functionally identical for the only legal
-            // pattern (you can only activate this if you have a counter to
-            // remove, and the regen shield only stacks on a successful pay).
             resolve: (ctx: SpellContext) => {
-                const self: TargetSelection = {
+                ctx.applyRegenerationShield({
                     type: "permanent",
                     id: ctx.sourceInstanceId,
-                };
-                if (ctx.removeCounter(self, "corpse", 1) === 0) return;
-                ctx.applyRegenerationShield(self);
+                });
             },
         },
     ],
@@ -3393,15 +3386,40 @@ export const tsunami: CardDefinition = {
     },
 };
 
-// export const verduranEnchantress: CardDefinition = {
-//     id: "9f87178b-1221-4d7a-a7a5-20d7f01b8089",
-//     name: "Verduran Enchantress",
-//     manaCost: { X: 1, G: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Druid"],
-//     power: 0,
-//     toughness: 2,
-// };
+// Verduran Enchantress — "Whenever you cast an enchantment spell, you may
+// draw a card." (CR 603.2 spell-cast trigger; CR 117.3a optional). The
+// trigger goes on top of the casting spell and resolves before it.
+export const verduranEnchantress: CardDefinition = {
+    id: "9f87178b-1221-4d7a-a7a5-20d7f01b8089",
+    name: "Verduran Enchantress",
+    manaCost: { X: 1, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Druid"],
+    power: 0,
+    toughness: 2,
+    triggeredAbilities: [
+        {
+            id: "verduran-enchantress-draw",
+            oracleText:
+                "Whenever you cast an enchantment spell, you may draw a card.",
+            event: "SPELL_CAST",
+            matches: (event, self) => {
+                if (event.type !== "SPELL_CAST") return false;
+                if (event.casterId !== self.controllerId) return false;
+                return event.spellTypes.includes("Enchantment");
+            },
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: ctx.controller,
+                    prompt: "Draw a card?",
+                });
+                if (accept === undefined) return;
+                if (accept) ctx.drawCards(ctx.controller, 1);
+            },
+        },
+    ],
+};
 
 // Wall of Brambles — vanilla 2/3 Plant Wall with defender (CR 702.3).
 export const wallOfBrambles: CardDefinition = {
@@ -3558,9 +3576,8 @@ export const celestialPrism: CardDefinition = {
 // a +1/+0 counter from it. / {X}, {T}: Put up to X +1/+0 counters on this
 // creature. Activate only if it has fewer than seven +1/+0 counters on it."
 // (CR 122.1, 614.1c ETB counters; CR 603.6a end-of-combat trigger; layer 7d).
-// Simplification: the {X},{T} recharge ability is deferred — `activateAbility`
-// has no chosenX input pipeline yet for activated abilities. The ETB and
-// decay loop work fully; recharge will land with a separate change.
+// The recharge ability uses the {X} mana cost pipeline on activated abilities
+// (chosenX) and a `canActivate` precondition for the "fewer than seven" gate.
 export const clockworkBeast: CardDefinition = {
     id: "27f916a2-0ace-44b5-99dc-72979af34db9",
     name: "Clockwork Beast",
@@ -3590,6 +3607,27 @@ export const clockworkBeast: CardDefinition = {
                     "+1/+0",
                     1
                 );
+            },
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "clockwork-beast-recharge",
+            oracleText:
+                "{X}, {T}: Put up to X +1/+0 counters on this creature. Activate only if it has fewer than seven +1/+0 counters on it.",
+            cost: { mana: { X: "X" }, tap: true },
+            useStack: true,
+            canActivate: (source) => (source.counters?.["+1/+0"] ?? 0) < 7,
+            resolve: (ctx: SpellContext) => {
+                const self: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                const current = ctx.getCounterCount(self, "+1/+0");
+                // Up to X counters, capped so the total never exceeds 7.
+                const room = Math.max(0, 7 - current);
+                const add = Math.min(ctx.getX(), room);
+                if (add > 0) ctx.addCounter(self, "+1/+0", add);
             },
         },
     ],
@@ -3627,12 +3665,53 @@ export const copperTablet: CardDefinition = {
     ],
 };
 
-// export const crystalRod: CardDefinition = {
-//     id: "76693233-7961-4b7e-80f2-ed90e494c4aa",
-//     name: "Crystal Rod",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-// };
+// Color-sphere cycle — "Whenever a player casts a [color] spell, you may pay
+// {1}. If you do, you gain 1 life." (CR 603.2 spell-cast trigger; CR 117.3a
+// optional may-pay). Five identical artifacts modulo the filtered color, so
+// they share one factory.
+function makeColorSphere(args: {
+    id: string;
+    name: string;
+    color: Color;
+    abilityIdSuffix: string;
+    colorWord: string;
+}): CardDefinition {
+    return {
+        id: args.id,
+        name: args.name,
+        manaCost: { X: 1 },
+        types: ["Artifact"],
+        triggeredAbilities: [
+            {
+                id: `${args.abilityIdSuffix}-life`,
+                oracleText: `Whenever a player casts a ${args.colorWord.toLowerCase()} spell, you may pay {1}. If you do, you gain 1 life.`,
+                event: "SPELL_CAST",
+                matches: (event) => {
+                    if (event.type !== "SPELL_CAST") return false;
+                    return event.spellColors.includes(args.color);
+                },
+                resolve: (ctx) => {
+                    const accept = ctx.requestMayPay({
+                        playerId: ctx.controller,
+                        choiceId: ctx.controller,
+                        cost: { X: 1 },
+                        prompt: `Pay {1} to gain 1 life from ${args.name}?`,
+                    });
+                    if (accept === undefined) return;
+                    if (accept) ctx.gainLife(ctx.controller, 1);
+                },
+            },
+        ],
+    };
+}
+
+export const crystalRod: CardDefinition = makeColorSphere({
+    id: "76693233-7961-4b7e-80f2-ed90e494c4aa",
+    name: "Crystal Rod",
+    color: "U",
+    abilityIdSuffix: "crystal-rod",
+    colorWord: "Blue",
+});
 
 // export const cyclopeanTomb: CardDefinition = {
 //     id: "894c5cf2-8ae2-427a-bcbc-67df0bdfee9d",
@@ -3754,19 +3833,21 @@ export const icyManipulator: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const ironStar: CardDefinition = {
-//     id: "5786de12-cade-43c2-a6b0-0c5b294b9d0e",
-//     name: "Iron Star",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-// };
+export const ironStar: CardDefinition = makeColorSphere({
+    id: "5786de12-cade-43c2-a6b0-0c5b294b9d0e",
+    name: "Iron Star",
+    color: "R",
+    abilityIdSuffix: "iron-star",
+    colorWord: "Red",
+});
 
-// export const ivoryCup: CardDefinition = {
-//     id: "9964d8d8-dc97-4e5f-9f52-173f7e2c37fd",
-//     name: "Ivory Cup",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-// };
+export const ivoryCup: CardDefinition = makeColorSphere({
+    id: "9964d8d8-dc97-4e5f-9f52-173f7e2c37fd",
+    name: "Ivory Cup",
+    color: "W",
+    abilityIdSuffix: "ivory-cup",
+    colorWord: "White",
+});
 
 // export const jadeMonolith: CardDefinition = {
 //     id: "4a77e0f1-449d-4a7d-9fa0-ba7598f7a73a",
@@ -4026,12 +4107,33 @@ export const solRing: CardDefinition = {
     ],
 };
 
-// export const soulNet: CardDefinition = {
-//     id: "2b814198-814b-4619-a158-327af675f8f2",
-//     name: "Soul Net",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-// };
+// Soul Net — "Whenever a creature dies, you may pay {1}. If you do, you gain
+// 1 life." (CR 603.2 death trigger; CR 117.3a optional may-pay).
+export const soulNet: CardDefinition = {
+    id: "2b814198-814b-4619-a158-327af675f8f2",
+    name: "Soul Net",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        {
+            id: "soul-net-life",
+            oracleText:
+                "Whenever a creature dies, you may pay {1}. If you do, you gain 1 life.",
+            event: "CREATURE_DIED",
+            matches: (event) => event.type === "CREATURE_DIED",
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: ctx.controller,
+                    cost: { X: 1 },
+                    prompt: "Pay {1} to gain 1 life from Soul Net?",
+                });
+                if (accept === undefined) return;
+                if (accept) ctx.gainLife(ctx.controller, 1);
+            },
+        },
+    ],
+};
 
 // export const sunglassesOfUrza: CardDefinition = {
 //     id: "c0d433a4-76c0-4f27-836d-4c0c13a511fb",
@@ -4047,12 +4149,13 @@ export const solRing: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const throneOfBone: CardDefinition = {
-//     id: "a2931ae0-7836-4000-b9ec-f2029ebf5d96",
-//     name: "Throne of Bone",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-// };
+export const throneOfBone: CardDefinition = makeColorSphere({
+    id: "a2931ae0-7836-4000-b9ec-f2029ebf5d96",
+    name: "Throne of Bone",
+    color: "B",
+    abilityIdSuffix: "throne-of-bone",
+    colorWord: "Black",
+});
 
 // export const timeVault: CardDefinition = {
 //     id: "902441dc-c976-4c92-b897-6376eaa0fe38",
@@ -4075,12 +4178,13 @@ export const winterOrb: CardDefinition = {
     staticAbilities: ["limits-acl-untap"],
 };
 
-// export const woodenSphere: CardDefinition = {
-//     id: "bcae01a2-171b-47cd-87be-f1e4e5314326",
-//     name: "Wooden Sphere",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-// };
+export const woodenSphere: CardDefinition = makeColorSphere({
+    id: "bcae01a2-171b-47cd-87be-f1e4e5314326",
+    name: "Wooden Sphere",
+    color: "G",
+    abilityIdSuffix: "wooden-sphere",
+    colorWord: "Green",
+});
 
 // --- Dual lands (LEA) ---
 // Two basic land types for rules interactions (Armageddon, landwalk, etc.).

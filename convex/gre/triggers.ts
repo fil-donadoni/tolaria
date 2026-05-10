@@ -33,7 +33,17 @@ function buildTriggerItem(
 }
 
 /** Scans all battlefield permanents for triggered abilities matching `events`.
- *  Returns new StackItems in the order they should be placed on the stack. */
+ *  Returns new StackItems in the order they should be placed on the stack.
+ *
+ *  CR 603.10: a triggered ability fires based on whether the source had the
+ *  ability when the trigger condition arose, even if the source has since
+ *  left the battlefield (e.g. Fungusaur taking lethal damage — its
+ *  "is dealt damage" trigger should still go on the stack). To honor that,
+ *  we also scan creatures that died in this same trigger batch (their ids
+ *  are carried in CREATURE_DIED events) by looking them up in the relevant
+ *  player's graveyard. The trigger lands on the stack and resolves with
+ *  last-known information; effect primitives that target a non-battlefield
+ *  permanent simply no-op. */
 export function collectTriggers(
     state: GameState,
     events: GameEvent[]
@@ -46,9 +56,22 @@ export function collectTriggers(
     );
     const ordered = [active, ...opponents];
 
+    const recentlyDead = new Set<string>();
+    for (const ev of events) {
+        if (ev.type === "CREATURE_DIED") {
+            recentlyDead.add(ev.creatureInstanceId);
+        }
+    }
+
     const out: StackItem[] = [];
     for (const player of ordered) {
-        for (const permanent of player.battlefield) {
+        const sources: CardInstanceState[] = [...player.battlefield];
+        if (recentlyDead.size > 0) {
+            for (const c of player.graveyard) {
+                if (recentlyDead.has(c.id)) sources.push(c);
+            }
+        }
+        for (const permanent of sources) {
             const cardId = (permanent.card as { id?: string }).id;
             if (!cardId) continue;
             const def = tryGetCardById(cardId);

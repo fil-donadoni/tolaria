@@ -80,6 +80,14 @@ export interface CardInstance {
         abilityId: string;
         auraId: string;
     }[];
+    /** Counters on this permanent (CR 122). Map of counter type → count.
+     *  Layer 7d folds P/T-modifying types into effective stats; non-PT types
+     *  (corpse, mire, vitality, ...) are inert to layers and read by
+     *  card-specific abilities. */
+    counters?: Record<string, number>;
+    /** One-shot P/T modifications scoped to a phase boundary (CR 611.1).
+     *  Each entry adds to effective P/T at read time. */
+    temporaryPTMods?: ReadonlyArray<{ power: number; toughness: number }>;
     legalActions?: CardAction[];
 }
 

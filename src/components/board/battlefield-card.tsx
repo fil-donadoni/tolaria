@@ -71,8 +71,9 @@ export default function BattlefieldCard({
     const baseWidth = (style?.width as string | undefined) ?? "var(--card-w)";
     const baseHeight = `calc(${baseWidth} * 7 / 5)`;
 
-    // Layout box stays portrait regardless of tap state: untapped height fits the
-    // band, tapping only rotates the visual without resizing the layout box.
+    // Layout box stays portrait regardless of tap state: untapped height fits
+    // the band, tapping only rotates the visual without resizing the layout
+    // box.
     const boxStyle: React.CSSProperties = {
         ...style,
         height: "100%",

@@ -588,6 +588,27 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         abilityId: string,
         keepPriority: boolean
     ) {
+        // CR 107.3 / 601.2b: if the ability has X in its mana cost, the
+        // activator chooses X before announcement. Prompt the user — same
+        // pattern as the spell-cast path in selectable-card.tsx.
+        const card = player.battlefield.find((c) => c.id === cardInstanceId);
+        if (!card) return;
+        const def = getCardById(card.card.id);
+        const ability = def.activatedAbilities?.find((a) => a.id === abilityId);
+        const hasX =
+            ability?.cost.mana?.X !== undefined &&
+            typeof ability.cost.mana.X === "string";
+        let chosenX: number | undefined;
+        if (hasX) {
+            const raw = window.prompt(
+                `Choose X for ${def.name} (${ability!.oracleText})`,
+                "0"
+            );
+            if (raw === null) return;
+            const parsed = Number.parseInt(raw, 10);
+            if (!Number.isFinite(parsed) || parsed < 0) return;
+            chosenX = parsed;
+        }
         guardMutation(
             activateAbility({
                 gameId,
@@ -595,6 +616,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 cardInstanceId,
                 abilityId,
                 keepPriority: keepPriority || undefined,
+                chosenX,
             })
         );
     }

@@ -162,7 +162,7 @@ export default function Board({
         >
             <SkipPhasePrefsContext value={skipPhasePrefs}>
                 <div className="flex h-full w-full flex-col relative">
-                    <AutoPassController />
+                    <AutoPassController solo={solo} />
                     {orderedPlayers.map((player) => (
                         <PlayerBoard key={player.id} player={player} />
                     ))}
@@ -195,6 +195,7 @@ export default function Board({
                         <PendingChoicePrompt
                             choice={pendingChoices[0]}
                             playerId={viewerId}
+                            gameId={gameId}
                         />
                     )}
                     {mulligan && !mulligan.bottoming && (

@@ -115,6 +115,11 @@ export interface ActivatedAbility {
         /** Life payment (CR 118.4). Legal while `player.life >= life`; SBA
          *  handles the loss if payment takes life to 0 or below. */
         life?: number;
+        /** Counter-removal payment (CR 122.6). The ability is only legal to
+         *  activate while the source has at least `count` counters of `type`;
+         *  the counters are removed at activation commit. Used by Scavenging
+         *  Ghoul ("Remove a corpse counter from this creature: Regenerate ~"). */
+        removeCounter?: { type: string; count: number };
     };
     /** Oracle text for this ability (displayed in context menus and on the stack). */
     oracleText: string;
@@ -135,6 +140,14 @@ export interface ActivatedAbility {
      *  When set, the ability is activatable only while `state.phase` is in
      *  this list. Used by Jade Statue ("activate only during combat"). */
     activationPhaseRestriction?: Phase[];
+    /** Custom precondition checked at activation time, after the standard
+     *  cost validation (CR 602.5b — activation restrictions). Reads the
+     *  current source state and any other game state needed; returning
+     *  false rejects the activation with a generic error. Used by
+     *  Clockwork Beast ("Activate only if it has fewer than seven +1/+0
+     *  counters on it"). The signature accepts a structurally-typed state
+     *  view to keep card defs decoupled from the engine state shape. */
+    canActivate?: (source: PermanentView, state: TriggerStateView) => boolean;
 }
 
 // --- Temporary-effect durations (CR 611.2, 514.2, 511.3) ---
@@ -443,6 +456,20 @@ export interface SpellContext {
         prompt: string;
     }) => string[] | undefined;
 
+    /** Requests an optional yes/no decision with an optional mana cost
+     *  (CR 117.3a). On first call, enqueues a `may-pay` `PendingChoice` and
+     *  returns `undefined` — the caller must return early. On resume the
+     *  call returns `true` if the player accepted (and the cost, if any,
+     *  was successfully paid by `submitMayPay`) or `false` if declined.
+     *  Used by Soul Net ("you may pay {1}. If you do, gain 1 life") and
+     *  Verduran Enchantress ("may draw a card" — pass `cost: undefined`). */
+    requestMayPay: (req: {
+        playerId: string;
+        choiceId: string;
+        cost?: ManaCost;
+        prompt: string;
+    }) => boolean | undefined;
+
     /** Active-player-then-non-active-player order (CR 101.4). In 2-player
      *  games, returns [activePlayerId, opponentId]. Used by spells like
      *  Balance where each player makes a choice in APNAP order. */
@@ -711,6 +738,7 @@ export type GameEventType =
     | "DAMAGE_DEALT"
     | "PHASE_BEGIN"
     | "CREATURE_DIED"
+    | "SPELL_CAST"
     | "STATE_CHECK";
 
 /** Damage event emitted whenever a source inflicts damage on a target
@@ -761,6 +789,28 @@ export interface CreatureDiedEvent {
     creatureToughness: number;
 }
 
+/** Spell-cast event emitted when a spell is put on the stack (CR 601.2i).
+ *  Used by triggers like Verduran Enchantress ("whenever you cast an
+ *  enchantment spell") and the sphere cycle ("whenever a player casts a
+ *  [color] spell"). Carries the caster, the cast spell's stack item id, and
+ *  the spell's types/subtypes/colors so `matches()` can filter without
+ *  re-reading the card registry. */
+export interface SpellCastEvent {
+    type: "SPELL_CAST";
+    /** Player who cast the spell. */
+    casterId: string;
+    /** Stack item id of the freshly-cast spell. */
+    spellInstanceId: string;
+    /** Card definition id of the spell. */
+    spellCardId: string;
+    /** Card types of the spell ("Instant", "Sorcery", "Creature", ...). */
+    spellTypes: ReadonlyArray<CardType>;
+    /** Card subtypes of the spell ("Goblin", "Aura", ...). */
+    spellSubtypes: ReadonlyArray<string>;
+    /** Colors derived from the spell's mana cost (CR 202.2). */
+    spellColors: ReadonlyArray<Color>;
+}
+
 /** State trigger probe (CR 603.8) emitted at every stable checkpoint where a
  *  player would gain priority. Carries no payload — `matches()` reads
  *  `state` to decide whether the trigger condition is currently met. */
@@ -772,6 +822,7 @@ export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
     | CreatureDiedEvent
+    | SpellCastEvent
     | StateCheckEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for

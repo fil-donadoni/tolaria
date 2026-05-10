@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { tryGetCardById } from "@convex/cards";
-import { getImageUrl } from "~/lib/images";
+import { ART_CROP_RATIO, getArtCropImageUrl, getImageUrl } from "~/lib/images";
 import {
     capitalizeKeyword,
     formatTypeLine,
@@ -9,7 +9,9 @@ import {
     manaCostToString,
     type AbilityDisplayState,
 } from "~/lib/card-utils";
+import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { formatOracleText } from "~/lib/oracle-text";
+import { GameContext } from "~/hooks/useGameContext";
 import type { CardInstance } from "~/types/game";
 
 const ZOOM_WIDTH = 128 * 2;
@@ -158,15 +160,42 @@ export default function CardPreview({
     );
     const types = cardInstance?.types ?? def?.types ?? [];
     const isCreatureCard = types.includes("Creature");
-    const power = cardInstance?.power ?? def?.power;
-    const toughness = cardInstance?.toughness ?? def?.toughness;
+    const basePower = def?.power;
+    const baseToughness = def?.toughness;
+    const gameCtx = useContext(GameContext);
+    // Effective P/T (CR 611, 613 — layer 7c static buffs + counters) only
+    // computable when the preview is mounted under a game context with the
+    // full battlefield. Outside (deck builder), fall back to printed P/T.
+    const effPower =
+        cardInstance && gameCtx
+            ? effectivePower(gameCtx.allPlayers, cardInstance)
+            : (cardInstance?.power ?? basePower);
+    const effToughness =
+        cardInstance && gameCtx
+            ? effectiveToughness(gameCtx.allPlayers, cardInstance)
+            : (cardInstance?.toughness ?? baseToughness);
+    const ptModified =
+        basePower !== undefined &&
+        baseToughness !== undefined &&
+        (effPower !== basePower || effToughness !== baseToughness);
     const hasPT =
-        isCreatureCard && (power !== undefined || toughness !== undefined);
+        isCreatureCard &&
+        (effPower !== undefined || effToughness !== undefined);
     const hasBody =
         abilities.keywords.length > 0 ||
         abilities.activated.length > 0 ||
         abilities.triggered.length > 0;
     const displayName = def?.name ?? cardName;
+    // Zoom variants per zone: hand hides the text panel (player should
+    // only see the printed face), battlefield swaps the full card art for
+    // the Scryfall art_crop (since the printed type/rules are already
+    // implied by board state and the art crop reads better at zoom size).
+    const isHand = cardInstance?.zone === "hand";
+    const isBattlefield = cardInstance?.zone === "battlefield";
+    const imageSrc = isBattlefield
+        ? getArtCropImageUrl(cardId)
+        : getImageUrl(cardId);
+    const showTextPanel = !isHand;
 
     return (
         <div
@@ -195,57 +224,82 @@ export default function CardPreview({
                         }}
                     >
                         <img
-                            src={getImageUrl(cardId)}
+                            src={imageSrc}
                             className="w-full block"
                             alt={cardName}
+                            style={
+                                isBattlefield
+                                    ? {
+                                          aspectRatio: ART_CROP_RATIO,
+                                          objectFit: "cover",
+                                      }
+                                    : undefined
+                            }
                         />
-                        <div className="p-3 text-xs text-white space-y-2 overflow-y-auto">
-                            <div className="flex items-baseline justify-between gap-2">
-                                <span className="font-semibold truncate">
-                                    {displayName}
-                                </span>
-                                {manaCost && (
-                                    <span className="shrink-0 text-sm leading-none">
-                                        {formatOracleText(manaCost)}
+                        {showTextPanel && (
+                            <div className="p-3 text-xs text-white space-y-2 overflow-y-auto">
+                                <div className="flex items-baseline justify-between gap-2">
+                                    <span className="font-semibold truncate">
+                                        {displayName}
                                     </span>
+                                    {manaCost && (
+                                        <span className="shrink-0 text-sm leading-none">
+                                            {formatOracleText(manaCost)}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-zinc-300">{typeLine}</div>
+                                {hasBody && (
+                                    <div className="border-t border-zinc-700 pt-2 space-y-1.5">
+                                        {abilities.keywords.length > 0 && (
+                                            <div className="space-y-0.5">
+                                                {abilities.keywords.map(
+                                                    (k, i) => (
+                                                        <KeywordRow
+                                                            key={`kw-${i}-${k.name}`}
+                                                            name={k.name}
+                                                            state={k.state}
+                                                        />
+                                                    )
+                                                )}
+                                            </div>
+                                        )}
+                                        {abilities.activated.map((a, i) => (
+                                            <AbilityRow
+                                                key={`act-${i}-${a.id}`}
+                                                text={a.oracleText}
+                                                state={a.state}
+                                            />
+                                        ))}
+                                        {abilities.triggered.map((t, i) => (
+                                            <AbilityRow
+                                                key={`tr-${i}-${t.id}`}
+                                                text={t.oracleText}
+                                                state="native"
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                                {hasPT && (
+                                    <div className="text-right font-semibold text-sm border-t border-zinc-700 pt-2 flex justify-end items-baseline gap-2">
+                                        <span
+                                            className={
+                                                ptModified
+                                                    ? "text-emerald-400"
+                                                    : "text-white"
+                                            }
+                                        >
+                                            {effPower ?? 0}/{effToughness ?? 0}
+                                        </span>
+                                        {ptModified && (
+                                            <span className="text-red-400 text-xs font-normal">
+                                                ({basePower}/{baseToughness})
+                                            </span>
+                                        )}
+                                    </div>
                                 )}
                             </div>
-                            <div className="text-zinc-300">{typeLine}</div>
-                            {hasBody && (
-                                <div className="border-t border-zinc-700 pt-2 space-y-1.5">
-                                    {abilities.keywords.length > 0 && (
-                                        <div className="space-y-0.5">
-                                            {abilities.keywords.map((k, i) => (
-                                                <KeywordRow
-                                                    key={`kw-${i}-${k.name}`}
-                                                    name={k.name}
-                                                    state={k.state}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                    {abilities.activated.map((a, i) => (
-                                        <AbilityRow
-                                            key={`act-${i}-${a.id}`}
-                                            text={a.oracleText}
-                                            state={a.state}
-                                        />
-                                    ))}
-                                    {abilities.triggered.map((t, i) => (
-                                        <AbilityRow
-                                            key={`tr-${i}-${t.id}`}
-                                            text={t.oracleText}
-                                            state="native"
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                            {hasPT && (
-                                <div className="text-right font-semibold text-sm border-t border-zinc-700 pt-2">
-                                    {power ?? 0}/{toughness ?? 0}
-                                </div>
-                            )}
-                        </div>
+                        )}
                     </div>,
                     document.body
                 )}
