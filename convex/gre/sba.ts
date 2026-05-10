@@ -125,6 +125,24 @@ function findOnBattlefield(
     return null;
 }
 
+/** CR 704.5d — a token in any zone other than the battlefield ceases to
+ *  exist. The token briefly enters the destination zone (so death triggers
+ *  see it leave the battlefield), then this SBA wipes it away. */
+export function checkTokenExistenceSBA(state: GameState): boolean {
+    let removed = false;
+    for (const player of state.players) {
+        for (const zone of ["graveyard", "exile", "hand", "library"] as const) {
+            const list = player[zone];
+            const kept = list.filter((c) => !c.isToken);
+            if (kept.length !== list.length) {
+                player[zone] = kept;
+                removed = true;
+            }
+        }
+    }
+    return removed;
+}
+
 /** Runs every SBA once. Currently: aura attachments (CR 704.5m), game-over
  *  (CR 704.5a/b). Expand as more SBAs come online (706.5c/d/e for legend
  *  rule, +1/-1 counter cancellation, etc.).
@@ -135,6 +153,7 @@ function findOnBattlefield(
  *  fold the state-trigger scan into this entry point. */
 export function checkStateBasedActions(state: GameState): void {
     checkAuraAttachmentSBA(state);
+    checkTokenExistenceSBA(state);
     checkGameOverSBA(state);
     if (state.gameOver) return;
     // CR 117.5: state triggers go on the stack after SBA. Don't scan if the

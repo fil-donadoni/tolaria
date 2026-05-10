@@ -107,6 +107,7 @@ import {
     samiteHealer,
     scavengingGhoul,
     soulNet,
+    theHive,
     web,
     throneOfBone,
     verduranEnchantress,
@@ -10142,6 +10143,97 @@ describe("Conservator ({3}, {T}: prevent next 2 to you this turn)", () => {
         ]);
         resolveTopOfStack(state);
         expect(state.players[0].life).toBe(lifeAfterFirst - 3);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Wave 4 — token creation (CR 111, 707.1, 704.5d)
+// ---------------------------------------------------------------------------
+
+describe("The Hive ({5}, {T}: create a 1/1 colorless flying Wasp Insect artifact creature token)", () => {
+    function setup() {
+        const hive = makeInstance(theHive.id, {
+            id: "hive",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hive] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, hive };
+    }
+
+    function activate(state: GameState, hive: CardInstanceState) {
+        state.stack.push({
+            ...hive,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "the-hive-wasp",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("creates a 1/1 flying Wasp on the controller's battlefield", () => {
+        const { state, hive } = setup();
+        activate(state, hive);
+        const tokens = state.players[0].battlefield.filter((c) => c.isToken);
+        expect(tokens).toHaveLength(1);
+        const wasp = tokens[0];
+        expect(wasp.power).toBe(1);
+        expect(wasp.toughness).toBe(1);
+        expect(wasp.types).toEqual(["Artifact", "Creature"]);
+        expect(wasp.subtypes).toEqual(["Insect"]);
+        expect(wasp.staticAbilities).toContain("flying");
+        expect(wasp.controllerId).toBe("p1");
+        expect(wasp.ownerId).toBe("p1");
+        expect(wasp.isSummoningSick).toBe(true);
+    });
+
+    it("two activations create two distinct token instances sharing one definition", () => {
+        const { state, hive } = setup();
+        activate(state, hive);
+        activate(state, hive);
+        const tokens = state.players[0].battlefield.filter((c) => c.isToken);
+        expect(tokens).toHaveLength(2);
+        expect(tokens[0].id).not.toBe(tokens[1].id);
+        // Both reference the same synthesized definition id.
+        expect((tokens[0].card as { id: string }).id).toBe(
+            (tokens[1].card as { id: string }).id
+        );
+    });
+
+    it("token ceases to exist when it leaves the battlefield (CR 704.5d)", () => {
+        const { state, hive } = setup();
+        activate(state, hive);
+        const wasp = state.players[0].battlefield.find((c) => c.isToken)!;
+        // Lethal damage → routed via destroy → token enters graveyard.
+        // SBA wipes it after the move.
+        removePermanentTo(state, wasp.id, "graveyard");
+        // Run SBAs to enforce 704.5d.
+        checkStateBasedActions(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === wasp.id)
+        ).toBeUndefined();
+        expect(
+            state.players[0].graveyard.find((c) => c.id === wasp.id)
+        ).toBeUndefined();
+    });
+
+    it("wire format: token survives projection with its definition id", () => {
+        const { state, hive } = setup();
+        activate(state, hive);
+        const projected = projectPublicState(state, 1, "p1");
+        const wasp = projected.players[0].battlefield.find((c) => c.isToken);
+        expect(wasp).toBeDefined();
+        expect((wasp!.card as { id: string }).id).toMatch(/^token:Wasp/);
+        // Effective stats survive the projection.
+        expect(getEffectivePower(projected, wasp!)).toBe(1);
+        expect(getEffectiveToughness(projected, wasp!)).toBe(1);
     });
 });
 

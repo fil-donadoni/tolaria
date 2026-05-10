@@ -208,6 +208,34 @@ export interface PermanentFilter {
     excludeAbility?: string;
 }
 
+// --- Token specification (CR 111, 707.1) ---
+
+/** Structural definition of a token permanent created at resolution time
+ *  (CR 707.1 — a token is created in the form described by the effect that
+ *  creates it). All fields are static for the token's lifetime; tokens
+ *  themselves carry no card-registry id, so this spec is the authoritative
+ *  source for name / types / P/T / abilities / colors. */
+export interface TokenSpec {
+    /** Display name (CR 707.2). */
+    name: string;
+    /** Card types the token is created as (CR 707.2). */
+    types: CardType[];
+    /** Optional creature subtypes (CR 205.3). */
+    subtypes?: string[];
+    /** Optional supertypes (Legendary, Snow). */
+    supertypes?: CardSupertype[];
+    /** Power for creature tokens (CR 208.2). */
+    power?: number;
+    /** Toughness for creature tokens. */
+    toughness?: number;
+    /** Colors of the token (CR 110.5 — colorless if omitted, else the listed
+     *  set). Encoded as a synthetic mana cost so `hasColor` and projection
+     *  read tokens identically to printed permanents. */
+    colors?: Color[];
+    /** Static abilities the token enters with (e.g. `["flying"]`). */
+    staticAbilities?: string[];
+}
+
 // --- Spell resolution context ---
 
 export interface SpellContext {
@@ -400,6 +428,20 @@ export interface SpellContext {
      *  scheduled is the next one taken. Consumed by advanceTurn(). Used by
      *  Time Walk and similar effects. */
     takeExtraTurn: (playerId: string) => void;
+    /** Creates `count` token permanents (CR 111, 707.1) on `controllerId`'s
+     *  battlefield from a structural spec. Tokens enter the battlefield
+     *  tapped/sick rules normally — they're brand-new permanents (CR 111.5
+     *  summoning sickness applies), get any matching lord-style buffs from
+     *  existing battlefield sources (CR 611), and emit no ETB events here
+     *  (resolution code can append events as needed). Tokens carry
+     *  `isToken: true` and are wiped from any non-battlefield zone by the
+     *  CR 704.5d state-based action. Returns the ids of the created tokens
+     *  so the caller can target / track them within the same resolve. */
+    createToken: (
+        spec: TokenSpec,
+        controllerId: string,
+        count?: number
+    ) => string[];
     /** Records a one-shot prevention effect: the next time the given source
      *  would deal damage to `playerId`, that damage is prevented (CR 615.1,
      *  615.6). Consumed by the first matching damage event; any unused

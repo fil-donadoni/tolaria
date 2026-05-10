@@ -35,7 +35,10 @@ export default function PlayerGraveyard({ player }: { player: Player }) {
         : undefined;
 
     return (
-        <div className="w-[var(--card-w-sm)] aspect-5/7">
+        <div
+            data-arrow-anchor-graveyard={player.id}
+            className="w-[var(--card-w-sm)] aspect-5/7"
+        >
             <div className="relative">
                 <CardsPile
                     cards={player.graveyard}

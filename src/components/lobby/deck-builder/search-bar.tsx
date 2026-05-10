@@ -16,6 +16,9 @@ export default function SearchBar({
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder={placeholder}
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 className="w-full rounded border border-white/20 bg-white/5 px-4 py-2 text-sm text-white placeholder:text-white/30 focus:border-white/40 focus:bg-white/10 focus:outline-none"
             />
             {value.length > 0 && (

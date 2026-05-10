@@ -349,6 +349,33 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "The Hive — {5}, {T}: create a 1/1 flying Wasp token",
+        cards: [
+            // Wave 4 token creation.
+            // - The Hive: tap + 5 mana → create a Wasp (1/1 flying Insect
+            //   artifact creature token).
+            // - 7 lands so the activation is one-tap (5 generic + tap cost).
+            // - Wall of Wood gives the opponent a non-flying ground blocker
+            //   that can't reach a Wasp; Giant Spider (reach) can.
+            // Repeated activations stack Wasps; killing a Wasp shows the
+            // CR 704.5d cease-to-exist SBA — the token leaves play and
+            // doesn't appear in the graveyard.
+            { name: "The Hive", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, count: 4 },
+            { name: "Mountain", owner: "me" as const, count: 3 },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Wall of Wood", owner: "opp" as const },
+            { name: "Giant Spider", owner: "opp" as const },
+            { name: "Forest", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

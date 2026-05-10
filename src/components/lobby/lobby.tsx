@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -17,28 +18,17 @@ import {
 import {
     type UserDeck,
     deleteUserDeck,
-    getUserDeck,
     isUserDeckId,
     listUserDecks,
 } from "~/lib/userDecks";
-import DeckBuilder from "./deck-builder/deck-builder";
-import DeckDetail from "./deck-detail";
 import DeckList from "./deck-list";
 
-interface LobbyProps {
-    onEnter: (gameId: Id<"games">, playerId: string) => void;
-}
-
-type LobbyMode = "list" | "builder";
-
-function Lobby({ onEnter }: LobbyProps) {
+function Lobby() {
+    const navigate = useNavigate();
     const [playerName, setPlayerName] = useState(() => getStoredPlayerName());
     const [storedPresetId, setStoredPresetId] = useState<string | null>(() =>
         getStoredDeckPresetId()
     );
-    const [focusedPresetId, setFocusedPresetId] = useState<string | null>(null);
-    const [mode, setMode] = useState<LobbyMode>("list");
-    const [editingDeckId, setEditingDeckId] = useState<string | null>(null);
     const [userDecks, setUserDecks] = useState<UserDeck[]>(() =>
         listUserDecks()
     );
@@ -69,10 +59,6 @@ function Lobby({ onEnter }: LobbyProps) {
     const selectedDeck = useMemo(
         () => allDecks.find((d) => d.presetId === storedPresetId) ?? null,
         [allDecks, storedPresetId]
-    );
-    const focusedDeck = useMemo(
-        () => allDecks.find((d) => d.presetId === focusedPresetId) ?? null,
-        [allDecks, focusedPresetId]
     );
 
     useEffect(() => {
@@ -109,7 +95,7 @@ function Lobby({ onEnter }: LobbyProps) {
         });
         storePlayerName(name);
         storeSession(id, pid);
-        onEnter(id, pid);
+        void navigate({ to: "/game" });
     };
 
     const handleCreateSolo = async () => {
@@ -136,7 +122,7 @@ function Lobby({ onEnter }: LobbyProps) {
         });
         storePlayerName(name);
         storeSession(id, p1Id);
-        onEnter(id, p1Id);
+        void navigate({ to: "/game" });
     };
 
     const handleJoin = async (targetGameId: Id<"games">) => {
@@ -154,13 +140,16 @@ function Lobby({ onEnter }: LobbyProps) {
         });
         storePlayerName(name);
         storeSession(targetGameId, pid);
-        onEnter(targetGameId, pid);
+        void navigate({ to: "/game" });
+    };
+
+    const handleFocusDeck = (presetId: string) => {
+        void navigate({ to: "/decks/$slug", params: { slug: presetId } });
     };
 
     const handleSelectDeck = (presetId: string) => {
-        setStoredPresetId(presetId);
         storeDeckPresetId(presetId);
-        setFocusedPresetId(null);
+        setStoredPresetId(presetId);
     };
 
     const handleChangeDeck = () => {
@@ -169,8 +158,10 @@ function Lobby({ onEnter }: LobbyProps) {
     };
 
     const handleEditDeck = (presetId: string) => {
-        setEditingDeckId(presetId);
-        setMode("builder");
+        void navigate({
+            to: "/decks/$slug/edit",
+            params: { slug: presetId },
+        });
     };
 
     const handleDeleteDeck = (presetId: string) => {
@@ -186,39 +177,8 @@ function Lobby({ onEnter }: LobbyProps) {
     };
 
     const handleNewDeck = () => {
-        setEditingDeckId(null);
-        setMode("builder");
+        void navigate({ to: "/decks/create" });
     };
-
-    const handleBuilderClose = (savedPresetId: string | null) => {
-        refreshUserDecks();
-        setMode("list");
-        setEditingDeckId(null);
-        if (savedPresetId) {
-            setFocusedPresetId(savedPresetId);
-        }
-    };
-
-    if (mode === "builder") {
-        const initial = editingDeckId ? getUserDeck(editingDeckId) : null;
-        return (
-            <DeckBuilder initialDeck={initial} onClose={handleBuilderClose} />
-        );
-    }
-
-    if (focusedDeck) {
-        return (
-            <DeckDetail
-                deck={focusedDeck}
-                isSelected={
-                    !!selectedDeck &&
-                    focusedDeck.presetId === selectedDeck.presetId
-                }
-                onBack={() => setFocusedPresetId(null)}
-                onSelect={() => handleSelectDeck(focusedDeck.presetId)}
-            />
-        );
-    }
 
     if (presetDecks === undefined) {
         return (
@@ -257,8 +217,9 @@ function Lobby({ onEnter }: LobbyProps) {
                 <DeckList
                     title="My Decks"
                     decks={userDecks}
-                    selectedPresetId={null}
-                    onFocus={setFocusedPresetId}
+                    selectedPresetId={storedPresetId}
+                    onFocus={handleFocusDeck}
+                    onSelect={handleSelectDeck}
                     emptyLabel="No saved decks yet. Create one to start building."
                     renderActions={renderUserActions}
                     headerExtra={
@@ -273,8 +234,9 @@ function Lobby({ onEnter }: LobbyProps) {
                 <DeckList
                     title="Built-in Decks"
                     decks={presetDecks}
-                    selectedPresetId={null}
-                    onFocus={setFocusedPresetId}
+                    selectedPresetId={storedPresetId}
+                    onFocus={handleFocusDeck}
+                    onSelect={handleSelectDeck}
                 />
             </div>
         );
@@ -303,7 +265,7 @@ function Lobby({ onEnter }: LobbyProps) {
                     </span>
                 )}
                 <button
-                    onClick={() => setFocusedPresetId(selectedDeck.presetId)}
+                    onClick={() => handleFocusDeck(selectedDeck.presetId)}
                     className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
                 >
                     View

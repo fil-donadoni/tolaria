@@ -9,8 +9,9 @@ import type {
     SpellContext,
     TargetRequirement,
     TargetSelection,
+    TokenSpec,
 } from "../cards/types";
-import { getCardById, tryGetCardById } from "../cards";
+import { getCardById, registerTokenDefinition, tryGetCardById } from "../cards";
 import { getResolveFn } from "../cards/effectRegistry";
 import type { Phase, Zone } from "./types";
 import {
@@ -95,6 +96,12 @@ export type CardInstanceState = {
     id: string;
     /** Immutable reference to the original card definition. */
     card: Record<string, unknown>;
+    /** True for permanents created by token-creation effects (CR 111).
+     *  Tokens carry no card-registry id; their `card` field holds inline
+     *  display data (name, manaCost-encoded colors, isToken marker). The
+     *  CR 704.5d state-based action wipes tokens out of any non-battlefield
+     *  zone immediately after the move event has been observed. */
+    isToken?: boolean;
     controllerId: string;
     ownerId: string;
     zone: Zone;
@@ -619,6 +626,9 @@ export type GameState = {
     delayedTriggers?: DelayedTriggerInstance[];
     /** Monotonic counter backing DelayedTriggerInstance.id generation. */
     nextDelayedSeq?: number;
+    /** Monotonic counter advanced by each createToken() call. Generates
+     *  deterministic `token-N` ids so replays reproduce the same identifiers. */
+    nextTokenSeq?: number;
     /** Buffer of game events emitted during the current action that have not
      *  yet been scanned for triggered abilities (CR 603.2). Filled by the
      *  state mutators (CREATURE_DIED on death, etc.) and drained by the
@@ -1497,6 +1507,24 @@ function normalizeDestroyAllFilter(
     return filter;
 }
 
+/** Content-derived id for a synthesized token CardDefinition (CR 707.1).
+ *  Two `createToken` calls with the same spec shape share one definition
+ *  entry (and thus one image / one frontend lookup); two specs that differ
+ *  on any field get two distinct ids. Stable across replays. */
+function tokenDefinitionId(spec: TokenSpec): string {
+    const parts = [
+        spec.name,
+        spec.types.join(","),
+        (spec.subtypes ?? []).join(","),
+        (spec.supertypes ?? []).join(","),
+        spec.power ?? "",
+        spec.toughness ?? "",
+        (spec.colors ?? []).join(""),
+        (spec.staticAbilities ?? []).join(","),
+    ];
+    return `token:${parts.join("|")}`;
+}
+
 /** Builds a SpellContext with primitives bound to the current game state. */
 function buildSpellContext(state: GameState, item: StackItem): SpellContext {
     function requirePermanent(target: TargetSelection): CardInstanceState {
@@ -1976,6 +2004,76 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             // Validate the target player exists (throws if not).
             getPlayer(state, playerId);
             state.extraTurns = [...(state.extraTurns ?? []), playerId];
+        },
+        // CR 111 / 707.1: token creation. The token enters as a brand-new
+        // permanent under `controllerId`, owner = controller (CR 111.2 — token
+        // owner is the player who created it). Tokens carry no card-registry
+        // id; their colors are encoded as a synthetic mana cost so hasColor /
+        // projection treat them like printed cards. Existing battlefield
+        // sources' lord-style grants reach the new token via
+        // `applyExistingGrantsTo` (CR 611). CR 704.5d cleanup is handled by
+        // `checkTokenExistenceSBA` if the token ever leaves the battlefield.
+        createToken(spec, controllerId, count = 1): string[] {
+            const owner = getPlayer(state, controllerId);
+            const ids: string[] = [];
+            const manaCost: CardManaCost = {};
+            for (const c of spec.colors ?? []) {
+                manaCost[c] = (manaCost[c] ?? 0) + 1;
+            }
+            // Synthesize + register one CardDefinition per unique spec
+            // shape. Multiple copies of the same Wasp share the same def
+            // entry; the frontend reads display data through the registry
+            // exactly like printed cards. The id is content-derived so
+            // replays are deterministic.
+            const defId = tokenDefinitionId(spec);
+            registerTokenDefinition({
+                id: defId,
+                name: spec.name,
+                manaCost,
+                types: [...spec.types],
+                ...(spec.subtypes ? { subtypes: [...spec.subtypes] } : {}),
+                ...(spec.supertypes
+                    ? { supertypes: [...spec.supertypes] }
+                    : {}),
+                power: spec.power,
+                toughness: spec.toughness,
+                ...(spec.staticAbilities
+                    ? { staticAbilities: [...spec.staticAbilities] }
+                    : {}),
+            });
+            for (let i = 0; i < count; i++) {
+                state.nextTokenSeq = (state.nextTokenSeq ?? 0) + 1;
+                const id = `token-${state.nextTokenSeq}`;
+                const token: CardInstanceState = {
+                    id,
+                    isToken: true,
+                    card: {
+                        id: defId,
+                        name: spec.name,
+                        manaCost,
+                        isToken: true,
+                    },
+                    controllerId,
+                    ownerId: controllerId,
+                    zone: "battlefield",
+                    types: [...spec.types],
+                    subtypes: spec.subtypes ? [...spec.subtypes] : [],
+                    staticAbilities: spec.staticAbilities
+                        ? [...spec.staticAbilities]
+                        : [],
+                    power: spec.power,
+                    toughness: spec.toughness,
+                    isTapped: false,
+                    isSummoningSick: spec.types.includes("Creature")
+                        ? true
+                        : undefined,
+                };
+                owner.battlefield.push(token);
+                applyExistingGrantsTo(state, token);
+                applySourceStaticEffects(state, token);
+                ids.push(id);
+            }
+            return ids;
         },
         // CR 113.1 / 611.1b: grants a keyword static ability for a limited
         // duration. The keyword is pushed to `staticAbilities` so combat

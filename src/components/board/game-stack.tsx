@@ -59,6 +59,7 @@ export default function GameStack({ stack }: GameStackProps) {
                             <button
                                 key={item.id}
                                 type="button"
+                                data-arrow-anchor-stack={item.id}
                                 disabled={!isTargetable}
                                 onClick={() => {
                                     if (!isTargetable) return;

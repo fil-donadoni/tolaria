@@ -1,8 +1,9 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { getImageUrl } from "~/lib/images";
 import { tryGetCardById } from "@convex/cards";
 import type { CardInstance } from "~/types/game";
 import CardPreview from "./card-preview";
+import CardImageLoader from "./card-image-loader";
 
 // `contain: paint` + promoted layer keep Chrome's compositor from shipping
 // the bitmap as a low-res tile while ancestors are transitioning/rotating.
@@ -32,6 +33,7 @@ function CardImageImpl({ card }: CardImageProps) {
     const defId = getDefId(card);
     const def = tryGetCardById(defId);
     const name = def?.name ?? defId;
+    const [loaded, setLoaded] = useState(false);
     return (
         <CardPreview cardId={defId} cardName={name} cardInstance={cardInstance}>
             <div
@@ -44,7 +46,10 @@ function CardImageImpl({ card }: CardImageProps) {
                     alt={name}
                     decoding="async"
                     draggable={false}
+                    onLoad={() => setLoaded(true)}
+                    onError={() => setLoaded(true)}
                 />
+                {!loaded && <CardImageLoader />}
             </div>
         </CardPreview>
     );

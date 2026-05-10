@@ -4932,13 +4932,38 @@ export const soulNet: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const theHive: CardDefinition = {
-//     id: "544a7138-eae8-4ff9-9e17-680bfa717183",
-//     name: "The Hive",
-//     oracleText: "{5}, {T}: Create a 1/1 colorless Insect artifact creature token with flying named Wasp. (It can't be blocked except by creatures with flying or reach.)",
-//     manaCost: { X: 5 },
-//     types: ["Artifact"],
-// };
+// The Hive — "{5}, {T}: Create a 1/1 colorless Insect artifact creature
+// token with flying named Wasp." (CR 111 / 707.1 token creation, 702.9
+// flying.) Uses the new `createToken` primitive; the token is wiped from
+// any non-battlefield zone by CR 704.5d (`checkTokenExistenceSBA`).
+export const theHive: CardDefinition = {
+    id: "544a7138-eae8-4ff9-9e17-680bfa717183",
+    name: "The Hive",
+    manaCost: { X: 5 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "the-hive-wasp",
+            oracleText:
+                "{5}, {T}: Create a 1/1 colorless Insect artifact creature token with flying named Wasp.",
+            cost: { mana: { X: 5 }, tap: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.createToken(
+                    {
+                        name: "Wasp",
+                        types: ["Artifact", "Creature"],
+                        subtypes: ["Insect"],
+                        power: 1,
+                        toughness: 1,
+                        staticAbilities: ["flying"],
+                    },
+                    ctx.controller
+                );
+            },
+        },
+    ],
+};
 
 export const throneOfBone: CardDefinition = makeColorSphere({
     id: "a2931ae0-7836-4000-b9ec-f2029ebf5d96",

@@ -336,6 +336,149 @@ describe("validateBlockerEligibility — can't be blocked by Walls (CR 509.1b)",
 });
 
 // ---------------------------------------------------------------------------
+// validateBlockerEligibility — Wave 2 block restrictions (CR 509.1b, 702.36b)
+// ---------------------------------------------------------------------------
+
+describe("validateBlockerEligibility — unblockable (CR 509.1b)", () => {
+    it("rejects every blocker against an unblockable attacker", () => {
+        const ghost = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["unblockable"],
+        });
+        const bears = makeCard({ types: ["Creature"], staticAbilities: [] });
+        const wall = makeCard({
+            types: ["Creature"],
+            subtypes: ["Wall"],
+            staticAbilities: ["defender"],
+        });
+        expect(validateBlockerEligibility(ghost, bears, [bears])).toEqual({
+            eligible: false,
+            reason: "Attacker can't be blocked",
+        });
+        expect(validateBlockerEligibility(ghost, wall, [wall])).toEqual({
+            eligible: false,
+            reason: "Attacker can't be blocked",
+        });
+    });
+});
+
+describe("validateBlockerEligibility — Invisibility, Wall-only (CR 509.1b)", () => {
+    it("rejects non-Wall blockers", () => {
+        const ghost = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["cant-be-blocked-except-by-wall"],
+        });
+        const bears = makeCard({ types: ["Creature"], staticAbilities: [] });
+        const result = validateBlockerEligibility(ghost, bears, [bears]);
+        expect(result.eligible).toBe(false);
+    });
+
+    it("accepts Wall blockers", () => {
+        const ghost = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["cant-be-blocked-except-by-wall"],
+        });
+        const wall = makeCard({
+            types: ["Creature"],
+            subtypes: ["Wall"],
+            staticAbilities: ["defender"],
+        });
+        expect(validateBlockerEligibility(ghost, wall, [wall])).toEqual({
+            eligible: true,
+        });
+    });
+});
+
+describe("validateBlockerEligibility — fear (CR 702.36b)", () => {
+    it("rejects a non-Black, non-Artifact blocker", () => {
+        const fearAttacker = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["fear"],
+            card: { manaCost: { B: 2 } },
+        });
+        const greenBlocker = makeCard({
+            types: ["Creature"],
+            staticAbilities: [],
+            card: { manaCost: { G: 1 } },
+        });
+        expect(
+            validateBlockerEligibility(fearAttacker, greenBlocker, [
+                greenBlocker,
+            ]).eligible
+        ).toBe(false);
+    });
+
+    it("accepts an Artifact blocker (even if not Black)", () => {
+        const fearAttacker = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["fear"],
+            card: { manaCost: { B: 2 } },
+        });
+        const artifactCreature = makeCard({
+            types: ["Creature", "Artifact"],
+            staticAbilities: [],
+            card: { manaCost: { C: 0 } },
+        });
+        expect(
+            validateBlockerEligibility(fearAttacker, artifactCreature, [
+                artifactCreature,
+            ])
+        ).toEqual({ eligible: true });
+    });
+
+    it("accepts a Black blocker", () => {
+        const fearAttacker = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["fear"],
+            card: { manaCost: { B: 2 } },
+        });
+        const blackBlocker = makeCard({
+            types: ["Creature"],
+            staticAbilities: [],
+            card: { manaCost: { B: 1 } },
+        });
+        expect(
+            validateBlockerEligibility(fearAttacker, blackBlocker, [
+                blackBlocker,
+            ])
+        ).toEqual({ eligible: true });
+    });
+});
+
+describe("validateBlockerEligibility — Ironclaw Orcs power-bound (CR 509.1b + 613)", () => {
+    it("rejects blocking an attacker with base power ≥ 2", () => {
+        const orc = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["cant-block-power-2-or-greater"],
+            power: 2,
+        });
+        const big = makeCard({
+            types: ["Creature"],
+            staticAbilities: [],
+            power: 3,
+        });
+        const result = validateBlockerEligibility(big, orc, [orc]);
+        expect(result.eligible).toBe(false);
+    });
+
+    it("accepts blocking an attacker with base power < 2", () => {
+        const orc = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["cant-block-power-2-or-greater"],
+            power: 2,
+        });
+        const small = makeCard({
+            types: ["Creature"],
+            staticAbilities: [],
+            power: 1,
+        });
+        expect(validateBlockerEligibility(small, orc, [orc])).toEqual({
+            eligible: true,
+        });
+    });
+});
+
+// ---------------------------------------------------------------------------
 // mustAttack / getRequiredAttackerIds (CR 508.1d)
 // ---------------------------------------------------------------------------
 

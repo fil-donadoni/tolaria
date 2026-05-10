@@ -23,6 +23,10 @@ export interface AggregatedOracleText {
 export function aggregateOracleText(def: CardDefinition): AggregatedOracleText {
     const lines: string[] = [];
 
+    if (def.oracleText) {
+        lines.push(def.oracleText);
+    }
+
     if (def.staticAbilities && def.staticAbilities.length > 0) {
         for (const kw of def.staticAbilities) {
             lines.push(kw);

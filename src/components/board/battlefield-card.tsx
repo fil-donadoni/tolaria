@@ -134,7 +134,7 @@ export default function BattlefieldCard({
     const cardContent = vs.tooltip ? (
         <Tooltip>
             <TooltipTrigger
-                render={<div />}
+                render={<div data-arrow-anchor-permanent={card.id} />}
                 className={cardClassName}
                 style={boxStyle}
                 onClick={onClick}
@@ -144,7 +144,12 @@ export default function BattlefieldCard({
             <TooltipContent>{vs.tooltip}</TooltipContent>
         </Tooltip>
     ) : (
-        <div className={cardClassName} style={boxStyle} onClick={onClick}>
+        <div
+            data-arrow-anchor-permanent={card.id}
+            className={cardClassName}
+            style={boxStyle}
+            onClick={onClick}
+        >
             {inner}
         </div>
     );

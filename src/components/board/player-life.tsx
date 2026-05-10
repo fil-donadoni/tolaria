@@ -31,6 +31,7 @@ export default function PlayerLife({ player }: PlayerLifeProps) {
 
     return (
         <div
+            data-arrow-anchor-player={player.id}
             className={`bg-slate-900 text-white text-center px-3 py-2 rounded-md shrink-0 ${hasPriority ? "ring-2 ring-yellow-400" : ""} ${isTargetable ? "ring-2 ring-orange-400 cursor-pointer hover:ring-orange-300" : ""}`}
             onClick={handleClick}
         >

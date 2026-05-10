@@ -1,4 +1,11 @@
-import type { CardDefinition, CardPrint } from "./types";
+import type {
+    CardDefinition,
+    CardPrint,
+    CardSupertype,
+    CardType,
+    Color,
+    ManaCost,
+} from "./types";
 import * as lea from "./sets/lea";
 import * as leb from "./sets/leb";
 
@@ -54,7 +61,7 @@ for (const print of allPrints) {
 }
 
 export const getCardById = (cardId: string): CardDefinition => {
-    const card = registry.get(cardId);
+    const card = registry.get(cardId) ?? maybeSynthesizeToken(cardId);
     if (!card) {
         throw new Error(`Card not found: ${cardId}`);
     }
@@ -64,7 +71,63 @@ export const getCardById = (cardId: string): CardDefinition => {
 /** Non-throwing variant. Returns null when the id isn't in the registry — used
  *  by subsystems that operate best-effort (layer system, test fixtures). */
 export const tryGetCardById = (cardId: string): CardDefinition | null =>
-    registry.get(cardId) ?? null;
+    registry.get(cardId) ?? maybeSynthesizeToken(cardId) ?? null;
+
+/** Registers a synthetic `CardDefinition` for a token (CR 111, 707.1).
+ *  Tokens have no Scryfall print — their definition is derived from the
+ *  effect that creates them. Idempotent: calling twice with the same id
+ *  is a no-op so multiple `createToken` invocations share one entry. */
+export const registerTokenDefinition = (def: CardDefinition): void => {
+    if (registry.has(def.id)) return;
+    registry.set(def.id, def);
+};
+
+/** Lazy synthesis of a token CardDefinition from a content-derived id
+ *  (e.g. `token:Wasp|Artifact,Creature|Insect||1|1||flying`). Server-side
+ *  registrations from `createToken` cover the canonical case, but the
+ *  client bundle has a separate registry — when a projected token instance
+ *  references an id we don't know, parse the parts back into a definition
+ *  on demand and memoize it. Returns null for non-token ids. */
+function maybeSynthesizeToken(cardId: string): CardDefinition | null {
+    if (!cardId.startsWith("token:")) return null;
+    const body = cardId.slice("token:".length);
+    const parts = body.split("|");
+    if (parts.length < 8) return null;
+    const [
+        name,
+        typesRaw,
+        subtypesRaw,
+        supertypesRaw,
+        powerRaw,
+        toughnessRaw,
+        colorsRaw,
+        staticAbilitiesRaw,
+    ] = parts;
+    const types = typesRaw.split(",").filter(Boolean) as CardType[];
+    const subtypes = subtypesRaw.split(",").filter(Boolean);
+    const supertypes = supertypesRaw.split(",").filter(Boolean) as
+        | CardSupertype[]
+        | [];
+    const power = powerRaw === "" ? undefined : Number(powerRaw);
+    const toughness = toughnessRaw === "" ? undefined : Number(toughnessRaw);
+    const colors = colorsRaw.split("").filter(Boolean) as Color[];
+    const staticAbilities = staticAbilitiesRaw.split(",").filter(Boolean);
+    const manaCost: ManaCost = {};
+    for (const c of colors) manaCost[c] = (manaCost[c] ?? 0) + 1;
+    const def: CardDefinition = {
+        id: cardId,
+        name,
+        manaCost,
+        types,
+        ...(subtypes.length > 0 ? { subtypes } : {}),
+        ...(supertypes.length > 0 ? { supertypes } : {}),
+        power,
+        toughness,
+        ...(staticAbilities.length > 0 ? { staticAbilities } : {}),
+    };
+    registry.set(cardId, def);
+    return def;
+}
 
 const nameRegistry = new Map<string, CardDefinition>(
     allCards.map((card) => [card.name.toLowerCase(), card])

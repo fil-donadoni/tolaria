@@ -57,9 +57,21 @@ function matchesColors(
     }
 }
 
+function tokenizeQuery(text: string): string[] {
+    const normalized = text.replace(/[“”„‟″‶]/g, '"').replace(/[‘’‚‛′‵]/g, "'");
+    const tokens: string[] = [];
+    const re = /"([^"]+)"|'([^']+)'|(\S+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(normalized)) !== null) {
+        const t = (m[1] ?? m[2] ?? m[3] ?? "").trim();
+        if (t) tokens.push(t);
+    }
+    return tokens;
+}
+
 function matchesText(entry: CardIndexEntry, text: string): boolean {
     if (!text) return true;
-    const tokens = text.toLowerCase().split(/\s+/).filter(Boolean);
+    const tokens = tokenizeQuery(text.toLowerCase());
     if (tokens.length === 0) return true;
     return tokens.every(
         (t) => entry.nameLower.includes(t) || entry.oracleText.includes(t)

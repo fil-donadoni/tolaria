@@ -6,6 +6,7 @@ interface DeckListProps {
     decks: DeckPreset[];
     selectedPresetId: string | null;
     onFocus: (presetId: string) => void;
+    onSelect?: (presetId: string) => void;
     title?: string;
     headerExtra?: ReactNode;
     emptyLabel?: string;
@@ -16,6 +17,7 @@ export default function DeckList({
     decks,
     selectedPresetId,
     onFocus,
+    onSelect,
     title,
     headerExtra,
     emptyLabel,
@@ -45,6 +47,7 @@ export default function DeckList({
                           deck={deck}
                           isSelected={deck.presetId === selectedPresetId}
                           onFocus={onFocus}
+                          onSelect={onSelect}
                           extraActions={renderActions?.(deck)}
                       />
                   ))}
