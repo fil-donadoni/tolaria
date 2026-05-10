@@ -204,6 +204,7 @@ import {
     getRequiredAttackerIds,
 } from "../../../gre/combat";
 import { advancePhase } from "../../../gre/phases";
+import { tryGetCardById } from "../../index";
 import type { CardDefinition, CardType } from "../../types";
 import {
     makeInstance,
@@ -10234,6 +10235,21 @@ describe("The Hive ({5}, {T}: create a 1/1 colorless flying Wasp Insect artifact
         // Effective stats survive the projection.
         expect(getEffectivePower(projected, wasp!)).toBe(1);
         expect(getEffectiveToughness(projected, wasp!)).toBe(1);
+    });
+
+    it("synthesized def carries the 10E Wasp imagePrintId for the image layer", () => {
+        const { state, hive } = setup();
+        activate(state, hive);
+        const wasp = state.players[0].battlefield.find((c) => c.isToken)!;
+        const defId = (wasp.card as { id: string }).id;
+        const def = tryGetCardById(defId);
+        expect(def).not.toBeNull();
+        expect(def!.imagePrintId).toBe("ce98066c-a3a1-51a2-bffc-12c38ef45905");
+        // The id encoding includes the print id as the trailing segment so
+        // the client lazy-synthesizer recovers it without server registration.
+        expect(defId.endsWith("|ce98066c-a3a1-51a2-bffc-12c38ef45905")).toBe(
+            true
+        );
     });
 });
 

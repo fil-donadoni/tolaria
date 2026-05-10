@@ -102,6 +102,7 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         toughnessRaw,
         colorsRaw,
         staticAbilitiesRaw,
+        imagePrintIdRaw,
     ] = parts;
     const types = typesRaw.split(",").filter(Boolean) as CardType[];
     const subtypes = subtypesRaw.split(",").filter(Boolean);
@@ -112,6 +113,10 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
     const toughness = toughnessRaw === "" ? undefined : Number(toughnessRaw);
     const colors = colorsRaw.split("").filter(Boolean) as Color[];
     const staticAbilities = staticAbilitiesRaw.split(",").filter(Boolean);
+    const imagePrintId =
+        imagePrintIdRaw && imagePrintIdRaw.length > 0
+            ? imagePrintIdRaw
+            : undefined;
     const manaCost: ManaCost = {};
     for (const c of colors) manaCost[c] = (manaCost[c] ?? 0) + 1;
     const def: CardDefinition = {
@@ -124,6 +129,7 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         power,
         toughness,
         ...(staticAbilities.length > 0 ? { staticAbilities } : {}),
+        ...(imagePrintId ? { imagePrintId } : {}),
     };
     registry.set(cardId, def);
     return def;

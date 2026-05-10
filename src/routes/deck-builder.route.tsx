@@ -1,6 +1,10 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import DeckBuilder from "~/components/lobby/deck-builder/deck-builder";
-import { getUserDeck, isUserDeckId } from "~/lib/userDecks";
+import { useUserDecks } from "~/hooks/useUserDecks";
+import { toUserLobbyDeck } from "~/lib/deckTypes";
 
 interface DeckBuilderRouteProps {
     mode: "create" | "edit";
@@ -11,17 +15,21 @@ export default function DeckBuilderRoute({ mode }: DeckBuilderRouteProps) {
     const params = useParams({ strict: false }) as { slug?: string };
     const slug = mode === "edit" ? params.slug : undefined;
 
-    if (mode === "edit" && slug) {
-        if (!isUserDeckId(slug)) {
-            void navigate({
-                to: "/decks/$slug",
-                params: { slug },
-                replace: true,
-            });
-            return null;
+    const userDecks = useUserDecks();
+    const editingDeck = useQuery(
+        api.userDecks.get,
+        slug ? { id: slug as Id<"userDecks"> } : "skip"
+    );
+
+    if (mode === "edit") {
+        if (editingDeck === undefined || userDecks === undefined) {
+            return (
+                <div className="flex h-screen items-center justify-center text-white">
+                    Loading...
+                </div>
+            );
         }
-        const deck = getUserDeck(slug);
-        if (!deck) {
+        if (editingDeck === null) {
             return (
                 <div className="flex h-screen flex-col items-center justify-center gap-4 text-white">
                     <p>Deck not found.</p>
@@ -36,12 +44,13 @@ export default function DeckBuilderRoute({ mode }: DeckBuilderRouteProps) {
         }
         return (
             <DeckBuilder
-                initialDeck={deck}
-                onClose={(savedPresetId) => {
-                    if (savedPresetId) {
+                initialDeck={toUserLobbyDeck(editingDeck)}
+                initialDeckList={userDecks}
+                onClose={(savedId) => {
+                    if (savedId) {
                         void navigate({
                             to: "/decks/$slug",
-                            params: { slug: savedPresetId },
+                            params: { slug: savedId },
                         });
                     } else {
                         void navigate({ to: "/" });
@@ -51,14 +60,23 @@ export default function DeckBuilderRoute({ mode }: DeckBuilderRouteProps) {
         );
     }
 
+    if (userDecks === undefined) {
+        return (
+            <div className="flex h-screen items-center justify-center text-white">
+                Loading...
+            </div>
+        );
+    }
+
     return (
         <DeckBuilder
             initialDeck={null}
-            onClose={(savedPresetId) => {
-                if (savedPresetId) {
+            initialDeckList={userDecks}
+            onClose={(savedId) => {
+                if (savedId) {
                     void navigate({
                         to: "/decks/$slug",
-                        params: { slug: savedPresetId },
+                        params: { slug: savedId },
                     });
                 } else {
                     void navigate({ to: "/" });

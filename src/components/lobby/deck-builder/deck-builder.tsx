@@ -1,14 +1,10 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getCardById } from "@convex/cards";
 import { getCardColors } from "@convex/cards/colors";
-import {
-    type UserDeck,
-    createEmptyUserDeck,
-    listUserDecks,
-    nextDeckName,
-    saveUserDeck,
-    touchDeck,
-} from "~/lib/userDecks";
+import type { Id } from "@convex/_generated/dataModel";
+import { useUserDeckMutations } from "~/hooks/useUserDecks";
+import { type UserLobbyDeck } from "~/lib/deckTypes";
+import { nextDeckName } from "~/lib/userDecks";
 import type { DeckCard } from "~/types/game";
 import ColorFilter from "./color-filter";
 import DeckPileArea from "./deck-pile-area";
@@ -25,12 +21,22 @@ import {
     useCardSearch,
 } from "./useCardSearch";
 
+interface WorkingDeck {
+    name: string;
+    format: string;
+    colors: string[];
+    cards: DeckCard[];
+}
+
 interface DeckBuilderProps {
-    initialDeck: UserDeck | null;
-    onClose: (savedPresetId: string | null) => void;
+    initialDeck: UserLobbyDeck | null;
+    initialDeckList: UserLobbyDeck[];
+    onClose: (savedDeckId: string | null) => void;
 }
 
 const COLOR_ORDER = ["W", "U", "B", "R", "G"] as const;
+const SAVE_DEBOUNCE_MS = 800;
+const DEFAULT_FORMAT = "Freeform";
 
 function computeDeckColors(cards: DeckCard[]): string[] {
     const set = new Set<string>();
@@ -47,32 +53,120 @@ function computeDeckColors(cards: DeckCard[]): string[] {
 
 export default function DeckBuilder({
     initialDeck,
+    initialDeckList,
     onClose,
 }: DeckBuilderProps) {
-    const [deck, setDeck] = useState<UserDeck>(
-        () => initialDeck ?? createEmptyUserDeck(nextDeckName(listUserDecks()))
+    const [deck, setDeck] = useState<WorkingDeck>(
+        () =>
+            initialDeck ?? {
+                name: nextDeckName(initialDeckList),
+                format: DEFAULT_FORMAT,
+                colors: [],
+                cards: [],
+            }
     );
     const [filters, setFilters] = useState<CardSearchFilters>(DEFAULT_FILTERS);
-    // Track whether the deck has been written to localStorage at least once.
-    // Empty drafts stay virtual until the first edit so a user opening the
-    // builder and bailing out doesn't leave behind an empty "Deck N".
-    const persistedRef = useRef(initialDeck !== null);
+
+    const { create, update } = useUserDeckMutations();
+    const userDeckIdRef = useRef<Id<"userDecks"> | null>(
+        initialDeck?.userDeckId ?? null
+    );
+    const pendingRef = useRef<WorkingDeck | null>(null);
+    const timerRef = useRef<number | null>(null);
+    const inflightRef = useRef<Promise<unknown> | null>(null);
 
     const { entries, idle } = useCardSearch(filters);
 
-    const updateDeck = useCallback((updater: (deck: UserDeck) => UserDeck) => {
-        setDeck((current) => {
-            const updated = updater(current);
-            const next = touchDeck(updated, {
-                colors: computeDeckColors(updated.cards),
-            });
-            if (persistedRef.current || next.cards.length > 0) {
-                saveUserDeck(next);
-                persistedRef.current = true;
+    const clearTimer = () => {
+        if (timerRef.current !== null) {
+            window.clearTimeout(timerRef.current);
+            timerRef.current = null;
+        }
+    };
+
+    const flush = useCallback(async () => {
+        clearTimer();
+        if (inflightRef.current) {
+            try {
+                await inflightRef.current;
+            } catch {
+                // surfaced by the originating call site
             }
-            return next;
-        });
-    }, []);
+        }
+        const pending = pendingRef.current;
+        if (!pending) return;
+        pendingRef.current = null;
+        if (userDeckIdRef.current === null) {
+            const promise = create({
+                name: pending.name,
+                format: pending.format,
+                colors: pending.colors,
+                cards: pending.cards,
+            });
+            inflightRef.current = promise;
+            try {
+                userDeckIdRef.current = await promise;
+            } finally {
+                inflightRef.current = null;
+            }
+        } else {
+            const promise = update({
+                id: userDeckIdRef.current,
+                patch: {
+                    name: pending.name,
+                    format: pending.format,
+                    colors: pending.colors,
+                    cards: pending.cards,
+                },
+            });
+            inflightRef.current = promise;
+            try {
+                await promise;
+            } finally {
+                inflightRef.current = null;
+            }
+        }
+    }, [create, update]);
+
+    const schedule = useCallback(
+        (next: WorkingDeck) => {
+            const shouldPersist =
+                next.cards.length > 0 || userDeckIdRef.current !== null;
+            if (!shouldPersist) {
+                pendingRef.current = null;
+                clearTimer();
+                return;
+            }
+            pendingRef.current = next;
+            clearTimer();
+            timerRef.current = window.setTimeout(() => {
+                timerRef.current = null;
+                void flush();
+            }, SAVE_DEBOUNCE_MS);
+        },
+        [flush]
+    );
+
+    useEffect(() => {
+        return () => {
+            void flush();
+        };
+    }, [flush]);
+
+    const updateDeck = useCallback(
+        (updater: (deck: WorkingDeck) => WorkingDeck) => {
+            setDeck((current) => {
+                const updated = updater(current);
+                const next: WorkingDeck = {
+                    ...updated,
+                    colors: computeDeckColors(updated.cards),
+                };
+                schedule(next);
+                return next;
+            });
+        },
+        [schedule]
+    );
 
     const handleSetName = useCallback(
         (name: string) => {
@@ -104,9 +198,10 @@ export default function DeckBuilder({
         [updateDeck]
     );
 
-    const handleDone = useCallback(() => {
-        onClose(persistedRef.current ? deck.presetId : null);
-    }, [deck.presetId, onClose]);
+    const handleDone = useCallback(async () => {
+        await flush();
+        onClose(userDeckIdRef.current);
+    }, [flush, onClose]);
 
     const toggleColor = useCallback((color: string) => {
         setFilters((f) => ({
@@ -152,7 +247,7 @@ export default function DeckBuilder({
             <div className="flex flex-col gap-3 border-b border-white/10 bg-black/40 px-6 py-3">
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={handleDone}
+                        onClick={() => void handleDone()}
                         className="rounded border border-white/20 bg-white/5 px-3 py-1.5 text-sm hover:bg-white/10"
                     >
                         ← Back
@@ -202,7 +297,7 @@ export default function DeckBuilder({
             <SaveDeckBar
                 name={deck.name}
                 onChangeName={handleSetName}
-                onDone={handleDone}
+                onDone={() => void handleDone()}
                 cardCount={deck.cards.length}
             />
         </div>

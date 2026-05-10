@@ -1510,7 +1510,10 @@ function normalizeDestroyAllFilter(
 /** Content-derived id for a synthesized token CardDefinition (CR 707.1).
  *  Two `createToken` calls with the same spec shape share one definition
  *  entry (and thus one image / one frontend lookup); two specs that differ
- *  on any field get two distinct ids. Stable across replays. */
+ *  on any field get two distinct ids. Stable across replays. The optional
+ *  9th segment is an `imagePrintId` (Scryfall UUID of a printed token) so
+ *  the client lazy-synthesizer can recover the same image link without a
+ *  separate registration call. */
 function tokenDefinitionId(spec: TokenSpec): string {
     const parts = [
         spec.name,
@@ -1521,6 +1524,7 @@ function tokenDefinitionId(spec: TokenSpec): string {
         spec.toughness ?? "",
         (spec.colors ?? []).join(""),
         (spec.staticAbilities ?? []).join(","),
+        spec.imagePrintId ?? "",
     ];
     return `token:${parts.join("|")}`;
 }
@@ -2039,6 +2043,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 toughness: spec.toughness,
                 ...(spec.staticAbilities
                     ? { staticAbilities: [...spec.staticAbilities] }
+                    : {}),
+                ...(spec.imagePrintId
+                    ? { imagePrintId: spec.imagePrintId }
                     : {}),
             });
             for (let i = 0; i < count; i++) {

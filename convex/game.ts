@@ -1,6 +1,7 @@
 import { v, type GenericId } from "convex/values";
 import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc } from "./_generated/dataModel";
+import { auth, getCurrentUser } from "./auth";
 import { mutation, query } from "./_generated/server";
 import { getCardById, getCardByName, getAllCardNames } from "./cards";
 import {
@@ -511,45 +512,58 @@ export const getGameCardIds = query({
     },
 });
 
-/** Returns all games waiting for a second player. */
+/** Returns all games waiting for a second player, excluding any the caller
+ *  is already part of. Auth is required. */
 export const listOpenGames = query({
     handler: async (ctx) => {
+        const userId = await auth.getUserId(ctx);
+        if (!userId) return [];
         const games = await ctx.db.query("games").collect();
-        return games.filter((g) => g.status === "waiting");
+        return games.filter(
+            (g) =>
+                g.status === "waiting" &&
+                !g.players.some((p) => p.id === userId)
+        );
     },
 });
 
 // --- Mutations ---
 
-const playerValidator = v.object({
+const PLAYER_COLORS = ["#4B5A6C", "#63768D"];
+
+const deckValidator = v.object({
     id: v.string(),
     name: v.string(),
-    bgColor: v.string(),
-    deck: v.object({
-        id: v.string(),
-        name: v.string(),
-        format: v.string(),
-        cards: v.array(
-            v.object({
-                cardId: v.string(),
-                cardName: v.string(),
-            })
-        ),
-    }),
+    format: v.string(),
+    cards: v.array(
+        v.object({
+            cardId: v.string(),
+            cardName: v.string(),
+        })
+    ),
 });
 
 export const createGame = mutation({
     args: {
         name: v.string(),
-        player: playerValidator,
+        deck: deckValidator,
+        bgColor: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
         const now = Date.now();
+
+        const player: PlayerInput = {
+            id: user._id,
+            name: user.nickname,
+            bgColor: args.bgColor ?? PLAYER_COLORS[0],
+            deck: args.deck,
+        };
 
         const gameId = await ctx.db.insert("games", {
             name: args.name,
             status: "waiting",
-            players: [args.player],
+            players: [player],
             createdAt: now,
             updatedAt: now,
         });
@@ -566,15 +580,27 @@ export const createGame = mutation({
 export const createSoloGame = mutation({
     args: {
         name: v.string(),
-        player1: playerValidator,
-        player2: playerValidator,
+        deck: deckValidator,
+        deck2: v.optional(deckValidator),
     },
     handler: async (ctx, args) => {
-        if (args.player1.id === args.player2.id) {
-            throw new Error("Solo game players must have distinct ids");
-        }
+        const user = await getCurrentUser(ctx);
+        const deck2 = args.deck2 ?? args.deck;
 
-        const allPlayers = [args.player1, args.player2];
+        const player1: PlayerInput = {
+            id: `${user._id}-p1`,
+            name: `${user.nickname} (P1)`,
+            bgColor: PLAYER_COLORS[0],
+            deck: args.deck,
+        };
+        const player2: PlayerInput = {
+            id: `${user._id}-p2`,
+            name: `${user.nickname} (P2)`,
+            bgColor: PLAYER_COLORS[1],
+            deck: deck2,
+        };
+
+        const allPlayers = [player1, player2];
         const now = Date.now();
 
         const gameId = await ctx.db.insert("games", {
@@ -635,17 +661,25 @@ export const createSoloGame = mutation({
 export const joinGame = mutation({
     args: {
         gameId: v.id("games"),
-        player: playerValidator,
+        deck: deckValidator,
+        bgColor: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
         const game = await ctx.db.get(args.gameId);
         if (!game) throw new Error("Game not found");
         if (game.status !== "waiting") throw new Error("Game is not open");
         if (game.players.length >= 2) throw new Error("Game is full");
-        if (game.players.some((p) => p.id === args.player.id))
+        if (game.players.some((p) => p.id === user._id))
             throw new Error("Cannot join a game you are already in");
 
-        const allPlayers = [...game.players, args.player];
+        const player: PlayerInput = {
+            id: user._id,
+            name: user.nickname,
+            bgColor: args.bgColor ?? PLAYER_COLORS[1],
+            deck: args.deck,
+        };
+        const allPlayers = [...game.players, player];
         const now = Date.now();
 
         // Update game record

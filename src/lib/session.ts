@@ -1,12 +1,8 @@
 import type { Id } from "@convex/_generated/dataModel";
 
-export const PLAYER_COLORS = ["#4B5A6C", "#63768D"];
-
 const GAME_KEY = "tolaria:gameId";
 const PLAYER_KEY = "tolaria:playerId";
-const NAME_KEY = "tolaria:playerName";
 const DECK_KEY = "tolaria:selectedDeckId";
-const CLIENT_KEY = "tolaria:clientId";
 
 export function getStoredSession() {
     const gameId = localStorage.getItem(GAME_KEY) as Id<"games"> | null;
@@ -24,14 +20,6 @@ export function clearSession() {
     localStorage.removeItem(PLAYER_KEY);
 }
 
-export function getStoredPlayerName(): string {
-    return localStorage.getItem(NAME_KEY) ?? "";
-}
-
-export function storePlayerName(name: string) {
-    localStorage.setItem(NAME_KEY, name);
-}
-
 export function getStoredDeckPresetId(): string | null {
     return localStorage.getItem(DECK_KEY);
 }
@@ -42,13 +30,4 @@ export function storeDeckPresetId(presetId: string) {
 
 export function clearDeckPresetId() {
     localStorage.removeItem(DECK_KEY);
-}
-
-/** Stable per-browser id, independent of the current game session. */
-export function getOrCreateClientId(): string {
-    const existing = localStorage.getItem(CLIENT_KEY);
-    if (existing) return existing;
-    const id = crypto.randomUUID();
-    localStorage.setItem(CLIENT_KEY, id);
-    return id;
 }

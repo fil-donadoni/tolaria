@@ -1,0 +1,52 @@
+import { Password } from "@convex-dev/auth/providers/Password";
+import { convexAuth } from "@convex-dev/auth/server";
+import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
+import type { DataModel, Doc, Id } from "./_generated/dataModel";
+
+type AnyCtx = GenericQueryCtx<DataModel> | GenericMutationCtx<DataModel>;
+
+const NICKNAME_MIN = 1;
+const NICKNAME_MAX = 32;
+
+function normalizeNickname(raw: unknown): string {
+    if (typeof raw !== "string") {
+        throw new Error("nickname is required");
+    }
+    const trimmed = raw.trim();
+    if (trimmed.length < NICKNAME_MIN || trimmed.length > NICKNAME_MAX) {
+        throw new Error(
+            `nickname must be ${NICKNAME_MIN}-${NICKNAME_MAX} characters`
+        );
+    }
+    return trimmed;
+}
+
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+    providers: [
+        Password({
+            profile(params) {
+                const email = params.email;
+                if (typeof email !== "string" || email.trim().length === 0) {
+                    throw new Error("email is required");
+                }
+                return {
+                    email: email.trim().toLowerCase(),
+                    nickname: normalizeNickname(params.nickname),
+                };
+            },
+        }),
+    ],
+});
+
+export async function getCurrentUserId(ctx: AnyCtx): Promise<Id<"users">> {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    return userId;
+}
+
+export async function getCurrentUser(ctx: AnyCtx): Promise<Doc<"users">> {
+    const userId = await getCurrentUserId(ctx);
+    const user = await ctx.db.get(userId);
+    if (!user) throw new Error("User not found");
+    return user;
+}

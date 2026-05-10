@@ -1,7 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { ConvexReactClient } from "convex/react";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { AppRouter } from "./router";
 
@@ -19,10 +20,10 @@ if ("serviceWorker" in navigator) {
 
 createRoot(document.getElementById("root")!).render(
     <StrictMode>
-        <ConvexProvider client={convex}>
+        <ConvexAuthProvider client={convex}>
             <TooltipProvider>
                 <AppRouter />
             </TooltipProvider>
-        </ConvexProvider>
+        </ConvexAuthProvider>
     </StrictMode>
 );

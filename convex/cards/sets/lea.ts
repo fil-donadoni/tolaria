@@ -4957,6 +4957,10 @@ export const theHive: CardDefinition = {
                         power: 1,
                         toughness: 1,
                         staticAbilities: ["flying"],
+                        // Scryfall id of the Wasp token printed in 10E
+                        // (Alpha never had a printed token; this is the
+                        // canonical reprint art used by The Hive).
+                        imagePrintId: "ce98066c-a3a1-51a2-bffc-12c38ef45905",
                     },
                     ctx.controller
                 );

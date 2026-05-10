@@ -4,9 +4,10 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import DeckDetail from "~/components/lobby/deck-detail";
 import { usePageVisible } from "~/hooks/usePageVisible";
+import { useUserDecks } from "~/hooks/useUserDecks";
 import { findDeckBySlug } from "~/lib/deckLookup";
+import { toPresetLobbyDeck, type LobbyDeck } from "~/lib/deckTypes";
 import { getStoredDeckPresetId, storeDeckPresetId } from "~/lib/session";
-import { listUserDecks } from "~/lib/userDecks";
 
 export default function DeckDetailRoute() {
     const { slug } = useParams({ from: "/decks/$slug" });
@@ -14,22 +15,27 @@ export default function DeckDetailRoute() {
     const pageVisible = usePageVisible();
 
     const presetDecks = useQuery(api.decks.list, pageVisible ? {} : "skip");
-    const userDecks = useMemo(() => listUserDecks(), []);
+    const userDecks = useUserDecks();
     const selectedPresetId = getStoredDeckPresetId();
 
+    const allDecks = useMemo<LobbyDeck[]>(() => {
+        const presets = (presetDecks ?? []).map(toPresetLobbyDeck);
+        return [...(userDecks ?? []), ...presets];
+    }, [presetDecks, userDecks]);
+
     const deck = useMemo(
-        () => findDeckBySlug(slug, presetDecks, userDecks),
-        [slug, presetDecks, userDecks]
+        () => findDeckBySlug(slug, allDecks),
+        [slug, allDecks]
     );
 
     useEffect(() => {
-        if (presetDecks === undefined) return;
+        if (presetDecks === undefined || userDecks === undefined) return;
         if (deck === null) {
             void navigate({ to: "/", replace: true });
         }
-    }, [deck, presetDecks, navigate]);
+    }, [deck, presetDecks, userDecks, navigate]);
 
-    if (presetDecks === undefined) {
+    if (presetDecks === undefined || userDecks === undefined) {
         return (
             <div className="flex h-screen items-center justify-center text-white">
                 Loading...

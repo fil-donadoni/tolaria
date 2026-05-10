@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
-import type { DeckPreset } from "@convex/deckPresets";
+import type { LobbyDeck } from "~/lib/deckTypes";
 import { cn } from "~/lib/utils";
 import ManaSymbol from "../cards/mana-symbol";
 
 interface DeckListItemProps {
-    deck: DeckPreset;
+    deck: LobbyDeck;
     isSelected: boolean;
     onFocus: (presetId: string) => void;
     onSelect?: (presetId: string) => void;

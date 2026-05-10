@@ -1,59 +1,56 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import type { DeckPreset } from "@convex/deckPresets";
+import { AccountMenu } from "~/components/auth/account-menu";
+import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { usePageVisible } from "~/hooks/usePageVisible";
+import { useUserDecks, useUserDeckMutations } from "~/hooks/useUserDecks";
 import {
-    PLAYER_COLORS,
+    deckPayload,
+    toPresetLobbyDeck,
+    type LobbyDeck,
+} from "~/lib/deckTypes";
+import {
     clearDeckPresetId,
-    getOrCreateClientId,
     getStoredDeckPresetId,
-    getStoredPlayerName,
     storeDeckPresetId,
-    storePlayerName,
     storeSession,
 } from "~/lib/session";
-import {
-    type UserDeck,
-    deleteUserDeck,
-    isUserDeckId,
-    listUserDecks,
-} from "~/lib/userDecks";
 import DeckList from "./deck-list";
 
 function Lobby() {
     const navigate = useNavigate();
-    const [playerName, setPlayerName] = useState(() => getStoredPlayerName());
+    const user = useCurrentUser();
     const [storedPresetId, setStoredPresetId] = useState<string | null>(() =>
         getStoredDeckPresetId()
     );
-    const [userDecks, setUserDecks] = useState<UserDeck[]>(() =>
-        listUserDecks()
-    );
-    const clientId = useMemo(() => getOrCreateClientId(), []);
+    const userDecks = useUserDecks();
+    const { remove: removeUserDeck } = useUserDeckMutations();
 
     const pageVisible = usePageVisible();
     const presetDecks = useQuery(api.decks.list, pageVisible ? {} : "skip");
     const createGame = useMutation(api.game.createGame);
     const createSoloGame = useMutation(api.game.createSoloGame);
     const joinGame = useMutation(api.game.joinGame);
-    const allOpenGames = useQuery(
+    const openGames = useQuery(
         api.game.listOpenGames,
         pageVisible ? {} : "skip"
     );
-    const openGames = useMemo(
-        () =>
-            allOpenGames?.filter(
-                (g) => !g.players.some((p) => p.id === clientId)
-            ),
-        [allOpenGames, clientId]
+
+    const presetLobbyDecks = useMemo<LobbyDeck[]>(
+        () => (presetDecks ?? []).map(toPresetLobbyDeck),
+        [presetDecks]
+    );
+    const userLobbyDecks = useMemo<LobbyDeck[]>(
+        () => userDecks ?? [],
+        [userDecks]
     );
 
-    const allDecks = useMemo<DeckPreset[]>(
-        () => [...userDecks, ...(presetDecks ?? [])],
-        [userDecks, presetDecks]
+    const allDecks = useMemo<LobbyDeck[]>(
+        () => [...userLobbyDecks, ...presetLobbyDecks],
+        [userLobbyDecks, presetLobbyDecks]
     );
 
     const selectedDeck = useMemo(
@@ -62,84 +59,45 @@ function Lobby() {
     );
 
     useEffect(() => {
-        if (presetDecks && storedPresetId && !selectedDeck) {
+        if (
+            presetDecks &&
+            userDecks !== undefined &&
+            storedPresetId &&
+            !selectedDeck
+        ) {
             clearDeckPresetId();
         }
-    }, [presetDecks, storedPresetId, selectedDeck]);
+    }, [presetDecks, userDecks, storedPresetId, selectedDeck]);
 
-    const refreshUserDecks = useCallback(() => {
-        setUserDecks(listUserDecks());
-    }, []);
-
-    const canPlay = !!selectedDeck && playerName.trim().length > 0;
-
-    const deckPayload = (d: DeckPreset) => ({
-        id: d.presetId,
-        name: d.name,
-        format: d.format,
-        cards: d.cards,
-    });
+    const canPlay = !!selectedDeck && !!user;
 
     const handleCreate = async () => {
-        if (!selectedDeck) return;
-        const name = playerName.trim() || "Player 1";
-        const pid = getOrCreateClientId();
+        if (!selectedDeck || !user) return;
         const id = await createGame({
-            name: `${name}'s game`,
-            player: {
-                id: pid,
-                name,
-                bgColor: PLAYER_COLORS[0],
-                deck: deckPayload(selectedDeck),
-            },
+            name: `${user.nickname}'s game`,
+            deck: deckPayload(selectedDeck),
         });
-        storePlayerName(name);
-        storeSession(id, pid);
+        storeSession(id, user._id);
         void navigate({ to: "/game" });
     };
 
     const handleCreateSolo = async () => {
-        if (!selectedDeck) return;
-        const name = playerName.trim() || "Player";
-        const baseId = getOrCreateClientId();
-        const p1Id = `${baseId}-p1`;
-        const p2Id = `${baseId}-p2`;
-        const deck = deckPayload(selectedDeck);
+        if (!selectedDeck || !user) return;
         const id = await createSoloGame({
-            name: `${name}'s solo game`,
-            player1: {
-                id: p1Id,
-                name: `${name} (P1)`,
-                bgColor: PLAYER_COLORS[0],
-                deck,
-            },
-            player2: {
-                id: p2Id,
-                name: `${name} (P2)`,
-                bgColor: PLAYER_COLORS[1],
-                deck,
-            },
+            name: `${user.nickname}'s solo game`,
+            deck: deckPayload(selectedDeck),
         });
-        storePlayerName(name);
-        storeSession(id, p1Id);
+        storeSession(id, `${user._id}-p1`);
         void navigate({ to: "/game" });
     };
 
     const handleJoin = async (targetGameId: Id<"games">) => {
-        if (!selectedDeck) return;
-        const name = playerName.trim() || "Player 2";
-        const pid = getOrCreateClientId();
+        if (!selectedDeck || !user) return;
         await joinGame({
             gameId: targetGameId,
-            player: {
-                id: pid,
-                name,
-                bgColor: PLAYER_COLORS[1],
-                deck: deckPayload(selectedDeck),
-            },
+            deck: deckPayload(selectedDeck),
         });
-        storePlayerName(name);
-        storeSession(targetGameId, pid);
+        storeSession(targetGameId, user._id);
         void navigate({ to: "/game" });
     };
 
@@ -164,12 +122,11 @@ function Lobby() {
         });
     };
 
-    const handleDeleteDeck = (presetId: string) => {
-        const deck = userDecks.find((d) => d.presetId === presetId);
-        if (!deck) return;
+    const handleDeleteDeck = async (presetId: string) => {
+        const deck = userLobbyDecks.find((d) => d.presetId === presetId);
+        if (!deck || deck.kind !== "user") return;
         if (!window.confirm(`Delete "${deck.name}"?`)) return;
-        deleteUserDeck(presetId);
-        refreshUserDecks();
+        await removeUserDeck({ id: deck.userDeckId });
         if (storedPresetId === presetId) {
             setStoredPresetId(null);
             clearDeckPresetId();
@@ -180,7 +137,11 @@ function Lobby() {
         void navigate({ to: "/decks/create" });
     };
 
-    if (presetDecks === undefined) {
+    if (
+        presetDecks === undefined ||
+        userDecks === undefined ||
+        user === undefined
+    ) {
         return (
             <div className="flex h-screen items-center justify-center text-white">
                 Loading...
@@ -188,7 +149,7 @@ function Lobby() {
         );
     }
 
-    const renderUserActions = (deck: DeckPreset) => (
+    const renderUserActions = (deck: LobbyDeck) => (
         <>
             <button
                 onClick={() => handleEditDeck(deck.presetId)}
@@ -198,7 +159,7 @@ function Lobby() {
                 Edit
             </button>
             <button
-                onClick={() => handleDeleteDeck(deck.presetId)}
+                onClick={() => void handleDeleteDeck(deck.presetId)}
                 className="rounded border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200 hover:bg-rose-500/20"
                 title="Delete deck"
             >
@@ -211,12 +172,15 @@ function Lobby() {
         return (
             <div className="flex min-h-screen flex-col items-center gap-6 px-6 py-12 text-white">
                 <h1 className="text-2xl font-bold">Tolaria</h1>
+                <div className="w-full max-w-xl">
+                    <AccountMenu />
+                </div>
                 <p className="text-sm text-white/60">
                     Select a deck to continue.
                 </p>
                 <DeckList
                     title="My Decks"
-                    decks={userDecks}
+                    decks={userLobbyDecks}
                     selectedPresetId={storedPresetId}
                     onFocus={handleFocusDeck}
                     onSelect={handleSelectDeck}
@@ -233,7 +197,7 @@ function Lobby() {
                 />
                 <DeckList
                     title="Built-in Decks"
-                    decks={presetDecks}
+                    decks={presetLobbyDecks}
                     selectedPresetId={storedPresetId}
                     onFocus={handleFocusDeck}
                     onSelect={handleSelectDeck}
@@ -242,19 +206,14 @@ function Lobby() {
         );
     }
 
-    const selectedIsUserDeck = isUserDeckId(selectedDeck.presetId);
+    const selectedIsUserDeck = selectedDeck.kind === "user";
 
     return (
         <div className="flex min-h-screen flex-col items-center gap-6 px-6 py-12 text-white">
             <h1 className="text-2xl font-bold">Tolaria</h1>
-
-            <input
-                type="text"
-                placeholder="Your name"
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                className="rounded border border-white/20 bg-white/5 px-4 py-2 text-center text-white placeholder:text-white/30"
-            />
+            <div className="w-full max-w-xl">
+                <AccountMenu />
+            </div>
 
             <div className="flex items-center gap-3 rounded border border-white/10 bg-white/5 px-4 py-2 text-sm">
                 <span className="text-white/60">Deck:</span>

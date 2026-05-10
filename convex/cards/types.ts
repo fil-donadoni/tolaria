@@ -234,6 +234,11 @@ export interface TokenSpec {
     colors?: Color[];
     /** Static abilities the token enters with (e.g. `["flying"]`). */
     staticAbilities?: string[];
+    /** Optional Scryfall id of a printed token card. Used by the image layer
+     *  to fetch real token art (e.g. The Hive's Wasp print from 10E:
+     *  `ce98066c-a3a1-51a2-bffc-12c38ef45905`). When omitted, the renderer
+     *  falls back to an in-app placeholder showing the name / abilities / P/T. */
+    imagePrintId?: string;
 }
 
 // --- Spell resolution context ---
@@ -1039,6 +1044,14 @@ export interface CardDefinition {
      *  even an exempt aura to detach, but no multi-source protection cards
      *  exist in the current set, so we model this as a flat exemption. */
     exemptFromProtectionDetach?: boolean;
+    /** For synthesized token CardDefinitions (CR 111, 707.1): Scryfall id of
+     *  a printed token card to use as the visual representation. The card
+     *  image layer prefers this over the def's own id when fetching art —
+     *  printed tokens come from later sets (10E for Alpha cards), so the
+     *  Alpha-era card has no token image of its own. Undefined for non-token
+     *  defs and for tokens with no printed art (the placeholder renderer
+     *  takes over in that case). */
+    imagePrintId?: string;
 }
 
 /** Reprint of an existing `CardDefinition` in another set. The mechanics are

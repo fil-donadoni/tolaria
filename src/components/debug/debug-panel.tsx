@@ -3,13 +3,9 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { JSONTree } from "react-json-tree";
+import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { usePageVisible } from "~/hooks/usePageVisible";
-import {
-    PLAYER_COLORS,
-    getOrCreateClientId,
-    getStoredPlayerName,
-    storeSession,
-} from "~/lib/session";
+import { storeSession } from "~/lib/session";
 import DebugButton from "./debug-button";
 
 const theme = {
@@ -426,30 +422,18 @@ export default function DebugPanel({
     const resetGame = useMutation(api.game.debugResetGame);
     const setupScenario = useMutation(api.game.debugSetupScenario);
     const createSoloGame = useMutation(api.game.createSoloGame);
+    const user = useCurrentUser();
 
     const handleNewSolo = async () => {
         // Reuse the deck of the first player in the current game so the user
         // doesn't have to round-trip through the lobby just to restart.
         const sourceDeck = game?.players[0]?.deck;
         if (!sourceDeck) return;
-        const name = getStoredPlayerName().trim() || "Player";
-        const baseId = getOrCreateClientId();
-        const p1Id = `${baseId}-p1`;
-        const p2Id = `${baseId}-p2`;
+        if (!user) return;
+        const p1Id = `${user._id}-p1`;
         const newId = await createSoloGame({
-            name: `${name}'s solo game`,
-            player1: {
-                id: p1Id,
-                name: `${name} (P1)`,
-                bgColor: PLAYER_COLORS[0],
-                deck: sourceDeck,
-            },
-            player2: {
-                id: p2Id,
-                name: `${name} (P2)`,
-                bgColor: PLAYER_COLORS[1],
-                deck: sourceDeck,
-            },
+            name: `${user.nickname}'s solo game`,
+            deck: sourceDeck,
         });
         storeSession(newId, p1Id);
         onSwitchGame(newId, p1Id);

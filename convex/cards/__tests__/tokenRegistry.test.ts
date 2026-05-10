@@ -75,10 +75,25 @@ describe("token CardDefinition lookup (regression — client lazy synthesis)", (
     });
 
     it("malformed `token:` id (too few parts) is rejected", () => {
-        // Only 3 parts — synthesizer needs all 8.
+        // Only 3 parts — synthesizer needs at least 8.
         expect(() => getCardById("token:Foo|Creature|")).toThrow(
             /Card not found/
         );
         expect(tryGetCardById("token:Foo|Creature|")).toBeNull();
+    });
+
+    it("9th segment is decoded as imagePrintId (Scryfall token print id)", () => {
+        const id =
+            "token:Wasp|Artifact,Creature|Insect||1|1||flying|ce98066c-a3a1-51a2-bffc-12c38ef45905";
+        const def = getCardById(id);
+        expect(def.imagePrintId).toBe("ce98066c-a3a1-51a2-bffc-12c38ef45905");
+    });
+
+    it("missing/empty 9th segment leaves imagePrintId undefined", () => {
+        // Trailing | with nothing after is treated as "no print" → placeholder
+        // path on the client.
+        const id = "token:Phantom|Creature|Spirit||2|2||";
+        const def = getCardById(id);
+        expect(def.imagePrintId).toBeUndefined();
     });
 });

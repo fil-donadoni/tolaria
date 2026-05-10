@@ -12,7 +12,7 @@ Tolaria is an MTG (Magic: The Gathering) gameplay engine for study and experimen
 | --------------- | ------------------------------ | ----------------------------------------------------------------------------------- |
 | Frontend        | React 19 + TypeScript + Vite 8 | React Compiler enabled via `@rolldown/plugin-babel` + `babel-plugin-react-compiler` |
 | Backend/DB      | Convex                         | Real-time reactive state, atomic transactional mutations                            |
-| Auth            | Clerk                          | External auth provider                                                              |
+| Auth            | @convex-dev/auth (Password)    | Email + password + nickname, native to Convex                                       |
 | Package manager | bun                            |                                                                                     |
 
 - **TypeScript ~5.9** (strict, project references: `tsconfig.app.json` for src, `tsconfig.node.json` for config files)
@@ -45,12 +45,35 @@ The GRE is the core of the system, runs **server-side** in Convex mutations. The
 - **Deterministic**: given the same event log, always produces the same state
 - **Isolated**: rules logic is independent of the transport layer
 
+### Authentication
+
+`@convex-dev/auth` Password provider. Users sign up with email + password +
+nickname (modifiable). Every Convex query/mutation that touches user-owned
+data uses `getCurrentUser(ctx)` / `getCurrentUserId(ctx)` from
+`convex/auth.ts`. The router root is wrapped in `<AuthGate>`, so every route
+requires login. There is no anonymous play. Email verification is **off** by
+default for development.
+
+### Player identity in games
+
+`players[].id` is an opaque string handle used by the GRE as
+`controllerId`/`ownerId`. For 2-player games it equals the user's
+`Id<"users">`; for solo games it is `${userId}-p1` / `${userId}-p2`. The
+schema keeps it as `v.string()` to accommodate both shapes — do not type it
+as `Id<"users">`. Game mutations (`createGame`, `joinGame`,
+`createSoloGame`) derive id and nickname from `ctx.auth`; clients cannot
+spoof identity.
+
 ### Data model
 
 Two main Convex tables:
 
 - `game_state` — Current snapshot (temporary cache, overwritten on each action). Deleted at end of game.
 - `game_events` — Append-only event log (source of truth for replays). Retained 30-90 days.
+
+User decks live in `userDecks` (one row per saved deck, indexed by `userId`).
+Preset decks come from `convex/deckPresets.ts` (in-code, served via
+`api.decks.list`).
 
 State is saved **only at stable points** (when waiting for human input).
 

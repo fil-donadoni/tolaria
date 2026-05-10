@@ -1,16 +1,16 @@
 import type { ReactNode } from "react";
-import type { DeckPreset } from "@convex/deckPresets";
+import type { LobbyDeck } from "~/lib/deckTypes";
 import DeckListItem from "./deck-list-item";
 
 interface DeckListProps {
-    decks: DeckPreset[];
+    decks: LobbyDeck[];
     selectedPresetId: string | null;
     onFocus: (presetId: string) => void;
     onSelect?: (presetId: string) => void;
     title?: string;
     headerExtra?: ReactNode;
     emptyLabel?: string;
-    renderActions?: (deck: DeckPreset) => ReactNode;
+    renderActions?: (deck: LobbyDeck) => ReactNode;
 }
 
 export default function DeckList({

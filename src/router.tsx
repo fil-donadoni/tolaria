@@ -5,13 +5,18 @@ import {
     createRoute,
     createRouter,
 } from "@tanstack/react-router";
+import { AuthGate } from "./components/auth/auth-gate";
 import LobbyRoute from "./routes/lobby.route";
 import DeckBuilderRoute from "./routes/deck-builder.route";
 import DeckDetailRoute from "./routes/deck-detail.route";
 import GameRoute from "./routes/game.route";
 
 const rootRoute = createRootRoute({
-    component: () => <Outlet />,
+    component: () => (
+        <AuthGate>
+            <Outlet />
+        </AuthGate>
+    ),
 });
 
 const indexRoute = createRoute({

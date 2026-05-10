@@ -1,10 +1,10 @@
-import type { DeckPreset } from "@convex/deckPresets";
+import type { LobbyDeck } from "~/lib/deckTypes";
 import { cn } from "~/lib/utils";
 import ManaSymbol from "../cards/mana-symbol";
 import MoneyPileView from "./money-pile-view";
 
 interface DeckDetailProps {
-    deck: DeckPreset;
+    deck: LobbyDeck;
     isSelected: boolean;
     onBack: () => void;
     onSelect: () => void;
