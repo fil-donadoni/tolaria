@@ -281,7 +281,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 className="bg-black/60 hover:bg-black/80 text-white/60 hover:text-white px-6 py-2 rounded-lg text-sm transition-colors shadow-lg"
             >
                 Auto-passing... (cancel)
-                <span className="ml-2 text-xs opacity-60 hidden md:inline">
+                <span className="ml-2 text-xs opacity-90 hidden md:inline">
                     [enter]
                 </span>
             </button>

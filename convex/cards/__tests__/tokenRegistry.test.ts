@@ -84,9 +84,9 @@ describe("token CardDefinition lookup (regression — client lazy synthesis)", (
 
     it("9th segment is decoded as imagePrintId (Scryfall token print id)", () => {
         const id =
-            "token:Wasp|Artifact,Creature|Insect||1|1||flying|ce98066c-a3a1-51a2-bffc-12c38ef45905";
+            "token:Wasp|Artifact,Creature|Insect||1|1||flying|09921372-126f-4c81-b6d8-ea50b1d0eb44";
         const def = getCardById(id);
-        expect(def.imagePrintId).toBe("ce98066c-a3a1-51a2-bffc-12c38ef45905");
+        expect(def.imagePrintId).toBe("09921372-126f-4c81-b6d8-ea50b1d0eb44");
     });
 
     it("missing/empty 9th segment leaves imagePrintId undefined", () => {

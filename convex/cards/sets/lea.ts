@@ -17,6 +17,7 @@ import {
     makeDualLand,
     makeTapForMana,
 } from "../abilities";
+import { tokenPrintIdFor } from "../tokenPrintLookup";
 
 // export const animateWall: CardDefinition = {
 //     id: "d5c83259-9b90-47c2-b48e-c7d78519e792",
@@ -4936,8 +4937,12 @@ export const soulNet: CardDefinition = {
 // token with flying named Wasp." (CR 111 / 707.1 token creation, 702.9
 // flying.) Uses the new `createToken` primitive; the token is wiped from
 // any non-battlefield zone by CR 704.5d (`checkTokenExistenceSBA`).
+// Token print Scryfall id is resolved from
+// `convex/cards/generated/token-prints.json` — refresh that mapping by
+// running `node scripts/fetch-token-prints.mjs convex/cards/sets/*.ts`.
+const HIVE_ID = "544a7138-eae8-4ff9-9e17-680bfa717183";
 export const theHive: CardDefinition = {
-    id: "544a7138-eae8-4ff9-9e17-680bfa717183",
+    id: HIVE_ID,
     name: "The Hive",
     manaCost: { X: 5 },
     types: ["Artifact"],
@@ -4957,10 +4962,7 @@ export const theHive: CardDefinition = {
                         power: 1,
                         toughness: 1,
                         staticAbilities: ["flying"],
-                        // Scryfall id of the Wasp token printed in 10E
-                        // (Alpha never had a printed token; this is the
-                        // canonical reprint art used by The Hive).
-                        imagePrintId: "ce98066c-a3a1-51a2-bffc-12c38ef45905",
+                        imagePrintId: tokenPrintIdFor(HIVE_ID, "Wasp"),
                     },
                     ctx.controller
                 );

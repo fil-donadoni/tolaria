@@ -236,7 +236,7 @@ export interface TokenSpec {
     staticAbilities?: string[];
     /** Optional Scryfall id of a printed token card. Used by the image layer
      *  to fetch real token art (e.g. The Hive's Wasp print from 10E:
-     *  `ce98066c-a3a1-51a2-bffc-12c38ef45905`). When omitted, the renderer
+     *  `09921372-126f-4c81-b6d8-ea50b1d0eb44`). When omitted, the renderer
      *  falls back to an in-app placeholder showing the name / abilities / P/T. */
     imagePrintId?: string;
 }

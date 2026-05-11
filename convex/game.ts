@@ -91,13 +91,7 @@ function buildPlayerState(player: PlayerInput) {
         const def = getCardById(deckCard.cardId);
         return {
             id: crypto.randomUUID(),
-            card: {
-                id: def.id,
-                name: def.name,
-                manaCost: def.manaCost,
-                supertypes: def.supertypes,
-                loyalty: def.loyalty,
-            },
+            card: { id: def.id },
             types: def.types,
             subtypes: def.subtypes ?? [],
             power: def.power,
@@ -138,8 +132,11 @@ async function getLatestGameState(
         .first();
 }
 
-/** Save a game state snapshot, keeping the last N for undo history. */
-const MAX_SNAPSHOTS = 20;
+/** Save a game state snapshot. We keep at most 2 rows per game (current +
+ *  previous) so `debugUndo` / `undoManaAbility` can roll back one step.
+ *  Holding more was burning Convex read bandwidth — every save read N fat
+ *  snapshots just to pick the oldest for pruning. */
+const MAX_SNAPSHOTS = 2;
 
 async function saveGameState(
     ctx: Pick<GenericMutationCtx<DataModel>, "db">,
@@ -154,9 +151,6 @@ async function saveGameState(
         updatedAt: Date.now(),
     });
 
-    // Read at most MAX_SNAPSHOTS + 1 to bound per-mutation database bandwidth.
-    // In steady state .collect() returned the same count, but .take() caps reads
-    // defensively if pruning ever lags (e.g., concurrent writes or bugs).
     const recent = await ctx.db
         .query("game_states")
         .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
@@ -168,11 +162,11 @@ async function saveGameState(
     }
 }
 
-/** If SBA detected game over, persist the result to the games table and emit event. */
+/** If SBA detected game over, persist the result to the games table. */
 async function finalizeGameOver(
     ctx: Pick<GenericMutationCtx<DataModel>, "db">,
     gameId: GenericId<"games">,
-    seq: number,
+    _seq: number,
     state: GameState
 ) {
     if (!state.gameOver) return;
@@ -181,19 +175,6 @@ async function finalizeGameOver(
         status: "finished",
         winner: state.gameOver.winnerId,
         updatedAt: Date.now(),
-    });
-
-    await ctx.db.insert("events", {
-        gameId,
-        seq,
-        type: "GAME_OVER",
-        player: "system",
-        payload: {
-            winnerId: state.gameOver.winnerId,
-            loserId: state.gameOver.loserId,
-            reason: state.gameOver.reason,
-        },
-        timestamp: Date.now(),
     });
 }
 
@@ -513,17 +494,18 @@ export const getGameCardIds = query({
 });
 
 /** Returns all games waiting for a second player, excluding any the caller
- *  is already part of. Auth is required. */
+ *  is already part of. Auth is required. Uses the `by_status` index so the
+ *  subscription only re-fires (and reads docs) for `waiting` games — not the
+ *  whole table. Finished/solo games never enter this query's bandwidth. */
 export const listOpenGames = query({
     handler: async (ctx) => {
         const userId = await auth.getUserId(ctx);
         if (!userId) return [];
-        const games = await ctx.db.query("games").collect();
-        return games.filter(
-            (g) =>
-                g.status === "waiting" &&
-                !g.players.some((p) => p.id === userId)
-        );
+        const waiting = await ctx.db
+            .query("games")
+            .withIndex("by_status", (q) => q.eq("status", "waiting"))
+            .collect();
+        return waiting.filter((g) => !g.players.some((p) => p.id === userId));
     },
 });
 
@@ -641,19 +623,6 @@ export const createSoloGame = mutation({
 
         await saveGameState(ctx, gameId, 0, initialState);
 
-        await ctx.db.insert("events", {
-            gameId,
-            seq: 0,
-            type: "GAME_INITIALIZED",
-            player: "system",
-            payload: {
-                playerIds: allPlayers.map((p) => p.id),
-                rngSeed,
-                solo: true,
-            },
-            timestamp: now,
-        });
-
         return gameId;
     },
 });
@@ -717,18 +686,6 @@ export const joinGame = mutation({
         initialState.priorityPlayerId = initialState.mulligan.declaringPlayerId;
 
         await saveGameState(ctx, args.gameId, 0, initialState);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: 0,
-            type: "GAME_INITIALIZED",
-            player: "system",
-            payload: {
-                playerIds: allPlayers.map((p) => p.id),
-                rngSeed,
-            },
-            timestamp: now,
-        });
     },
 });
 
@@ -772,25 +729,10 @@ export const playCard = mutation({
             player.landsPlayedThisTurn = (player.landsPlayedThisTurn ?? 0) + 1;
         }
 
-        const now = Date.now();
         const nextSeq = gameState.seq + 1;
 
         // Insert new snapshot (don't overwrite previous)
         await saveGameState(ctx, args.gameId, nextSeq, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            type: "CARD_PLAYED",
-            player: args.playerId,
-            payload: {
-                cardInstanceId: card.id,
-                cardName: (card.card as { name?: string }).name,
-                from: "hand",
-                to: "battlefield",
-            },
-            timestamp: now,
-        });
     },
 });
 
@@ -861,21 +803,6 @@ function isTargetCountMaxReached(
     if (typeof count === "number") return selected >= count;
     if (count.max === undefined) return false;
     return selected >= count.max;
-}
-
-/** Picks the event type emitted after a finalizeTargetSelection step, based
- *  on what finalize produced. Spell cast → SPELL_CAST / CAST_ANNOUNCED;
- *  activated ability → ABILITY_ACTIVATED / ABILITY_ANNOUNCED. */
-function resolveFinalizeEventType(
-    state: GameState,
-    kind: "cast" | "ability"
-): string {
-    if (kind === "ability") {
-        return state.pendingActivation
-            ? "ABILITY_ANNOUNCED"
-            : "ABILITY_ACTIVATED";
-    }
-    return state.pendingCast ? "CAST_ANNOUNCED" : "SPELL_CAST";
 }
 
 /** Finalizes target selection and either places the spell on the stack (if
@@ -1157,21 +1084,8 @@ export const announceCast = mutation({
                     : {}),
             };
 
-            const now = Date.now();
             await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
 
-            await ctx.db.insert("events", {
-                gameId: args.gameId,
-                seq: gameState.seq + 1,
-                type: "TARGET_SELECTION_STARTED",
-                player: args.playerId,
-                payload: {
-                    cardInstanceId: args.cardInstanceId,
-                    cardName: (cardInHand.card as { name?: string }).name,
-                    targetType: cardDef.targetRequirement.type,
-                },
-                timestamp: now,
-            });
             return;
         }
 
@@ -1220,20 +1134,7 @@ export const announceCast = mutation({
             };
         }
 
-        const now = Date.now();
         await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            type: state.pendingCast ? "CAST_ANNOUNCED" : "SPELL_CAST",
-            player: args.playerId,
-            payload: {
-                cardInstanceId: args.cardInstanceId,
-                cardName: (cardInHand.card as { name?: string }).name,
-            },
-            timestamp: now,
-        });
     },
 });
 
@@ -1313,22 +1214,7 @@ export const tapForPayment = mutation({
         }
 
         // Check if cost is now covered → auto-commit
-        const committed = tryAutoCommitPendingCast(state, args.playerId);
         await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
-
-        if (committed) {
-            await ctx.db.insert("events", {
-                gameId: args.gameId,
-                seq: gameState.seq + 1,
-                type: "SPELL_CAST",
-                player: args.playerId,
-                payload: {
-                    cardInstanceId: committed.cardInstanceId,
-                    cardName: committed.cardName,
-                },
-                timestamp: Date.now(),
-            });
-        }
     },
 });
 
@@ -1496,23 +1382,7 @@ export const tapForActivationPayment = mutation({
             pa.tappedLandIds
         );
 
-        const committed = tryAutoCommitPendingActivation(state, args.playerId);
         await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
-
-        if (committed) {
-            await ctx.db.insert("events", {
-                gameId: args.gameId,
-                seq: gameState.seq + 1,
-                type: "ABILITY_ACTIVATED",
-                player: args.playerId,
-                payload: {
-                    cardInstanceId: committed.cardInstanceId,
-                    cardName: committed.cardName,
-                    abilityId: committed.abilityId,
-                },
-                timestamp: Date.now(),
-            });
-        }
     },
 });
 
@@ -1774,9 +1644,6 @@ export const selectTarget = mutation({
 
         pt.selected.push(target);
 
-        const ptKind = pt.kind ?? "cast";
-        const ptCardInstanceId = pt.cardInstanceId;
-        const ptAbilityId = pt.abilityId;
         const maxReached = isTargetCountMaxReached(
             pt.count,
             pt.selected.length
@@ -1785,33 +1652,7 @@ export const selectTarget = mutation({
             finalizeTargetSelection(state, pt, args.playerId);
         }
 
-        const now = Date.now();
         await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
-
-        if (!state.pendingTarget) {
-            const eventType = resolveFinalizeEventType(state, ptKind);
-            await ctx.db.insert("events", {
-                gameId: args.gameId,
-                seq: gameState.seq + 1,
-                type: eventType,
-                player: args.playerId,
-                payload: {
-                    cardInstanceId:
-                        state.pendingCast?.cardInstanceId ??
-                        state.pendingActivation?.cardInstanceId ??
-                        ptCardInstanceId,
-                    targetType: args.targetType,
-                    targetId: args.targetId,
-                    ...(args.targetPlayerId
-                        ? { targetPlayerId: args.targetPlayerId }
-                        : {}),
-                    ...(ptKind === "ability" && ptAbilityId
-                        ? { abilityId: ptAbilityId }
-                        : {}),
-                },
-                timestamp: now,
-            });
-        }
     },
 });
 
@@ -1843,27 +1684,9 @@ export const confirmTargets = mutation({
                 `At least ${minTargetCount(pt.count)} target(s) required`
             );
         }
-        const ptKind = pt.kind ?? "cast";
-        const ptCardInstanceId = pt.cardInstanceId;
-        const ptAbilityId = pt.abilityId;
         finalizeTargetSelection(state, pt, args.playerId);
 
-        const now = Date.now();
         await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
-        const eventType = resolveFinalizeEventType(state, ptKind);
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            type: eventType,
-            player: args.playerId,
-            payload: {
-                cardInstanceId: ptCardInstanceId,
-                ...(ptKind === "ability" && ptAbilityId
-                    ? { abilityId: ptAbilityId }
-                    : {}),
-            },
-            timestamp: now,
-        });
     },
 });
 
@@ -1933,7 +1756,7 @@ export const toggleAttacker = mutation({
             // CR 508.1d: can't deselect a creature required to attack
             if (mustAttack(card, defenderBattlefield)) {
                 throw new Error(
-                    `${card.card.name as string} must attack this combat if able`
+                    `${getCardById(card.card.id as string).name} must attack this combat if able`
                 );
             }
             state.combat.attackerIds.splice(idx, 1);
@@ -2013,19 +1836,7 @@ export const confirmAttackers = mutation({
         state.passCount = 0;
         drainAutoPasses(state);
 
-        const now = Date.now();
         await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            type: "ATTACKERS_DECLARED",
-            player: args.playerId,
-            payload: {
-                attackerIds: state.combat.attackerIds,
-            },
-            timestamp: now,
-        });
     },
 });
 
@@ -2207,19 +2018,7 @@ export const confirmBlockers = mutation({
         state.passCount = 0;
         drainAutoPasses(state);
 
-        const now = Date.now();
         await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            type: "BLOCKERS_DECLARED",
-            player: args.playerId,
-            payload: {
-                blockerAssignments: state.combat.blockerAssignments,
-            },
-            timestamp: now,
-        });
     },
 });
 
@@ -2307,19 +2106,7 @@ export const confirmBlockerOrder = mutation({
         state.passCount = 0;
         drainAutoPasses(state);
 
-        const now = Date.now();
         await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: gameState.seq + 1,
-            type: "BLOCKER_ORDER_CONFIRMED",
-            player: args.playerId,
-            payload: {
-                blockerOrder: state.combat.blockerOrder,
-            },
-            timestamp: now,
-        });
     },
 });
 
@@ -2437,19 +2224,9 @@ export const confirmDamage = mutation({
             drainAutoPasses(state);
         }
 
-        const now = Date.now();
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state);
         await finalizeGameOver(ctx, args.gameId, nextSeq, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            type: "COMBAT_DAMAGE_DEALT",
-            player: args.playerId,
-            payload: {},
-            timestamp: now,
-        });
     },
 });
 
@@ -2546,19 +2323,9 @@ export const passPriority = mutation({
         // Check SBA for game-ending conditions (CR 704.5)
         checkStateBasedActions(state);
 
-        const now = Date.now();
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state);
         await finalizeGameOver(ctx, args.gameId, nextSeq, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            type: "PRIORITY_PASSED",
-            player: args.playerId,
-            payload: { phase: state.phase, turn: state.turn },
-            timestamp: now,
-        });
     },
 });
 
@@ -2680,24 +2447,9 @@ export const selectResolutionChoice = mutation({
             }
         }
 
-        const now = Date.now();
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state);
         await finalizeGameOver(ctx, args.gameId, nextSeq, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            type: "RESOLUTION_CHOICE_SELECTED",
-            player: args.playerId,
-            payload: {
-                stackItemId: head.stackItemId,
-                step: head.step,
-                choiceId: head.choiceId,
-                cardInstanceId: args.cardInstanceId,
-            },
-            timestamp: now,
-        });
     },
 });
 
@@ -2772,24 +2524,9 @@ export const submitMayPay = mutation({
             state.priorityPlayerId = state.pendingChoices![0].playerId;
         }
 
-        const now = Date.now();
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state);
         await finalizeGameOver(ctx, args.gameId, nextSeq, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            type: "RESOLUTION_CHOICE_SELECTED",
-            player: args.playerId,
-            payload: {
-                stackItemId: head.stackItemId,
-                step: head.step,
-                choiceId: head.choiceId,
-                accept: args.accept,
-            },
-            timestamp: now,
-        });
     },
 });
 
@@ -2826,23 +2563,8 @@ export const declareMulligan = mutation({
 
         recordDeclaration(state, args.playerId, args.decision);
 
-        const now = Date.now();
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            type: "MULLIGAN_DECLARED",
-            player: args.playerId,
-            payload: {
-                decision: args.decision,
-                mulligansTaken: state.mulligan?.mulligansTaken ?? null,
-                bottoming: state.mulligan?.bottoming ?? false,
-                phase: state.phase,
-            },
-            timestamp: now,
-        });
     },
 });
 
@@ -2882,19 +2604,9 @@ export const endTurn = mutation({
         // Check SBA after auto-pass drain (may have resolved combat damage)
         checkStateBasedActions(state);
 
-        const now = Date.now();
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state);
         await finalizeGameOver(ctx, args.gameId, nextSeq, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            type: "AUTO_PASS_SET",
-            player: args.playerId,
-            payload: {},
-            timestamp: now,
-        });
     },
 });
 
@@ -2928,18 +2640,8 @@ export const cancelAutoPass = mutation({
             state.singleShotAutoPass = undefined;
         }
 
-        const now = Date.now();
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            type: "AUTO_PASS_CANCELLED",
-            player: args.playerId,
-            payload: {},
-            timestamp: now,
-        });
     },
 });
 
@@ -2966,19 +2668,9 @@ export const concede = mutation({
             reason: "concede",
         };
 
-        const now = Date.now();
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state);
         await finalizeGameOver(ctx, args.gameId, nextSeq, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            type: "CONCEDE",
-            player: args.playerId,
-            payload: {},
-            timestamp: now,
-        });
     },
 });
 
@@ -3007,24 +2699,9 @@ export const drawCard = mutation({
             return;
         }
 
-        const card = moveCard(player, player.library[0].id, "library", "hand");
-
-        const now = Date.now();
         const nextSeq = gameState.seq + 1;
 
         await saveGameState(ctx, args.gameId, nextSeq, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            type: "CARD_DRAWN",
-            player: args.playerId,
-            payload: {
-                cardInstanceId: card.id,
-                cardName: (card.card as { name?: string }).name,
-            },
-            timestamp: now,
-        });
     },
 });
 
@@ -3046,29 +2723,11 @@ export const mill = mutation({
             throw new Error("Library is empty");
         }
 
-        const card = moveCard(
-            player,
-            player.library[0].id,
-            "library",
-            "graveyard"
-        );
+        moveCard(player, player.library[0].id, "library", "graveyard");
 
-        const now = Date.now();
         const nextSeq = gameState.seq + 1;
 
         await saveGameState(ctx, args.gameId, nextSeq, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            type: "CARD_MILLED",
-            player: args.playerId,
-            payload: {
-                cardInstanceId: card.id,
-                cardName: (card.card as { name?: string }).name,
-            },
-            timestamp: now,
-        });
     },
 });
 
@@ -3090,25 +2749,11 @@ export const exileFromLibrary = mutation({
             throw new Error("Library is empty");
         }
 
-        const card = moveCard(player, player.library[0].id, "library", "exile");
+        moveCard(player, player.library[0].id, "library", "exile");
 
-        const now = Date.now();
         const nextSeq = gameState.seq + 1;
 
         await saveGameState(ctx, args.gameId, nextSeq, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            type: "CARD_EXILED",
-            player: args.playerId,
-            payload: {
-                cardInstanceId: card.id,
-                cardName: (card.card as { name?: string }).name,
-                from: "library",
-            },
-            timestamp: now,
-        });
     },
 });
 
@@ -3264,22 +2909,8 @@ export const activateAbility = mutation({
                     : {}),
             };
 
-            const now = Date.now();
             const nextSeq = gameState.seq + 1;
             await saveGameState(ctx, args.gameId, nextSeq, state);
-            await ctx.db.insert("events", {
-                gameId: args.gameId,
-                seq: nextSeq,
-                type: "TARGET_SELECTION_STARTED",
-                player: args.playerId,
-                payload: {
-                    cardInstanceId: card.id,
-                    cardName: (card.card as { name?: string }).name,
-                    targetType: ability.targetRequirement.type,
-                    abilityId: args.abilityId,
-                },
-                timestamp: now,
-            });
             return;
         }
 
@@ -3345,21 +2976,8 @@ export const activateAbility = mutation({
             };
             state.pendingActivation = pending;
 
-            const now = Date.now();
             const nextSeq = gameState.seq + 1;
             await saveGameState(ctx, args.gameId, nextSeq, state);
-            await ctx.db.insert("events", {
-                gameId: args.gameId,
-                seq: nextSeq,
-                type: "ABILITY_ANNOUNCED",
-                player: args.playerId,
-                payload: {
-                    cardInstanceId: card.id,
-                    cardName: (card.card as { name?: string }).name,
-                    abilityId: args.abilityId,
-                },
-                timestamp: now,
-            });
             return;
         }
 
@@ -3395,22 +3013,8 @@ export const activateAbility = mutation({
             : args.playerId;
         drainAutoPasses(state);
 
-        const now = Date.now();
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            type: "ABILITY_ACTIVATED",
-            player: args.playerId,
-            payload: {
-                cardInstanceId: card.id,
-                cardName: (card.card as { name?: string }).name,
-                abilityId: args.abilityId,
-            },
-            timestamp: now,
-        });
     },
 });
 
@@ -3756,54 +3360,12 @@ export const activatePlayerAbility = mutation({
         // If a pendingCast or pendingActivation is now payable thanks to the
         // freshly produced mana, auto-commit it (mirrors tapForPayment).
         const committedCast = tryAutoCommitPendingCast(state, args.playerId);
-        const committedActivation = committedCast
-            ? null
-            : tryAutoCommitPendingActivation(state, args.playerId);
+        if (!committedCast) {
+            tryAutoCommitPendingActivation(state, args.playerId);
+        }
 
-        const now = Date.now();
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state);
-
-        await ctx.db.insert("events", {
-            gameId: args.gameId,
-            seq: nextSeq,
-            type: "PLAYER_ABILITY_ACTIVATED",
-            player: args.playerId,
-            payload: {
-                grantedAbilityInstanceId: instance.id,
-                sourceCardId: instance.sourceCardId,
-                abilityId: instance.abilityId,
-            },
-            timestamp: now,
-        });
-
-        if (committedCast) {
-            await ctx.db.insert("events", {
-                gameId: args.gameId,
-                seq: nextSeq,
-                type: "SPELL_CAST",
-                player: args.playerId,
-                payload: {
-                    cardInstanceId: committedCast.cardInstanceId,
-                    cardName: committedCast.cardName,
-                },
-                timestamp: now,
-            });
-        }
-        if (committedActivation) {
-            await ctx.db.insert("events", {
-                gameId: args.gameId,
-                seq: nextSeq,
-                type: "ABILITY_ACTIVATED",
-                player: args.playerId,
-                payload: {
-                    cardInstanceId: committedActivation.cardInstanceId,
-                    cardName: committedActivation.cardName,
-                    abilityId: committedActivation.abilityId,
-                },
-                timestamp: now,
-            });
-        }
     },
 });
 
@@ -4002,13 +3564,7 @@ export const debugSetupScenario = mutation({
             const def = getCardByName(cardName);
             return {
                 id: crypto.randomUUID(),
-                card: {
-                    id: def.id,
-                    name: def.name,
-                    manaCost: def.manaCost,
-                    supertypes: def.supertypes,
-                    loyalty: def.loyalty,
-                },
+                card: { id: def.id },
                 types: def.types,
                 subtypes: def.subtypes ?? [],
                 power: def.power,

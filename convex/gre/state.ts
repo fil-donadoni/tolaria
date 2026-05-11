@@ -94,13 +94,18 @@ export { getBasicLandMana } from "./constants";
 
 export type CardInstanceState = {
     id: string;
-    /** Immutable reference to the original card definition. */
+    /** Reference to the card definition. Production constructions write only
+     *  `{ id }` and rely on `getCardById` to hydrate the rest from the
+     *  in-memory registry; token ids encode the full token shape (see
+     *  `maybeSynthesizeToken`) so the same lookup also rehydrates tokens on
+     *  the client. The looser `Record<string, unknown>` shape exists for
+     *  legacy test fixtures that inline synthetic card metadata — engine
+     *  code MUST NOT read any field other than `id`. */
     card: Record<string, unknown>;
     /** True for permanents created by token-creation effects (CR 111).
-     *  Tokens carry no card-registry id; their `card` field holds inline
-     *  display data (name, manaCost-encoded colors, isToken marker). The
-     *  CR 704.5d state-based action wipes tokens out of any non-battlefield
-     *  zone immediately after the move event has been observed. */
+     *  The CR 704.5d state-based action wipes tokens out of any
+     *  non-battlefield zone immediately after the move event has been
+     *  observed. */
     isToken?: boolean;
     controllerId: string;
     ownerId: string;
@@ -2054,12 +2059,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 const token: CardInstanceState = {
                     id,
                     isToken: true,
-                    card: {
-                        id: defId,
-                        name: spec.name,
-                        manaCost,
-                        isToken: true,
-                    },
+                    card: { id: defId },
                     controllerId,
                     ownerId: controllerId,
                     zone: "battlefield",

@@ -9,7 +9,7 @@ import {
     SkipPhasePrefsContext,
     useSkipPhasePrefsState,
 } from "~/hooks/useSkipPhasePreferences";
-import { preloadArtCropImages, preloadCardImages } from "~/lib/image-preload";
+import { preloadCardImages } from "~/lib/image-preload";
 import { computeSoloViewerId } from "~/lib/priority";
 import PlayerBoard from "./player-board";
 import GameStack from "./game-stack";
@@ -67,8 +67,11 @@ export default function Board({
     );
     useEffect(() => {
         if (!gameCardIds || gameCardIds.length === 0) return;
+        // Art crops are only fetched when the user opens the zoom panel (hover
+        // delay or `z` keypress) — preloading the entire deck's crops up front
+        // adds ~3 MB of unused image traffic on first paint. Lazy fetch inside
+        // CardPreview keeps initial LCP fast without harming zoom UX.
         preloadCardImages(gameCardIds);
-        preloadArtCropImages(gameCardIds);
     }, [gameCardIds]);
 
     const players = state?.players;
@@ -172,7 +175,7 @@ export default function Board({
             }}
         >
             <SkipPhasePrefsContext value={skipPhasePrefs}>
-                <div className="flex h-full w-full flex-col relative">
+                <main className="flex h-full w-full flex-col relative">
                     <AutoPassController solo={solo} />
                     {orderedPlayers.map((player) => (
                         <PlayerBoard key={player.id} player={player} />
@@ -231,7 +234,7 @@ export default function Board({
                         gameId={gameId}
                         playerId={viewerId}
                     />
-                </div>
+                </main>
             </SkipPhasePrefsContext>
         </GameContext>
     );

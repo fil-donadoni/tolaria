@@ -3,6 +3,7 @@ import { LANDWALK_KEYWORDS } from "./constants";
 import { isProtectedFromSource } from "./protection";
 import { getEffectivePower } from "./layers";
 import { hasColor } from "./rules";
+import { getCardById } from "../cards";
 
 export type AttackerValidation =
     | { eligible: true }
@@ -53,7 +54,7 @@ export function validateAttackerEligibility(
             if (!ok) {
                 return {
                     eligible: false,
-                    reason: `${card.card.name as string} can't attack unless defending player controls a ${requiredSubtype}`,
+                    reason: `${getCardById(card.card.id as string).name} can't attack unless defending player controls a ${requiredSubtype}`,
                 };
             }
         }

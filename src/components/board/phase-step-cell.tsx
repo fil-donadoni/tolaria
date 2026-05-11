@@ -64,7 +64,7 @@ export default function PhaseStepCell({
                 className={`text-[9px] leading-tight px-1 py-px rounded text-center transition-colors flex-1 ${
                     isCurrent
                         ? "bg-amber-400 text-black font-bold"
-                        : "text-white/40"
+                        : "text-white/65"
                 }`}
                 title={phase}
             >

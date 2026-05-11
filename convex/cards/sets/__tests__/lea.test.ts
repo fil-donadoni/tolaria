@@ -10244,10 +10244,10 @@ describe("The Hive ({5}, {T}: create a 1/1 colorless flying Wasp Insect artifact
         const defId = (wasp.card as { id: string }).id;
         const def = tryGetCardById(defId);
         expect(def).not.toBeNull();
-        expect(def!.imagePrintId).toBe("ce98066c-a3a1-51a2-bffc-12c38ef45905");
+        expect(def!.imagePrintId).toBe("09921372-126f-4c81-b6d8-ea50b1d0eb44");
         // The id encoding includes the print id as the trailing segment so
         // the client lazy-synthesizer recovers it without server registration.
-        expect(defId.endsWith("|ce98066c-a3a1-51a2-bffc-12c38ef45905")).toBe(
+        expect(defId.endsWith("|09921372-126f-4c81-b6d8-ea50b1d0eb44")).toBe(
             true
         );
     });

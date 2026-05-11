@@ -14,14 +14,6 @@ export default defineSchema({
         isAnonymous: v.optional(v.boolean()),
         nickname: v.string(),
     }).index("email", ["email"]),
-    events: defineTable({
-        gameId: v.id("games"),
-        seq: v.number(),
-        type: v.string(),
-        player: v.string(),
-        payload: v.any(),
-        timestamp: v.number(),
-    }),
     game_states: defineTable({
         gameId: v.id("games"),
         seq: v.number(),
@@ -90,5 +82,5 @@ export default defineSchema({
         solo: v.optional(v.boolean()),
         createdAt: v.number(),
         updatedAt: v.number(),
-    }),
+    }).index("by_status", ["status"]),
 });

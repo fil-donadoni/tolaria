@@ -12,8 +12,9 @@ import type {
 } from "../../gre/state";
 
 /** Builds a CardInstanceState from a registered card id. Honors overrides.
- *  `card.card` keeps the same fat shape the engine produces (name + manaCost
- *  etc.) — the projection is responsible for slimming. */
+ *  The engine persists only the slim `{ id }` reference in `card.card`;
+ *  definitions are hydrated server- and client-side from the in-memory
+ *  registry via `getCardById`. */
 export function makeInstance(
     cardId: string,
     overrides: Partial<CardInstanceState> = {}
@@ -23,12 +24,7 @@ export function makeInstance(
         id:
             overrides.id ??
             `inst-${cardId.slice(0, 6)}-${crypto.randomUUID().slice(0, 8)}`,
-        card: {
-            id: def.id,
-            name: def.name,
-            manaCost: def.manaCost,
-            supertypes: def.supertypes,
-        },
+        card: { id: def.id },
         types: def.types,
         subtypes: def.subtypes ?? [],
         power: def.power,

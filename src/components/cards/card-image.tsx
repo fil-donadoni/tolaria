@@ -1,5 +1,5 @@
 import { memo, useState } from "react";
-import { getImageUrl } from "~/lib/images";
+import { getImageUrl, resolveCardImageId } from "~/lib/images";
 import { tryGetCardById } from "@convex/cards";
 import type { CardInstance } from "~/types/game";
 import CardPreview from "./card-preview";
@@ -37,8 +37,7 @@ function CardImageImpl({ card }: CardImageProps) {
     // Tokens (CR 111, 707.1) prefer a printed token's Scryfall id for art
     // when the card defines one (e.g. The Hive → 10E Wasp print). Tokens
     // without a printed image render the in-app TokenPlaceholder.
-    const isToken = defId.startsWith("token:");
-    const imageId = def?.imagePrintId ?? (isToken ? null : defId);
+    const imageId = resolveCardImageId(defId);
     const [loaded, setLoaded] = useState(false);
     return (
         <CardPreview cardId={defId} cardName={name} cardInstance={cardInstance}>

@@ -1,8 +1,13 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { tryGetCardById } from "@convex/cards";
-import { ART_CROP_RATIO, getArtCropImageUrl } from "~/lib/images";
+import {
+    ART_CROP_RATIO,
+    getArtCropImageUrl,
+    resolveCardImageId,
+} from "~/lib/images";
 import CardImageLoader from "./card-image-loader";
+import TokenPlaceholder from "./token-placeholder";
 import {
     capitalizeKeyword,
     formatTypeLine,
@@ -273,7 +278,11 @@ export default function CardPreview({
         abilities.activated.length > 0 ||
         abilities.triggered.length > 0;
     const displayName = def?.name ?? cardName;
-    const imageSrc = getArtCropImageUrl(cardId);
+    // Tokens (CR 111) without a printed art id render an in-app placeholder
+    // in the zoom panel — Scryfall has no entry for synthesized `token:` ids
+    // and would 404. `resolveCardImageId` returns null in that case.
+    const imageId = resolveCardImageId(cardId);
+    const imageSrc = imageId ? getArtCropImageUrl(imageId) : null;
     const showOwner =
         !!cardInstance &&
         !!gameCtx &&
@@ -322,15 +331,36 @@ export default function CardPreview({
                             className="relative w-full"
                             style={{ aspectRatio: ART_CROP_RATIO }}
                         >
-                            <img
-                                src={imageSrc}
-                                className="w-full h-full block"
-                                alt={cardName}
-                                style={{ objectFit: "cover" }}
-                                onLoad={() => setZoomImgLoaded(true)}
-                                onError={() => setZoomImgLoaded(true)}
-                            />
-                            {!zoomImgLoaded && <CardImageLoader />}
+                            {imageSrc ? (
+                                <>
+                                    <img
+                                        src={imageSrc}
+                                        className="w-full h-full block"
+                                        alt={cardName}
+                                        style={{ objectFit: "cover" }}
+                                        onLoad={() => setZoomImgLoaded(true)}
+                                        onError={() => setZoomImgLoaded(true)}
+                                    />
+                                    {!zoomImgLoaded && <CardImageLoader />}
+                                </>
+                            ) : (
+                                <TokenPlaceholder
+                                    name={displayName}
+                                    types={types}
+                                    subtypes={
+                                        cardInstance?.subtypes ??
+                                        def?.subtypes ??
+                                        []
+                                    }
+                                    power={effPower ?? basePower}
+                                    toughness={effToughness ?? baseToughness}
+                                    staticAbilities={
+                                        cardInstance?.staticAbilities ??
+                                        def?.staticAbilities ??
+                                        []
+                                    }
+                                />
+                            )}
                         </div>
                         <div className="p-3 text-xs text-white space-y-2 overflow-y-auto">
                             <div className="flex items-baseline justify-between gap-2">

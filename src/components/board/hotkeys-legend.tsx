@@ -15,7 +15,6 @@ const modKey = isMac ? "⌘" : "Ctrl";
 const HOTKEYS: HotkeyRow[] = [
     { keys: ["Space"], label: "Pass priority / confirm" },
     { keys: ["Enter"], label: "Pass turn" },
-    { keys: ["Z or right click"], label: "Zoom card" },
     { keys: ["U"], label: "Undo / cancel cast" },
     { keys: [modKey, "click"], label: "Keep priority after casting" },
     { keys: ["Esc"], label: "Concede" },
