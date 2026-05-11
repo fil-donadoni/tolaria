@@ -241,14 +241,23 @@ export default function CardPreview({
         def?.supertypes
     );
     const types = cardInstance?.types ?? def?.types ?? [];
+    const subtypes = cardInstance?.subtypes ?? def?.subtypes ?? [];
     const isCreatureCard = types.includes("Creature");
     const isSpellCard = types.includes("Instant") || types.includes("Sorcery");
+    // CR 303.4 auras grant clauses to their host via `staticEffects`
+    // (keyword-grant / pt-buff). That static grant text never lands on the
+    // aura's own `staticAbilities`, so the structured ability view would
+    // hide it from the preview. Show the printed Oracle text for auras
+    // instead — it always covers the static + activated + triggered rules
+    // collectively, and the structured render is suppressed below so we
+    // don't double-print the activated/triggered lines.
+    const isAura = subtypes.includes("Aura");
     const hasStructuredAbilities =
         (def?.staticAbilities?.length ?? 0) > 0 ||
         (def?.activatedAbilities?.length ?? 0) > 0 ||
         (def?.triggeredAbilities?.length ?? 0) > 0;
     const showOracleText =
-        !!def?.oracleText && (isSpellCard || !hasStructuredAbilities);
+        !!def?.oracleText && (isSpellCard || isAura || !hasStructuredAbilities);
     const oracleParagraphs = showOracleText
         ? def!.oracleText!.split("\n").filter((p) => p.length > 0)
         : null;
@@ -273,10 +282,14 @@ export default function CardPreview({
     const hasPT =
         isCreatureCard &&
         (effPower !== undefined || effToughness !== undefined);
+    // When Oracle text is shown (spells + auras + ability-less permanents)
+    // the printed text already covers everything; suppress the structured
+    // ability render to avoid duplicating activated / triggered lines.
     const hasBody =
-        abilities.keywords.length > 0 ||
-        abilities.activated.length > 0 ||
-        abilities.triggered.length > 0;
+        !showOracleText &&
+        (abilities.keywords.length > 0 ||
+            abilities.activated.length > 0 ||
+            abilities.triggered.length > 0);
     const displayName = def?.name ?? cardName;
     // Tokens (CR 111) without a printed art id render an in-app placeholder
     // in the zoom panel — Scryfall has no entry for synthesized `token:` ids

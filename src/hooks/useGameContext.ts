@@ -24,7 +24,6 @@ type GameContext = {
     pendingTarget?: PendingTarget;
     pendingChoices?: PendingChoice[];
     autoPassPlayers?: string[];
-    undoableBy?: string;
     combat?: Combat;
     gameOver?: GameOver;
     allPlayers: Player[];

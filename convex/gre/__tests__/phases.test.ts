@@ -13,37 +13,47 @@ import type {
 } from "../state";
 import type { Phase } from "../types";
 import type { CardType } from "../../cards/types";
+import { tryGetCardById } from "../../cards";
 
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
 
+// SLIM card builder. Honors `overrides.card.id` and an optional inline
+// `manaCost` for synthetic fixtures driving color-aware predicates;
+// everything else is derived from the matching registry def when present.
 function makeCard(
     overrides: Partial<CardInstanceState> & {
         card?: Record<string, unknown>;
     } = {}
 ): CardInstanceState {
-    const card = overrides.card ?? { name: "Test Card", types: ["Creature"] };
+    const cardRef = overrides.card as
+        | { id?: string; manaCost?: unknown }
+        | undefined;
+    const id = cardRef?.id ?? `synth-${crypto.randomUUID()}`;
+    const def = tryGetCardById(id);
+    const cardField: { id: string; manaCost?: unknown } = { id };
+    if (cardRef?.manaCost !== undefined) {
+        cardField.manaCost = cardRef.manaCost;
+    }
+    const rest: Partial<CardInstanceState> = { ...overrides };
+    delete rest.card;
     return {
         id: overrides.id ?? crypto.randomUUID(),
-        card,
-        types: overrides.types ?? (card.types as CardType[]) ?? [],
-        subtypes:
-            (overrides.subtypes as string[]) ??
-            (card.subtypes as string[]) ??
-            [],
-        power: overrides.power ?? (card.power as number | undefined),
-        toughness:
-            overrides.toughness ?? (card.toughness as number | undefined),
+        card: cardField,
+        types: (overrides.types as CardType[]) ?? def?.types ?? [],
+        subtypes: (overrides.subtypes as string[]) ?? def?.subtypes ?? [],
+        power: overrides.power ?? def?.power,
+        toughness: overrides.toughness ?? def?.toughness,
         staticAbilities:
             (overrides.staticAbilities as string[]) ??
-            (card.staticAbilities as string[]) ??
+            def?.staticAbilities ??
             [],
         controllerId: "p1",
         ownerId: "p1",
         zone: "battlefield",
         isTapped: false,
-        ...overrides,
+        ...rest,
     };
 }
 

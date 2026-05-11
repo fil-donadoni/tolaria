@@ -18,37 +18,59 @@ import {
     type StackItem,
 } from "../state";
 import type { CardType } from "../../cards/types";
+import { tryGetCardById } from "../../cards";
 
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
 
+// SLIM card builder. `card: { id }` is the only field persisted to Convex;
+// for synthetic ids (no registry entry) runtime fields fall back to any
+// inline data passed on `overrides.card` so legacy fixtures keep working.
+// Resolution order per field: explicit override → registry def → inline
+// cardData → empty default.
 function makeCard(
     overrides: Partial<CardInstanceState> & {
         card?: Record<string, unknown>;
     } = {}
 ): CardInstanceState {
-    const card = overrides.card ?? { name: "Test Card", types: ["Creature"] };
+    const cardRef = overrides.card as
+        | {
+              id?: string;
+              manaCost?: unknown;
+              types?: CardType[];
+              subtypes?: string[];
+              power?: number;
+              toughness?: number;
+              staticAbilities?: string[];
+          }
+        | undefined;
+    const id = cardRef?.id ?? `synth-${crypto.randomUUID()}`;
+    const def = tryGetCardById(id);
+    const cardField: { id: string; manaCost?: unknown } = { id };
+    if (cardRef?.manaCost !== undefined) {
+        cardField.manaCost = cardRef.manaCost;
+    }
+    const rest: Partial<CardInstanceState> = { ...overrides };
+    delete rest.card;
     return {
         id: overrides.id ?? crypto.randomUUID(),
-        card,
-        types: overrides.types ?? (card.types as CardType[]) ?? [],
+        card: cardField,
+        types: overrides.types ?? def?.types ?? cardRef?.types ?? [],
         subtypes:
-            (overrides.subtypes as string[]) ??
-            (card.subtypes as string[]) ??
-            [],
-        power: overrides.power ?? (card.power as number | undefined),
-        toughness:
-            overrides.toughness ?? (card.toughness as number | undefined),
+            overrides.subtypes ?? def?.subtypes ?? cardRef?.subtypes ?? [],
+        power: overrides.power ?? def?.power ?? cardRef?.power,
+        toughness: overrides.toughness ?? def?.toughness ?? cardRef?.toughness,
         staticAbilities:
-            (overrides.staticAbilities as string[]) ??
-            (card.staticAbilities as string[]) ??
+            overrides.staticAbilities ??
+            def?.staticAbilities ??
+            cardRef?.staticAbilities ??
             [],
         controllerId: "p1",
         ownerId: "p1",
         zone: "hand",
         isTapped: false,
-        ...overrides,
+        ...rest,
     };
 }
 
@@ -450,14 +472,22 @@ function makeStackItem(
     castById: string,
     overrides: Partial<StackItem> = {}
 ): StackItem {
+    const cardRef = cardData as { id?: string; manaCost?: unknown };
+    const id = cardRef.id ?? `synth-${crypto.randomUUID()}`;
+    const def = tryGetCardById(id);
+    const cardField: { id: string; manaCost?: unknown } = { id };
+    if (cardRef.manaCost !== undefined) cardField.manaCost = cardRef.manaCost;
     return {
         id: overrides.id ?? crypto.randomUUID(),
-        card: cardData,
-        types: (cardData.types as CardType[]) ?? [],
-        subtypes: (cardData.subtypes as string[]) ?? [],
-        power: cardData.power as number | undefined,
-        toughness: cardData.toughness as number | undefined,
-        staticAbilities: (cardData.staticAbilities as string[]) ?? [],
+        card: cardField,
+        types: def?.types ?? (cardData.types as CardType[]) ?? [],
+        subtypes: def?.subtypes ?? (cardData.subtypes as string[]) ?? [],
+        power: def?.power ?? (cardData.power as number | undefined),
+        toughness: def?.toughness ?? (cardData.toughness as number | undefined),
+        staticAbilities:
+            def?.staticAbilities ??
+            (cardData.staticAbilities as string[]) ??
+            [],
         controllerId: castById,
         ownerId: castById,
         zone: "stack",

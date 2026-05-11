@@ -3,7 +3,12 @@ import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc } from "./_generated/dataModel";
 import { auth, getCurrentUser } from "./auth";
 import { mutation, query } from "./_generated/server";
-import { getCardById, getCardByName, getAllCardNames } from "./cards";
+import {
+    getAllCardNames,
+    getCardById,
+    getCardByName,
+    getInstanceManaCost,
+} from "./cards";
 import {
     type CardInstanceState,
     type GameState,
@@ -41,6 +46,7 @@ import {
 } from "./gre/rules";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./gre/layers";
 import { projectFullState, projectPublicState } from "./gameProjections";
+import { compactState, expandState } from "./gre/serialize";
 import {
     advancePhase,
     drainAutoPasses,
@@ -125,41 +131,47 @@ async function getLatestGameState(
     ctx: Pick<GenericQueryCtx<DataModel>, "db">,
     gameId: GenericId<"games">
 ): Promise<Doc<"game_states"> | null> {
-    return await ctx.db
+    const doc = await ctx.db
         .query("game_states")
         .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
         .order("desc")
         .first();
+    if (!doc) return null;
+    return {
+        ...doc,
+        state: expandState(doc.state as Record<string, unknown>),
+    };
 }
 
-/** Save a game state snapshot. We keep at most 2 rows per game (current +
- *  previous) so `debugUndo` / `undoManaAbility` can roll back one step.
- *  Holding more was burning Convex read bandwidth — every save read N fat
- *  snapshots just to pick the oldest for pruning. */
-const MAX_SNAPSHOTS = 2;
-
+/** Save a game state. We keep exactly one row per game and patch it in
+ *  place — there's no server-side undo history. Convex read bandwidth was
+ *  dominated by snapshot reads, so collapsing to a single row plus a patch
+ *  cuts per-mutation cost to 1 read (the handler's `getLatestGameState`) +
+ *  1 write. Callers pass that already-fetched doc as `existing` so we don't
+ *  re-query. Pass `null` for first-time inserts (game creation paths). */
 async function saveGameState(
     ctx: Pick<GenericMutationCtx<DataModel>, "db">,
     gameId: GenericId<"games">,
     seq: number,
-    state: GameState | Record<string, unknown>
+    state: GameState | Record<string, unknown>,
+    existing: Doc<"game_states"> | null
 ) {
+    const stored = compactState(state as GameState);
+    if (existing) {
+        await ctx.db.patch(existing._id, {
+            seq,
+            state: stored,
+            updatedAt: Date.now(),
+        });
+        return;
+    }
+
     await ctx.db.insert("game_states", {
         gameId,
         seq,
-        state,
+        state: stored,
         updatedAt: Date.now(),
     });
-
-    const recent = await ctx.db
-        .query("game_states")
-        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
-        .order("desc")
-        .take(MAX_SNAPSHOTS + 1);
-
-    if (recent.length > MAX_SNAPSHOTS) {
-        await ctx.db.delete(recent[MAX_SNAPSHOTS]._id);
-    }
 }
 
 /** If SBA detected game over, persist the result to the games table. */
@@ -621,7 +633,7 @@ export const createSoloGame = mutation({
         initialState.mulligan = makeMulliganState(initialState);
         initialState.priorityPlayerId = initialState.mulligan.declaringPlayerId;
 
-        await saveGameState(ctx, gameId, 0, initialState);
+        await saveGameState(ctx, gameId, 0, initialState, null);
 
         return gameId;
     },
@@ -685,7 +697,7 @@ export const joinGame = mutation({
         initialState.mulligan = makeMulliganState(initialState);
         initialState.priorityPlayerId = initialState.mulligan.declaringPlayerId;
 
-        await saveGameState(ctx, args.gameId, 0, initialState);
+        await saveGameState(ctx, args.gameId, 0, initialState, null);
     },
 });
 
@@ -701,7 +713,6 @@ export const playCard = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
         assertNoPendingChoices(state);
         const player = getPlayer(state, args.playerId);
@@ -732,7 +743,7 @@ export const playCard = mutation({
         const nextSeq = gameState.seq + 1;
 
         // Insert new snapshot (don't overwrite previous)
-        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
     },
 });
 
@@ -926,11 +937,7 @@ function finalizeTargetSelection(
     if (!cardInHand) throw new Error("Card not in hand");
     const cardDef = getCardById((cardInHand.card as { id: string }).id);
 
-    const rawCost = (
-        cardInHand.card as {
-            manaCost?: Record<string, number | string | undefined>;
-        }
-    ).manaCost;
+    const rawCost = getInstanceManaCost(cardInHand);
     const extraPer = cardDef.additionalGenericPerExtraTarget ?? 0;
     const additionalGeneric =
         extraPer > 0 ? Math.max(0, targets.length - 1) * extraPer : 0;
@@ -993,7 +1000,6 @@ export const announceCast = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
         assertNoPendingChoices(state);
         const player = getPlayer(state, args.playerId);
@@ -1084,17 +1090,19 @@ export const announceCast = mutation({
                     : {}),
             };
 
-            await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+            await saveGameState(
+                ctx,
+                args.gameId,
+                gameState.seq + 1,
+                state,
+                gameState
+            );
 
             return;
         }
 
         // No targets needed — proceed directly to mana payment / cast
-        const rawCost = (
-            cardInHand.card as {
-                manaCost?: Record<string, number | string | undefined>;
-            }
-        ).manaCost;
+        const rawCost = getInstanceManaCost(cardInHand);
 
         const manaCost = rawCost ? normalizeManaCost(rawCost, { chosenX }) : {};
 
@@ -1134,7 +1142,13 @@ export const announceCast = mutation({
             };
         }
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -1152,7 +1166,6 @@ export const tapForPayment = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (!state.pendingCast) throw new Error("No spell being cast");
@@ -1214,7 +1227,13 @@ export const tapForPayment = mutation({
         }
 
         // Check if cost is now covered → auto-commit
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -1230,7 +1249,6 @@ export const untapForPayment = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (!state.pendingCast) throw new Error("No spell being cast");
@@ -1279,7 +1297,13 @@ export const untapForPayment = mutation({
         discardPermanentTappedEvent(state, card.id);
         state.pendingCast.tappedLandIds.splice(idx, 1);
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -1294,7 +1318,6 @@ export const cancelCast = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (!state.pendingCast) throw new Error("No spell being cast");
@@ -1341,7 +1364,13 @@ export const cancelCast = mutation({
 
         state.pendingCast = undefined;
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -1359,7 +1388,6 @@ export const tapForActivationPayment = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         const pa = state.pendingActivation;
@@ -1382,7 +1410,13 @@ export const tapForActivationPayment = mutation({
             pa.tappedLandIds
         );
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -1398,7 +1432,6 @@ export const untapForActivationPayment = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         const pa = state.pendingActivation;
@@ -1421,7 +1454,13 @@ export const untapForActivationPayment = mutation({
         untapSourceFromPayment(state, player, card);
         pa.tappedLandIds.splice(idx, 1);
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -1437,7 +1476,6 @@ export const cancelActivation = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         const pa = state.pendingActivation;
@@ -1455,7 +1493,13 @@ export const cancelActivation = mutation({
 
         state.pendingActivation = undefined;
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -1481,7 +1525,6 @@ export const selectTarget = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (!state.pendingTarget)
@@ -1652,7 +1695,13 @@ export const selectTarget = mutation({
             finalizeTargetSelection(state, pt, args.playerId);
         }
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -1669,7 +1718,6 @@ export const confirmTargets = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (!state.pendingTarget)
@@ -1686,7 +1734,13 @@ export const confirmTargets = mutation({
         }
         finalizeTargetSelection(state, pt, args.playerId);
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -1701,7 +1755,6 @@ export const cancelTarget = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (!state.pendingTarget)
@@ -1712,7 +1765,13 @@ export const cancelTarget = mutation({
 
         state.pendingTarget = undefined;
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -1728,7 +1787,6 @@ export const toggleAttacker = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (state.phase !== "DECLARE_ATTACKERS") {
@@ -1772,7 +1830,13 @@ export const toggleAttacker = mutation({
             state.combat.attackerIds.push(args.cardInstanceId);
         }
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -1787,7 +1851,6 @@ export const confirmAttackers = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (state.phase !== "DECLARE_ATTACKERS") {
@@ -1836,7 +1899,13 @@ export const confirmAttackers = mutation({
         state.passCount = 0;
         drainAutoPasses(state);
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -1852,7 +1921,6 @@ export const selectBlocker = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (state.phase !== "DECLARE_BLOCKERS") {
@@ -1891,7 +1959,13 @@ export const selectBlocker = mutation({
             state.combat.pendingBlockerId = args.cardInstanceId;
         }
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -1907,7 +1981,6 @@ export const assignBlockerTarget = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (state.phase !== "DECLARE_BLOCKERS") {
@@ -1951,7 +2024,13 @@ export const assignBlockerTarget = mutation({
             args.attackerId;
         state.combat.pendingBlockerId = undefined;
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -1966,7 +2045,6 @@ export const confirmBlockers = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (state.phase !== "DECLARE_BLOCKERS") {
@@ -2018,7 +2096,13 @@ export const confirmBlockers = mutation({
         state.passCount = 0;
         drainAutoPasses(state);
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -2035,7 +2119,6 @@ export const setBlockerOrder = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (state.phase !== "DECLARE_BLOCKERS") {
@@ -2067,7 +2150,13 @@ export const setBlockerOrder = mutation({
 
         state.combat.blockerOrder![args.attackerId] = args.orderedBlockerIds;
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -2082,7 +2171,6 @@ export const confirmBlockerOrder = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (state.phase !== "DECLARE_BLOCKERS") {
@@ -2106,7 +2194,13 @@ export const confirmBlockerOrder = mutation({
         state.passCount = 0;
         drainAutoPasses(state);
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -2123,7 +2217,6 @@ export const setDamageAssignment = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (
@@ -2179,7 +2272,13 @@ export const setDamageAssignment = mutation({
         }
         state.combat.damageAssignments[args.attackerId] = assignments;
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -2194,7 +2293,6 @@ export const confirmDamage = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (
@@ -2225,7 +2323,7 @@ export const confirmDamage = mutation({
         }
 
         const nextSeq = gameState.seq + 1;
-        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
         await finalizeGameOver(ctx, args.gameId, nextSeq, state);
     },
 });
@@ -2240,7 +2338,6 @@ export const passPriority = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
         assertNoPendingChoices(state);
 
@@ -2324,7 +2421,7 @@ export const passPriority = mutation({
         checkStateBasedActions(state);
 
         const nextSeq = gameState.seq + 1;
-        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
         await finalizeGameOver(ctx, args.gameId, nextSeq, state);
     },
 });
@@ -2348,7 +2445,6 @@ export const selectResolutionChoice = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         const queue = state.pendingChoices ?? [];
@@ -2448,7 +2544,7 @@ export const selectResolutionChoice = mutation({
         }
 
         const nextSeq = gameState.seq + 1;
-        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
         await finalizeGameOver(ctx, args.gameId, nextSeq, state);
     },
 });
@@ -2470,7 +2566,6 @@ export const submitMayPay = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         const queue = state.pendingChoices ?? [];
@@ -2525,7 +2620,7 @@ export const submitMayPay = mutation({
         }
 
         const nextSeq = gameState.seq + 1;
-        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
         await finalizeGameOver(ctx, args.gameId, nextSeq, state);
     },
 });
@@ -2548,7 +2643,6 @@ export const declareMulligan = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         if (state.phase !== "MULLIGAN") {
@@ -2564,7 +2658,7 @@ export const declareMulligan = mutation({
         recordDeclaration(state, args.playerId, args.decision);
 
         const nextSeq = gameState.seq + 1;
-        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
     },
 });
 
@@ -2579,7 +2673,6 @@ export const endTurn = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
         assertNoPendingChoices(state);
 
@@ -2605,7 +2698,7 @@ export const endTurn = mutation({
         checkStateBasedActions(state);
 
         const nextSeq = gameState.seq + 1;
-        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
         await finalizeGameOver(ctx, args.gameId, nextSeq, state);
     },
 });
@@ -2641,7 +2734,7 @@ export const cancelAutoPass = mutation({
         }
 
         const nextSeq = gameState.seq + 1;
-        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
     },
 });
 
@@ -2656,7 +2749,6 @@ export const concede = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
 
         getPlayer(state, args.playerId);
@@ -2669,7 +2761,7 @@ export const concede = mutation({
         };
 
         const nextSeq = gameState.seq + 1;
-        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
         await finalizeGameOver(ctx, args.gameId, nextSeq, state);
     },
 });
@@ -2684,7 +2776,6 @@ export const drawCard = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
         const player = getPlayer(state, args.playerId);
 
@@ -2694,14 +2785,14 @@ export const drawCard = mutation({
             checkStateBasedActions(state);
 
             const nextSeq = gameState.seq + 1;
-            await saveGameState(ctx, args.gameId, nextSeq, state);
+            await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
             await finalizeGameOver(ctx, args.gameId, nextSeq, state);
             return;
         }
 
         const nextSeq = gameState.seq + 1;
 
-        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
     },
 });
 
@@ -2715,7 +2806,6 @@ export const mill = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
         const player = getPlayer(state, args.playerId);
 
@@ -2727,7 +2817,7 @@ export const mill = mutation({
 
         const nextSeq = gameState.seq + 1;
 
-        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
     },
 });
 
@@ -2741,7 +2831,6 @@ export const exileFromLibrary = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
         const player = getPlayer(state, args.playerId);
 
@@ -2753,7 +2842,7 @@ export const exileFromLibrary = mutation({
 
         const nextSeq = gameState.seq + 1;
 
-        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
     },
 });
 
@@ -2776,7 +2865,6 @@ export const activateAbility = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
         assertNoPendingChoices(state);
 
@@ -2910,7 +2998,7 @@ export const activateAbility = mutation({
             };
 
             const nextSeq = gameState.seq + 1;
-            await saveGameState(ctx, args.gameId, nextSeq, state);
+            await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
             return;
         }
 
@@ -2977,7 +3065,7 @@ export const activateAbility = mutation({
             state.pendingActivation = pending;
 
             const nextSeq = gameState.seq + 1;
-            await saveGameState(ctx, args.gameId, nextSeq, state);
+            await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
             return;
         }
 
@@ -3014,7 +3102,7 @@ export const activateAbility = mutation({
         drainAutoPasses(state);
 
         const nextSeq = gameState.seq + 1;
-        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
     },
 });
 
@@ -3030,7 +3118,6 @@ export const tapUntap = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
         assertGameNotOver(state);
         // CR 117.3a / 605.3b — while answering a may-pay choice, the player
         // may activate mana abilities to make the mana the cost requires.
@@ -3194,21 +3281,17 @@ export const tapUntap = mutation({
         // CR 603.2 — flush the PERMANENT_TAPPED event into a trigger pass so
         // Manabarbs / Mana Flare / Wild Growth land on the stack right after
         // the mana ability resolves. Skip on untap (no event was emitted).
-        const stackBefore = state.stack.length;
         if (producedThisActivation) {
             processPendingActionTriggers(state);
         }
-        const triggersFired = state.stack.length > stackBefore;
 
-        // Mana ability activation is undoable, but only when no triggered
-        // ability landed on the stack — undoing the tap would leave the
-        // trigger orphaned with no source event.
-        if (!triggersFired) {
-            state.undoableBy = args.playerId;
-        }
-
-        // Save updated state
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -3326,7 +3409,6 @@ export const activatePlayerAbility = mutation({
                     }
                 },
             });
-            state.undoableBy = undefined;
         } else {
             // Stack path: synthesize a stack item carrying the template's
             // source card reference. Not exercised by Channel yet, but kept
@@ -3334,7 +3416,6 @@ export const activatePlayerAbility = mutation({
             if (ability.cost.life !== undefined) {
                 player.life -= ability.cost.life;
             }
-            state.undoableBy = undefined;
             const stackItem: StackItem = {
                 id: `granted-${instance.id}`,
                 card: { id: instance.sourceCardId },
@@ -3365,7 +3446,7 @@ export const activatePlayerAbility = mutation({
         }
 
         const nextSeq = gameState.seq + 1;
-        await saveGameState(ctx, args.gameId, nextSeq, state);
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
     },
 });
 
@@ -3394,47 +3475,13 @@ export const debugPatchState = mutation({
 
         target[keys[keys.length - 1]] = args.value;
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
-    },
-});
-
-/** Undo the last mana ability activation (tap, untap, sacrifice). Only valid while undoableBy is set. */
-export const undoManaAbility = mutation({
-    args: {
-        gameId: v.id("games"),
-        playerId: v.string(),
-    },
-    handler: async (ctx, args) => {
-        const gameState = await getLatestGameState(ctx, args.gameId);
-        if (!gameState) throw new Error("Game not found");
-
-        const state = gameState.state as GameState;
-        if (state.undoableBy !== args.playerId) {
-            throw new Error("Nothing to undo");
-        }
-
-        // Delete the latest snapshot to revert to previous state
-        await ctx.db.delete(gameState._id);
-    },
-});
-
-/** Debug: undo last action by deleting the latest snapshot. */
-export const debugUndo = mutation({
-    args: {
-        gameId: v.id("games"),
-    },
-    handler: async (ctx, args) => {
-        const latest = await ctx.db
-            .query("game_states")
-            .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-            .order("desc")
-            .first();
-
-        if (!latest || latest.seq <= 0) {
-            throw new Error("Nothing to undo");
-        }
-
-        await ctx.db.delete(latest._id);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
@@ -3447,14 +3494,7 @@ export const debugResetGame = mutation({
         const game = await ctx.db.get(args.gameId);
         if (!game) throw new Error("Game not found");
 
-        // Delete all existing snapshots
-        const states = await ctx.db
-            .query("game_states")
-            .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-            .collect();
-        for (const s of states) {
-            await ctx.db.delete(s._id);
-        }
+        const existing = await getLatestGameState(ctx, args.gameId);
 
         const playersState = game.players.map((p) =>
             buildPlayerState(p as PlayerInput)
@@ -3480,7 +3520,7 @@ export const debugResetGame = mutation({
         initialState.mulligan = makeMulliganState(initialState);
         initialState.priorityPlayerId = initialState.mulligan.declaringPlayerId;
 
-        await saveGameState(ctx, args.gameId, 0, initialState);
+        await saveGameState(ctx, args.gameId, 0, initialState, existing);
 
         // Reset game status in case it was finished
         await ctx.db.patch(args.gameId, {
@@ -3533,8 +3573,6 @@ export const debugSetupScenario = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        state.undoableBy = undefined;
-
         // If the game is still in the pre-game mulligan phase (CR 103.5),
         // confirm the mulligan for both players so the scenario takes over a
         // clean turn-1 state. The scenario's own `phase` override (later in
@@ -3649,6 +3687,12 @@ export const debugSetupScenario = mutation({
         state.pendingCast = undefined;
         state.stack = [];
 
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });

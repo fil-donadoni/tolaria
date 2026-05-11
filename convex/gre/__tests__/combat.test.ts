@@ -7,37 +7,50 @@ import {
 } from "../combat";
 import type { CardInstanceState } from "../state";
 import type { CardType } from "../../cards/types";
+import { makeInstance } from "../../cards/__tests__/setup";
+import {
+    drudgeSkeletons,
+    grizzlyBears,
+    hypnoticSpecter,
+    jadeStatue,
+} from "../../cards/sets/lea";
 
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
 
+// Builds a CardInstanceState with the SLIM `card: { id }` shape that
+// production writes to Convex. Synthetic test creatures don't sit in the
+// registry — we mint a unique id so `card.card.id` is always a string, but
+// `tryGetCardById` will return null. Combat predicates read runtime fields
+// (`types`, `subtypes`, `staticAbilities`, `isTapped`, ...), so the absent
+// registry definition doesn't affect them.
+//
+// Any legacy `overrides.card` with embedded `name`/`manaCost`/etc is
+// ignored — only an explicit `overrides.card.id` is honored, mirroring how
+// production stores instances post-serialize-refactor.
 function makeCard(
     overrides: Partial<CardInstanceState> & {
         card?: Record<string, unknown>;
     } = {}
 ): CardInstanceState {
-    const card = overrides.card ?? { name: "Test Card", types: ["Creature"] };
+    const cardRef = overrides.card as { id?: string } | undefined;
+    const id = cardRef?.id ?? `synth-${crypto.randomUUID()}`;
+    const rest: Partial<CardInstanceState> = { ...overrides };
+    delete rest.card;
     return {
         id: overrides.id ?? crypto.randomUUID(),
-        card,
-        types: overrides.types ?? (card.types as CardType[]) ?? [],
-        subtypes:
-            (overrides.subtypes as string[]) ??
-            (card.subtypes as string[]) ??
-            [],
-        power: overrides.power ?? (card.power as number | undefined),
-        toughness:
-            overrides.toughness ?? (card.toughness as number | undefined),
-        staticAbilities:
-            (overrides.staticAbilities as string[]) ??
-            (card.staticAbilities as string[]) ??
-            [],
+        card: { id },
+        types: (overrides.types as CardType[]) ?? [],
+        subtypes: (overrides.subtypes as string[]) ?? [],
+        power: overrides.power,
+        toughness: overrides.toughness,
+        staticAbilities: (overrides.staticAbilities as string[]) ?? [],
         controllerId: "p1",
         ownerId: "p1",
         zone: "battlefield",
         isTapped: false,
-        ...overrides,
+        ...rest,
     };
 }
 
@@ -390,17 +403,17 @@ describe("validateBlockerEligibility — Invisibility, Wall-only (CR 509.1b)", (
 });
 
 describe("validateBlockerEligibility — fear (CR 702.36b)", () => {
+    // Fear's color check uses STATIC_EFFECT_CTX.getColors, which reads
+    // manaCost off the card definition. Synthetic test creatures don't sit
+    // in the registry, so these tests use real cards with known colors:
+    // Hypnotic Specter (black) as the fear-attacker, Grizzly Bears (green)
+    // as the failing blocker, Drudge Skeletons (black) and Jade Statue
+    // (colorless artifact) as the passing blockers.
     it("rejects a non-Black, non-Artifact blocker", () => {
-        const fearAttacker = makeCard({
-            types: ["Creature"],
+        const fearAttacker = makeInstance(hypnoticSpecter.id, {
             staticAbilities: ["fear"],
-            card: { manaCost: { B: 2 } },
         });
-        const greenBlocker = makeCard({
-            types: ["Creature"],
-            staticAbilities: [],
-            card: { manaCost: { G: 1 } },
-        });
+        const greenBlocker = makeInstance(grizzlyBears.id);
         expect(
             validateBlockerEligibility(fearAttacker, greenBlocker, [
                 greenBlocker,
@@ -409,15 +422,11 @@ describe("validateBlockerEligibility — fear (CR 702.36b)", () => {
     });
 
     it("accepts an Artifact blocker (even if not Black)", () => {
-        const fearAttacker = makeCard({
-            types: ["Creature"],
+        const fearAttacker = makeInstance(hypnoticSpecter.id, {
             staticAbilities: ["fear"],
-            card: { manaCost: { B: 2 } },
         });
-        const artifactCreature = makeCard({
-            types: ["Creature", "Artifact"],
-            staticAbilities: [],
-            card: { manaCost: { C: 0 } },
+        const artifactCreature = makeInstance(jadeStatue.id, {
+            types: ["Artifact", "Creature"],
         });
         expect(
             validateBlockerEligibility(fearAttacker, artifactCreature, [
@@ -427,16 +436,10 @@ describe("validateBlockerEligibility — fear (CR 702.36b)", () => {
     });
 
     it("accepts a Black blocker", () => {
-        const fearAttacker = makeCard({
-            types: ["Creature"],
+        const fearAttacker = makeInstance(hypnoticSpecter.id, {
             staticAbilities: ["fear"],
-            card: { manaCost: { B: 2 } },
         });
-        const blackBlocker = makeCard({
-            types: ["Creature"],
-            staticAbilities: [],
-            card: { manaCost: { B: 1 } },
-        });
+        const blackBlocker = makeInstance(drudgeSkeletons.id);
         expect(
             validateBlockerEligibility(fearAttacker, blackBlocker, [
                 blackBlocker,

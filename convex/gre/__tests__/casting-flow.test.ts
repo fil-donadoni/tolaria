@@ -14,37 +14,60 @@ import {
     type StackItem,
 } from "../state";
 import type { CardType } from "../../cards/types";
+import { getInstanceManaCost, tryGetCardById } from "../../cards";
+import {
+    armageddon,
+    mountain,
+    plains,
+    savannahLions,
+} from "../../cards/sets/lea";
 
 // ---------------------------------------------------------------------------
 // Helpers — simulate mutation logic as pure functions
 // ---------------------------------------------------------------------------
 
+// Builds a CardInstanceState with the SLIM `card: { id }` shape. When the
+// `id` matches a registry card, runtime fields default to the def
+// (types/subtypes/power/toughness/staticAbilities) so call sites stay
+// concise. Synthetic ids fall back to empty arrays; tests that need
+// non-default runtime fields pass them explicitly via `overrides`.
+//
+// One concession to legacy fixtures: an inline `manaCost` on `overrides.card`
+// is preserved on the final instance so test cards without a registry entry
+// can still drive `getInstanceManaCost` correctly. Production never produces
+// such instances, but synthetic fixtures depend on this passthrough.
 function makeCard(
     overrides: Partial<CardInstanceState> & {
         card?: Record<string, unknown>;
     } = {}
 ): CardInstanceState {
-    const card = overrides.card ?? { name: "Test Card", types: ["Creature"] };
+    const cardRef = overrides.card as
+        | { id?: string; manaCost?: unknown }
+        | undefined;
+    const id = cardRef?.id ?? `synth-${crypto.randomUUID()}`;
+    const def = tryGetCardById(id);
+    const cardField: { id: string; manaCost?: unknown } = { id };
+    if (cardRef?.manaCost !== undefined) {
+        cardField.manaCost = cardRef.manaCost;
+    }
+    const rest: Partial<CardInstanceState> = { ...overrides };
+    delete rest.card;
     return {
         id: overrides.id ?? crypto.randomUUID(),
-        card,
-        types: overrides.types ?? (card.types as CardType[]) ?? [],
-        subtypes:
-            (overrides.subtypes as string[]) ??
-            (card.subtypes as string[]) ??
-            [],
-        power: overrides.power ?? (card.power as number | undefined),
-        toughness:
-            overrides.toughness ?? (card.toughness as number | undefined),
+        card: cardField,
+        types: (overrides.types as CardType[]) ?? def?.types ?? [],
+        subtypes: (overrides.subtypes as string[]) ?? def?.subtypes ?? [],
+        power: overrides.power ?? def?.power,
+        toughness: overrides.toughness ?? def?.toughness,
         staticAbilities:
             (overrides.staticAbilities as string[]) ??
-            (card.staticAbilities as string[]) ??
+            def?.staticAbilities ??
             [],
         controllerId: "p1",
         ownerId: "p1",
         zone: "hand",
         isTapped: false,
-        ...overrides,
+        ...rest,
     };
 }
 
@@ -80,30 +103,13 @@ function makeGameState(overrides: Partial<GameState> = {}): GameState {
     };
 }
 
-// Card fixtures
-const PLAINS_CARD = {
-    name: "Plains",
-    types: ["Land"],
-    supertypes: ["Basic"],
-    subtypes: ["Plains"],
-};
-const MOUNTAIN_CARD = {
-    name: "Mountain",
-    types: ["Land"],
-    supertypes: ["Basic"],
-    subtypes: ["Mountain"],
-};
-const SAVANNAH_LIONS_CARD = {
-    name: "Savannah Lions",
-    manaCost: { W: 1 },
-    types: ["Creature"],
-    subtypes: ["Cat"],
-};
-const ARMAGEDDON_CARD = {
-    name: "Armageddon",
-    manaCost: { X: 3, W: 1 },
-    types: ["Sorcery"],
-};
+// Card fixtures — slim refs into the registry. makeCard pulls
+// types/subtypes/power/toughness/staticAbilities and getInstanceManaCost
+// pulls the cost from the same def at read time.
+const PLAINS_CARD = { id: plains.id };
+const MOUNTAIN_CARD = { id: mountain.id };
+const SAVANNAH_LIONS_CARD = { id: savannahLions.id };
+const ARMAGEDDON_CARD = { id: armageddon.id };
 
 /** Simulates announceCast mutation logic. Returns 'committed' or 'pending'. */
 function announceCast(
@@ -115,11 +121,7 @@ function announceCast(
     const cardInHand = player.hand.find((c) => c.id === cardInstanceId);
     if (!cardInHand) throw new Error("Card not in hand");
 
-    const rawCost = (
-        cardInHand.card as {
-            manaCost?: Record<string, number | string | undefined>;
-        }
-    ).manaCost;
+    const rawCost = getInstanceManaCost(cardInHand);
     const manaCost = rawCost ? normalizeManaCost(rawCost) : {};
 
     if (
@@ -306,7 +308,7 @@ describe("casting flow — tap then cast (floating mana)", () => {
         expect(result).toBe("committed");
         expect(state.pendingCast).toBeUndefined();
         expect(state.stack).toHaveLength(1);
-        expect(state.stack[0].card).toHaveProperty("name", "Savannah Lions");
+        expect(state.stack[0].card).toHaveProperty("id", savannahLions.id);
         expect(getPlayer(state, "p1").manaPool.W).toBe(0);
         expect(getPlayer(state, "p1").hand).toHaveLength(0);
         expect(state.priorityPlayerId).toBe("p2");

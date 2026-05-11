@@ -150,6 +150,19 @@ export const getCardByName = (name: string): CardDefinition => {
 export const getAllCardNames = (): string[] =>
     allCards.map((card) => card.name);
 
+/** Reads the mana cost off a `CardInstanceState`-shaped object. Production
+ *  stores only `{id}` in `instance.card` and relies on the registry; legacy
+ *  test fixtures inline the cost on the same field. Tries embedded first so
+ *  fixtures keep working, then falls back to the registry lookup. */
+export function getInstanceManaCost(instance: {
+    card: Record<string, unknown>;
+}): ManaCost | undefined {
+    const embedded = (instance.card as { manaCost?: ManaCost }).manaCost;
+    if (embedded) return embedded;
+    const id = (instance.card as { id?: string }).id;
+    return id ? (tryGetCardById(id)?.manaCost ?? undefined) : undefined;
+}
+
 /** All registered `CardDefinition`s in load order. Reprints are not included
  *  — each `CardPrint` resolves to the same definition, so callers iterating
  *  cards-as-data (deck builder index, card catalog) should consume this and

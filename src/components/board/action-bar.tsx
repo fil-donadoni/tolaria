@@ -24,12 +24,10 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         pendingActivation,
         pendingTarget,
         autoPassPlayers,
-        undoableBy,
         combat,
         allPlayers,
     } = useGameContext();
 
-    const undoManaAbility = useMutation(api.game.undoManaAbility);
     const cancelCast = useMutation(api.game.cancelCast);
     const cancelActivation = useMutation(api.game.cancelActivation);
     const confirmAttackers = useMutation(api.game.confirmAttackers);
@@ -50,7 +48,6 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         combat,
     };
 
-    const canUndo = undoableBy === playerId;
     const isPayingCast = !!pendingCast && pendingCast.playerId === playerId;
     const isPayingActivation =
         !!pendingActivation && pendingActivation.playerId === playerId;
@@ -103,10 +100,6 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         activePlayerId,
     ]);
 
-    const handleUndo = useCallback(() => {
-        if (canUndo) undoManaAbility({ gameId, playerId });
-    }, [canUndo, undoManaAbility, gameId, playerId]);
-
     const handlePass = useCallback(() => {
         if (hasPriority && !isAutoPass) passPriority({ gameId, playerId });
     }, [hasPriority, isAutoPass, passPriority, gameId, playerId]);
@@ -122,13 +115,12 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
     useEffect(() => {
         function onKeyDown(e: KeyboardEvent) {
             if (e.key === "u" && !e.metaKey && !e.ctrlKey && !e.altKey) {
-                e.preventDefault();
                 if (isPayingCast) {
+                    e.preventDefault();
                     cancelCast({ gameId, playerId });
                 } else if (isPayingActivation) {
+                    e.preventDefault();
                     cancelActivation({ gameId, playerId });
-                } else {
-                    handleUndo();
                 }
                 return;
             }
@@ -154,7 +146,6 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
     }, [
-        handleUndo,
         handlePass,
         handleEndTurn,
         handleCancelAutoPass,
@@ -172,18 +163,6 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
     ]);
 
     const buttons: React.ReactNode[] = [];
-
-    if (canUndo) {
-        buttons.push(
-            <ActionButton
-                key="undo"
-                onClick={handleUndo}
-                label="Undo"
-                color="yellow"
-                shortcut="U"
-            />
-        );
-    }
 
     if (isPayingCast) {
         buttons.push(

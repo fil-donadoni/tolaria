@@ -123,18 +123,6 @@ describe("computeAutoPassBlocked", () => {
         ).toBe(true);
     });
 
-    it("true when an undo is available to us", () => {
-        expect(
-            computeAutoPassBlocked(makeAutoPassCtx({ undoableBy: "p1" }))
-        ).toBe(true);
-    });
-
-    it("false when opponent has an undo but we don't", () => {
-        expect(
-            computeAutoPassBlocked(makeAutoPassCtx({ undoableBy: "p2" }))
-        ).toBe(false);
-    });
-
     it("true when game is over", () => {
         expect(
             computeAutoPassBlocked(

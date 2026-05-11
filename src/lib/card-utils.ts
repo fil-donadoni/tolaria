@@ -346,10 +346,39 @@ export function getDisplayAbilities(
     return { keywords, activated, triggered };
 }
 
-/** Capitalizes the first letter of a keyword for display. Matches the user
- *  preference of "name only, no reminder text" for static keywords. */
+/** Display strings for internal `staticAbilities` markers — keywords whose
+ *  identifier is a slug rather than the printed Oracle keyword. Real MTG
+ *  evergreen keywords (flying, trample, first strike, …) are not listed
+ *  here; they round-trip through `capitalizeKeyword` and render as
+ *  "Flying" / "Trample" / "First strike" / etc. unchanged. */
+const KEYWORD_DISPLAY: Record<string, string> = {
+    "limits-acl-untap":
+        "Players can't untap more than one artifact, creature, or land during their untap steps.",
+    "does-not-untap":
+        "This permanent doesn't untap during its controller's untap step.",
+    "skip-untap-step": "Players skip their untap steps.",
+    "limits-creature-untap-to-one":
+        "Players can't untap more than one creature during their untap steps.",
+    "prevents-untap-of-power-3-or-greater":
+        "Creatures with power 3 or greater don't untap during their controllers' untap steps.",
+    "cant-attack-unless-defender-controls-Island":
+        "This creature can't attack unless defending player controls an Island.",
+    "cant-be-blocked-by-wall": "This creature can't be blocked by Walls.",
+    "cant-block-power-2-or-greater":
+        "This creature can't block creatures with power 2 or greater.",
+    "attacks-if-able": "Attacks each combat if able.",
+};
+
+/** Renders a `staticAbilities` keyword for display. Internal slug keywords
+ *  (the ones whose name reveals an implementation detail rather than the
+ *  printed Oracle phrasing — e.g. `prevents-untap-of-power-3-or-greater`)
+ *  are mapped to their Oracle line via `KEYWORD_DISPLAY`. Everything else
+ *  falls back to a simple first-letter capitalization, matching the user
+ *  preference of "name only, no reminder text" for real MTG keywords. */
 export function capitalizeKeyword(k: string): string {
     if (!k) return k;
+    const mapped = KEYWORD_DISPLAY[k];
+    if (mapped) return mapped;
     return k.charAt(0).toUpperCase() + k.slice(1);
 }
 

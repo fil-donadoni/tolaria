@@ -1,9 +1,4 @@
-import type {
-    Color,
-    ManaCost,
-    TargetRequirement,
-    TargetSelection,
-} from "../cards/types";
+import type { Color, TargetRequirement, TargetSelection } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import type { CardAction } from "./types";
 import { isSorceryTiming } from "./phases";
@@ -16,7 +11,7 @@ import {
 } from "./constants";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
 import { isProtectedFromColors } from "./protection";
-import { tryGetCardById } from "../cards";
+import { getInstanceManaCost, tryGetCardById } from "../cards";
 import { normalizeManaCost } from "./state";
 
 export {
@@ -180,7 +175,7 @@ function canPotentiallyPayCost(
     player: PlayerState,
     card: CardInstanceState
 ): boolean {
-    const rawCost = (card.card as { manaCost?: ManaCost }).manaCost;
+    const rawCost = getInstanceManaCost(card);
     if (!rawCost) return true;
     // Cost normalized without chosenX: string-X spells pay only their fixed
     // portion at the minimum (X = 0). User picks X at announcement.
@@ -422,7 +417,10 @@ export function assertLegalAction(
 ): void {
     const legal = getLegalActions(state, player, card);
     if (!legal.includes(action)) {
-        const cardName = (card.card as { name?: string }).name ?? card.id;
+        const cardId = (card.card as { id?: string }).id;
+        const cardName =
+            (card.card as { name?: string }).name ??
+            (cardId ? (tryGetCardById(cardId)?.name ?? card.id) : card.id);
         throw new Error(
             `Illegal action "${action}" on "${cardName}". Legal actions: ${legal.join(", ") || "none"}`
         );

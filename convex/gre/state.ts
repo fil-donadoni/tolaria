@@ -11,7 +11,7 @@ import type {
     TargetSelection,
     TokenSpec,
 } from "../cards/types";
-import { getCardById, registerTokenDefinition, tryGetCardById } from "../cards";
+import { registerTokenDefinition, tryGetCardById } from "../cards";
 import { getResolveFn } from "../cards/effectRegistry";
 import type { Phase, Zone } from "./types";
 import {
@@ -597,8 +597,6 @@ export type GameState = {
         /** false = waiting for manual assignment, undefined = auto-applied or not yet at damage step. */
         damageConfirmed?: boolean;
     };
-    /** Player who can undo the last mana ability activation. Cleared on any non-mana action. */
-    undoableBy?: string;
     /** Monotonic counter advanced by each grantAbility() call. Used to
      *  generate deterministic `grant-N` ids for GrantedAbilityInstance so
      *  replays reproduce the same ids. */
@@ -738,7 +736,10 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
 
     const top = state.stack[state.stack.length - 1];
     const cardId = (top.card as { id?: string }).id;
-    const cardDef = cardId ? getCardById(cardId) : undefined;
+    // Unknown ids (e.g. synthetic test fixtures) collapse to the vanilla
+    // ETB-or-graveyard path. Production stack items always carry registry
+    // ids, but tryGetCardById keeps the resolver robust either way.
+    const cardDef = cardId ? (tryGetCardById(cardId) ?? undefined) : undefined;
     const isSpell =
         !top.abilityId && !top.triggeredAbilityId && !top.delayedTriggerId;
 

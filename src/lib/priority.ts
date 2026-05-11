@@ -19,7 +19,6 @@ export type HasPriorityCtx = {
 };
 
 export type AutoPassBlockedCtx = HasPriorityCtx & {
-    undoableBy?: string;
     stackCount: number;
     autoPassPlayers?: string[];
     gameOver?: GameOver;
@@ -85,7 +84,6 @@ export function computeAutoPassBlocked(ctx: AutoPassBlockedCtx): boolean {
     if (ctx.autoPassPlayers?.includes(ctx.playerId)) return true;
     if (!computeHasPriority(ctx)) return true;
     if (ctx.stackCount > 0) return true;
-    if (ctx.undoableBy === ctx.playerId) return true;
     return false;
 }
 

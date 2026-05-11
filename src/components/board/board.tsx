@@ -124,7 +124,6 @@ export default function Board({
     const pendingTarget = state.pendingTarget;
     const pendingChoices = state.pendingChoices;
     const mulligan = state.mulligan;
-    const undoableBy = state.undoableBy;
     const gameOver = state.gameOver;
     const stackItems = state.stack ?? [];
 
@@ -166,7 +165,6 @@ export default function Board({
                 pendingTarget,
                 pendingChoices,
                 autoPassPlayers,
-                undoableBy,
                 combat,
                 gameOver,
                 allPlayers,

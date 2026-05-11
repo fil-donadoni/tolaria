@@ -9,32 +9,50 @@ import {
 } from "../state";
 import { getLegalTargets } from "../rules";
 import type { CardType, TargetRequirement } from "../../cards/types";
-import { getCardById } from "../../cards";
+import { getCardById, tryGetCardById } from "../../cards";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+// SLIM card builder. `card.card` always shrinks to `{ id }`, with an optional
+// `manaCost` passthrough for synthetic fixtures that need color filtering.
+// Runtime fields fall back to the registry def when `id` matches, else to
+// the inline cardData fields, else to defaults.
 function makeCard(
     overrides: Partial<CardInstanceState> & {
         card?: Record<string, unknown>;
     } = {}
 ): CardInstanceState {
-    const card = overrides.card ?? { name: "Test Card", types: ["Creature"] };
+    const cardRef = overrides.card as
+        | {
+              id?: string;
+              manaCost?: unknown;
+              types?: CardType[];
+              subtypes?: string[];
+              power?: number;
+              toughness?: number;
+              staticAbilities?: string[];
+          }
+        | undefined;
+    const id = cardRef?.id ?? `synth-${crypto.randomUUID()}`;
+    const def = tryGetCardById(id);
+    const cardField: { id: string; manaCost?: unknown } = { id };
+    if (cardRef?.manaCost !== undefined) {
+        cardField.manaCost = cardRef.manaCost;
+    }
     return {
         id: overrides.id ?? crypto.randomUUID(),
-        card,
-        types: overrides.types ?? (card.types as CardType[]) ?? [],
+        card: cardField,
+        types: overrides.types ?? def?.types ?? cardRef?.types ?? [],
         subtypes:
-            (overrides.subtypes as string[]) ??
-            (card.subtypes as string[]) ??
-            [],
-        power: overrides.power ?? (card.power as number | undefined),
-        toughness:
-            overrides.toughness ?? (card.toughness as number | undefined),
+            overrides.subtypes ?? def?.subtypes ?? cardRef?.subtypes ?? [],
+        power: overrides.power ?? def?.power ?? cardRef?.power,
+        toughness: overrides.toughness ?? def?.toughness ?? cardRef?.toughness,
         staticAbilities:
-            (overrides.staticAbilities as string[]) ??
-            (card.staticAbilities as string[]) ??
+            overrides.staticAbilities ??
+            def?.staticAbilities ??
+            cardRef?.staticAbilities ??
             [],
         controllerId: overrides.controllerId ?? "p1",
         ownerId: overrides.ownerId ?? "p1",

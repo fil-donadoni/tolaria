@@ -203,12 +203,6 @@ describe("shouldAutoPass", () => {
         ).toBe(false);
     });
 
-    it("false when an undo is available to us", () => {
-        expect(shouldAutoPass(makeCtx({ undoableBy: "p1" }), prefs, true)).toBe(
-            false
-        );
-    });
-
     it("false when game is over", () => {
         expect(
             shouldAutoPass(

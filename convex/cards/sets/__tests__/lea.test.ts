@@ -170,6 +170,12 @@ import {
     wallOfSwords,
     wheelOfFortune,
     winterOrb,
+    basaltMonolith,
+    manaVault,
+    meekstone,
+    smoke,
+    stasis,
+    paralyze,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -10250,6 +10256,452 @@ describe("The Hive ({5}, {T}: create a 1/1 colorless flying Wasp Insect artifact
         expect(defId.endsWith("|09921372-126f-4c81-b6d8-ea50b1d0eb44")).toBe(
             true
         );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Gap J — skip / restrict untap step (CR 502.1)
+// ---------------------------------------------------------------------------
+
+/** Drives the incoming player's UNTAP step by advancing from END_STEP:
+ *  CLEANUP auto-resolves, turn flips, UNTAP auto-resolves, state settles
+ *  in UPKEEP of the intended player. Shared by all gap-J describe blocks. */
+function runUntapForJ(playerId: string, state: GameState): void {
+    state.activePlayerId = playerId === "p1" ? "p2" : "p1";
+    state.phase = "END_STEP";
+    advancePhase(state);
+}
+
+describe("Basalt Monolith (does-not-untap + {T}: {C}{C}{C} + {3}: untap, CR 502.1)", () => {
+    it("is a {3} artifact declaring the per-permanent does-not-untap keyword", () => {
+        expect(basaltMonolith.manaCost).toEqual({ X: 3 });
+        expect(basaltMonolith.types).toEqual(["Artifact"]);
+        expect(basaltMonolith.staticAbilities).toContain("does-not-untap");
+    });
+
+    it("stays tapped through its controller's untap step", () => {
+        const monolith = makeInstance(basaltMonolith.id, {
+            id: "monolith",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [monolith] }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "monolith")
+                ?.isTapped
+        ).toBe(true);
+    });
+
+    it("{3} activated ability untaps the monolith from the stack", () => {
+        const monolith = makeInstance(basaltMonolith.id, {
+            id: "monolith",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [monolith] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...monolith,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "basalt-monolith-untap",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "monolith")
+                ?.isTapped
+        ).toBe(false);
+    });
+});
+
+describe("Mana Vault (does-not-untap + upkeep may-pay {4} + draw-step ping, CR 502.1 / 603.4)", () => {
+    function setup(opts: { vaultTapped: boolean }) {
+        const vault = makeInstance(manaVault.id, {
+            id: "vault",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: opts.vaultTapped,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [vault] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state };
+    }
+
+    it("declares does-not-untap and stays tapped on the untap step", () => {
+        expect(manaVault.staticAbilities).toContain("does-not-untap");
+        const { state } = setup({ vaultTapped: true });
+        runUntapForJ("p1", state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "vault")?.isTapped
+        ).toBe(true);
+    });
+
+    it("upkeep may-pay {4} — accepting untaps the vault, declining leaves it tapped", () => {
+        const { state } = setup({ vaultTapped: true });
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        state.phase = "UNTAP";
+        advancePhase(state); // → UPKEEP, queues trigger
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("mana-vault-upkeep");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices?.[0];
+        expect(head?.playerId).toBe("p1");
+        const item = state.stack.find((s) => s.id === head!.stackItemId)!;
+        // Decline → vault stays tapped.
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${head!.step}:${head!.choiceId}`]: ["decline"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "vault")?.isTapped
+        ).toBe(true);
+    });
+
+    it("upkeep may-pay {4} — accept untaps the vault", () => {
+        const { state } = setup({ vaultTapped: true });
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        state.phase = "UNTAP";
+        advancePhase(state);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices?.[0];
+        const item = state.stack.find((s) => s.id === head!.stackItemId)!;
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${head!.step}:${head!.choiceId}`]: ["yes"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "vault")?.isTapped
+        ).toBe(false);
+    });
+
+    it("draw-step trigger deals 1 to controller only when the vault is tapped", () => {
+        const { state } = setup({ vaultTapped: true });
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        state.phase = "UPKEEP";
+        advancePhase(state); // → DRAW, queues damage trigger
+        const drawTriggers = state.stack.filter(
+            (s) => s.triggeredAbilityId === "mana-vault-draw-damage"
+        );
+        expect(drawTriggers).toHaveLength(1);
+        const lifeBefore = state.players[0].life;
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(lifeBefore - 1);
+    });
+
+    it("draw-step trigger does NOT fire when the vault is untapped (intervening-if)", () => {
+        const { state } = setup({ vaultTapped: false });
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        state.phase = "UPKEEP";
+        advancePhase(state); // → DRAW
+        const drawTriggers = state.stack.filter(
+            (s) => s.triggeredAbilityId === "mana-vault-draw-damage"
+        );
+        expect(drawTriggers).toHaveLength(0);
+    });
+});
+
+describe("Meekstone (creatures with power 3+ don't untap, CR 502.1 + 613 layer 7c)", () => {
+    it("declares the global prevents-untap keyword", () => {
+        expect(meekstone.manaCost).toEqual({ X: 1 });
+        expect(meekstone.types).toEqual(["Artifact"]);
+        expect(meekstone.staticAbilities).toContain(
+            "prevents-untap-of-power-3-or-greater"
+        );
+    });
+
+    it("blocks creatures with effective power ≥3 from untapping; weaker creatures untap", () => {
+        const stone = makeInstance(meekstone.id, { id: "stone" });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const vampire = makeInstance(sengirVampire.id, {
+            id: "vamp",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [stone, bear, vampire] }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "bear")?.isTapped).toBe(false);
+        expect(bf.find((c) => c.id === "vamp")?.isTapped).toBe(true);
+    });
+
+    it("non-creature permanents (artifacts, enchantments) untap normally under Meekstone", () => {
+        const stone = makeInstance(meekstone.id, { id: "stone" });
+        const land = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const enchant = makeInstance(castle.id, {
+            id: "castle",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [stone, land, enchant] }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(false);
+        expect(bf.find((c) => c.id === "castle")?.isTapped).toBe(false);
+    });
+});
+
+describe("Smoke (players can't untap more than one creature, CR 502.1)", () => {
+    it("declares the global one-creature-untap cap keyword", () => {
+        expect(smoke.manaCost).toEqual({ R: 2 });
+        expect(smoke.types).toEqual(["Enchantment"]);
+        expect(smoke.staticAbilities).toContain("limits-creature-untap-to-one");
+    });
+
+    it("only the first tapped creature untaps; non-creature permanents untap normally", () => {
+        const enchant = makeInstance(smoke.id, { id: "smoke" });
+        const bear1 = makeInstance(grizzlyBears.id, {
+            id: "bear-1",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const bear2 = makeInstance(grizzlyBears.id, {
+            id: "bear-2",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const land = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [enchant, bear1, bear2, land],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+        const bf = state.players[0].battlefield;
+        const untappedCreatures = bf.filter(
+            (c) => !c.isTapped && c.types.includes("Creature")
+        );
+        expect(untappedCreatures).toHaveLength(1);
+        expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(false);
+    });
+});
+
+describe("Stasis (players skip their untap step + upkeep sacrifice unless {U}, CR 502.1)", () => {
+    function setup() {
+        const enchant = makeInstance(stasis.id, {
+            id: "stasis",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [enchant, land, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state };
+    }
+
+    it("declares the global skip-untap keyword", () => {
+        expect(stasis.manaCost).toEqual({ X: 1, U: 1 });
+        expect(stasis.types).toEqual(["Enchantment"]);
+        expect(stasis.staticAbilities).toContain("skip-untap-step");
+    });
+
+    it("the active player's untap step is a no-op when Stasis is in play", () => {
+        const { state } = setup();
+        runUntapForJ("p1", state);
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "bear")?.isTapped).toBe(true);
+    });
+
+    it("upkeep trigger queues may-pay; declining sacrifices Stasis", () => {
+        const { state } = setup();
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        state.phase = "UNTAP";
+        advancePhase(state); // → UPKEEP
+        const trigger = state.stack.find(
+            (s) => s.triggeredAbilityId === "stasis-upkeep"
+        );
+        expect(trigger).toBeDefined();
+        resolveTopOfStack(state);
+        const head = state.pendingChoices?.[0];
+        const item = state.stack.find((s) => s.id === head!.stackItemId)!;
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${head!.step}:${head!.choiceId}`]: ["decline"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+        // Stasis moved to graveyard, skip-untap no longer active.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "stasis")
+        ).toBeUndefined();
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(
+            stasis.id
+        );
+    });
+
+    it("upkeep trigger — accepting keeps Stasis on the battlefield", () => {
+        const { state } = setup();
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        state.phase = "UNTAP";
+        advancePhase(state);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices?.[0];
+        const item = state.stack.find((s) => s.id === head!.stackItemId)!;
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${head!.step}:${head!.choiceId}`]: ["yes"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "stasis")
+        ).toBeDefined();
+    });
+});
+
+describe("Paralyze (aura — tap host on ETB + does-not-untap grant + upkeep pay {4}, CR 303.4 / 611)", () => {
+    it("declares aura subtype, host-grant keyword and {B} cost", () => {
+        expect(paralyze.manaCost).toEqual({ B: 1 });
+        expect(paralyze.subtypes).toContain("Aura");
+        const grant = paralyze.staticEffects?.[0];
+        expect(grant?.kind).toBe("keyword-grant");
+        if (grant?.kind === "keyword-grant") {
+            expect(grant.keyword).toBe("does-not-untap");
+        }
+    });
+
+    it("ETB taps the enchanted creature and the host keeps does-not-untap while attached", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: false,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        // Cast Paralyze targeting the opposing bear — push to stack and resolve.
+        pushSpell(state, paralyze.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const tappedBear = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(tappedBear.isTapped).toBe(true);
+        expect(tappedBear.staticAbilities).toContain("does-not-untap");
+    });
+
+    it("the host stays tapped through its controller's untap step while paralyzed", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: false,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, paralyze.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        // Drive UNTAP for the host's controller (p2) — bear must stay tapped.
+        runUntapForJ("p2", state);
+        const stillTapped = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        );
+        expect(stillTapped?.isTapped).toBe(true);
+    });
+
+    it("upkeep trigger lets the host's controller pay {4} to untap the creature", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: false,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, paralyze.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        // p2's upkeep — Paralyze fires; p2 (host's controller) is the may-pay
+        // chooser.
+        state.activePlayerId = "p2";
+        state.priorityPlayerId = "p2";
+        state.phase = "UNTAP";
+        advancePhase(state); // → UPKEEP queues trigger
+        const trigger = state.stack.find(
+            (s) => s.triggeredAbilityId === "paralyze-upkeep"
+        );
+        expect(trigger).toBeDefined();
+        resolveTopOfStack(state);
+        const head = state.pendingChoices?.[0];
+        expect(head?.playerId).toBe("p2");
+        const item = state.stack.find((s) => s.id === head!.stackItemId)!;
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${head!.step}:${head!.choiceId}`]: ["yes"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+        const bearAfter = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        );
+        expect(bearAfter?.isTapped).toBe(false);
     });
 });
 

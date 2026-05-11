@@ -111,19 +111,64 @@ function isAclPermanent(card: CardInstanceState): boolean {
 }
 
 /** Untap step: untap all permanents, clear committed/summoning sickness
- *  (CR 502.4). When any permanent grants the `limits-acl-untap` marker
- *  (Winter Orb / Static Orb), the active player's untap is capped at one
- *  artifact/creature/land total. Selection is deterministic — first tapped
- *  ACL in battlefield order — since UNTAP is an auto-phase with no priority
- *  window (CR 502.1). Non-ACL permanents untap normally. */
+ *  (CR 502.4). Several keyword markers gate which permanents untap:
+ *  - `skip-untap-step` (Stasis, CR 502.1) — global, the active player skips
+ *    untap entirely. Permanents that would otherwise untap stay tapped.
+ *  - `limits-acl-untap` (Winter Orb / Static Orb) — caps the active player's
+ *    ACL (artifact/creature/land) untaps at one. Non-ACL untaps normally.
+ *  - `limits-creature-untap-to-one` (Smoke, CR 502.1) — caps creature untaps
+ *    at one. Non-creature permanents untap normally.
+ *  - `prevents-untap-of-power-3-or-greater` (Meekstone) — creatures with
+ *    effective power ≥3 (layer 7c) stay tapped.
+ *  - `does-not-untap` per-permanent (Basalt Monolith / Mana Vault, or
+ *    aura-granted to a host via Paralyze) — that permanent stays tapped.
+ *  Selection for ACL / creature caps is deterministic — first tapped match
+ *  in battlefield order — since UNTAP is an auto-phase with no priority
+ *  window (CR 502.1). Permanents that stay tapped still get
+ *  `manaCommitted` / sickness flags cleared so they don't keep counting as
+ *  this-turn-committed. */
 function untapStep(state: GameState): void {
     const player = getPlayer(state, state.activePlayerId);
+
+    // Stasis: the active player skips their untap step entirely (CR 502.1).
+    // No permanents are untapped, but committed-this-turn flags are cleared
+    // so the next priority window doesn't misread them as fresh commits.
+    if (hasGlobalStaticAbility(state, "skip-untap-step")) {
+        for (const card of player.battlefield) {
+            card.manaCommitted = undefined;
+            card.isSummoningSick = undefined;
+            card.chosenMana = undefined;
+        }
+        return;
+    }
+
     const aclLimited = hasGlobalStaticAbility(state, "limits-acl-untap");
+    const creatureLimited = hasGlobalStaticAbility(
+        state,
+        "limits-creature-untap-to-one"
+    );
+    const power3Blocked = hasGlobalStaticAbility(
+        state,
+        "prevents-untap-of-power-3-or-greater"
+    );
     const chosenAclUntapId = aclLimited
         ? (player.battlefield.find((c) => c.isTapped && isAclPermanent(c))
               ?.id ?? null)
         : null;
+    const chosenCreatureUntapId = creatureLimited
+        ? (player.battlefield.find(
+              (c) => c.isTapped && c.types.includes("Creature")
+          )?.id ?? null)
+        : null;
     for (const card of player.battlefield) {
+        // CR 502.1 — per-permanent "doesn't untap" effects (Basalt Monolith,
+        // Mana Vault, Paralyze's keyword-grant to its host).
+        if (card.staticAbilities.includes("does-not-untap")) {
+            card.manaCommitted = undefined;
+            card.isSummoningSick = undefined;
+            card.chosenMana = undefined;
+            continue;
+        }
         if (
             aclLimited &&
             isAclPermanent(card) &&
@@ -132,6 +177,26 @@ function untapStep(state: GameState): void {
             // Blocked by Winter Orb — permanent stays tapped but stops
             // counting as "mana committed" so it can be played around at
             // sorcery speed next turn if the restriction lifts.
+            continue;
+        }
+        if (
+            creatureLimited &&
+            card.types.includes("Creature") &&
+            card.id !== chosenCreatureUntapId
+        ) {
+            // Smoke: only the first tapped creature untaps. Others stay
+            // tapped, with commitment flags cleared.
+            card.manaCommitted = undefined;
+            continue;
+        }
+        if (
+            power3Blocked &&
+            card.types.includes("Creature") &&
+            getEffectivePower(state, card) >= 3
+        ) {
+            // Meekstone: creatures with effective power 3+ stay tapped
+            // (CR 613 layer 7c read at untap-step resolution).
+            card.manaCommitted = undefined;
             continue;
         }
         card.isTapped = false;

@@ -13,6 +13,7 @@ import {
     type StackItem,
 } from "../state";
 import type { CardType } from "../../cards/types";
+import { tryGetCardById } from "../../cards";
 import {
     castle,
     lightningBolt,
@@ -25,26 +26,33 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// SLIM card builder. Embedded `manaCost` passthrough is allowed so synthetic
+// fixtures can drive color-aware predicates (layer system + protection)
+// without a registry entry.
 function makeCard(
     overrides: Partial<CardInstanceState> & {
         card?: Record<string, unknown>;
     } = {}
 ): CardInstanceState {
-    const card = overrides.card ?? { name: "Test Card", types: ["Creature"] };
+    const cardRef = overrides.card as
+        | { id?: string; manaCost?: unknown }
+        | undefined;
+    const id = cardRef?.id ?? `synth-${crypto.randomUUID()}`;
+    const def = tryGetCardById(id);
+    const cardField: { id: string; manaCost?: unknown } = { id };
+    if (cardRef?.manaCost !== undefined) {
+        cardField.manaCost = cardRef.manaCost;
+    }
     return {
         id: overrides.id ?? crypto.randomUUID(),
-        card,
-        types: overrides.types ?? (card.types as CardType[]) ?? [],
-        subtypes:
-            (overrides.subtypes as string[]) ??
-            (card.subtypes as string[]) ??
-            [],
-        power: overrides.power ?? (card.power as number | undefined),
-        toughness:
-            overrides.toughness ?? (card.toughness as number | undefined),
+        card: cardField,
+        types: (overrides.types as CardType[]) ?? def?.types ?? [],
+        subtypes: (overrides.subtypes as string[]) ?? def?.subtypes ?? [],
+        power: overrides.power ?? def?.power,
+        toughness: overrides.toughness ?? def?.toughness,
         staticAbilities:
             (overrides.staticAbilities as string[]) ??
-            (card.staticAbilities as string[]) ??
+            def?.staticAbilities ??
             [],
         controllerId: overrides.controllerId ?? "p1",
         ownerId: overrides.ownerId ?? "p1",

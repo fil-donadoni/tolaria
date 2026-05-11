@@ -1,31 +1,29 @@
 import { describe, it, expect } from "vitest";
 import { getLegalActions, assertLegalAction } from "../rules";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
-import type { CardType } from "../../cards/types";
 import { makeInstance } from "../../cards/__tests__/setup";
+import {
+    ancestralRecall,
+    armageddon,
+    birdsOfParadise,
+    crusade,
+    fireball,
+    giantGrowth,
+    lightningBolt,
+    mountain,
+    plains,
+    savannahLions,
+} from "../../cards/sets/lea";
 
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
 
-function makeCard(
-    cardData: Record<string, unknown>,
+function card(
+    cardId: string,
     overrides: Partial<CardInstanceState> = {}
 ): CardInstanceState {
-    return {
-        id: overrides.id ?? crypto.randomUUID(),
-        card: cardData,
-        types: (cardData.types as CardType[]) ?? [],
-        subtypes: (cardData.subtypes as string[]) ?? [],
-        power: cardData.power as number | undefined,
-        toughness: cardData.toughness as number | undefined,
-        staticAbilities: (cardData.staticAbilities as string[]) ?? [],
-        controllerId: "p1",
-        ownerId: "p1",
-        zone: "hand",
-        isTapped: false,
-        ...overrides,
-    };
+    return makeInstance(cardId, overrides);
 }
 
 function makePlayer(overrides: Partial<PlayerState> = {}): PlayerState {
@@ -63,36 +61,6 @@ function makeGameState(overrides: Partial<GameState> = {}): GameState {
     };
 }
 
-// Card fixtures
-const PLAINS = { name: "Plains", types: ["Land"], subtypes: ["Plains"] };
-const SAVANNAH_LIONS = {
-    name: "Savannah Lions",
-    manaCost: { W: 1 },
-    types: ["Creature"],
-    subtypes: ["Cat"],
-};
-const LIGHTNING_BOLT = {
-    name: "Lightning Bolt",
-    manaCost: { R: 1 },
-    types: ["Instant"],
-};
-const ARMAGEDDON = {
-    name: "Armageddon",
-    manaCost: { X: 3, W: 1 },
-    types: ["Sorcery"],
-};
-const GIANT_GROWTH = {
-    name: "Giant Growth",
-    manaCost: { G: 1 },
-    types: ["Instant"],
-};
-const ANIMATE_WALL = {
-    name: "Animate Wall",
-    manaCost: { W: 1 },
-    types: ["Enchantment"],
-    subtypes: ["Aura"],
-};
-
 // ---------------------------------------------------------------------------
 // getLegalActions — CR 601.2 (casting), CR 305.2 (playing lands)
 // ---------------------------------------------------------------------------
@@ -102,36 +70,36 @@ describe("getLegalActions", () => {
         it('land cards have "play" action', () => {
             const state = makeGameState();
             const player = makePlayer();
-            const card = makeCard(PLAINS);
+            const land = card(plains.id);
 
-            const actions = getLegalActions(state, player, card);
+            const actions = getLegalActions(state, player, land);
             expect(actions).toContain("play");
         });
 
         it('land cards do NOT have "cast" action (CR 305.1 — lands are not spells)', () => {
             const state = makeGameState();
             const player = makePlayer();
-            const card = makeCard(PLAINS);
+            const land = card(plains.id);
 
-            const actions = getLegalActions(state, player, card);
+            const actions = getLegalActions(state, player, land);
             expect(actions).not.toContain("cast");
         });
 
         it('blocks "play" once the per-turn land drop is spent (CR 305.2)', () => {
             const state = makeGameState();
             const player = makePlayer({ landsPlayedThisTurn: 1 });
-            const card = makeCard(PLAINS);
+            const land = card(plains.id);
 
-            const actions = getLegalActions(state, player, card);
+            const actions = getLegalActions(state, player, land);
             expect(actions).not.toContain("play");
         });
 
         it("treats undefined landsPlayedThisTurn as 0 (CR 305.2)", () => {
             const state = makeGameState();
             const player = makePlayer({ landsPlayedThisTurn: undefined });
-            const card = makeCard(PLAINS);
+            const land = card(plains.id);
 
-            const actions = getLegalActions(state, player, card);
+            const actions = getLegalActions(state, player, land);
             expect(actions).toContain("play");
         });
     });
@@ -140,9 +108,9 @@ describe("getLegalActions", () => {
         it("creature can be cast when stack is empty", () => {
             const state = makeGameState();
             const player = makePlayer();
-            const card = makeCard(SAVANNAH_LIONS);
+            const lion = card(savannahLions.id);
 
-            const actions = getLegalActions(state, player, card);
+            const actions = getLegalActions(state, player, lion);
             expect(actions).toContain("cast");
         });
 
@@ -150,24 +118,24 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 stack: [
                     {
-                        ...makeCard(LIGHTNING_BOLT, { zone: "stack" }),
+                        ...card(lightningBolt.id, { zone: "stack" }),
                         castById: "p2",
                     },
                 ],
             });
             const player = makePlayer();
-            const card = makeCard(SAVANNAH_LIONS);
+            const lion = card(savannahLions.id);
 
-            const actions = getLegalActions(state, player, card);
+            const actions = getLegalActions(state, player, lion);
             expect(actions).not.toContain("cast");
         });
 
         it('creature does NOT have "play" action', () => {
             const state = makeGameState();
             const player = makePlayer();
-            const card = makeCard(SAVANNAH_LIONS);
+            const lion = card(savannahLions.id);
 
-            const actions = getLegalActions(state, player, card);
+            const actions = getLegalActions(state, player, lion);
             expect(actions).not.toContain("play");
         });
     });
@@ -176,9 +144,9 @@ describe("getLegalActions", () => {
         it("instant can be cast with empty stack", () => {
             const state = makeGameState();
             const player = makePlayer();
-            const card = makeCard(LIGHTNING_BOLT);
+            const bolt = card(lightningBolt.id);
 
-            const actions = getLegalActions(state, player, card);
+            const actions = getLegalActions(state, player, bolt);
             expect(actions).toContain("cast");
         });
 
@@ -186,24 +154,24 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 stack: [
                     {
-                        ...makeCard(SAVANNAH_LIONS, { zone: "stack" }),
+                        ...card(savannahLions.id, { zone: "stack" }),
                         castById: "p1",
                     },
                 ],
             });
             const player = makePlayer();
-            const card = makeCard(LIGHTNING_BOLT);
+            const bolt = card(lightningBolt.id);
 
-            const actions = getLegalActions(state, player, card);
+            const actions = getLegalActions(state, player, bolt);
             expect(actions).toContain("cast");
         });
 
         it("instant does NOT have play action", () => {
             const state = makeGameState();
             const player = makePlayer();
-            const card = makeCard(LIGHTNING_BOLT);
+            const bolt = card(lightningBolt.id);
 
-            const actions = getLegalActions(state, player, card);
+            const actions = getLegalActions(state, player, bolt);
             expect(actions).not.toContain("play");
         });
     });
@@ -212,9 +180,9 @@ describe("getLegalActions", () => {
         it("sorcery can be cast with empty stack", () => {
             const state = makeGameState();
             const player = makePlayer();
-            const card = makeCard(ARMAGEDDON);
+            const sorcery = card(armageddon.id);
 
-            const actions = getLegalActions(state, player, card);
+            const actions = getLegalActions(state, player, sorcery);
             expect(actions).toContain("cast");
         });
 
@@ -222,15 +190,15 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 stack: [
                     {
-                        ...makeCard(LIGHTNING_BOLT, { zone: "stack" }),
+                        ...card(lightningBolt.id, { zone: "stack" }),
                         castById: "p2",
                     },
                 ],
             });
             const player = makePlayer();
-            const card = makeCard(ARMAGEDDON);
+            const sorcery = card(armageddon.id);
 
-            const actions = getLegalActions(state, player, card);
+            const actions = getLegalActions(state, player, sorcery);
             expect(actions).not.toContain("cast");
         });
     });
@@ -239,9 +207,9 @@ describe("getLegalActions", () => {
         it("enchantment can be cast with empty stack", () => {
             const state = makeGameState();
             const player = makePlayer();
-            const card = makeCard(ANIMATE_WALL);
+            const aura = card(crusade.id);
 
-            const actions = getLegalActions(state, player, card);
+            const actions = getLegalActions(state, player, aura);
             expect(actions).toContain("cast");
         });
 
@@ -249,15 +217,15 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 stack: [
                     {
-                        ...makeCard(GIANT_GROWTH, { zone: "stack" }),
+                        ...card(giantGrowth.id, { zone: "stack" }),
                         castById: "p1",
                     },
                 ],
             });
             const player = makePlayer();
-            const card = makeCard(ANIMATE_WALL);
+            const aura = card(crusade.id);
 
-            const actions = getLegalActions(state, player, card);
+            const actions = getLegalActions(state, player, aura);
             expect(actions).not.toContain("cast");
         });
     });
@@ -266,9 +234,9 @@ describe("getLegalActions", () => {
         it("returns no actions when player does not have priority", () => {
             const state = makeGameState({ priorityPlayerId: "p2" });
             const player = makePlayer({ id: "p1" });
-            const land = makeCard(PLAINS);
-            const instant = makeCard(LIGHTNING_BOLT);
-            const creature = makeCard(SAVANNAH_LIONS);
+            const land = card(plains.id);
+            const instant = card(lightningBolt.id);
+            const creature = card(savannahLions.id);
 
             expect(getLegalActions(state, player, land)).toEqual([]);
             expect(getLegalActions(state, player, instant)).toEqual([]);
@@ -278,9 +246,9 @@ describe("getLegalActions", () => {
         it("returns actions when player has priority", () => {
             const state = makeGameState({ priorityPlayerId: "p1" });
             const player = makePlayer({ id: "p1" });
-            const card = makeCard(LIGHTNING_BOLT);
+            const bolt = card(lightningBolt.id);
 
-            expect(getLegalActions(state, player, card)).toContain("cast");
+            expect(getLegalActions(state, player, bolt)).toContain("cast");
         });
     });
 
@@ -291,8 +259,8 @@ describe("getLegalActions", () => {
                 manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
                 battlefield: [],
             });
-            const card = makeCard(LIGHTNING_BOLT);
-            expect(getLegalActions(state, player, card)).not.toContain("cast");
+            const bolt = card(lightningBolt.id);
+            expect(getLegalActions(state, player, bolt)).not.toContain("cast");
         });
 
         it('allows "cast" when pool exactly covers a colored cost', () => {
@@ -301,120 +269,112 @@ describe("getLegalActions", () => {
                 manaPool: { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 },
                 battlefield: [],
             });
-            const card = makeCard(LIGHTNING_BOLT);
-            expect(getLegalActions(state, player, card)).toContain("cast");
+            const bolt = card(lightningBolt.id);
+            expect(getLegalActions(state, player, bolt)).toContain("cast");
         });
 
         it('allows "cast" when an untapped basic land covers the cost', () => {
-            const mountain = makeCard(
-                {
-                    name: "Mountain",
-                    types: ["Land"],
-                    subtypes: ["Mountain"],
-                },
-                { zone: "battlefield", isTapped: false }
-            );
-            const state = makeGameState();
+            const land = card(mountain.id, {
+                zone: "battlefield",
+                isTapped: false,
+            });
             const player = makePlayer({
                 manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
-                battlefield: [mountain],
+                battlefield: [land],
             });
-            const card = makeCard(LIGHTNING_BOLT);
-            expect(getLegalActions(state, player, card)).toContain("cast");
+            const state = makeGameState({
+                players: [player, makePlayer({ id: "p2" })],
+            });
+            const bolt = card(lightningBolt.id);
+            expect(getLegalActions(state, player, bolt)).toContain("cast");
         });
 
         it('blocks "cast" when the only land is tapped', () => {
-            const mountain = makeCard(
-                {
-                    name: "Mountain",
-                    types: ["Land"],
-                    subtypes: ["Mountain"],
-                },
-                { zone: "battlefield", isTapped: true }
-            );
-            const state = makeGameState();
+            const land = card(mountain.id, {
+                zone: "battlefield",
+                isTapped: true,
+            });
             const player = makePlayer({
                 manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
-                battlefield: [mountain],
+                battlefield: [land],
             });
-            const card = makeCard(LIGHTNING_BOLT);
-            expect(getLegalActions(state, player, card)).not.toContain("cast");
+            const state = makeGameState({
+                players: [player, makePlayer({ id: "p2" })],
+            });
+            const bolt = card(lightningBolt.id);
+            expect(getLegalActions(state, player, bolt)).not.toContain("cast");
         });
 
         it('blocks "cast" when only off-color sources are available', () => {
-            const plains = makeCard(
-                {
-                    name: "Plains",
-                    types: ["Land"],
-                    subtypes: ["Plains"],
-                },
-                { zone: "battlefield", isTapped: false }
-            );
-            const state = makeGameState();
+            const land = card(plains.id, {
+                zone: "battlefield",
+                isTapped: false,
+            });
             const player = makePlayer({
                 manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
-                battlefield: [plains],
+                battlefield: [land],
             });
-            const card = makeCard(LIGHTNING_BOLT);
-            expect(getLegalActions(state, player, card)).not.toContain("cast");
+            const state = makeGameState({
+                players: [player, makePlayer({ id: "p2" })],
+            });
+            const bolt = card(lightningBolt.id);
+            expect(getLegalActions(state, player, bolt)).not.toContain("cast");
         });
 
         it("ignores a summoning-sick creature mana source (CR 302.1)", () => {
             // Birds of Paradise just ETB'd: mana ability requires {T} but
             // the creature can't tap on the turn it entered — so it cannot
-            // satisfy a {G} cost on a Giant Growth in hand.
-            const birds = makeInstance("55fe6449-1f23-43dc-adee-d144cd505b5c", {
+            // satisfy a {G} cost on a Giant Growth in hand. The bird itself
+            // is a legal target for the Growth (creature on the battlefield),
+            // so the cast is gated purely on mana availability.
+            const birds = card(birdsOfParadise.id, {
                 zone: "battlefield",
                 isSummoningSick: true,
             });
-            const state = makeGameState();
             const player = makePlayer({
                 manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
                 battlefield: [birds],
             });
-            const giantGrowth = makeCard(GIANT_GROWTH);
-            expect(getLegalActions(state, player, giantGrowth)).not.toContain(
+            const state = makeGameState({
+                players: [player, makePlayer({ id: "p2" })],
+            });
+            const growth = card(giantGrowth.id);
+            expect(getLegalActions(state, player, growth)).not.toContain(
                 "cast"
             );
         });
 
         it("counts a creature mana source once summoning sickness has worn off", () => {
-            const birds = makeInstance("55fe6449-1f23-43dc-adee-d144cd505b5c", {
+            const birds = card(birdsOfParadise.id, {
                 zone: "battlefield",
                 isSummoningSick: false,
             });
-            const state = makeGameState();
             const player = makePlayer({
                 manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
                 battlefield: [birds],
             });
-            const giantGrowth = makeCard(GIANT_GROWTH);
-            expect(getLegalActions(state, player, giantGrowth)).toContain(
-                "cast"
-            );
+            const state = makeGameState({
+                players: [player, makePlayer({ id: "p2" })],
+            });
+            const growth = card(giantGrowth.id);
+            expect(getLegalActions(state, player, growth)).toContain("cast");
         });
 
         it('allows "cast" for an X-cost spell when only the fixed portion is payable', () => {
-            const mountain = makeCard(
-                {
-                    name: "Mountain",
-                    types: ["Land"],
-                    subtypes: ["Mountain"],
-                },
-                { zone: "battlefield", isTapped: false }
-            );
-            const state = makeGameState();
+            const land = card(mountain.id, {
+                zone: "battlefield",
+                isTapped: false,
+            });
             const player = makePlayer({
                 manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
-                battlefield: [mountain],
+                battlefield: [land],
             });
-            // Fireball-style: { X: "X", R: 1 } — minimum to announce is just R.
-            const fireball = makeCard({
-                name: "Fireball",
-                manaCost: { X: "X", R: 1 },
-                types: ["Sorcery"],
+            const state = makeGameState({
+                players: [player, makePlayer({ id: "p2" })],
             });
-            expect(getLegalActions(state, player, fireball)).toContain("cast");
+            // Fireball: { X: "X", R: 1 } — minimum announce cost is {R}.
+            const spell = card(fireball.id);
+            expect(getLegalActions(state, player, spell)).toContain("cast");
         });
     });
 
@@ -422,9 +382,9 @@ describe("getLegalActions", () => {
         it("returns all actions regardless of card type", () => {
             const state = makeGameState();
             const player = makePlayer();
-            const card = makeCard(PLAINS);
+            const land = card(plains.id);
 
-            const actions = getLegalActions(state, player, card, true);
+            const actions = getLegalActions(state, player, land, true);
             expect(actions).toContain("play");
             expect(actions).toContain("cast");
             expect(actions).toContain("discard");
@@ -443,19 +403,19 @@ describe("assertLegalAction", () => {
     it("does not throw for a legal action", () => {
         const state = makeGameState();
         const player = makePlayer();
-        const card = makeCard(PLAINS);
+        const land = card(plains.id);
 
         expect(() =>
-            assertLegalAction(state, player, card, "play")
+            assertLegalAction(state, player, land, "play")
         ).not.toThrow();
     });
 
     it("throws for an illegal action with descriptive message", () => {
         const state = makeGameState();
         const player = makePlayer();
-        const card = makeCard(PLAINS);
+        const land = card(plains.id);
 
-        expect(() => assertLegalAction(state, player, card, "cast")).toThrow(
+        expect(() => assertLegalAction(state, player, land, "cast")).toThrow(
             'Illegal action "cast" on "Plains"'
         );
     });
@@ -464,15 +424,15 @@ describe("assertLegalAction", () => {
         const state = makeGameState({
             stack: [
                 {
-                    ...makeCard(LIGHTNING_BOLT, { zone: "stack" }),
+                    ...card(lightningBolt.id, { zone: "stack" }),
                     castById: "p2",
                 },
             ],
         });
         const player = makePlayer();
-        const card = makeCard(SAVANNAH_LIONS);
+        const lion = card(savannahLions.id);
 
-        expect(() => assertLegalAction(state, player, card, "cast")).toThrow(
+        expect(() => assertLegalAction(state, player, lion, "cast")).toThrow(
             'Illegal action "cast" on "Savannah Lions"'
         );
     });
@@ -481,16 +441,18 @@ describe("assertLegalAction", () => {
         const state = makeGameState({
             stack: [
                 {
-                    ...makeCard(SAVANNAH_LIONS, { zone: "stack" }),
+                    ...card(savannahLions.id, { zone: "stack" }),
                     castById: "p1",
                 },
             ],
         });
         const player = makePlayer();
-        const card = makeCard(GIANT_GROWTH);
+        // Ancestral Recall targets a player (always available) — keeps the
+        // test focused on timing rather than target availability.
+        const instant = card(ancestralRecall.id);
 
         expect(() =>
-            assertLegalAction(state, player, card, "cast")
+            assertLegalAction(state, player, instant, "cast")
         ).not.toThrow();
     });
 });

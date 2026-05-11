@@ -15,12 +15,13 @@ import {
     type PendingActivation,
     type StackItem,
 } from "../state";
-import { getCardById } from "../../cards";
+import { getCardById, tryGetCardById } from "../../cards";
 import {
     circleOfProtectionRed,
     jayemdaeTome,
     lightningBolt,
 } from "../../cards/sets/lea";
+import type { CardType } from "../../cards/types";
 
 // ---------------------------------------------------------------------------
 // Simulated mutation handlers for the pendingActivation payment phase.
@@ -184,20 +185,45 @@ const ISLAND_CARD = {
     subtypes: ["Island"],
 };
 
+// SLIM. `card.card` reduces to `{ id }`; runtime fields fall back to the
+// registry def when `id` matches, then to inline cardData, then to defaults.
+// Inline `manaCost` is preserved for synthetic fixtures.
 function makeInstance(
     overrides: Partial<CardInstanceState> & {
         card?: Record<string, unknown>;
     }
 ): CardInstanceState {
-    const card = overrides.card ?? {};
+    const cardRef = overrides.card as
+        | {
+              id?: string;
+              manaCost?: unknown;
+              types?: CardType[];
+              subtypes?: string[];
+              staticAbilities?: string[];
+          }
+        | undefined;
+    const id = cardRef?.id ?? `synth-${crypto.randomUUID()}`;
+    const def = tryGetCardById(id);
+    const cardField: { id: string; manaCost?: unknown } = { id };
+    if (cardRef?.manaCost !== undefined) {
+        cardField.manaCost = cardRef.manaCost;
+    }
     return {
         id: overrides.id ?? crypto.randomUUID(),
-        card,
-        types: overrides.types ?? (((card.types as string[]) ?? []) as never),
-        subtypes: (overrides.subtypes as string[]) ?? [],
-        power: overrides.power,
-        toughness: overrides.toughness,
-        staticAbilities: (overrides.staticAbilities as string[]) ?? [],
+        card: cardField,
+        types: overrides.types ?? def?.types ?? cardRef?.types ?? [],
+        subtypes:
+            (overrides.subtypes as string[]) ??
+            def?.subtypes ??
+            cardRef?.subtypes ??
+            [],
+        power: overrides.power ?? def?.power,
+        toughness: overrides.toughness ?? def?.toughness,
+        staticAbilities:
+            (overrides.staticAbilities as string[]) ??
+            def?.staticAbilities ??
+            cardRef?.staticAbilities ??
+            [],
         controllerId: overrides.controllerId ?? "p1",
         ownerId: overrides.ownerId ?? "p1",
         zone: overrides.zone ?? "battlefield",

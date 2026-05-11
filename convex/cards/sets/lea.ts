@@ -1477,13 +1477,44 @@ export const seaSerpent: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const stasis: CardDefinition = {
-//     id: "b6cef408-5b4b-49f6-9531-be544815b93f",
-//     name: "Stasis",
-//     oracleText: "Players skip their untap steps.\nAt the beginning of your upkeep, sacrifice this enchantment unless you pay {U}.",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Enchantment"],
-// };
+// Stasis — "Players skip their untap steps. At the beginning of your upkeep,
+// sacrifice this enchantment unless you pay {U}." (CR 502.1 skip, 603.6a
+// upkeep trigger, 117.3a optional cost, 701.16 sacrifice). The
+// `skip-untap-step` global keyword is consumed by `untapStep`; the upkeep
+// trigger fires only on the controller's upkeep — same pattern as
+// Pestilence.
+export const stasis: CardDefinition = {
+    id: "b6cef408-5b4b-49f6-9531-be544815b93f",
+    name: "Stasis",
+    oracleText:
+        "Players skip their untap steps.\nAt the beginning of your upkeep, sacrifice this enchantment unless you pay {U}.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Enchantment"],
+    staticAbilities: ["skip-untap-step"],
+    triggeredAbilities: [
+        {
+            id: "stasis-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice this enchantment unless you pay {U}.",
+            event: "PHASE_BEGIN",
+            matches: (event, self) => {
+                if (event.type !== "PHASE_BEGIN") return false;
+                if (event.phase !== "UPKEEP") return false;
+                return event.activePlayerId === self.controllerId;
+            },
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: ctx.controller,
+                    cost: { U: 1 },
+                    prompt: "Pay {U} to keep Stasis?",
+                });
+                if (accept === undefined) return;
+                if (!accept) ctx.sacrifice(ctx.sourceInstanceId);
+            },
+        },
+    ],
+};
 
 // Steal Artifact — "Enchant artifact. You control enchanted artifact."
 // (CR 303.4 aura attachment, 611.2 continuous static ability, 613.1b layer 2
@@ -2166,14 +2197,81 @@ export const nightmare: CardDefinition = {
     ],
 };
 
-// export const paralyze: CardDefinition = {
-//     id: "be33a155-de26-43d1-88f1-c926f1b7cb7c",
-//     name: "Paralyze",
-//     oracleText: "Enchant creature\nWhen this Aura enters, tap enchanted creature.\nEnchanted creature doesn't untap during its controller's untap step.\nAt the beginning of the upkeep of enchanted creature's controller, that player may pay {4}. If the player does, untap the creature.",
-//     manaCost: { B: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Paralyze — "Enchant creature. When this Aura enters, tap enchanted
+// creature. Enchanted creature doesn't untap during its controller's untap
+// step. At the beginning of the upkeep of enchanted creature's controller,
+// that player may pay {4}. If the player does, untap the creature."
+// (CR 303.4 aura, 502.1 untap restriction, 603.6a upkeep trigger, 611
+// keyword-grant). The ETB-tap is executed in the aura's `resolve()` — the
+// spell context fires before `finalizeSpellResolution` ETBs the aura
+// attached, so tapping the targeted host here is well-defined. The
+// keyword-grant publishes `does-not-untap` onto the host via
+// `AURA_AFFECTS_HOST`; the host stays tapped through the controller's untap
+// step until they pay {4} on upkeep.
+export const paralyze: CardDefinition = {
+    id: "be33a155-de26-43d1-88f1-c926f1b7cb7c",
+    name: "Paralyze",
+    oracleText:
+        "Enchant creature\nWhen this Aura enters, tap enchanted creature.\nEnchanted creature doesn't untap during its controller's untap step.\nAt the beginning of the upkeep of enchanted creature's controller, that player may pay {4}. If the player does, untap the creature.",
+    manaCost: { B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "does-not-untap",
+        },
+    ],
+    resolve: (ctx: SpellContext) => {
+        // ETB tap-the-host effect (CR 603 — this is modeled as part of the
+        // aura's spell resolution rather than a PERMANENT_ENTERED trigger,
+        // since no such event exists in the engine yet). Runs before
+        // `finalizeSpellResolution` attaches the aura, so the host is still
+        // a regular battlefield permanent and the tap applies normally.
+        const [host] = ctx.targets;
+        if (host) ctx.tap(host);
+    },
+    triggeredAbilities: [
+        {
+            id: "paralyze-upkeep",
+            oracleText:
+                "At the beginning of the upkeep of enchanted creature's controller, that player may pay {4}. If the player does, untap the creature.",
+            event: "PHASE_BEGIN",
+            matches: (event, self, state) => {
+                if (event.type !== "PHASE_BEGIN") return false;
+                if (event.phase !== "UPKEEP") return false;
+                if (!self.attachedTo) return false;
+                for (const p of state?.players ?? []) {
+                    const host = p.battlefield.find(
+                        (c) => c.id === self.attachedTo
+                    );
+                    if (host) return host.controllerId === event.activePlayerId;
+                }
+                return false;
+            },
+            resolve: (ctx) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                const controller = ctx.getController({
+                    type: "permanent",
+                    id: hostId,
+                });
+                const accept = ctx.requestMayPay({
+                    playerId: controller,
+                    choiceId: controller,
+                    cost: { X: 4 },
+                    prompt: "Pay {4} to untap the creature paralyzed?",
+                });
+                if (accept === undefined) return;
+                if (accept) {
+                    ctx.untap({ type: "permanent", id: hostId });
+                }
+            },
+        },
+    ],
+};
 
 // Pestilence — "At the beginning of the upkeep of Pestilence's controller,
 // sacrifice Pestilence unless that player pays {B}. {B}: Pestilence deals 1
@@ -3315,13 +3413,20 @@ export const shivanDragon: CardDefinition = {
     ],
 };
 
-// export const smoke: CardDefinition = {
-//     id: "7c67788e-d713-47c3-ab9f-b8a6212ae24f",
-//     name: "Smoke",
-//     oracleText: "Players can't untap more than one creature during their untap steps.",
-//     manaCost: { R: 2 },
-//     types: ["Enchantment"],
-// };
+// Smoke — "Players can't untap more than one creature during their untap
+// steps." (CR 502.1). Mirror of Winter Orb's ACL cap, restricted to the
+// Creature type. The single creature that does untap is chosen
+// deterministically (first tapped Creature in battlefield order) since UNTAP
+// is an auto-phase with no priority window.
+export const smoke: CardDefinition = {
+    id: "7c67788e-d713-47c3-ab9f-b8a6212ae24f",
+    name: "Smoke",
+    oracleText:
+        "Players can't untap more than one creature during their untap steps.",
+    manaCost: { R: 2 },
+    types: ["Enchantment"],
+    staticAbilities: ["limits-creature-untap-to-one"],
+};
 
 // export const stoneGiant: CardDefinition = {
 //     id: "7ffaedb9-25f8-4304-9085-e12505b93312",
@@ -4218,23 +4323,42 @@ export const wildGrowth: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const basaltMonolith: CardDefinition = {
-//     id: "66a74c89-6f86-4ec8-af17-391cd5026054",
-//     name: "Basalt Monolith",
-//     oracleText: "This artifact doesn't untap during your untap step.\n{T}: Add {C}{C}{C}.\n{3}: Untap this artifact.",
-//     manaCost: { X: 3 },
-//     types: ["Artifact"],
-//     activatedAbilities: [
-//         {
-//             id: "basalt-monolith-mana",
-//             cost: { tap: true },
-//             effect: (ctx: ActivatedAbilityContext) => {
-//                 ctx.addMana({ C: 3 });
-//             },
-//             useStack: false,
-//         },
-//     ],
-// };
+// Basalt Monolith — "This artifact doesn't untap during your untap step.
+// {T}: Add {C}{C}{C}. {3}: Untap this artifact." (CR 502.1 untap restriction,
+// 605.1a/605.3a mana ability useStack: false, 605 activated abilities).
+// The `does-not-untap` keyword is read by `untapStep` in `phases.ts`. The
+// {3} untap is a non-mana activated ability that uses the stack so it can be
+// responded to (the canonical {3} → reuse-for-mana combo with Power Artifact
+// is out of scope of LEA's printed catalog, kept correct anyway).
+export const basaltMonolith: CardDefinition = {
+    id: "66a74c89-6f86-4ec8-af17-391cd5026054",
+    name: "Basalt Monolith",
+    oracleText:
+        "This artifact doesn't untap during your untap step.\n{T}: Add {C}{C}{C}.\n{3}: Untap this artifact.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    staticAbilities: ["does-not-untap"],
+    activatedAbilities: [
+        {
+            id: "basalt-monolith-mana",
+            oracleText: "{T}: Add {C}{C}{C}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ C: 3 });
+            },
+        },
+        {
+            id: "basalt-monolith-untap",
+            oracleText: "{3}: Untap this artifact.",
+            cost: { mana: { X: 3 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.untap({ type: "permanent", id: ctx.sourceInstanceId });
+            },
+        },
+    ],
+};
 
 export const blackLotus: CardDefinition = {
     id: "b0faa7f2-b547-42c4-a810-839da50dadfe",
@@ -4733,21 +4857,98 @@ export const juggernaut: CardDefinition = {
 //     toughness: 6,
 // };
 
-// export const manaVault: CardDefinition = {
-//     id: "19499cb7-eccb-4e69-af32-6002d447a160",
-//     name: "Mana Vault",
-//     oracleText: "This artifact doesn't untap during your untap step.\nAt the beginning of your upkeep, you may pay {4}. If you do, untap this artifact.\nAt the beginning of your draw step, if this artifact is tapped, it deals 1 damage to you.\n{T}: Add {C}{C}{C}.",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-// };
+// Mana Vault — "This artifact doesn't untap during your untap step. At the
+// beginning of your upkeep, you may pay {4}. If you do, untap this artifact.
+// At the beginning of your draw step, if this artifact is tapped, it deals 1
+// damage to you. {T}: Add {C}{C}{C}." (CR 502.1, 603.4 intervening-if,
+// 117.3a optional cost, 120.3 damage). The draw-step damage trigger uses an
+// intervening-if at both trigger and resolve time per CR 603.4.
+export const manaVault: CardDefinition = {
+    id: "19499cb7-eccb-4e69-af32-6002d447a160",
+    name: "Mana Vault",
+    oracleText:
+        "This artifact doesn't untap during your untap step.\nAt the beginning of your upkeep, you may pay {4}. If you do, untap this artifact.\nAt the beginning of your draw step, if this artifact is tapped, it deals 1 damage to you.\n{T}: Add {C}{C}{C}.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    staticAbilities: ["does-not-untap"],
+    triggeredAbilities: [
+        {
+            id: "mana-vault-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, you may pay {4}. If you do, untap this artifact.",
+            event: "PHASE_BEGIN",
+            matches: (event, self) => {
+                if (event.type !== "PHASE_BEGIN") return false;
+                if (event.phase !== "UPKEEP") return false;
+                return event.activePlayerId === self.controllerId;
+            },
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: ctx.controller,
+                    cost: { X: 4 },
+                    prompt: "Pay {4} to untap Mana Vault?",
+                });
+                if (accept === undefined) return;
+                if (accept) {
+                    ctx.untap({
+                        type: "permanent",
+                        id: ctx.sourceInstanceId,
+                    });
+                }
+            },
+        },
+        {
+            id: "mana-vault-draw-damage",
+            oracleText:
+                "At the beginning of your draw step, if this artifact is tapped, it deals 1 damage to you.",
+            event: "PHASE_BEGIN",
+            matches: (event, self) => {
+                if (event.type !== "PHASE_BEGIN") return false;
+                if (event.phase !== "DRAW") return false;
+                if (event.activePlayerId !== self.controllerId) return false;
+                // CR 603.4: intervening-if — the artifact must be tapped at
+                // the moment the trigger would go on the stack.
+                return self.isTapped === true;
+            },
+            resolve: (ctx) => {
+                // CR 603.4 intervening-if re-check at resolution.
+                const sourceRef: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                if (!ctx.getIsTapped(sourceRef)) return;
+                ctx.dealDamage({ type: "player", id: ctx.controller }, 1);
+            },
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "mana-vault-mana",
+            oracleText: "{T}: Add {C}{C}{C}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ C: 3 });
+            },
+        },
+    ],
+};
 
-// export const meekstone: CardDefinition = {
-//     id: "13a68a17-22ee-47c9-870a-83e911862b94",
-//     name: "Meekstone",
-//     oracleText: "Creatures with power 3 or greater don't untap during their controllers' untap steps.",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-// };
+// Meekstone — "Creatures with power 3 or greater don't untap during their
+// controllers' untap steps." (CR 502.1, 613 layer 7c read at untap). Encoded
+// as a global keyword consumed by `untapStep` in `phases.ts` — every
+// creature's effective power is re-evaluated each untap so layer 7c buffs
+// (Crusade, Holy Strength) flip eligibility correctly.
+export const meekstone: CardDefinition = {
+    id: "13a68a17-22ee-47c9-870a-83e911862b94",
+    name: "Meekstone",
+    oracleText:
+        "Creatures with power 3 or greater don't untap during their controllers' untap steps.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    staticAbilities: ["prevents-untap-of-power-3-or-greater"],
+};
 
 export const moxEmerald: CardDefinition = {
     id: "b0e1427c-05cd-465b-be59-97ed6e39f7ba",

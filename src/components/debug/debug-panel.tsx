@@ -372,6 +372,51 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "Skip / restrict untap step — Basalt Monolith / Mana Vault / Meekstone / Smoke / Stasis / Paralyze (CR 502.1)",
+        cards: [
+            // Gap J showcase. Basalt Monolith and Mana Vault enter tapped and
+            // demonstrate the per-permanent `does-not-untap` keyword: pass to
+            // upkeep on the owner's next turn — neither artifact untaps from
+            // the step. Mana Vault adds a may-pay {4} upkeep to untap and a
+            // draw-step 1-damage ping if it's still tapped.
+            //
+            // Meekstone is also in play: the opponent's Sengir Vampire (4/4,
+            // power ≥3) stays tapped after combat; Grizzly Bears (2/2) untap
+            // normally. Smoke (Players can't untap more than one creature)
+            // means the opponent only untaps one creature even if multiple
+            // are tapped.
+            //
+            // Stasis is in hand for the user to cast and see "Players skip
+            // their untap steps" + sacrifice-unless-{U} upkeep tax. Paralyze
+            // (in hand) targets the opposing Vampire to tap it + grant
+            // does-not-untap; their upkeep prompts pay {4} to untap.
+            {
+                name: "Basalt Monolith",
+                owner: "me" as const,
+                tapped: true,
+            },
+            { name: "Mana Vault", owner: "me" as const, tapped: true },
+            { name: "Meekstone", owner: "me" as const },
+            { name: "Smoke", owner: "me" as const },
+            { name: "Stasis", owner: "me" as const, zone: "hand" as const },
+            { name: "Paralyze", owner: "me" as const, zone: "hand" as const },
+            { name: "Island", owner: "me" as const, count: 2 },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                tapped: true,
+            },
+            {
+                name: "Sengir Vampire",
+                owner: "opp" as const,
+                tapped: true,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
@@ -418,7 +463,6 @@ export default function DebugPanel({
         api.game.getGame,
         isOpen && pageVisible ? { gameId } : "skip"
     );
-    const undo = useMutation(api.game.debugUndo);
     const resetGame = useMutation(api.game.debugResetGame);
     const setupScenario = useMutation(api.game.debugSetupScenario);
     const createSoloGame = useMutation(api.game.createSoloGame);
@@ -456,11 +500,6 @@ export default function DebugPanel({
                 {isOpen && (
                     <div className="border-t border-white/10">
                         <div className="flex flex-wrap gap-2 px-3 py-2 border-b border-white/10">
-                            {state && state.seq > 0 && (
-                                <DebugButton onClick={() => undo({ gameId })}>
-                                    Undo
-                                </DebugButton>
-                            )}
                             <DebugButton onClick={onToggleShowAllCards}>
                                 {showAllCards ? "Hide cards" : "Show all cards"}
                             </DebugButton>
