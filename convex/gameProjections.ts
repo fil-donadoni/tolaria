@@ -34,7 +34,13 @@ export type PublicGrantedAbility = {
     duration: GrantedAbilityInstance["duration"];
 };
 
-/** PlayerState as seen through the public projection (library hidden, opponent hand nulled). */
+/** PlayerState as seen through the public projection (library hidden, opponent hand nulled).
+ *  `library` is always `{ count }` on the wire. When the viewer is the chooser
+ *  of an active `search-library` pending choice (CR 401.4 / 701.19), the
+ *  searched library is additionally exposed as `librarySearch` — a slim card
+ *  list rendered face-up to the searcher. The flag does not alter the
+ *  library shape so existing consumers (and tests asserting `library.count`)
+ *  are unaffected. */
 export type PublicPlayer = Omit<
     PlayerState,
     | "hand"
@@ -46,6 +52,7 @@ export type PublicPlayer = Omit<
 > & {
     hand: (SlimHandCard | null)[];
     library: { count: number };
+    librarySearch?: SlimCardInstance[];
     graveyard: SlimCardInstance[];
     exile: SlimCardInstance[];
     battlefield: SlimCardInstance[];
@@ -126,13 +133,29 @@ export function projectPublicState(
     viewerId: string,
     allActions: boolean = false
 ): PublicGameState {
+    // CR 401.4 / 701.19: while the viewer is the chooser of an active
+    // search-library choice, expose the searched player's library face-up so
+    // the UI can render it for selection. The choice always targets the
+    // chooser's own library in the current scope (see selectResolutionChoice),
+    // so we only expose `viewerId`'s library.
+    const head = state.pendingChoices?.[0];
+    const exposeLibraryForViewer =
+        head?.kind === "search-library" &&
+        head.zone === "library" &&
+        head.playerId === viewerId;
+
     const players = state.players.map((player): PublicPlayer => {
+        const librarySearch =
+            exposeLibraryForViewer && player.id === viewerId
+                ? player.library.map(slimCard)
+                : undefined;
         const common = {
             ...player,
             graveyard: player.graveyard.map(slimCard),
             exile: player.exile.map(slimCard),
             battlefield: player.battlefield.map(slimCard),
             library: { count: player.library.length },
+            librarySearch,
             grantedAbilities: hydrateGrantedAbilities(player.grantedAbilities),
         };
         if (player.id === viewerId) {

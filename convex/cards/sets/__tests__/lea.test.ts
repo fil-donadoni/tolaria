@@ -1322,6 +1322,39 @@ describe("Demonic Tutor (search library, put into hand, CR 701.19)", () => {
         });
     });
 
+    it("wire format: exposes library face-up to the searcher and hides it from the opponent (CR 401.4 / 701.19)", () => {
+        const wanted = makeInstance(grizzlyBears.id, {
+            id: "wanted",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const filler = makeInstance(swamp.id, {
+            id: "filler",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: [wanted, filler] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, demonicTutor.id, "p1");
+        resolveTopOfStack(state);
+
+        const forP1 = projectPublicState(state, 1, "p1");
+        expect(forP1.players[0].library).toEqual({ count: 2 });
+        expect(forP1.players[0].librarySearch?.map((c) => c.id)).toEqual([
+            "wanted",
+            "filler",
+        ]);
+        const forP2 = projectPublicState(state, 1, "p2");
+        expect(forP2.players[0].librarySearch).toBeUndefined();
+        expect(forP2.players[0].library).toEqual({ count: 2 });
+    });
+
     it("moves the chosen card into the caster's hand and shuffles library", () => {
         const wanted = makeInstance(grizzlyBears.id, {
             id: "wanted",

@@ -6,6 +6,9 @@ import type { CardInstance, Player } from "~/types/game";
 const SAVANNAH_LIONS = "d05b92bd-797e-413f-a8b0-32e0937a1ee0";
 const CASTLE = "b0da8d56-3178-44c2-9344-95d2346d326f";
 const BAD_MOON = "43572906-ea74-4411-a549-5dc401591d2a";
+const GRIZZLY_BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+const HOLY_ARMOR = "b01041d2-687e-4972-81c8-16690809275b";
+const FIREBREATHING = "3eb27381-505d-4e47-bf66-9e7ba91a5075";
 
 function makePlayer(id: string, battlefield: CardInstance[] = []): Player {
     return {
@@ -136,6 +139,221 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
         const players: Player[] = [me];
         expect(effectivePower(players, blackCreature)).toBe(2);
         expect(effectiveToughness(players, blackCreature)).toBe(2);
+    });
+
+    it("Holy Armor static +0/+2 reaches host via attachedTo (regression: client view)", () => {
+        // Regression: toPermanentView used to strip `attachedTo`, so the
+        // AURA_AFFECTS_HOST predicate (target.id === source.attachedTo) was
+        // always false on the client and the static buff did not display.
+        const bear: CardInstance = {
+            id: "bear",
+            card: { id: GRIZZLY_BEARS },
+            controllerId: "me",
+            ownerId: "me",
+            zone: "battlefield",
+            types: ["Creature"],
+            subtypes: ["Bear"],
+            staticAbilities: [],
+            isTapped: false,
+            power: 2,
+            toughness: 2,
+        };
+        const aura: CardInstance = {
+            id: "armor",
+            card: { id: HOLY_ARMOR },
+            controllerId: "me",
+            ownerId: "me",
+            zone: "battlefield",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            staticAbilities: [],
+            isTapped: false,
+            attachedTo: "bear",
+        };
+        const me = makePlayer("me", [bear, aura]);
+        expect(effectivePower([me], bear)).toBe(2);
+        expect(effectiveToughness([me], bear)).toBe(4);
+    });
+
+    it("Firebreathing temporaryPTMods reach the host (regression: client view)", () => {
+        // Regression: toPermanentView used to strip `temporaryPTMods`, so a
+        // +1/+0 pump that resolved server-side never showed up on the client.
+        const bear: CardInstance = {
+            id: "bear",
+            card: { id: GRIZZLY_BEARS },
+            controllerId: "me",
+            ownerId: "me",
+            zone: "battlefield",
+            types: ["Creature"],
+            subtypes: ["Bear"],
+            staticAbilities: [],
+            isTapped: false,
+            power: 2,
+            toughness: 2,
+            temporaryPTMods: [{ power: 1, toughness: 0 }],
+        };
+        const aura: CardInstance = {
+            id: "fb",
+            card: { id: FIREBREATHING },
+            controllerId: "me",
+            ownerId: "me",
+            zone: "battlefield",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            staticAbilities: [],
+            isTapped: false,
+            attachedTo: "bear",
+        };
+        const me = makePlayer("me", [bear, aura]);
+        expect(effectivePower([me], bear)).toBe(3);
+        expect(effectiveToughness([me], bear)).toBe(2);
+    });
+
+    it("Counters layer 7d reach the host (regression: client view)", () => {
+        // Regression: toPermanentView used to strip `counters`, so +1/+1
+        // counters did not affect the displayed P/T.
+        const bear: CardInstance = {
+            id: "bear",
+            card: { id: GRIZZLY_BEARS },
+            controllerId: "me",
+            ownerId: "me",
+            zone: "battlefield",
+            types: ["Creature"],
+            subtypes: ["Bear"],
+            staticAbilities: [],
+            isTapped: false,
+            power: 2,
+            toughness: 2,
+            counters: { "+1/+1": 2 },
+        };
+        const me = makePlayer("me", [bear]);
+        expect(effectivePower([me], bear)).toBe(4);
+        expect(effectiveToughness([me], bear)).toBe(4);
+    });
+
+    // Wire-format invariant: every PermanentView field the layer system can
+    // read must survive the client adapter (toPermanentView). This test is the
+    // contract — if the adapter ever goes back to explicit enumeration and
+    // drops a field, this fails. Each assertion targets one runtime field
+    // through a behavior that depends on it.
+    describe("wire-format invariant — PermanentView fields survive the adapter", () => {
+        it("attachedTo reaches an aura source (Holy Armor static +0/+2)", () => {
+            const bear = makeCreature({
+                id: "bear",
+                cardId: GRIZZLY_BEARS,
+                power: 2,
+                toughness: 2,
+            });
+            const aura: CardInstance = {
+                id: "armor",
+                card: { id: HOLY_ARMOR },
+                controllerId: "me",
+                ownerId: "me",
+                zone: "battlefield",
+                types: ["Enchantment"],
+                subtypes: ["Aura"],
+                staticAbilities: [],
+                isTapped: false,
+                attachedTo: "bear",
+            };
+            const me = makePlayer("me", [bear, aura]);
+            expect(effectiveToughness([me], bear)).toBe(4);
+        });
+
+        it("temporaryPTMods reach the target (Firebreathing pump)", () => {
+            const bear = makeCreature({
+                id: "bear",
+                cardId: GRIZZLY_BEARS,
+                power: 2,
+                toughness: 2,
+                temporaryPTMods: [{ power: 1, toughness: 0 }],
+            });
+            const me = makePlayer("me", [bear]);
+            expect(effectivePower([me], bear)).toBe(3);
+        });
+
+        it("counters reach layer 7d (+1/+1 counters)", () => {
+            const bear = makeCreature({
+                id: "bear",
+                cardId: GRIZZLY_BEARS,
+                power: 2,
+                toughness: 2,
+                counters: { "+1/+1": 2 },
+            });
+            const me = makePlayer("me", [bear]);
+            expect(effectivePower([me], bear)).toBe(4);
+            expect(effectiveToughness([me], bear)).toBe(4);
+        });
+
+        it("isTapped reaches predicates (Castle skips tapped creatures)", () => {
+            // Castle's `applies` reads target.isTapped — already covered by an
+            // earlier test, repeated here to keep the invariant block exhaustive.
+            const tapped = makeCreature({
+                id: "lion",
+                isTapped: true,
+            });
+            const me = makePlayer("me", [tapped, makeEnchant(CASTLE)]);
+            expect(effectiveToughness([me], tapped)).toBe(1);
+        });
+
+        it("controllerId reaches predicates (Castle scopes to controller)", () => {
+            // controllerId mismatch must prevent Castle's grant — also already
+            // covered above; kept here to anchor the invariant.
+            const myLion = makeCreature({ id: "my-lion", controllerId: "me" });
+            const oppLion = makeCreature({
+                id: "opp-lion",
+                controllerId: "opp",
+                ownerId: "opp",
+            });
+            const me = makePlayer("me", [myLion, makeEnchant(CASTLE, "me")]);
+            const opp = makePlayer("opp", [oppLion]);
+            expect(effectiveToughness([me, opp], oppLion)).toBe(1);
+        });
+
+        it("types reach the layer fast-path (non-creature target skipped)", () => {
+            // getStaticPTBuff short-circuits when target is not a creature.
+            // Strip Creature from types → no buff even with Castle on board.
+            const fakeArtifact: CardInstance = {
+                id: "art",
+                card: { id: SAVANNAH_LIONS },
+                controllerId: "me",
+                ownerId: "me",
+                zone: "battlefield",
+                types: ["Artifact"],
+                subtypes: [],
+                staticAbilities: [],
+                isTapped: false,
+                power: 2,
+                toughness: 1,
+            };
+            const me = makePlayer("me", [fakeArtifact, makeEnchant(CASTLE)]);
+            expect(effectiveToughness([me], fakeArtifact)).toBe(1);
+        });
+
+        it("card.id reaches getStaticEffects (aura source resolves its def)", () => {
+            // getStaticEffects looks up the def by `source.card.id`. Strip the
+            // id → no static effects discovered → no buff.
+            const bear = makeCreature({
+                id: "bear",
+                cardId: GRIZZLY_BEARS,
+                power: 2,
+                toughness: 2,
+            });
+            const aura: CardInstance = {
+                id: "armor",
+                card: { id: "" }, // unknown id
+                controllerId: "me",
+                ownerId: "me",
+                zone: "battlefield",
+                types: ["Enchantment"],
+                subtypes: ["Aura"],
+                staticAbilities: [],
+                isTapped: false,
+                attachedTo: "bear",
+            };
+            const me = makePlayer("me", [bear, aura]);
+            expect(effectiveToughness([me], bear)).toBe(2);
+        });
     });
 
     it("Bad Moon resolves color via registry when card.card is slimmed to { id }", () => {

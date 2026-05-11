@@ -22,26 +22,54 @@ function libraryPlaceholders(count: number, playerId: string): CardInstance[] {
 }
 
 export default function PlayerLibrary({ player }: { player: Player }) {
-    const { gameId, playerId, debugAllActions } = useGameContext();
+    const { gameId, playerId, debugAllActions, pendingChoices } =
+        useGameContext();
     const draw = useMutation(api.game.drawCard);
     const millCard = useMutation(api.game.mill);
     const exile = useMutation(api.game.exileFromLibrary);
+    const selectChoice = useMutation(api.game.selectResolutionChoice);
     const isMe = player.id === playerId;
-    const libraryCards = Array.isArray(player.library)
-        ? player.library
-        : libraryPlaceholders(player.library.count, player.id);
+
+    // CR 401.4 / 701.19: while a `search-library` choice is active for the
+    // viewer and this library belongs to the chooser, the projection exposes
+    // the searcher's library as `librarySearch` — render those cards face-up
+    // and route clicks to the choice mutation.
+    const head = pendingChoices?.[0];
+    const isLibrarySearchTarget =
+        !!head &&
+        head.kind === "search-library" &&
+        head.zone === "library" &&
+        head.playerId === playerId &&
+        player.id === playerId &&
+        !!player.librarySearch;
+
+    const libraryCards = isLibrarySearchTarget
+        ? player.librarySearch!
+        : Array.isArray(player.library)
+          ? player.library
+          : libraryPlaceholders(player.library.count, player.id);
     const hasCards = libraryCards.length > 0;
 
     const handleDraw = () => draw({ gameId, playerId });
     const handleMill = () => millCard({ gameId, playerId });
     const handleExile = () => exile({ gameId, playerId });
+    const onCardClick = isLibrarySearchTarget
+        ? (card: { id: string }) =>
+              void selectChoice({
+                  gameId,
+                  playerId,
+                  cardInstanceId: card.id,
+              })
+        : undefined;
 
     const pile = (
         <CardsPile
             cards={libraryCards}
-            isFaceDown={true}
+            isFaceDown={!isLibrarySearchTarget}
             emptyLabel="Library is empty"
-            title="Library"
+            title={isLibrarySearchTarget ? "Search your library" : "Library"}
+            onCardClick={onCardClick}
+            forceOpen={isLibrarySearchTarget}
         />
     );
 

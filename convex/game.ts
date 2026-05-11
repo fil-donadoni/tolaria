@@ -1227,6 +1227,7 @@ export const tapForPayment = mutation({
         }
 
         // Check if cost is now covered → auto-commit
+        tryAutoCommitPendingCast(state, args.playerId);
         await saveGameState(
             ctx,
             args.gameId,
@@ -1409,6 +1410,10 @@ export const tapForActivationPayment = mutation({
             args.manaChoiceIndex,
             pa.tappedLandIds
         );
+
+        // If the pool now covers pendingActivation, pay mana, apply deferred
+        // tap/sacrifice costs and push the ability on the stack.
+        tryAutoCommitPendingActivation(state, args.playerId);
 
         await saveGameState(
             ctx,

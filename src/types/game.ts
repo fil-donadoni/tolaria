@@ -17,6 +17,11 @@ export interface Player {
     hand: (CardInstance | null)[];
     /** Full array when the viewer has full-state access, { count } when hidden (getPublicState). */
     library: CardInstance[] | { count: number };
+    /** Set only on the searcher's own player while a `search-library` choice
+     *  is active (CR 401.4 / 701.19) — slim card list rendered face-up so the
+     *  player can pick one. Independent of `library` to keep the wire shape
+     *  stable for all other consumers. */
+    librarySearch?: CardInstance[];
     graveyard: CardInstance[];
     exile: CardInstance[];
     battlefield: CardInstance[];

@@ -119,6 +119,71 @@ describe("game_state serialize round-trip", () => {
         }
     });
 
+    // Exhaustive wire-format invariant: every non-default transient field on a
+    // battlefield permanent must survive the compact → expand round trip.
+    // Each property mirrored here is read by GRE rules / layer system /
+    // triggers; dropping any of them would silently corrupt gameplay (e.g.
+    // the Holy Armor / Firebreathing client regression — same class of bug
+    // applied to the serialize boundary). Every new transient field added to
+    // CardInstanceState must come with an assertion in this block.
+    it("preserves every transient battlefield field across the round trip", () => {
+        const state = freshState();
+        const lion = state.players[1].battlefield[0];
+        lion.isTapped = true;
+        lion.isToken = true;
+        lion.isSummoningSick = true;
+        lion.isAttacking = true;
+        lion.isBlocking = true;
+        lion.hasAttackedThisTurn = true;
+        lion.hasBlockedThisTurn = true;
+        lion.manaCommitted = true;
+        lion.damageMarked = 2;
+        lion.regenerationShields = 1;
+        lion.chosenMana = { R: 1, G: 1 };
+        lion.attachedTo = "host-id";
+        lion.temporaryPTMods = [
+            { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
+        ];
+        lion.counters = { "+1/+1": 1, "+1/+0": 2 };
+        lion.grantedStaticAbilities = [{ ability: "flying", auraId: "aura-1" }];
+        lion.grantedActivatedAbilities = [
+            { sourceCardId: "src", abilityId: "ability", auraId: "aura-1" },
+        ];
+        lion.damagedBySources = ["bolt-1", "bolt-2"];
+        lion.controlChanges = [
+            { auraId: "aura-1", previousControllerId: "p1" },
+        ];
+
+        const expanded = expandState(compactState(state));
+        const got = expanded.players[1].battlefield[0];
+        expect(got.isTapped).toBe(true);
+        expect(got.isToken).toBe(true);
+        expect(got.isSummoningSick).toBe(true);
+        expect(got.isAttacking).toBe(true);
+        expect(got.isBlocking).toBe(true);
+        expect(got.hasAttackedThisTurn).toBe(true);
+        expect(got.hasBlockedThisTurn).toBe(true);
+        expect(got.manaCommitted).toBe(true);
+        expect(got.damageMarked).toBe(2);
+        expect(got.regenerationShields).toBe(1);
+        expect(got.chosenMana).toEqual({ R: 1, G: 1 });
+        expect(got.attachedTo).toBe("host-id");
+        expect(got.temporaryPTMods).toEqual([
+            { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
+        ]);
+        expect(got.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
+        expect(got.grantedStaticAbilities).toEqual([
+            { ability: "flying", auraId: "aura-1" },
+        ]);
+        expect(got.grantedActivatedAbilities).toEqual([
+            { sourceCardId: "src", abilityId: "ability", auraId: "aura-1" },
+        ]);
+        expect(got.damagedBySources).toEqual(["bolt-1", "bolt-2"]);
+        expect(got.controlChanges).toEqual([
+            { auraId: "aura-1", previousControllerId: "p1" },
+        ]);
+    });
+
     it("compact form is materially smaller than raw JSON", () => {
         const state = freshState();
         const rawSize = JSON.stringify(state).length;

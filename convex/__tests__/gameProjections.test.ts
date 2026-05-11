@@ -176,6 +176,107 @@ describe("projectFullState (CR: debug contract)", () => {
     });
 });
 
+// Wire-format invariant: every transient field on a battlefield permanent
+// must reach the client through projectPublicState / projectFullState.
+// `slimCard` uses spread, so this is also a regression guard against any
+// future refactor replacing the spread with explicit enumeration (the same
+// class of bug that broke aura/pump P/T display through toPermanentView).
+describe("projection forwards every transient battlefield field", () => {
+    function stateWithEnrichedPermanent(): GameState {
+        const enriched = makeCard("p1-b1", {
+            zone: "battlefield",
+            isTapped: true,
+            isToken: true,
+            isSummoningSick: true,
+            isAttacking: true,
+            isBlocking: true,
+            hasAttackedThisTurn: true,
+            hasBlockedThisTurn: true,
+            manaCommitted: true,
+            damageMarked: 2,
+            regenerationShields: 1,
+            chosenMana: { R: 1 },
+            attachedTo: "host-id",
+            temporaryPTMods: [
+                { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
+            ],
+            counters: { "+1/+1": 1, "+1/+0": 2 },
+            grantedStaticAbilities: [{ ability: "flying", auraId: "aura-1" }],
+            grantedActivatedAbilities: [
+                {
+                    sourceCardId: "src",
+                    abilityId: "ability",
+                    auraId: "aura-1",
+                },
+            ],
+            damagedBySources: ["bolt-1", "bolt-2"],
+            controlChanges: [{ auraId: "aura-1", previousControllerId: "p1" }],
+        });
+        const p1 = makePlayer("p1", { battlefield: [enriched] });
+        const p2 = makePlayer("p2");
+        return {
+            players: [p1, p2],
+            stack: [],
+            turn: 1,
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+            phase: "PRECOMBAT_MAIN",
+            rngSeed: 0,
+            rngCounter: 0,
+        };
+    }
+
+    it("projectPublicState preserves every transient field on slim cards", () => {
+        const result = projectPublicState(
+            stateWithEnrichedPermanent(),
+            1,
+            "p1"
+        );
+        const me = result.players.find((p) => p.id === "p1")!;
+        const card = me.battlefield[0];
+        expect(card.isTapped).toBe(true);
+        expect(card.isToken).toBe(true);
+        expect(card.isSummoningSick).toBe(true);
+        expect(card.isAttacking).toBe(true);
+        expect(card.isBlocking).toBe(true);
+        expect(card.hasAttackedThisTurn).toBe(true);
+        expect(card.hasBlockedThisTurn).toBe(true);
+        expect(card.manaCommitted).toBe(true);
+        expect(card.damageMarked).toBe(2);
+        expect(card.regenerationShields).toBe(1);
+        expect(card.chosenMana).toEqual({ R: 1 });
+        expect(card.attachedTo).toBe("host-id");
+        expect(card.temporaryPTMods).toEqual([
+            { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
+        ]);
+        expect(card.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
+        expect(card.grantedStaticAbilities).toEqual([
+            { ability: "flying", auraId: "aura-1" },
+        ]);
+        expect(card.grantedActivatedAbilities).toEqual([
+            { sourceCardId: "src", abilityId: "ability", auraId: "aura-1" },
+        ]);
+        expect(card.damagedBySources).toEqual(["bolt-1", "bolt-2"]);
+        expect(card.controlChanges).toEqual([
+            { auraId: "aura-1", previousControllerId: "p1" },
+        ]);
+    });
+
+    it("projectFullState preserves every transient field on slim cards", () => {
+        const result = projectFullState(stateWithEnrichedPermanent(), 1);
+        const me = result.players.find((p) => p.id === "p1")!;
+        const card = me.battlefield[0];
+        expect(card.attachedTo).toBe("host-id");
+        expect(card.temporaryPTMods).toEqual([
+            { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
+        ]);
+        expect(card.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
+        expect(card.hasAttackedThisTurn).toBe(true);
+        expect(card.hasBlockedThisTurn).toBe(true);
+    });
+});
+
 describe("projectPublicState legal actions timing", () => {
     it("yields 'cast' on a Creature in main phase with empty stack", () => {
         const state = makeState();

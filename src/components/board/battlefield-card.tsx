@@ -131,13 +131,19 @@ export default function BattlefieldCard({
         </div>
     );
 
+    // When the card carries activatable abilities, a left click opens the
+    // ability menu (via ContextMenuTrigger) instead of running the bare
+    // onClick — otherwise Basalt Monolith would silently tap-for-mana while
+    // ALSO opening the menu, leaving the player confused about which option
+    // they picked. The menu surfaces the mana ability as one of its entries.
+    const handleCardClick = hasAbilities ? undefined : onClick;
     const cardContent = vs.tooltip ? (
         <Tooltip>
             <TooltipTrigger
                 render={<div data-arrow-anchor-permanent={card.id} />}
                 className={cardClassName}
                 style={boxStyle}
-                onClick={onClick}
+                onClick={handleCardClick}
             >
                 {inner}
             </TooltipTrigger>
@@ -148,7 +154,7 @@ export default function BattlefieldCard({
             data-arrow-anchor-permanent={card.id}
             className={cardClassName}
             style={boxStyle}
-            onClick={onClick}
+            onClick={handleCardClick}
         >
             {inner}
         </div>

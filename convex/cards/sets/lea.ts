@@ -4339,15 +4339,11 @@ export const basaltMonolith: CardDefinition = {
     types: ["Artifact"],
     staticAbilities: ["does-not-untap"],
     activatedAbilities: [
-        {
+        makeTapForMana({
             id: "basalt-monolith-mana",
             oracleText: "{T}: Add {C}{C}{C}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => {
-                ctx.addMana({ C: 3 });
-            },
-        },
+            produces: { C: 3 },
+        }),
         {
             id: "basalt-monolith-untap",
             oracleText: "{3}: Untap this artifact.",
@@ -4923,15 +4919,11 @@ export const manaVault: CardDefinition = {
         },
     ],
     activatedAbilities: [
-        {
+        makeTapForMana({
             id: "mana-vault-mana",
             oracleText: "{T}: Add {C}{C}{C}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => {
-                ctx.addMana({ C: 3 });
-            },
-        },
+            produces: { C: 3 },
+        }),
     ],
 };
 

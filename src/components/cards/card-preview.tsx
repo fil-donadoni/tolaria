@@ -256,8 +256,19 @@ export default function CardPreview({
         (def?.staticAbilities?.length ?? 0) > 0 ||
         (def?.activatedAbilities?.length ?? 0) > 0 ||
         (def?.triggeredAbilities?.length ?? 0) > 0;
+    // staticEffects (pt-cda, pt-buff, keyword-grant, etc.) are not rendered
+    // by the structured abilities view — their printed text only lives in
+    // oracleText. Force oracleText display when the card carries any so
+    // mixed cards like Nightmare ("Flying" keyword + Swamps-count CDA) keep
+    // the CDA clause visible. The structured render is suppressed below to
+    // avoid double-printing the keywords already covered by Oracle text.
+    const hasStaticEffectText = (def?.staticEffects?.length ?? 0) > 0;
     const showOracleText =
-        !!def?.oracleText && (isSpellCard || isAura || !hasStructuredAbilities);
+        !!def?.oracleText &&
+        (isSpellCard ||
+            isAura ||
+            !hasStructuredAbilities ||
+            hasStaticEffectText);
     const oracleParagraphs = showOracleText
         ? def!.oracleText!.split("\n").filter((p) => p.length > 0)
         : null;

@@ -8,21 +8,22 @@ import {
 
 /**
  * Projects a frontend CardInstance into the PermanentView the layer system expects.
- * `types` is optional on CardInstance (to accommodate placeholders / test fixtures),
- * but always defined at runtime for battlefield cards coming from getPublicState.
- * The widening of string[] → CardType[] is enforced upstream by the server projection.
+ *
+ * Spread-based forwarding by design: every CardInstance field reaches the
+ * predicate/layer compute unchanged at runtime. We only narrow `types` /
+ * `subtypes` because they're optional on CardInstance (placeholders / test
+ * fixtures) but required on PermanentView; battlefield cards from the server
+ * projection always carry them. NEVER replace this with an explicit
+ * enumeration — that's the regression class that silently dropped
+ * `attachedTo` / `temporaryPTMods` / `counters` and broke aura buffs / pump
+ * activations on the client (see effective-stats.test.ts "wire-format
+ * invariant").
  */
 function toPermanentView(card: CardInstance): PermanentView {
     return {
-        id: card.id,
-        controllerId: card.controllerId,
-        ownerId: card.ownerId,
+        ...card,
         types: (card.types ?? []) as CardType[],
         subtypes: card.subtypes ?? [],
-        isTapped: card.isTapped,
-        power: card.power,
-        toughness: card.toughness,
-        card: card.card,
     };
 }
 

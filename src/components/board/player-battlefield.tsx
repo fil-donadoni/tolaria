@@ -12,6 +12,8 @@ import {
     getActivatedManaColor,
     hasManaAbility,
     getManaChoices,
+    getActivatedManaMenuEntry,
+    canRefundManaTap,
     getStackAbilities,
     wantsPermanentTarget,
     matchesPermanentFilter,
@@ -580,7 +582,29 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         const isActivePlayer = playerId === activePlayerId;
         if (phase === "DECLARE_ATTACKERS" && isActivePlayer) return [];
         if (phase === "DECLARE_BLOCKERS" && !isActivePlayer) return [];
-        return getStackAbilities(card, phase);
+        const stack = getStackAbilities(card, phase);
+        // When a card carries BOTH a mana ability and at least one stack
+        // ability (Basalt Monolith, Mana Vault), surface the mana ability as
+        // an explicit menu entry too — otherwise a left click would silently
+        // tap-for-mana and then the {3}: Untap option still appears, which
+        // confuses the player. The mana ability is gated by the same
+        // tap/sickness rules `canInteract` already enforces for a direct tap.
+        // When the card is already tapped from this mana ability (and mana is
+        // not yet committed to a cost), the same entry flips to a refund —
+        // `tapUntap` toggles in both directions so reusing the ability id is
+        // sufficient on the server side; only the label changes here.
+        if (stack.length === 0) return stack;
+        const mana = getActivatedManaMenuEntry(card);
+        if (!mana) return stack;
+        if (card.isTapped) {
+            if (!canRefundManaTap(card, player.manaPool)) return stack;
+            return [
+                { id: mana.id, oracleText: "Untap and refund mana" },
+                ...stack,
+            ];
+        }
+        if (isTapLockedBySummoningSickness(card)) return stack;
+        return [mana, ...stack];
     }
 
     function handleActivateAbility(
@@ -588,13 +612,32 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         abilityId: string,
         keepPriority: boolean
     ) {
-        // CR 107.3 / 601.2b: if the ability has X in its mana cost, the
-        // activator chooses X before announcement. Prompt the user — same
-        // pattern as the spell-cast path in selectable-card.tsx.
         const card = player.battlefield.find((c) => c.id === cardInstanceId);
         if (!card) return;
         const def = getCardById(card.card.id);
         const ability = def.activatedAbilities?.find((a) => a.id === abilityId);
+        // Mana ability selected from the menu (useStack:false) — route through
+        // the mana-ability flow (`tapUntap`, or the mana picker for sources
+        // with `manaChoices`) instead of the activated-ability mutation.
+        if (ability && !ability.useStack) {
+            const choices = getManaChoices(card);
+            if (choices) {
+                setManaChoiceState({
+                    cardId: card.id,
+                    choices,
+                    position: { x: 0, y: 0 },
+                    inPayment: false,
+                });
+                return;
+            }
+            guardMutation(
+                tapUntap({ gameId, playerId, cardInstanceId: card.id })
+            );
+            return;
+        }
+        // CR 107.3 / 601.2b: if the ability has X in its mana cost, the
+        // activator chooses X before announcement. Prompt the user — same
+        // pattern as the spell-cast path in selectable-card.tsx.
         const hasX =
             ability?.cost.mana?.X !== undefined &&
             typeof ability.cost.mana.X === "string";

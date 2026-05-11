@@ -25,6 +25,10 @@ type CardsPileProps = {
      *  graveyard target-selection (CR 109.2 / 400.7) so the chooser can pick
      *  a card from the dialog view of an opaque pile. */
     onCardClick?: (card: CardInstance) => void;
+    /** When true, the dialog is forced open and cannot be dismissed. Used for
+     *  search-library (CR 701.19): the player must pick a card before play
+     *  resumes. */
+    forceOpen?: boolean;
 };
 
 export default function CardsPile({
@@ -33,8 +37,14 @@ export default function CardsPile({
     emptyLabel,
     title,
     onCardClick,
+    forceOpen = false,
 }: CardsPileProps) {
-    const [isOpen, setIsOpen] = useState(false);
+    const [internalOpen, setInternalOpen] = useState(false);
+    const isOpen = forceOpen || internalOpen;
+    const setIsOpen = (next: boolean) => {
+        if (forceOpen) return;
+        setInternalOpen(next);
+    };
 
     const rotations = useMemo(
         () => cards.map((_, i) => seededRandom(i) * 4 - 2),
@@ -84,7 +94,8 @@ export default function CardsPile({
                 <DialogContent
                     className="px-4 max-w-[90vw]"
                     style={{
-                        width: `calc(var(--card-w) * ${(cards.length + 1) / 2} + 2rem)`,
+                        ["--pile-card-w" as string]: "clamp(9rem, 14vw, 13rem)",
+                        width: `min(90vw, max(28rem, calc(var(--pile-card-w) * ${(cards.length + 1) / 2} + 2rem)))`,
                     }}
                 >
                     <DialogHeader>
@@ -96,7 +107,7 @@ export default function CardsPile({
                         <div
                             className="flex mx-auto"
                             style={{
-                                width: `calc(var(--card-w) * ${(cards.length + 1) / 2})`,
+                                width: `calc(var(--pile-card-w) * ${(cards.length + 1) / 2})`,
                             }}
                         >
                             {cards.map((cardInstance, cardIndex) => {
@@ -109,12 +120,12 @@ export default function CardsPile({
                                 return (
                                     <div
                                         key={cardInstance.id}
-                                        className="w-(--card-w) aspect-5/7 shrink-0"
+                                        className="w-(--pile-card-w) aspect-5/7 shrink-0"
                                         style={{
                                             marginLeft:
                                                 cardIndex === 0
                                                     ? "0"
-                                                    : "calc(var(--card-w) * -0.5)",
+                                                    : "calc(var(--pile-card-w) * -0.5)",
                                         }}
                                     >
                                         {clickable ? (

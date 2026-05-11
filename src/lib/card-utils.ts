@@ -62,6 +62,48 @@ export function hasManaAbility(card: CardInstance): boolean {
     );
 }
 
+/** Returns the native mana ability of a card as a menu entry (id + oracleText),
+ *  or null if the card has no native activated mana ability. Used to surface
+ *  the mana ability inside the ability context menu when a card has both a
+ *  mana ability and a stack ability (e.g. Basalt Monolith, Mana Vault), so a
+ *  left click doesn't silently choose tap-for-mana over the {3}: Untap. */
+export function getActivatedManaMenuEntry(
+    card: CardInstance
+): { id: string; oracleText: string } | null {
+    const cardDef = getCardById(card.card.id);
+    const ability = cardDef.activatedAbilities?.find(
+        (a) => !a.useStack && (a.manaProduced || a.manaChoices)
+    );
+    if (!ability) return null;
+    return { id: ability.id, oracleText: ability.oracleText };
+}
+
+/** True if the card was tapped for mana and the produced mana is still in the
+ *  player's pool — so an "Untap and refund" action is legal. Server's tapUntap
+ *  blocks refund when `manaCommitted` is set (mana already spent on a cost),
+ *  but mana can also drain at phase boundaries (CR 106.4) leaving the source
+ *  tapped while the pool is empty. In that case the refund would silently
+ *  un-tap for free with no mana to give back — hide the option. Only supports
+ *  fixed `manaProduced` sources (Basalt Monolith / Mana Vault style). Choice
+ *  sources need `chosenMana` projected to the client to be precise here. */
+export function canRefundManaTap(
+    card: CardInstance,
+    manaPool: ManaPool
+): boolean {
+    if (!card.isTapped || card.manaCommitted) return false;
+    const cardDef = getCardById(card.card.id);
+    const ability = cardDef.activatedAbilities?.find(
+        (a) => !a.useStack && a.manaProduced
+    );
+    if (!ability?.manaProduced) return false;
+    for (const [color, amount] of Object.entries(ability.manaProduced)) {
+        if (color === "X" || typeof amount !== "number" || amount <= 0)
+            continue;
+        if ((manaPool[color] ?? 0) < amount) return false;
+    }
+    return true;
+}
+
 /** Returns the mana choices for a card with a choice-based mana ability, or null. */
 export function getManaChoices(card: CardInstance): ManaCost[] | null {
     const cardDef = getCardById(card.card.id);
