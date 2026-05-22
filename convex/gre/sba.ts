@@ -2,6 +2,7 @@ import type { CardInstanceState, GameState } from "./state";
 import { getOpponentId, removePermanentTo } from "./state";
 import { isAura } from "./constants";
 import { isProtectedFromSource } from "./protection";
+import { applyLoseGameReplacements } from "./replacements";
 import { applyStateTriggers } from "./triggers";
 import { tryGetCardById } from "../cards";
 
@@ -20,7 +21,19 @@ export function checkGameOverSBA(state: GameState): boolean {
         let reason: "life" | "decked" | null = null;
 
         if (player.life <= 0) {
-            reason = "life";
+            // CR 614 — Lich's "you don't lose the game" replacement can consume
+            // the loss event. If the replacement returns null, the player
+            // survives this check; the loss can re-fire on a subsequent SBA
+            // sweep if the replacement source has left play in the meantime.
+            const survived =
+                applyLoseGameReplacements(state, {
+                    kind: "lose-game",
+                    playerId: player.id,
+                    reason: "life-zero",
+                }) === null;
+            if (!survived) {
+                reason = "life";
+            }
         } else if (player.hasDrawnFromEmpty) {
             reason = "decked";
         }

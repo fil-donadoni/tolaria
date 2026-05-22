@@ -417,6 +417,328 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "Replacement effects (CR 614) — Lich / Personal Incarnation / Veteran Bodyguard / Library of Leng",
+        cards: [
+            // Lich on the battlefield: caster's life is 0, "don't lose game"
+            // active, lifegain → draw, damage triggers sacrifice clause.
+            // Personal Incarnation on the battlefield: redirects all damage
+            // to its owner onto itself. Veteran Bodyguard: redirects from
+            // unblocked attackers as long as untapped. Library of Leng:
+            // discard → top of library.
+            //
+            // Mind Twist in hand to exercise discard replacement, Stream of
+            // Life in hand to exercise lifegain → draw, Reverse Damage /
+            // Jade Monolith / Simulacrum in hand to test the transient
+            // redirection layer + the per-turn damage tally.
+            { name: "Lich", owner: "me" as const },
+            { name: "Personal Incarnation", owner: "me" as const },
+            { name: "Veteran Bodyguard", owner: "me" as const },
+            { name: "Library of Leng", owner: "me" as const },
+            { name: "Jade Monolith", owner: "me" as const },
+            {
+                name: "Mind Twist",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Stream of Life",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Reverse Damage",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Simulacrum",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            // Some sacrificial fodder for Lich's damage trigger.
+            { name: "Grizzly Bears", owner: "me" as const, count: 3 },
+            { name: "Plains", owner: "me" as const, count: 4 },
+            { name: "Swamp", owner: "me" as const, count: 4 },
+            { name: "Forest", owner: "me" as const, count: 4 },
+            // Opp side: a couple of attackers to test redirection in combat.
+            { name: "Shivan Dragon", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "opp" as const, count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Reanimation — Resurrection / Animate Dead (CR 400.7, CR 303.4i)",
+        cards: [
+            // Resurrection in hand ({2}{W}) — target your own dead Sengir
+            // Vampire to bring it back to your battlefield at full P/T.
+            //
+            // Animate Dead in hand ({1}{B}) — target opp's dead Shivan Dragon
+            // to reanimate it UNDER YOUR CONTROL with -1/-0 (CR 303.4i). The
+            // aura attaches to the reanimated dragon; destroying the aura
+            // later fires the LTB-trigger and sacrifices the dragon (CR
+            // 603.10 last-known-info via attachedToBeforeLeave).
+            //
+            // Use the Debug panel to destroy the aura after reanimation to
+            // see the LTB-trigger sacrifice in action.
+            {
+                name: "Resurrection",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Animate Dead",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Sengir Vampire",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Shivan Dragon",
+                owner: "opp" as const,
+                zone: "graveyard" as const,
+            },
+            { name: "Plains", owner: "me" as const, count: 3 },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Upkeep pay-or-else — Phantasmal Forces / Force of Nature / Wanderlust (CR 603.6a, 117.3a)",
+        cards: [
+            // Phantasmal Forces on battlefield ({3}{U}, 4/1 flying) — at start
+            // of each your upkeep, may-pay {U} else sacrifice itself.
+            //
+            // Force of Nature on battlefield ({2}{G}{G}{G}{G}, 8/8 trample) —
+            // at start of each your upkeep, may-pay {G}{G}{G}{G} else takes
+            // 8 damage from itself (you lose 8 life).
+            //
+            // Wanderlust in hand ({1}{G}{G} aura) — attach to either creature.
+            // At controller's upkeep, the aura deals 1 damage to the host's
+            // controller (you).
+            //
+            // Pass to upkeep to trigger all three may-pay prompts in
+            // sequence. Decline to see the consequences chain.
+            {
+                name: "Phantasmal Forces",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Force of Nature",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Wanderlust",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Forest", owner: "me" as const, count: 6 },
+            { name: "Island", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Additional cost — Sacrifice ({B} instant, sac creature for B mana = CMC)",
+        cards: [
+            // Sacrifice in hand ({B} instant). Cast it: the engine prompts
+            // you to pick a creature to sacrifice (additional cost). After
+            // sac, you gain B mana equal to that creature's CMC. Use the
+            // floating mana for another spell same turn.
+            {
+                name: "Sacrifice",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Shivan Dragon",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Layer 4 type-add — Animate Artifact + Mana Vault",
+        cards: [
+            // Animate Artifact in hand ({3}{U} aura). Cast on Mana Vault
+            // (cmc 1) — Mana Vault becomes a 1/1 artifact creature. Then
+            // try to block / attack with it to see the type-add land in
+            // the combat layer.
+            {
+                name: "Animate Artifact",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Mana Vault",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "CMC-target — Spell Blast (counter spell with cmc = X)",
+        cards: [
+            // Spell Blast in hand ({X}{U}) — chooses X at announcement,
+            // then target a stack spell whose mana value equals X.
+            //
+            // Have Lightning Bolt and Braingeyser in hand to cast as targets.
+            // Announce Bolt (cmc 1) → respond with Spell Blast X=1: legal.
+            // Try Spell Blast X=2 against Bolt: rejected by cmcFilter.
+            // Cast Braingeyser with X=4 (cmc 6) → Spell Blast X=6 counters.
+            {
+                name: "Spell Blast",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Braingeyser",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 8 },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Activation timing (CR 602.5) — Instill Energy + Blessing",
+        cards: [
+            // Goblin King's grizzly partner here, attached by both auras.
+            // Cast Instill Energy on the bear: it gains haste + {0} untap
+            // once-per-turn restricted to controller's turn. Cast Blessing
+            // on the same bear: {W} pumps +1/+1 EOT (unrestricted).
+            //
+            // Try activating Instill Energy's {0} twice — second activation
+            // rejected. Pass priority to opp; their priority window doesn't
+            // allow activating {0}. Pass turn — counter resets, can
+            // re-activate next turn.
+            {
+                name: "Instill Energy",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Blessing",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            { name: "Forest", owner: "me" as const, count: 2 },
+            { name: "Plains", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Modal spells (CR 700.2) — Healing Salve / Blue & Red Elemental Blast",
+        cards: [
+            // Healing Salve in hand ({W}) — modal: gain 3 life OR prevent
+            // next 3 damage to any target this turn.
+            //
+            // Blue Elemental Blast in hand ({U}) — modal: counter target red
+            // spell OR destroy target red permanent.
+            //
+            // Red Elemental Blast in hand ({R}) — modal: counter target blue
+            // spell OR destroy target blue permanent.
+            //
+            // Opp has Merfolk (blue) and Shivan Dragon (red) on the board for
+            // the destroy modes; cast Lightning Bolt to test counter modes.
+            {
+                name: "Healing Salve",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Blue Elemental Blast",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Red Elemental Blast",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Shivan Dragon",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Merfolk of the Pearl Trident",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+            { name: "Plains", owner: "me" as const, count: 2 },
+            { name: "Island", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Cross-player choice — Demonic Hordes (opp picks your land to sacrifice)",
+        cards: [
+            // Demonic Hordes on battlefield ({3}{B}{B}, 5/5 Demon). Activated
+            // {T}: destroy target land — target any land in play. Upkeep
+            // trigger may-pay {B}{B}{B}; on decline: Hordes taps and your
+            // OPPONENT (the viewer auto-switches in solo) picks one of YOUR
+            // lands to sacrifice.
+            //
+            // Pass to upkeep, decline the {B}{B}{B}, and watch the choice
+            // prompt route to the opp viewer with click-routing on YOUR
+            // battlefield (controller's zone). Lands are filtered.
+            {
+                name: "Demonic Hordes",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 5 },
+            { name: "Forest", owner: "me" as const, count: 1 },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

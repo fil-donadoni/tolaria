@@ -8,6 +8,7 @@ import type {
 } from "./state";
 import {
     applyTargetPrevention,
+    bumpDamageDealtToPlayer,
     consumePreventionIfAny,
     drawCard,
     flushPendingEvents,
@@ -15,6 +16,7 @@ import {
     getPlayer,
     regenerateOrDestroy,
     resolveTopOfStack,
+    runDamageReplacement,
     tickDuration,
 } from "./state";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
@@ -302,7 +304,9 @@ function buildAutoDamageAssignments(
 }
 
 /** Build default damage assignments for multi-blocker attackers.
- *  Uses blockerOrder for ordering. With trample, assigns lethal to each in order, excess to defender. */
+ *  With trample, assigns lethal to each blocker in declaration order, excess
+ *  to defender. CR 510.1c/d let the attacker freely re-divide damage in the
+ *  damage-assignment modal — this just seeds a sensible default. */
 function buildDefaultDamageAssignments(
     state: GameState,
     kind: DamageKind
@@ -319,11 +323,7 @@ function buildDefaultDamageAssignments(
         );
         if (!attacker) continue;
         if (!dealsDamageIn(attacker, kind)) continue;
-        // Use blockerOrder if available, fall back to blockersPerAttacker
-        const blockers =
-            state.combat!.blockerOrder?.[attackerId] ??
-            blockersPerAttacker[attackerId] ??
-            [];
+        const blockers = blockersPerAttacker[attackerId] ?? [];
         const hasTrample = attacker.staticAbilities.includes("trample");
 
         if (blockers.length === 1) {
@@ -403,6 +403,76 @@ export function applyAllCombatDamage(
     const damageReceived: Record<string, number> = {};
     const events: GameEvent[] = [];
 
+    // Helper: apply one combat damage event from `source` through the full
+    // CR 614 → CR 615 → CR 702.16 → application pipeline. `target` and
+    // `amount` may be rewritten by replacement effects (Simulacrum, Veteran
+    // Bodyguard, Personal Incarnation redirect damage to themselves; Jade
+    // Monolith activates redirect to controller). Permanent damage is
+    // accumulated into `damageReceived` for the post-loop lethal scan.
+    function applyOneCombatDamage(
+        source: CardInstanceState,
+        rawTarget: { type: "player" | "permanent"; id: string },
+        rawAmount: number
+    ): void {
+        if (rawAmount <= 0) return;
+        const repl = runDamageReplacement(
+            state,
+            source.id,
+            source.controllerId,
+            rawTarget,
+            rawAmount,
+            true
+        );
+        if (!repl) return;
+        const finalTarget = repl.target;
+        const finalAmount = repl.amount;
+        if (finalAmount <= 0) return;
+        if (finalTarget.type === "player") {
+            if (consumePreventionIfAny(state, source.id, finalTarget.id))
+                return;
+            const reduced = applyTargetPrevention(
+                state,
+                "player",
+                finalTarget.id,
+                finalAmount
+            );
+            if (reduced <= 0) return;
+            getPlayer(state, finalTarget.id).life -= reduced;
+            bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
+            events.push({
+                type: "DAMAGE_DEALT",
+                sourceInstanceId: source.id,
+                sourceControllerId: source.controllerId,
+                target: { type: "player", id: finalTarget.id },
+                amount: reduced,
+                isCombat: true,
+            });
+        } else if (finalTarget.type === "permanent") {
+            const targetCard =
+                activePlayer.battlefield.find((c) => c.id === finalTarget.id) ??
+                defender.battlefield.find((c) => c.id === finalTarget.id);
+            if (!targetCard) return;
+            if (isProtectedFromSource(targetCard, source)) return;
+            const reduced = applyTargetPrevention(
+                state,
+                "permanent",
+                finalTarget.id,
+                finalAmount
+            );
+            if (reduced <= 0) return;
+            damageReceived[finalTarget.id] =
+                (damageReceived[finalTarget.id] ?? 0) + reduced;
+            events.push({
+                type: "DAMAGE_DEALT",
+                sourceInstanceId: source.id,
+                sourceControllerId: source.controllerId,
+                target: { type: "permanent", id: finalTarget.id },
+                amount: reduced,
+                isCombat: true,
+            });
+        }
+    }
+
     for (const attackerId of state.combat.attackerIds) {
         const attacker = activePlayer.battlefield.find(
             (c) => c.id === attackerId
@@ -414,129 +484,47 @@ export function applyAllCombatDamage(
         const attackerDeals = dealsDamageIn(attacker, kind);
 
         if (blockers.length === 0) {
-            // Unblocked: damage to defending player (only if attacker is active this step)
             if (attackerDeals && attackerPower > 0) {
-                // CR 615.1: prevention effect consumes the damage fully.
-                const prevented = consumePreventionIfAny(
-                    state,
-                    attacker.id,
-                    defenderId
+                applyOneCombatDamage(
+                    attacker,
+                    { type: "player", id: defenderId },
+                    attackerPower
                 );
-                if (!prevented) {
-                    const reduced = applyTargetPrevention(
-                        state,
-                        "player",
-                        defenderId,
-                        attackerPower
-                    );
-                    if (reduced > 0) {
-                        defender.life -= reduced;
-                        events.push({
-                            type: "DAMAGE_DEALT",
-                            sourceInstanceId: attacker.id,
-                            sourceControllerId: attacker.controllerId,
-                            target: { type: "player", id: defenderId },
-                            amount: reduced,
-                            isCombat: true,
-                        });
-                    }
-                }
             }
         } else {
-            // Blocked: the attacker distributes its damage only if it deals in this step
             if (attackerDeals) {
                 const assignments = damageAssignments[attackerId] ?? {};
                 for (const [targetId, damage] of Object.entries(assignments)) {
                     if (damage <= 0) continue;
                     if (targetId === defenderId) {
-                        // Trample excess damage to defending player
-                        // CR 615.1: prevention effect consumes the damage fully.
-                        const prevented = consumePreventionIfAny(
-                            state,
-                            attacker.id,
-                            defenderId
-                        );
-                        if (prevented) continue;
-                        const reduced = applyTargetPrevention(
-                            state,
-                            "player",
-                            defenderId,
+                        applyOneCombatDamage(
+                            attacker,
+                            { type: "player", id: defenderId },
                             damage
                         );
-                        if (reduced <= 0) continue;
-                        defender.life -= reduced;
-                        events.push({
-                            type: "DAMAGE_DEALT",
-                            sourceInstanceId: attacker.id,
-                            sourceControllerId: attacker.controllerId,
-                            target: { type: "player", id: defenderId },
-                            amount: reduced,
-                            isCombat: true,
-                        });
                     } else {
-                        // CR 702.16e: damage from a source with the stated
-                        // quality to a protected permanent is prevented.
-                        const blockerCard = defender.battlefield.find(
-                            (c) => c.id === targetId
-                        );
-                        if (
-                            blockerCard &&
-                            isProtectedFromSource(blockerCard, attacker)
-                        ) {
-                            continue;
-                        }
-                        const reduced = applyTargetPrevention(
-                            state,
-                            "permanent",
-                            targetId,
+                        applyOneCombatDamage(
+                            attacker,
+                            { type: "permanent", id: targetId },
                             damage
                         );
-                        if (reduced <= 0) continue;
-                        damageReceived[targetId] =
-                            (damageReceived[targetId] ?? 0) + reduced;
-                        events.push({
-                            type: "DAMAGE_DEALT",
-                            sourceInstanceId: attacker.id,
-                            sourceControllerId: attacker.controllerId,
-                            target: { type: "permanent", id: targetId },
-                            amount: reduced,
-                            isCombat: true,
-                        });
                     }
                 }
             }
 
-            // Blockers that deal damage in this step hit the attacker.
             for (const blockerId of blockers) {
                 const blocker = defender.battlefield.find(
                     (c) => c.id === blockerId
                 );
-                if (!blocker) continue; // removed before damage
+                if (!blocker) continue;
                 if (!dealsDamageIn(blocker, kind)) continue;
                 const blockerPower = getCardPower(state, blocker);
                 if (blockerPower <= 0) continue;
-                // CR 702.16e: prevent damage from a blocker whose color
-                // matches the attacker's "protection from [color]". (The
-                // symmetric "attacker protected from blocker's color can't
-                // be blocked" case was rejected at block-declaration.)
-                if (isProtectedFromSource(attacker, blocker)) continue;
-                const reduced = applyTargetPrevention(
-                    state,
-                    "permanent",
-                    attackerId,
+                applyOneCombatDamage(
+                    blocker,
+                    { type: "permanent", id: attackerId },
                     blockerPower
                 );
-                if (reduced <= 0) continue;
-                damageReceived[attackerId] =
-                    (damageReceived[attackerId] ?? 0) + reduced;
-                events.push({
-                    type: "DAMAGE_DEALT",
-                    sourceInstanceId: blocker.id,
-                    sourceControllerId: blocker.controllerId,
-                    target: { type: "permanent", id: attackerId },
-                    amount: reduced,
-                    isCombat: true,
-                });
             }
         }
     }
@@ -838,6 +826,18 @@ function tickAllDurations(state: GameState): void {
         state.targetPreventionShields = kept.length > 0 ? kept : undefined;
     }
 
+    // Transient damage redirections (Reverse Damage, Jade Monolith {1},
+    // Personal Incarnation {0}). Same wear-off semantics as prevention.
+    if (state.damageRedirections?.length) {
+        const kept: typeof state.damageRedirections = [];
+        for (const shield of state.damageRedirections) {
+            const next = tickDuration(shield.duration, view);
+            if (next === null) continue;
+            kept.push({ ...shield, duration: next });
+        }
+        state.damageRedirections = kept.length > 0 ? kept : undefined;
+    }
+
     // "Becomes a creature" animations (e.g. Jade Statue). On expiry, splice
     // back out anything the animation added and restore the pre-animation
     // P/T so the permanent returns to its original shape.
@@ -913,12 +913,28 @@ function advanceTurn(state: GameState): void {
     } else {
         state.activePlayerId = getOpponentId(state, state.activePlayerId);
     }
+    // CR 500.1: bump the new active player's per-player turn counter. Extra
+    // turns (CR 500.7) increment this normally — the recipient is genuinely
+    // taking another of their turns.
+    const newActive = getPlayer(state, state.activePlayerId);
+    newActive.turnsTaken = (newActive.turnsTaken ?? 0) + 1;
     state.autoPassPlayers = undefined;
     state.singleShotAutoPass = undefined;
     // CR 117.2c / 305.2: reset per-turn land drop count at the start of each turn.
     for (const p of state.players) p.landsPlayedThisTurn = 0;
     // Reset the per-turn deaths tally so end-step counts are turn-scoped.
     state.deathsThisTurn = undefined;
+    // Reset per-turn player damage tally (CR 120.3) — Simulacrum scopes its
+    // "damage dealt to you this turn" lookup to the current turn.
+    state.damageDealtToPlayerThisTurn = undefined;
+    // CR 602.5 — `oncePerTurn` activation counts are per-source per-turn.
+    // Clear them across every permanent at turn start so the next turn's
+    // first activation isn't blocked by a stale tally.
+    for (const p of state.players) {
+        for (const c of p.battlefield) {
+            if (c.activationsThisTurn) c.activationsThisTurn = undefined;
+        }
+    }
 }
 
 /**
@@ -1002,8 +1018,6 @@ export function advancePhase(state: GameState): Phase[] {
         !defenderHasAnyLegalBlock(state);
     if (skipUnblockableCombat && state.combat) {
         state.combat.blockersConfirmed = true;
-        state.combat.blockerOrder = {};
-        state.combat.blockerOrderConfirmed = true;
     }
 
     // CR 510.5: skip the first-strike damage step when no combatant has
@@ -1097,27 +1111,6 @@ export function drainAutoPasses(state: GameState): void {
             }
             state.combat.pendingBlockerId = undefined;
             state.combat.blockersConfirmed = true;
-
-            // Initialize blocker order (same logic as confirmBlockers)
-            const blockerOrder: Record<string, string[]> = {};
-            for (const [blockerId, attackerId] of Object.entries(
-                state.combat.blockerAssignments
-            )) {
-                if (!blockerOrder[attackerId]) blockerOrder[attackerId] = [];
-                blockerOrder[attackerId].push(blockerId);
-            }
-            state.combat.blockerOrder = blockerOrder;
-            // Auto-confirm order (no multi-block reordering during auto-pass)
-            state.combat.blockerOrderConfirmed = true;
-        }
-
-        // Auto-confirm blocker order when attacking player auto-passes
-        if (
-            state.phase === "DECLARE_BLOCKERS" &&
-            state.combat &&
-            state.combat.blockerOrderConfirmed === false
-        ) {
-            state.combat.blockerOrderConfirmed = true;
         }
 
         // Auto-confirm damage assignment when active player auto-passes

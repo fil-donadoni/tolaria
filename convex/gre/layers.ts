@@ -49,6 +49,21 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
     hasSubtype(card: PermanentView, subtype: string): boolean {
         return card.subtypes.includes(subtype);
     },
+    getCmc(card: PermanentView): number {
+        // CR 202.3 — numeric X in the printed cost contributes to mana
+        // value (the codebase encodes generic cost as `X: number`); only
+        // the string-X placeholder for variable-X cards is treated as 0.
+        const embedded = (card.card as { manaCost?: ManaCost }).manaCost;
+        const cardId = (card.card as { id?: string }).id;
+        const cost =
+            embedded ?? (cardId ? tryGetCardById(cardId)?.manaCost : undefined);
+        if (!cost) return 0;
+        let total = 0;
+        for (const [, v] of Object.entries(cost)) {
+            if (typeof v === "number") total += v;
+        }
+        return total;
+    },
 };
 
 /**
@@ -78,7 +93,12 @@ export function getStaticPTBuff(
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
                         continue;
                     }
-                    const pt = effect.compute(source, state, STATIC_EFFECT_CTX);
+                    const pt = effect.compute(
+                        source,
+                        state,
+                        STATIC_EFFECT_CTX,
+                        target
+                    );
                     power += pt.power;
                     toughness += pt.toughness;
                 }

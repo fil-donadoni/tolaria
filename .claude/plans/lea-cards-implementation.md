@@ -1,12 +1,15 @@
 # Analisi carte LEA non implementate
 
-## Status snapshot (2026-05-11, post Wave 5)
+## Status snapshot (2026-05-12, post Wave 11 follow-up)
 
 **Plan location**: `.claude/plans/lea-cards-implementation.md` (spostato da `~/.claude/plans/`).
-**Carte attive in `lea.ts`**: 196 (era 190 inizio sessione, 183 al 2026-05-10, 111 originali al 2026-05-09).
-**Carte ancora commentate**: 94 (era 100 inizio sessione, 107 al 2026-05-10).
-**Test totali**: 983 passing (+26 nuovi tutti per Wave 5).
+**Carte attive in `lea.ts`**: 217 (Wave 11 + follow-up: spellBlast, animateArtifact, sacrifice).
+**Carte ancora commentate**: 73 (era 76 post-Wave-10).
+**Test totali**: 1051 passing (+9 per Wave 11 + follow-up: 3 spellBlast + 3 animateArtifact + 3 sacrifice).
 
+Wave 8 chiusa: flat-upkeep pay-or-else pattern + 3 carte. Gap I del plan originale era misnamed: le carte LEA non hanno cumulative upkeep (introdotto Ice Age, post-LEA), ma flat-upkeep may-pay con consequence diversa.
+Wave 7 chiusa: full gap U (replacement effect framework + 7 carte).
+Wave 6 chiusa: resurrection, animateDead (gap H parziale — reanimation senza replacement framework U).
 Wave 5 chiusa: basaltMonolith, manaVault, meekstone, smoke, stasis, paralyze (gap J).
 
 ### Feature implementate dopo l'analisi originale
@@ -31,6 +34,288 @@ Wave 5 chiusa: basaltMonolith, manaVault, meekstone, smoke, stasis, paralyze (ga
 - Upkeep ping per untapped land: `powerSurge`
 
 24 nuovi test, 6 preset scenarios. `bun run check:all` + `bun run test` verdi.
+
+### Wave 11 follow-up — type-add + additional-cost frameworks, gap V chiuso — DONE (2026-05-12)
+
+Wave 11 originale aveva deferred animateArtifact + sacrifice citando "no partial implementations" — user pushback. Completati nel follow-up.
+
+**Type-add static effect (layer 4 surrogate, CR 205)**:
+
+- Nuovo `StaticTypeAdd { kind: "type-add"; applies; types: CardType[] }` in `cards/types.ts`.
+- Aggiunto a `StaticEffect` union.
+- `CardInstanceState.grantedTypes?: { type, auraId }[]` (gre/state.ts) per tracker per-origine.
+- Engine: `applySourceStaticEffects` push types a `target.types` se non già presenti, registra origine. `unapplySourceStaticEffects` rimuove origini matching e fa il pop dai `types[]` solo se nessun'altra origine rimanente E il type non era printed. `applyExistingGrantsTo` mirror for incoming permanents.
+- Serialize: `grantedTypes` persisted su compactCard/expandCard.
+- Limitazione documentata: il predicate `applies` viene letto al apply-time, non continuamente. Sufficiente per LEA scope (nessuna carta revoca un type-add mid-life).
+
+**pt-cda compute signature**:
+
+- `StaticPTCDA.compute` ora riceve `target` come 4° parametro. Nightmare/Bog Wraith continuano a funzionare (self-targeting, target === source). Animate Artifact può ora computare dal target (host) via target.
+
+**StaticEffectContext.getCmc(card)**:
+
+- Nuovo helper sul context — evita import cycles tra `cards/sets/lea.ts` e `..` perché passa attraverso il context già esposto. Riusa `tryGetCardById` server-side. Numerico X incluso (codebase encoding di generic cost come `X: number`).
+
+**Carta animateArtifact** ({3}{U} Aura on Artifact):
+
+- `type-add: Creature` quando l'host non è già Creature.
+- `pt-cda`: P/T = host's mana value via `ctx.getCmc(target)`.
+
+**Additional-cost framework (CR 117.9 / 601.2f)**:
+
+- `CardDefinition.additionalCosts?: { sacrificeFilter: PermanentFilter }` (cards/types.ts).
+- `PendingCast.additionalCost?: { kind: "sacrifice"; filter; pickedId? }` (gre/state.ts).
+- `StackItem.additionalSacrificeSnapshot?: { cardInstanceId; cmc }`.
+- `SpellContext.getAdditionalSacrificeCmc(): number | undefined`.
+- `announceCast` mutation: validate ≥1 matching permanent at cast (else throw "no legal additional cost"), apri pendingCast in additional-cost picker stage (no auto-commit fino al pick).
+- Nuova mutation `selectAdditionalCost(gameId, playerId, cardInstanceId)`: validates against filter + zone owner = caster's battlefield, sets `pickedId`, attempts auto-commit.
+- `tryAutoCommitPendingCast`: gate su `additionalCost.pickedId` set; sacrifice della selected permanent + snapshot CMC su stack item al commit.
+- Serialize: `additionalSacrificeSnapshot` persisted su stack item.
+- UI: `player-battlefield.tsx` route clicks via `isPickingAdditionalCost` → `selectAdditionalCost` mutation.
+
+**Carta sacrifice** ({B} Instant):
+
+- `additionalCosts.sacrificeFilter: { types: "Creature" }`.
+- resolve: `ctx.addMana({ B: ctx.getAdditionalSacrificeCmc() })`.
+
+Test aggiunti: 6 (3 animateArtifact: type-add base + skip-if-already-creature + wire-format projection; 3 sacrifice: resolve adds B = snapshot cmc + duplicate of getAdditionalSacrificeCmc + metadata snapshot). 1045 → 1051 passing.
+
+Preset scenarios aggiunti:
+
+- "Additional cost — Sacrifice ({B} instant, sac creature for B mana = CMC)".
+- "Layer 4 type-add — Animate Artifact + Mana Vault".
+
+Bug fix collaterale: `StaticEffectContext.getCmc` initially excluded numeric X — corretto al pattern del codebase (X numerico = generic cost, X string = variable cost).
+
+`bun run check:all` + `bun run test` verdi.
+
+### Wave 11 — gap V parziale: CMC lookup + cmcFilter framework — DONE (2026-05-12)
+
+Plan listava 3 carte gap V: animateArtifact, sacrifice, spellBlast. Reality check:
+
+- `animateArtifact` ({3}{U} Aura): richiede layer 4 type-add (gap O — non chiuso). Deferred.
+- `sacrifice` ({B} Instant): "additional cost: sacrifice a creature" + add B mana = creature CMC. Richiede framework "additional cost" CR 117.9 / 601.2f (pick creature al cast time, validate ≥1 available, pay before stack push). Non esiste oggi. Deferred per scope (alternativa "pick a resolve" è semanticamente sbagliata vs CR — niente fizzle se nessun bersaglio).
+- `spellBlast` ({X}{U} Instant): contained — sblocca via `cmcFilter`.
+
+Wave 11 scope contained: solo spellBlast + framework cmc.
+
+**Framework**:
+
+- Nuovo metodo `SpellContext.getCmc(target: TargetSelection): number` in `convex/gre/state.ts`. Per permanent target restituisce printed CMC (X = 0 per X-cost permanents — limitazione documentata: chosen X non persisted su CardInstanceState dopo finalize). Per spell target sulla stack folda chosenX. Per player / graveyard-card / unknown → 0.
+- Nuovo opt `cmcFilter` su `TargetRequirement` (`convex/cards/types.ts`): `{ min?, max?, equals?: number | "X" }`. "X" risolve all'announcement contro chosenX. Documentato uso per spellBlast.
+- Nuovo opt `cmcFilter` su `PendingTarget` (`gre/state.ts`) con bound numerici (post-resoluzione).
+- Helper esportati in `convex/gre/rules.ts`:
+    - `resolveCmcFilter(filter, chosenX)`: risolve placeholders "X" → numeric.
+    - `matchesCmcFilter(filter, cmc)`: testa numeric cmc contro bounds.
+- `getLegalTargets` accetta nuovo param opzionale `chosenX` per filtrare a tempo di announce.
+- selectTarget mutation: validazione cmcFilter su permanent (target.subtypeFilter site) e su spell branch.
+- announceCast + activateAbility (target-req path): propagano resolveCmcFilter(cmcFilter, chosenX) verso PendingTarget.
+
+**Carta**:
+
+- `spellBlast` ({X}{U} Instant): `targetRequirement: { type: "spell", count: 1, cmcFilter: { equals: "X" } }`. Resolve: counter target spell se ancora sulla stack.
+
+Test aggiunti: 3 (counter target di cmc=X = 1, counter Braingeyser con chosenX=4 via Spell Blast X=6, metadata snapshot cmcFilter shape). 1042 → 1045 passing.
+
+Preset scenario: "CMC-target — Spell Blast (counter spell with cmc = X)" con Spell Blast + Bolt + Braingeyser in mano + 8 Island + 2 Mountain per esercitare valid X=1 e cross-validation con Braingeyser variabile.
+
+Limitazioni documentate:
+
+- X-cost permanents su battlefield non persistono chosenX → CMC reads printed (X = 0). Affligge solo cards modello sacrifice creature for value (non in scope LEA attuale).
+- `sacrifice` deferred fino ad additional-cost framework.
+- `animateArtifact` deferred fino a gap O (layer 4 type-add).
+
+`bun run check:all` + `bun run test` verdi.
+
+### Wave 10 — gap N residuo: blessing + instillEnergy + activation-timing framework — DONE (2026-05-12)
+
+Gap N framework (StaticActivatedGrant + grantTemplates) già esisteva e usato da wildGrowth + zombieMaster. Residue carte LEA:
+
+- `blessing` ({W}{W} Aura on Creature) — pattern activated-on-aura: `{W}: host +1/+1 EOT`. Niente nuovo framework. Riusa addTemporaryPTBuff. Mirror di holyArmor's pump.
+- `instillEnergy` ({G} Aura on Creature) — pseudo-haste (keyword-grant "haste" via aura su host) + `{0}: untap host` con due restrizioni novel: "activate only during your turn" + "only once each turn". Implementazione richiede nuovo activation-timing framework.
+
+**Activation-timing framework (CR 602.5b)**:
+
+- Nuovi opt flag su `ActivatedAbility`:
+    - `controllerTurnOnly?: boolean` — activate solo se `state.activePlayerId === card.controllerId`.
+    - `oncePerTurn?: boolean` — limit 1 activation per turn per source instance.
+- Nuovo tracking su `CardInstanceState`: `activationsThisTurn?: Record<abilityId, number>`. Incremento ad ogni activation commit. Reset al turn-start (in `startNextTurn` phases.ts).
+- Helpers in `game.ts`: `assertActivationTimingLegal(state, card, ability)` (lancia se viola) + `recordActivation(card, abilityId)` (incrementa counter).
+- Wired in 3 commit path: `activateAbility` mutation con target + senza target, `tryAutoCommitPendingActivation` (deferred mana payment), `finalizeTargetSelection` ability branch.
+- Validation chiamata in 2 entry point: prima del cost lock in `finalizeTargetSelection` ability branch e in `activateAbility` no-target path.
+- Serialize: `activationsThisTurn` persisted su compactCard/expandCard.
+
+Test aggiunti: 4 (1 blessing pump host P/T effective + 2 instillEnergy haste-keyword propagation + activated-untap + 1 metadata snapshot su controllerTurnOnly+oncePerTurn). 1038 → 1042 passing.
+
+Preset scenario: "Activation timing (CR 602.5) — Instill Energy + Blessing" con grizzlyBears + entrambe le aure in hand + 2 Forest + 2 Plains per esercitare il pump multi-attivazione (Blessing infinito) e l'untap once-per-turn restricted (Instill Energy bloccato dopo 1 attivazione e durante opp turn).
+
+Limitazione documentata: pseudo-haste di Instill Energy modellato come keyword `haste` puro (granted via static-keyword-grant). Differenza vs printed: pseudo-haste vero permette solo attacking (non activated abilities con tap cost). Per il modello binary di summoning-sickness dell'engine, accettabile.
+
+`bun run check:all` + `bun run test` verdi.
+
+### Wave 9 — gap G: modal spell framework (CR 700.2) + 3 carte — DONE (2026-05-11)
+
+Framework modal a livello CardDefinition: nuovo campo `modes?: SpellMode[]`. Ogni `SpellMode` ha `id`, `label`, `oracleText`, `targetRequirement?`, `resolve`. La caster sceglie esattamente un mode all'announcement (CR 700.2c). Mode locked-in via nuovo `chosenModeId` su `PendingCast`, `PendingTarget` e `StackItem` (propagato through l'intero flow announce → target → pay → stack).
+
+Engine changes:
+
+- `announceCast` mutation accetta `chosenModeId?: string`. Valida che sia richiesto iff `card.modes` è set (CR 700.2c). Lookup del mode, fallback alla `targetRequirement` del mode (CR 700.2d). Propagato nelle pendingTarget / pendingCast / stack item.
+- `finalizeTargetSelection` propaga `chosenModeId` ricevuto da pendingTarget verso pendingCast / stack item.
+- `commitPendingCast` (mana pool sufficient) propaga `chosenModeId` su stack item finale.
+- `resolveTopOfStackInner`: branch dedicato per spell modal — dispatch su `cardDef.modes.find(m => m.id === top.chosenModeId)?.resolve(ctx)` invece di `resolveFn`. Fallback al path non-modal se chosenModeId mancante.
+
+UI: nuovo componente `src/components/cards/mode-picker.tsx` (popover dropdown in stile ManaChoicePicker). In `selectable-card.tsx` `onCastClick`, dopo `chosenX` prompt, se `def.modes` set apre il picker; la selezione chiude il picker e chiama `commitAnnounceCast` con `chosenModeId`. Cancel dismissa il picker senza announcement.
+
+Carte uncomment:
+
+- `healingSalve` ({W} Instant): mode "gain-life" → target player +3 life; mode "prevent" → `preventNextNDamageToTarget(target, 3, end-of-turn)` (gap K primitive).
+- `blueElementalBlast` ({U} Instant): mode "counter" → counter target red spell (colorFilter R); mode "destroy" → destroy target red permanent.
+- `redElementalBlast` ({R} Instant): mirror di BEB su blue. Estratto helper `makeElementalBlast({id, name, oracleColor, castColor, targetColor})` che builda entrambi i mode + cost dal pattern condiviso.
+
+Test aggiunti: 5 (2 healingSalve full path: gain-life + prevent shield absorb; 1 BEB counter; 1 REB destroy; 1 metadata snapshot su modes shape). 1033 → 1038 passing.
+
+Preset scenario aggiunto: "Modal spells (CR 700.2) — Healing Salve / Blue & Red Elemental Blast" con tutte 3 in mano + Bolt + Shivan Dragon / Merfolk in opp battlefield + 6 mixed land per esercitare ogni mode.
+
+`bun run check:all` + `bun run test` verdi.
+
+### Wave 8 — gap I rinominato: flat-upkeep pay-or-else pattern — DONE (2026-05-11)
+
+Gap I del plan originale era etichettato "cumulative upkeep" ma le carte LEA hanno il pattern flat: "at the beginning of your upkeep, do X unless you pay Y" (no age counter, costo costante). Cumulative upkeep (CR 702.23) è meccanica di Ice Age, post-LEA.
+
+Helper estratto `makeUpkeepPayOrElse({ id, oracleText, cost, prompt, onDecline })` in `lea.ts` — restituisce un `TriggeredAbility` PHASE_BEGIN UPKEEP keyed sul controller, esegue requestMayPay e su decline chiama `onDecline(ctx)`. Riusabile da future carte con stesso pattern (post-LEA cards che NON sono cumulative upkeep).
+
+Carte uncomment:
+
+- `phantasmalForces` ({3}{U} 4/1 Illusion flying) — onDecline = `ctx.sacrifice(self)`.
+- `forceOfNature` ({2}{G}{G}{G}{G} 8/8 Elemental trample) — onDecline = `ctx.dealDamage({type:"player", id:controller}, 8)`.
+- `wanderlust` ({1}{G}{G} Aura) — non usa helper (no upkeep cost, solo trigger upkeep → 1 dmg al controller dell'host). Pattern condiviso con farmstead (aura upkeep trigger keyed sul controller dell'host).
+
+Estensione `PendingChoice.zoneOwnerId?: string` (gre/state.ts) + `requestChoice.zoneOwnerId?` (cards/types.ts) per choice cross-player (chooser != zone owner). Default: zone owner = chooser. `selectResolutionChoice` mutation usa `zoneOwnerId ?? args.playerId` per lookup nella zone. UI routing in `player-battlefield.tsx`: la battlefield del display player riceve i click se `viewer == activeChoice.playerId && (activeChoice.zoneOwnerId ?? activeChoice.playerId) == player.id`. Nuovo invariante: il `playerId` della PendingChoice è SEMPRE chi clicca; `zoneOwnerId` è chi possiede gli items.
+
+`demonicHordes` ({3}{B}{B} 5/5 Demon) implementata sfruttando il framework cross-player:
+
+- Activated `{T}: destroy target land`.
+- Upkeep trigger: requestMayPay({B}{B}{B}) sul controller; decline → `tap(self)` + requestChoice con `playerId: opp`, `zoneOwnerId: controller`, `kind: "sacrifice-permanents"`, `filter: { types: "Land" }`, `count: 1`. Pick → `ctx.sacrifice(id)`.
+
+Test aggiunti: 10 (2 phantasmalForces + 3 forceOfNature including trample assertion + 2 wanderlust including non-trigger su opp upkeep + 3 demonicHordes: opp prompt enqueued, opp pick → controller's swamp sacrificed, activated destroy-land). 1023 → 1033 passing.
+
+Preset scenarios aggiunti:
+
+- "Upkeep pay-or-else — Phantasmal Forces / Force of Nature / Wanderlust (CR 603.6a, 117.3a)".
+- "Cross-player choice — Demonic Hordes (opp picks your land to sacrifice)" per esercitare il cross-player choice routing UI in solo mode.
+
+`bun run check:all` + `bun run test` verdi.
+
+### Wave 7 — full gap U (replacement effect framework + 7 carte) — DONE (2026-05-11)
+
+Framework CR 614 / 616 implementato in `convex/gre/replacements.ts`. Apply order ad ogni site di damage / life-change / discard / lose-game:
+
+1. CR 614 replacement loop (questo modulo) — può rewriteare target/amount o cancellare.
+2. CR 615 prevention (preventionEffects / targetPreventionShields esistenti).
+3. CR 702.16 protection.
+4. Application del payload finale.
+
+Loop bound: 64 iterazioni, CR 616.1d (`(sourceInstanceId|effectId)` once-per-event), APNAP order deterministico.
+
+Tipi di replacement (in `convex/cards/types.ts`):
+
+- `ReplacementEventKind` = `"damage" | "lifegain" | "lifeloss" | "discard" | "lose-game"`
+- `DamageReplacementEvent`, `LifeChangeReplacementEvent`, `DiscardReplacementEvent`, `LoseGameReplacementEvent`
+- `ReplacementEffect` (declarable su `CardDefinition.replacementEffects[]`)
+- `ReplacementApplyContext` con mutators: `drawCards`, `autoSacrifice`, `moveHandCardToLibraryTop`, `adjustLifeRaw`, `apNapOrder`, `revealHandCard`
+
+Transient one-shot shields per spell / activated abilities (`state.damageRedirections`), tre kind:
+
+- `prevent-from-source-gain-life` — Reverse Damage
+- `to-self-redirect-to-owner` — (riservato per modern Personal Incarnation activated, non usato dalla versione LEA continuous)
+- `from-source-to-permanent-redirect-to-player` — Jade Monolith (sourceInstanceId opzionale = wildcard)
+
+Hook points:
+
+- `SpellContext.dealDamage` + `applyOneCombatDamage` in `phases.ts` → `runDamageReplacement(state, source, src-controller, target, amount, isCombat)` (continuous + transient).
+- `SpellContext.gainLife` / `loseLife` → `applyLifeChangeReplacements`.
+- `SpellContext.discardCard` / `discardAtRandom` → `applyDiscardReplacements`.
+- `checkGameOverSBA` → `applyLoseGameReplacements` per "life-zero" reason.
+
+Eventi nuovi:
+
+- `PERMANENT_ENTERED` (CR 603.6) emesso da `finalizeSpellResolution` + `putReanimatedOnBattlefield`. Mirroring di `PERMANENT_LEFT`. Trigger via collectTriggers standard.
+- `PermanentLeftEvent.ownerId` aggiunto (snapshot owner per LTB-trigger come Personal Incarnation).
+
+Tracking nuovo:
+
+- `state.damageDealtToPlayerThisTurn?: Record<playerId, number>` — incrementato dopo ogni damage che arriva al player. Read da Simulacrum. Reset turn start.
+
+Nuovi SpellContext primitives:
+
+- `addDamageRedirectionShield(shield)` — push shield in `state.damageRedirections`. Tre kind discriminator.
+- `loseGame(playerId)` — forza state.gameOver bypassando lose-game replacement (per Lich LTB-trigger).
+- `getDamageDealtThisTurn(playerId)` — read del tally.
+- `returnToBattlefield` già esistente da Wave 6.
+
+Carte uncomment:
+
+- `personalIncarnation` ({4}{W}{W}{W} 6/6) — replacementEffect damage redirect to self quando target.id === self.ownerId. + dies-trigger PERMANENT_LEFT toZone=graveyard → owner loses ceil(life/2).
+- `veteranBodyguard` ({3}{W}{W} 2/4) — replacementEffect damage redirect gated su self.isTapped===false + source must be unblocked-attacking-creature (lookup `ReplacementStateView.combat`).
+- `lich` ({2}{B}{B} Enchantment) — ETB trigger (lose life equal to current via PERMANENT_ENTERED), damage trigger (sacrifice N nontoken or loseGame), LTB trigger (loseGame), replacementEffects: lose-game don't-lose + lifegain → drawCards.
+- `simulacrum` ({X}{B} Instant) — read getDamageDealtThisTurn(caster), gain life + deal damage to target creature.
+- `reverseDamage` ({2}{W} Instant) — push prevent-from-source-gain-life shield, caster, EOT.
+- `jadeMonolith` ({4} Artifact, {1} activated) — target creature, push from-source-to-permanent-redirect-to-player shield, sourceInstanceId undefined (any source), remaining 1, EOT, redirectToPlayer = controller.
+- `libraryOfLeng` ({1} Artifact) — replacementEffect discard kind, auto-accept "may" e move to library top via moveHandCardToLibraryTop.
+
+Limitazioni risolte (commit follow-up post-Wave 7):
+
+- **Simulacrum target controller filter** → fix: estesa `controller: "you" | "opponent"` filter su battlefield targets in `getLegalTargets` (rules.ts). Carta ora ha `targetRequirement.controller: "you"`.
+- **Reverse Damage stack-item source** → fix: `targetRequirement.type: ["any", "spell"]` accetta sia permanenti sia stack items come source.
+- **Lich sacrifice choice player-driven** → fix: la damage-trigger resolve usa `requestChoice` con `kind: "keep-permanents"` (filter `isToken: false, excludeInstanceIds: [self]`). Player sceglie quali permanenti tenere; il resto viene sacrificato. Estensione `PermanentFilter` con `isToken` + `excludeInstanceIds`.
+- **Library of Leng "may"** → fix: opt-out via `state.playerPreferences[playerId].libraryOfLengRouting: "graveyard"`. Default routes alla libreria (Library of Leng accetta); il player può togglare lo stato direttamente o tramite futura UI mutation. Preservato per replay.
+- **Jade Monolith multi-target** → fix: activated ability target la creatura, poi durante resolve `requestChoice` chiede al player quale source bindare nella shield. Source id baked in shield (`sourceInstanceId` ora richiesto, non wildcard).
+
+Limitazioni residue: nessuna. Tutte le UX semantic-mismatch risolte nel refactor pending-choice kinds.
+
+### Refactor pending-choice taxonomy (post-Wave 7, 2026-05-11)
+
+Problema: `PendingChoice["kind"]` union cresceva ad ogni nuovo card semantic + UI ternary chain fragile. Ogni nuova carta che chiede una scelta forzava un'aggiunta in due posti (state.ts + UI label match).
+
+Refactor:
+
+- Taxonomy di famiglie in `convex/gre/types.ts`: `ZonePickKind` (zone-pick: `keep-permanents`, `sacrifice-permanents`, `keep-hand`, `search-library`, `pick-source`), `YesNoChoiceKind` (`may-pay`), `OrderChoiceKind` (`mulligan-bottom`), `PendingChoiceKind` union. Lives in `gre/types.ts` per evitare cycle con `cards/types.ts`.
+- `PendingChoice.kind: PendingChoiceKind` (state.ts) e `SpellContext.requestChoice.kind: ZonePickKind` (cards/types.ts) condividono la stessa source-of-truth.
+- Nuovo kind `sacrifice-permanents` rimpiazza il pattern "keep N inverso" di Lich (count diretto = N da sacrificare, no inversione mentale).
+- Nuovo kind `pick-source` rimpiazza il "keep-permanents" forzato di Jade Monolith.
+- Registry UI labels esaustiva in `src/lib/pending-choice-labels.ts`: `Record<PendingChoiceKind, string>` — TS catch errore di compilazione se manca una label. Replace della catena ternary 6-deep in `pending-choice-prompt.tsx` con un singolo lookup.
+
+Estensioni future: aggiungere un nuovo kind a una famiglia esistente = 1 entry nella union + 1 entry nella label registry. Nuova famiglia = nuova mutation submission path + nuovo branch in `assertNoPendingChoices` (raro).
+
+Test aggiunti totale Wave 7: 17 nuovi (12 originali + 2 path-update Lich choice + 1 Jade Monolith kind assertion + 2 new Lich/LibraryOfLeng dopo limit-fix). 1006 → 1023 passing.
+
+`bun run check:all` + `bun run test` verdi.
+
+### Wave 6 — gap H parziale (reanimation graveyard → battlefield) — DONE (2026-05-11)
+
+Nuova primitiva `SpellContext.returnToBattlefield(playerId, cardInstanceId, fromZone)` per riportare una carta da graveyard o exile al battlefield del player indicato. Mirrors la branch "non-Aura permanent" di `finalizeSpellResolution`:
+
+- Splicia la carta da `playerId.graveyard` o `playerId.exile`.
+- `resetBattlefieldTransientState` per pulire residui (tap, danno, granted abilities, controlChanges, counters, temporaryPTMods).
+- Setta `zone=battlefield`, `controllerId=playerId`, `isSummoningSick=true` se Creature (CR 302.1).
+- `applyExistingGrantsTo` per pickup di lord-grants già in play (Goblin King-style).
+- `applySourceStaticEffects` per push-out dei propri keyword-grant.
+- Helper interno `putReanimatedOnBattlefield` riusato anche dalla branch aura (vedi sotto).
+
+Estensione `finalizeSpellResolution` per aure che targettano graveyard-card (CR 303.4i): se `target.type === "graveyard-card"`, la creature viene reanimata sotto `castById` via `putReanimatedOnBattlefield`, poi l'aura si attacca normalmente. Fallback fizzle se la carta non è più nella graveyard dichiarata al momento del cast (CR 608.2b).
+
+Nuovo evento `PERMANENT_LEFT` emesso da `removePermanentTo` per ogni leave path (destroy, exile, sacrifice, return-to-hand, ecc.). Payload con last-known-info (CR 603.10): `instanceId`, `controllerId`, `cardId`, `types`, `wasAura`, `attachedToBeforeLeave`, `toZone`. `collectTriggers` esteso con `recentlyLeft` map (`instanceId → toZone`) che scansiona la zona di destinazione per ritrovare il source che ha appena lasciato, mirroring del pattern `recentlyDead`/CREATURE_DIED.
+
+Carte uncomment:
+
+- `resurrection` ({2}{W} sorcery, target creature card in your graveyard, `returnToBattlefield`).
+- `animateDead` ({1}{B} aura, target creature card in any graveyard, `staticEffect` pt-buff -1/0 via `AURA_AFFECTS_HOST`, triggeredAbility on `PERMANENT_LEFT` self → `ctx.sacrifice(event.attachedToBeforeLeave)` per il LTB-trigger "controller sacrifices it" (CR 603.10).
+
+Test aggiunti: 9 nuovi (4 resurrection + 5 animateDead) in `lea.test.ts`. 997 → 1006 passing. 1 nuovo preset scenario "Reanimation — Resurrection / Animate Dead" con Sengir Vampire in my graveyard + Shivan Dragon in opp graveyard come target dimostrativi.
+
+Wire format test mandatory per animateDead pt-buff: `getEffectivePower(projected, slimRevived).toBe(1)` su `grizzlyBears` reanimato (2-1=1) post `projectPublicState`. Verde.
+
+Decisione di scope: gap U (replacement effect framework completo) **non incluso** in Wave 6. Il LTB-trigger di animateDead è modellato come triggeredAbility normale (CR 603) — è quello che il moderno Oracle text fa. Gap U separato copre: simulacrum, reverseDamage, lich, jadeMonolith, libraryOfLeng, personalIncarnation, veteranBodyguard (7 carte) — tutte richiedono il replacement layer (CR 614) vero.
 
 ### Wave 5 — gap J (skip/restrict untap step) — DONE (2026-05-11)
 
@@ -117,9 +402,9 @@ Test aggiunti: 4 describe in `combat.test.ts` (validator-level) + 4 describe in 
 
 ### Stato gap residui
 
-Ancora aperti (senza ordine): O (type/text-changing — layer 4/5), H+U (replacement framework + reanimation), G (modal spell), R (counter-spell varianti — partial), N (grant activated to permanent), P (banding), AE (look at hand/library), AF (discard chosen), S (forced attack/block), V (CMC lookup), W (copy permanent), X (cost modifier), AC (trigger choice), AD (multi-blocker), AG (skip turn — sblocca timeVault), AH (activation phase + state), AI (activation count), AJ (mana output by land type), AK (cost-aware mana), AL (pt-buff state lookup), AM (mass damage prevention), AN (aura on land/artifact custom), AP (mandatory sacrifice), I (cumulative upkeep), AB (control-mind / forced ability).
+Ancora aperti (senza ordine): O parziale (type/text-changing — layer 4 type-add chiuso via `StaticTypeAdd`; layer 5 subtype-change + layer 3 text-change ancora aperti per purelace cycle + magicalHack + sleightOfMind + evilPresence + phantasmalTerrain + conversion + livingLands + kormusBell), R (counter-spell varianti — partial), P (banding), AE (look at hand/library), AF (discard chosen), S (forced attack/block), W (copy permanent), X (cost modifier), AC (trigger choice), AD (multi-blocker), AG (skip turn — sblocca timeVault), AH (activation phase + state), AI (activation count tracking ≥4 → side-effect — dragonWhelp), AJ (mana output by land type), AK (cost-aware mana), AL (pt-buff state lookup), AM (mass damage prevention), AN (aura on land/artifact custom), AP (mandatory sacrifice), AB (control-mind / forced ability).
 
-Chiusi: B (P/T temporaneo), A (counter +1/+1), F (CREATURE_DIED), D (SPELL_CAST), C (tap-for-mana, partial), Q (reach), color-filter target, K (prevent-to-target), L (block restrictions), Y (token creation), J (skip/restrict untap step).
+Chiusi: B (P/T temporaneo), A (counter +1/+1), F (CREATURE_DIED), D (SPELL_CAST), C (tap-for-mana, partial), Q (reach), color-filter target, K (prevent-to-target), L (block restrictions), Y (token creation), J (skip/restrict untap step), H (reanimation graveyard → battlefield + PERMANENT_LEFT event), U (replacement effect framework — CR 614/616 + PERMANENT_ENTERED event + 7 carte), I (flat-upkeep pay-or-else 4 carte LEA inclusa demonicHordes via cross-player choice framework — `PendingChoice.zoneOwnerId`), G (modal spell CR 700.2 — `CardDefinition.modes` + chosenModeId propagation + UI mode picker, 3 carte LEA), N (StaticActivatedGrant + grantTemplates esistente già + blessing/instillEnergy + activation-timing framework — `controllerTurnOnly` + `oncePerTurn` su ActivatedAbility, `activationsThisTurn` tracking su CardInstanceState), V (CMC lookup `getCmc` + `cmcFilter` su TargetRequirement/PendingTarget + StaticEffectContext.getCmc — sblocca spellBlast + animateArtifact + sacrifice), additional-cost framework (CR 117.9 — `CardDefinition.additionalCosts` + `PendingCast.additionalCost` + `selectAdditionalCost` mutation + `StackItem.additionalSacrificeSnapshot` + UI routing in player-battlefield).
 
 ---
 

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
     ContextMenu,
     ContextMenuContent,
@@ -12,6 +13,7 @@ import { getCardById } from "@convex/cards";
 import type { CardAction, CardInstance } from "~/types/game";
 
 import CardImage from "./card-image";
+import ModePicker from "./mode-picker";
 
 type SelectableCardProps = {
     cardInstance: CardInstance;
@@ -64,6 +66,27 @@ export default function SelectableCard({
         });
     };
 
+    const [modePickerState, setModePickerState] = useState<{
+        chosenX: number | undefined;
+        keepPriority: boolean | undefined;
+        position: { x: number; y: number };
+    } | null>(null);
+
+    function commitAnnounceCast(args: {
+        chosenX: number | undefined;
+        keepPriority: boolean | undefined;
+        chosenModeId: string | undefined;
+    }) {
+        announceCast({
+            gameId,
+            playerId,
+            cardInstanceId: cardInstance.id,
+            keepPriority: args.keepPriority,
+            chosenX: args.chosenX,
+            chosenModeId: args.chosenModeId,
+        });
+    }
+
     const onCastClick = (e: React.MouseEvent) => {
         const keepPriority = e.ctrlKey || e.metaKey || undefined;
         // CR 107.3 / 601.2b: if the spell has X in its mana cost, the caster
@@ -79,12 +102,28 @@ export default function SelectableCard({
             if (!Number.isFinite(parsed) || parsed < 0) return;
             chosenX = parsed;
         }
-        announceCast({
-            gameId,
-            playerId,
-            cardInstanceId: cardInstance.id,
-            keepPriority,
+        // CR 700.2 — modal spell: pick a mode before announcement.
+        if (def.modes && def.modes.length > 0) {
+            // Anchor on currentTarget (the handler-bound element) — more
+            // stable than `e.target` which may be a nested child. Falls
+            // back to the click coords if the rect is degenerate.
+            const anchor = e.currentTarget as HTMLElement | null;
+            const rect = anchor?.getBoundingClientRect();
+            const position =
+                rect && rect.width > 0 && rect.height > 0
+                    ? { x: rect.right + 8, y: rect.top }
+                    : { x: e.clientX + 8, y: e.clientY + 8 };
+            setModePickerState({
+                chosenX,
+                keepPriority,
+                position,
+            });
+            return;
+        }
+        commitAnnounceCast({
             chosenX,
+            keepPriority,
+            chosenModeId: undefined,
         });
     };
 
@@ -103,6 +142,25 @@ export default function SelectableCard({
         !pendingTarget &&
         !activeChoice;
 
+    const def = getCardById(cardInstance.card.id);
+    const modePickerOverlay =
+        modePickerState && def.modes ? (
+            <ModePicker
+                modes={def.modes}
+                position={modePickerState.position}
+                onSelect={(modeId) => {
+                    const { chosenX, keepPriority } = modePickerState;
+                    setModePickerState(null);
+                    commitAnnounceCast({
+                        chosenX,
+                        keepPriority,
+                        chosenModeId: modeId,
+                    });
+                }}
+                onCancel={() => setModePickerState(null)}
+            />
+        ) : null;
+
     if (isHandChoice) {
         const ringClass = isChoiceSelected
             ? "ring-2 ring-emerald-400"
@@ -118,7 +176,12 @@ export default function SelectableCard({
     }
 
     if (!hasActions) {
-        return <CardImage card={cardInstance} />;
+        return (
+            <>
+                <CardImage card={cardInstance} />
+                {modePickerOverlay}
+            </>
+        );
     }
 
     const actionEntries: {
@@ -160,25 +223,31 @@ export default function SelectableCard({
     if (actionEntries.length === 1) {
         const { handler } = actionEntries[0];
         return (
-            <div className="cursor-pointer" onClick={handler}>
-                <CardImage card={cardInstance} />
-            </div>
+            <>
+                <div className="cursor-pointer" onClick={handler}>
+                    <CardImage card={cardInstance} />
+                </div>
+                {modePickerOverlay}
+            </>
         );
     }
 
     return (
-        <ContextMenu>
-            <ContextMenuTrigger className="flex items-center justify-center rounded-md border border-dashed text-sm">
-                <CardImage card={cardInstance} />
-            </ContextMenuTrigger>
+        <>
+            <ContextMenu>
+                <ContextMenuTrigger className="flex items-center justify-center rounded-md border border-dashed text-sm">
+                    <CardImage card={cardInstance} />
+                </ContextMenuTrigger>
 
-            <ContextMenuContent className="w-fit">
-                {actionEntries.map(({ action, label, handler }) => (
-                    <ContextMenuItem key={action} inset onClick={handler}>
-                        {label}
-                    </ContextMenuItem>
-                ))}
-            </ContextMenuContent>
-        </ContextMenu>
+                <ContextMenuContent className="w-fit">
+                    {actionEntries.map(({ action, label, handler }) => (
+                        <ContextMenuItem key={action} inset onClick={handler}>
+                            {label}
+                        </ContextMenuItem>
+                    ))}
+                </ContextMenuContent>
+            </ContextMenu>
+            {modePickerOverlay}
+        </>
     );
 }

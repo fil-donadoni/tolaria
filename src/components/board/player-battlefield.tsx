@@ -24,7 +24,6 @@ import {
 import { COMBAT_GROUP_RING, COMBAT_GROUP_BG } from "~/lib/combat-colors";
 import BattlefieldCard, { type CardVisualState } from "./battlefield-card";
 import DamageAssignmentPanel from "./damage-assignment-panel";
-import BlockerOrderPanel from "./blocker-order-panel";
 import ManaChoicePicker from "./mana-choice-picker";
 import ValidationToast from "./validation-toast";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
@@ -64,6 +63,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     const assignBlockerTarget = useMutation(api.game.assignBlockerTarget);
     const selectTarget = useMutation(api.game.selectTarget);
     const selectResolutionChoice = useMutation(api.game.selectResolutionChoice);
+    const selectAdditionalCost = useMutation(api.game.selectAdditionalCost);
     const activateAbility = useMutation(api.game.activateAbility);
 
     // Mana choice picker state. `inPayment` routes the selection to
@@ -100,16 +100,32 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         pendingTarget.playerId === playerId &&
         wantsPermanentTarget(pendingTarget.targetType);
 
-    // Mid-resolution choice targeting a battlefield zone (CR 608.2). Only the
-    // chooser's own battlefield receives click routing; the opponent's board
-    // stays inert even for the chooser's own cards on their opponent's side
-    // (Balance never picks from the opponent).
+    // Mid-resolution choice targeting a battlefield zone (CR 608.2). The
+    // chooser (viewer == activeChoice.playerId) clicks on the battlefield
+    // belonging to `zoneOwnerId ?? activeChoice.playerId`. Default behavior
+    // — the chooser picks from their own battlefield — keeps `zoneOwnerId`
+    // unset. Cross-player picks (e.g. Demonic Hordes: opponent picks one of
+    // controller's lands) set `zoneOwnerId` to the zone owner.
     const activeChoice = pendingChoices?.[0];
+    const isViewerChoosing =
+        !!activeChoice && activeChoice.playerId === playerId;
+    const choiceZoneOwnerId = activeChoice
+        ? (activeChoice.zoneOwnerId ?? activeChoice.playerId)
+        : undefined;
     const isSelectingChoice =
+        isViewerChoosing &&
+        choiceZoneOwnerId === player.id &&
+        activeChoice!.zone === "battlefield";
+
+    // Additional-cost picker (CR 117.9 / 601.2f). Active when this player's
+    // pendingCast is waiting for them to pick a permanent on their own
+    // battlefield. Routes clicks to selectAdditionalCost.
+    const isPickingAdditionalCost =
         isMe &&
-        !!activeChoice &&
-        activeChoice.playerId === playerId &&
-        activeChoice.zone === "battlefield";
+        !!pendingCast &&
+        pendingCast.playerId === playerId &&
+        !!pendingCast.additionalCost &&
+        !pendingCast.additionalCost.pickedId;
 
     const isSelectingAttackers =
         phase === "DECLARE_ATTACKERS" &&
@@ -132,14 +148,6 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         !combat.blockersConfirmed &&
         !!combat.pendingBlockerId &&
         playerId !== activePlayerId;
-
-    const isOrderingBlockers =
-        phase === "DECLARE_BLOCKERS" &&
-        !!combat &&
-        combat.blockersConfirmed &&
-        combat.blockerOrderConfirmed === false &&
-        isMe &&
-        playerId === activePlayerId;
 
     const isAssigningDamage =
         (phase === "COMBAT_DAMAGE" || phase === "FIRST_STRIKE_DAMAGE") &&
@@ -214,6 +222,15 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             return (
                 !activeChoice.filter ||
                 matchesPermanentFilter(card, activeChoice.filter)
+            );
+        }
+
+        // CR 117.9 / 601.2f additional-cost picker: only the caster's own
+        // permanents matching the filter are interactive.
+        if (isPickingAdditionalCost && pendingCast?.additionalCost) {
+            return matchesPermanentFilter(
+                card,
+                pendingCast.additionalCost.filter
             );
         }
 
@@ -436,6 +453,17 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             return;
         }
 
+        if (isPickingAdditionalCost) {
+            guardMutation(
+                selectAdditionalCost({
+                    gameId,
+                    playerId,
+                    cardInstanceId: card.id,
+                })
+            );
+            return;
+        }
+
         if (
             isSelectingTarget &&
             pendingTarget &&
@@ -546,7 +574,18 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     function handleClickWithEvent(card: CardInstance, e: React.MouseEvent) {
         // During mid-resolution choice or target selection, the click is a
         // pick — skip mana-ability pickers and route straight to handleClick.
-        if (isSelectingChoice || isSelectingTarget) {
+        // Same for combat sub-states where the click is a declaration
+        // (CR 508.1 / 509.1): otherwise a multi-color mana source like Birds
+        // of Paradise would open its color picker instead of being declared
+        // as a blocker.
+        if (
+            isSelectingChoice ||
+            isSelectingTarget ||
+            isSelectingAttackers ||
+            isSelectingBlockers ||
+            isBlockerTarget ||
+            isAssigningDamage
+        ) {
             handleClick(card);
             return;
         }
@@ -575,13 +614,21 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         ) {
             return [];
         }
-        // UX: while this player is the one picking attackers/blockers, the
-        // context menu would compete with the declaration click target.
-        // Suppress it for the declarer only — the other player can still
-        // respond with their own abilities.
-        const isActivePlayer = playerId === activePlayerId;
-        if (phase === "DECLARE_ATTACKERS" && isActivePlayer) return [];
-        if (phase === "DECLARE_BLOCKERS" && !isActivePlayer) return [];
+        // CR 508.1 / 509.1 — declaring attackers and declaring blockers are
+        // turn-based actions: no player has priority while they're in
+        // progress, so no activated ability (including mana abilities) can
+        // be used. Priority opens only after the choice is locked in
+        // (CR 508.2 / 509.2).
+        if (phase === "DECLARE_ATTACKERS" && combat && !combat.confirmed) {
+            return [];
+        }
+        if (
+            phase === "DECLARE_BLOCKERS" &&
+            combat &&
+            !combat.blockersConfirmed
+        ) {
+            return [];
+        }
         const stack = getStackAbilities(card, phase);
         // When a card carries BOTH a mana ability and at least one stack
         // ability (Basalt Monolith, Mana Vault), surface the mana ability as
@@ -834,15 +881,6 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 </div>
             </div>
 
-            {isOrderingBlockers && (
-                <BlockerOrderPanel
-                    combat={combat!}
-                    opponentBattlefield={opponent?.battlefield ?? []}
-                    combatGroupColors={combatGroupColors}
-                    gameId={gameId}
-                    playerId={playerId}
-                />
-            )}
             {isAssigningDamage && (
                 <DamageAssignmentPanel
                     combat={combat!}

@@ -9,6 +9,24 @@ const NICKNAME_MIN = 1;
 const NICKNAME_MAX = 32;
 const PASSWORD_MIN = 8;
 
+function friendlyAuthError(err: unknown, flow: Flow): string {
+    const raw = err instanceof Error ? err.message : "";
+    if (/InvalidAccountId/i.test(raw)) {
+        return flow === "signIn"
+            ? "Invalid email or password"
+            : "Could not create account";
+    }
+    if (/InvalidSecret|InvalidPassword/i.test(raw)) {
+        return "Invalid email or password";
+    }
+    if (/AccountAlreadyExists|already exists/i.test(raw)) {
+        return "An account with this email already exists";
+    }
+    return flow === "signIn"
+        ? "Sign-in failed. Check your credentials and try again."
+        : "Sign-up failed. Please try again.";
+}
+
 export function AuthForm() {
     const { signIn } = useAuthActions();
     const [flow, setFlow] = useState<Flow>("signIn");
@@ -56,9 +74,7 @@ export function AuthForm() {
             }
             await signIn("password", params);
         } catch (err) {
-            const message =
-                err instanceof Error ? err.message : "Authentication failed";
-            setError(message);
+            setError(friendlyAuthError(err, flow));
         } finally {
             setSubmitting(false);
         }

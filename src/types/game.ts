@@ -26,6 +26,9 @@ export interface Player {
     exile: CardInstance[];
     battlefield: CardInstance[];
     manaPool: ManaPool;
+    /** Number of turns this player has taken so far (CR 500.1). Extra turns
+     *  (CR 500.7) increment this normally. */
+    turnsTaken?: number;
     /** Abilities granted to this player by an effect (e.g. Channel). */
     grantedAbilities?: GrantedAbility[];
 }
@@ -102,8 +105,6 @@ export interface Combat {
     blockerAssignments: Record<string, string>;
     pendingBlockerId?: string;
     blockersConfirmed: boolean;
-    blockerOrder?: Record<string, string[]>;
-    blockerOrderConfirmed?: boolean;
     damageAssignments?: Record<string, Record<string, number>>;
     damageConfirmed?: boolean;
 }

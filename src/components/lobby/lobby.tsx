@@ -3,7 +3,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { AccountMenu } from "~/components/auth/account-menu";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { useUserDecks, useUserDeckMutations } from "~/hooks/useUserDecks";
@@ -18,6 +17,8 @@ import {
     storeDeckPresetId,
     storeSession,
 } from "~/lib/session";
+import DashboardTopBar from "./dashboard-top-bar";
+import DashboardPlayBox from "./dashboard-play-box";
 import DeckList from "./deck-list";
 
 function Lobby() {
@@ -68,8 +69,6 @@ function Lobby() {
             clearDeckPresetId();
         }
     }, [presetDecks, userDecks, storedPresetId, selectedDeck]);
-
-    const canPlay = !!selectedDeck && !!user;
 
     const handleCreate = async () => {
         if (!selectedDeck || !user) return;
@@ -168,116 +167,61 @@ function Lobby() {
         </>
     );
 
-    if (!selectedDeck) {
-        return (
-            <div className="flex min-h-screen flex-col items-center gap-6 px-6 py-12 text-white">
-                <h1 className="text-2xl font-bold">Tolaria</h1>
-                <div className="w-full max-w-xl">
-                    <AccountMenu />
-                </div>
-                <p className="text-sm text-white/60">
-                    Select a deck to continue.
-                </p>
-                <DeckList
-                    title="My Decks"
-                    decks={userLobbyDecks}
-                    selectedPresetId={storedPresetId}
-                    onFocus={handleFocusDeck}
-                    onSelect={handleSelectDeck}
-                    emptyLabel="No saved decks yet. Create one to start building."
-                    renderActions={renderUserActions}
-                    headerExtra={
-                        <button
-                            onClick={handleNewDeck}
-                            className="rounded bg-emerald-500/80 px-3 py-1.5 text-xs font-semibold text-emerald-950 hover:bg-emerald-400"
-                        >
-                            + Create New Deck
-                        </button>
-                    }
-                />
-                <DeckList
-                    title="Built-in Decks"
-                    decks={presetLobbyDecks}
-                    selectedPresetId={storedPresetId}
-                    onFocus={handleFocusDeck}
-                    onSelect={handleSelectDeck}
-                />
-            </div>
-        );
-    }
-
-    const selectedIsUserDeck = selectedDeck.kind === "user";
-
     return (
-        <div className="flex min-h-screen flex-col items-center gap-6 px-6 py-12 text-white">
-            <h1 className="text-2xl font-bold">Tolaria</h1>
-            <div className="w-full max-w-xl">
-                <AccountMenu />
-            </div>
+        <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white">
+            <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
+                <DashboardTopBar />
 
-            <div className="flex items-center gap-3 rounded border border-white/10 bg-white/5 px-4 py-2 text-sm">
-                <span className="text-white/60">Deck:</span>
-                <span className="font-semibold">{selectedDeck.name}</span>
-                {selectedIsUserDeck && (
-                    <span className="rounded bg-sky-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-300">
-                        Custom
+                <div className="flex items-baseline justify-between">
+                    <h1 className="text-3xl font-bold tracking-tight">
+                        Tolaria
+                    </h1>
+                    <span className="text-xs uppercase tracking-[0.3em] text-white/40">
+                        Dashboard
                     </span>
-                )}
-                <button
-                    onClick={() => handleFocusDeck(selectedDeck.presetId)}
-                    className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
-                >
-                    View
-                </button>
-                {selectedIsUserDeck && (
-                    <button
-                        onClick={() => handleEditDeck(selectedDeck.presetId)}
-                        className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
-                    >
-                        Edit
-                    </button>
-                )}
-                <button
-                    onClick={handleChangeDeck}
-                    className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
-                >
-                    Change Deck
-                </button>
-            </div>
-
-            <div className="flex items-center gap-3">
-                <button
-                    onClick={handleCreate}
-                    disabled={!canPlay}
-                    className="rounded bg-white/10 px-6 py-3 text-lg hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                    Create Game
-                </button>
-                <button
-                    onClick={handleCreateSolo}
-                    disabled={!canPlay}
-                    className="rounded border border-white/20 bg-transparent px-6 py-3 text-lg hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                    title="Single-user game: you control both players, the viewer follows whoever has priority."
-                >
-                    New Solo Game
-                </button>
-            </div>
-
-            {openGames && openGames.length > 0 && (
-                <div className="flex flex-col gap-2">
-                    <p className="text-sm text-white/50">Open games:</p>
-                    {openGames.map((g) => (
-                        <button
-                            key={g._id}
-                            onClick={() => handleJoin(g._id)}
-                            disabled={!canPlay}
-                            className="rounded border border-white/20 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                            {g.name} ({g.players.length}/2)
-                        </button>
-                    ))}
                 </div>
-            )}
+
+                <DashboardPlayBox
+                    selectedDeck={selectedDeck}
+                    openGames={openGames}
+                    onCreateSolo={handleCreateSolo}
+                    onCreateMultiplayer={handleCreate}
+                    onJoin={handleJoin}
+                    onChangeDeck={handleChangeDeck}
+                />
+
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    <section className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-6">
+                        <DeckList
+                            title="My Decks"
+                            decks={userLobbyDecks}
+                            selectedPresetId={storedPresetId}
+                            onFocus={handleFocusDeck}
+                            onSelect={handleSelectDeck}
+                            emptyLabel="No saved decks yet. Create one to start building."
+                            renderActions={renderUserActions}
+                            headerExtra={
+                                <button
+                                    onClick={handleNewDeck}
+                                    className="rounded bg-emerald-500/80 px-3 py-1.5 text-xs font-semibold text-emerald-950 hover:bg-emerald-400"
+                                >
+                                    + New Deck
+                                </button>
+                            }
+                        />
+                    </section>
+
+                    <section className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-6">
+                        <DeckList
+                            title="Preset Decks"
+                            decks={presetLobbyDecks}
+                            selectedPresetId={storedPresetId}
+                            onFocus={handleFocusDeck}
+                            onSelect={handleSelectDeck}
+                        />
+                    </section>
+                </div>
+            </div>
         </div>
     );
 }

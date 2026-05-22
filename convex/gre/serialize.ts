@@ -97,6 +97,15 @@ function compactCard(
     if (card.counters && Object.keys(card.counters).length > 0) {
         out.counters = card.counters;
     }
+    if (
+        card.activationsThisTurn &&
+        Object.keys(card.activationsThisTurn).length > 0
+    ) {
+        out.activationsThisTurn = card.activationsThisTurn;
+    }
+    if (card.grantedTypes && card.grantedTypes.length > 0) {
+        out.grantedTypes = card.grantedTypes;
+    }
     return out;
 }
 
@@ -181,6 +190,16 @@ function expandCard(
     if (compact.counters) {
         result.counters = compact.counters as Record<string, number>;
     }
+    if (compact.activationsThisTurn) {
+        result.activationsThisTurn = compact.activationsThisTurn as Record<
+            string,
+            number
+        >;
+    }
+    if (compact.grantedTypes) {
+        result.grantedTypes =
+            compact.grantedTypes as CardInstanceState["grantedTypes"];
+    }
     return result;
 }
 
@@ -249,6 +268,7 @@ type CompactPlayer = {
     manaPool: Record<string, number>;
     hasDrawnFromEmpty?: boolean;
     landsPlayedThisTurn?: number;
+    turnsTaken?: number;
     grantedAbilities?: PlayerState["grantedAbilities"];
 };
 
@@ -274,6 +294,7 @@ function compactPlayer(player: PlayerState): CompactPlayer {
     if (player.landsPlayedThisTurn) {
         out.landsPlayedThisTurn = player.landsPlayedThisTurn;
     }
+    if (player.turnsTaken) out.turnsTaken = player.turnsTaken;
     if (player.grantedAbilities?.length) {
         out.grantedAbilities = player.grantedAbilities;
     }
@@ -306,6 +327,9 @@ function expandPlayer(player: CompactPlayer): PlayerState {
     if (player.landsPlayedThisTurn !== undefined) {
         result.landsPlayedThisTurn = player.landsPlayedThisTurn;
     }
+    if (player.turnsTaken !== undefined) {
+        result.turnsTaken = player.turnsTaken;
+    }
     if (player.grantedAbilities) {
         result.grantedAbilities = player.grantedAbilities;
     }
@@ -318,6 +342,10 @@ function compactStackItem(item: StackItem): CompactCard {
     base.castById = item.castById;
     if (item.targets?.length) base.targets = item.targets;
     if (item.chosenX !== undefined) base.chosenX = item.chosenX;
+    if (item.chosenModeId) base.chosenModeId = item.chosenModeId;
+    if (item.additionalSacrificeSnapshot) {
+        base.additionalSacrificeSnapshot = item.additionalSacrificeSnapshot;
+    }
     if (item.abilityId) base.abilityId = item.abilityId;
     if (item.grantedSourceCardId) {
         base.grantedSourceCardId = item.grantedSourceCardId;
@@ -347,6 +375,12 @@ function expandStackItem(compact: CompactCard): StackItem {
         item.targets = compact.targets as StackItem["targets"];
     }
     if (compact.chosenX !== undefined) item.chosenX = compact.chosenX as number;
+    if (compact.chosenModeId)
+        item.chosenModeId = compact.chosenModeId as string;
+    if (compact.additionalSacrificeSnapshot) {
+        item.additionalSacrificeSnapshot =
+            compact.additionalSacrificeSnapshot as StackItem["additionalSacrificeSnapshot"];
+    }
     if (compact.abilityId) item.abilityId = compact.abilityId as string;
     if (compact.grantedSourceCardId) {
         item.grantedSourceCardId = compact.grantedSourceCardId as string;

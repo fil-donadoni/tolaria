@@ -140,4 +140,8 @@
         --card-h: calc(var(--card-w) * 7 / 5);
         --card-w-sm: calc(var(--card-w) * 0.75);
     }
+
+    .leader-line {
+        z-index: 60;
+    }
 }

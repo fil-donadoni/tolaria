@@ -116,7 +116,12 @@ export default function Board({
     const activePlayerId = state.activePlayerId;
     const priorityPlayerId = state.priorityPlayerId ?? activePlayerId;
     const phase = state.phase ?? "UPKEEP";
-    const turn = state.turn ?? 1;
+    // CR 500.1: display the active player's own turn count, not the global
+    // sequence number — extra turns (CR 500.7) bump the recipient normally.
+    const activePlayer = state.players.find(
+        (p) => p.id === state.activePlayerId
+    );
+    const turn = activePlayer?.turnsTaken ?? state.turn ?? 1;
     const pendingCast = state.pendingCast;
     const pendingActivation = state.pendingActivation;
     const autoPassPlayers = state.autoPassPlayers;

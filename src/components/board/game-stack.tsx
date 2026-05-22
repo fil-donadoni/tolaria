@@ -6,10 +6,10 @@ import {
     getAbilityOracleText,
     getTriggeredAbilityOracleText,
 } from "~/lib/card-utils";
-import { formatOracleText } from "~/lib/oracle-text";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useDraggable } from "~/hooks/useDraggable";
 import DragHandle from "./drag-handle";
+import StackAbilityTile from "./stack-ability-tile";
 
 type GameStackProps = {
     stack: StackItem[];
@@ -45,14 +45,24 @@ export default function GameStack({ stack }: GameStackProps) {
                 <DragHandle label="Stack" handlers={dragHandlers} />
                 <div className="flex items-start p-3">
                     {reversed.map((item, i) => {
-                        const abilityText = item.abilityId
-                            ? getAbilityOracleText(item.card.id, item.abilityId)
-                            : item.triggeredAbilityId
-                              ? getTriggeredAbilityOracleText(
-                                    item.card.id,
-                                    item.triggeredAbilityId
-                                )
-                              : null;
+                        const abilityKind: "activated" | "triggered" | null =
+                            item.abilityId
+                                ? "activated"
+                                : item.triggeredAbilityId
+                                  ? "triggered"
+                                  : null;
+                        const abilityText =
+                            abilityKind === "activated"
+                                ? getAbilityOracleText(
+                                      item.card.id,
+                                      item.abilityId!
+                                  )
+                                : abilityKind === "triggered"
+                                  ? getTriggeredAbilityOracleText(
+                                        item.card.id,
+                                        item.triggeredAbilityId!
+                                    )
+                                  : null;
                         const isTargetable = canTargetSpell;
 
                         return (
@@ -80,11 +90,14 @@ export default function GameStack({ stack }: GameStackProps) {
                                     zIndex: reversed.length - i,
                                 }}
                             >
-                                <CardImage card={item} />
-                                {abilityText && (
-                                    <div className="mt-1 p-1 bg-black/80 rounded text-[10px] text-left max-w-32">
-                                        {formatOracleText(abilityText)}
-                                    </div>
+                                {abilityKind && abilityText ? (
+                                    <StackAbilityTile
+                                        cardId={item.card.id}
+                                        abilityText={abilityText}
+                                        kind={abilityKind}
+                                    />
+                                ) : (
+                                    <CardImage card={item} />
                                 )}
                             </button>
                         );

@@ -1,16 +1,17 @@
 import { useState, type FormEvent } from "react";
 import { useMutation } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { api } from "@convex/_generated/api";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { SignOutButton } from "./sign-out-button";
 
 const NICKNAME_MIN = 1;
 const NICKNAME_MAX = 32;
 
-export function AccountMenu() {
+export default function DashboardTopBar() {
     const user = useCurrentUser();
+    const { signOut } = useAuthActions();
     const updateNickname = useMutation(api.users.updateNickname);
     const [editing, setEditing] = useState(false);
     const [nickname, setNickname] = useState("");
@@ -52,25 +53,23 @@ export function AccountMenu() {
         }
     };
 
+    const initial = user.nickname.charAt(0).toUpperCase();
+
     return (
-        <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 text-sm">
-            {editing ? (
-                <form onSubmit={submit} className="flex flex-col gap-2">
-                    <label className="flex flex-col gap-1">
-                        <span className="text-xs font-medium text-muted-foreground">
-                            Nickname
-                        </span>
+        <header className="flex w-full items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 backdrop-blur">
+            <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-sky-500 text-base font-bold text-emerald-950">
+                    {initial}
+                </div>
+                {editing ? (
+                    <form onSubmit={submit} className="flex items-center gap-2">
                         <Input
                             value={nickname}
                             onChange={(e) => setNickname(e.currentTarget.value)}
                             maxLength={NICKNAME_MAX}
                             autoFocus
+                            className="h-8 w-48"
                         />
-                    </label>
-                    {error && (
-                        <p className="text-xs text-destructive">{error}</p>
-                    )}
-                    <div className="flex gap-2">
                         <Button type="submit" size="sm" disabled={saving}>
                             {saving ? "Saving…" : "Save"}
                         </Button>
@@ -82,29 +81,36 @@ export function AccountMenu() {
                         >
                             Cancel
                         </Button>
-                    </div>
-                </form>
-            ) : (
-                <>
-                    <div className="flex items-center justify-between gap-2">
-                        <div className="flex flex-col">
-                            <span className="font-medium">{user.nickname}</span>
-                            <span className="text-xs text-muted-foreground">
-                                {user.email}
+                        {error && (
+                            <span className="text-xs text-rose-300">
+                                {error}
                             </span>
-                        </div>
-                        <Button
+                        )}
+                    </form>
+                ) : (
+                    <div className="flex flex-col leading-tight">
+                        <button
                             type="button"
-                            size="sm"
-                            variant="ghost"
                             onClick={startEdit}
+                            className="text-left text-sm font-semibold text-white hover:underline"
+                            title="Edit nickname"
                         >
-                            Edit nickname
-                        </Button>
+                            {user.nickname}
+                        </button>
+                        <span className="text-xs text-white/50">
+                            {user.email}
+                        </span>
                     </div>
-                    <SignOutButton />
-                </>
-            )}
-        </div>
+                )}
+            </div>
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => signOut()}
+            >
+                Sign out
+            </Button>
+        </header>
     );
 }

@@ -1,4 +1,4 @@
-import type { Phase } from "../gre/types";
+import type { Phase, ZonePickKind } from "../gre/types";
 
 type CardId = string;
 
@@ -81,6 +81,15 @@ export interface TargetRequirement {
      *  less" (Dwarven Warriors) and the modern "target creature with power 4
      *  or greater" pattern. Ignored for player / spell targets. */
     powerFilter?: { min?: number; max?: number };
+    /** Restricts legal targets by mana value (CR 202.3). Inclusive bounds;
+     *  string `"X"` resolves to the chosen value of X at announcement
+     *  (CR 107.3) — used by Spell Blast ("counter target spell with mana
+     *  value X"). Honored for permanent targets and for stack spells. */
+    cmcFilter?: {
+        min?: number | "X";
+        max?: number | "X";
+        equals?: number | "X";
+    };
     /** Zone the target lives in (CR 109.2 — objects can exist in zones other
      *  than the battlefield). Default "battlefield". When set to "graveyard",
      *  legal targets are cards in graveyards filtered by `controller` and
@@ -88,10 +97,10 @@ export interface TargetRequirement {
      *  graveyard-recursion spells (CR 400.7) like Regrowth. */
     zone?: "battlefield" | "graveyard";
     /** Restricts legal targets by relationship to the chooser ("you" =
-     *  caster's own zone; "opponent" = an opponent's zone; "any" = any
-     *  player). Default "any". Currently honored only for `zone:
-     *  "graveyard"` — battlefield permanents are filtered separately by
-     *  protection / color rules. Used by Regrowth ("from your graveyard"). */
+     *  caster controls; "opponent" = opponent controls; "any" = either).
+     *  Default "any". Honored for graveyard targets (Regrowth) and for
+     *  battlefield-permanent targets (Simulacrum: "target creature you
+     *  control"). Ignored for player / spell targets. */
     controller?: "you" | "opponent" | "any";
 }
 
@@ -109,6 +118,30 @@ export interface TargetSelection {
 
 export interface ActivatedAbilityContext {
     addMana: (cost: ManaCost) => void;
+}
+
+/** One mode of a modal spell (CR 700.2 — "Choose one — • ..."). The caster
+ *  picks exactly one mode at announcement; the chosen mode supplies the
+ *  spell's target requirement (if any) and the resolution body. Mode
+ *  selection is locked at announce (CR 700.2c) and propagated through
+ *  pendingCast / pendingTarget / stack item via `chosenModeId`. */
+export interface SpellMode {
+    /** Stable id within the card definition (e.g. "gain-life", "prevent").
+     *  Used by the UI to identify the chosen option and by the engine to
+     *  dispatch resolution. Must be unique within `modes`. */
+    id: string;
+    /** Short label shown in the mode picker UI (e.g. "Gain 3 life"). */
+    label: string;
+    /** Full oracle text for this mode (the bullet line — used by the stack
+     *  item display and rule-trace logs). */
+    oracleText: string;
+    /** Per-mode target requirement (CR 601.2c, only the chosen mode's
+     *  targets need legal candidates per CR 700.2d). Undefined for modes
+     *  with no targets. */
+    targetRequirement?: TargetRequirement;
+    /** Resolution body. Receives the full SpellContext; targets come from
+     *  the announcement-time selection driven by `targetRequirement`. */
+    resolve: (ctx: SpellContext) => void;
 }
 
 export interface ActivatedAbility {
@@ -153,6 +186,16 @@ export interface ActivatedAbility {
      *  counters on it"). The signature accepts a structurally-typed state
      *  view to keep card defs decoupled from the engine state shape. */
     canActivate?: (source: PermanentView, state: TriggerStateView) => boolean;
+    /** Restrict activation to the controller's own turn (CR 602.5b — "activate
+     *  only during your turn"). Distinct from `activationPhaseRestriction`
+     *  which is phase-keyed and turn-independent. Used by Instill Energy's
+     *  "{0}: Untap enchanted creature. Activate only during your turn." */
+    controllerTurnOnly?: boolean;
+    /** Cap activations per turn per source instance (CR 602.5 — "activate
+     *  this ability only once each turn"). Engine tracks counts in
+     *  `CardInstanceState.activationsThisTurn[abilityId]` and resets at
+     *  turn start. Used by Instill Energy. */
+    oncePerTurn?: boolean;
 }
 
 // --- Temporary-effect durations (CR 611.2, 514.2, 511.3) ---
@@ -206,6 +249,14 @@ export interface PermanentFilter {
     requireAbility?: string;
     /** Skip permanents whose `staticAbilities` contains this keyword. */
     excludeAbility?: string;
+    /** Filter by token-ness (CR 111.5 / 701.16 — "sacrifice a nontoken
+     *  permanent"). `false` excludes token instances; `true` keeps only
+     *  tokens. Omitted = no constraint. */
+    isToken?: boolean;
+    /** Exclude these instance ids from the match set. Used to skip a
+     *  permanent's own id when an effect specifies "another permanent"
+     *  (CR 109.2) or "permanents other than ~". */
+    excludeInstanceIds?: ReadonlyArray<string>;
 }
 
 // --- Token specification (CR 111, 707.1) ---
@@ -333,6 +384,22 @@ export interface SpellContext {
      *  sickness, attached/granted-by-aura state) is cleared. No-op if the
      *  target has left the battlefield (CR 608.2b). */
     returnToHand: (target: TargetSelection) => void;
+    /** Reanimation primitive: moves a card from `playerId`'s graveyard or
+     *  exile onto `playerId`'s battlefield (CR 400.7 zone change). Used by
+     *  Resurrection ("return target creature card from your graveyard to the
+     *  battlefield") and Animate Dead. Returns true if the card was located
+     *  and moved, false if the id was not in `fromZone` (silent fizzle per
+     *  CR 608.2b). The card becomes a new object on the zone change — battle-
+     *  field transient state (tap, damage, granted abilities) is cleared,
+     *  summoning sickness is set for creatures (CR 302.1), and existing
+     *  battlefield lord-grants reach the new permanent via
+     *  `applyExistingGrantsTo`. The card's own `staticEffects` are pushed out
+     *  to matching battlefield permanents via `applySourceStaticEffects`. */
+    returnToBattlefield: (
+        playerId: string,
+        cardInstanceId: string,
+        fromZone: "graveyard" | "exile"
+    ) => boolean;
     /** Taps a permanent on the battlefield (CR 701.20a). No-op if already
      *  tapped or if the target is no longer on the battlefield (CR 608.2b).
      *  Used by Icy Manipulator and similar "tap target permanent" effects. */
@@ -393,6 +460,20 @@ export interface SpellContext {
     /** Value chosen for X at cast-time (CR 107.3, 601.2b). 0 if the spell
      *  has no X in its cost. Read by spells like Fireball on resolution. */
     getX: () => number;
+    /** Mana value of a target (CR 202.3 / 202.3b). For a permanent target,
+     *  returns the printed cost's mana value — X in the cost counts as 0
+     *  because the chosen X is not currently preserved on the resulting
+     *  permanent. For a spell target on the stack, X folds in the chosen
+     *  value from the stack item. Returns 0 for player / graveyard-card /
+     *  unknown targets. Used by Spell Blast ("counter target spell with
+     *  mana value X"). */
+    getCmc: (target: TargetSelection) => number;
+    /** Mana value snapshotted on the stack item when this spell's
+     *  additional sacrifice cost (CR 117.9) was paid at cast time. Returns
+     *  `undefined` for spells without an `additionalCosts.sacrificeFilter`.
+     *  Used by Sacrifice ("Add an amount of {B} equal to the sacrificed
+     *  creature's mana value") to read the captured value at resolve. */
+    getAdditionalSacrificeCmc: () => number | undefined;
     /** Deals `totalAmount` damage divided evenly, rounded down, among the
      *  given targets (CR 120.1, 603.3). Remainder (if any) is discarded.
      *  Used by Fireball and other "divided among any number of targets"
@@ -433,6 +514,15 @@ export interface SpellContext {
      *  scheduled is the next one taken. Consumed by advanceTurn(). Used by
      *  Time Walk and similar effects. */
     takeExtraTurn: (playerId: string) => void;
+    /** Marks `playerId` as having lost the game (CR 104). Sets
+     *  `state.gameOver` directly, bypassing the CR 614 lose-game replacement
+     *  loop — used by Lich's LTB-trigger which fires as a triggered ability
+     *  (CR 603) and so is not itself a replaceable lose-game event. */
+    loseGame: (playerId: string) => void;
+    /** Cumulative non-combat / combat damage dealt to `playerId` this turn
+     *  (CR 120.3 tally). Read by Simulacrum ("equal to the damage dealt to
+     *  you this turn"). Resets at turn start. */
+    getDamageDealtThisTurn: (playerId: string) => number;
     /** Creates `count` token permanents (CR 111, 707.1) on `controllerId`'s
      *  battlefield from a structural spec. Tokens enter the battlefield
      *  tapped/sick rules normally — they're brand-new permanents (CR 111.5
@@ -471,6 +561,44 @@ export interface SpellContext {
         target: TargetSelection,
         amount: number,
         duration: DurationSpec
+    ) => void;
+    /** Pushes a transient damage replacement (CR 614) onto
+     *  `state.damageRedirections`. Three kinds cover the LEA cards that
+     *  produce one-shot redirections via spells / activated abilities:
+     *
+     *  - `prevent-from-source-gain-life`: Reverse Damage's "prevent and gain
+     *    life equal to amount prevented".
+     *  - `to-self-redirect-to-owner`: Personal Incarnation's `{0}: next 1
+     *    damage to ~ is dealt to its owner instead`.
+     *  - `from-source-to-permanent-redirect-to-player`: Jade Monolith's
+     *    `{1}: the next time source X would deal damage to creature C,
+     *    that damage is dealt to you instead`.
+     *
+     *  Unconsumed entries are purged when `duration` expires (typically
+     *  end-of-turn). */
+    addDamageRedirectionShield: (
+        shield:
+            | {
+                  kind: "prevent-from-source-gain-life";
+                  sourceInstanceId: string;
+                  playerId: string;
+                  duration: DurationSpec;
+              }
+            | {
+                  kind: "to-self-redirect-to-owner";
+                  targetInstanceId: string;
+                  remaining: number;
+                  duration: DurationSpec;
+              }
+            | {
+                  kind: "from-source-to-permanent-redirect-to-player";
+                  /** undefined = any source (Jade Monolith). */
+                  sourceInstanceId?: string;
+                  targetInstanceId: string;
+                  redirectToPlayerId: string;
+                  remaining: number;
+                  duration: DurationSpec;
+              }
     ) => void;
     /** Grants a keyword static ability to a permanent for a limited duration
      *  (CR 113.1, 611.1b). Appends to the target's `staticAbilities` so combat
@@ -521,11 +649,16 @@ export interface SpellContext {
     requestChoice: (req: {
         playerId: string;
         choiceId: string;
-        kind: "keep-permanents" | "keep-hand" | "search-library";
+        kind: ZonePickKind;
         zone: "battlefield" | "hand" | "library";
         filter?: PermanentFilter;
         count: number;
         prompt: string;
+        /** Owner of the zone being picked from. Defaults to `playerId` (the
+         *  chooser picks from their own zone). Set when the chooser picks
+         *  items from another player's zone (e.g. Demonic Hordes: opponent
+         *  picks a Land from controller's battlefield). */
+        zoneOwnerId?: string;
     }) => string[] | undefined;
 
     /** Requests an optional yes/no decision with an optional mana cost
@@ -660,6 +793,11 @@ export interface StaticEffectContext {
     isCreature: (card: PermanentView) => boolean;
     /** True if card has the given subtype. */
     hasSubtype: (card: PermanentView, subtype: string) => boolean;
+    /** Printed mana value of a card (CR 202.3). X in the printed cost
+     *  counts as 0 for permanents on the battlefield (the chosen X is not
+     *  preserved). Used by characteristic-defining abilities that key off
+     *  the host's CMC (Animate Artifact). */
+    getCmc: (card: PermanentView) => number;
 }
 
 export interface StaticPTBuff {
@@ -687,10 +825,17 @@ export interface StaticPTCDA {
         source: PermanentView,
         ctx: StaticEffectContext
     ) => boolean;
+    /** Compute the P/T contribution. `target` is the permanent whose P/T is
+     *  being read (relevant when the source grants a CDA to another
+     *  permanent — e.g. Animate Artifact reads the host's mana value to set
+     *  the host's own P/T). `source` is the permanent that owns the static
+     *  effect; for self-targeting CDAs (Nightmare, Bog Wraith on Plagues)
+     *  `source === target`. */
     compute: (
         source: PermanentView,
         state: StaticEffectStateView,
-        ctx: StaticEffectContext
+        ctx: StaticEffectContext,
+        target: PermanentView
     ) => { power: number; toughness: number };
 }
 
@@ -765,12 +910,40 @@ export interface StaticActivatedGrant {
     abilityId: string;
 }
 
+/** Continuous static ability that adds card type(s) to a permanent
+ *  (CR 205, 611, 1.3 — layer 4 type-setting effects). Mutates the affected
+ *  permanent's `types` array imperatively on apply (and reverses on
+ *  unapply), tracking origin in `grantedTypes` so duplicates from multiple
+ *  sources don't double-add and removal only takes effect when the last
+ *  granting source detaches. Used by Animate Artifact ("the enchanted
+ *  artifact is an artifact creature"). The `applies` predicate is read at
+ *  apply time and is not re-evaluated continuously — for LEA's scope this
+ *  is sufficient (no card revokes a type-add mid-life), but the model is
+ *  intentionally simpler than CR's layer-1-through-7 recompute. */
+export interface StaticTypeAdd {
+    kind: "type-add";
+    /** Predicate: does this grant apply to `target` given `source`? For
+     *  auras whose effect is conditional on the host's printed types (e.g.
+     *  Animate Artifact's "as long as enchanted artifact isn't a creature"),
+     *  the predicate combines AURA_AFFECTS_HOST with the printed-type
+     *  check. */
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Types to add to the target. Duplicates against printed `types` or
+     *  other concurrent grants are deduplicated by the engine. */
+    types: CardType[];
+}
+
 export type StaticEffect =
     | StaticPTBuff
     | StaticPTCDA
     | StaticKeywordGrant
     | StaticControlChange
-    | StaticActivatedGrant;
+    | StaticActivatedGrant
+    | StaticTypeAdd;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
  *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted
@@ -810,6 +983,8 @@ export type GameEventType =
     | "DAMAGE_DEALT"
     | "PHASE_BEGIN"
     | "CREATURE_DIED"
+    | "PERMANENT_ENTERED"
+    | "PERMANENT_LEFT"
     | "SPELL_CAST"
     | "PERMANENT_TAPPED"
     | "STATE_CHECK";
@@ -860,6 +1035,52 @@ export interface CreatureDiedEvent {
     /** Effective toughness snapshotted at the moment the creature left the
      *  battlefield (CR 603.10). Used by triggers like Creature Bond. */
     creatureToughness: number;
+}
+
+/** Enter-the-battlefield event emitted whenever a permanent enters play via
+ *  `finalizeSpellResolution` (normal spell cast) or `returnToBattlefield` /
+ *  `putReanimatedOnBattlefield` (reanimation). Triggers self-ETB abilities
+ *  ("when ~ enters the battlefield, do X"). Mirrors the `PERMANENT_LEFT`
+ *  shape so the trigger collector can use the same lookup pattern. */
+export interface PermanentEnteredEvent {
+    type: "PERMANENT_ENTERED";
+    instanceId: string;
+    controllerId: string;
+    cardId?: string;
+    types: ReadonlyArray<CardType>;
+}
+
+/** Leave-the-battlefield event emitted whenever a permanent transitions
+ *  battlefield→(graveyard|exile|hand|library) via `removePermanentTo` (CR
+ *  603.10). Carries last-known-information snapshot fields so LTB-triggers
+ *  on the leaving permanent itself ("when this Aura leaves the battlefield,
+ *  destroy enchanted creature") can read the host id at the moment of
+ *  departure. The leaving permanent is located by `collectTriggers` in its
+ *  destination zone (graveyard/exile/hand) via the `recentlyLeft` lookup
+ *  mirroring the `CREATURE_DIED` last-known-info pattern. */
+export interface PermanentLeftEvent {
+    type: "PERMANENT_LEFT";
+    /** Instance id of the permanent that left the battlefield. */
+    instanceId: string;
+    /** Controller of the permanent at the moment it left. */
+    controllerId: string;
+    /** Owner of the leaving permanent (CR 109.5). Stable through control
+     *  changes; read by triggers like Personal Incarnation's "owner loses
+     *  half their life" LTB. */
+    ownerId: string;
+    /** Card definition id (mirrors `card.id`) so type-based filters can run
+     *  without re-reading the registry. */
+    cardId?: string;
+    /** Card types snapshotted at the moment of departure (CR 603.10). */
+    types: ReadonlyArray<CardType>;
+    /** Whether the leaving permanent was an Aura (CR 303.4). */
+    wasAura: boolean;
+    /** Host id the leaving Aura was attached to (CR 303.4b). Read by
+     *  Animate Dead's LTB-trigger to identify the reanimated creature to
+     *  sacrifice. Undefined for non-Aura permanents or unattached Auras. */
+    attachedToBeforeLeave?: string;
+    /** Destination zone of the move. */
+    toZone: "graveyard" | "exile" | "hand" | "library";
 }
 
 /** Spell-cast event emitted when a spell is put on the stack (CR 601.2i).
@@ -914,6 +1135,8 @@ export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
     | CreatureDiedEvent
+    | PermanentEnteredEvent
+    | PermanentLeftEvent
     | SpellCastEvent
     | PermanentTappedEvent
     | StateCheckEvent;
@@ -957,6 +1180,188 @@ export interface TriggeredAbility {
     resolve: (ctx: SpellContext, event: GameEvent) => void;
 }
 
+// --- Replacement effects (CR 614) ---
+//
+// Continuous effects that intercept a game event BEFORE the original action
+// runs and either rewrite the event payload (e.g. damage redirected to a
+// different target) or cancel the event entirely (e.g. lifegain replaced by
+// drawing cards). Distinct from prevention effects (CR 615), which always
+// cancel and never redirect, and from triggered abilities (CR 603), which
+// fire AFTER the action and go on the stack. Order in the apply loop: CR
+// 614 (replacement) → CR 615 (prevention) → original action.
+//
+// Engine iteration (CR 616): when an event fires, the loop scans active
+// replacement effects on every battlefield permanent and applies matching
+// ones one at a time, honoring CR 616.1d ("a replacement effect can only
+// apply once per event"). The loop terminates when no further replacement
+// matches the (possibly rewritten) event.
+
+export type ReplacementEventKind =
+    | "damage"
+    | "lifegain"
+    | "lifeloss"
+    | "discard"
+    | "lose-game";
+
+/** Damage event subject to CR 614 redirection / prevention. */
+export interface DamageReplacementEvent {
+    kind: "damage";
+    /** Instance id of the permanent or stack item dealing the damage. Used by
+     *  source-filtering replacements ("damage from a flying source" — Veteran
+     *  Bodyguard) and to look up source characteristics via the registry. */
+    sourceInstanceId: string;
+    /** Source controller at the moment of the event (CR 109.5). */
+    sourceControllerId: string;
+    /** Colors of the source (CR 202.2). */
+    sourceColors: ReadonlyArray<Color>;
+    /** Card types of the source. */
+    sourceTypes: ReadonlyArray<CardType>;
+    /** Static keyword abilities of the source (CR 702.x). Used to discriminate
+     *  "damage from a flying source" etc. */
+    sourceStaticAbilities: ReadonlyArray<string>;
+    /** Target of the damage event. Mutable in the replacement loop —
+     *  redirection rewrites this to point at a different player/permanent. */
+    target: TargetSelection;
+    /** Amount of damage. Mutable — preventNextN-style shields would normally
+     *  decrement this here, but in the current engine prevention runs in CR
+     *  615 outside the replacement loop. Effects that "deal that much damage
+     *  to ~ instead" carry the amount unchanged. */
+    amount: number;
+    isCombat: boolean;
+}
+
+/** Life-change event: either lifegain (gainLife) or lifeloss (loseLife) on
+ *  a specific player. Lich's "if you would gain life, draw cards instead"
+ *  and "if you would lose life, sacrifice/discard instead" intercept these. */
+export interface LifeChangeReplacementEvent {
+    kind: "lifegain" | "lifeloss";
+    playerId: string;
+    amount: number;
+}
+
+/** Discard event: a specific card in a player's hand about to move to the
+ *  graveyard. Library of Leng's "may put it on top of your library instead"
+ *  intercepts this. The replacement chooses whether to redirect. */
+export interface DiscardReplacementEvent {
+    kind: "discard";
+    playerId: string;
+    cardInstanceId: string;
+}
+
+/** Game-loss event: a player about to lose the game from a CR 104 condition
+ *  (life ≤ 0, drawing from empty library, etc.). Lich's "you don't lose the
+ *  game" replacement consumes this event. */
+export interface LoseGameReplacementEvent {
+    kind: "lose-game";
+    playerId: string;
+    /** CR 104 reason. Currently only "life-zero" is intercepted in-engine. */
+    reason: "life-zero";
+}
+
+export type ReplacementEvent =
+    | DamageReplacementEvent
+    | LifeChangeReplacementEvent
+    | DiscardReplacementEvent
+    | LoseGameReplacementEvent;
+
+/** Side-effect mutators handed to a `ReplacementEffect.replace` body. Lets
+ *  the effect issue follow-up actions ("draw N cards instead", "sacrifice
+ *  these permanents", "move this card to library top") without coupling
+ *  card definitions to the full engine surface. */
+export interface ReplacementApplyContext {
+    /** Player ids in active-then-non-active order (CR 101.4). */
+    apNapOrder: () => string[];
+    drawCards: (playerId: string, amount: number) => void;
+    /** Sacrifices the first `count` non-token permanents on `playerId`'s
+     *  battlefield matching `filter`, in battlefield-declaration order. Used
+     *  by Lich's "sacrifice X nontoken permanents". Returns the number
+     *  actually sacrificed (clamped to availability). */
+    autoSacrifice: (
+        playerId: string,
+        count: number,
+        filter?: PermanentFilter
+    ) => number;
+    /** Moves a hand card to the top of the player's library. Used by Library
+     *  of Leng's discard replacement. */
+    moveHandCardToLibraryTop: (
+        playerId: string,
+        cardInstanceId: string
+    ) => boolean;
+    /** Reveals a hand card to all players (logged in the event stream). The
+     *  Library of Leng "may reveal that card" clause uses this. No engine
+     *  state mutation — public information event for the UI. */
+    revealHandCard: (playerId: string, cardInstanceId: string) => void;
+    /** Direct life adjustment used by replacements that emit a different
+     *  category of life-change (e.g. lifegain → draw N implicitly converts
+     *  the gain to 0). Bypasses the replacement loop to avoid recursion. */
+    adjustLifeRaw: (playerId: string, delta: number) => void;
+    /** Read-only inspector for state used by `appliesTo` predicates and by
+     *  `replace` bodies that need to inspect the source's environment. */
+    state: ReplacementStateView;
+    /** The permanent carrying the replacement effect. */
+    self: PermanentView;
+}
+
+/** Narrow read-only view of the live game state passed to replacement
+ *  predicates and side-effect bodies. */
+export interface ReplacementStateView {
+    players: ReadonlyArray<{
+        id: string;
+        life: number;
+        handSize: number;
+        battlefield: ReadonlyArray<{
+            id: string;
+            controllerId: string;
+            ownerId: string;
+            types: ReadonlyArray<string>;
+            subtypes: ReadonlyArray<string>;
+            staticAbilities: ReadonlyArray<string>;
+            isToken: boolean;
+        }>;
+        /** Per-player replacement preferences (CR "may" opt-ins). Read by
+         *  Library of Leng's discard replacement to honor a player's
+         *  toggled "send to graveyard instead" override. */
+        preferences?: { libraryOfLengRouting?: "library" | "graveyard" };
+    }>;
+    /** Read-only snapshot of the active combat state (CR 506). Defined only
+     *  during combat phases (DECLARE_ATTACKERS through END_OF_COMBAT). Read
+     *  by Veteran Bodyguard's "damage from unblocked attacking creatures"
+     *  filter. */
+    combat?: {
+        attackerIds: ReadonlyArray<string>;
+        /** attackerId → ordered blocker ids (CR 509.2). Empty array means
+         *  the attacker is unblocked. */
+        blockersByAttacker: Readonly<Record<string, ReadonlyArray<string>>>;
+    };
+}
+
+/** Outcome of a `ReplacementEffect.replace` call. */
+export type ReplacementResult =
+    | { kind: "modified"; event: ReplacementEvent }
+    | { kind: "consumed" };
+
+export interface ReplacementEffect {
+    id: string;
+    oracleText: string;
+    eventKind: ReplacementEventKind;
+    /** Whether this replacement intercepts the given event. `self` is the
+     *  permanent carrying the effect; `state` is a read-only view. */
+    appliesTo: (
+        event: ReplacementEvent,
+        self: PermanentView,
+        state: ReplacementStateView
+    ) => boolean;
+    /** Replace the event. Return `{ kind: "modified", event }` to rewrite
+     *  the event (engine continues the replacement loop with the new
+     *  payload). Return `{ kind: "consumed" }` to cancel the original
+     *  action — the effect typically performs its own side-effects via
+     *  `ctx` before returning consumed. */
+    replace: (
+        event: ReplacementEvent,
+        ctx: ReplacementApplyContext
+    ) => ReplacementResult;
+}
+
 /** Declarative shorthand for one-effect resolve bodies. Each value maps to a
  *  closure in `convex/cards/effectRegistry.ts`. Add new shorthands as soon as
  *  the same `resolve` body repeats across two cards (rule of two extraction). */
@@ -979,10 +1384,23 @@ export interface CardDefinition {
      *  Surfaced in the card preview for spells (Instant/Sorcery), and useful
      *  for cross-checking implementation against the printed rules. */
     oracleText?: string;
-    /** Target requirements declared at cast time (CR 601.2c). */
+    /** Target requirements declared at cast time (CR 601.2c). For modal
+     *  spells (`modes` set), this is overridden by the chosen mode's
+     *  `targetRequirement` — keep undefined on the card and put the per-mode
+     *  requirements inside `modes[i].targetRequirement`. */
     targetRequirement?: TargetRequirement;
-    /** Imperative resolve function — called when the spell resolves from the stack. */
+    /** Imperative resolve function — called when the spell resolves from the
+     *  stack. For modal spells, this is bypassed: the chosen mode's
+     *  `resolve` runs instead. */
     resolve?: (ctx: SpellContext) => void;
+    /** Modal spell modes (CR 700.2). When set, the caster picks exactly one
+     *  mode at announcement (CR 601.2b) — the chosen mode's
+     *  `targetRequirement` drives target selection, and its `resolve` runs
+     *  on stack resolution. The card-level `targetRequirement`/`resolve` are
+     *  ignored. Only "choose one" is supported for now; "choose any number"
+     *  / "choose one or both" / "choose X" can be added by extending this
+     *  shape later. */
+    modes?: SpellMode[];
     /** Declarative shorthand for spells whose entire effect maps to a single
      *  registered primitive (see `convex/cards/effectRegistry.ts`). The engine
      *  compiles the shorthand into a resolve closure at lookup time. Use this
@@ -1022,10 +1440,38 @@ export interface CardDefinition {
      *  template is the value referenced by the grant's `abilityId` field. */
     grantTemplates?: ActivatedAbility[];
     triggeredAbilities?: TriggeredAbility[];
+    /** Continuous replacement effects (CR 614). Each effect declares the kind
+     *  of game event it can intercept ("damage", "lifegain", "lifeloss",
+     *  "discard", "lose-game"), an `appliesTo` predicate that filters by event
+     *  payload, and a `replace` body that mutates / cancels the event before
+     *  the original action runs. Multiple replacements compose (CR 616) — the
+     *  engine iterates until no more apply, honoring CR 616.1d (a given
+     *  replacement applies at most once per event).
+     *
+     *  Active only while the permanent is on the battlefield; the engine
+     *  scans `state.players[*].battlefield` for sources at each event point.
+     *  Used by Lich (lifegain→draw, lifeloss→sacrifice, lose-game cancel),
+     *  Simulacrum / Veteran Bodyguard / Personal Incarnation (damage
+     *  redirect), Library of Leng (discard→top-of-library). */
+    replacementEffects?: ReplacementEffect[];
     /** Delayed triggered ability templates (CR 603.7a) scheduled by this
      *  card's `resolve()`. Looked up by id when a queued instance fires. */
     delayedTriggers?: DelayedTriggerDef[];
     sbaMods?: string[];
+    /** Additional costs to cast this spell (CR 117.9 / 601.2f). Paid at cast
+     *  time, NOT at resolve. The chooser picks a permanent matching
+     *  `sacrificeFilter` on their own battlefield; the cast is illegal if no
+     *  matching permanent exists (CR 117.9). The picked permanent is
+     *  sacrificed on commit and its pre-sacrifice mana value is snapshotted
+     *  on the stack item so `SpellContext.getAdditionalSacrificeCmc()` can
+     *  read it at resolve. Used by Sacrifice ("As an additional cost,
+     *  sacrifice a creature. Add an amount of {B} equal to the sacrificed
+     *  creature's mana value"). Currently exclusive with
+     *  `targetRequirement` — combining the two would need a third pending
+     *  state. */
+    additionalCosts?: {
+        sacrificeFilter: PermanentFilter;
+    };
     /** Adds this many generic mana to the total cost for each target beyond
      *  the first (CR 601.2f). Used by Fireball ("costs {1} more to cast for
      *  each target beyond the first"). */

@@ -8,6 +8,7 @@ import {
     getCardById,
     getCardByName,
     getInstanceManaCost,
+    tryGetCardById,
 } from "./cards";
 import {
     type CardInstanceState,
@@ -36,13 +37,15 @@ import {
     discardPermanentTappedEvent,
     processPendingActionTriggers,
 } from "./gre/state";
-import type { Color, ManaCost } from "./cards/types";
+import type { Color, ManaCost, SpellMode } from "./cards/types";
 import {
     assertLegalAction,
     getLegalTargets,
     getPendingTargetSourceColors,
     hasColor,
     isProtectedFromColors,
+    matchesCmcFilter,
+    resolveCmcFilter,
 } from "./gre/rules";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./gre/layers";
 import { projectFullState, projectPublicState } from "./gameProjections";
@@ -92,7 +95,7 @@ type PlayerInput = {
     deck: DeckInput;
 };
 
-function buildPlayerState(player: PlayerInput) {
+function buildPlayerState(player: PlayerInput): PlayerState {
     const instances = player.deck.cards.map((deckCard) => {
         const def = getCardById(deckCard.cardId);
         return {
@@ -359,6 +362,7 @@ function tryAutoCommitPendingActivation(
             : {}),
     };
     state.stack.push(stackItem);
+    recordActivation(card, pa.abilityId);
 
     const keepPriority = pa.keepPriority;
     state.pendingActivation = undefined;
@@ -394,9 +398,43 @@ function tryAutoCommitPendingCast(
     if (!isManaCostCovered(player.manaPool, state.pendingCast.manaCost)) {
         return null;
     }
+    // CR 117.9 / 601.2f: commit is blocked until the additional cost has
+    // been picked. The player completes payment via selectAdditionalCost.
+    const ac = state.pendingCast.additionalCost;
+    if (ac && !ac.pickedId) {
+        return null;
+    }
 
     payManaCost(player.manaPool, state.pendingCast.manaCost);
     commitLandsForCost(player, state.pendingCast.manaCost);
+
+    // Sacrifice the picked permanent (CR 117.9) and snapshot its mana value
+    // for the stack item — the resolve reads it via
+    // SpellContext.getAdditionalSacrificeCmc.
+    let additionalSacrificeSnapshot: StackItem["additionalSacrificeSnapshot"];
+    if (ac?.pickedId) {
+        const sacrificed = player.battlefield.find((c) => c.id === ac.pickedId);
+        if (!sacrificed) {
+            // Picked permanent vanished between selection and commit —
+            // refuse to push the spell, drop pendingCast silently. Lands
+            // already tapped stay tapped (mirrors cancelCast policy).
+            state.pendingCast = undefined;
+            return null;
+        }
+        const sacCardId = (sacrificed.card as { id?: string }).id;
+        const sacDef = sacCardId ? tryGetCardById(sacCardId) : undefined;
+        const cmc = sacDef?.manaCost
+            ? Object.entries(sacDef.manaCost).reduce<number>(
+                  (acc, [, v]) => acc + (typeof v === "number" ? v : 0),
+                  0
+              )
+            : 0;
+        additionalSacrificeSnapshot = {
+            cardInstanceId: sacrificed.id,
+            cmc,
+        };
+        removePermanentTo(state, sacrificed.id, "graveyard");
+    }
 
     const spellCard = removeFromZone(
         player,
@@ -406,11 +444,14 @@ function tryAutoCommitPendingCast(
     const pendingTargets = (state.pendingCast as Record<string, unknown>)
         .targets as StackItem["targets"] | undefined;
     const pendingChosenX = state.pendingCast.chosenX;
+    const pendingChosenModeId = state.pendingCast.chosenModeId;
     const stackItem: StackItem = {
         ...spellCard,
         castById: playerId,
         ...(pendingTargets ? { targets: pendingTargets } : {}),
         ...(pendingChosenX !== undefined ? { chosenX: pendingChosenX } : {}),
+        ...(pendingChosenModeId ? { chosenModeId: pendingChosenModeId } : {}),
+        ...(additionalSacrificeSnapshot ? { additionalSacrificeSnapshot } : {}),
     };
     state.stack.push(stackItem);
 
@@ -607,6 +648,8 @@ export const createSoloGame = mutation({
         });
 
         const playersState = allPlayers.map(buildPlayerState);
+        // CR 500.1: starting player begins their first turn at game start.
+        playersState[0].turnsTaken = 1;
 
         const rngSeed = freshSeed();
         const initialState: GameState = {
@@ -671,6 +714,8 @@ export const joinGame = mutation({
         });
 
         const playersState = allPlayers.map(buildPlayerState);
+        // CR 500.1: starting player begins their first turn at game start.
+        playersState[0].turnsTaken = 1;
 
         const rngSeed = freshSeed();
         const initialState: GameState = {
@@ -781,6 +826,38 @@ function resolveActivatedAbility(
     return null;
 }
 
+/** Throws a descriptive Error if the activated ability's CR 602.5 timing
+ *  restrictions (controller-turn-only, once-per-turn cap) are violated
+ *  against the current state. Called by every activation entry point before
+ *  cost lock so the rejection is surfaced before any mutation. */
+function assertActivationTimingLegal(
+    state: GameState,
+    card: CardInstanceState,
+    ability: { id: string; controllerTurnOnly?: boolean; oncePerTurn?: boolean }
+): void {
+    if (
+        ability.controllerTurnOnly &&
+        state.activePlayerId !== card.controllerId
+    ) {
+        throw new Error("Activate only during your turn");
+    }
+    if (ability.oncePerTurn) {
+        const used = card.activationsThisTurn?.[ability.id] ?? 0;
+        if (used >= 1) {
+            throw new Error("Activate only once each turn");
+        }
+    }
+}
+
+/** Records one activation of `abilityId` against `card` for the current turn
+ *  (CR 602.5 — `oncePerTurn` enforcement). Initialises the counter map on
+ *  first activation. Called at every activation commit site. */
+function recordActivation(card: CardInstanceState, abilityId: string): void {
+    const map: Record<string, number> = card.activationsThisTurn ?? {};
+    map[abilityId] = (map[abilityId] ?? 0) + 1;
+    card.activationsThisTurn = map;
+}
+
 /** Minimum number of targets required for a TargetRequirement.count value.
  *  Fixed N → N; range → min. Used to validate confirmTargets (CR 601.2c). */
 function minTargetCount(count: number | { min: number; max?: number }): number {
@@ -829,6 +906,7 @@ function finalizeTargetSelection(
     const cardInstanceId = pt.cardInstanceId;
     const keepPriority = pt.keepPriority;
     const chosenX = pt.chosenX;
+    const chosenModeId = pt.chosenModeId;
     const kind = pt.kind ?? "cast";
     const abilityId = pt.abilityId;
     state.pendingTarget = undefined;
@@ -863,6 +941,7 @@ function finalizeTargetSelection(
         ) {
             throw new Error("Ability cannot be activated right now");
         }
+        assertActivationTimingLegal(state, card, ability);
 
         const hasXInCost =
             ability.cost.mana?.X !== undefined &&
@@ -925,6 +1004,7 @@ function finalizeTargetSelection(
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
         };
         state.stack.push(stackItem);
+        recordActivation(card, abilityId);
         state.passCount = 0;
         state.priorityPlayerId = getOpponentId(state, playerId);
         state.singleShotAutoPass = keepPriority ? undefined : playerId;
@@ -959,6 +1039,7 @@ function finalizeTargetSelection(
             castById: playerId,
             targets,
             ...(chosenX !== undefined ? { chosenX } : {}),
+            ...(chosenModeId ? { chosenModeId } : {}),
         };
         state.stack.push(stackItem);
         state.passCount = 0;
@@ -975,6 +1056,7 @@ function finalizeTargetSelection(
             tappedLandIds: [],
             keepPriority,
             chosenX,
+            ...(chosenModeId ? { chosenModeId } : {}),
         };
         // Targets ride along on pendingCast until payment completes.
         (state.pendingCast as Record<string, unknown>).targets = targets;
@@ -994,6 +1076,9 @@ export const announceCast = mutation({
         /** Value chosen for X at cast-time (CR 107.3, 601.2b). Required when
          *  the spell has `X: "X"` in its mana cost. */
         chosenX: v.optional(v.number()),
+        /** Mode chosen for modal spells (CR 700.2 / 700.2c). Required when
+         *  the card defines `modes`. */
+        chosenModeId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -1034,27 +1119,56 @@ export const announceCast = mutation({
         }
         const chosenX = hasX ? args.chosenX : undefined;
 
+        // Modal spell — caster locks in a mode at announcement (CR 700.2c).
+        // The chosen mode's targetRequirement / resolve drive the rest of
+        // the announcement and resolution flow.
+        let chosenMode: SpellMode | undefined;
+        if (cardDef.modes && cardDef.modes.length > 0) {
+            if (!args.chosenModeId) {
+                throw new Error(
+                    "Modal spell — must choose a mode at announcement"
+                );
+            }
+            chosenMode = cardDef.modes.find((m) => m.id === args.chosenModeId);
+            if (!chosenMode) {
+                throw new Error(
+                    `Unknown mode id "${args.chosenModeId}" for ${cardDef.name}`
+                );
+            }
+        } else if (args.chosenModeId) {
+            throw new Error(
+                "Card is not modal — chosenModeId must not be supplied"
+            );
+        }
+
+        // For modal spells, the chosen mode's targetRequirement drives target
+        // selection (CR 700.2d). Falls back to the card-level requirement for
+        // non-modal spells.
+        const activeTargetRequirement =
+            chosenMode?.targetRequirement ?? cardDef.targetRequirement;
+
         // Check if the card requires targets (CR 601.2c). When `count: "X"`
         // resolves to 0 (X chosen as 0), the spell takes no targets — fall
         // through to the no-target cast path (CR 107.3, e.g. Volcanic
         // Eruption with X=0 destroys 0 Mountains and deals 0 damage).
-        const resolvedCount = cardDef.targetRequirement
-            ? resolveTargetCount(cardDef.targetRequirement.count, chosenX)
+        const resolvedCount = activeTargetRequirement
+            ? resolveTargetCount(activeTargetRequirement.count, chosenX)
             : undefined;
         const requiresTargets =
-            cardDef.targetRequirement !== undefined &&
+            activeTargetRequirement !== undefined &&
             (typeof resolvedCount !== "number" || resolvedCount > 0);
 
-        if (cardDef.targetRequirement && requiresTargets) {
+        if (activeTargetRequirement && requiresTargets) {
             // CR 202.2 / 702.16b: source colors derived from the casting
             // card's mana cost, so getLegalTargets can exclude permanents
             // with protection from any of those colors.
             const sourceColors = STATIC_EFFECT_CTX.getColors(cardInHand);
             const legalTargets = getLegalTargets(
                 state,
-                cardDef.targetRequirement,
+                activeTargetRequirement,
                 sourceColors,
-                args.playerId
+                args.playerId,
+                chosenX
             );
             if (legalTargets.length === 0) {
                 throw new Error("No legal targets available");
@@ -1064,30 +1178,38 @@ export const announceCast = mutation({
             if (legalTargets.length < required) {
                 throw new Error("Not enough legal targets");
             }
-            const subtypeFilter = cardDef.targetRequirement.subtypeFilter
-                ? Array.isArray(cardDef.targetRequirement.subtypeFilter)
-                    ? cardDef.targetRequirement.subtypeFilter
-                    : [cardDef.targetRequirement.subtypeFilter]
+            const subtypeFilter = activeTargetRequirement.subtypeFilter
+                ? Array.isArray(activeTargetRequirement.subtypeFilter)
+                    ? activeTargetRequirement.subtypeFilter
+                    : [activeTargetRequirement.subtypeFilter]
                 : undefined;
+            const resolvedCmcFilter = resolveCmcFilter(
+                activeTargetRequirement.cmcFilter,
+                chosenX
+            );
             // Enter target selection phase before mana payment
             state.pendingTarget = {
                 playerId: args.playerId,
                 cardInstanceId: args.cardInstanceId,
-                targetType: cardDef.targetRequirement.type,
+                targetType: activeTargetRequirement.type,
                 count: resolvedCount!,
                 selected: [],
                 keepPriority: args.keepPriority,
                 chosenX,
-                ...(cardDef.targetRequirement.zone
-                    ? { zone: cardDef.targetRequirement.zone }
+                ...(args.chosenModeId
+                    ? { chosenModeId: args.chosenModeId }
                     : {}),
-                ...(cardDef.targetRequirement.controller
-                    ? { controller: cardDef.targetRequirement.controller }
+                ...(activeTargetRequirement.zone
+                    ? { zone: activeTargetRequirement.zone }
+                    : {}),
+                ...(activeTargetRequirement.controller
+                    ? { controller: activeTargetRequirement.controller }
                     : {}),
                 ...(subtypeFilter ? { subtypeFilter } : {}),
-                ...(cardDef.targetRequirement.powerFilter
-                    ? { powerFilter: cardDef.targetRequirement.powerFilter }
+                ...(activeTargetRequirement.powerFilter
+                    ? { powerFilter: activeTargetRequirement.powerFilter }
                     : {}),
+                ...(resolvedCmcFilter ? { cmcFilter: resolvedCmcFilter } : {}),
             };
 
             await saveGameState(
@@ -1101,10 +1223,51 @@ export const announceCast = mutation({
             return;
         }
 
-        // No targets needed — proceed directly to mana payment / cast
+        // No targets needed — proceed to additional-cost picker (CR 117.9 /
+        // 601.2f) or directly to mana payment / cast if no additional cost.
         const rawCost = getInstanceManaCost(cardInHand);
 
         const manaCost = rawCost ? normalizeManaCost(rawCost, { chosenX }) : {};
+
+        const additionalCostSpec = cardDef.additionalCosts;
+        if (additionalCostSpec?.sacrificeFilter) {
+            // CR 117.9: the cast is illegal if the player can't pay the
+            // additional cost. Validate up-front before entering pendingCast.
+            const candidates = player.battlefield.filter((c) =>
+                matchesPermanentFilter(c, additionalCostSpec.sacrificeFilter)
+            );
+            if (candidates.length === 0) {
+                throw new Error(
+                    "No legal permanent to pay the additional cost"
+                );
+            }
+            // Open pendingCast in additional-cost picker mode. Commit is
+            // gated on the pickedId being set, regardless of mana coverage.
+            state.pendingCast = {
+                playerId: args.playerId,
+                cardInstanceId: args.cardInstanceId,
+                manaCost,
+                tappedLandIds: [],
+                keepPriority: args.keepPriority,
+                chosenX,
+                ...(args.chosenModeId
+                    ? { chosenModeId: args.chosenModeId }
+                    : {}),
+                additionalCost: {
+                    kind: "sacrifice",
+                    filter: additionalCostSpec.sacrificeFilter,
+                },
+            };
+
+            await saveGameState(
+                ctx,
+                args.gameId,
+                gameState.seq + 1,
+                state,
+                gameState
+            );
+            return;
+        }
 
         // If cost is zero or pool already covers it, commit immediately
         if (
@@ -1120,6 +1283,9 @@ export const announceCast = mutation({
                 ...card,
                 castById: args.playerId,
                 ...(chosenX !== undefined ? { chosenX } : {}),
+                ...(args.chosenModeId
+                    ? { chosenModeId: args.chosenModeId }
+                    : {}),
             };
             state.stack.push(stackItem);
             state.passCount = 0;
@@ -1139,6 +1305,9 @@ export const announceCast = mutation({
                 tappedLandIds: [],
                 keepPriority: args.keepPriority,
                 chosenX,
+                ...(args.chosenModeId
+                    ? { chosenModeId: args.chosenModeId }
+                    : {}),
             };
         }
 
@@ -1309,6 +1478,63 @@ export const untapForPayment = mutation({
 });
 
 /** Cancel a pending cast: rollback all taps (CR 601.2 reversal). */
+/** Picks a permanent to pay the spell's additional cost (CR 117.9 /
+ *  601.2f). Only valid while pendingCast is in its additional-cost picker
+ *  stage. On selection, attempts auto-commit; if mana isn't yet covered the
+ *  player continues to tap lands and commit completes via tryAutoCommitPendingCast. */
+export const selectAdditionalCost = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+
+        if (!state.pendingCast) throw new Error("No spell being cast");
+        if (state.pendingCast.playerId !== args.playerId) {
+            throw new Error("Not your pending cast");
+        }
+        const ac = state.pendingCast.additionalCost;
+        if (!ac) {
+            throw new Error("This spell has no additional cost picker");
+        }
+        if (ac.pickedId) {
+            throw new Error("Additional cost already paid");
+        }
+        const player = getPlayer(state, args.playerId);
+        const candidate = player.battlefield.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!candidate) {
+            throw new Error("Selected permanent not on your battlefield");
+        }
+        if (!matchesPermanentFilter(candidate, ac.filter)) {
+            throw new Error(
+                "Selected permanent does not match the additional cost filter"
+            );
+        }
+        ac.pickedId = args.cardInstanceId;
+
+        // tryAutoCommitPendingCast clears pendingCast and emits SPELL_CAST
+        // when it succeeds. If mana isn't yet covered, the cast remains in
+        // pendingCast and the player completes payment via tapForPayment.
+        tryAutoCommitPendingCast(state, args.playerId);
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
 export const cancelCast = mutation({
     args: {
         gameId: v.id("games"),
@@ -1659,6 +1885,25 @@ export const selectTarget = mutation({
                     );
                 }
             }
+            // CR 202.3: cmcFilter narrows by mana value (X already resolved
+            // upstream in resolveCmcFilter).
+            if (pt.cmcFilter) {
+                const cardId = (matchedCard.card as { id?: string }).id;
+                const def = cardId ? tryGetCardById(cardId) : undefined;
+                const cmc =
+                    def && def.manaCost
+                        ? Object.entries(def.manaCost).reduce<number>(
+                              (acc, [, v]) =>
+                                  acc + (typeof v === "number" ? v : 0),
+                              0
+                          )
+                        : 0;
+                if (!matchesCmcFilter(pt.cmcFilter, cmc)) {
+                    throw new Error(
+                        "Target does not match the required mana value"
+                    );
+                }
+            }
             // CR 702.16b: a permanent with protection from [color] can't be
             // targeted by a spell/ability whose source has that color.
             const sourceColors = getPendingTargetSourceColors(
@@ -1687,6 +1932,24 @@ export const selectTarget = mutation({
             if (!spell) throw new Error("Invalid spell target");
             if (pt.colorFilter && !hasColor(spell, pt.colorFilter as Color)) {
                 throw new Error(`Target must be ${pt.colorFilter}`);
+            }
+            if (pt.cmcFilter) {
+                const cardId = (spell.card as { id?: string }).id;
+                const def = cardId ? tryGetCardById(cardId) : undefined;
+                const baseCmc =
+                    def && def.manaCost
+                        ? Object.entries(def.manaCost).reduce<number>(
+                              (acc, [, v]) =>
+                                  acc + (typeof v === "number" ? v : 0),
+                              0
+                          )
+                        : 0;
+                const cmc = baseCmc + (spell.chosenX ?? 0);
+                if (!matchesCmcFilter(pt.cmcFilter, cmc)) {
+                    throw new Error(
+                        "Target does not match the required mana value"
+                    );
+                }
             }
         }
 
@@ -2073,128 +2336,11 @@ export const confirmBlockers = mutation({
         state.combat.pendingBlockerId = undefined;
         state.combat.blockersConfirmed = true;
 
-        // Build blockerOrder: attackerId → ordered blocker IDs (CR 510.1)
-        // If any attacker has 2+ blockers, the attacking player must order them
-        const blockerOrder: Record<string, string[]> = {};
-        let needsOrdering = false;
-        for (const [blockerId, attackerId] of Object.entries(
-            state.combat.blockerAssignments
-        )) {
-            if (!blockerOrder[attackerId]) blockerOrder[attackerId] = [];
-            blockerOrder[attackerId].push(blockerId);
-        }
-        for (const blockerIds of Object.values(blockerOrder)) {
-            if (blockerIds.length >= 2) needsOrdering = true;
-        }
-
-        if (needsOrdering) {
-            // Default order: declaration order. Attacking player must confirm/reorder.
-            state.combat.blockerOrder = blockerOrder;
-            state.combat.blockerOrderConfirmed = false;
-        } else {
-            // Single or zero blockers per attacker: order is trivial, skip ordering step
-            state.combat.blockerOrder = blockerOrder;
-            state.combat.blockerOrderConfirmed = true;
-        }
-
-        state.priorityPlayerId = state.activePlayerId;
-        state.passCount = 0;
-        drainAutoPasses(state);
-
-        await saveGameState(
-            ctx,
-            args.gameId,
-            gameState.seq + 1,
-            state,
-            gameState
-        );
-    },
-});
-
-/** Set the blocker damage ordering for a specific attacker (CR 510.1). */
-export const setBlockerOrder = mutation({
-    args: {
-        gameId: v.id("games"),
-        playerId: v.string(),
-        attackerId: v.string(),
-        orderedBlockerIds: v.array(v.string()),
-    },
-    handler: async (ctx, args) => {
-        const gameState = await getLatestGameState(ctx, args.gameId);
-        if (!gameState) throw new Error("Game not found");
-
-        const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-
-        if (state.phase !== "DECLARE_BLOCKERS") {
-            throw new Error("Not in DECLARE_BLOCKERS phase");
-        }
-        if (args.playerId !== state.activePlayerId) {
-            throw new Error("Only the attacking player can order blockers");
-        }
-        if (
-            !state.combat ||
-            !state.combat.blockersConfirmed ||
-            state.combat.blockerOrderConfirmed
-        ) {
-            throw new Error("Blocker ordering is not open");
-        }
-
-        // Validate: same set of blocker IDs, just reordered
-        const existing = state.combat.blockerOrder?.[args.attackerId] ?? [];
-        const sorted = [...args.orderedBlockerIds].sort();
-        const expectedSorted = [...existing].sort();
-        if (
-            sorted.length !== expectedSorted.length ||
-            sorted.some((id, i) => id !== expectedSorted[i])
-        ) {
-            throw new Error(
-                "Ordered blocker IDs must be the same set as the declared blockers"
-            );
-        }
-
-        state.combat.blockerOrder![args.attackerId] = args.orderedBlockerIds;
-
-        await saveGameState(
-            ctx,
-            args.gameId,
-            gameState.seq + 1,
-            state,
-            gameState
-        );
-    },
-});
-
-/** Confirm the blocker ordering and proceed. */
-export const confirmBlockerOrder = mutation({
-    args: {
-        gameId: v.id("games"),
-        playerId: v.string(),
-    },
-    handler: async (ctx, args) => {
-        const gameState = await getLatestGameState(ctx, args.gameId);
-        if (!gameState) throw new Error("Game not found");
-
-        const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-
-        if (state.phase !== "DECLARE_BLOCKERS") {
-            throw new Error("Not in DECLARE_BLOCKERS phase");
-        }
-        if (args.playerId !== state.activePlayerId) {
-            throw new Error(
-                "Only the attacking player can confirm blocker order"
-            );
-        }
-        if (
-            !state.combat ||
-            !state.combat.blockersConfirmed ||
-            state.combat.blockerOrderConfirmed
-        ) {
-            throw new Error("Blocker ordering is not open");
-        }
-
-        state.combat.blockerOrderConfirmed = true;
+        // CR 509.2 — active player gets priority immediately after blockers
+        // are declared. The historic damage-assignment-order turn-based
+        // action was removed: per CR 510.1c/d the attacking player divides
+        // combat damage freely among multiple blockers during the combat
+        // damage step.
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
         drainAutoPasses(state);
@@ -2373,17 +2519,6 @@ export const passPriority = mutation({
             throw new Error("Must declare blockers before passing priority");
         }
 
-        // Cannot pass priority before confirming blocker order (CR 510.1)
-        if (
-            state.phase === "DECLARE_BLOCKERS" &&
-            state.combat &&
-            state.combat.blockerOrderConfirmed === false
-        ) {
-            throw new Error(
-                "Must confirm blocker order before passing priority"
-            );
-        }
-
         // Cannot pass priority before confirming damage assignments
         if (
             (state.phase === "FIRST_STRIKE_DAMAGE" ||
@@ -2465,9 +2600,13 @@ export const selectResolutionChoice = mutation({
             throw new Error("Already selected");
         }
 
-        const player = getPlayer(state, args.playerId);
+        // CR 608.2 — the zone being picked from is `zoneOwnerId ?? playerId`
+        // (default: chooser's own zone). When `zoneOwnerId` is set, the
+        // chooser is picking from another player's zone (e.g. Demonic Hordes
+        // → opponent picks a Land from controller's battlefield).
+        const zoneOwner = getPlayer(state, head.zoneOwnerId ?? args.playerId);
         if (head.zone === "battlefield") {
-            const card = player.battlefield.find(
+            const card = zoneOwner.battlefield.find(
                 (c) => c.id === args.cardInstanceId
             );
             if (!card) throw new Error("Card not on battlefield");
@@ -2475,10 +2614,12 @@ export const selectResolutionChoice = mutation({
                 throw new Error("Card does not match the required filter");
             }
         } else if (head.zone === "hand") {
-            const card = player.hand.find((c) => c.id === args.cardInstanceId);
+            const card = zoneOwner.hand.find(
+                (c) => c.id === args.cardInstanceId
+            );
             if (!card) throw new Error("Card not in hand");
         } else {
-            const card = player.library.find(
+            const card = zoneOwner.library.find(
                 (c) => c.id === args.cardInstanceId
             );
             if (!card) throw new Error("Card not in library");
@@ -2960,7 +3101,8 @@ export const activateAbility = mutation({
                 state,
                 ability.targetRequirement,
                 abilitySourceColors,
-                args.playerId
+                args.playerId,
+                targetChosenX
             );
             if (legal.length === 0) {
                 throw new Error("No legal targets available");
@@ -3000,6 +3142,13 @@ export const activateAbility = mutation({
                 ...(ability.targetRequirement.powerFilter
                     ? { powerFilter: ability.targetRequirement.powerFilter }
                     : {}),
+                ...(() => {
+                    const resolved = resolveCmcFilter(
+                        ability.targetRequirement.cmcFilter,
+                        targetChosenX
+                    );
+                    return resolved ? { cmcFilter: resolved } : {};
+                })(),
             };
 
             const nextSeq = gameState.seq + 1;
@@ -3033,6 +3182,7 @@ export const activateAbility = mutation({
         ) {
             throw new Error("Ability cannot be activated right now");
         }
+        assertActivationTimingLegal(state, card, ability);
         // CR 107.3 / 601.2b — chosenX is required for abilities whose mana
         // cost has X. Validate up-front; pass to normalizeManaCost so the
         // generic portion includes X * (the chosen value).
@@ -3099,6 +3249,7 @@ export const activateAbility = mutation({
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
         };
         state.stack.push(stackItem);
+        recordActivation(card, args.abilityId);
         state.passCount = 0;
         state.priorityPlayerId = getOpponentId(state, args.playerId);
         state.singleShotAutoPass = args.keepPriority
@@ -3504,6 +3655,8 @@ export const debugResetGame = mutation({
         const playersState = game.players.map((p) =>
             buildPlayerState(p as PlayerInput)
         );
+        // CR 500.1: starting player begins their first turn at game start.
+        playersState[0].turnsTaken = 1;
         const rngSeed = freshSeed();
         const initialState: GameState = {
             players: playersState,

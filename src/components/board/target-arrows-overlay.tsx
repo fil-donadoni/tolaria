@@ -4,8 +4,10 @@ import { useLeaderLines, type ArrowSpec } from "~/hooks/use-leader-lines";
 
 const ARROW_DEFAULTS = {
     path: "fluid" as const,
-    startSocket: "auto" as const,
-    endSocket: "auto" as const,
+    startSocket: "top" as const,
+    endSocket: "top" as const,
+    startSocketGravity: 40,
+    endSocketGravity: 40,
     color: "rgba(245, 158, 11, 0.92)",
     size: 3,
     endPlug: "arrow2" as const,

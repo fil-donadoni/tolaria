@@ -57,9 +57,19 @@ export function collectTriggers(
     const ordered = [active, ...opponents];
 
     const recentlyDead = new Set<string>();
+    // CR 603.10 — PERMANENT_LEFT triggers on the leaving permanent itself
+    // ("when this Aura leaves the battlefield, ...") need to find the source
+    // in its destination zone. Track (instanceId → toZone) so we know which
+    // zone to scan for each id.
+    const recentlyLeft = new Map<
+        string,
+        "graveyard" | "exile" | "hand" | "library"
+    >();
     for (const ev of events) {
         if (ev.type === "CREATURE_DIED") {
             recentlyDead.add(ev.creatureInstanceId);
+        } else if (ev.type === "PERMANENT_LEFT") {
+            recentlyLeft.set(ev.instanceId, ev.toZone);
         }
     }
 
@@ -69,6 +79,31 @@ export function collectTriggers(
         if (recentlyDead.size > 0) {
             for (const c of player.graveyard) {
                 if (recentlyDead.has(c.id)) sources.push(c);
+            }
+        }
+        if (recentlyLeft.size > 0) {
+            // CR 603.10 last-known-information: the leaving permanent has
+            // already been moved to its destination zone. Scan each zone
+            // referenced by recentlyLeft.toZone so an aura that just hit
+            // the graveyard can still place its LTB-trigger on the stack.
+            const visitedIds = new Set<string>();
+            for (const [id, zone] of recentlyLeft) {
+                if (visitedIds.has(id)) continue;
+                const pile =
+                    zone === "graveyard"
+                        ? player.graveyard
+                        : zone === "exile"
+                          ? player.exile
+                          : zone === "hand"
+                            ? player.hand
+                            : player.library;
+                for (const c of pile) {
+                    if (c.id === id && !sources.includes(c)) {
+                        sources.push(c);
+                        visitedIds.add(id);
+                        break;
+                    }
+                }
             }
         }
         for (const permanent of sources) {

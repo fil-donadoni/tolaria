@@ -354,8 +354,6 @@ describe("advancePhase", () => {
                     confirmed: true,
                     blockerAssignments: { bear: "archer" },
                     blockersConfirmed: true,
-                    blockerOrder: { archer: ["bear"] },
-                    blockerOrderConfirmed: true,
                 },
             });
             const p1 = state.players.find((p) => p.id === "p1")!;
@@ -525,6 +523,45 @@ describe("advancePhase", () => {
             advancePhase(state);
             expect(state.players[0].landsPlayedThisTurn).toBe(0);
             expect(state.players[1].landsPlayedThisTurn).toBe(0);
+        });
+
+        it("per-player turn counter increments when player becomes active (CR 500.1)", () => {
+            // Start: p1 is active and has already taken turn 1.
+            const state = makeGameState({
+                phase: "END_STEP",
+                turn: 1,
+                activePlayerId: "p1",
+            });
+            state.players[0].turnsTaken = 1;
+            // End of p1's turn 1 → p2 begins their turn 1.
+            advancePhase(state);
+            expect(state.activePlayerId).toBe("p2");
+            expect(state.players[0].turnsTaken).toBe(1);
+            expect(state.players[1].turnsTaken).toBe(1);
+            // Fast-forward to END_STEP again to advance to p1's turn 2.
+            state.phase = "END_STEP";
+            advancePhase(state);
+            expect(state.activePlayerId).toBe("p1");
+            expect(state.players[0].turnsTaken).toBe(2);
+            expect(state.players[1].turnsTaken).toBe(1);
+        });
+
+        it("extra turn bumps the recipient's own counter (CR 500.7)", () => {
+            // p1 has taken turn 2; an extra turn for p1 is queued.
+            const state = makeGameState({
+                phase: "END_STEP",
+                turn: 3,
+                activePlayerId: "p1",
+            });
+            state.players[0].turnsTaken = 2;
+            state.players[1].turnsTaken = 1;
+            state.extraTurns = ["p1"];
+            advancePhase(state);
+            // Same player takes another turn — their counter advances.
+            expect(state.activePlayerId).toBe("p1");
+            expect(state.players[0].turnsTaken).toBe(3);
+            expect(state.players[1].turnsTaken).toBe(1);
+            expect(state.extraTurns).toBeUndefined();
         });
     });
 
@@ -1249,13 +1286,12 @@ describe("drainAutoPasses", () => {
 // ---------------------------------------------------------------------------
 
 describe("applyAllCombatDamage", () => {
-    /** Helper: create a combat state with attackers, blockers, and optional blocker order. */
+    /** Helper: create a combat state with attackers and blockers. */
     function makeCombatState(opts: {
         attackers: CardInstanceState[];
         blockers: CardInstanceState[];
         /** blockerId → attackerId */
         blockerAssignments: Record<string, string>;
-        blockerOrder?: Record<string, string[]>;
     }) {
         const p1 = makePlayer({
             id: "p1",
@@ -1274,7 +1310,6 @@ describe("applyAllCombatDamage", () => {
                 confirmed: true,
                 blockerAssignments: opts.blockerAssignments,
                 blockersConfirmed: true,
-                blockerOrder: opts.blockerOrder,
             },
         });
     }
@@ -1431,7 +1466,6 @@ describe("applyAllCombatDamage", () => {
             attackers: [attacker],
             blockers: [blocker1, blocker2],
             blockerAssignments: { blk1: "att", blk2: "att" },
-            blockerOrder: { att: ["blk1", "blk2"] },
         });
 
         // 1 to blk1 (lethal), 1 to blk2 (lethal), 1 to defender
@@ -1475,7 +1509,6 @@ describe("applyAllCombatDamage", () => {
             attackers: [attacker],
             blockers: [blocker1, blocker2],
             blockerAssignments: { blk1: "att", blk2: "att" },
-            blockerOrder: { att: ["blk1", "blk2"] },
         });
 
         // 2 to blk1, 1 to blk2 — all damage used on blockers
@@ -1517,7 +1550,6 @@ describe("applyAllCombatDamage", () => {
             attackers: [attacker],
             blockers: [blocker1, blocker2],
             blockerAssignments: { blk1: "att", blk2: "att" },
-            blockerOrder: { att: ["blk1", "blk2"] },
         });
 
         // 2 to blk1 (lethal), 3 to blk2 (lethal)

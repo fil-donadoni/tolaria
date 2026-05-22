@@ -19,6 +19,7 @@ import {
     getBasicLandMana,
     isAura,
     isDamageablePermanent,
+    manaValue,
     MANA_COLORS,
     PERMANENT_TYPES,
 } from "./constants";
@@ -29,6 +30,13 @@ import {
 } from "./layers";
 import { isProtectedFromSource } from "./protection";
 import { randomInt, seededShuffle } from "./rng";
+import {
+    applyDamageReplacements,
+    applyDiscardReplacements,
+    applyLifeChangeReplacements,
+    applyTransientDamageRedirections,
+    describeDamageSource,
+} from "./replacements";
 import { collectTriggers } from "./triggers";
 import { getColorsFromCost } from "../cards/colors";
 
@@ -238,6 +246,20 @@ export type CardInstanceState = {
      *  graveyard/exile so post-death lookups can read the moment-of-death
      *  count. */
     counters?: Record<string, number>;
+    /** Per-turn activation counter keyed by ability id (CR 602.5 — "activate
+     *  this ability only once each turn"). Incremented on activation commit,
+     *  reset at the active player's turn start. Read by the activation
+     *  validator to enforce `ActivatedAbility.oncePerTurn`. */
+    activationsThisTurn?: Record<string, number>;
+    /** Tracks card types added by `StaticTypeAdd` effects (layer 4 surrogate
+     *  — see `cards/types.ts` for the model's limits). One entry per
+     *  `(auraId, type)` pair so multiple concurrent sources don't double-add
+     *  and unapplying one source only removes the type when no other source
+     *  still grants it. The `type` itself is also pushed into `types[]` at
+     *  apply time so every existing `types.includes(...)` read observes the
+     *  effect; `unapplySourceStaticEffects` removes from `types[]` once the
+     *  last origin entry is gone, provided the type wasn't printed. */
+    grantedTypes?: { type: string; auraId: string }[];
 };
 
 /** A one-shot damage prevention effect (CR 615.1, 615.6). The next time the
@@ -298,6 +320,12 @@ export type PlayerState = {
     /** Number of lands played by this player during the current turn
      *  (CR 305.2 / 117.2c). Reset to 0 at the start of each turn. */
     landsPlayedThisTurn?: number;
+    /** Count of turns this player has taken so far in the game (CR 500.1).
+     *  Starting player begins at 1 once UNTAP begins; the non-starting player
+     *  reaches 1 when their first turn starts. Extra turns (CR 500.7)
+     *  increment the recipient's counter normally. Distinct from
+     *  `GameState.turn`, which is the global sequence number. */
+    turnsTaken?: number;
     /** Activated abilities granted by effects (e.g. Channel's "Pay 1 life:
      *  Add {C}." until end of turn). Each entry is a reference to a template
      *  on another card; duration controls when CLEANUP purges it. */
@@ -312,6 +340,14 @@ export type StackItem = CardInstanceState & {
      *  (CR 107.3, 601.2b). Undefined for spells without X. Read on
      *  resolution by SpellContext.getX(). */
     chosenX?: number;
+    /** Mode id chosen at announcement for modal spells (CR 700.2). On
+     *  resolution, dispatch lookups the matching entry in
+     *  `card.modes` and runs `mode.resolve` instead of `card.resolve`. */
+    chosenModeId?: string;
+    /** Snapshot of the permanent sacrificed as an additional cost at
+     *  announcement (CR 117.9 / 601.2f). Captured at commit and read at
+     *  resolve via `SpellContext.getAdditionalSacrificeCmc`. */
+    additionalSacrificeSnapshot?: { cardInstanceId: string; cmc: number };
     /** If set, this stack item is an activated ability (not a spell). Source permanent stays on battlefield. */
     abilityId?: string;
     /** When the activated ability was GRANTED to the source by another card
@@ -382,6 +418,20 @@ export type PendingCast = {
     keepPriority?: boolean;
     /** Value chosen for X at announce time. Propagated to the stack item. */
     chosenX?: number;
+    /** Mode id chosen at announcement for modal spells (CR 700.2 / 700.2c).
+     *  Undefined for non-modal spells. Propagated to the stack item. */
+    chosenModeId?: string;
+    /** In-progress additional cost picker (CR 117.9 / 601.2f). Set when the
+     *  card has `additionalCosts.sacrificeFilter`. `pickedId` is undefined
+     *  until the player calls `selectAdditionalCost`; commit is blocked
+     *  while it is undefined regardless of mana coverage. On commit the
+     *  picked permanent is sacrificed and its mana value is snapshotted on
+     *  the resulting stack item. */
+    additionalCost?: {
+        kind: "sacrifice";
+        filter: PermanentFilter;
+        pickedId?: string;
+    };
 };
 
 /** Tracks an in-progress activated-ability payment (CR 602.1, 602.2b).
@@ -422,6 +472,36 @@ export type PendingActivation = {
     grantedSourceCardId?: string;
 };
 
+/** Choice family taxonomy (definitions in `gre/types.ts` to avoid an import
+ *  cycle with `cards/types.ts`).
+ *
+ *  - `zone-pick`: chooser selects N items from a specified zone
+ *    (`battlefield`/`hand`/`library`). All flow through
+ *    `selectResolutionChoice`. Adding a new card semantic that picks from a
+ *    zone? Add a single entry to `ZonePickKind`.
+ *  - `yes-no`: a single boolean answer, optionally gated by a mana cost
+ *    (paid via the regular cost-payment flow). Flows through `submitMayPay`.
+ *  - `order`: chooser determines an ordered subset of cards (today only the
+ *    mulligan bottom-N ordering). Flows through `submitMulliganBottomOrder`.
+ *
+ *  Adding a kind in a new family means a new submission mutation and a new
+ *  family-specific assertion in `assertNoPendingChoices`. Adding a kind in an
+ *  existing family means a single union member plus a label entry in the UI
+ *  registry — `bun run check:all` catches missing labels at compile time via
+ *  the exhaustive `Record<PendingChoiceKind, ...>` typing. */
+import type {
+    ZonePickKind,
+    YesNoChoiceKind,
+    OrderChoiceKind,
+    PendingChoiceKind,
+} from "./types";
+export type {
+    ZonePickKind,
+    YesNoChoiceKind,
+    OrderChoiceKind,
+    PendingChoiceKind,
+};
+
 /** Mid-resolution player choice requested by a spell/ability's resolve step
  *  (CR 608.2, 101.4). Enqueued by `SpellContext.requestChoice`; consumed by
  *  the `selectResolutionChoice` mutation. While one or more entries are
@@ -440,19 +520,15 @@ export type PendingChoice = {
     choiceId: string;
     /** Player who must make the choice. */
     playerId: string;
-    /** Semantic kind — drives the UI prompt. "keep-permanents" = pick N
-     *  permanents to keep on the battlefield (the rest are sacrificed by the
-     *  step). "keep-hand" = pick N cards in hand to keep (the rest are
-     *  discarded by the step). "may-pay" = optional yes/no answer with an
-     *  optional mana cost paid on accept (Soul Net's "you may pay {1}",
-     *  Verduran Enchantress's "may draw a card" — `cost` undefined for the
-     *  cost-less variant). */
-    kind:
-        | "keep-permanents"
-        | "keep-hand"
-        | "search-library"
-        | "mulligan-bottom"
-        | "may-pay";
+    /** Semantic kind — see {@link PendingChoiceKind} taxonomy. */
+    kind: PendingChoiceKind;
+    /** Owner of the zone being picked from. Defaults to `playerId` (the
+     *  chooser picks from their own zone). Set explicitly when the chooser
+     *  picks items from another player's zone — e.g. Demonic Hordes prompts
+     *  the OPPONENT (chooser) to pick a Land from the CONTROLLER's
+     *  battlefield to sacrifice. The UI uses `zoneOwnerId ?? playerId` to
+     *  decide which battlefield receives click routing for the choice. */
+    zoneOwnerId?: string;
     /** Zone of the choosable items — restricts the set offered to the chooser.
      *  Undefined for choice kinds that don't pick from a zone (`may-pay`). */
     zone?: "battlefield" | "hand" | "library";
@@ -496,6 +572,10 @@ export type PendingTarget = {
      *  (CR 613 layer 7c). Propagated from TargetRequirement.powerFilter.
      *  Both bounds inclusive. */
     powerFilter?: { min?: number; max?: number };
+    /** Mana value range (CR 202.3). Propagated from TargetRequirement.cmcFilter
+     *  after resolving any `"X"` placeholders against the announced chosenX.
+     *  Used by Spell Blast ("counter target spell with mana value X"). */
+    cmcFilter?: { min?: number; max?: number; equals?: number };
     /** Zone the target lives in (CR 109.2). Default "battlefield" — set to
      *  "graveyard" for reanimation/recursion spells like Regrowth. Propagated
      *  from TargetRequirement.zone. */
@@ -509,6 +589,10 @@ export type PendingTarget = {
     keepPriority?: boolean;
     /** Propagated from announceCast when the spell has X in its mana cost. */
     chosenX?: number;
+    /** Mode id chosen at announcement for modal spells (CR 700.2 / 700.2c).
+     *  Propagated through pendingCast → stack item. Determines which mode's
+     *  `targetRequirement` governs this selection. */
+    chosenModeId?: string;
     /** Distinguishes a spell cast (default) from an activated ability that
      *  requires targets (CR 602.2b). When "ability", `abilityId` is set and
      *  costs are paid at finalization instead of at announcement. */
@@ -588,10 +672,6 @@ export type GameState = {
         /** Blocker currently being assigned by the defending player (visible to both clients). */
         pendingBlockerId?: string;
         blockersConfirmed: boolean;
-        /** attackerId → ordered list of blocker IDs (set by attacking player after blockers declared, CR 510.1). */
-        blockerOrder?: Record<string, string[]>;
-        /** true once attacking player has confirmed the blocker ordering. */
-        blockerOrderConfirmed?: boolean;
         /** attackerId → { blockerId/defenderId: damage } for damage distribution. */
         damageAssignments?: Record<string, Record<string, number>>;
         /** false = waiting for manual assignment, undefined = auto-applied or not yet at damage step. */
@@ -643,7 +723,76 @@ export type GameState = {
      *  reset at turn start. Read by Scavenging Ghoul and similar
      *  count-based triggers. */
     deathsThisTurn?: number;
+    /** Cumulative damage taken by each player this turn (CR 120.3 tally).
+     *  Map `playerId → total damage`. Incremented every time damage actually
+     *  lands on a player (after replacement / prevention / protection).
+     *  Read by Simulacrum's "equal to the damage dealt to you this turn"
+     *  clause. Reset at turn start. */
+    damageDealtToPlayerThisTurn?: Record<string, number>;
+    /** Transient one-shot damage redirections (CR 614). Distinct from
+     *  permanent-bound `replacementEffects` (CardDefinition) — these are
+     *  state-level shields produced by spells / activated abilities
+     *  (Reverse Damage, Jade Monolith's {1}, Personal Incarnation's {0}).
+     *  Each shield is consumed by a matching damage event. The unconsumed
+     *  remainder is purged when `duration` expires. */
+    damageRedirections?: DamageRedirection[];
+    /** Per-player preferences that drive "may"-style replacement opt-ins.
+     *  Persisted in state so the choice is replay-stable and toggleable
+     *  through a mutation rather than requiring mid-event suspension.
+     *  Empty / undefined means "accept the replacement" (the typical CR
+     *  decision for Library of Leng-style cards). */
+    playerPreferences?: Record<string, PlayerPreferences>;
 };
+
+/** Player-level replacement preferences. Each entry is opt-in: undefined
+ *  means "use the replacement effect's default behavior" (typically the
+ *  player accepts the redirect). Set `libraryOfLengRouting: "graveyard"`
+ *  to bypass Library of Leng's discard replacement. */
+export type PlayerPreferences = {
+    /** Library of Leng (CR 614 discard → library top). Set to "graveyard"
+     *  to opt OUT of the library-top reroute and let the discard go to the
+     *  graveyard normally. Default "library" (Library of Leng activates). */
+    libraryOfLengRouting?: "library" | "graveyard";
+};
+
+/** State-level transient damage replacement (CR 614). Three kinds cover the
+ *  LEA reanimation / replacement subset:
+ *
+ *  - `prevent-from-source-gain-life`: source X's next damage to a chosen
+ *    player is fully prevented; the player gains life equal to the
+ *    prevented amount. Reverse Damage.
+ *  - `to-self-redirect-to-owner`: the next N damage that would be dealt to
+ *    a specific permanent is redirected to its owner. Personal
+ *    Incarnation's `{0}` activated ability.
+ *  - `from-source-to-permanent-redirect-to-player`: the next damage that
+ *    source X would deal to a specific creature is dealt to a chosen
+ *    player instead. Jade Monolith's `{1}` activated ability. */
+export type DamageRedirection =
+    | {
+          kind: "prevent-from-source-gain-life";
+          sourceInstanceId: string;
+          playerId: string;
+          duration: Duration;
+      }
+    | {
+          kind: "to-self-redirect-to-owner";
+          targetInstanceId: string;
+          remaining: number;
+          duration: Duration;
+      }
+    | {
+          kind: "from-source-to-permanent-redirect-to-player";
+          /** Source filter. `undefined` matches any source (Jade Monolith's
+           *  oracle is "a source of your choice" but with no further
+           *  re-target step at activation; the engine simplifies to "any
+           *  source this turn" for the chosen creature). */
+          sourceInstanceId?: string;
+          targetInstanceId: string;
+          redirectToPlayerId: string;
+          /** Remaining charges. `1` = one-shot, decrements per match. */
+          remaining: number;
+          duration: Duration;
+      };
 
 /** Returns true if a prevention effect matches (source, player) and consumes
  *  it. Called from every damage-dealing path (spell/ability, combat). */
@@ -837,15 +986,25 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         return top;
     }
 
-    // Single-shot spell resolution (CR 608.2b). Resolve fn is resolved via
-    // `getResolveFn` so cards declaring `effect: "<shorthand>"` are compiled
-    // through the registry the same as imperative `resolve()` bodies.
+    // Single-shot spell resolution (CR 608.2b). For modal spells (CR 700.2)
+    // the chosen mode's resolve is dispatched instead of the card-level
+    // resolve. The mode id was locked at announcement (CR 700.2c) and rides
+    // through pendingCast → stack item.
     if (cardDef) {
-        const resolveFn = getResolveFn(cardDef);
-        if (resolveFn) {
-            const ctx = buildSpellContext(state, top);
-            resolveFn(ctx);
-            if ((state.pendingChoices?.length ?? 0) > 0) return null;
+        if (top.chosenModeId && cardDef.modes && cardDef.modes.length > 0) {
+            const mode = cardDef.modes.find((m) => m.id === top.chosenModeId);
+            if (mode) {
+                const ctx = buildSpellContext(state, top);
+                mode.resolve(ctx);
+                if ((state.pendingChoices?.length ?? 0) > 0) return null;
+            }
+        } else {
+            const resolveFn = getResolveFn(cardDef);
+            if (resolveFn) {
+                const ctx = buildSpellContext(state, top);
+                resolveFn(ctx);
+                if ((state.pendingChoices?.length ?? 0) > 0) return null;
+            }
         }
     }
     delete top.collectedChoices;
@@ -880,18 +1039,38 @@ function finalizeSpellResolution(
         // aura fizzles to the graveyard (CR 303.4i) instead of entering play.
         if (isAura(item)) {
             const target = item.targets?.[0];
-            const host =
-                target && target.type === "permanent"
-                    ? findOnBattlefield(state, target.id)?.card
-                    : null;
+            let host: CardInstanceState | undefined;
+
+            if (target && target.type === "graveyard-card" && target.playerId) {
+                // CR 303.4i — "enchant <card type> in a graveyard" auras
+                // reanimate the target before attaching: the card is moved
+                // from the named graveyard to the aura caster's battlefield,
+                // then the aura attaches to the new permanent. Animate Dead
+                // is the canonical example.
+                const ownerPlayer = getPlayer(state, target.playerId);
+                const idx = ownerPlayer.graveyard.findIndex(
+                    (c) => c.id === target.id
+                );
+                if (idx !== -1) {
+                    const [reanimated] = ownerPlayer.graveyard.splice(idx, 1);
+                    putReanimatedOnBattlefield(
+                        state,
+                        reanimated,
+                        item.castById
+                    );
+                    host = reanimated;
+                }
+            } else if (target && target.type === "permanent") {
+                host = findOnBattlefield(state, target.id)?.card;
+            }
+
             const isLegalHost =
-                host !== null &&
                 host !== undefined &&
                 isLegalAuraHost(host, item) &&
                 // CR 702.16b: the target can't have acquired protection
                 // matching the aura's color between cast and resolution.
                 !isProtectedFromSource(host, item);
-            if (!isLegalHost) {
+            if (!isLegalHost || host === undefined) {
                 item.zone = "graveyard";
                 getPlayer(state, item.ownerId).graveyard.push(item);
                 return;
@@ -936,11 +1115,35 @@ function finalizeSpellResolution(
             // grants so both reads observe a consistent host.
             applyAuraControlChange(state, item);
         }
+        // CR 603.6 — ETB notification for self-ETB triggers ("when ~ enters
+        // the battlefield, ..."). Drained by `processPendingActionTriggers`
+        // after this resolve completes.
+        emitPermanentEntered(state, item);
     } else {
         const owner = getPlayer(state, item.ownerId);
         item.zone = "graveyard";
         owner.graveyard.push(item);
     }
+}
+
+/** Emits PERMANENT_ENTERED for a card that has just been placed on the
+ *  battlefield (CR 603.6). Snapshots last-known type info so the trigger
+ *  matcher can filter without a registry lookup. */
+function emitPermanentEntered(
+    state: GameState,
+    card: { id: string; controllerId: string; types: CardType[]; card: unknown }
+): void {
+    const cardId = (card.card as { id?: string }).id;
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "PERMANENT_ENTERED",
+            instanceId: card.id,
+            controllerId: card.controllerId,
+            cardId,
+            types: [...card.types],
+        },
+    ];
 }
 
 /** Applies every `keyword-grant` static effect declared on `source`'s card
@@ -989,6 +1192,23 @@ export function applySourceStaticEffects(
                             auraId: source.id,
                         },
                     ];
+                } else if (effect.kind === "type-add") {
+                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                        continue;
+                    }
+                    const origins = target.grantedTypes ?? [];
+                    for (const type of effect.types) {
+                        const already = origins.some(
+                            (o) => o.auraId === source.id && o.type === type
+                        );
+                        if (already) continue;
+                        origins.push({ type, auraId: source.id });
+                        if (!target.types.includes(type as CardType)) {
+                            target.types = [...target.types, type as CardType];
+                        }
+                    }
+                    target.grantedTypes =
+                        origins.length > 0 ? origins : undefined;
                 }
             }
         }
@@ -1034,6 +1254,29 @@ export function unapplySourceStaticEffects(
                 const keptA = activated.filter((g) => g.auraId !== source.id);
                 target.grantedActivatedAbilities =
                     keptA.length > 0 ? keptA : undefined;
+            }
+            const types = target.grantedTypes;
+            if (types && types.length > 0) {
+                const removed = types.filter((g) => g.auraId === source.id);
+                const kept = types.filter((g) => g.auraId !== source.id);
+                target.grantedTypes = kept.length > 0 ? kept : undefined;
+                if (removed.length > 0) {
+                    // Strip each removed type from `types[]` only if no
+                    // remaining origin still grants it AND it wasn't printed.
+                    const targetCardId = (target.card as { id?: string }).id;
+                    const def = targetCardId
+                        ? tryGetCardById(targetCardId)
+                        : undefined;
+                    const printedTypes = (def?.types ?? []) as string[];
+                    for (const r of removed) {
+                        const stillGranted = kept.some(
+                            (g) => g.type === r.type
+                        );
+                        if (stillGranted) continue;
+                        if (printedTypes.includes(r.type)) continue;
+                        target.types = target.types.filter((t) => t !== r.type);
+                    }
+                }
             }
         }
     }
@@ -1087,6 +1330,28 @@ export function applyExistingGrantsTo(
                             auraId: source.id,
                         },
                     ];
+                } else if (effect.kind === "type-add") {
+                    if (
+                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
+                    ) {
+                        continue;
+                    }
+                    const origins = newPermanent.grantedTypes ?? [];
+                    for (const type of effect.types) {
+                        const already = origins.some(
+                            (o) => o.auraId === source.id && o.type === type
+                        );
+                        if (already) continue;
+                        origins.push({ type, auraId: source.id });
+                        if (!newPermanent.types.includes(type as CardType)) {
+                            newPermanent.types = [
+                                ...newPermanent.types,
+                                type as CardType,
+                            ];
+                        }
+                    }
+                    newPermanent.grantedTypes =
+                        origins.length > 0 ? origins : undefined;
                 }
             }
         }
@@ -1218,6 +1483,52 @@ function findOnBattlefield(
     return null;
 }
 
+/** Increments the per-turn damage tally for `playerId` (CR 120.3). Called
+ *  by every damage path after the damage actually lands (post replacement +
+ *  prevention + protection). Read by Simulacrum's "equal to the damage
+ *  dealt to you this turn" clause. */
+export function bumpDamageDealtToPlayer(
+    state: GameState,
+    playerId: string,
+    amount: number
+): void {
+    if (amount <= 0) return;
+    const tally = { ...(state.damageDealtToPlayerThisTurn ?? {}) };
+    tally[playerId] = (tally[playerId] ?? 0) + amount;
+    state.damageDealtToPlayerThisTurn = tally;
+}
+
+/** Runs the CR 614 replacement layer for a damage event. Returns the
+ *  rewritten target/amount (after every applicable replacement has been
+ *  consulted in CR 616 order) or null if a replacement consumed the event.
+ *  Shared by `SpellContext.dealDamage` and the combat damage steps so all
+ *  damage paths go through the same redirection/cancel pipeline. */
+export function runDamageReplacement(
+    state: GameState,
+    sourceInstanceId: string,
+    sourceControllerId: string,
+    target: TargetSelection,
+    amount: number,
+    isCombat: boolean
+): { target: TargetSelection; amount: number } | null {
+    const desc = describeDamageSource(state, sourceInstanceId);
+    const continuous = applyDamageReplacements(state, {
+        kind: "damage",
+        sourceInstanceId,
+        sourceControllerId,
+        sourceColors: desc.colors,
+        sourceTypes: desc.types,
+        sourceStaticAbilities: desc.staticAbilities,
+        target,
+        amount,
+        isCombat,
+    });
+    if (continuous === null) return null;
+    const transient = applyTransientDamageRedirections(state, continuous);
+    if (transient === null) return null;
+    return { target: transient.target, amount: transient.amount };
+}
+
 /** Replacement-aware destroy (CR 614.5, 701.15a). If the permanent has at
  *  least one regeneration shield, consume one and apply the regen rider:
  *  remove all marked damage, tap it, and remove it from combat (CR 506.4).
@@ -1298,6 +1609,15 @@ export function removePermanentTo(
 ): void {
     const initial = findOnBattlefield(state, cardId);
     if (!initial) return;
+    // CR 603.10 last-known-information snapshot for PERMANENT_LEFT. Capture
+    // attachedTo here because the aura cleanup below clears it on the
+    // leaving card; LTB-triggers on the aura itself (Animate Dead) read this
+    // payload to identify the host they need to sacrifice.
+    const lkiAttachedTo = initial.card.attachedTo;
+    const lkiTypes: ReadonlyArray<CardType> = [...initial.card.types];
+    const lkiCardId = (initial.card.card as { id?: string }).id;
+    const lkiWasAura = isAura(initial.card);
+    const lkiOwnerId = initial.card.ownerId;
     // CR 611.2 — a static effect from a source stops applying when the source
     // leaves the battlefield. Revert the grant(s) before the move so readers
     // never observe a dangling keyword. Auras additionally need their
@@ -1355,6 +1675,24 @@ export function removePermanentTo(
         // bookkeeping derived from the event log, not an SBA).
         state.deathsThisTurn = (state.deathsThisTurn ?? 0) + 1;
     }
+    // CR 603.10 — LTB notification for triggers that fire on the leaving
+    // permanent itself ("when this Aura leaves the battlefield, ..."). The
+    // matching trigger source is located by `collectTriggers` in `toZone`
+    // via the `recentlyLeft` lookup, mirroring CREATURE_DIED.
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "PERMANENT_LEFT",
+            instanceId: cardId,
+            controllerId: snapshotControllerId,
+            ownerId: lkiOwnerId,
+            cardId: lkiCardId,
+            types: lkiTypes,
+            wasAura: lkiWasAura,
+            attachedToBeforeLeave: lkiAttachedTo,
+            toZone,
+        },
+    ];
 }
 
 /** Emits a SPELL_CAST event for a freshly-pushed stack item (CR 601.2i).
@@ -1469,6 +1807,43 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.temporaryPTMods;
 }
 
+/** Reanimation helper: drops a card that has been removed from its source
+ *  zone onto `controllerId`'s battlefield. Mirrors the "non-Aura permanent"
+ *  branch of `finalizeSpellResolution` so existing lord-grants reach the
+ *  new permanent (CR 611.2) and the card's own keyword-grants reach the
+ *  battlefield. Caller is responsible for removing the card from its
+ *  origin zone (graveyard/exile) BEFORE invoking this so the move stays
+ *  atomic. Used both by `returnToBattlefield` (Resurrection) and the
+ *  graveyard-target aura branch (Animate Dead, CR 303.4i). */
+function putReanimatedOnBattlefield(
+    state: GameState,
+    card: CardInstanceState,
+    controllerId: string
+): void {
+    // CR 400.7 — zone change creates a new object: clear battlefield-only
+    // transient state. Then re-establish the fresh-permanent defaults.
+    resetBattlefieldTransientState(card);
+    card.zone = "battlefield";
+    card.controllerId = controllerId;
+    card.attachedTo = undefined;
+    if (card.types.includes("Creature")) {
+        card.isSummoningSick = true;
+    }
+    getPlayer(state, controllerId).battlefield.push(card);
+    // CR 611.2 first read: existing battlefield grants reach the newcomer
+    // (Goblin King-style "Goblins have mountainwalk" still grants to a
+    // Goblin reanimated under any controller).
+    applyExistingGrantsTo(state, card);
+    // CR 611.2 second read: the reanimated permanent's own static effects
+    // push out to matching battlefield permanents (e.g. a reanimated
+    // Goblin King re-grants mountainwalk to allied Goblins).
+    applySourceStaticEffects(state, card);
+    // CR 603.6 — ETB notification for self-ETB triggers, matching the
+    // finalizeSpellResolution path so reanimated permanents behave like
+    // freshly-cast ones for trigger purposes.
+    emitPermanentEntered(state, card);
+}
+
 /** Predicate: does the card match every constraint in the filter? Omitted
  *  fields don't constrain (AND semantics). */
 export function matchesPermanentFilter(
@@ -1496,6 +1871,16 @@ export function matchesPermanentFilter(
     if (
         filter.excludeAbility !== undefined &&
         card.staticAbilities.includes(filter.excludeAbility)
+    ) {
+        return false;
+    }
+    if (filter.isToken !== undefined) {
+        const cardIsToken = card.isToken === true;
+        if (filter.isToken !== cardIsToken) return false;
+    }
+    if (
+        filter.excludeInstanceIds !== undefined &&
+        filter.excludeInstanceIds.includes(card.id)
     ) {
         return false;
     }
@@ -1559,6 +1944,21 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         },
 
         dealDamage(target: TargetSelection, amount: number) {
+            // CR 614 replacement effects run BEFORE CR 615 prevention. May
+            // rewrite target (Simulacrum / Veteran Bodyguard / Personal
+            // Incarnation redirect damage to themselves) or cancel
+            // (Jade Monolith's activated redirect cancels by rewriting).
+            const replaced = runDamageReplacement(
+                state,
+                item.id,
+                item.controllerId,
+                target,
+                amount,
+                false
+            );
+            if (replaced === null) return;
+            target = replaced.target;
+            amount = replaced.amount;
             if (target.type === "player") {
                 // CR 615.1: a prevention effect replaces the would-be damage
                 // with nothing. Matched against the current stack item's id
@@ -1574,6 +1974,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 );
                 if (reduced <= 0) return;
                 getPlayer(state, target.id).life -= reduced;
+                bumpDamageDealtToPlayer(state, target.id, reduced);
                 state.pendingEvents = [
                     ...(state.pendingEvents ?? []),
                     {
@@ -1652,6 +2053,38 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 },
             ];
         },
+        addDamageRedirectionShield(shield): void {
+            const resolved = resolveDuration(
+                shield.duration,
+                item.castById,
+                state
+            );
+            state.damageRedirections = [
+                ...(state.damageRedirections ?? []),
+                shield.kind === "prevent-from-source-gain-life"
+                    ? {
+                          kind: "prevent-from-source-gain-life",
+                          sourceInstanceId: shield.sourceInstanceId,
+                          playerId: shield.playerId,
+                          duration: resolved,
+                      }
+                    : shield.kind === "to-self-redirect-to-owner"
+                      ? {
+                            kind: "to-self-redirect-to-owner",
+                            targetInstanceId: shield.targetInstanceId,
+                            remaining: shield.remaining,
+                            duration: resolved,
+                        }
+                      : {
+                            kind: "from-source-to-permanent-redirect-to-player",
+                            sourceInstanceId: shield.sourceInstanceId,
+                            targetInstanceId: shield.targetInstanceId,
+                            redirectToPlayerId: shield.redirectToPlayerId,
+                            remaining: shield.remaining,
+                            duration: resolved,
+                        },
+            ];
+        },
         preventNextNDamageToTarget(
             target: TargetSelection,
             amount: number,
@@ -1679,10 +2112,30 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             ];
         },
         gainLife(playerId: string, amount: number) {
-            getPlayer(state, playerId).life += amount;
+            if (amount <= 0) return;
+            // CR 614 — Lich's "if you would gain life, draw cards instead"
+            // intercepts here. The replacement consumes the event (no actual
+            // life gain) and runs `drawCards` via its apply ctx.
+            const repl = applyLifeChangeReplacements(state, {
+                kind: "lifegain",
+                playerId,
+                amount,
+            });
+            if (repl === null) return;
+            getPlayer(state, repl.playerId).life += repl.amount;
         },
         loseLife(playerId: string, amount: number) {
-            getPlayer(state, playerId).life -= amount;
+            if (amount <= 0) return;
+            // CR 614 — Lich's "if you would lose life, sacrifice instead"
+            // intercepts here. The replacement may rewrite the amount or
+            // cancel it entirely (replacing with its own side-effects).
+            const repl = applyLifeChangeReplacements(state, {
+                kind: "lifeloss",
+                playerId,
+                amount,
+            });
+            if (repl === null) return;
+            getPlayer(state, repl.playerId).life -= repl.amount;
         },
         getLife(playerId: string): number {
             return getPlayer(state, playerId).life;
@@ -1809,6 +2262,27 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 throw new Error("Cannot return a player to hand");
             removePermanentTo(state, target.id, "hand");
         },
+        // CR 400.7 reanimation: locate `cardInstanceId` in `playerId`'s
+        // graveyard or exile, splice it out, and put it onto `playerId`'s
+        // battlefield via `putReanimatedOnBattlefield` (CR 611.2 grant
+        // application, CR 302.1 summoning sickness for creatures). Returns
+        // false on silent fizzle when the id is not in `fromZone` at
+        // resolution (CR 608.2b — illegal target became unreachable
+        // between cast and resolution). Used by Resurrection.
+        returnToBattlefield(
+            playerId: string,
+            cardInstanceId: string,
+            fromZone: "graveyard" | "exile"
+        ): boolean {
+            const player = getPlayer(state, playerId);
+            const pile =
+                fromZone === "graveyard" ? player.graveyard : player.exile;
+            const idx = pile.findIndex((c) => c.id === cardInstanceId);
+            if (idx === -1) return false;
+            const [card] = pile.splice(idx, 1);
+            putReanimatedOnBattlefield(state, card, playerId);
+            return true;
+        },
         // CR 701.20a: to tap a permanent is to turn it sideways from an
         // untapped position. Already-tapped permanents are unaffected.
         // Silently no-ops if the target has left the battlefield (CR 608.2b).
@@ -1910,7 +2384,18 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const picks = Math.min(amount, player.hand.length);
             for (let i = 0; i < picks; i++) {
                 const idx = randomInt(state, player.hand.length);
-                moveCard(player, player.hand[idx].id, "hand", "graveyard");
+                const cardId = player.hand[idx].id;
+                // CR 614 — Library of Leng's "may put it on top of library
+                // instead" intercepts each discard. If the replacement
+                // consumes the event the card has already been routed
+                // elsewhere by the apply ctx; skip the default discard.
+                const repl = applyDiscardReplacements(state, {
+                    kind: "discard",
+                    playerId,
+                    cardInstanceId: cardId,
+                });
+                if (repl === null) continue;
+                moveCard(player, repl.cardInstanceId, "hand", "graveyard");
             }
         },
         addMana(cost: CardManaCost): void {
@@ -1931,6 +2416,32 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         },
         getX(): number {
             return item.chosenX ?? 0;
+        },
+        // CR 202.3 / 202.3b — mana value lookup. For permanents on the
+        // battlefield, X in the printed cost counts as 0 (the chosen X is
+        // not currently preserved on the resulting permanent). For stack
+        // spells, X folds in the chosen value from the stack item.
+        // Players / graveyard-card / synthetic targets return 0.
+        getAdditionalSacrificeCmc(): number | undefined {
+            return item.additionalSacrificeSnapshot?.cmc;
+        },
+        getCmc(target: TargetSelection): number {
+            if (target.type === "permanent") {
+                const found = findOnBattlefield(state, target.id);
+                if (!found) return 0;
+                const cardId = (found.card.card as { id?: string }).id;
+                const def = cardId ? tryGetCardById(cardId) : undefined;
+                return manaValue(def?.manaCost);
+            }
+            if (target.type === "spell") {
+                const stackItem = state.stack.find((s) => s.id === target.id);
+                if (!stackItem) return 0;
+                const cardId = (stackItem.card as { id?: string }).id;
+                const def = cardId ? tryGetCardById(cardId) : undefined;
+                const base = manaValue(def?.manaCost);
+                return base + (stackItem.chosenX ?? 0);
+            }
+            return 0;
         },
         // CR 120.1: damage divided evenly, rounded down, among target
         // creatures/players. E.g. 5 damage / 2 targets = 2 each (remainder
@@ -2014,6 +2525,22 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             // Validate the target player exists (throws if not).
             getPlayer(state, playerId);
             state.extraTurns = [...(state.extraTurns ?? []), playerId];
+        },
+        // CR 104.3 — direct loss assignment used by Lich's LTB-trigger. The
+        // call bypasses the CR 614 lose-game replacement loop: this is a
+        // triggered ability resolving (CR 603), not a CR 104.3 condition,
+        // so it's not itself a replaceable lose-game event.
+        loseGame(playerId: string): void {
+            getPlayer(state, playerId);
+            const opponent = state.players.find((p) => p.id !== playerId);
+            state.gameOver = {
+                loserId: playerId,
+                winnerId: opponent?.id ?? playerId,
+                reason: "life",
+            };
+        },
+        getDamageDealtThisTurn(playerId: string): number {
+            return state.damageDealtToPlayerThisTurn?.[playerId] ?? 0;
         },
         // CR 111 / 707.1: token creation. The token enters as a brand-new
         // permanent under `controllerId`, owner = controller (CR 111.2 — token
@@ -2195,6 +2722,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 prompt: req.prompt,
             };
             if (req.filter) entry.filter = req.filter;
+            if (req.zoneOwnerId) entry.zoneOwnerId = req.zoneOwnerId;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },
@@ -2263,7 +2791,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const player = getPlayer(state, playerId);
             const idx = player.hand.findIndex((c) => c.id === cardInstanceId);
             if (idx === -1) return;
-            moveCard(player, cardInstanceId, "hand", "graveyard");
+            // CR 614 — Library of Leng's discard replacement intercepts here.
+            const repl = applyDiscardReplacements(state, {
+                kind: "discard",
+                playerId,
+                cardInstanceId,
+            });
+            if (repl === null) return;
+            moveCard(player, repl.cardInstanceId, "hand", "graveyard");
         },
         // CR 701.15a: stacks one regeneration shield on the target permanent.
         // The shield is consumed by the next destroy event on that permanent

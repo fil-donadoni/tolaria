@@ -6,6 +6,7 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { useDraggable } from "~/hooks/useDraggable";
 import { isManaCostCovered, manaCostToString } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
+import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
 
 /** Banner shown at the top-center of the board while a mid-resolution
  *  player choice is active (CR 608.2). Displays the prompt, the progress
@@ -33,12 +34,7 @@ export default function PendingChoicePrompt({
 
     const chooserName =
         allPlayers.find((p) => p.id === choice.playerId)?.name ?? "opponent";
-    const sourceLabel =
-        choice.kind === "mulligan-bottom"
-            ? "Mulligan"
-            : choice.kind === "may-pay"
-              ? "Optional"
-              : "Balance";
+    const sourceLabel = pendingChoiceLabel(choice.kind);
 
     const isMayPay = choice.kind === "may-pay";
     // Disable "Pay" until the chooser's mana pool covers the cost (CR 117.6).

@@ -8,6 +8,7 @@ import {
     LAND_SUBTYPE_MANA,
     MANA_COLORS,
     isTapLockedBySummoningSickness,
+    manaValue,
 } from "./constants";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
 import { isProtectedFromColors } from "./protection";
@@ -247,17 +248,71 @@ export function hasColor(card: CardInstanceState, color: Color): boolean {
     return STATIC_EFFECT_CTX.getColors(card).includes(color);
 }
 
+/** Resolves a TargetRequirement.cmcFilter's `"X"` placeholders against the
+ *  announced chosenX so downstream code only sees numeric bounds.
+ *  Used by getLegalTargets and selectTarget validation. */
+export function resolveCmcFilter(
+    filter: TargetRequirement["cmcFilter"] | undefined,
+    chosenX: number | undefined
+): { min?: number; max?: number; equals?: number } | undefined {
+    if (!filter) return undefined;
+    const resolveOne = (v: number | "X" | undefined): number | undefined => {
+        if (v === undefined) return undefined;
+        if (v === "X") return chosenX ?? 0;
+        return v;
+    };
+    return {
+        ...(filter.min !== undefined ? { min: resolveOne(filter.min)! } : {}),
+        ...(filter.max !== undefined ? { max: resolveOne(filter.max)! } : {}),
+        ...(filter.equals !== undefined
+            ? { equals: resolveOne(filter.equals)! }
+            : {}),
+    };
+}
+
+/** Computes mana value for a target lookup. For permanents on the
+ *  battlefield, X-cost permanents currently report 0 for X (the chosen X
+ *  is not persisted on the resulting permanent). For stack spells, X folds
+ *  in the chosen value carried by the stack item. */
+function cmcOfPermanent(card: CardInstanceState): number {
+    const cardId = (card.card as { id?: string }).id;
+    const def = cardId ? tryGetCardById(cardId) : undefined;
+    return manaValue(def?.manaCost);
+}
+
+function cmcOfStackItem(item: { card: unknown; chosenX?: number }): number {
+    const cardId = (item.card as { id?: string }).id;
+    const def = cardId ? tryGetCardById(cardId) : undefined;
+    return manaValue(def?.manaCost) + (item.chosenX ?? 0);
+}
+
+/** Tests a resolved cmcFilter against a target's mana value. Empty filter
+ *  always matches; otherwise all declared bounds (min/max/equals) must hold. */
+export function matchesCmcFilter(
+    filter: { min?: number; max?: number; equals?: number } | undefined,
+    cmc: number
+): boolean {
+    if (!filter) return true;
+    if (filter.equals !== undefined && cmc !== filter.equals) return false;
+    if (filter.min !== undefined && cmc < filter.min) return false;
+    if (filter.max !== undefined && cmc > filter.max) return false;
+    return true;
+}
+
 /** Returns all legal targets for a spell/ability with the given target
  *  requirement. `sourceColors` are the colors of the casting spell or the
  *  activating permanent (CR 202.2); when provided, protected permanents
  *  (CR 702.16b) are excluded. `casterId` is required when
  *  `requirement.controller` is "you" / "opponent" — the relationship is
- *  resolved relative to the chooser. */
+ *  resolved relative to the chooser. `chosenX` is required when the
+ *  requirement carries a `cmcFilter` whose bounds use the `"X"` placeholder
+ *  (CR 107.3 / 202.3, e.g. Spell Blast). */
 export function getLegalTargets(
     state: GameState,
     requirement: TargetRequirement,
     sourceColors: readonly Color[] = [],
-    casterId?: string
+    casterId?: string,
+    chosenX?: number
 ): TargetSelection[] {
     const targets: TargetSelection[] = [];
 
@@ -309,6 +364,7 @@ export function getLegalTargets(
     const colorFilter = requirement.colorFilter;
     const tappedFilter = requirement.tappedFilter;
     const powerFilter = requirement.powerFilter;
+    const cmcFilter = resolveCmcFilter(requirement.cmcFilter, chosenX);
     const subtypeFilter = requirement.subtypeFilter
         ? Array.isArray(requirement.subtypeFilter)
             ? requirement.subtypeFilter
@@ -317,8 +373,24 @@ export function getLegalTargets(
 
     // CR 115.4: "any target" means any creature, planeswalker, player, or
     // battle — the four object types that can be damaged (CR 120.3).
+    const battlefieldControllerFilter = requirement.controller ?? "any";
     if (wantsAny || permanentTypes.length > 0) {
         for (const player of state.players) {
+            // CR 109.3 — `controller: "you" | "opponent"` filter restricts
+            // legal battlefield targets to (the caster's) or (an opponent's)
+            // permanents. Used by Simulacrum's "target creature you control".
+            if (
+                battlefieldControllerFilter === "you" &&
+                player.id !== casterId
+            ) {
+                continue;
+            }
+            if (
+                battlefieldControllerFilter === "opponent" &&
+                (casterId === undefined || player.id === casterId)
+            ) {
+                continue;
+            }
             for (const card of player.battlefield) {
                 const matchesAny =
                     wantsAny &&
@@ -358,6 +430,14 @@ export function getLegalTargets(
                     )
                         continue;
                 }
+                // CR 202.3: cmcFilter narrows by printed mana value (X = 0
+                // for permanents — see resolveCmcFilter / cmcOfPermanent).
+                if (
+                    cmcFilter &&
+                    !matchesCmcFilter(cmcFilter, cmcOfPermanent(card))
+                ) {
+                    continue;
+                }
                 // CR 702.16b: protected permanents can't be targeted by
                 // spells/abilities of the stated quality.
                 if (isProtectedFromColors(card, sourceColors)) continue;
@@ -378,6 +458,12 @@ export function getLegalTargets(
     if (wantsSpell) {
         for (const item of state.stack) {
             if (colorFilter && !hasColor(item, colorFilter)) continue;
+            if (
+                cmcFilter &&
+                !matchesCmcFilter(cmcFilter, cmcOfStackItem(item))
+            ) {
+                continue;
+            }
             targets.push({ type: "spell", id: item.id });
         }
     }

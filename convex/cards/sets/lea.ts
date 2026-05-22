@@ -6,6 +6,7 @@ import type {
     PermanentFilter,
     SpellContext,
     TargetSelection,
+    TriggeredAbility,
 } from "../types";
 import {
     AURA_AFFECTS_HOST,
@@ -200,14 +201,37 @@ export const blackWard: CardDefinition = makeColorWard({
 //     types: ["Instant"],
 // };
 
-// export const blessing: CardDefinition = {
-//     id: "f131fd27-18da-47ca-b59f-135bcac83abd",
-//     name: "Blessing",
-//     oracleText: "Enchant creature\n{W}: Enchanted creature gets +1/+1 until end of turn.",
-//     manaCost: { W: 2 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Blessing — "Enchant creature. {W}: Enchanted creature gets +1/+1 until
+// end of turn." (CR 303.4 aura, CR 611.1 temp P/T mod, activated-on-aura
+// pumping the host — same shape as holyArmor's pump.)
+export const blessing: CardDefinition = {
+    id: "f131fd27-18da-47ca-b59f-135bcac83abd",
+    name: "Blessing",
+    oracleText:
+        "Enchant creature\n{W}: Enchanted creature gets +1/+1 until end of turn.",
+    manaCost: { W: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    activatedAbilities: [
+        {
+            id: "blessing-pump",
+            oracleText: "{W}: Enchanted creature gets +1/+1 until end of turn.",
+            cost: { mana: { W: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: hostId },
+                    1,
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 
 export const blueWard: CardDefinition = makeColorWard({
     id: "93f9f0f2-e1cc-4740-888c-1336c6de0a27",
@@ -459,13 +483,45 @@ export const greenWard: CardDefinition = makeColorWard({
 //     types: ["Instant"],
 // };
 
-// export const healingSalve: CardDefinition = {
-//     id: "e28de37e-84d5-4dc7-b36c-e14da5924729",
-//     name: "Healing Salve",
-//     oracleText: "Choose one —\n• Target player gains 3 life.\n• Prevent the next 3 damage that would be dealt to any target this turn.",
-//     manaCost: { W: 1 },
-//     types: ["Instant"],
-// };
+// Healing Salve — "Choose one — Target player gains 3 life. OR Prevent the
+// next 3 damage that would be dealt to any target this turn." (CR 700.2
+// modal — chooser picks one mode at announcement, the chosen mode's
+// targetRequirement drives target selection.)
+export const healingSalve: CardDefinition = {
+    id: "e28de37e-84d5-4dc7-b36c-e14da5924729",
+    name: "Healing Salve",
+    oracleText:
+        "Choose one —\n• Target player gains 3 life.\n• Prevent the next 3 damage that would be dealt to any target this turn.",
+    manaCost: { W: 1 },
+    types: ["Instant"],
+    modes: [
+        {
+            id: "gain-life",
+            label: "Gain 3 life",
+            oracleText: "Target player gains 3 life.",
+            targetRequirement: { type: "player", count: 1 },
+            resolve: (ctx) => {
+                const t = ctx.targets[0];
+                if (!t || t.type !== "player") return;
+                ctx.gainLife(t.id, 3);
+            },
+        },
+        {
+            id: "prevent",
+            label: "Prevent next 3 damage",
+            oracleText:
+                "Prevent the next 3 damage that would be dealt to any target this turn.",
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx) => {
+                const t = ctx.targets[0];
+                if (!t) return;
+                ctx.preventNextNDamageToTarget(t, 3, {
+                    phase: "end-of-turn",
+                });
+            },
+        },
+    ],
+};
 
 // Holy Armor — "Enchant creature. Enchanted creature gets +0/+2. {1}{W}:
 // Enchanted creature gets +0/+3 until end of turn." (CR 303.4 aura, 611
@@ -641,16 +697,70 @@ export const pearledUnicorn: CardDefinition = {
     toughness: 2,
 };
 
-// export const personalIncarnation: CardDefinition = {
-//     id: "caf9cef4-0f2d-478a-b119-fe1967687f74",
-//     name: "Personal Incarnation",
-//     oracleText: "{0}: The next 1 damage that would be dealt to this creature this turn is dealt to its owner instead. Only this creatures owner may activate this ability.\nWhen this creature dies, its owner loses half their life, rounded up.",
-//     manaCost: { X: 3, W: 3 },
-//     types: ["Creature"],
-//     subtypes: ["Avatar", "Incarnation"],
-//     power: 6,
-//     toughness: 6,
-// };
+// Personal Incarnation — LEA original oracle: "All damage that would be
+// dealt to its owner is dealt to Personal Incarnation instead. When Personal
+// Incarnation dies, its owner loses half their life, rounded up." (CR 614
+// continuous damage replacement + CR 603 dies-trigger.)
+//
+// Scope notes: the LEA card carries the redirection statically — modern
+// reprints split it into an activated next-1 ability, but we model the LEA
+// printed text as a continuous replacement keyed on `event.target.ownerId
+// === self.ownerId`. The dies-trigger reads `event.ownerId` from the
+// PERMANENT_LEFT payload so a control-changed Personal Incarnation still
+// damages its ORIGINAL owner (CR 109.5 ownership is permanent).
+export const personalIncarnation: CardDefinition = {
+    id: "caf9cef4-0f2d-478a-b119-fe1967687f74",
+    name: "Personal Incarnation",
+    oracleText:
+        "All damage that would be dealt to its owner is dealt to Personal Incarnation instead.\nWhen this creature dies, its owner loses half their life, rounded up.",
+    manaCost: { X: 4, W: 3 },
+    types: ["Creature"],
+    subtypes: ["Avatar", "Incarnation"],
+    power: 6,
+    toughness: 6,
+    replacementEffects: [
+        {
+            id: "pinc-redirect",
+            oracleText:
+                "All damage that would be dealt to its owner is dealt to Personal Incarnation instead.",
+            eventKind: "damage",
+            appliesTo: (event, self) => {
+                if (event.kind !== "damage") return false;
+                if (event.target.type !== "player") return false;
+                return event.target.id === self.ownerId;
+            },
+            replace: (event, ctx) => {
+                if (event.kind !== "damage") return { kind: "consumed" };
+                return {
+                    kind: "modified",
+                    event: {
+                        ...event,
+                        target: { type: "permanent", id: ctx.self.id },
+                    },
+                };
+            },
+        },
+    ],
+    triggeredAbilities: [
+        {
+            id: "pinc-ltb",
+            oracleText:
+                "When this creature dies, its owner loses half their life, rounded up.",
+            event: "PERMANENT_LEFT",
+            matches: (event, self) =>
+                event.type === "PERMANENT_LEFT" &&
+                event.instanceId === self.id &&
+                event.toZone === "graveyard",
+            resolve: (ctx, event) => {
+                if (event.type !== "PERMANENT_LEFT") return;
+                const ownerId = event.ownerId;
+                const life = ctx.getLife(ownerId);
+                const loss = Math.ceil(life / 2);
+                if (loss > 0) ctx.loseLife(ownerId, loss);
+            },
+        },
+    ],
+};
 
 // export const purelace: CardDefinition = {
 //     id: "2facf462-55cd-4da4-997f-2cf4add75628",
@@ -701,21 +811,65 @@ export const redWard: CardDefinition = makeColorWard({
     color: "red",
 });
 
-// export const resurrection: CardDefinition = {
-//     id: "4fff6e6f-4ebd-4ec8-9443-59efb22d376c",
-//     name: "Resurrection",
-//     oracleText: "Return target creature card from your graveyard to the battlefield.",
-//     manaCost: { X: 2, W: 2 },
-//     types: ["Sorcery"],
-// };
+// Resurrection — "Return target creature card from your graveyard to the
+// battlefield." (CR 400.7 zone change, CR 302.1 summoning sickness applies to
+// the freshly-entered creature.) The targetRequirement zone:"graveyard" +
+// controller:"you" triple narrows legal picks to a creature card in the
+// caster's own graveyard at cast time (CR 601.2c); the resolve re-checks
+// implicitly because `returnToBattlefield` silently fizzles if the card has
+// left the graveyard between cast and resolution (CR 608.2b).
+export const resurrection: CardDefinition = {
+    id: "4fff6e6f-4ebd-4ec8-9443-59efb22d376c",
+    name: "Resurrection",
+    oracleText:
+        "Return target creature card from your graveyard to the battlefield.",
+    manaCost: { X: 2, W: 2 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "Creature",
+        count: 1,
+        zone: "graveyard",
+        controller: "you",
+    },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (!t || t.type !== "graveyard-card" || !t.playerId) return;
+        ctx.returnToBattlefield(t.playerId, t.id, "graveyard");
+    },
+};
 
-// export const reverseDamage: CardDefinition = {
-//     id: "943baea8-b173-4863-a3ab-dd217d483cd9",
-//     name: "Reverse Damage",
-//     oracleText: "The next time a source of your choice would deal damage to you this turn, prevent that damage. You gain life equal to the damage prevented this way.",
-//     manaCost: { X: 1, W: 2 },
-//     types: ["Instant"],
-// };
+// Reverse Damage — "The next time a source of your choice would deal damage
+// to you this turn, prevent that damage. You gain life equal to the damage
+// prevented this way." (CR 614 one-shot transient replacement.) Pushes a
+// `prevent-from-source-gain-life` shield keyed on the chosen source and the
+// caster. The shield's body fires when matching damage is intercepted: the
+// damage is fully absorbed and the caster gains life equal to the absorbed
+// amount in a single atomic step.
+//
+// "Source of your choice" (CR 109.4) accepts either a battlefield permanent
+// or a stack item (instant/sorcery/activated ability). The `["any","spell"]`
+// target union covers both: `any` yields creatures/planeswalkers/players, and
+// `spell` yields stack items. Players are excluded from being a damage
+// source in practice (the prevention check keys on `sourceInstanceId`).
+export const reverseDamage: CardDefinition = {
+    id: "943baea8-b173-4863-a3ab-dd217d483cd9",
+    name: "Reverse Damage",
+    oracleText:
+        "The next time a source of your choice would deal damage to you this turn, prevent that damage. You gain life equal to the damage prevented this way.",
+    manaCost: { X: 1, W: 2 },
+    types: ["Instant"],
+    targetRequirement: { type: ["any", "spell"], count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (!t) return;
+        ctx.addDamageRedirectionShield({
+            kind: "prevent-from-source-gain-life",
+            sourceInstanceId: t.id,
+            playerId: ctx.caster,
+            duration: { phase: "end-of-turn" },
+        });
+    },
+};
 
 // export const righteousness: CardDefinition = {
 //     id: "d0ba7b76-f3d0-47d0-8a35-0c08e67200fb",
@@ -796,16 +950,55 @@ export const swordsToPlowshares: CardDefinition = {
     },
 };
 
-// export const veteranBodyguard: CardDefinition = {
-//     id: "cbd9ab01-a833-4fa4-8dee-151bd9800835",
-//     name: "Veteran Bodyguard",
-//     oracleText: "As long as this creature is untapped, all damage that would be dealt to you by unblocked creatures is dealt to this creature instead.",
-//     manaCost: { X: 3, W: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Human"],
-//     power: 2,
-//     toughness: 5,
-// };
+// Veteran Bodyguard — "As long as Veteran Bodyguard remains untapped, all
+// damage that would be dealt to you by unblocked attacking creatures is
+// dealt to Veteran Bodyguard instead." (CR 614 continuous damage
+// replacement, gated on self.isTapped + source-must-be-unblocked-attacker.)
+// The combat lookup comes through `ReplacementStateView.combat` which mirrors
+// `state.combat.{attackerIds, blockerAssignments}`.
+export const veteranBodyguard: CardDefinition = {
+    id: "cbd9ab01-a833-4fa4-8dee-151bd9800835",
+    name: "Veteran Bodyguard",
+    oracleText:
+        "As long as Veteran Bodyguard remains untapped, all damage that would be dealt to you by unblocked attacking creatures is dealt to Veteran Bodyguard instead.",
+    manaCost: { X: 3, W: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Soldier"],
+    power: 2,
+    toughness: 4,
+    replacementEffects: [
+        {
+            id: "vbg-redirect",
+            oracleText:
+                "All damage from unblocked attacking creatures that would be dealt to you is dealt to Veteran Bodyguard instead.",
+            eventKind: "damage",
+            appliesTo: (event, self, state) => {
+                if (event.kind !== "damage") return false;
+                if (event.target.type !== "player") return false;
+                if (event.target.id !== self.controllerId) return false;
+                if (self.isTapped) return false;
+                if (!event.isCombat) return false;
+                const combat = state.combat;
+                if (!combat) return false;
+                if (!combat.attackerIds.includes(event.sourceInstanceId))
+                    return false;
+                const blockers =
+                    combat.blockersByAttacker[event.sourceInstanceId] ?? [];
+                return blockers.length === 0;
+            },
+            replace: (event, ctx) => {
+                if (event.kind !== "damage") return { kind: "consumed" };
+                return {
+                    kind: "modified",
+                    event: {
+                        ...event,
+                        target: { type: "permanent", id: ctx.self.id },
+                    },
+                };
+            },
+        },
+    ],
+};
 
 export const wallOfSwords: CardDefinition = {
     id: "99ec4723-b36c-4015-b361-736a6523e8f5",
@@ -882,22 +1075,98 @@ export const ancestralRecall: CardDefinition = {
     },
 };
 
-// export const animateArtifact: CardDefinition = {
-//     id: "664b46f5-0424-4f4e-9f26-6bd2cf5e0357",
-//     name: "Animate Artifact",
-//     oracleText: "Enchant artifact\nAs long as enchanted artifact isn't a creature, it's an artifact creature with power and toughness each equal to its mana value.",
-//     manaCost: { X: 3, U: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Animate Artifact — "Enchant artifact. As long as enchanted artifact
+// isn't a creature, it's an artifact creature with power and toughness
+// each equal to its mana value." (CR 303.4 aura, CR 205 type-add via
+// layer-4 surrogate `type-add`, CR 604.3 / 613 layer 7b CDA P/T derived
+// from the host's printed mana value.) Predicate gates on the host not
+// already being a Creature at apply-time (CR 205 layer-4 — close enough
+// for LEA scope; full layer-1-through-7 recompute is out of scope).
+export const animateArtifact: CardDefinition = {
+    id: "664b46f5-0424-4f4e-9f26-6bd2cf5e0357",
+    name: "Animate Artifact",
+    oracleText:
+        "Enchant artifact\nAs long as enchanted artifact isn't a creature, it's an artifact creature with power and toughness each equal to its mana value.",
+    manaCost: { X: 3, U: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Artifact", count: 1 },
+    staticEffects: [
+        {
+            kind: "type-add",
+            applies: (target, source, ctx) =>
+                AURA_AFFECTS_HOST(target, source, ctx) &&
+                !ctx.isCreature(target),
+            types: ["Creature"],
+        },
+        {
+            kind: "pt-cda",
+            applies: (target, source, ctx) =>
+                AURA_AFFECTS_HOST(target, source, ctx),
+            compute: (_source, _state, ctx, target) => {
+                const cmc = ctx.getCmc(target);
+                return { power: cmc, toughness: cmc };
+            },
+        },
+    ],
+};
 
-// export const blueElementalBlast: CardDefinition = {
-//     id: "20d666ef-39bf-4fbf-8201-5f1056539da2",
-//     name: "Blue Elemental Blast",
-//     oracleText: "Choose one —\n• Counter target red spell.\n• Destroy target red permanent.",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
+// Helper for the {U}/{R} "elemental blast" pair (CR 700.2 modal — counter
+// target X spell OR destroy target X permanent). Both modes use the
+// `colorFilter` propagated from the mode's targetRequirement.
+function makeElementalBlast(args: {
+    id: string;
+    name: string;
+    oracleColor: string;
+    castColor: "U" | "R";
+    targetColor: "U" | "R";
+}): CardDefinition {
+    return {
+        id: args.id,
+        name: args.name,
+        oracleText: `Choose one —\n• Counter target ${args.oracleColor} spell.\n• Destroy target ${args.oracleColor} permanent.`,
+        manaCost: { [args.castColor]: 1 },
+        types: ["Instant"],
+        modes: [
+            {
+                id: "counter",
+                label: `Counter target ${args.oracleColor} spell`,
+                oracleText: `Counter target ${args.oracleColor} spell.`,
+                targetRequirement: {
+                    type: "spell",
+                    count: 1,
+                    colorFilter: args.targetColor,
+                },
+                resolve: (ctx) => {
+                    const t = ctx.targets[0];
+                    if (t?.type === "spell") ctx.counter(t);
+                },
+            },
+            {
+                id: "destroy",
+                label: `Destroy target ${args.oracleColor} permanent`,
+                oracleText: `Destroy target ${args.oracleColor} permanent.`,
+                targetRequirement: {
+                    type: "any",
+                    count: 1,
+                    colorFilter: args.targetColor,
+                },
+                resolve: (ctx) => {
+                    const t = ctx.targets[0];
+                    if (t?.type === "permanent") ctx.destroy(t);
+                },
+            },
+        ],
+    };
+}
+
+export const blueElementalBlast: CardDefinition = makeElementalBlast({
+    id: "20d666ef-39bf-4fbf-8201-5f1056539da2",
+    name: "Blue Elemental Blast",
+    oracleColor: "red",
+    castColor: "U",
+    targetColor: "R",
+});
 
 // Braingeyser — "Target player draws X cards." (CR 107.3 X cost, 121.1 draw,
 // 601.2b X chosen on cast, 608.3 sorcery resolution).
@@ -1212,16 +1481,65 @@ export const merfolkOfThePearlTrident: CardDefinition = {
     toughness: 1,
 };
 
-// export const phantasmalForces: CardDefinition = {
-//     id: "0631c7c8-9aa5-4333-8e20-20247fc47033",
-//     name: "Phantasmal Forces",
-//     oracleText: "Flying\nAt the beginning of your upkeep, sacrifice this creature unless you pay {U}.",
-//     manaCost: { X: 3, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Illusion"],
-//     power: 4,
-//     toughness: 1,
-// };
+// Helper for the "at the beginning of your upkeep, pay {cost} or
+// <consequence>" pattern (CR 603.6a phase trigger, CR 117.3a optional cost).
+// Used by cards whose upkeep cost is a flat may-pay with a hard consequence
+// on decline (Phantasmal Forces → sacrifice self, Force of Nature → deal
+// damage to controller). Cumulative upkeep (CR 702.23, post-LEA) is a
+// distinct mechanic and not modeled here.
+function makeUpkeepPayOrElse(args: {
+    id: string;
+    oracleText: string;
+    cost: ManaCost;
+    prompt: string;
+    onDecline: (ctx: SpellContext) => void;
+}): TriggeredAbility {
+    return {
+        id: args.id,
+        oracleText: args.oracleText,
+        event: "PHASE_BEGIN",
+        matches: (event, self) =>
+            event.type === "PHASE_BEGIN" &&
+            event.phase === "UPKEEP" &&
+            event.activePlayerId === self.controllerId,
+        resolve: (ctx) => {
+            const accept = ctx.requestMayPay({
+                playerId: ctx.controller,
+                choiceId: ctx.controller,
+                cost: args.cost,
+                prompt: args.prompt,
+            });
+            if (accept === undefined) return;
+            if (!accept) args.onDecline(ctx);
+        },
+    };
+}
+
+// Phantasmal Forces — "Flying. At the beginning of your upkeep, sacrifice
+// this creature unless you pay {U}." (CR 702.9 flying, CR 603.6a phase
+// trigger, CR 117.3a may-pay with hard sacrifice on decline.)
+export const phantasmalForces: CardDefinition = {
+    id: "0631c7c8-9aa5-4333-8e20-20247fc47033",
+    name: "Phantasmal Forces",
+    oracleText:
+        "Flying\nAt the beginning of your upkeep, sacrifice this creature unless you pay {U}.",
+    manaCost: { X: 3, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Illusion"],
+    power: 4,
+    toughness: 1,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        makeUpkeepPayOrElse({
+            id: "phantasmal-forces-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice this creature unless you pay {U}.",
+            cost: { U: 1 },
+            prompt: "Pay {U} to keep Phantasmal Forces?",
+            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+        }),
+    ],
+};
 
 // export const phantasmalTerrain: CardDefinition = {
 //     id: "1c371aa1-1619-41e3-8364-7bc9b8cf5d14",
@@ -1469,13 +1787,27 @@ export const seaSerpent: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const spellBlast: CardDefinition = {
-//     id: "845734da-ab03-4dbc-bb5f-96481d3b8e88",
-//     name: "Spell Blast",
-//     oracleText: "Counter target spell with mana value X. (For example, if that spell's mana cost is {3}{U}{U}, X is 5.)",
-//     manaCost: { X: "X", U: 1 },
-//     types: ["Instant"],
-// };
+// Spell Blast — "Counter target spell with mana value X." (CR 107.3 X cost,
+// CR 202.3 mana value, CR 701.5a counter.) Target selection uses the new
+// `cmcFilter: { equals: "X" }` which resolves X at announcement against the
+// chosen value and filters the stack to spells whose mana value equals X.
+export const spellBlast: CardDefinition = {
+    id: "845734da-ab03-4dbc-bb5f-96481d3b8e88",
+    name: "Spell Blast",
+    oracleText:
+        "Counter target spell with mana value X. (For example, if that spell's mana cost is {3}{U}{U}, X is 5.)",
+    manaCost: { X: "X", U: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: "spell",
+        count: 1,
+        cmcFilter: { equals: "X" },
+    },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type === "spell") ctx.counter(t);
+    },
+};
 
 // Stasis — "Players skip their untap steps. At the beginning of your upkeep,
 // sacrifice this enchantment unless you pay {U}." (CR 502.1 skip, 603.6a
@@ -1722,14 +2054,63 @@ export const waterElemental: CardDefinition = {
     toughness: 4,
 };
 
-// export const animateDead: CardDefinition = {
-//     id: "8fd7861d-925f-4b4c-a4ab-60be6f43d50b",
-//     name: "Animate Dead",
-//     oracleText: "Enchant creature card in a graveyard\nWhen this Aura enters, if it's on the battlefield, it loses \"enchant creature card in a graveyard\" and gains \"enchant creature put onto the battlefield with this Aura.\" Return enchanted creature card to the battlefield under your control and attach this Aura to it. When this Aura leaves the battlefield, that creature's controller sacrifices it.\nEnchanted creature gets -1/-0.",
-//     manaCost: { X: 1, B: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Animate Dead — "Enchant creature card in a graveyard. Return enchanted
+// creature card to the battlefield under your control and attach Animate Dead
+// to it. When Animate Dead leaves the battlefield, that creature's controller
+// sacrifices it. Enchanted creature gets -1/-0." (CR 303.4i graveyard-target
+// aura, CR 603.10 LTB-trigger last-known-info.) Implementation:
+//
+//  - targetRequirement zone:"graveyard" controller:"any" → caster picks a
+//    Creature card in any graveyard at cast (CR 601.2c).
+//  - The aura branch in `finalizeSpellResolution` detects the graveyard-card
+//    target, moves the creature onto the caster's battlefield via
+//    `putReanimatedOnBattlefield` (CR 400.7), then attaches Animate Dead.
+//  - staticEffect pt-buff -1/0 with `AURA_AFFECTS_HOST` predicate applies the
+//    -1/-0 to the reanimated creature (CR 611 layer 7c).
+//  - triggeredAbility on PERMANENT_LEFT (self) fires when this Aura departs
+//    (destroy / exile / return-to-hand). It reads `attachedToBeforeLeave` from
+//    the event (CR 603.10) and calls `sacrifice` on the host. If the host has
+//    already left the battlefield by then (e.g. lethal damage), sacrifice is a
+//    silent no-op (CR 608.2b).
+export const animateDead: CardDefinition = {
+    id: "8fd7861d-925f-4b4c-a4ab-60be6f43d50b",
+    name: "Animate Dead",
+    oracleText:
+        "Enchant creature card in a graveyard\nReturn enchanted creature card to the battlefield under your control and attach Animate Dead to it.\nWhen Animate Dead leaves the battlefield, that creature's controller sacrifices it.\nEnchanted creature gets -1/-0.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: {
+        type: "Creature",
+        count: 1,
+        zone: "graveyard",
+        controller: "any",
+    },
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: AURA_AFFECTS_HOST,
+            power: -1,
+            toughness: 0,
+        },
+    ],
+    triggeredAbilities: [
+        {
+            id: "anim-dead-ltb",
+            oracleText:
+                "When Animate Dead leaves the battlefield, that creature's controller sacrifices it.",
+            event: "PERMANENT_LEFT",
+            matches: (event, self) =>
+                event.type === "PERMANENT_LEFT" && event.instanceId === self.id,
+            resolve: (ctx, event) => {
+                if (event.type !== "PERMANENT_LEFT") return;
+                const hostId = event.attachedToBeforeLeave;
+                if (!hostId) return;
+                ctx.sacrifice(hostId);
+            },
+        },
+    ],
+};
 
 // Bad Moon — "Black creatures get +1/+1." (CR 611 — static layer 7c, color check via CR 202.2)
 export const badMoon: CardDefinition = {
@@ -1892,16 +2273,84 @@ export const deathgrip: CardDefinition = {
 //     types: ["Sorcery"],
 // };
 
-// export const demonicHordes: CardDefinition = {
-//     id: "6c9bb8b1-fb79-4b99-ba09-c6e6c860de50",
-//     name: "Demonic Hordes",
-//     oracleText: "{T}: Destroy target land.\nAt the beginning of your upkeep, unless you pay {B}{B}{B}, tap this creature and sacrifice a land of an opponent's choice.",
-//     manaCost: { X: 3, B: 3 },
-//     types: ["Creature"],
-//     subtypes: ["Demon"],
-//     power: 5,
-//     toughness: 5,
-// };
+// Demonic Hordes — "{T}: Destroy target land. At the beginning of your
+// upkeep, unless you pay {B}{B}{B}, tap this creature and sacrifice a land
+// of an opponent's choice." (CR 701.6 destroy, CR 603.6a phase trigger,
+// CR 117.3a optional cost.) The novel piece is the cross-player choice on
+// decline: the OPPONENT picks which of the controller's lands to sacrifice.
+// Implemented via `requestChoice` with `zoneOwnerId: ctx.controller` —
+// chooser is the opp, but the candidate set is from controller's
+// battlefield.
+export const demonicHordes: CardDefinition = {
+    id: "6c9bb8b1-fb79-4b99-ba09-c6e6c860de50",
+    name: "Demonic Hordes",
+    oracleText:
+        "{T}: Destroy target land.\nAt the beginning of your upkeep, unless you pay {B}{B}{B}, tap this creature and sacrifice a land of an opponent's choice.",
+    manaCost: { X: 3, B: 3 },
+    types: ["Creature"],
+    subtypes: ["Demon"],
+    power: 5,
+    toughness: 5,
+    activatedAbilities: [
+        {
+            id: "demonic-hordes-destroy-land",
+            oracleText: "{T}: Destroy target land.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Land", count: 1 },
+            resolve: (ctx) => {
+                const t = ctx.targets[0];
+                if (!t || t.type !== "permanent") return;
+                ctx.destroy(t);
+            },
+        },
+    ],
+    triggeredAbilities: [
+        {
+            id: "demonic-hordes-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, unless you pay {B}{B}{B}, tap this creature and sacrifice a land of an opponent's choice.",
+            event: "PHASE_BEGIN",
+            matches: (event, self) =>
+                event.type === "PHASE_BEGIN" &&
+                event.phase === "UPKEEP" &&
+                event.activePlayerId === self.controllerId,
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: ctx.controller,
+                    cost: { B: 3 },
+                    prompt: "Pay {B}{B}{B} to skip Demonic Hordes's upkeep penalty?",
+                });
+                if (accept === undefined) return;
+                if (accept) return;
+                // Decline → tap self + opp picks one of our lands to sac.
+                ctx.tap({ type: "permanent", id: ctx.sourceInstanceId });
+                const opps = ctx
+                    .apNapOrder()
+                    .filter((p) => p !== ctx.controller);
+                const opp = opps[0];
+                if (!opp) return;
+                const lands = ctx.getBattlefieldIds(ctx.controller, {
+                    types: "Land",
+                });
+                if (lands.length === 0) return;
+                const picks = ctx.requestChoice({
+                    playerId: opp,
+                    choiceId: `demonic-hordes-sac-${ctx.sourceInstanceId}`,
+                    kind: "sacrifice-permanents",
+                    zone: "battlefield",
+                    zoneOwnerId: ctx.controller,
+                    filter: { types: "Land" },
+                    count: 1,
+                    prompt: "Demonic Hordes: choose a land to sacrifice from opponent's battlefield.",
+                });
+                if (picks === undefined) return;
+                for (const id of picks) ctx.sacrifice(id);
+            },
+        },
+    ],
+};
 
 // Demonic Tutor — "Search your library for a card, then shuffle and put that
 // card on top." (CR 701.19 for search, CR 701.20 for shuffle). Modern oracle
@@ -2100,13 +2549,150 @@ export const hypnoticSpecter: CardDefinition = {
     ],
 };
 
-// export const lich: CardDefinition = {
-//     id: "4250caec-0e37-41be-9ec4-8938deb5f0d0",
-//     name: "Lich",
-//     oracleText: "As this enchantment enters, you lose life equal to your life total.\nYou don't lose the game for having 0 or less life.\nIf you would gain life, draw that many cards instead.\nWhenever you're dealt damage, sacrifice that many nontoken permanents. If you can't, you lose the game.\nWhen this enchantment is put into a graveyard from the battlefield, you lose the game.",
-//     manaCost: { B: 4 },
-//     types: ["Enchantment"],
-// };
+// Lich — multi-replacement enchantment that turns its controller's life
+// total into a draw-engine and a sacrifice-engine. CR-faithful clauses:
+//
+//   1. ETB: lose life equal to current life (CR 614.1 "as ~ enters" is
+//      modeled here as a PERMANENT_ENTERED trigger that immediately calls
+//      `loseLife`; the lose drops the player to 0, then the lose-game
+//      replacement below protects them).
+//   2. Lose-game replacement (CR 614 / 104.3): the controller doesn't lose
+//      from `life-zero`. Consumed in `checkGameOverSBA`.
+//   3. Lifegain replacement (CR 614): "if you would gain life, draw that
+//      many cards instead." Consumes the gainLife event and calls
+//      `drawCards` via the apply ctx.
+//   4. Damage trigger (CR 603): "whenever you're dealt damage, sacrifice
+//      that many nontoken permanents. If you can't, you lose the game."
+//      Counts non-token permanents controlled by Lich's controller
+//      (excluding Lich itself, CR 701.16) and sacrifices that many; falls
+//      back to a forced loss via `ctx.loseGame` when the supply runs out.
+//   5. LTB trigger (CR 603): when Lich is put into a graveyard from the
+//      battlefield, controller loses the game outright. Fires after Lich
+//      has left play so its own lose-game replacement no longer protects.
+//
+// Scope notes: the sacrifice choice is deterministic (battlefield-order
+// non-token, non-Lich) rather than player-driven — CR 701.16 says the
+// controller picks, but mid-trigger choice requires a richer pendingChoices
+// integration than this wave. Documented limitation.
+export const lich: CardDefinition = {
+    id: "4250caec-0e37-41be-9ec4-8938deb5f0d0",
+    name: "Lich",
+    oracleText:
+        "As this enchantment enters, you lose life equal to your life total.\nYou don't lose the game for having 0 or less life.\nIf you would gain life, draw that many cards instead.\nWhenever you're dealt damage, sacrifice that many nontoken permanents. If you can't, you lose the game.\nWhen this enchantment is put into a graveyard from the battlefield, you lose the game.",
+    manaCost: { X: 2, B: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        {
+            id: "lich-etb",
+            oracleText:
+                "As this enchantment enters, you lose life equal to your life total.",
+            event: "PERMANENT_ENTERED",
+            matches: (event, self) =>
+                event.type === "PERMANENT_ENTERED" &&
+                event.instanceId === self.id,
+            resolve: (ctx) => {
+                const life = ctx.getLife(ctx.controller);
+                if (life > 0) ctx.loseLife(ctx.controller, life);
+            },
+        },
+        {
+            id: "lich-damage",
+            oracleText:
+                "Whenever you're dealt damage, sacrifice that many nontoken permanents. If you can't, you lose the game.",
+            event: "DAMAGE_DEALT",
+            matches: (event, self) => {
+                if (event.type !== "DAMAGE_DEALT") return false;
+                if (event.target.type !== "player") return false;
+                return event.target.id === self.controllerId;
+            },
+            resolve: (ctx, event) => {
+                if (event.type !== "DAMAGE_DEALT") return;
+                const amount = event.amount;
+                if (amount <= 0) return;
+                // CR 701.16 — controller picks. Filter to nontoken permanents
+                // other than Lich itself (avoids self-sacrifice forcing the
+                // LTB-lose trigger to fire spuriously).
+                const filter = {
+                    isToken: false,
+                    excludeInstanceIds: [ctx.sourceInstanceId],
+                };
+                const candidates = ctx.getBattlefieldIds(
+                    ctx.controller,
+                    filter
+                );
+                // "If you can't" — fewer candidates than required → sacrifice
+                // all available, then loseGame.
+                if (candidates.length < amount) {
+                    for (const id of candidates) ctx.sacrifice(id);
+                    ctx.loseGame(ctx.controller);
+                    return;
+                }
+                // CR 701.16 player choice — directly pick N permanents to
+                // sacrifice. If candidates equal `amount` exactly, there is
+                // no meaningful pick: sac all without prompting (saves a
+                // round-trip on an empty choice).
+                if (candidates.length === amount) {
+                    for (const id of candidates) ctx.sacrifice(id);
+                    return;
+                }
+                const sacPicks = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: `lich-${ctx.sourceInstanceId}`,
+                    kind: "sacrifice-permanents",
+                    zone: "battlefield",
+                    filter,
+                    count: amount,
+                    prompt: `Lich: choose ${amount} permanent${
+                        amount === 1 ? "" : "s"
+                    } to sacrifice.`,
+                });
+                if (sacPicks === undefined) return;
+                for (const id of sacPicks) ctx.sacrifice(id);
+            },
+        },
+        {
+            id: "lich-ltb",
+            oracleText:
+                "When this enchantment is put into a graveyard from the battlefield, you lose the game.",
+            event: "PERMANENT_LEFT",
+            matches: (event, self) =>
+                event.type === "PERMANENT_LEFT" &&
+                event.instanceId === self.id &&
+                event.toZone === "graveyard",
+            resolve: (ctx, event) => {
+                if (event.type !== "PERMANENT_LEFT") return;
+                ctx.loseGame(event.controllerId);
+            },
+        },
+    ],
+    replacementEffects: [
+        {
+            id: "lich-no-lose",
+            oracleText: "You don't lose the game for having 0 or less life.",
+            eventKind: "lose-game",
+            appliesTo: (event, self) => {
+                if (event.kind !== "lose-game") return false;
+                if (event.reason !== "life-zero") return false;
+                return event.playerId === self.controllerId;
+            },
+            replace: () => ({ kind: "consumed" }),
+        },
+        {
+            id: "lich-lifegain",
+            oracleText: "If you would gain life, draw that many cards instead.",
+            eventKind: "lifegain",
+            appliesTo: (event, self) => {
+                if (event.kind !== "lifegain") return false;
+                return event.playerId === self.controllerId;
+            },
+            replace: (event, ctx) => {
+                if (event.kind !== "lifegain") return { kind: "consumed" };
+                ctx.drawCards(event.playerId, event.amount);
+                return { kind: "consumed" };
+            },
+        },
+    ],
+};
 
 // export const lordOfThePit: CardDefinition = {
 //     id: "2926777a-4f6e-4965-ba83-22cf7df02602",
@@ -2420,13 +3006,29 @@ export const royalAssassin: CardDefinition = {
     ],
 };
 
-// export const sacrifice: CardDefinition = {
-//     id: "12164aee-6a27-4246-8d15-2d6dd20d92e9",
-//     name: "Sacrifice",
-//     oracleText: "As an additional cost to cast this spell, sacrifice a creature.\nAdd an amount of {B} equal to the sacrificed creature's mana value.",
-//     manaCost: { B: 1 },
-//     types: ["Instant"],
-// };
+// Sacrifice — "As an additional cost to cast this spell, sacrifice a
+// creature. Add an amount of {B} equal to the sacrificed creature's mana
+// value." (CR 117.9 / 601.2f additional cost, CR 202.3 mana value, CR 605
+// mana ability surrogate.) The engine validates ≥1 creature available at
+// announcement and the player picks the target via selectAdditionalCost
+// before mana payment can complete. The sacrificed creature's mana value
+// is snapshotted on the stack item for the resolve.
+export const sacrifice: CardDefinition = {
+    id: "12164aee-6a27-4246-8d15-2d6dd20d92e9",
+    name: "Sacrifice",
+    oracleText:
+        "As an additional cost to cast this spell, sacrifice a creature.\nAdd an amount of {B} equal to the sacrificed creature's mana value.",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    additionalCosts: {
+        sacrificeFilter: { types: "Creature" },
+    },
+    resolve: (ctx: SpellContext) => {
+        const cmc = ctx.getAdditionalSacrificeCmc();
+        if (cmc === undefined || cmc <= 0) return;
+        ctx.addMana({ B: cmc });
+    },
+};
 
 export const scatheZombies: CardDefinition = {
     id: "e9be6dcf-5e25-4b8c-9cd0-badf3771f81e",
@@ -2527,13 +3129,32 @@ export const sengirVampire: CardDefinition = {
     ],
 };
 
-// export const simulacrum: CardDefinition = {
-//     id: "35c3a78d-cc79-4187-929a-8aa1d1469990",
-//     name: "Simulacrum",
-//     oracleText: "You gain life equal to the damage dealt to you this turn. Simulacrum deals damage to target creature you control equal to the damage dealt to you this turn.",
-//     manaCost: { X: 1, B: 1 },
-//     types: ["Instant"],
-// };
+// Simulacrum — "You gain life equal to the damage dealt to you this turn.
+// Simulacrum deals damage to target creature you control equal to the damage
+// dealt to you this turn." (CR 120.3 per-turn damage tally, read via
+// `getDamageDealtThisTurn`.) Not strictly a replacement effect — included
+// in the gap-U batch because it consumes the damage-tracking infrastructure
+// installed alongside the replacement framework.
+//
+// `controller: "you"` enforces the "creature you control" restriction at
+// target selection (CR 109.3 via `getLegalTargets`).
+export const simulacrum: CardDefinition = {
+    id: "35c3a78d-cc79-4187-929a-8aa1d1469990",
+    name: "Simulacrum",
+    oracleText:
+        "You gain life equal to the damage dealt to you this turn. Simulacrum deals damage to target creature you control equal to the damage dealt to you this turn.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1, controller: "you" },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (!t || t.type !== "permanent") return;
+        const damage = ctx.getDamageDealtThisTurn(ctx.caster);
+        if (damage <= 0) return;
+        ctx.gainLife(ctx.caster, damage);
+        ctx.dealDamage(t, damage);
+    },
+};
 
 // Sinkhole — "Destroy target land." (CR 701.7). Targeting uses the generic
 // Land type filter; resolution delegates to the shared destroy primitive.
@@ -3329,13 +3950,13 @@ export const powerSurge: CardDefinition = {
 //     types: ["Enchantment"],
 // };
 
-// export const redElementalBlast: CardDefinition = {
-//     id: "776ad9be-3309-4f1d-9f27-6219d9477662",
-//     name: "Red Elemental Blast",
-//     oracleText: "Choose one —\n• Counter target blue spell.\n• Destroy target blue permanent.",
-//     manaCost: { R: 1 },
-//     types: ["Instant"],
-// };
+export const redElementalBlast: CardDefinition = makeElementalBlast({
+    id: "776ad9be-3309-4f1d-9f27-6219d9477662",
+    name: "Red Elemental Blast",
+    oracleColor: "blue",
+    castColor: "R",
+    targetColor: "U",
+});
 
 export const rocOfKherRidges: CardDefinition = {
     id: "731a4b86-c213-4d8e-bf01-0a0e8cff0ff1",
@@ -3753,16 +4374,34 @@ export const elvishArchers: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const forceOfNature: CardDefinition = {
-//     id: "21551cb6-3a53-42dd-9bbd-4bc56304d6d3",
-//     name: "Force of Nature",
-//     oracleText: "Trample (This creature can deal excess combat damage to the player or planeswalker it's attacking.)\nAt the beginning of your upkeep, this creature deals 8 damage to you unless you pay {G}{G}{G}{G}.",
-//     manaCost: { X: 2, G: 4 },
-//     types: ["Creature"],
-//     subtypes: ["Elemental"],
-//     power: 8,
-//     toughness: 8,
-// };
+// Force of Nature — "Trample. At the beginning of your upkeep, this
+// creature deals 8 damage to you unless you pay {G}{G}{G}{G}." (CR 702.19
+// trample, CR 603.6a phase trigger, CR 117.3a may-pay; on decline the
+// source-of-damage is this creature itself, so the damage is sourced from
+// the permanent's instance id — relevant for damage tracking and shields.)
+export const forceOfNature: CardDefinition = {
+    id: "21551cb6-3a53-42dd-9bbd-4bc56304d6d3",
+    name: "Force of Nature",
+    oracleText:
+        "Trample\nAt the beginning of your upkeep, this creature deals 8 damage to you unless you pay {G}{G}{G}{G}.",
+    manaCost: { X: 2, G: 4 },
+    types: ["Creature"],
+    subtypes: ["Elemental"],
+    power: 8,
+    toughness: 8,
+    staticAbilities: ["trample"],
+    triggeredAbilities: [
+        makeUpkeepPayOrElse({
+            id: "force-of-nature-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, this creature deals 8 damage to you unless you pay {G}{G}{G}{G}.",
+            cost: { G: 4 },
+            prompt: "Pay {G}{G}{G}{G} or take 8 damage from Force of Nature?",
+            onDecline: (ctx) =>
+                ctx.dealDamage({ type: "player", id: ctx.controller }, 8),
+        }),
+    ],
+};
 
 // Fungusaur — "Whenever this creature is dealt damage, put a +1/+1 counter
 // on it." (CR 603.2 damage trigger, CR 122.1 counter, CR 117.5 SBA-before-
@@ -3876,14 +4515,48 @@ export const iceStorm: CardDefinition = {
     effect: "destroy-target",
 };
 
-// export const instillEnergy: CardDefinition = {
-//     id: "5bd38716-874c-4e3c-a315-837839a6258c",
-//     name: "Instill Energy",
-//     oracleText: "Enchant creature\nEnchanted creature can attack as though it had haste.\n{0}: Untap enchanted creature. Activate only during your turn and only once each turn.",
-//     manaCost: { G: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Instill Energy — "Enchant creature. Enchanted creature can attack as
+// though it had haste. {0}: Untap enchanted creature. Activate only during
+// your turn and only once each turn." (CR 303.4 aura, CR 702.10 haste
+// surrogate, CR 602.5b activation timing.) Pseudo-haste is modeled by
+// granting the host the regular "haste" keyword — slightly broader than the
+// printed text (LEA pseudo-haste only allows attacking, not abilities) but
+// adequate for the engine's binary summoning-sickness model. The {0}: untap
+// uses `controllerTurnOnly` + `oncePerTurn` to enforce both timing
+// restrictions without an open infinite-untap loop.
+export const instillEnergy: CardDefinition = {
+    id: "5bd38716-874c-4e3c-a315-837839a6258c",
+    name: "Instill Energy",
+    oracleText:
+        "Enchant creature\nEnchanted creature can attack as though it had haste.\n{0}: Untap enchanted creature. Activate only during your turn and only once each turn.",
+    manaCost: { G: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "haste",
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "instill-energy-untap",
+            oracleText:
+                "{0}: Untap enchanted creature. Activate only during your turn and only once each turn.",
+            cost: { mana: {} },
+            useStack: true,
+            controllerTurnOnly: true,
+            oncePerTurn: true,
+            resolve: (ctx: SpellContext) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                ctx.untap({ type: "permanent", id: hostId });
+            },
+        },
+    ],
+};
 
 export const ironrootTreefolk: CardDefinition = {
     id: "b93c5869-7777-44bb-967a-e9439b25ced4",
@@ -4236,14 +4909,51 @@ export const wallOfWood: CardDefinition = {
     staticAbilities: ["defender"],
 };
 
-// export const wanderlust: CardDefinition = {
-//     id: "220a03ca-8c9b-4acb-821d-f6577fbb20fb",
-//     name: "Wanderlust",
-//     oracleText: "Enchant creature\nAt the beginning of the upkeep of enchanted creature's controller, this Aura deals 1 damage to that player.",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Wanderlust — "Enchant creature. At the beginning of the upkeep of
+// enchanted creature's controller, this Aura deals 1 damage to that
+// player." (CR 303.4 aura, CR 603.6a phase trigger keyed on the host's
+// controller, CR 120.3 source = this Aura instance.) The damage source is
+// the Aura itself, so death triggers on the Aura key from its
+// `sourceInstanceId`, not from the host's controller.
+export const wanderlust: CardDefinition = {
+    id: "220a03ca-8c9b-4acb-821d-f6577fbb20fb",
+    name: "Wanderlust",
+    oracleText:
+        "Enchant creature\nAt the beginning of the upkeep of enchanted creature's controller, this Aura deals 1 damage to that player.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    triggeredAbilities: [
+        {
+            id: "wanderlust-upkeep",
+            oracleText:
+                "At the beginning of the upkeep of enchanted creature's controller, this Aura deals 1 damage to that player.",
+            event: "PHASE_BEGIN",
+            matches: (event, self, state) => {
+                if (event.type !== "PHASE_BEGIN") return false;
+                if (event.phase !== "UPKEEP") return false;
+                if (!self.attachedTo) return false;
+                for (const p of state?.players ?? []) {
+                    const host = p.battlefield.find(
+                        (c) => c.id === self.attachedTo
+                    );
+                    if (host) return host.controllerId === event.activePlayerId;
+                }
+                return false;
+            },
+            resolve: (ctx) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                const controller = ctx.getController({
+                    type: "permanent",
+                    id: hostId,
+                });
+                ctx.dealDamage({ type: "player", id: controller }, 1);
+            },
+        },
+    ],
+};
 
 export const warMammoth: CardDefinition = {
     id: "c8d6081e-f686-4263-a0a2-21c0d9af5fdb",
@@ -4737,13 +5447,57 @@ export const ivoryCup: CardDefinition = makeColorSphere({
     colorWord: "White",
 });
 
-// export const jadeMonolith: CardDefinition = {
-//     id: "4a77e0f1-449d-4a7d-9fa0-ba7598f7a73a",
-//     name: "Jade Monolith",
-//     oracleText: "{1}: The next time a source of your choice would deal damage to target creature this turn, that source deals that damage to you instead.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+// Jade Monolith — "{1}: The next time a source of your choice would deal
+// damage to target creature this turn, that source deals that damage to you
+// instead." (CR 614 one-shot transient redirection.) The activated ability
+// targets the creature at activation (CR 601.2c) and resolves with a
+// `requestChoice` step that asks the activator to name the specific source
+// (CR 109.4 — typically a battlefield permanent). The chosen source id is
+// baked into a `from-source-to-permanent-redirect-to-player` shield with
+// `remaining: 1`. The shield self-purges either on first match or at end of
+// turn. If the activator's `requestChoice` is skipped (the engine prompt
+// can return an empty list when no candidates exist), the shield falls back
+// to wildcard-source matching so the activation isn't wasted.
+export const jadeMonolith: CardDefinition = {
+    id: "4a77e0f1-449d-4a7d-9fa0-ba7598f7a73a",
+    name: "Jade Monolith",
+    oracleText:
+        "{1}: The next time a source of your choice would deal damage to target creature this turn, that source deals that damage to you instead.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "jm-redirect",
+            oracleText:
+                "{1}: The next time a source of your choice would deal damage to target creature this turn, that source deals that damage to you instead.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (!t || t.type !== "permanent") return;
+                const sourcePicks = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: `jm-source-${ctx.sourceInstanceId}`,
+                    kind: "pick-source",
+                    zone: "battlefield",
+                    count: 1,
+                    prompt: "Jade Monolith: pick the source whose next damage to the chosen creature is redirected to you.",
+                });
+                if (sourcePicks === undefined) return;
+                const sourceId = sourcePicks[0];
+                ctx.addDamageRedirectionShield({
+                    kind: "from-source-to-permanent-redirect-to-player",
+                    sourceInstanceId: sourceId,
+                    targetInstanceId: t.id,
+                    redirectToPlayerId: ctx.controller,
+                    remaining: 1,
+                    duration: { phase: "end-of-turn" },
+                });
+            },
+        },
+    ],
+};
 
 // Jade Statue — "{2}: This artifact becomes a 3/6 Golem artifact creature
 // until end of combat. Activate only during combat." (CR 208.2, 611.1,
@@ -4834,13 +5588,57 @@ export const juggernaut: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const libraryOfLeng: CardDefinition = {
-//     id: "2340edcb-8cd5-4ccd-99e2-b9a29f72c495",
-//     name: "Library of Leng",
-//     oracleText: "You have no maximum hand size.\nIf an effect causes you to discard a card, discard it, but you may put it on top of your library instead of into your graveyard.",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-// };
+// Library of Leng — "You have no maximum hand size. If an effect causes you
+// to discard a card, discard it, but you may put it on top of your library
+// instead of into your graveyard." (CR 614 discard replacement.) The
+// engine doesn't currently enforce a maximum hand size, so the first
+// clause is a no-op in practice.
+//
+// The "may" clause is resolved via `state.playerPreferences[playerId]
+// .libraryOfLengRouting`, which the UI can toggle through a dedicated
+// mutation. The default is "library" (Library of Leng activates) — set to
+// "graveyard" to opt OUT and route the discard normally. Modeling player
+// choice this way (state-level preference) avoids the mid-event suspension
+// that would be needed for a true requestMayPay flow inside a replacement
+// effect; the preference is replay-stable and toggleable at any time.
+export const libraryOfLeng: CardDefinition = {
+    id: "2340edcb-8cd5-4ccd-99e2-b9a29f72c495",
+    name: "Library of Leng",
+    oracleText:
+        "You have no maximum hand size.\nIf an effect causes you to discard a card, discard it, but you may put it on top of your library instead of into your graveyard.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    replacementEffects: [
+        {
+            id: "leng-discard",
+            oracleText:
+                "If an effect causes you to discard a card, you may put that card on top of your library instead of into your graveyard.",
+            eventKind: "discard",
+            appliesTo: (event, self, state) => {
+                if (event.kind !== "discard") return false;
+                if (event.playerId !== self.controllerId) return false;
+                const player = state.players.find(
+                    (p) => p.id === event.playerId
+                );
+                // "May" opt-out: the player can preset
+                // libraryOfLengRouting: "graveyard" to bypass the redirect.
+                // Default (undefined) routes to the library.
+                return (
+                    (player?.preferences?.libraryOfLengRouting ?? "library") ===
+                    "library"
+                );
+            },
+            replace: (event, ctx) => {
+                if (event.kind !== "discard") return { kind: "consumed" };
+                ctx.moveHandCardToLibraryTop(
+                    event.playerId,
+                    event.cardInstanceId
+                );
+                return { kind: "consumed" };
+            },
+        },
+    ],
+};
 
 // export const livingWall: CardDefinition = {
 //     id: "4a98ada6-923a-44a5-bdef-ea6a160b481e",

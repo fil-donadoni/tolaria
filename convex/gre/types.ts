@@ -30,3 +30,20 @@ export type Phase =
     | "POSTCOMBAT_MAIN"
     | "END_STEP"
     | "CLEANUP";
+
+/** Pending-choice family taxonomy (see `state.ts` `PendingChoice` for the
+ *  full doc). Lives here so it can be imported by both `cards/types.ts`
+ *  (typing `SpellContext.requestChoice`) and `gre/state.ts` (typing
+ *  `PendingChoice.kind`) without forming an import cycle. */
+export type ZonePickKind =
+    | "keep-permanents"
+    | "sacrifice-permanents"
+    | "keep-hand"
+    | "search-library"
+    | "pick-source";
+export type YesNoChoiceKind = "may-pay";
+export type OrderChoiceKind = "mulligan-bottom";
+export type PendingChoiceKind =
+    | ZonePickKind
+    | YesNoChoiceKind
+    | OrderChoiceKind;

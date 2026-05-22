@@ -8,11 +8,13 @@ export type Side = "self" | "opponent";
 export type PhaseSkipPrefs = Partial<Record<Phase, Record<Side, boolean>>>;
 
 export const SKIP_PREFS_KEY = "tolaria:skipPhasePrefs:v1";
-export const AUTO_PASS_DELAY_MS = 120;
+export const AUTO_PASS_DELAY_MS = 0;
 
 export const DEFAULT_SKIP_PREFS: PhaseSkipPrefs = {
     UPKEEP: { self: true, opponent: true },
     DRAW: { self: true, opponent: true },
+    PRECOMBAT_MAIN: { self: false, opponent: true },
+    POSTCOMBAT_MAIN: { self: false, opponent: true },
     FIRST_STRIKE_DAMAGE: { self: true, opponent: true },
     COMBAT_DAMAGE: { self: true, opponent: true },
     END_OF_COMBAT: { self: true, opponent: true },
