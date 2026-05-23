@@ -18,6 +18,7 @@ import {
     makeDualLand,
     makeTapForMana,
 } from "../abilities";
+import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
 import { tokenPrintIdFor } from "../tokenPrintLookup";
 
 // export const animateWall: CardDefinition = {
@@ -2582,19 +2583,16 @@ export const lich: CardDefinition = {
     manaCost: { X: 2, B: 2 },
     types: ["Enchantment"],
     triggeredAbilities: [
-        {
+        enteredTrigger({
             id: "lich-etb",
             oracleText:
                 "As this enchantment enters, you lose life equal to your life total.",
-            event: "PERMANENT_ENTERED",
-            matches: (event, self) =>
-                event.type === "PERMANENT_ENTERED" &&
-                event.instanceId === self.id,
+            scope: "self",
             resolve: (ctx) => {
                 const life = ctx.getLife(ctx.controller);
                 if (life > 0) ctx.loseLife(ctx.controller, life);
             },
-        },
+        }),
         {
             id: "lich-damage",
             oracleText:
