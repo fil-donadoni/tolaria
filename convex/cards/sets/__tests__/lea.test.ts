@@ -9153,6 +9153,30 @@ describe("mana-tap triggers fire end-to-end", () => {
         expect(p1.manaPool.G).toBe(2);
     });
 
+    it("wire format: tap-trigger life delta (Lifetap) survives projectPublicState", () => {
+        const state = makeState();
+        const p1 = state.players[0];
+        const p2 = state.players[1];
+        const oppForest = makeInstance("6f1c8cb0-38eb-408b-94e8-16db83999b3b", {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const lifetapCard = makeInstance(lifetap.id, {
+            controllerId: "p1",
+        });
+        p2.battlefield.push(oppForest);
+        p1.battlefield.push(lifetapCard);
+
+        emitPermanentTapped(state, oppForest, false);
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(p1.life).toBe(21);
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(21);
+    });
+
     it("Wild Growth fires only when its enchanted host is tapped for mana", () => {
         const state = makeState();
         const p1 = state.players[0];
