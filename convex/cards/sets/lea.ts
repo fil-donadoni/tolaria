@@ -18,6 +18,7 @@ import {
     makeDualLand,
     makeTapForMana,
 } from "../abilities";
+import { stateTrigger } from "../abilities/triggers/stateTrigger";
 import { tokenPrintIdFor } from "../tokenPrintLookup";
 
 // export const animateWall: CardDefinition = {
@@ -1749,13 +1750,14 @@ export const seaSerpent: CardDefinition = {
     toughness: 5,
     staticAbilities: ["cant-attack-unless-defender-controls-Island"],
     triggeredAbilities: [
-        {
+        // CR 603.8 — state-triggered ability. `stateTrigger` wires `STATE_CHECK`
+        // narrowing and the resolve-time re-check (intervening-if) so the
+        // sacrifice fizzles automatically if controller has gained an Island
+        // between trigger time and resolution.
+        stateTrigger({
             id: "sea-serpent-no-islands-sacrifice",
             oracleText: "When you control no Islands, sacrifice Sea Serpent.",
-            event: "STATE_CHECK",
-            matches: (event, self, state) => {
-                if (event.type !== "STATE_CHECK") return false;
-                if (!state) return false;
+            condition: (self, state) => {
                 const controller = state.players.find(
                     (p) => p.id === self.controllerId
                 );
@@ -1767,7 +1769,7 @@ export const seaSerpent: CardDefinition = {
             resolve: (ctx) => {
                 ctx.sacrifice(ctx.sourceInstanceId);
             },
-        },
+        }),
     ],
 };
 

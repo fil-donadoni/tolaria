@@ -1964,6 +1964,43 @@ describe("Sea Serpent (CR 508.1c attack restriction + CR 603.8 state trigger)", 
         ]);
     });
 
+    it("fizzles at resolve if controller has gained an Island in the meantime (CR 603.8 re-check)", () => {
+        // CR 603.8 — the state-trigger condition is re-checked at resolution.
+        // The `stateTrigger` factory exposes this via the engine-level
+        // interveningIf hook. Setup: trigger fires (no Islands), then an
+        // Island enters the battlefield BEFORE the trigger resolves, then
+        // the stack is resolved. Expected: trigger fizzles, Sea Serpent
+        // stays on the battlefield, TRIGGER_FIZZLED is emitted.
+        const state = setup({
+            controllerHasIsland: false,
+            defenderHasIsland: false,
+        });
+        checkStateBasedActions(state);
+        expect(state.stack).toHaveLength(1);
+        // Condition flips: controller now has an Island.
+        state.players[0].battlefield.push(
+            makeInstance(island.id, {
+                id: "p1-isle-late",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        resolveTopOfStack(state);
+        // Stack item consumed without invoking resolve: the source stays on
+        // the battlefield and nothing hits the graveyard. (Engine drains
+        // pendingEvents into trigger scans in `processPendingActionTriggers`,
+        // so the TRIGGER_FIZZLED event itself isn't observable here — the
+        // engine-level fizzle path is covered by
+        // `convex/gre/__tests__/intervening-if.test.ts`.)
+        expect(state.stack).toHaveLength(0);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "serpent")
+        ).toBe(true);
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "serpent"
+        );
+    });
+
     it("wire format: attack restriction survives projectPublicState", () => {
         // The projection slims `card.card` to `{ id }`. The restriction
         // logic reads `staticAbilities` and the defender battlefield's
