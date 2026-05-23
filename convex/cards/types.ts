@@ -237,27 +237,12 @@ export interface AnimateSpec {
 }
 
 // --- Permanent filter (shared by sweeper primitives) ---
+//
+// Defined in `./filters.ts` (single source of truth, ADR 0002). Re-exported
+// here for back-compat with existing imports from `convex/cards/types`.
 
-/** Declarative selector over the battlefield used by mass primitives
- *  (`destroyAll`, `dealDamageToEach` creature scope). All fields are combined
- *  with AND; omitted fields don't constrain. Matches are resolved at call
- *  time against the current battlefield state. */
-export interface PermanentFilter {
-    types?: CardType | CardType[];
-    subtypes?: string | string[];
-    /** Only match permanents whose `staticAbilities` contains this keyword. */
-    requireAbility?: string;
-    /** Skip permanents whose `staticAbilities` contains this keyword. */
-    excludeAbility?: string;
-    /** Filter by token-ness (CR 111.5 / 701.16 — "sacrifice a nontoken
-     *  permanent"). `false` excludes token instances; `true` keeps only
-     *  tokens. Omitted = no constraint. */
-    isToken?: boolean;
-    /** Exclude these instance ids from the match set. Used to skip a
-     *  permanent's own id when an effect specifies "another permanent"
-     *  (CR 109.2) or "permanents other than ~". */
-    excludeInstanceIds?: ReadonlyArray<string>;
-}
+import type { PermanentFilter } from "./filters";
+export type { PermanentFilter } from "./filters";
 
 // --- Token specification (CR 111, 707.1) ---
 
