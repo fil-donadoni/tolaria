@@ -18,13 +18,13 @@ Logs land in `.ralph/logs/iter-<n>-<timestamp>.log` (gitignored).
 
 ## Exit codes
 
-| code | meaning                                                          |
-| ---- | ---------------------------------------------------------------- |
-| 0    | sentinel `<promise>NO_WORK</promise>` — backlog empty            |
-| 1    | precondition failed (dirty tree / not on main / missing CLI)     |
-| 2    | sentinel `<promise>HALT</promise>` — agent gave up; read log     |
-| 3    | max iterations reached without `NO_WORK`                         |
-| 130  | interrupted (Ctrl-C)                                             |
+| code | meaning                                                      |
+| ---- | ------------------------------------------------------------ |
+| 0    | sentinel `<promise>NO_WORK</promise>` — backlog empty        |
+| 1    | precondition failed (dirty tree / not on main / missing CLI) |
+| 2    | sentinel `<promise>HALT</promise>` — agent gave up; read log |
+| 3    | max iterations reached without `NO_WORK`                     |
+| 130  | interrupted (Ctrl-C)                                         |
 
 ## Preconditions
 
@@ -62,12 +62,12 @@ Picked oldest-first by number.
 
 ## Tuning knobs
 
-| knob              | location                | default                       |
-| ----------------- | ----------------------- | ----------------------------- |
-| max iters         | `RALPH_MAX_ITERS` env   | 15                            |
-| done sentinel     | PROMPT.md + ralph.sh    | `<promise>NO_WORK</promise>`  |
-| halt sentinel     | PROMPT.md + ralph.sh    | `<promise>HALT</promise>`     |
-| QA target label   | PROMPT.md step 7        | `ready-for-human`             |
-| pickup label      | PROMPT.md step 1        | `ready-for-agent`             |
-| tracker           | PROMPT.md (all `gh`)    | `fil-donadoni/tolaria`        |
-| permission mode   | ralph.sh                | `acceptEdits`                 |
+| knob            | location              | default                      |
+| --------------- | --------------------- | ---------------------------- |
+| max iters       | `RALPH_MAX_ITERS` env | 15                           |
+| done sentinel   | PROMPT.md + ralph.sh  | `<promise>NO_WORK</promise>` |
+| halt sentinel   | PROMPT.md + ralph.sh  | `<promise>HALT</promise>`    |
+| QA target label | PROMPT.md step 7      | `ready-for-human`            |
+| pickup label    | PROMPT.md step 1      | `ready-for-agent`            |
+| tracker         | PROMPT.md (all `gh`)  | `fil-donadoni/tolaria`       |
+| permission mode | ralph.sh              | `acceptEdits`                |

@@ -1,1 +1,1 @@
-bun run check:all
+bunx lint-staged && bun run lint && bun run check:ts

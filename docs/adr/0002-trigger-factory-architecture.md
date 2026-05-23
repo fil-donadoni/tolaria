@@ -23,17 +23,17 @@ produce `TriggeredAbility` values from a declarative argument object.
 
 ### Factories
 
-| Factory | Event | Scope axis |
-|---|---|---|
-| `phaseTrigger` | `PHASE_BEGIN` | `your` / `each` / `opponents` / `host-controller` |
-| `diedTrigger` | `CREATURE_DIED` | `self` / `yours` / `opponents` / `any` / `another-yours` / `any-other` |
-| `enteredTrigger` | `PERMANENT_ENTERED` | same as `diedTrigger` |
-| `leftTrigger` | `PERMANENT_LEFT` | same as `diedTrigger` + optional `toZone` |
-| `damageDealtTrigger` | `DAMAGE_DEALT` | scope on source side, optional `target` discriminated union |
-| `damageTakenTrigger` | `DAMAGE_DEALT` | scope on target side, optional `sourceFilter` |
-| `spellCastTrigger` | `SPELL_CAST` | scope on caster (`you` / `opponents` / `any` / `self`) |
-| `tappedTrigger` | `PERMANENT_TAPPED` | same as `diedTrigger`, plus optional `forMana` flag |
-| `stateTrigger` | `STATE_CHECK` (CR 603.8) | none — condition-only |
+| Factory              | Event                    | Scope axis                                                             |
+| -------------------- | ------------------------ | ---------------------------------------------------------------------- |
+| `phaseTrigger`       | `PHASE_BEGIN`            | `your` / `each` / `opponents` / `host-controller`                      |
+| `diedTrigger`        | `CREATURE_DIED`          | `self` / `yours` / `opponents` / `any` / `another-yours` / `any-other` |
+| `enteredTrigger`     | `PERMANENT_ENTERED`      | same as `diedTrigger`                                                  |
+| `leftTrigger`        | `PERMANENT_LEFT`         | same as `diedTrigger` + optional `toZone`                              |
+| `damageDealtTrigger` | `DAMAGE_DEALT`           | scope on source side, optional `target` discriminated union            |
+| `damageTakenTrigger` | `DAMAGE_DEALT`           | scope on target side, optional `sourceFilter`                          |
+| `spellCastTrigger`   | `SPELL_CAST`             | scope on caster (`you` / `opponents` / `any` / `self`)                 |
+| `tappedTrigger`      | `PERMANENT_TAPPED`       | same as `diedTrigger`, plus optional `forMana` flag                    |
+| `stateTrigger`       | `STATE_CHECK` (CR 603.8) | none — condition-only                                                  |
 
 ### Filter types
 
@@ -57,11 +57,21 @@ callback. Example:
 diedTrigger({
     scope: "yours",
     filter: { subtypes: "Elf" },
-    resolve: (ctx, event, deadCreature: {
-        id, controllerId, types, lastKnownPower, lastKnownToughness,
-        damagedBySources,
-    }) => { /* ... */ },
-})
+    resolve: (
+        ctx,
+        event,
+        deadCreature: {
+            id;
+            controllerId;
+            types;
+            lastKnownPower;
+            lastKnownToughness;
+            damagedBySources;
+        }
+    ) => {
+        /* ... */
+    },
+});
 ```
 
 This delivers two benefits:
@@ -108,7 +118,7 @@ field exposed.
    self-documentation.
 
 3. **Scope vocabulary parallelism** (the `self / yours / opponents / any /
-   another-yours / any-other` set shared across `diedTrigger`,
+another-yours / any-other` set shared across `diedTrigger`,
    `enteredTrigger`, `leftTrigger`, `tappedTrigger`) lets card authors learn
    one vocabulary and reuse it across every permanent-anchored factory. The
    factories differ only in event payload, not in how scope is reasoned
