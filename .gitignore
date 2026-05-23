@@ -24,5 +24,6 @@ dist-ssr
 *.sw?
 
 convex/_generated
+*.tsbuildinfo
 
 .ralph/logs/
