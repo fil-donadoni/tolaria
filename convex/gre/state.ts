@@ -13,6 +13,7 @@ import type {
 } from "../cards/types";
 import { registerTokenDefinition, tryGetCardById } from "../cards";
 import { getResolveFn } from "../cards/effectRegistry";
+import { matchesPermanentFilter } from "../cards/filters";
 import type { Phase, Zone } from "./types";
 import {
     getActivatedManaColor,
@@ -1844,48 +1845,9 @@ function putReanimatedOnBattlefield(
     emitPermanentEntered(state, card);
 }
 
-/** Predicate: does the card match every constraint in the filter? Omitted
- *  fields don't constrain (AND semantics). */
-export function matchesPermanentFilter(
-    card: CardInstanceState,
-    filter: PermanentFilter
-): boolean {
-    if (filter.types !== undefined) {
-        const types = Array.isArray(filter.types)
-            ? filter.types
-            : [filter.types];
-        if (!types.some((t) => card.types.includes(t))) return false;
-    }
-    if (filter.subtypes !== undefined) {
-        const subtypes = Array.isArray(filter.subtypes)
-            ? filter.subtypes
-            : [filter.subtypes];
-        if (!subtypes.some((s) => card.subtypes.includes(s))) return false;
-    }
-    if (
-        filter.requireAbility !== undefined &&
-        !card.staticAbilities.includes(filter.requireAbility)
-    ) {
-        return false;
-    }
-    if (
-        filter.excludeAbility !== undefined &&
-        card.staticAbilities.includes(filter.excludeAbility)
-    ) {
-        return false;
-    }
-    if (filter.isToken !== undefined) {
-        const cardIsToken = card.isToken === true;
-        if (filter.isToken !== cardIsToken) return false;
-    }
-    if (
-        filter.excludeInstanceIds !== undefined &&
-        filter.excludeInstanceIds.includes(card.id)
-    ) {
-        return false;
-    }
-    return true;
-}
+/** Single source of truth lives in `convex/cards/filters.ts` (ADR 0002).
+ *  Re-exported here so existing call sites keep working. */
+export { matchesPermanentFilter };
 
 /** Normalizes the polymorphic `destroyAll` argument into a filter object. */
 function normalizeDestroyAllFilter(
