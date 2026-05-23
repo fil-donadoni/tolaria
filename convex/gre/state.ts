@@ -6,10 +6,12 @@ import type {
     ManaCost as CardManaCost,
     MovableZone,
     PermanentFilter,
+    PermanentView,
     SpellContext,
     TargetRequirement,
     TargetSelection,
     TokenSpec,
+    TriggerFizzledEvent,
 } from "../cards/types";
 import { registerTokenDefinition, tryGetCardById } from "../cards";
 import { getResolveFn } from "../cards/effectRegistry";
@@ -953,6 +955,41 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             (a) => a.id === top.triggeredAbilityId
         );
         if (ability) {
+            // CR 603.4d — intervening-if re-evaluation at resolution. If the
+            // predicate is now false, the trigger fizzles: no `resolve`
+            // invocation, item removed, TRIGGER_FIZZLED queued so downstream
+            // triggers can react and the event log records the fizzle.
+            if (ability.interveningIf && top.triggerSourceId) {
+                const sourceCard =
+                    findOnBattlefield(state, top.triggerSourceId)?.card ?? top;
+                const selfView: PermanentView = {
+                    id: sourceCard.id,
+                    controllerId: sourceCard.controllerId,
+                    ownerId: sourceCard.ownerId,
+                    types: sourceCard.types,
+                    subtypes: sourceCard.subtypes,
+                    isTapped: sourceCard.isTapped,
+                    power: sourceCard.power,
+                    toughness: sourceCard.toughness,
+                    attachedTo: sourceCard.attachedTo,
+                    card: sourceCard.card as Record<string, unknown>,
+                };
+                if (!ability.interveningIf(top.triggerEvent, selfView, state)) {
+                    const fizzleEvent: TriggerFizzledEvent = {
+                        type: "TRIGGER_FIZZLED",
+                        triggerSourceId: top.triggerSourceId,
+                        triggeredAbilityId: top.triggeredAbilityId,
+                        reason: "intervening-if-false",
+                    };
+                    state.pendingEvents = [
+                        ...(state.pendingEvents ?? []),
+                        fizzleEvent,
+                    ];
+                    delete top.collectedChoices;
+                    state.stack.pop();
+                    return top;
+                }
+            }
             const ctx = buildSpellContext(state, top);
             ability.resolve(ctx, top.triggerEvent);
             if ((state.pendingChoices?.length ?? 0) > 0) return null;
