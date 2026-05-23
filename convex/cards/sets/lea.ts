@@ -18,6 +18,7 @@ import {
     makeDualLand,
     makeTapForMana,
 } from "../abilities";
+import { leftTrigger } from "../abilities/triggers/leftTrigger";
 import { tokenPrintIdFor } from "../tokenPrintLookup";
 
 // export const animateWall: CardDefinition = {
@@ -742,23 +743,18 @@ export const personalIncarnation: CardDefinition = {
         },
     ],
     triggeredAbilities: [
-        {
+        leftTrigger({
             id: "pinc-ltb",
             oracleText:
                 "When this creature dies, its owner loses half their life, rounded up.",
-            event: "PERMANENT_LEFT",
-            matches: (event, self) =>
-                event.type === "PERMANENT_LEFT" &&
-                event.instanceId === self.id &&
-                event.toZone === "graveyard",
-            resolve: (ctx, event) => {
-                if (event.type !== "PERMANENT_LEFT") return;
-                const ownerId = event.ownerId;
-                const life = ctx.getLife(ownerId);
+            scope: "self",
+            toZone: "graveyard",
+            resolve: (ctx, _event, leaving) => {
+                const life = ctx.getLife(leaving.ownerId);
                 const loss = Math.ceil(life / 2);
-                if (loss > 0) ctx.loseLife(ownerId, loss);
+                if (loss > 0) ctx.loseLife(leaving.ownerId, loss);
             },
-        },
+        }),
     ],
 };
 
@@ -2095,20 +2091,17 @@ export const animateDead: CardDefinition = {
         },
     ],
     triggeredAbilities: [
-        {
+        leftTrigger({
             id: "anim-dead-ltb",
             oracleText:
                 "When Animate Dead leaves the battlefield, that creature's controller sacrifices it.",
-            event: "PERMANENT_LEFT",
-            matches: (event, self) =>
-                event.type === "PERMANENT_LEFT" && event.instanceId === self.id,
-            resolve: (ctx, event) => {
-                if (event.type !== "PERMANENT_LEFT") return;
-                const hostId = event.attachedToBeforeLeave;
+            scope: "self",
+            resolve: (ctx, _event, leaving) => {
+                const hostId = leaving.attachedToBeforeLeave;
                 if (!hostId) return;
                 ctx.sacrifice(hostId);
             },
-        },
+        }),
     ],
 };
 
@@ -2650,20 +2643,16 @@ export const lich: CardDefinition = {
                 for (const id of sacPicks) ctx.sacrifice(id);
             },
         },
-        {
+        leftTrigger({
             id: "lich-ltb",
             oracleText:
                 "When this enchantment is put into a graveyard from the battlefield, you lose the game.",
-            event: "PERMANENT_LEFT",
-            matches: (event, self) =>
-                event.type === "PERMANENT_LEFT" &&
-                event.instanceId === self.id &&
-                event.toZone === "graveyard",
-            resolve: (ctx, event) => {
-                if (event.type !== "PERMANENT_LEFT") return;
-                ctx.loseGame(event.controllerId);
+            scope: "self",
+            toZone: "graveyard",
+            resolve: (ctx, _event, leaving) => {
+                ctx.loseGame(leaving.controllerId);
             },
-        },
+        }),
     ],
     replacementEffects: [
         {
