@@ -972,7 +972,8 @@ export type GameEventType =
     | "PERMANENT_LEFT"
     | "SPELL_CAST"
     | "PERMANENT_TAPPED"
-    | "STATE_CHECK";
+    | "STATE_CHECK"
+    | "TRIGGER_FIZZLED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. */
@@ -1116,6 +1117,23 @@ export interface StateCheckEvent {
     type: "STATE_CHECK";
 }
 
+/** Emitted when a triggered ability fizzles at resolution because its
+ *  intervening-if condition (CR 603.4d) is false at that moment. The stack
+ *  item is removed without invoking `resolve`; downstream triggers can react
+ *  to the fizzle (and the game-events log records it). */
+export interface TriggerFizzledEvent {
+    type: "TRIGGER_FIZZLED";
+    /** Instance id of the permanent that produced the trigger (the source on
+     *  the battlefield at trigger time, not the stack item id). */
+    triggerSourceId: string;
+    /** Id of the triggered ability on the source's CardDefinition. */
+    triggeredAbilityId: string;
+    /** Why the trigger fizzled. Currently only intervening-if failure is
+     *  modeled; further reasons (countered, illegal target) flow through
+     *  other paths. */
+    reason: "intervening-if-false";
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
@@ -1124,7 +1142,8 @@ export type GameEvent =
     | PermanentLeftEvent
     | SpellCastEvent
     | PermanentTappedEvent
-    | StateCheckEvent;
+    | StateCheckEvent
+    | TriggerFizzledEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can
@@ -1157,6 +1176,18 @@ export interface TriggeredAbility {
      *  `state` is supplied for state triggers (CR 603.8) that need to inspect
      *  persistent game conditions. */
     matches: (
+        event: GameEvent,
+        self: PermanentView,
+        state?: TriggerStateView
+    ) => boolean;
+    /** Intervening-if condition (CR 603.4d). When defined, re-evaluated by
+     *  the engine immediately before `resolve` runs. If it returns false the
+     *  trigger fizzles: it leaves the stack without invoking `resolve`, and
+     *  a `TRIGGER_FIZZLED` event is emitted so downstream triggers can
+     *  react. Signature mirrors `matches` — `self` is sourced from the
+     *  current battlefield (or last-known information if the source has
+     *  since left). */
+    interveningIf?: (
         event: GameEvent,
         self: PermanentView,
         state?: TriggerStateView
