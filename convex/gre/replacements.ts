@@ -373,13 +373,16 @@ export function applyLoseGameReplacements(
  *  damage event is emitted. Used by `dealDamage` and combat damage paths to
  *  populate `DamageReplacementEvent.sourceColors / sourceTypes /
  *  sourceStaticAbilities` so source-filtering replacements (Veteran
- *  Bodyguard's "except damage from sources with flying") can read them. */
+ *  Bodyguard's "except damage from sources with flying") can read them, and
+ *  by `DAMAGE_DEALT` event emitters for last-known-information snapshots
+ *  consumed by damage trigger factories (CR 603.10). */
 export function describeDamageSource(
     state: GameState,
     sourceInstanceId: string
 ): {
     colors: ReadonlyArray<Color>;
     types: ReadonlyArray<CardType>;
+    subtypes: ReadonlyArray<string>;
     staticAbilities: ReadonlyArray<string>;
 } {
     for (const player of state.players) {
@@ -391,6 +394,7 @@ export function describeDamageSource(
             return {
                 colors,
                 types: card.types,
+                subtypes: card.subtypes,
                 staticAbilities: card.staticAbilities,
             };
         }
@@ -403,8 +407,9 @@ export function describeDamageSource(
         return {
             colors,
             types: stackItem.types,
+            subtypes: stackItem.subtypes,
             staticAbilities: stackItem.staticAbilities,
         };
     }
-    return { colors: [], types: [], staticAbilities: [] };
+    return { colors: [], types: [], subtypes: [], staticAbilities: [] };
 }

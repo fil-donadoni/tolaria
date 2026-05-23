@@ -19,6 +19,7 @@ import {
     runDamageReplacement,
     tickDuration,
 } from "./state";
+import { describeDamageSource } from "./replacements";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
 import { isProtectedFromSource } from "./protection";
 import { collectTriggers } from "./triggers";
@@ -439,6 +440,7 @@ export function applyAllCombatDamage(
             if (reduced <= 0) return;
             getPlayer(state, finalTarget.id).life -= reduced;
             bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
+            const desc = describeDamageSource(state, source.id);
             events.push({
                 type: "DAMAGE_DEALT",
                 sourceInstanceId: source.id,
@@ -446,6 +448,10 @@ export function applyAllCombatDamage(
                 target: { type: "player", id: finalTarget.id },
                 amount: reduced,
                 isCombat: true,
+                sourceColors: desc.colors,
+                sourceTypes: desc.types,
+                sourceSubtypes: desc.subtypes,
+                sourceStaticAbilities: desc.staticAbilities,
             });
         } else if (finalTarget.type === "permanent") {
             const targetCard =
@@ -462,6 +468,7 @@ export function applyAllCombatDamage(
             if (reduced <= 0) return;
             damageReceived[finalTarget.id] =
                 (damageReceived[finalTarget.id] ?? 0) + reduced;
+            const desc = describeDamageSource(state, source.id);
             events.push({
                 type: "DAMAGE_DEALT",
                 sourceInstanceId: source.id,
@@ -469,6 +476,10 @@ export function applyAllCombatDamage(
                 target: { type: "permanent", id: finalTarget.id },
                 amount: reduced,
                 isCombat: true,
+                sourceColors: desc.colors,
+                sourceTypes: desc.types,
+                sourceSubtypes: desc.subtypes,
+                sourceStaticAbilities: desc.staticAbilities,
             });
         }
     }

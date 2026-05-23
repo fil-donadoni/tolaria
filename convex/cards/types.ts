@@ -976,7 +976,13 @@ export type GameEventType =
     | "TRIGGER_FIZZLED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
- *  (CR 120.3). Used by "whenever ~ deals damage" triggers. */
+ *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
+ *  `sourceColors / sourceTypes / sourceSubtypes / sourceStaticAbilities`
+ *  fields snapshot the damage source's characteristics at the moment damage
+ *  was dealt (CR 603.10 last-known information); the source may have left
+ *  the battlefield by the time the trigger resolves. Mirrors the same fields
+ *  on `DamageReplacementEvent`. Optional for back-compat with synthetic
+ *  events constructed in tests — emit sites populate them. */
 export interface DamageDealtEvent {
     type: "DAMAGE_DEALT";
     /** Instance id of the permanent or stack item that dealt the damage. */
@@ -988,6 +994,14 @@ export interface DamageDealtEvent {
     amount: number;
     /** True for combat damage (CR 510), false for spell/ability damage. */
     isCombat: boolean;
+    /** Colors of the damage source (CR 202.2), snapshotted at emit time. */
+    sourceColors?: ReadonlyArray<Color>;
+    /** Card types of the damage source (CR 205), snapshotted at emit time. */
+    sourceTypes?: ReadonlyArray<CardType>;
+    /** Subtypes of the damage source (CR 205.3), snapshotted at emit time. */
+    sourceSubtypes?: ReadonlyArray<string>;
+    /** Static keyword abilities the source had at emit time (CR 702). */
+    sourceStaticAbilities?: ReadonlyArray<string>;
 }
 
 /** Phase/step entry event emitted by the turn structure at the start of

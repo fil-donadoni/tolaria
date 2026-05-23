@@ -18,6 +18,8 @@ import {
     makeDualLand,
     makeTapForMana,
 } from "../abilities";
+import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
+import { damageTakenTrigger } from "../abilities/triggers/damageTakenTrigger";
 import { tokenPrintIdFor } from "../tokenPrintLookup";
 
 // export const animateWall: CardDefinition = {
@@ -2529,23 +2531,17 @@ export const hypnoticSpecter: CardDefinition = {
     toughness: 2,
     staticAbilities: ["flying"],
     triggeredAbilities: [
-        {
+        damageDealtTrigger({
             id: "hypnotic-specter-discard",
             oracleText:
                 "Whenever Hypnotic Specter deals damage to an opponent, that player discards a card at random.",
-            event: "DAMAGE_DEALT",
-            matches: (event, self) => {
-                if (event.type !== "DAMAGE_DEALT") return false;
-                if (event.sourceInstanceId !== self.id) return false;
-                if (event.target.type !== "player") return false;
-                return event.target.id !== self.controllerId;
+            source: "self",
+            target: { kind: "player", player: { relation: "opponent" } },
+            resolve: (ctx, _event, damage) => {
+                if (damage.target.type !== "player") return;
+                ctx.discardAtRandom(damage.target.id, 1);
             },
-            resolve: (ctx, event) => {
-                if (event.type !== "DAMAGE_DEALT") return;
-                if (event.target.type !== "player") return;
-                ctx.discardAtRandom(event.target.id, 1);
-            },
-        },
+        }),
     ],
 };
 
@@ -2595,19 +2591,13 @@ export const lich: CardDefinition = {
                 if (life > 0) ctx.loseLife(ctx.controller, life);
             },
         },
-        {
+        damageTakenTrigger({
             id: "lich-damage",
             oracleText:
                 "Whenever you're dealt damage, sacrifice that many nontoken permanents. If you can't, you lose the game.",
-            event: "DAMAGE_DEALT",
-            matches: (event, self) => {
-                if (event.type !== "DAMAGE_DEALT") return false;
-                if (event.target.type !== "player") return false;
-                return event.target.id === self.controllerId;
-            },
-            resolve: (ctx, event) => {
-                if (event.type !== "DAMAGE_DEALT") return;
-                const amount = event.amount;
+            target: { kind: "player", player: { relation: "controller" } },
+            resolve: (ctx, _event, damage) => {
+                const amount = damage.amount;
                 if (amount <= 0) return;
                 // CR 701.16 — controller picks. Filter to nontoken permanents
                 // other than Lich itself (avoids self-sacrifice forcing the
@@ -2649,7 +2639,7 @@ export const lich: CardDefinition = {
                 if (sacPicks === undefined) return;
                 for (const id of sacPicks) ctx.sacrifice(id);
             },
-        },
+        }),
         {
             id: "lich-ltb",
             oracleText:
@@ -4418,15 +4408,13 @@ export const fungusaur: CardDefinition = {
     power: 2,
     toughness: 2,
     triggeredAbilities: [
-        {
+        damageTakenTrigger({
             id: "fungusaur-counter",
             oracleText:
                 "Whenever this creature is dealt damage, put a +1/+1 counter on it.",
-            event: "DAMAGE_DEALT",
-            matches: (event, self) => {
-                if (event.type !== "DAMAGE_DEALT") return false;
-                if (event.target.type !== "permanent") return false;
-                return event.target.id === self.id;
+            target: {
+                kind: "permanent",
+                filter: { controllerRelation: "self" },
             },
             resolve: (ctx) => {
                 ctx.addCounter(
@@ -4435,7 +4423,7 @@ export const fungusaur: CardDefinition = {
                     1
                 );
             },
-        },
+        }),
     ],
 };
 
