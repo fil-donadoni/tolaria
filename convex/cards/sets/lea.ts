@@ -1754,10 +1754,11 @@ export const spellBlast: CardDefinition = {
 
 // Stasis — "Players skip their untap steps. At the beginning of your upkeep,
 // sacrifice this enchantment unless you pay {U}." (CR 502.1 skip, 603.6a
-// upkeep trigger, 117.3a optional cost, 701.16 sacrifice). The
-// `skip-untap-step` global keyword is consumed by `untapStep`; the upkeep
-// trigger fires only on the controller's upkeep — same pattern as
-// Pestilence.
+// upkeep trigger, 117.3a optional cost, 701.16 sacrifice). The skip is encoded
+// as a data-driven `untapRestriction` (ADR 0005) with `maxUntap: 0` and an
+// any-permanent filter — the dispatcher in `untapStep` recognises a hard skip
+// and clears cleanup flags without enqueueing a prompt. The upkeep trigger
+// fires only on the controller's upkeep — same pattern as Pestilence.
 export const stasis: CardDefinition = {
     id: "b6cef408-5b4b-49f6-9531-be544815b93f",
     name: "Stasis",
@@ -1765,7 +1766,23 @@ export const stasis: CardDefinition = {
         "Players skip their untap steps.\nAt the beginning of your upkeep, sacrifice this enchantment unless you pay {U}.",
     manaCost: { X: 1, U: 1 },
     types: ["Enchantment"],
-    staticAbilities: ["skip-untap-step"],
+    staticEffects: [
+        untapRestriction({
+            id: "stasis-skip-untap",
+            oracleText: "Players skip their untap steps (Stasis).",
+            filter: {
+                types: [
+                    "Artifact",
+                    "Creature",
+                    "Enchantment",
+                    "Land",
+                    "Planeswalker",
+                    "Battle",
+                ],
+            },
+            maxUntap: 0,
+        }),
+    ],
     triggeredAbilities: [
         makeUpkeepPayOrElse({
             id: "stasis-upkeep",
