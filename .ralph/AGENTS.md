@@ -24,7 +24,33 @@ Logs land in `.ralph/logs/iter-<n>-<timestamp>.log` (gitignored).
 | 1    | precondition failed (dirty tree / not on main / missing CLI) |
 | 2    | sentinel `<promise>HALT</promise>` — agent gave up; read log |
 | 3    | max iterations reached without `NO_WORK`                     |
+| 4    | could not extract iteration branch name from log             |
+| 5    | local `--no-ff` merge of iter branch into main failed        |
 | 130  | interrupted (Ctrl-C)                                         |
+
+## Stacked PRs
+
+Each iteration's branch is `--no-ff` merged into **local** `main` before the
+next iteration starts. The next iter therefore branches from a `main` that
+contains all prior iter commits, and opens its PR with
+`--base $RALPH_PREV_BRANCH` (the previous iter's branch on `origin`). This
+gives GitHub a per-iter diff while keeping each iter aware of the work that
+came before it — no more merge-time conflicts on shared files like
+`shared.ts`.
+
+Consequences:
+
+- The loop deliberately **does not** `git pull origin main` between iters
+  — that would clobber the locally stacked `main`.
+- A bug discovered in iter N forces revert of iters N+1..last (cascade).
+  This is honest when slices are logically sequential; if your backlog is
+  truly independent issues, run with `RALPH_MAX_ITERS=1` and merge between
+  runs instead.
+- **Between loop runs**, after humans merge PRs to `origin/main`, the
+  operator MUST reset local `main` to `origin/main` before re-running:
+    ```bash
+    git checkout main && git fetch && git reset --hard origin/main
+    ```
 
 ## Preconditions
 

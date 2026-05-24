@@ -2,7 +2,7 @@
 
 You are operating inside an autonomous loop. Treat this file as your full brief on every iteration. Do exactly the steps below, in order.
 
-You start each iteration on `main` with a clean working tree.
+You start each iteration on `main` with a clean working tree. The loop stacks PRs: `main` may already contain commits from prior iterations (merged locally only). The env var `$RALPH_PREV_BRANCH` holds the previous iteration's branch name (empty on the first iteration).
 
 ## Mission
 
@@ -101,7 +101,7 @@ Stage explicitly. Do NOT `git add -A`. List files individually or use targeted p
 
 ```bash
 git push -u origin "issue-<N>-<slug>"
-gh pr create --base main --head "issue-<N>-<slug>" \
+gh pr create --base "${RALPH_PREV_BRANCH:-main}" --head "issue-<N>-<slug>" \
   --repo fil-donadoni/tolaria \
   --title "<issue title> (#<N>)" \
   --body "$(cat <<EOF
@@ -118,6 +118,8 @@ EOF
 )"
 ```
 
+The `--base` is the previous iter's branch when `$RALPH_PREV_BRANCH` is set, so the GitHub PR diff is scoped to this iter's commits only. When `$RALPH_PREV_BRANCH` is empty (first iter), base is `main`.
+
 ## Step 7 — Hand off
 
 ```bash
@@ -126,9 +128,14 @@ gh issue edit <N> --repo fil-donadoni/tolaria \
   --add-label ready-for-human
 ```
 
-Print: `✓ Issue #<N> handed off as PR <URL>. Returning to main.`
+Print exactly two lines (the loop parses the branch sentinel):
 
-Then `git checkout main`. Exit cleanly — the outer loop starts the next iteration on a fresh `main`.
+```
+<branch>issue-<N>-<slug></branch>
+✓ Issue #<N> handed off as PR <URL>. Loop will stack onto local main.
+```
+
+Then exit cleanly. Do NOT `git checkout main` — the loop merges your branch into local main with `--no-ff` before the next iteration.
 
 ## Hard rules
 
