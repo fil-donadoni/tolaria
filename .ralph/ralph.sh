@@ -64,7 +64,17 @@ for ((i=1; i<=MAX_ITERS; i++)); do
   git checkout "$MAIN_BRANCH" >/dev/null 2>&1 || true
   git pull --ff-only >/dev/null 2>&1 || true
 
-  claude -p --permission-mode=acceptEdits < "$PROMPT_FILE" 2>&1 | tee "$LOG"
+  # --verbose: stream Claude's tool calls + assistant turns to stdout instead of
+  # only the final response. tee fans the stream to both terminal and log file.
+  # When stdout is a pipe, Claude may block-buffer output; RALPH_PTY=1 wraps the
+  # call in `script` so Claude sees a TTY and flushes per line. Default off
+  # because `script` semantics differ across BSD/macOS/Linux.
+  CLAUDE_CMD=(claude -p --verbose --permission-mode=acceptEdits)
+  if [[ "${RALPH_PTY:-0}" == "1" ]] && command -v script >/dev/null 2>&1; then
+    script -q /dev/null sh -c "${CLAUDE_CMD[*]} < '$PROMPT_FILE' 2>&1" | tee "$LOG"
+  else
+    "${CLAUDE_CMD[@]}" < "$PROMPT_FILE" 2>&1 | tee "$LOG"
+  fi
 
   if grep -qF "$SENTINEL_DONE" "$LOG"; then
     echo "✓ No work left. Exiting."

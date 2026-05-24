@@ -70,11 +70,26 @@ Picked oldest-first by number.
 3. If a PR is rejected → address feedback in the issue body, re-add
    `ready-for-agent`, next run picks it back up.
 
+## Live output
+
+Each iteration tees Claude's stdout to both the terminal and `iter-<n>-<ts>.log` in real time. Claude is invoked with `--verbose`, so tool calls and assistant turns stream as they happen — not only the final response.
+
+If output looks chunked (block-buffered) instead of streamed, opt in to a pseudo-TTY wrapper:
+
+```bash
+RALPH_PTY=1 bash .ralph/ralph.sh
+```
+
+This wraps Claude in `script -q /dev/null` so it sees a TTY and flushes per line. Off by default because `script` has BSD/macOS/Linux variants that occasionally interfere with stdin redirection.
+
+Alternative: leave Ralph running and `tail -f .ralph/logs/iter-*.log` in a second terminal.
+
 ## Tuning knobs
 
 | knob            | location              | default                      |
 | --------------- | --------------------- | ---------------------------- |
 | max iters       | `RALPH_MAX_ITERS` env | 15                           |
+| live TTY        | `RALPH_PTY` env       | `0` (off)                    |
 | done sentinel   | PROMPT.md + ralph.sh  | `<promise>NO_WORK</promise>` |
 | halt sentinel   | PROMPT.md + ralph.sh  | `<promise>HALT</promise>`    |
 | QA target label | PROMPT.md step 7      | `ready-for-human`            |
