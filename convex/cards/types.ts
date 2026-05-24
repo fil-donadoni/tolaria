@@ -922,13 +922,43 @@ export interface StaticTypeAdd {
     types: CardType[];
 }
 
+/** Continuous untap-step restriction (CR 502.1) — caps how many permanents
+ *  matching `filter` the active player may untap. Read by the `untapStep`
+ *  dispatcher in `convex/gre/phases.ts`. Built by the `untapRestriction`
+ *  factory under `convex/cards/abilities/static/`.
+ *
+ *  Unlike the other `StaticEffect` members this one carries no `applies`
+ *  predicate: it is a global game-state restriction (CR 611 — characteristic-
+ *  defining/ continuous, scoped by `scope`), not a per-permanent effect, and
+ *  the dispatcher does its own eligibility computation against the active
+ *  player's battlefield using `filter`. */
+export interface StaticUntapRestriction {
+    kind: "untap-restriction";
+    /** Stable id (matches the factory's `args.id`) — used by the engine to
+     *  key the pending-choice `choiceId` per restriction. */
+    id: string;
+    /** Oracle line shown in the prompt when the cap binds. */
+    oracleText: string;
+    /** Permanent filter the cap is scoped to (lands for Winter Orb, creatures
+     *  for Smoke, "any" for Stasis). */
+    filter: import("./filters").PermanentFilter;
+    /** Inclusive upper bound on simultaneous untaps from the matching set
+     *  during the active player's untap step. 0 = full skip. */
+    maxUntap: number;
+    /** Whose untap step the cap binds. `each-player` — applies regardless of
+     *  the source's controller. Reserved enum keeps room for future
+     *  controller-scoped restrictions without breaking the type. */
+    scope: "each-player";
+}
+
 export type StaticEffect =
     | StaticPTBuff
     | StaticPTCDA
     | StaticKeywordGrant
     | StaticControlChange
     | StaticActivatedGrant
-    | StaticTypeAdd;
+    | StaticTypeAdd
+    | StaticUntapRestriction;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
  *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted

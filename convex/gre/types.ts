@@ -40,7 +40,8 @@ export type ZonePickKind =
     | "sacrifice-permanents"
     | "keep-hand"
     | "search-library"
-    | "pick-source";
+    | "pick-source"
+    | "untap-pick";
 export type YesNoChoiceKind = "may-pay";
 export type OrderChoiceKind = "mulligan-bottom";
 export type PendingChoiceKind =

@@ -219,10 +219,22 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         // so the player can deselect (not supported yet — future toggle).
         if (isSelectingChoice && activeChoice) {
             if (activeChoice.selected.includes(card.id)) return false;
-            return (
-                !activeChoice.filter ||
-                matchesPermanentFilter(card, activeChoice.filter)
-            );
+            if (
+                activeChoice.filter &&
+                !matchesPermanentFilter(card, activeChoice.filter)
+            ) {
+                return false;
+            }
+            // Untap-pick (CR 502.1): only tapped permanents are eligible,
+            // and per-instance "does-not-untap" markers are excluded
+            // (Basalt Monolith / Mana Vault / Paralyze's grant).
+            if (activeChoice.kind === "untap-pick") {
+                if (!card.isTapped) return false;
+                if (card.staticAbilities?.includes("does-not-untap")) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         // CR 117.9 / 601.2f additional-cost picker: only the caster's own
