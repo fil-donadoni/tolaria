@@ -28,11 +28,21 @@ Logs land in `.ralph/logs/iter-<n>-<timestamp>.log` (gitignored).
 
 ## Preconditions
 
-- On `main`, clean working tree.
+- Clean working tree.
+- On `main`, or on a leftover Ralph branch (`issue-<N>-*`) — the script auto-checks out `main` in that case so Step 0 inside the loop can reconcile state.
 - `gh auth status` OK (read+write issues, push branches).
 - `claude` CLI in PATH.
 - GitHub labels exist: `ready-for-agent`, `ready-for-human`.
 - All gates currently green on `main`: `bun run check:all` and `bun run test`.
+
+## Recovery
+
+If a previous iteration was interrupted (Ctrl-C / crash), the next run reconciles automatically:
+
+1. `ralph.sh` switches to `main` when the current branch matches `issue-<N>-*` and the tree is clean.
+2. Step 0 in `PROMPT.md` inspects every leftover `issue-*` local branch and derives the right resume point from (commits-ahead, remote PR state, issue label). See the table in `PROMPT.md`.
+
+A non-Ralph branch (anything not matching `issue-<N>-*`) still aborts the run — that protects in-progress user work.
 
 ## Eligibility rule
 

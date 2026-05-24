@@ -27,8 +27,20 @@ fi
 
 CUR_BRANCH="$(git branch --show-current)"
 if [[ "$CUR_BRANCH" != "$MAIN_BRANCH" ]]; then
-  echo "✗ Must start from '$MAIN_BRANCH' (currently on '$CUR_BRANCH')." >&2
-  exit 1
+  # Auto-recover from a Ralph-spawned leftover branch (pattern: issue-<N>-*).
+  # Tree is already verified clean above, so the checkout cannot lose work.
+  # Step 0 in PROMPT.md will diagnose the leftover and resume the right step.
+  if [[ "$CUR_BRANCH" =~ ^issue-[0-9]+- ]]; then
+    echo "↺ On leftover Ralph branch '$CUR_BRANCH'. Switching to '$MAIN_BRANCH' for recovery."
+    if ! git checkout "$MAIN_BRANCH"; then
+      echo "✗ Failed to checkout '$MAIN_BRANCH' from '$CUR_BRANCH'." >&2
+      exit 1
+    fi
+    CUR_BRANCH="$MAIN_BRANCH"
+  else
+    echo "✗ Must start from '$MAIN_BRANCH' (currently on '$CUR_BRANCH')." >&2
+    exit 1
+  fi
 fi
 
 if ! command -v claude >/dev/null 2>&1; then

@@ -15,6 +15,42 @@ Pick the next eligible `ready-for-agent` issue from GitHub, implement it end-to-
 - Parent / PRD issue to NEVER touch: `#1`.
 - Domain rules: read `CLAUDE.md` and `.claude/rules/*.md`. Honor `docs/adr/*.md` in the area you touch.
 
+## Step 0 — Recover leftover state
+
+A previous iteration may have been interrupted (Ctrl-C, crash, network failure). Before picking a new issue, reconcile any leftover state. Skip this step entirely if there is nothing to clean up.
+
+Run:
+
+```bash
+git branch --list 'issue-*' --format='%(refname:short)'
+```
+
+For each leftover local branch `issue-<N>-<slug>`, derive its state from three signals:
+
+1. **Commits ahead of `main`**: `git rev-list --count main..issue-<N>-<slug>`
+2. **Remote PR**: `gh pr list --repo fil-donadoni/tolaria --head "issue-<N>-<slug>" --state all --json number,state,url --jq '.[0]'`
+3. **Issue label**: `gh issue view <N> --repo fil-donadoni/tolaria --json labels --jq '[.labels[].name]'`
+
+Then act per the table:
+
+| Commits ahead | Remote PR     | Issue label       | Resume from         | Cleanup                                        |
+| ------------- | ------------- | ----------------- | ------------------- | ---------------------------------------------- |
+| 0             | none          | `ready-for-agent` | nothing to resume   | `git branch -D issue-<N>-<slug>`               |
+| ≥1            | none          | `ready-for-agent` | Step 6 (push + PR)  | after Step 7, `git branch -D issue-<N>-<slug>` |
+| ≥1            | open          | `ready-for-agent` | Step 7 (label flip) | `git branch -D issue-<N>-<slug>`               |
+| any           | open          | `ready-for-human` | already done        | `git branch -D issue-<N>-<slug>`               |
+| any           | merged/closed | any               | already done        | `git branch -D issue-<N>-<slug>`               |
+
+Hard rules during recovery:
+
+- Never run `git commit --amend` on a recovery branch — the commit may already be on a PR.
+- Never force-push during recovery — if the remote branch diverges, print `<promise>HALT</promise>` with a one-paragraph explanation and exit.
+- If the recovery state does not match any row above (e.g. dirty stash, detached HEAD, multiple commits in unexpected shape), print `<promise>HALT</promise>` and exit.
+- If multiple leftover branches exist, recover them oldest-first by issue number, one full pass each.
+- Always `git checkout main` between branches and after the last recovery.
+
+After all leftovers are resolved, continue to Step 1.
+
 ## Step 1 — Pick the next issue
 
 Run:
