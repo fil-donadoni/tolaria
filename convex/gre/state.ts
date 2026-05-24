@@ -1975,6 +1975,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 if (reduced <= 0) return;
                 getPlayer(state, target.id).life -= reduced;
                 bumpDamageDealtToPlayer(state, target.id, reduced);
+                const desc = describeDamageSource(state, item.id);
                 state.pendingEvents = [
                     ...(state.pendingEvents ?? []),
                     {
@@ -1984,6 +1985,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                         target,
                         amount: reduced,
                         isCombat: false,
+                        sourceColors: desc.colors,
+                        sourceTypes: desc.types,
+                        sourceSubtypes: desc.subtypes,
+                        sourceStaticAbilities: desc.staticAbilities,
                     },
                 ];
             } else {
@@ -2014,6 +2019,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     ...(found.card.damagedBySources ?? []),
                     item.id,
                 ];
+                const desc = describeDamageSource(state, item.id);
                 state.pendingEvents = [
                     ...(state.pendingEvents ?? []),
                     {
@@ -2023,6 +2029,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                         target,
                         amount: reduced,
                         isCombat: false,
+                        sourceColors: desc.colors,
+                        sourceTypes: desc.types,
+                        sourceSubtypes: desc.subtypes,
+                        sourceStaticAbilities: desc.staticAbilities,
                     },
                 ];
                 if (
