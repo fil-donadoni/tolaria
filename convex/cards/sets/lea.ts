@@ -18,7 +18,7 @@ import {
     makeDualLand,
     makeTapForMana,
 } from "../abilities";
-import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
+import { diedTrigger } from "../abilities/triggers/diedTrigger";
 import { tokenPrintIdFor } from "../tokenPrintLookup";
 
 // export const animateWall: CardDefinition = {
@@ -1232,23 +1232,20 @@ export const creatureBond: CardDefinition = {
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
     triggeredAbilities: [
-        {
+        diedTrigger({
             id: "creature-bond-death",
             oracleText:
                 "When enchanted creature dies, Creature Bond deals damage equal to that creature's toughness to the creature's controller.",
-            event: "CREATURE_DIED",
-            matches: (event, self) => {
-                if (event.type !== "CREATURE_DIED") return false;
-                return event.creatureInstanceId === self.attachedTo;
-            },
-            resolve: (ctx, event) => {
-                if (event.type !== "CREATURE_DIED") return;
+            scope: "any",
+            condition: (event, self) =>
+                event.creatureInstanceId === self.attachedTo,
+            resolve: (ctx, _event, dead) => {
                 ctx.dealDamage(
-                    { type: "player", id: event.creatureControllerId },
-                    event.creatureToughness
+                    { type: "player", id: dead.controllerId },
+                    dead.lastKnownToughness
                 );
             },
-        },
+        }),
     ],
 };
 
@@ -2990,16 +2987,13 @@ export const sengirVampire: CardDefinition = {
     toughness: 4,
     staticAbilities: ["flying"],
     triggeredAbilities: [
-        {
+        diedTrigger({
             id: "sengir-vampire-counter",
             oracleText:
                 "Whenever another creature dies, if Sengir Vampire dealt damage to it this turn, put a +1/+1 counter on Sengir Vampire.",
-            event: "CREATURE_DIED",
-            matches: (event, self) => {
-                if (event.type !== "CREATURE_DIED") return false;
-                if (event.creatureInstanceId === self.id) return false;
-                return event.damagedBySources.includes(self.id);
-            },
+            scope: "any-other",
+            condition: (event, self) =>
+                event.damagedBySources.includes(self.id),
             resolve: (ctx) => {
                 ctx.addCounter(
                     { type: "permanent", id: ctx.sourceInstanceId },
@@ -3007,7 +3001,7 @@ export const sengirVampire: CardDefinition = {
                     1
                 );
             },
-        },
+        }),
     ],
 };
 
@@ -5715,12 +5709,11 @@ export const soulNet: CardDefinition = {
     manaCost: { X: 1 },
     types: ["Artifact"],
     triggeredAbilities: [
-        {
+        diedTrigger({
             id: "soul-net-life",
             oracleText:
                 "Whenever a creature dies, you may pay {1}. If you do, you gain 1 life.",
-            event: "CREATURE_DIED",
-            matches: (event) => event.type === "CREATURE_DIED",
+            scope: "any",
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,
@@ -5731,7 +5724,7 @@ export const soulNet: CardDefinition = {
                 if (accept === undefined) return;
                 if (accept) ctx.gainLife(ctx.controller, 1);
             },
-        },
+        }),
     ],
 };
 
