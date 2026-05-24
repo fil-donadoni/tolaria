@@ -99,7 +99,7 @@ describe("matchesPermanentScope", () => {
                 matchesPermanentScope(
                     c.scope,
                     {
-                        permanentId: c.permanentId,
+                        instanceId: c.permanentId,
                         controllerId: c.controllerId,
                     },
                     self

@@ -1,57 +1,101 @@
-// Shared scope vocabulary and resolver for permanent-anchored trigger
-// factories (`tappedTrigger`, `diedTrigger`, `enteredTrigger`,
-// `leftTrigger`). Per ADR 0002, all four share the same scope axis so card
-// authors learn one vocabulary across every permanent-anchored event.
+// Shared helpers for permanent-anchored trigger factories
+// (`diedTrigger`, `enteredTrigger`, `leftTrigger`, `tappedTrigger`). Each
+// factory translates an event payload to an `{ instanceId, controllerId }`
+// identity for the affected permanent and asks `matchesPermanentScope` to
+// gate the trigger by source-relative scope (CR 109.2 / 109.4 / 603.2).
 //
-// Scope is purely a relation between the event's affected permanent and the
-// trigger's source (CR 109.2 self-reference, CR 109.4 controller). It does
-// NOT consult any other filter dimension (types, subtypes, colors) — those
-// belong on the factory's `filter` field.
+// The vocabulary (`self`/`yours`/`opponents`/`any`/`another-yours`/`any-other`)
+// is fixed at ADR 0002 — keep this file as the single source of truth so the
+// four factories stay in lockstep.
 
-import type { PermanentView } from "../../types";
+import type {
+    PermanentView,
+    PhaseBeginEvent,
+    TriggerStateView,
+} from "../../types";
 
-/** Permanent-anchored scope vocabulary. */
+/** Who the trigger cares about — drives both the `matches()` filter and the
+ *  `scopedPlayerId` passed to the per-card resolve body. See
+ *  `phaseTrigger.ts` for the per-scope contract. */
+export type TriggerScope = "your" | "each" | "opponents" | "host-controller";
+
+/** Resolves a `TriggerScope` against the current PHASE_BEGIN event.
+ *  Returns the playerId the trigger is "about", or `null` if the scope
+ *  predicate fails and the trigger should not fire. */
+export function resolvePhaseScope(
+    scope: TriggerScope,
+    event: PhaseBeginEvent,
+    self: PermanentView,
+    state?: TriggerStateView
+): string | null {
+    if (scope === "each") return event.activePlayerId;
+    if (scope === "your") {
+        return event.activePlayerId === self.controllerId
+            ? self.controllerId
+            : null;
+    }
+    if (scope === "opponents") {
+        return event.activePlayerId !== self.controllerId
+            ? event.activePlayerId
+            : null;
+    }
+    // host-controller (CR 303.4b — Aura trigger keyed on enchanted permanent).
+    if (!self.attachedTo) return null;
+    for (const p of state?.players ?? []) {
+        const host = p.battlefield.find((c) => c.id === self.attachedTo);
+        if (host) {
+            return host.controllerId === event.activePlayerId
+                ? host.controllerId
+                : null;
+        }
+    }
+    return null;
+}
+
+/** Source-relative scope vocabulary shared by permanent-anchored trigger
+ *  factories. Mirrors the ADR 0002 scope axis for died/entered/left/tapped. */
 export type PermanentScope =
-    /** Only fires when the event's permanent IS the source (CR 109.2). */
     | "self"
-    /** Permanents controlled by the source's controller. */
     | "yours"
-    /** Permanents controlled by anyone other than the source's controller. */
     | "opponents"
-    /** Any permanent on the battlefield. */
     | "any"
-    /** Same as "yours" but excludes the source itself (CR 109.2 — "another ~"). */
     | "another-yours"
-    /** Same as "any" but excludes the source itself ("permanents other than ~"). */
     | "any-other";
 
-export interface ScopeCandidate {
-    /** Instance id of the permanent affected by the event. */
-    permanentId: string;
-    /** Controller of that permanent at event time (CR 109.5). */
+/** Identifying fields lifted from an event payload — instance id of the
+ *  affected permanent and its controller at event time (CR 603.10 last
+ *  known information). Different events expose these under different field
+ *  names (`creatureInstanceId`/`creatureControllerId`,
+ *  `permanentId`/`controllerId`, etc.) — the caller normalizes once and
+ *  hands this shape to the resolver. */
+export interface ScopedPermanentIdentity {
+    instanceId: string;
     controllerId: string;
 }
 
-/** Returns true if `candidate` matches `scope` relative to `self`. Pure. */
+/** Returns true if the scoped event's affected permanent satisfies `scope`
+ *  relative to the trigger's source `self`. Pure — reads only its inputs.
+ *  CR 109.2 (self-exclusion) is enforced for `another-yours` / `any-other`. */
 export function matchesPermanentScope(
     scope: PermanentScope,
-    candidate: ScopeCandidate,
+    event: ScopedPermanentIdentity,
     self: PermanentView
 ): boolean {
-    const isSelf = candidate.permanentId === self.id;
-    const sameController = candidate.controllerId === self.controllerId;
     switch (scope) {
         case "self":
-            return isSelf;
+            return event.instanceId === self.id;
         case "yours":
-            return sameController;
+            return event.controllerId === self.controllerId;
         case "opponents":
-            return !sameController;
+            return event.controllerId !== self.controllerId;
         case "any":
             return true;
         case "another-yours":
-            return sameController && !isSelf;
+            return (
+                event.controllerId === self.controllerId &&
+                event.instanceId !== self.id
+            );
         case "any-other":
-            return !isSelf;
+            return event.instanceId !== self.id;
     }
 }

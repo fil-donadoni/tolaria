@@ -1799,6 +1799,48 @@ describe("Sengir Vampire (+1/+1 on damaged-creature death, CR 603.2)", () => {
             state.players[1].battlefield[0].damagedBySources
         ).toBeUndefined();
     });
+
+    it("wire format: +1/+1 counter survives projectPublicState", async () => {
+        // Visible-on-board effect from a diedTrigger factory. Re-runs the P/T
+        // assertion against the projected state so the projection layer
+        // (which slims `card.card` to `{ id }`) can't silently break the
+        // counter contribution.
+        const vampire = makeInstance(sengirVampire.id, {
+            id: "vamp",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [vampire] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+            combat: {
+                attackerIds: ["vamp"],
+                confirmed: true,
+                blockerAssignments: { bear: "vamp" },
+                blockersConfirmed: true,
+            },
+        });
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, { vamp: { bear: 4 } });
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const projectedVamp = projected.players[0].battlefield.find(
+            (c) => c.id === "vamp"
+        )!;
+        expect(getEffectivePower(projected, projectedVamp)).toBe(5);
+        expect(getEffectiveToughness(projected, projectedVamp)).toBe(5);
+        expect(projectedVamp.counters?.["+1/+1"]).toBe(1);
+    });
 });
 
 describe("Sea Serpent (CR 508.1c attack restriction + CR 603.8 state trigger)", () => {
@@ -8965,6 +9007,7 @@ describe("Soul Net (may pay {1} on creature death for 1 life)", () => {
             type: "CREATURE_DIED" as const,
             creatureInstanceId: "bear",
             creatureControllerId: "p2",
+            creatureTypes: ["Creature"] as CardType[],
             damagedBySources: [],
             creaturePower: 2,
             creatureToughness: 2,
@@ -11345,6 +11388,32 @@ describe("Lich (multi-replacement enchantment)", () => {
         // SBA check: no game over because lich is on the field.
         checkStateBasedActions(state);
         expect(state.gameOver).toBeUndefined();
+    });
+
+    it("wire format: lich-etb life drop survives projectPublicState", () => {
+        // Visible-on-board effect produced by an enteredTrigger factory
+        // (lich-etb → loseLife). Re-runs the life assertion against the
+        // projected state so the projection layer can't silently strip the
+        // controller's life change.
+        const lichInst = makeInstance(lich.id, {
+            id: "lich",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 17, hand: [lichInst] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, lich.id, "p1");
+        resolveTopOfStack(state);
+        processPendingActionTriggers(state);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(0);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(0);
     });
 
     it("lifegain → draw cards instead (CR 614 lifegain replacement)", () => {

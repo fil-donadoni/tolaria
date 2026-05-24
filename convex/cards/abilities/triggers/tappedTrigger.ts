@@ -82,7 +82,7 @@ export function tappedTrigger(args: TappedTriggerArgs): TriggeredAbility {
             !matchesPermanentScope(
                 args.scope,
                 {
-                    permanentId: event.permanentId,
+                    instanceId: event.permanentId,
                     controllerId: event.controllerId,
                 },
                 self
