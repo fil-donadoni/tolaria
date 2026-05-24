@@ -54,6 +54,42 @@ An open issue is eligible iff:
 
 Picked oldest-first by number.
 
+## Sliced refactors with a hot file
+
+A "sliced refactor" is a multi-issue feature where each slice touches the
+same hot file (e.g. `convex/gre/phases.ts` during the untap-restriction
+migration: #23 → #24 → #25 → #26). Naive parallel execution opens each
+slice's branch from main at issue-creation time, then every subsequent
+merge invalidates the others, producing inevitable conflicts that Ralph
+cannot self-resolve.
+
+Convention:
+
+1. **Identify hot files at parent-PRD time.** When the umbrella issue
+   names a single file every slice will touch, flag it explicitly in the
+   PRD (`## Hot files: convex/gre/phases.ts`). The next slice cannot be
+   eligible until its predecessor merges.
+2. **Sequential ordering on hot files.** Add `## Blocked by: #<prev>` in
+   each slice's PRD so the eligibility rule (point 3 above) automatically
+   serializes them. The umbrella PRD's slice table is the source of
+   truth.
+3. **Stacked PRs are the alternative** when latency matters more than
+   review simplicity: branch S(N+1) off S(N) rather than off main. PR
+   base = previous branch. When S(N) merges to main, S(N+1) auto-rebases
+   onto main and conflicts only on real content overlap. Use this for
+   long chains (≥4 slices) where waiting for sequential merges is
+   wasteful.
+4. **Disaggregate the hot file** if the same file appears as hot in ≥3
+   consecutive refactors. Extract per-family primitives (one file per
+   restriction family, one file per trigger family) so future slices
+   touch disjoint files. One-time cost, permanent benefit.
+5. **Combined PR** is acceptable only when two adjacent slices are
+   trivially small (≤2 files each) and review burden is negligible —
+   prefer it over an exotic dependency dance.
+
+Default: option (1)+(2) — sequential, with `Blocked by` markers. Option
+(3) is the escape valve. Options (4) and (5) are situational.
+
 ## Hard rules (encoded in PROMPT.md)
 
 - Never push to `main` (PR only).
