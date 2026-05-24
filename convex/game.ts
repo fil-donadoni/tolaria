@@ -56,6 +56,8 @@ import {
     drainAutoPasses,
     applyAllCombatDamage,
     untapStep,
+    computeHardSkipFilters,
+    effectivePermanentView,
 } from "./gre/phases";
 import { freshSeed, seededShuffle } from "./gre/rng";
 import {
@@ -2624,6 +2626,15 @@ export const selectResolutionChoice = mutation({
                     throw new Error("Card is not tapped");
                 }
                 if (card.staticAbilities.includes("does-not-untap")) {
+                    throw new Error("Card cannot untap");
+                }
+                // CR 502.1 defense-in-depth: reject picks matching any
+                // hard-skip restriction (maxUntap === 0). The dispatcher
+                // already excludes these from the eligible set, but stale
+                // client state could send a forbidden id.
+                const vetoFilters = computeHardSkipFilters(state);
+                const view = effectivePermanentView(state, card);
+                if (vetoFilters.some((f) => matchesPermanentFilter(view, f))) {
                     throw new Error("Card cannot untap");
                 }
             }

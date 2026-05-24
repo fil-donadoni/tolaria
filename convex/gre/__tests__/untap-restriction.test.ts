@@ -18,8 +18,22 @@
 
 import { describe, expect, it } from "vitest";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
-import { advancePhase, untapStep } from "../phases";
-import { winterOrb, plains, grizzlyBears, stasis } from "../../cards/sets/lea";
+import {
+    advancePhase,
+    untapStep,
+    computeHardSkipFilters,
+    effectivePermanentView,
+} from "../phases";
+import {
+    winterOrb,
+    plains,
+    grizzlyBears,
+    stasis,
+    meekstone,
+    smoke,
+    sengirVampire,
+} from "../../cards/sets/lea";
+import { matchesPermanentFilter } from "../state";
 import { projectPublicState } from "../../gameProjections";
 import { tryGetCardById } from "../../cards";
 import type { CardType } from "../../cards/types";
@@ -391,6 +405,199 @@ describe("untapRestriction dispatcher (CR 502.1, ADR 0005)", () => {
                 state.players[0].battlefield.find((c) => c.id === "l1")
                     ?.isTapped
             ).toBe(true);
+        });
+    });
+
+    describe("hard-skip ∩ cap intersection (CR 502.1)", () => {
+        it("Creature ∩ Creature+power≥3: cap's eligibles exclude high-power creatures", () => {
+            // Meekstone (maxUntap:0, Creature power≥3) + Smoke (maxUntap:1, Creature)
+            const stone = makeInstance(meekstone.id, { id: "stone" });
+            const smk = makeInstance(smoke.id, { id: "smoke" });
+            const bear = makeInstance(grizzlyBears.id, {
+                id: "bear",
+                isTapped: true,
+                isSummoningSick: false,
+            });
+            const vamp = makeInstance(sengirVampire.id, {
+                id: "vamp",
+                isTapped: true,
+                isSummoningSick: false,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [stone, smk, bear, vamp],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            untapStep(state);
+
+            // Smoke prompt present with creature filter; only bear eligible
+            // (vampire vetoed by Meekstone's hard-skip filter).
+            expect(state.pendingChoices).toHaveLength(1);
+            expect(state.pendingChoices![0].kind).toBe("untap-pick");
+            expect(state.pendingChoices![0].filter).toEqual({
+                types: "Creature",
+            });
+            expect(
+                state.players[0].battlefield.find((c) => c.id === "vamp")
+                    ?.isTapped
+            ).toBe(true);
+        });
+
+        it("any ∩ Creature: Stasis vetoes all Smoke eligibles → no prompt", () => {
+            // Stasis (maxUntap:0, any filter) + Smoke (maxUntap:1, Creature)
+            const enchant = makeInstance(stasis.id, { id: "stasis" });
+            const smk = makeInstance(smoke.id, { id: "smoke" });
+            const bear = makeInstance(grizzlyBears.id, {
+                id: "bear",
+                isTapped: true,
+                isSummoningSick: false,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [enchant, smk, bear],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            untapStep(state);
+
+            // Stasis vetoes everything → Smoke's eligible set is empty → no prompt.
+            expect(state.pendingChoices ?? []).toEqual([]);
+            expect(
+                state.players[0].battlefield.find((c) => c.id === "bear")
+                    ?.isTapped
+            ).toBe(true);
+        });
+
+        it("non-overlapping filters: Meekstone (Creature power≥3) does not affect Winter Orb (Land)", () => {
+            const stone = makeInstance(meekstone.id, { id: "stone" });
+            const orb = makeInstance(winterOrb.id, { id: "orb" });
+            const land1 = makeInstance(plains.id, {
+                id: "l1",
+                isTapped: true,
+            });
+            const land2 = makeInstance(plains.id, {
+                id: "l2",
+                isTapped: true,
+            });
+            const vamp = makeInstance(sengirVampire.id, {
+                id: "vamp",
+                isTapped: true,
+                isSummoningSick: false,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [stone, orb, land1, land2, vamp],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            untapStep(state);
+
+            // Winter Orb's land prompt is unaffected by Meekstone (lands don't match Creature filter).
+            expect(state.pendingChoices).toHaveLength(1);
+            expect(state.pendingChoices![0].filter).toEqual({ types: "Land" });
+            // Vampire stays tapped (Meekstone hard skip).
+            expect(
+                state.players[0].battlefield.find((c) => c.id === "vamp")
+                    ?.isTapped
+            ).toBe(true);
+        });
+
+        it("cap with zero post-intersection eligibles → auto-resolve, no prompt (ADR 0003)", () => {
+            const stone = makeInstance(meekstone.id, { id: "stone" });
+            const smk = makeInstance(smoke.id, { id: "smoke" });
+            const vamp1 = makeInstance(sengirVampire.id, {
+                id: "vamp1",
+                isTapped: true,
+                isSummoningSick: false,
+            });
+            const vamp2 = makeInstance(sengirVampire.id, {
+                id: "vamp2",
+                isTapped: true,
+                isSummoningSick: false,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [stone, smk, vamp1, vamp2],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            untapStep(state);
+
+            // All creatures have power ≥ 3 → vetoed by Meekstone → Smoke auto-resolves.
+            expect(state.pendingChoices ?? []).toEqual([]);
+        });
+    });
+
+    describe("commit-time veto via computeHardSkipFilters (CR 502.1)", () => {
+        it("rejects a power-4 creature matching Meekstone's hard-skip filter", () => {
+            const stone = makeInstance(meekstone.id, { id: "stone" });
+            const vamp = makeInstance(sengirVampire.id, {
+                id: "vamp",
+                isTapped: true,
+                isSummoningSick: false,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [stone, vamp] }),
+                    makePlayer("p2"),
+                ],
+            });
+
+            const vetoFilters = computeHardSkipFilters(state);
+            const view = effectivePermanentView(state, vamp);
+            expect(
+                vetoFilters.some((f) => matchesPermanentFilter(view, f))
+            ).toBe(true);
+        });
+
+        it("accepts a power-2 creature not matching any hard-skip filter", () => {
+            const stone = makeInstance(meekstone.id, { id: "stone" });
+            const bear = makeInstance(grizzlyBears.id, {
+                id: "bear",
+                isTapped: true,
+                isSummoningSick: false,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [stone, bear] }),
+                    makePlayer("p2"),
+                ],
+            });
+
+            const vetoFilters = computeHardSkipFilters(state);
+            const view = effectivePermanentView(state, bear);
+            expect(
+                vetoFilters.some((f) => matchesPermanentFilter(view, f))
+            ).toBe(false);
+        });
+
+        it("non-creature permanents (lands) are never vetoed by Meekstone's creature-power filter", () => {
+            const stone = makeInstance(meekstone.id, { id: "stone" });
+            const land = makeInstance(plains.id, {
+                id: "l1",
+                isTapped: true,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [stone, land] }),
+                    makePlayer("p2"),
+                ],
+            });
+
+            const vetoFilters = computeHardSkipFilters(state);
+            const view = effectivePermanentView(state, land);
+            expect(
+                vetoFilters.some((f) => matchesPermanentFilter(view, f))
+            ).toBe(false);
         });
     });
 });

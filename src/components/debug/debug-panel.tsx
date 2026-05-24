@@ -487,6 +487,32 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Meekstone + Smoke — hard-skip ∩ cap filter overlap (CR 502.1)",
+        cards: [
+            // Meekstone (maxUntap:0, Creature power≥3) + Smoke (maxUntap:1,
+            // Creature). The intersection step vetoes high-power creatures
+            // from Smoke's eligible set. Expected golden path: Smoke prompt
+            // offers only the power-2 Grizzly Bears; the power-4 Sengir
+            // Vampire stays tapped regardless of the pick. Skip leaves
+            // everything tapped. End turn to see the interaction fire again.
+            { name: "Meekstone", owner: "me" as const },
+            { name: "Smoke", owner: "me" as const },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                tapped: true,
+            },
+            {
+                name: "Sengir Vampire",
+                owner: "me" as const,
+                tapped: true,
+            },
+            { name: "Plains", owner: "me" as const, tapped: true, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Skip / restrict untap step — Basalt Monolith / Mana Vault / Meekstone / Smoke / Stasis / Paralyze (CR 502.1)",
         cards: [
             // Gap J showcase. Basalt Monolith and Mana Vault enter tapped and

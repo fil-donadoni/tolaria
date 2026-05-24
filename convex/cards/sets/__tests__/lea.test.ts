@@ -206,6 +206,7 @@ import {
     emitSpellCastEvent,
     emitPermanentTapped,
     processPendingActionTriggers,
+    matchesPermanentFilter,
     type CardInstanceState,
     type GameState,
 } from "../../../gre/state";
@@ -230,7 +231,12 @@ import {
     mustAttack,
     getRequiredAttackerIds,
 } from "../../../gre/combat";
-import { advancePhase, untapStep } from "../../../gre/phases";
+import {
+    advancePhase,
+    untapStep,
+    computeHardSkipFilters,
+    effectivePermanentView,
+} from "../../../gre/phases";
 import { tryGetCardById } from "../../index";
 import type { CardDefinition, CardType } from "../../types";
 import {
@@ -11246,6 +11252,228 @@ describe("Winter Orb + Smoke (independent multi-restriction FIFO, CR 502.1, ADR 
         expect(state.pendingChoices?.[0].filter).toEqual({
             types: "Creature",
         });
+    });
+});
+
+describe("Meekstone + Smoke (hard-skip ∩ cap filter overlap, CR 502.1)", () => {
+    it("power-4 creature excluded from Smoke eligibles; only power-2 creature offered", () => {
+        const stone = makeInstance(meekstone.id, { id: "stone" });
+        const smk = makeInstance(smoke.id, { id: "smoke" });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const vampire = makeInstance(sengirVampire.id, {
+            id: "vamp",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [stone, smk, bear, vampire],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+
+        // Smoke prompt should appear with only the power-2 bear eligible.
+        // The power-4 vampire is vetoed by Meekstone's hard-skip filter.
+        const queue = state.pendingChoices ?? [];
+        expect(queue).toHaveLength(1);
+        const head = queue[0];
+        expect(head.kind).toBe("untap-pick");
+        expect(head.filter).toEqual({ types: "Creature" });
+        expect(head.count).toEqual({ min: 0, max: 1 });
+        // Vampire stays tapped regardless of the Smoke prompt.
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "vamp")?.isTapped).toBe(true);
+    });
+
+    it("no prompt when only power-4 creatures (Meekstone vetoes all Smoke eligibles)", () => {
+        const stone = makeInstance(meekstone.id, { id: "stone" });
+        const smk = makeInstance(smoke.id, { id: "smoke" });
+        const vamp1 = makeInstance(sengirVampire.id, {
+            id: "vamp1",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const vamp2 = makeInstance(sengirVampire.id, {
+            id: "vamp2",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [stone, smk, vamp1, vamp2],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+
+        // Meekstone hard-skips both; Smoke's eligible set is empty → auto-resolve (ADR 0003).
+        expect(state.pendingChoices ?? []).toEqual([]);
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "vamp1")?.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "vamp2")?.isTapped).toBe(true);
+    });
+
+    it("submit-untap on the power-2 bear untaps it; power-4 creature stays tapped", () => {
+        const stone = makeInstance(meekstone.id, { id: "stone" });
+        const smk = makeInstance(smoke.id, { id: "smoke" });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const vampire = makeInstance(sengirVampire.id, {
+            id: "vamp",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [stone, smk, bear, vampire],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+
+        // Commit the bear pick.
+        state.pendingChoices![0].selected.push("bear");
+        const chooser = state.players.find(
+            (p) => p.id === state.pendingChoices![0].zoneOwnerId
+        )!;
+        for (const id of state.pendingChoices![0].selected) {
+            const c = chooser.battlefield.find((x) => x.id === id);
+            if (c) c.isTapped = false;
+        }
+        state.pendingChoices = undefined;
+        untapStep(state);
+        advancePhase(state);
+
+        expect(state.phase).toBe("UPKEEP");
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "bear")?.isTapped).toBe(false);
+        expect(bf.find((c) => c.id === "vamp")?.isTapped).toBe(true);
+    });
+
+    it("commit-time veto: computeHardSkipFilters rejects a power-4 creature via effectivePermanentView", () => {
+        const stone = makeInstance(meekstone.id, { id: "stone" });
+        const smk = makeInstance(smoke.id, { id: "smoke" });
+        const vampire = makeInstance(sengirVampire.id, {
+            id: "vamp",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [stone, smk, vampire, bear],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        const vetoFilters = computeHardSkipFilters(state);
+        expect(vetoFilters.length).toBeGreaterThan(0);
+
+        // Power-4 vampire: vetoed.
+        const vampView = effectivePermanentView(state, vampire);
+        expect(
+            vetoFilters.some((f) => matchesPermanentFilter(vampView, f))
+        ).toBe(true);
+
+        // Power-2 bear: not vetoed.
+        const bearView = effectivePermanentView(state, bear);
+        expect(
+            vetoFilters.some((f) => matchesPermanentFilter(bearView, f))
+        ).toBe(false);
+    });
+
+    it("wire format: Smoke prompt with only the low-power creature survives projectPublicState", () => {
+        const stone = makeInstance(meekstone.id, { id: "stone" });
+        const smk = makeInstance(smoke.id, { id: "smoke" });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const vampire = makeInstance(sengirVampire.id, {
+            id: "vamp",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [stone, smk, bear, vampire],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+
+        // GRE state: single prompt with creature filter.
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.pendingChoices![0].kind).toBe("untap-pick");
+
+        // Projected state: same prompt survives.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingChoices).toHaveLength(1);
+        expect(projected.pendingChoices![0].kind).toBe("untap-pick");
+        expect(projected.pendingChoices![0].filter).toEqual({
+            types: "Creature",
+        });
+        // Vampire still tapped in projected view.
+        const slim = projected.players[0].battlefield;
+        expect(slim.find((c) => c.id === "vamp")?.isTapped).toBe(true);
+    });
+
+    it("layer 7c: a printed-2 creature pumped to power 4 is vetoed by Meekstone in Smoke eligibles", () => {
+        const stone = makeInstance(meekstone.id, { id: "stone" });
+        const smk = makeInstance(smoke.id, { id: "smoke" });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const aura = makeInstance(unholyStrength.id, {
+            id: "aura",
+            attachedTo: "bear",
+        });
+        const bear2 = makeInstance(grizzlyBears.id, {
+            id: "bear2",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [stone, smk, bear, aura, bear2],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // Pumped bear has effective power 4 → Meekstone veto.
+        expect(getEffectivePower(state, bear)).toBe(4);
+        runUntapForJ("p1", state);
+
+        // Only unpumped bear2 should be eligible in the Smoke prompt.
+        expect(state.pendingChoices).toHaveLength(1);
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "bear")?.isTapped).toBe(true);
     });
 });
 

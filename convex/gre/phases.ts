@@ -125,12 +125,22 @@ export function collectUntapRestrictions(state: GameState): {
     return out;
 }
 
+/** Returns the list of `PermanentFilter`s from every active hard-skip
+ *  restriction (`maxUntap === 0`) in play. Used by the dispatcher to veto
+ *  permanents from cap-style restriction eligible sets, and by
+ *  `selectResolutionChoice` as a commit-time defense (CR 502.1). */
+export function computeHardSkipFilters(state: GameState) {
+    return collectUntapRestrictions(state)
+        .filter((r) => r.restriction.maxUntap === 0)
+        .map((r) => r.restriction.filter);
+}
+
 /** Returns a `MatchablePermanent`-shaped view of `card` with its `power` and
  *  `toughness` overridden by the effective values read at call time
  *  (CR 613 layer 7c/7d — counters, +N/+N auras, temporary buffs). The
  *  untap-step dispatcher uses this so power-keyed filters (Meekstone's
  *  `powerAtLeast: 3`) honor the live layer system instead of printed P/T. */
-function effectivePermanentView(
+export function effectivePermanentView(
     state: GameState,
     card: CardInstanceState
 ): CardInstanceState {
@@ -184,12 +194,7 @@ export function untapStep(state: GameState): void {
     const restrictions = collectUntapRestrictions(state);
     const startCursor = state.pendingUntapStep?.restrictionCursor ?? 0;
 
-    // Filters from `maxUntap === 0` restrictions (Stasis-style hard skips).
-    // Any permanent matching one of these is removed from every cap's
-    // eligibility set — Stasis overrides Winter Orb on the same lands, etc.
-    const hardSkipFilters = restrictions
-        .filter((r) => r.restriction.maxUntap === 0)
-        .map((r) => r.restriction.filter);
+    const hardSkipFilters = computeHardSkipFilters(state);
 
     // First entry only: untap permanents that are NOT subject to any
     // data-driven restriction (so non-land permanents under Winter Orb
