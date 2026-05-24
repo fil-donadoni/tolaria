@@ -425,11 +425,17 @@ export function compactState(state: GameState): Record<string, unknown> {
         rngSeed: state.rngSeed,
         rngCounter: state.rngCounter,
     };
+    // Every optional GameState field that must survive across mutations
+    // needs an entry in BOTH this array and the expandState twin below.
+    // Missing an entry silently strips the field on save → breaks resume
+    // cursors (see #32: pendingUntapStep was dropped, resetting the untap
+    // dispatcher on every round-trip).
     for (const k of [
         "pendingCast",
         "pendingActivation",
         "pendingTarget",
         "pendingChoices",
+        "pendingUntapStep",
         "autoPassPlayers",
         "singleShotAutoPass",
         "combat",
@@ -467,11 +473,13 @@ export function expandState(data: Record<string, unknown>): GameState {
         rngSeed: data.rngSeed as number,
         rngCounter: data.rngCounter as number,
     };
+    // Mirror of compactState — same keys, same order.
     for (const k of [
         "pendingCast",
         "pendingActivation",
         "pendingTarget",
         "pendingChoices",
+        "pendingUntapStep",
         "autoPassPlayers",
         "singleShotAutoPass",
         "combat",

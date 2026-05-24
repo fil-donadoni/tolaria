@@ -11,7 +11,9 @@ import {
     mountain,
     plains,
     savannahLions,
+    winterOrb,
 } from "../../cards/sets/lea";
+import { untapStep } from "../phases";
 
 function freshState(): GameState {
     const p1 = makePlayer("p1", {
@@ -191,5 +193,131 @@ describe("game_state serialize round-trip", () => {
         const rawSize = JSON.stringify(state).length;
         const compactSize = JSON.stringify(compactState(state)).length;
         expect(compactSize).toBeLessThan(rawSize * 0.7);
+    });
+
+    it("pendingUntapStep survives compact → expand round-trip (#32)", () => {
+        const state = freshState();
+        state.pendingUntapStep = { restrictionCursor: 2 };
+        const expanded = expandState(compactState(state));
+        expect(expanded.pendingUntapStep).toEqual({ restrictionCursor: 2 });
+    });
+
+    it("pendingUntapStep: undefined round-trips as undefined", () => {
+        const state = freshState();
+        state.pendingUntapStep = undefined;
+        const expanded = expandState(compactState(state));
+        expect(expanded.pendingUntapStep).toBeUndefined();
+    });
+
+    it("compactState and expandState key arrays are symmetric", () => {
+        const rich = freshState();
+        rich.pendingUntapStep = { restrictionCursor: 1 };
+        rich.pendingChoices = [];
+        rich.autoPassPlayers = [];
+        rich.combat = {
+            attackerIds: [],
+            confirmed: false,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+            damageAssignments: {},
+        };
+        const richCompact = compactState(rich);
+        const richExpanded = expandState(richCompact);
+        // pendingUntapStep must survive.
+        expect(richExpanded.pendingUntapStep).toEqual({
+            restrictionCursor: 1,
+        });
+    });
+});
+
+describe("pendingUntapStep serialize regression — Winter Orb (#32)", () => {
+    it("untap-pick prompt cursor survives compact → expand → re-entry (no duplicate prompt)", () => {
+        const orb = makeInstance(winterOrb.id, { id: "orb" });
+        const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
+        const land3 = makeInstance(plains.id, { id: "l3", isTapped: true });
+        const state = makeState({
+            phase: "UNTAP",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [orb, land1, land2, land3],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        untapStep(state);
+
+        // Step 1: exactly 1 prompt enqueued.
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.pendingChoices![0].kind).toBe("untap-pick");
+        expect(state.pendingUntapStep).toEqual({ restrictionCursor: 1 });
+
+        // Step 2: simulate saveGameState → getLatestGameState round-trip.
+        const roundTripped = expandState(compactState(state));
+
+        // Cursor must survive.
+        expect(roundTripped.pendingUntapStep).toEqual({
+            restrictionCursor: 1,
+        });
+
+        // Step 3: simulate selectResolutionChoice → finalizeUntapPick.
+        // Pick land1, then resume dispatcher.
+        const queue = roundTripped.pendingChoices!;
+        queue[0].selected.push("l1");
+        const chooser = roundTripped.players.find(
+            (p) => p.id === queue[0].zoneOwnerId
+        )!;
+        for (const id of queue[0].selected) {
+            const c = chooser.battlefield.find((x) => x.id === id);
+            if (c) c.isTapped = false;
+        }
+        queue.shift();
+        roundTripped.pendingChoices = queue.length > 0 ? queue : undefined;
+        untapStep(roundTripped);
+
+        // No more prompts — dispatcher finished (cursor was preserved).
+        expect(roundTripped.pendingChoices ?? []).toEqual([]);
+        expect(roundTripped.pendingUntapStep).toBeUndefined();
+
+        // Only land1 untapped; land2 + land3 still tapped.
+        const bf = roundTripped.players[0].battlefield;
+        expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(false);
+        expect(bf.find((c) => c.id === "l2")?.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "l3")?.isTapped).toBe(true);
+    });
+
+    it("skip-untap (empty selection) through serialize round-trip closes prompt immediately", () => {
+        const orb = makeInstance(winterOrb.id, { id: "orb" });
+        const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
+        const state = makeState({
+            phase: "UNTAP",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [orb, land1, land2],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        untapStep(state);
+        expect(state.pendingChoices).toHaveLength(1);
+
+        // Round-trip through serializer.
+        const roundTripped = expandState(compactState(state));
+
+        // Skip: empty selection, dequeue, resume dispatcher.
+        roundTripped.pendingChoices!.shift();
+        roundTripped.pendingChoices =
+            (roundTripped.pendingChoices?.length ?? 0) > 0
+                ? roundTripped.pendingChoices
+                : undefined;
+        untapStep(roundTripped);
+
+        // No duplicate prompt (cursor survived → dispatcher skips restriction 0).
+        expect(roundTripped.pendingChoices ?? []).toEqual([]);
+        // Both lands still tapped (skip = zero untaps).
+        const bf = roundTripped.players[0].battlefield;
+        expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "l2")?.isTapped).toBe(true);
     });
 });
