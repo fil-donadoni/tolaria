@@ -93,18 +93,6 @@ function nextPhase(current: Phase): Phase | null {
     return PHASE_ORDER[idx + 1];
 }
 
-/** True if any permanent on either battlefield grants the given static
- *  ability (CR 611). Used by the untap step to apply Winter Orb-style
- *  global restrictions without hardcoding card ids. */
-function hasGlobalStaticAbility(state: GameState, ability: string): boolean {
-    for (const p of state.players) {
-        for (const c of p.battlefield) {
-            if (c.staticAbilities.includes(ability)) return true;
-        }
-    }
-    return false;
-}
-
 /** Collects every `StaticUntapRestriction` in play (CR 502.1) in a
  *  deterministic walk: active player's battlefield first, then opponent's,
  *  battlefield order within each player. The cursor on
@@ -137,6 +125,23 @@ export function collectUntapRestrictions(state: GameState): {
     return out;
 }
 
+/** Returns a `MatchablePermanent`-shaped view of `card` with its `power` and
+ *  `toughness` overridden by the effective values read at call time
+ *  (CR 613 layer 7c/7d — counters, +N/+N auras, temporary buffs). The
+ *  untap-step dispatcher uses this so power-keyed filters (Meekstone's
+ *  `powerAtLeast: 3`) honor the live layer system instead of printed P/T. */
+function effectivePermanentView(
+    state: GameState,
+    card: CardInstanceState
+): CardInstanceState {
+    if (!card.types.includes("Creature")) return card;
+    return {
+        ...card,
+        power: getEffectivePower(state, card),
+        toughness: getEffectiveToughness(state, card),
+    };
+}
+
 /** Untap step (CR 502.1, 502.4): the active player declares which
  *  permanents they control will untap, those permanents untap
  *  simultaneously, and every permanent gets per-turn flag cleanup.
@@ -155,11 +160,6 @@ export function collectUntapRestrictions(state: GameState): {
  *    independent prompts in FIFO order — each binds its own filter and
  *    cap, so Winter Orb + Smoke lets the active player untap one land AND
  *    one creature (the filters do not overlap).
- *  - **Legacy keyword markers** kept for restrictions not yet migrated:
- *    `skip-untap-step` (Stasis, slice S2),
- *    `prevents-untap-of-power-3-or-greater` (Meekstone, slice S3). These
- *    resolve deterministically against the active BF — no prompt — and
- *    will be replaced by `untapRestriction(...)` data in later slices.
  *  - **Per-permanent `does-not-untap`** (Basalt Monolith, Mana Vault,
  *    Paralyze's grant) is an orthogonal axis untouched by the dispatcher
  *    refactor: the marked permanent stays tapped regardless of any other
@@ -194,18 +194,13 @@ export function untapStep(state: GameState): void {
     // First entry only: untap permanents that are NOT subject to any
     // data-driven restriction (so non-land permanents under Winter Orb
     // untap immediately, in parallel with the still-pending land
-    // prompt), apply the legacy keyword caps (Meekstone — slice S3 will
-    // migrate), and clear per-turn flags universally. Restricted
+    // prompt), and clear per-turn flags universally. Restricted
     // permanents stay tapped here; their fate is decided by the matching
     // restriction's prompt (or by the cap auto-resolving in the loop
     // below).
     if (startCursor === 0) {
         const restrictionFilters = restrictions.map(
             (r) => r.restriction.filter
-        );
-        const power3Blocked = hasGlobalStaticAbility(
-            state,
-            "prevents-untap-of-power-3-or-greater"
         );
 
         for (const card of player.battlefield) {
@@ -215,7 +210,8 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 continue;
             }
-            if (hardSkipFilters.some((f) => matchesPermanentFilter(card, f))) {
+            const view = effectivePermanentView(state, card);
+            if (hardSkipFilters.some((f) => matchesPermanentFilter(view, f))) {
                 // Stasis-style hard skip (CR 502.1) — permanent cannot
                 // untap this step. Full cleanup runs as if the untap had
                 // happened, so the next priority window doesn't misread
@@ -226,21 +222,17 @@ export function untapStep(state: GameState): void {
                 continue;
             }
             if (
-                power3Blocked &&
-                card.types.includes("Creature") &&
-                getEffectivePower(state, card) >= 3
-            ) {
-                card.manaCommitted = undefined;
-                continue;
-            }
-            if (
                 card.isTapped &&
-                restrictionFilters.some((f) => matchesPermanentFilter(card, f))
+                restrictionFilters.some((f) => matchesPermanentFilter(view, f))
             ) {
                 // Subject to a data-driven cap — defer untap to the
                 // restriction's prompt (or to the cap's auto-resolve in
-                // the loop below).
+                // the loop below). Per-turn flag cleanup still runs
+                // unconditionally on the active BF (CR 502.1, mirrors the
+                // `does-not-untap` branch above).
                 card.manaCommitted = undefined;
+                card.isSummoningSick = undefined;
+                card.chosenMana = undefined;
                 continue;
             }
             card.isTapped = false;
@@ -256,8 +248,13 @@ export function untapStep(state: GameState): void {
             (c) =>
                 c.isTapped &&
                 !c.staticAbilities.includes("does-not-untap") &&
-                matchesPermanentFilter(c, r.filter) &&
-                !hardSkipFilters.some((f) => matchesPermanentFilter(c, f))
+                matchesPermanentFilter(
+                    effectivePermanentView(state, c),
+                    r.filter
+                ) &&
+                !hardSkipFilters.some((f) =>
+                    matchesPermanentFilter(effectivePermanentView(state, c), f)
+                )
         );
 
         // ADR 0003 auto-resolve cases:

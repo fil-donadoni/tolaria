@@ -397,8 +397,6 @@ const KEYWORD_DISPLAY: Record<string, string> = {
     "does-not-untap":
         "This permanent doesn't untap during its controller's untap step.",
     "skip-untap-step": "Players skip their untap steps.",
-    "prevents-untap-of-power-3-or-greater":
-        "Creatures with power 3 or greater don't untap during their controllers' untap steps.",
     "cant-attack-unless-defender-controls-Island":
         "This creature can't attack unless defending player controls an Island.",
     "cant-be-blocked-by-wall": "This creature can't be blocked by Walls.",
@@ -409,10 +407,10 @@ const KEYWORD_DISPLAY: Record<string, string> = {
 
 /** Renders a `staticAbilities` keyword for display. Internal slug keywords
  *  (the ones whose name reveals an implementation detail rather than the
- *  printed Oracle phrasing — e.g. `prevents-untap-of-power-3-or-greater`)
- *  are mapped to their Oracle line via `KEYWORD_DISPLAY`. Everything else
- *  falls back to a simple first-letter capitalization, matching the user
- *  preference of "name only, no reminder text" for real MTG keywords. */
+ *  printed Oracle phrasing — e.g. `skip-untap-step`) are mapped to their
+ *  Oracle line via `KEYWORD_DISPLAY`. Everything else falls back to a
+ *  simple first-letter capitalization, matching the user preference of
+ *  "name only, no reminder text" for real MTG keywords. */
 export function capitalizeKeyword(k: string): string {
     if (!k) return k;
     const mapped = KEYWORD_DISPLAY[k];
