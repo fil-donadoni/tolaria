@@ -10716,14 +10716,44 @@ describe("Meekstone (creatures with power 3+ don't untap, CR 502.1 + 613 layer 7
     });
 });
 
-describe("Smoke (players can't untap more than one creature, CR 502.1)", () => {
-    it("declares the global one-creature-untap cap keyword", () => {
+describe("Smoke (creature-only untap cap, CR 502.1, ADR 0005)", () => {
+    it("is a {2}{R} enchantment declaring a single untap-restriction static effect", () => {
         expect(smoke.manaCost).toEqual({ R: 2 });
         expect(smoke.types).toEqual(["Enchantment"]);
-        expect(smoke.staticAbilities).toContain("limits-creature-untap-to-one");
+        expect(smoke.staticEffects).toHaveLength(1);
+        const effect = smoke.staticEffects?.[0];
+        expect(effect?.kind).toBe("untap-restriction");
+        if (effect?.kind === "untap-restriction") {
+            expect(effect.maxUntap).toBe(1);
+            expect(effect.filter).toEqual({ types: "Creature" });
+        }
     });
 
-    it("only the first tapped creature untaps; non-creature permanents untap normally", () => {
+    it("the printed legacy keyword `limits-creature-untap-to-one` is no longer declared", () => {
+        expect(smoke.staticAbilities ?? []).not.toContain(
+            "limits-creature-untap-to-one"
+        );
+    });
+
+    it("with 0 tapped creatures, no prompt — UNTAP auto-resolves to UPKEEP", () => {
+        const enchant = makeInstance(smoke.id, { id: "smoke" });
+        const land = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [enchant, land] }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+        expect(state.pendingChoices ?? []).toEqual([]);
+        expect(state.phase).toBe("UPKEEP");
+        // Land is unrestricted under Smoke — untaps normally.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "l1")?.isTapped
+        ).toBe(false);
+    });
+
+    it("with 2+ tapped creatures, an untap-pick PendingChoice is enqueued ({min:0,max:1}, creature filter)", () => {
         const enchant = makeInstance(smoke.id, { id: "smoke" });
         const bear1 = makeInstance(grizzlyBears.id, {
             id: "bear-1",
@@ -10735,22 +10765,353 @@ describe("Smoke (players can't untap more than one creature, CR 502.1)", () => {
             isTapped: true,
             isSummoningSick: false,
         });
-        const land = makeInstance(plains.id, { id: "l1", isTapped: true });
         const state = makeState({
             players: [
                 makePlayer("p1", {
-                    battlefield: [enchant, bear1, bear2, land],
+                    battlefield: [enchant, bear1, bear2],
                 }),
                 makePlayer("p2"),
             ],
         });
         runUntapForJ("p1", state);
+
+        expect(state.phase).toBe("UNTAP");
+        const queue = state.pendingChoices ?? [];
+        expect(queue).toHaveLength(1);
+        const head = queue[0];
+        expect(head.kind).toBe("untap-pick");
+        expect(head.playerId).toBe("p1");
+        expect(head.zone).toBe("battlefield");
+        expect(head.filter).toEqual({ types: "Creature" });
+        expect(head.count).toEqual({ min: 0, max: 1 });
+        expect(state.priorityPlayerId).toBe("p1");
+        // Both creatures are still tapped — pick has not committed.
         const bf = state.players[0].battlefield;
-        const untappedCreatures = bf.filter(
-            (c) => !c.isTapped && c.types.includes("Creature")
-        );
-        expect(untappedCreatures).toHaveLength(1);
+        expect(bf.find((c) => c.id === "bear-1")?.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "bear-2")?.isTapped).toBe(true);
+    });
+
+    it("submit-untap untaps exactly the chosen creature; the other stays tapped", () => {
+        const enchant = makeInstance(smoke.id, { id: "smoke" });
+        const bear1 = makeInstance(grizzlyBears.id, {
+            id: "bear-1",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const bear2 = makeInstance(grizzlyBears.id, {
+            id: "bear-2",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [enchant, bear1, bear2],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+        // Simulate the mutation's commit path.
+        state.pendingChoices![0].selected.push("bear-1");
+        const chooser = state.players.find(
+            (p) => p.id === state.pendingChoices![0].zoneOwnerId
+        )!;
+        for (const id of state.pendingChoices![0].selected) {
+            const c = chooser.battlefield.find((x) => x.id === id);
+            if (c) c.isTapped = false;
+        }
+        state.pendingChoices = undefined;
+        untapStep(state);
+        advancePhase(state);
+
+        expect(state.phase).toBe("UPKEEP");
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "bear-1")?.isTapped).toBe(false);
+        expect(bf.find((c) => c.id === "bear-2")?.isTapped).toBe(true);
+    });
+
+    it("submit-skip (empty selection) leaves every creature tapped", () => {
+        const enchant = makeInstance(smoke.id, { id: "smoke" });
+        const bear1 = makeInstance(grizzlyBears.id, {
+            id: "bear-1",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const bear2 = makeInstance(grizzlyBears.id, {
+            id: "bear-2",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [enchant, bear1, bear2],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+        // Skip commit: empty selection, advance dispatcher.
+        state.pendingChoices = undefined;
+        untapStep(state);
+        advancePhase(state);
+
+        expect(state.phase).toBe("UPKEEP");
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "bear-1")?.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "bear-2")?.isTapped).toBe(true);
+    });
+
+    it("Smoke does NOT cap non-creature untaps — artifacts, enchantments, lands untap normally", () => {
+        const enchant = makeInstance(smoke.id, { id: "smoke" });
+        const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
+        const artifact = makeInstance(solRing.id, {
+            id: "ring",
+            isTapped: true,
+        });
+        const castleEnch = makeInstance(castle.id, {
+            id: "castle",
+            isTapped: true,
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        enchant,
+                        land1,
+                        land2,
+                        artifact,
+                        castleEnch,
+                        bear,
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+
+        const bf = state.players[0].battlefield;
+        // Non-creature permanents untap immediately, even while the
+        // creature prompt is still pending for the single bear (only 1
+        // creature is tapped so the cap auto-resolves to "untap it";
+        // here the lone eligible is also picked since there is no
+        // tactical zero-branch for a single match — but more importantly
+        // the non-creatures must already be untapped).
         expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(false);
+        expect(bf.find((c) => c.id === "l2")?.isTapped).toBe(false);
+        expect(bf.find((c) => c.id === "ring")?.isTapped).toBe(false);
+        expect(bf.find((c) => c.id === "castle")?.isTapped).toBe(false);
+    });
+
+    it("wire format: untap-pick prompt + creature filter survive projectPublicState", () => {
+        const enchant = makeInstance(smoke.id, { id: "smoke" });
+        const bear1 = makeInstance(grizzlyBears.id, {
+            id: "bear-1",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const bear2 = makeInstance(grizzlyBears.id, {
+            id: "bear-2",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [enchant, bear1, bear2],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingChoices?.[0].kind).toBe("untap-pick");
+        expect(projected.pendingChoices?.[0].filter).toEqual({
+            types: "Creature",
+        });
+        expect(projected.pendingChoices?.[0].count).toEqual({
+            min: 0,
+            max: 1,
+        });
+        // Both creatures still tapped in the slim view — the dispatcher
+        // has not committed any untap yet.
+        const slim = projected.players[0].battlefield;
+        expect(slim.find((c) => c.id === "bear-1")?.isTapped).toBe(true);
+        expect(slim.find((c) => c.id === "bear-2")?.isTapped).toBe(true);
+    });
+});
+
+describe("Winter Orb + Smoke (independent multi-restriction FIFO, CR 502.1, ADR 0005)", () => {
+    it("with WO before Smoke in battlefield order, the land prompt fires first then the creature prompt", () => {
+        const orb = makeInstance(winterOrb.id, { id: "orb" });
+        const smk = makeInstance(smoke.id, { id: "smoke" });
+        const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
+        const bear1 = makeInstance(grizzlyBears.id, {
+            id: "bear-1",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const bear2 = makeInstance(grizzlyBears.id, {
+            id: "bear-2",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [orb, smk, land1, land2, bear1, bear2],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+
+        // First prompt: Winter Orb (land filter, max 1).
+        expect(state.pendingChoices).toHaveLength(1);
+        let head = state.pendingChoices![0];
+        expect(head.kind).toBe("untap-pick");
+        expect(head.filter).toEqual({ types: "Land" });
+        expect(head.count).toEqual({ min: 0, max: 1 });
+        // Commit a land pick and dispatch the next restriction.
+        head.selected.push("l1");
+        const chooser = state.players.find((p) => p.id === head.zoneOwnerId)!;
+        for (const id of head.selected) {
+            const c = chooser.battlefield.find((x) => x.id === id);
+            if (c) c.isTapped = false;
+        }
+        state.pendingChoices = undefined;
+        untapStep(state);
+
+        // Second prompt: Smoke (creature filter, max 1).
+        expect(state.pendingChoices).toHaveLength(1);
+        head = state.pendingChoices![0];
+        expect(head.kind).toBe("untap-pick");
+        expect(head.filter).toEqual({ types: "Creature" });
+        expect(head.count).toEqual({ min: 0, max: 1 });
+
+        // Untapping a land did NOT consume the creature cap, and vice
+        // versa: only the explicitly picked land has untapped so far.
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(false);
+        expect(bf.find((c) => c.id === "l2")?.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "bear-1")?.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "bear-2")?.isTapped).toBe(true);
+
+        // Commit the creature pick and let UNTAP fall through to UPKEEP.
+        head.selected.push("bear-2");
+        for (const id of head.selected) {
+            const c = chooser.battlefield.find((x) => x.id === id);
+            if (c) c.isTapped = false;
+        }
+        state.pendingChoices = undefined;
+        untapStep(state);
+        advancePhase(state);
+        expect(state.phase).toBe("UPKEEP");
+        const bf2 = state.players[0].battlefield;
+        expect(bf2.find((c) => c.id === "bear-1")?.isTapped).toBe(true);
+        expect(bf2.find((c) => c.id === "bear-2")?.isTapped).toBe(false);
+    });
+
+    it("with Smoke before WO in battlefield order, the creature prompt fires first then the land prompt", () => {
+        const smk = makeInstance(smoke.id, { id: "smoke" });
+        const orb = makeInstance(winterOrb.id, { id: "orb" });
+        const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
+        const bear1 = makeInstance(grizzlyBears.id, {
+            id: "bear-1",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const bear2 = makeInstance(grizzlyBears.id, {
+            id: "bear-2",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [smk, orb, land1, land2, bear1, bear2],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+
+        // First prompt: Smoke (creature filter).
+        expect(state.pendingChoices).toHaveLength(1);
+        let head = state.pendingChoices![0];
+        expect(head.kind).toBe("untap-pick");
+        expect(head.filter).toEqual({ types: "Creature" });
+
+        // Skip the creature pick (tactical zero-branch).
+        state.pendingChoices = undefined;
+        untapStep(state);
+
+        // Second prompt: Winter Orb (land filter).
+        expect(state.pendingChoices).toHaveLength(1);
+        head = state.pendingChoices![0];
+        expect(head.kind).toBe("untap-pick");
+        expect(head.filter).toEqual({ types: "Land" });
+
+        // Skip the land pick as well.
+        state.pendingChoices = undefined;
+        untapStep(state);
+        advancePhase(state);
+        expect(state.phase).toBe("UPKEEP");
+        // Both skips honored — nothing in the restricted sets untapped.
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "l2")?.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "bear-1")?.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "bear-2")?.isTapped).toBe(true);
+    });
+
+    it("Winter Orb on opponent's side, Smoke on yours: active player's BF order still wins for first prompt", () => {
+        // Source-card battlefield order is "active player's BF, then
+        // opponent's BF" — so Smoke (active) fires before Winter Orb (opp)
+        // regardless of which player controls each restriction.
+        const smk = makeInstance(smoke.id, { id: "smoke" });
+        const orb = makeInstance(winterOrb.id, {
+            id: "orb",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const land = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        // Add a second bear so the Smoke cap binds with ≥2 eligible.
+        const bear2 = makeInstance(grizzlyBears.id, {
+            id: "bear-2",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        // Add a second land so Winter Orb's cap binds.
+        const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [smk, land, bear, land2, bear2],
+                }),
+                makePlayer("p2", { battlefield: [orb] }),
+            ],
+        });
+        runUntapForJ("p1", state);
+
+        // First prompt is Smoke's (source on active BF, before opp's WO).
+        expect(state.pendingChoices?.[0].filter).toEqual({
+            types: "Creature",
+        });
     });
 });
 

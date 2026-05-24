@@ -399,25 +399,53 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
-        label: "Stasis — hard skip of every untap, sacrifice unless {U} upkeep (CR 502.1, ADR 0005)",
+        label: "Smoke — creature-only cap, untap-pick prompt (CR 502.1, ADR 0005)",
         cards: [
-            // Stasis migrated off the opaque `skip-untap-step` keyword to a
-            // data-driven `untapRestriction` (maxUntap: 0, filter matches
-            // every permanent type). The active player has three tapped
-            // lands and a tapped Grizzly Bears. At the next untap step the
-            // dispatcher recognises a hard skip and auto-resolves: no
-            // PendingChoice is enqueued, no permanent untaps, but
-            // manaCommitted / isSummoningSick / chosenMana clear across the
-            // active battlefield exactly as if untap had run. The Stasis
-            // upkeep trigger then queues a may-pay {U} — pay to keep it on,
-            // decline to sacrifice. End your turn into the opponent and
-            // back to verify the skip + upkeep tax fire end-to-end.
-            { name: "Stasis", owner: "me" as const },
+            // Smoke in play caps creature untaps at one per untap step
+            // (modern Oracle). The active player has three tapped Grizzly
+            // Bears + three tapped Plains: at the next untap step the
+            // engine enqueues an `untap-pick` PendingChoice
+            // ({ min: 0, max: 1 }, filter: { types: "Creature" }) routed
+            // to the active player. The Plains (non-creature) untap
+            // normally, demonstrating that Smoke binds Creatures only.
+            // Click any tapped bear to commit the pick + auto-untap;
+            // click "Skip untap" to exercise the ADR 0003 tactical
+            // zero-branch (CR 701.39 — the cap is permissive). End your
+            // turn to drive into the opponent's turn and back into your
+            // UNTAP step to see the prompt fire end-to-end.
+            { name: "Smoke", owner: "me" as const },
             { name: "Plains", owner: "me" as const, tapped: true, count: 3 },
             {
                 name: "Grizzly Bears",
                 owner: "me" as const,
                 tapped: true,
+                count: 3,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Winter Orb + Smoke — multi-restriction FIFO (CR 502.1, ADR 0005)",
+        cards: [
+            // Both restrictions in play: Winter Orb caps Land untaps at
+            // one, Smoke caps Creature untaps at one. The dispatcher
+            // fires two independent prompts in FIFO order — active
+            // player's battlefield first, then opponent's — so with both
+            // sources on the active side the first prompt is Winter Orb
+            // (Land), the second is Smoke (Creature). Picks are
+            // independent: untapping one Land does NOT consume the
+            // Creature cap. Use this to verify ADR 0005 multi-restriction
+            // sequencing: pick a land → commit → second prompt appears →
+            // pick a bear → commit → UPKEEP.
+            { name: "Winter Orb", owner: "me" as const },
+            { name: "Smoke", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, tapped: true, count: 3 },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                tapped: true,
+                count: 3,
             },
         ],
         phase: "PRECOMBAT_MAIN",

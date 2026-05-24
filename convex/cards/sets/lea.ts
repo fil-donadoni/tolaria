@@ -3877,11 +3877,15 @@ export const shivanDragon: CardDefinition = {
     ],
 };
 
-// Smoke — "Players can't untap more than one creature during their untap
-// steps." (CR 502.1). Mirror of Winter Orb's ACL cap, restricted to the
-// Creature type. The single creature that does untap is chosen
-// deterministically (first tapped Creature in battlefield order) since UNTAP
-// is an auto-phase with no priority window.
+// Smoke — modern Oracle (Scryfall, ADR 0004): "Players can't untap more
+// than one creature during their untap steps." (CR 502.1). Encoded as a
+// data-driven `untapRestriction` (ADR 0002 / 0005) on the Creature filter
+// with `maxUntap: 1`: the engine dispatcher collects the cap, computes the
+// active player's tapped-creature eligible set, and either auto-resolves
+// or enqueues an `untap-pick` `PendingChoice` ({ min: 0, max: 1 }) routed
+// to the active player. Land and non-creature permanents are unaffected.
+// Composes with Winter Orb's land cap — both restrictions fire
+// independently in FIFO order during the same untap step.
 export const smoke: CardDefinition = {
     id: "7c67788e-d713-47c3-ab9f-b8a6212ae24f",
     name: "Smoke",
@@ -3889,7 +3893,14 @@ export const smoke: CardDefinition = {
         "Players can't untap more than one creature during their untap steps.",
     manaCost: { R: 2 },
     types: ["Enchantment"],
-    staticAbilities: ["limits-creature-untap-to-one"],
+    staticEffects: [
+        untapRestriction({
+            id: "smoke-creature-cap",
+            oracleText: "Untap up to one creature (Smoke).",
+            filter: { types: "Creature" },
+            maxUntap: 1,
+        }),
+    ],
 };
 
 // export const stoneGiant: CardDefinition = {

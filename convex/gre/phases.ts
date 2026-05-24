@@ -143,16 +143,20 @@ export function collectUntapRestrictions(state: GameState): {
  *
  *  Two restriction families compose here:
  *  - **Data-driven `StaticUntapRestriction`** (ADR 0002 factory family,
- *    e.g. Winter Orb, Stasis): the dispatcher walks each restriction in
- *    deterministic order, computes the active player's eligible set, and
- *    either auto-resolves (per ADR 0003 — `maxUntap === 0` hard skip, or
+ *    e.g. Winter Orb, Smoke): the dispatcher walks each restriction in
+ *    deterministic order (active player's battlefield first, then
+ *    opponent's), computes the active player's eligible set, and either
+ *    auto-resolves (per ADR 0003 — `maxUntap === 0` hard skip, or
  *    `eligibles.length === 0` vacuous) or enqueues a `untap-pick`
  *    `PendingChoice` with `count: { min: 0, max: r.maxUntap }`. The cap-
  *    style zero-branch (CR 502.1, 701.39 — "no more than" is a cap, not an
  *    obligation) is the tactical opt-out that keeps the prompt on
- *    single-eligible boards.
+ *    single-eligible boards. Multiple restrictions in play fire as
+ *    independent prompts in FIFO order — each binds its own filter and
+ *    cap, so Winter Orb + Smoke lets the active player untap one land AND
+ *    one creature (the filters do not overlap).
  *  - **Legacy keyword markers** kept for restrictions not yet migrated:
- *    `limits-creature-untap-to-one` (Smoke, slice S1),
+ *    `skip-untap-step` (Stasis, slice S2),
  *    `prevents-untap-of-power-3-or-greater` (Meekstone, slice S3). These
  *    resolve deterministically against the active BF — no prompt — and
  *    will be replaced by `untapRestriction(...)` data in later slices.
@@ -190,8 +194,8 @@ export function untapStep(state: GameState): void {
     // First entry only: untap permanents that are NOT subject to any
     // data-driven restriction (so non-land permanents under Winter Orb
     // untap immediately, in parallel with the still-pending land
-    // prompt), apply the legacy keyword caps (Smoke, Meekstone — slices
-    // S1/S3 will migrate), and clear per-turn flags universally. Restricted
+    // prompt), apply the legacy keyword caps (Meekstone — slice S3 will
+    // migrate), and clear per-turn flags universally. Restricted
     // permanents stay tapped here; their fate is decided by the matching
     // restriction's prompt (or by the cap auto-resolving in the loop
     // below).
@@ -199,19 +203,10 @@ export function untapStep(state: GameState): void {
         const restrictionFilters = restrictions.map(
             (r) => r.restriction.filter
         );
-        const creatureLimited = hasGlobalStaticAbility(
-            state,
-            "limits-creature-untap-to-one"
-        );
         const power3Blocked = hasGlobalStaticAbility(
             state,
             "prevents-untap-of-power-3-or-greater"
         );
-        const chosenCreatureUntapId = creatureLimited
-            ? (player.battlefield.find(
-                  (c) => c.isTapped && c.types.includes("Creature")
-              )?.id ?? null)
-            : null;
 
         for (const card of player.battlefield) {
             if (card.staticAbilities.includes("does-not-untap")) {
@@ -228,14 +223,6 @@ export function untapStep(state: GameState): void {
                 card.manaCommitted = undefined;
                 card.isSummoningSick = undefined;
                 card.chosenMana = undefined;
-                continue;
-            }
-            if (
-                creatureLimited &&
-                card.types.includes("Creature") &&
-                card.id !== chosenCreatureUntapId
-            ) {
-                card.manaCommitted = undefined;
                 continue;
             }
             if (
