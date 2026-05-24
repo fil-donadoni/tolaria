@@ -19,6 +19,7 @@ import {
     makeTapForMana,
 } from "../abilities";
 import { stateTrigger } from "../abilities/triggers/stateTrigger";
+import { tappedTrigger } from "../abilities/triggers/tappedTrigger";
 import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
 import { damageTakenTrigger } from "../abilities/triggers/damageTakenTrigger";
@@ -1348,7 +1349,7 @@ export const jump: CardDefinition = {
 
 // Lifetap — "Whenever a Forest an opponent controls becomes tapped, you gain
 // 1 life." (CR 603.2 PERMANENT_TAPPED trigger). Fires for any tap of an
-// opponent-controlled Forest, not just for-mana taps — `forMana` is ignored.
+// opponent-controlled Forest, not just for-mana taps — `forMana` is omitted.
 export const lifetap: CardDefinition = {
     id: "11add837-7ee4-4104-b031-c161bce459ae",
     name: "Lifetap",
@@ -1357,20 +1358,16 @@ export const lifetap: CardDefinition = {
     manaCost: { U: 2 },
     types: ["Enchantment"],
     triggeredAbilities: [
-        {
+        tappedTrigger({
             id: "lifetap-gain",
             oracleText:
                 "Whenever a Forest an opponent controls becomes tapped, you gain 1 life.",
-            event: "PERMANENT_TAPPED",
-            matches: (event, self) => {
-                if (event.type !== "PERMANENT_TAPPED") return false;
-                if (event.controllerId === self.controllerId) return false;
-                return event.permanentSubtypes.includes("Forest");
-            },
+            scope: "opponents",
+            filter: { subtypes: "Forest" },
             resolve: (ctx) => {
                 ctx.gainLife(ctx.controller, 1);
             },
-        },
+        }),
     ],
 };
 
@@ -1659,21 +1656,20 @@ export const psychicVenom: CardDefinition = {
     subtypes: ["Aura"],
     targetRequirement: { type: "Land", count: 1 },
     triggeredAbilities: [
-        {
+        // No `host` scope in the shared vocabulary (see ADR 0002) — the aura
+        // identifies its host via `self.attachedTo`, so `scope: "any"` with a
+        // host-check `condition` is the idiomatic expression.
+        tappedTrigger({
             id: "psychic-venom-damage",
             oracleText:
                 "Whenever enchanted land becomes tapped, Psychic Venom deals 2 damage to that land's controller.",
-            event: "PERMANENT_TAPPED",
-            matches: (event, self) => {
-                if (event.type !== "PERMANENT_TAPPED") return false;
-                if (!self.attachedTo) return false;
-                return event.permanentId === self.attachedTo;
+            scope: "any",
+            condition: (event, self) =>
+                !!self.attachedTo && event.permanentId === self.attachedTo,
+            resolve: (ctx, _event, tapped) => {
+                ctx.dealDamage({ type: "player", id: tapped.controllerId }, 2);
             },
-            resolve: (ctx, event) => {
-                if (event.type !== "PERMANENT_TAPPED") return;
-                ctx.dealDamage({ type: "player", id: event.controllerId }, 2);
-            },
-        },
+        }),
     ],
 };
 
@@ -3647,19 +3643,15 @@ export const manaFlare: CardDefinition = {
     manaCost: { X: 2, R: 1 },
     types: ["Enchantment"],
     triggeredAbilities: [
-        {
+        tappedTrigger({
             id: "mana-flare-extra",
             oracleText:
                 "Whenever a player taps a land for mana, that player adds one mana of any type that land produced.",
-            event: "PERMANENT_TAPPED",
-            matches: (event) => {
-                if (event.type !== "PERMANENT_TAPPED") return false;
-                if (!event.forMana) return false;
-                return event.permanentTypes.includes("Land");
-            },
-            resolve: (ctx, event) => {
-                if (event.type !== "PERMANENT_TAPPED") return;
-                const produced = event.manaProduced ?? {};
+            scope: "any",
+            filter: { types: "Land" },
+            forMana: true,
+            resolve: (ctx, _event, tapped) => {
+                const produced = tapped.manaProduced ?? {};
                 for (const [color, amount] of Object.entries(produced)) {
                     if (
                         color === "X" ||
@@ -3667,13 +3659,13 @@ export const manaFlare: CardDefinition = {
                         amount <= 0
                     )
                         continue;
-                    ctx.addManaTo(event.controllerId, {
+                    ctx.addManaTo(tapped.controllerId, {
                         [color]: 1,
                     } as ManaCost);
                     return;
                 }
             },
-        },
+        }),
     ],
 };
 
@@ -3689,21 +3681,17 @@ export const manabarbs: CardDefinition = {
     manaCost: { X: 3, R: 1 },
     types: ["Enchantment"],
     triggeredAbilities: [
-        {
+        tappedTrigger({
             id: "manabarbs-damage",
             oracleText:
                 "Whenever a player taps a land for mana, this enchantment deals 1 damage to that player.",
-            event: "PERMANENT_TAPPED",
-            matches: (event) => {
-                if (event.type !== "PERMANENT_TAPPED") return false;
-                if (!event.forMana) return false;
-                return event.permanentTypes.includes("Land");
+            scope: "any",
+            filter: { types: "Land" },
+            forMana: true,
+            resolve: (ctx, _event, tapped) => {
+                ctx.dealDamage({ type: "player", id: tapped.controllerId }, 1);
             },
-            resolve: (ctx, event) => {
-                if (event.type !== "PERMANENT_TAPPED") return;
-                ctx.dealDamage({ type: "player", id: event.controllerId }, 1);
-            },
-        },
+        }),
     ],
 };
 
@@ -4832,21 +4820,18 @@ export const wildGrowth: CardDefinition = {
     subtypes: ["Aura"],
     targetRequirement: { type: "Land", count: 1 },
     triggeredAbilities: [
-        {
+        tappedTrigger({
             id: "wild-growth-extra-green",
             oracleText:
                 "Whenever enchanted land is tapped for mana, its controller adds an additional {G}.",
-            event: "PERMANENT_TAPPED",
-            matches: (event, self) => {
-                if (event.type !== "PERMANENT_TAPPED") return false;
-                if (!event.forMana) return false;
-                return event.permanentId === self.attachedTo;
+            scope: "any",
+            forMana: true,
+            condition: (event, self) =>
+                !!self.attachedTo && event.permanentId === self.attachedTo,
+            resolve: (ctx, _event, tapped) => {
+                ctx.addManaTo(tapped.controllerId, { G: 1 });
             },
-            resolve: (ctx, event) => {
-                if (event.type !== "PERMANENT_TAPPED") return;
-                ctx.addManaTo(event.controllerId, { G: 1 });
-            },
-        },
+        }),
     ],
 };
 
