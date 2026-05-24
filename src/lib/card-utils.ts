@@ -396,7 +396,6 @@ export function getDisplayAbilities(
 const KEYWORD_DISPLAY: Record<string, string> = {
     "does-not-untap":
         "This permanent doesn't untap during its controller's untap step.",
-    "skip-untap-step": "Players skip their untap steps.",
     "limits-creature-untap-to-one":
         "Players can't untap more than one creature during their untap steps.",
     "prevents-untap-of-power-3-or-greater":

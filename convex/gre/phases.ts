@@ -143,7 +143,7 @@ export function collectUntapRestrictions(state: GameState): {
  *
  *  Two restriction families compose here:
  *  - **Data-driven `StaticUntapRestriction`** (ADR 0002 factory family,
- *    e.g. Winter Orb): the dispatcher walks each restriction in
+ *    e.g. Winter Orb, Stasis): the dispatcher walks each restriction in
  *    deterministic order, computes the active player's eligible set, and
  *    either auto-resolves (per ADR 0003 — `maxUntap === 0` hard skip, or
  *    `eligibles.length === 0` vacuous) or enqueues a `untap-pick`
@@ -152,15 +152,19 @@ export function collectUntapRestrictions(state: GameState): {
  *    obligation) is the tactical opt-out that keeps the prompt on
  *    single-eligible boards.
  *  - **Legacy keyword markers** kept for restrictions not yet migrated:
- *    `skip-untap-step` (Stasis, slice S2), `limits-creature-untap-to-one`
- *    (Smoke, slice S1), `prevents-untap-of-power-3-or-greater` (Meekstone,
- *    slice S3). These resolve deterministically against the active BF —
- *    no prompt — and will be replaced by `untapRestriction(...)` data in
- *    later slices.
+ *    `limits-creature-untap-to-one` (Smoke, slice S1),
+ *    `prevents-untap-of-power-3-or-greater` (Meekstone, slice S3). These
+ *    resolve deterministically against the active BF — no prompt — and
+ *    will be replaced by `untapRestriction(...)` data in later slices.
  *  - **Per-permanent `does-not-untap`** (Basalt Monolith, Mana Vault,
  *    Paralyze's grant) is an orthogonal axis untouched by the dispatcher
  *    refactor: the marked permanent stays tapped regardless of any other
  *    restriction's outcome.
+ *
+ *  A `maxUntap: 0` restriction (e.g. Stasis) is a hard skip: matching
+ *  permanents cannot untap this step under ANY other cap, and they receive
+ *  full cleanup (`manaCommitted` / `isSummoningSick` / `chosenMana` cleared)
+ *  exactly as if the untap had succeeded.
  *
  *  Flag cleanup (`manaCommitted`, `isSummoningSick`, `chosenMana`) runs
  *  for every permanent on the active player's battlefield once all
@@ -169,25 +173,19 @@ export function collectUntapRestrictions(state: GameState): {
 export function untapStep(state: GameState): void {
     const player = getPlayer(state, state.activePlayerId);
 
-    // Stasis (CR 502.1) — the active player skips their untap step
-    // entirely. No permanents untap; commitment flags clear so the next
-    // priority window doesn't misread them as fresh commits.
-    if (hasGlobalStaticAbility(state, "skip-untap-step")) {
-        for (const card of player.battlefield) {
-            card.manaCommitted = undefined;
-            card.isSummoningSick = undefined;
-            card.chosenMana = undefined;
-        }
-        state.pendingUntapStep = undefined;
-        return;
-    }
-
     // Data-driven dispatcher loop. `state.pendingUntapStep.restrictionCursor`
     // is set when a prior call enqueued an `untap-pick` prompt; resumption
     // (from `selectResolutionChoice` / `confirmUntapPick`) re-enters here
     // and continues from where we left off.
     const restrictions = collectUntapRestrictions(state);
     const startCursor = state.pendingUntapStep?.restrictionCursor ?? 0;
+
+    // Filters from `maxUntap === 0` restrictions (Stasis-style hard skips).
+    // Any permanent matching one of these is removed from every cap's
+    // eligibility set — Stasis overrides Winter Orb on the same lands, etc.
+    const hardSkipFilters = restrictions
+        .filter((r) => r.restriction.maxUntap === 0)
+        .map((r) => r.restriction.filter);
 
     // First entry only: untap permanents that are NOT subject to any
     // data-driven restriction (so non-land permanents under Winter Orb
@@ -217,6 +215,16 @@ export function untapStep(state: GameState): void {
 
         for (const card of player.battlefield) {
             if (card.staticAbilities.includes("does-not-untap")) {
+                card.manaCommitted = undefined;
+                card.isSummoningSick = undefined;
+                card.chosenMana = undefined;
+                continue;
+            }
+            if (hardSkipFilters.some((f) => matchesPermanentFilter(card, f))) {
+                // Stasis-style hard skip (CR 502.1) — permanent cannot
+                // untap this step. Full cleanup runs as if the untap had
+                // happened, so the next priority window doesn't misread
+                // stale commitment flags.
                 card.manaCommitted = undefined;
                 card.isSummoningSick = undefined;
                 card.chosenMana = undefined;
@@ -261,7 +269,8 @@ export function untapStep(state: GameState): void {
             (c) =>
                 c.isTapped &&
                 !c.staticAbilities.includes("does-not-untap") &&
-                matchesPermanentFilter(c, r.filter)
+                matchesPermanentFilter(c, r.filter) &&
+                !hardSkipFilters.some((f) => matchesPermanentFilter(c, f))
         );
 
         // ADR 0003 auto-resolve cases:

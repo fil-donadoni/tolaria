@@ -19,7 +19,7 @@
 import { describe, expect, it } from "vitest";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import { advancePhase, untapStep } from "../phases";
-import { winterOrb, plains, grizzlyBears } from "../../cards/sets/lea";
+import { winterOrb, plains, grizzlyBears, stasis } from "../../cards/sets/lea";
 import { projectPublicState } from "../../gameProjections";
 import { tryGetCardById } from "../../cards";
 import type { CardType } from "../../cards/types";
@@ -295,6 +295,102 @@ describe("untapRestriction dispatcher (CR 502.1, ADR 0005)", () => {
             const slim = projected.players[0].battlefield;
             expect(slim.find((c) => c.id === "l1")?.isTapped).toBe(true);
             expect(slim.find((c) => c.id === "l2")?.isTapped).toBe(true);
+        });
+    });
+
+    describe("Stasis — hard skip (maxUntap: 0, filter matches every permanent)", () => {
+        it("no PendingChoice + all matching active-BF permanents stay tapped + cleanup runs", () => {
+            const enchant = makeInstance(stasis.id, { id: "stasis" });
+            const land = makeInstance(plains.id, {
+                id: "l1",
+                isTapped: true,
+                manaCommitted: true,
+                chosenMana: { W: 1 },
+            });
+            const bear = makeInstance(grizzlyBears.id, {
+                id: "bear",
+                isTapped: true,
+                isSummoningSick: true,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [enchant, land, bear],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            untapStep(state);
+
+            expect(state.pendingChoices ?? []).toEqual([]);
+            expect(state.pendingUntapStep).toBeUndefined();
+            const bf = state.players[0].battlefield;
+            expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(true);
+            expect(bf.find((c) => c.id === "bear")?.isTapped).toBe(true);
+            // Full cleanup ran — parallels the prior `skip-untap-step`
+            // keyword semantics for downstream priority windows.
+            expect(
+                bf.find((c) => c.id === "l1")?.manaCommitted
+            ).toBeUndefined();
+            expect(bf.find((c) => c.id === "l1")?.chosenMana).toBeUndefined();
+            expect(
+                bf.find((c) => c.id === "bear")?.isSummoningSick
+            ).toBeUndefined();
+        });
+
+        it("Stasis overrides Winter Orb on the same board — lands stay tapped, no land-pick prompt", () => {
+            // Per the dispatcher: a `maxUntap: 0` restriction's matched
+            // permanents are removed from every other cap's eligibility
+            // set, so Winter Orb's land prompt cannot surface under Stasis.
+            const enchant = makeInstance(stasis.id, { id: "stasis" });
+            const orb = makeInstance(winterOrb.id, { id: "orb" });
+            const land1 = makeInstance(plains.id, {
+                id: "l1",
+                isTapped: true,
+            });
+            const land2 = makeInstance(plains.id, {
+                id: "l2",
+                isTapped: true,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [enchant, orb, land1, land2],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            untapStep(state);
+
+            expect(state.pendingChoices ?? []).toEqual([]);
+            const bf = state.players[0].battlefield;
+            expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(true);
+            expect(bf.find((c) => c.id === "l2")?.isTapped).toBe(true);
+        });
+
+        it("Stasis on the opponent's side still skips the active player's untap step", () => {
+            const enchant = makeInstance(stasis.id, {
+                id: "stasis",
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+            const land = makeInstance(plains.id, {
+                id: "l1",
+                isTapped: true,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [land] }),
+                    makePlayer("p2", { battlefield: [enchant] }),
+                ],
+            });
+            untapStep(state);
+
+            expect(state.pendingChoices ?? []).toEqual([]);
+            expect(
+                state.players[0].battlefield.find((c) => c.id === "l1")
+                    ?.isTapped
+            ).toBe(true);
         });
     });
 });

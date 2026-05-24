@@ -230,7 +230,7 @@ import {
     mustAttack,
     getRequiredAttackerIds,
 } from "../../../gre/combat";
-import { advancePhase } from "../../../gre/phases";
+import { advancePhase, untapStep } from "../../../gre/phases";
 import { tryGetCardById } from "../../index";
 import type { CardDefinition, CardType } from "../../types";
 import {
@@ -10754,18 +10754,23 @@ describe("Smoke (players can't untap more than one creature, CR 502.1)", () => {
     });
 });
 
-describe("Stasis (players skip their untap step + upkeep sacrifice unless {U}, CR 502.1)", () => {
+describe("Stasis (players skip their untap step + upkeep sacrifice unless {U}, CR 502.1, ADR 0005)", () => {
     function setup() {
         const enchant = makeInstance(stasis.id, {
             id: "stasis",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const land = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const land = makeInstance(plains.id, {
+            id: "l1",
+            isTapped: true,
+            manaCommitted: true,
+            chosenMana: { W: 1 },
+        });
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
             isTapped: true,
-            isSummoningSick: false,
+            isSummoningSick: true,
         });
         const state = makeState({
             players: [
@@ -10776,18 +10781,65 @@ describe("Stasis (players skip their untap step + upkeep sacrifice unless {U}, C
         return { state };
     }
 
-    it("declares the global skip-untap keyword", () => {
+    it("declares a single untap-restriction static effect (maxUntap 0, any-permanent filter)", () => {
         expect(stasis.manaCost).toEqual({ X: 1, U: 1 });
         expect(stasis.types).toEqual(["Enchantment"]);
-        expect(stasis.staticAbilities).toContain("skip-untap-step");
+        // No opaque skip-untap-step keyword — restriction lives in
+        // `staticEffects` per ADR 0005.
+        expect(stasis.staticAbilities ?? []).not.toContain("skip-untap-step");
+        expect(stasis.staticEffects).toHaveLength(1);
+        const effect = stasis.staticEffects?.[0];
+        expect(effect?.kind).toBe("untap-restriction");
+        if (effect?.kind === "untap-restriction") {
+            expect(effect.maxUntap).toBe(0);
+            // Filter matches every permanent type — equivalent to "any".
+            expect(effect.filter).toEqual({
+                types: [
+                    "Artifact",
+                    "Creature",
+                    "Enchantment",
+                    "Land",
+                    "Planeswalker",
+                    "Battle",
+                ],
+            });
+        }
     });
 
-    it("the active player's untap step is a no-op when Stasis is in play", () => {
+    it("the active player's untap step is a no-op when Stasis is in play (no prompt, no untaps)", () => {
         const { state } = setup();
         runUntapForJ("p1", state);
         const bf = state.players[0].battlefield;
         expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(true);
         expect(bf.find((c) => c.id === "bear")?.isTapped).toBe(true);
+        // No PendingChoice enqueued — ADR 0003 auto-resolves the hard skip.
+        expect(state.pendingChoices ?? []).toEqual([]);
+        expect(state.pendingUntapStep).toBeUndefined();
+    });
+
+    it("dispatcher clears manaCommitted / isSummoningSick / chosenMana on every active-BF permanent even though nothing untaps", () => {
+        // Exercise `untapStep` directly: end-of-phase `emptyManaPools` would
+        // re-set `manaCommitted` on still-tapped lands (CR 500.4), so the
+        // dispatcher's per-step cleanup is the level the assertion targets —
+        // mirrors the prior `skip-untap-step` semantics.
+        const { state } = setup();
+        untapStep(state);
+        const bf = state.players[0].battlefield;
+        const land = bf.find((c) => c.id === "l1")!;
+        const bear = bf.find((c) => c.id === "bear")!;
+        expect(land.manaCommitted).toBeUndefined();
+        expect(land.chosenMana).toBeUndefined();
+        expect(bear.isSummoningSick).toBeUndefined();
+    });
+
+    it("wire format: skipped board projects with both permanents still tapped and no PendingChoice", () => {
+        const { state } = setup();
+        runUntapForJ("p1", state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingChoices ?? []).toEqual([]);
+        const slim = projected.players[0].battlefield;
+        expect(slim.find((c) => c.id === "l1")?.isTapped).toBe(true);
+        expect(slim.find((c) => c.id === "bear")?.isTapped).toBe(true);
     });
 
     it("upkeep trigger queues may-pay; declining sacrifices Stasis", () => {

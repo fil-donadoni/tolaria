@@ -399,6 +399,31 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Stasis — hard skip of every untap, sacrifice unless {U} upkeep (CR 502.1, ADR 0005)",
+        cards: [
+            // Stasis migrated off the opaque `skip-untap-step` keyword to a
+            // data-driven `untapRestriction` (maxUntap: 0, filter matches
+            // every permanent type). The active player has three tapped
+            // lands and a tapped Grizzly Bears. At the next untap step the
+            // dispatcher recognises a hard skip and auto-resolves: no
+            // PendingChoice is enqueued, no permanent untaps, but
+            // manaCommitted / isSummoningSick / chosenMana clear across the
+            // active battlefield exactly as if untap had run. The Stasis
+            // upkeep trigger then queues a may-pay {U} — pay to keep it on,
+            // decline to sacrifice. End your turn into the opponent and
+            // back to verify the skip + upkeep tax fire end-to-end.
+            { name: "Stasis", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, tapped: true, count: 3 },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                tapped: true,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Skip / restrict untap step — Basalt Monolith / Mana Vault / Meekstone / Smoke / Stasis / Paralyze (CR 502.1)",
         cards: [
             // Gap J showcase. Basalt Monolith and Mana Vault enter tapped and
