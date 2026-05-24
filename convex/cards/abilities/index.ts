@@ -8,7 +8,7 @@ import type {
     CardDefinition,
     Color,
     ManaCost,
-} from "./types";
+} from "../types";
 
 /** Builds a `{T}: Add <mana>` mana ability (CR 605.1a, 605.3a — useStack false).
  *  Used by Mox Pearl/Sapphire/Jet/Ruby/Emerald, Sol Ring, Llanowar Elves and
