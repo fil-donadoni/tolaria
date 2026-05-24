@@ -5525,10 +5525,12 @@ export const manaVault: CardDefinition = {
 };
 
 // Meekstone — "Creatures with power 3 or greater don't untap during their
-// controllers' untap steps." (CR 502.1, 613 layer 7c read at untap). Encoded
-// as a global keyword consumed by `untapStep` in `phases.ts` — every
-// creature's effective power is re-evaluated each untap so layer 7c buffs
-// (Crusade, Holy Strength) flip eligibility correctly.
+// controllers' untap steps." (CR 502.1, 613 layer 7c). Encoded as a
+// data-driven `untapRestriction` (ADR 0002 / 0005) on the Creature filter
+// with `powerAtLeast: 3` and `maxUntap: 0`: the engine dispatcher reads
+// effective power at untap time, so layer 7c buffs (Crusade, Holy Strength)
+// flip eligibility correctly. Hard skip (cap=0) — no prompt, the matching
+// creatures stay tapped.
 export const meekstone: CardDefinition = {
     id: "13a68a17-22ee-47c9-870a-83e911862b94",
     name: "Meekstone",
@@ -5536,7 +5538,15 @@ export const meekstone: CardDefinition = {
         "Creatures with power 3 or greater don't untap during their controllers' untap steps.",
     manaCost: { X: 1 },
     types: ["Artifact"],
-    staticAbilities: ["prevents-untap-of-power-3-or-greater"],
+    staticEffects: [
+        untapRestriction({
+            id: "meekstone-power-skip",
+            oracleText:
+                "Creatures with power 3 or greater don't untap (Meekstone).",
+            filter: { types: "Creature", powerAtLeast: 3 },
+            maxUntap: 0,
+        }),
+    ],
 };
 
 export const moxEmerald: CardDefinition = {

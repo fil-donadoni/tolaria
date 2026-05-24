@@ -10664,15 +10664,28 @@ describe("Mana Vault (does-not-untap + upkeep may-pay {4} + draw-step ping, CR 5
 });
 
 describe("Meekstone (creatures with power 3+ don't untap, CR 502.1 + 613 layer 7c)", () => {
-    it("declares the global prevents-untap keyword", () => {
+    it("is a {1} artifact declaring a single untap-restriction static effect", () => {
         expect(meekstone.manaCost).toEqual({ X: 1 });
         expect(meekstone.types).toEqual(["Artifact"]);
-        expect(meekstone.staticAbilities).toContain(
+        expect(meekstone.staticEffects).toHaveLength(1);
+        const effect = meekstone.staticEffects?.[0];
+        expect(effect?.kind).toBe("untap-restriction");
+        if (effect?.kind === "untap-restriction") {
+            expect(effect.maxUntap).toBe(0);
+            expect(effect.filter).toEqual({
+                types: "Creature",
+                powerAtLeast: 3,
+            });
+        }
+    });
+
+    it("the legacy keyword `prevents-untap-of-power-3-or-greater` is no longer declared", () => {
+        expect(meekstone.staticAbilities ?? []).not.toContain(
             "prevents-untap-of-power-3-or-greater"
         );
     });
 
-    it("blocks creatures with effective power ≥3 from untapping; weaker creatures untap", () => {
+    it("blocks creatures with printed power ≥3; weaker creatures untap", () => {
         const stone = makeInstance(meekstone.id, { id: "stone" });
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
@@ -10691,12 +10704,14 @@ describe("Meekstone (creatures with power 3+ don't untap, CR 502.1 + 613 layer 7
             ],
         });
         runUntapForJ("p1", state);
+        // Cap=0 hard-skips matching creatures — no prompt enqueued.
+        expect(state.pendingChoices ?? []).toEqual([]);
         const bf = state.players[0].battlefield;
         expect(bf.find((c) => c.id === "bear")?.isTapped).toBe(false);
         expect(bf.find((c) => c.id === "vamp")?.isTapped).toBe(true);
     });
 
-    it("non-creature permanents (artifacts, enchantments) untap normally under Meekstone", () => {
+    it("non-creature permanents (lands, artifacts, enchantments) untap normally", () => {
         const stone = makeInstance(meekstone.id, { id: "stone" });
         const land = makeInstance(plains.id, { id: "l1", isTapped: true });
         const enchant = makeInstance(castle.id, {
@@ -10713,6 +10728,125 @@ describe("Meekstone (creatures with power 3+ don't untap, CR 502.1 + 613 layer 7
         const bf = state.players[0].battlefield;
         expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(false);
         expect(bf.find((c) => c.id === "castle")?.isTapped).toBe(false);
+    });
+
+    it("layer 7c boost: a printed-2 creature pumped to effective power 4 stays tapped", () => {
+        // Grizzly Bears is 2/2; Unholy Strength gives +2/+1 → effective 4/3.
+        const stone = makeInstance(meekstone.id, { id: "stone" });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const aura = makeInstance(unholyStrength.id, {
+            id: "aura",
+            attachedTo: "bear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [stone, bear, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Sanity: the layer system actually pushes power across the threshold.
+        expect(getEffectivePower(state, bear)).toBe(4);
+        runUntapForJ("p1", state);
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "bear")?.isTapped).toBe(true);
+    });
+
+    it("layer 7c debuff: a printed-4 creature dropped to effective power 2 untaps normally", () => {
+        // Sengir Vampire is 4/4; Weakness gives -2/-1 → effective 2/3.
+        const stone = makeInstance(meekstone.id, { id: "stone" });
+        const vampire = makeInstance(sengirVampire.id, {
+            id: "vamp",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const aura = makeInstance(weakness.id, {
+            id: "aura",
+            attachedTo: "vamp",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [stone, vampire, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Sanity: effective power crossed back under the threshold.
+        expect(getEffectivePower(state, vampire)).toBe(2);
+        runUntapForJ("p1", state);
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "vamp")?.isTapped).toBe(false);
+    });
+
+    it("untap-step flag cleanup (manaCommitted / chosenMana) clears on creatures that stayed tapped", () => {
+        // emptyManaPools (CR 500.4) sets manaCommitted on any tapped card at
+        // phase exit, so this assertion drives untapStep directly to read the
+        // dispatcher's own cleanup pass without interference from the next
+        // advancePhase tick.
+        const stone = makeInstance(meekstone.id, { id: "stone" });
+        const vampire = makeInstance(sengirVampire.id, {
+            id: "vamp",
+            isTapped: true,
+            isSummoningSick: false,
+            manaCommitted: true,
+            chosenMana: { B: 1 },
+        });
+        const state = makeState({
+            phase: "UNTAP",
+            players: [
+                makePlayer("p1", { battlefield: [stone, vampire] }),
+                makePlayer("p2"),
+            ],
+        });
+        untapStep(state);
+        const vampAfter = state.players[0].battlefield.find(
+            (c) => c.id === "vamp"
+        )!;
+        expect(vampAfter.isTapped).toBe(true);
+        expect(vampAfter.manaCommitted).toBeUndefined();
+        expect(vampAfter.chosenMana).toBeUndefined();
+    });
+
+    it("wire format: power-keyed eligibility survives projectPublicState (no prompt + stays tapped)", () => {
+        const stone = makeInstance(meekstone.id, { id: "stone" });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const aura = makeInstance(unholyStrength.id, {
+            id: "aura",
+            attachedTo: "bear",
+        });
+        const vampire = makeInstance(sengirVampire.id, {
+            id: "vamp",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [stone, bear, aura, vampire],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapForJ("p1", state);
+        // No PendingChoice (cap=0 hard skip).
+        expect(state.pendingChoices ?? []).toEqual([]);
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingChoices ?? []).toEqual([]);
+        const slimBF = projected.players[0].battlefield;
+        // Both high-effective-power creatures stayed tapped in the slim view.
+        expect(slimBF.find((c) => c.id === "bear")?.isTapped).toBe(true);
+        expect(slimBF.find((c) => c.id === "vamp")?.isTapped).toBe(true);
+        // Effective power re-reads correctly through the projection
+        // (layer 7c folds in the aura via the registry).
+        const slimBear = slimBF.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(projected, slimBear)).toBe(4);
     });
 });
 

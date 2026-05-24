@@ -426,6 +426,41 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Meekstone — power-keyed hard skip (CR 502.1 + 613 layer 7c, ADR 0005)",
+        cards: [
+            // Meekstone in play: a `untapRestriction` with filter
+            // { types: "Creature", powerAtLeast: 3 } and maxUntap: 0. The
+            // active player has a tapped Sengir Vampire (4/4, effective
+            // power ≥3 — stays tapped), a tapped Shivan Dragon (5/5 —
+            // stays tapped), and two tapped Grizzly Bears (2/2 — both
+            // untap normally). No untap-pick prompt is enqueued: cap=0
+            // hard-skips the matching set and the dispatcher auto-resolves
+            // straight to UPKEEP. Unholy Strength is in hand so the user
+            // can cast it on a Grizzly Bears (+2/+1 → effective 4/3) to
+            // verify the layer 7c interaction: pre-buff the bear untaps;
+            // post-buff it stays tapped under Meekstone. End your turn to
+            // drive into the opponent's turn and back into your UNTAP
+            // step to see the gating fire end-to-end.
+            { name: "Meekstone", owner: "me" as const },
+            { name: "Sengir Vampire", owner: "me" as const, tapped: true },
+            { name: "Shivan Dragon", owner: "me" as const, tapped: true },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                tapped: true,
+                count: 2,
+            },
+            {
+                name: "Unholy Strength",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Winter Orb + Smoke — multi-restriction FIFO (CR 502.1, ADR 0005)",
         cards: [
             // Both restrictions in play: Winter Orb caps Land untaps at
