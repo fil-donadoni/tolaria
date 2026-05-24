@@ -1,5 +1,5 @@
 import type { Phase } from "./types";
-import type { GameEvent } from "../cards/types";
+import type { GameEvent, StaticUntapRestriction } from "../cards/types";
 import type {
     CardInstanceState,
     DelayedTriggerInstance,
@@ -14,11 +14,13 @@ import {
     flushPendingEvents,
     getOpponentId,
     getPlayer,
+    matchesPermanentFilter,
     regenerateOrDestroy,
     resolveTopOfStack,
     runDamageReplacement,
     tickDuration,
 } from "./state";
+import { tryGetCardById } from "../cards";
 import { describeDamageSource } from "./replacements";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
 import { isProtectedFromSource } from "./protection";
@@ -103,110 +105,197 @@ function hasGlobalStaticAbility(state: GameState, ability: string): boolean {
     return false;
 }
 
-/** True if the card has one of the types restricted by Winter Orb's
- *  "artifact, creature, or land" clause. */
-function isAclPermanent(card: CardInstanceState): boolean {
-    return (
-        card.types.includes("Artifact") ||
-        card.types.includes("Creature") ||
-        card.types.includes("Land")
-    );
+/** Collects every `StaticUntapRestriction` in play (CR 502.1) in a
+ *  deterministic walk: active player's battlefield first, then opponent's,
+ *  battlefield order within each player. The cursor on
+ *  `state.pendingUntapStep` keys into this same order so suspend/resume
+ *  across an `untap-pick` prompt resumes exactly where it left off. */
+export function collectUntapRestrictions(state: GameState): {
+    source: CardInstanceState;
+    restriction: StaticUntapRestriction;
+}[] {
+    const out: {
+        source: CardInstanceState;
+        restriction: StaticUntapRestriction;
+    }[] = [];
+    const order: CardInstanceState[] = [];
+    const activePlayer = getPlayer(state, state.activePlayerId);
+    const opponentId = getOpponentId(state, state.activePlayerId);
+    const opponent = getPlayer(state, opponentId);
+    order.push(...activePlayer.battlefield, ...opponent.battlefield);
+    for (const card of order) {
+        const cardId = (card.card as { id?: string }).id;
+        if (!cardId) continue;
+        const def = tryGetCardById(cardId);
+        const effects = def?.staticEffects ?? [];
+        for (const effect of effects) {
+            if (effect.kind === "untap-restriction") {
+                out.push({ source: card, restriction: effect });
+            }
+        }
+    }
+    return out;
 }
 
-/** Untap step: untap all permanents, clear committed/summoning sickness
- *  (CR 502.4). Several keyword markers gate which permanents untap:
- *  - `skip-untap-step` (Stasis, CR 502.1) — global, the active player skips
- *    untap entirely. Permanents that would otherwise untap stay tapped.
- *  - `limits-acl-untap` (Winter Orb / Static Orb) — caps the active player's
- *    ACL (artifact/creature/land) untaps at one. Non-ACL untaps normally.
- *  - `limits-creature-untap-to-one` (Smoke, CR 502.1) — caps creature untaps
- *    at one. Non-creature permanents untap normally.
- *  - `prevents-untap-of-power-3-or-greater` (Meekstone) — creatures with
- *    effective power ≥3 (layer 7c) stay tapped.
- *  - `does-not-untap` per-permanent (Basalt Monolith / Mana Vault, or
- *    aura-granted to a host via Paralyze) — that permanent stays tapped.
- *  Selection for ACL / creature caps is deterministic — first tapped match
- *  in battlefield order — since UNTAP is an auto-phase with no priority
- *  window (CR 502.1). Permanents that stay tapped still get
- *  `manaCommitted` / sickness flags cleared so they don't keep counting as
- *  this-turn-committed. */
-function untapStep(state: GameState): void {
+/** Untap step (CR 502.1, 502.4): the active player declares which
+ *  permanents they control will untap, those permanents untap
+ *  simultaneously, and every permanent gets per-turn flag cleanup.
+ *
+ *  Two restriction families compose here:
+ *  - **Data-driven `StaticUntapRestriction`** (ADR 0002 factory family,
+ *    e.g. Winter Orb): the dispatcher walks each restriction in
+ *    deterministic order, computes the active player's eligible set, and
+ *    either auto-resolves (per ADR 0003 — `maxUntap === 0` hard skip, or
+ *    `eligibles.length === 0` vacuous) or enqueues a `untap-pick`
+ *    `PendingChoice` with `count: { min: 0, max: r.maxUntap }`. The cap-
+ *    style zero-branch (CR 502.1, 701.39 — "no more than" is a cap, not an
+ *    obligation) is the tactical opt-out that keeps the prompt on
+ *    single-eligible boards.
+ *  - **Legacy keyword markers** kept for restrictions not yet migrated:
+ *    `skip-untap-step` (Stasis, slice S2), `limits-creature-untap-to-one`
+ *    (Smoke, slice S1), `prevents-untap-of-power-3-or-greater` (Meekstone,
+ *    slice S3). These resolve deterministically against the active BF —
+ *    no prompt — and will be replaced by `untapRestriction(...)` data in
+ *    later slices.
+ *  - **Per-permanent `does-not-untap`** (Basalt Monolith, Mana Vault,
+ *    Paralyze's grant) is an orthogonal axis untouched by the dispatcher
+ *    refactor: the marked permanent stays tapped regardless of any other
+ *    restriction's outcome.
+ *
+ *  Flag cleanup (`manaCommitted`, `isSummoningSick`, `chosenMana`) runs
+ *  for every permanent on the active player's battlefield once all
+ *  restrictions are processed — including permanents that did not
+ *  untap. */
+export function untapStep(state: GameState): void {
     const player = getPlayer(state, state.activePlayerId);
 
-    // Stasis: the active player skips their untap step entirely (CR 502.1).
-    // No permanents are untapped, but committed-this-turn flags are cleared
-    // so the next priority window doesn't misread them as fresh commits.
+    // Stasis (CR 502.1) — the active player skips their untap step
+    // entirely. No permanents untap; commitment flags clear so the next
+    // priority window doesn't misread them as fresh commits.
     if (hasGlobalStaticAbility(state, "skip-untap-step")) {
         for (const card of player.battlefield) {
             card.manaCommitted = undefined;
             card.isSummoningSick = undefined;
             card.chosenMana = undefined;
         }
+        state.pendingUntapStep = undefined;
         return;
     }
 
-    const aclLimited = hasGlobalStaticAbility(state, "limits-acl-untap");
-    const creatureLimited = hasGlobalStaticAbility(
-        state,
-        "limits-creature-untap-to-one"
-    );
-    const power3Blocked = hasGlobalStaticAbility(
-        state,
-        "prevents-untap-of-power-3-or-greater"
-    );
-    const chosenAclUntapId = aclLimited
-        ? (player.battlefield.find((c) => c.isTapped && isAclPermanent(c))
-              ?.id ?? null)
-        : null;
-    const chosenCreatureUntapId = creatureLimited
-        ? (player.battlefield.find(
-              (c) => c.isTapped && c.types.includes("Creature")
-          )?.id ?? null)
-        : null;
-    for (const card of player.battlefield) {
-        // CR 502.1 — per-permanent "doesn't untap" effects (Basalt Monolith,
-        // Mana Vault, Paralyze's keyword-grant to its host).
-        if (card.staticAbilities.includes("does-not-untap")) {
+    // Data-driven dispatcher loop. `state.pendingUntapStep.restrictionCursor`
+    // is set when a prior call enqueued an `untap-pick` prompt; resumption
+    // (from `selectResolutionChoice` / `confirmUntapPick`) re-enters here
+    // and continues from where we left off.
+    const restrictions = collectUntapRestrictions(state);
+    const startCursor = state.pendingUntapStep?.restrictionCursor ?? 0;
+
+    // First entry only: untap permanents that are NOT subject to any
+    // data-driven restriction (so non-land permanents under Winter Orb
+    // untap immediately, in parallel with the still-pending land
+    // prompt), apply the legacy keyword caps (Smoke, Meekstone — slices
+    // S1/S3 will migrate), and clear per-turn flags universally. Restricted
+    // permanents stay tapped here; their fate is decided by the matching
+    // restriction's prompt (or by the cap auto-resolving in the loop
+    // below).
+    if (startCursor === 0) {
+        const restrictionFilters = restrictions.map(
+            (r) => r.restriction.filter
+        );
+        const creatureLimited = hasGlobalStaticAbility(
+            state,
+            "limits-creature-untap-to-one"
+        );
+        const power3Blocked = hasGlobalStaticAbility(
+            state,
+            "prevents-untap-of-power-3-or-greater"
+        );
+        const chosenCreatureUntapId = creatureLimited
+            ? (player.battlefield.find(
+                  (c) => c.isTapped && c.types.includes("Creature")
+              )?.id ?? null)
+            : null;
+
+        for (const card of player.battlefield) {
+            if (card.staticAbilities.includes("does-not-untap")) {
+                card.manaCommitted = undefined;
+                card.isSummoningSick = undefined;
+                card.chosenMana = undefined;
+                continue;
+            }
+            if (
+                creatureLimited &&
+                card.types.includes("Creature") &&
+                card.id !== chosenCreatureUntapId
+            ) {
+                card.manaCommitted = undefined;
+                continue;
+            }
+            if (
+                power3Blocked &&
+                card.types.includes("Creature") &&
+                getEffectivePower(state, card) >= 3
+            ) {
+                card.manaCommitted = undefined;
+                continue;
+            }
+            if (
+                card.isTapped &&
+                restrictionFilters.some((f) => matchesPermanentFilter(card, f))
+            ) {
+                // Subject to a data-driven cap — defer untap to the
+                // restriction's prompt (or to the cap's auto-resolve in
+                // the loop below).
+                card.manaCommitted = undefined;
+                continue;
+            }
+            card.isTapped = false;
             card.manaCommitted = undefined;
             card.isSummoningSick = undefined;
             card.chosenMana = undefined;
-            continue;
         }
-        if (
-            aclLimited &&
-            isAclPermanent(card) &&
-            card.id !== chosenAclUntapId
-        ) {
-            // Blocked by Winter Orb — permanent stays tapped but stops
-            // counting as "mana committed" so it can be played around at
-            // sorcery speed next turn if the restriction lifts.
-            continue;
-        }
-        if (
-            creatureLimited &&
-            card.types.includes("Creature") &&
-            card.id !== chosenCreatureUntapId
-        ) {
-            // Smoke: only the first tapped creature untaps. Others stay
-            // tapped, with commitment flags cleared.
-            card.manaCommitted = undefined;
-            continue;
-        }
-        if (
-            power3Blocked &&
-            card.types.includes("Creature") &&
-            getEffectivePower(state, card) >= 3
-        ) {
-            // Meekstone: creatures with effective power 3+ stay tapped
-            // (CR 613 layer 7c read at untap-step resolution).
-            card.manaCommitted = undefined;
-            continue;
-        }
-        card.isTapped = false;
-        card.manaCommitted = undefined;
-        card.isSummoningSick = undefined;
-        card.chosenMana = undefined;
     }
+
+    for (let i = startCursor; i < restrictions.length; i++) {
+        const r = restrictions[i].restriction;
+        const eligibles = player.battlefield.filter(
+            (c) =>
+                c.isTapped &&
+                !c.staticAbilities.includes("does-not-untap") &&
+                matchesPermanentFilter(c, r.filter)
+        );
+
+        // ADR 0003 auto-resolve cases:
+        // - `maxUntap === 0`: hard skip (Stasis-style) — no eligibles can
+        //   untap and there is no tactical zero-branch to offer.
+        // - `eligibles.length === 0`: nothing to pick, restriction is
+        //   vacuous on this board.
+        // Otherwise (cap binds with ≥1 eligible): keep the prompt so the
+        // active player may declare "untap zero" (CR 502.1 / 701.39 — the
+        // cap is permissive, not mandatory).
+        if (r.maxUntap === 0 || eligibles.length === 0) {
+            continue;
+        }
+
+        state.pendingChoices = state.pendingChoices ?? [];
+        state.pendingChoices.push({
+            stackItemId: "",
+            step: 0,
+            choiceId: `untap-${i}-${r.id}`,
+            playerId: state.activePlayerId,
+            zoneOwnerId: state.activePlayerId,
+            kind: "untap-pick",
+            zone: "battlefield",
+            filter: r.filter,
+            count: { min: 0, max: r.maxUntap },
+            selected: [],
+            prompt: r.oracleText,
+        });
+        state.pendingUntapStep = { restrictionCursor: i + 1 };
+        state.priorityPlayerId = state.activePlayerId;
+        return;
+    }
+
+    state.pendingUntapStep = undefined;
 }
 
 /** Draw step: active player draws a card. Skipped on turn 1 (CR 103.8). */
@@ -1037,6 +1126,17 @@ export function advancePhase(state: GameState): Phase[] {
         state.phase === "FIRST_STRIKE_DAMAGE" &&
         hadAttackers &&
         !anyCombatantHasFirstOrDoubleStrike(state);
+
+    // An auto-phase entry may have enqueued a pending choice (CR 608.2,
+    // 502.1 — e.g. UNTAP under Winter Orb prompts the active player to
+    // pick which land to untap). In that case do NOT recurse: the engine
+    // is suspended awaiting input, and the submitter (`selectResolutionChoice`
+    // / `confirmUntapPick`) is responsible for re-entering this function
+    // once the choice is committed. Priority has already been routed to
+    // the chooser by the phase-entry hook.
+    if ((state.pendingChoices?.length ?? 0) > 0) {
+        return traversed;
+    }
 
     if (
         AUTO_PHASES.has(state.phase) ||

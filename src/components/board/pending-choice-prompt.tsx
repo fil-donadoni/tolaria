@@ -8,6 +8,14 @@ import { isManaCostCovered, manaCostToString } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
 import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
 
+function getCountMin(count: PendingChoice["count"]): number {
+    return typeof count === "number" ? count : count.min;
+}
+
+function getCountMax(count: PendingChoice["count"]): number {
+    return typeof count === "number" ? count : count.max;
+}
+
 /** Banner shown at the top-center of the board while a mid-resolution
  *  player choice is active (CR 608.2). Displays the prompt, the progress
  *  (selected / count) for the chooser, or a waiting state for the opponent.
@@ -15,7 +23,10 @@ import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
  *  `player-battlefield` and `selectable-card` detect the pending choice and
  *  route clicks to `selectResolutionChoice`. For `kind: "may-pay"` choices,
  *  the prompt renders Pay/Skip buttons inline that submit through
- *  `submitMayPay`. */
+ *  `submitMayPay`. For `kind: "untap-pick"` choices (CR 502.1 cap-style
+ *  restrictions like Winter Orb), the prompt renders a "Skip untap" / "Done"
+ *  button when `min === 0` so the chooser can commit a partial pick or
+ *  decline to untap; the button submits through `confirmUntapPick`. */
 export default function PendingChoicePrompt({
     choice,
     playerId,
@@ -28,9 +39,17 @@ export default function PendingChoicePrompt({
     const { allPlayers } = useGameContext();
     const { offset, dragHandlers } = useDraggable();
     const submitMayPay = useMutation(api.game.submitMayPay);
+    const confirmUntapPick = useMutation(api.game.confirmUntapPick);
     const isChooser = choice.playerId === playerId;
     const selected = choice.selected.length;
-    const remaining = Math.max(0, choice.count - selected);
+    const min = getCountMin(choice.count);
+    const max = getCountMax(choice.count);
+    const remaining = Math.max(0, max - selected);
+    const isUntapPick = choice.kind === "untap-pick";
+    // Cap-style untap restrictions surface a "Skip"/"Done" button so the
+    // ADR 0003 tactical zero-branch (CR 502.1, 701.39) is reachable in one
+    // click — automatic commit only triggers once `selected.length === max`.
+    const showUntapCommit = isUntapPick && min === 0;
 
     const chooserName =
         allPlayers.find((p) => p.id === choice.playerId)?.name ?? "opponent";
@@ -111,11 +130,31 @@ export default function PendingChoicePrompt({
                                 </button>
                             </div>
                         ) : (
-                            <div className="text-violet-300 text-xs">
-                                {remaining > 0
-                                    ? `${selected} / ${choice.count} selected — click ${remaining === 1 ? "one more" : `${remaining} more`}`
-                                    : "Submitting..."}
-                            </div>
+                            <>
+                                <div className="text-violet-300 text-xs">
+                                    {remaining > 0
+                                        ? `${selected} / ${max} selected — click ${remaining === 1 ? "one more" : `up to ${remaining} more`}`
+                                        : "Submitting..."}
+                                </div>
+                                {showUntapCommit && (
+                                    <div className="flex gap-2 mt-1">
+                                        <button
+                                            type="button"
+                                            className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-white text-xs font-semibold"
+                                            onClick={() =>
+                                                confirmUntapPick({
+                                                    gameId,
+                                                    playerId,
+                                                })
+                                            }
+                                        >
+                                            {selected === 0
+                                                ? "Skip untap"
+                                                : "Done"}
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </>
                 ) : (

@@ -3391,23 +3391,36 @@ describe("Steal Artifact (Aura control-change on artifacts, CR 613.1b layer 2)",
     });
 });
 
-describe("Winter Orb (caps ACL untaps to one per untap step, CR 502.1)", () => {
-    it("is a {2} artifact that declares the global untap-limit marker", () => {
+describe("Winter Orb (modern Oracle land-only cap, CR 502.1, ADR 0004)", () => {
+    it("is a {2} artifact declaring a single untap-restriction static effect", () => {
         expect(winterOrb.manaCost).toEqual({ X: 2 });
         expect(winterOrb.types).toEqual(["Artifact"]);
-        expect(winterOrb.staticAbilities).toContain("limits-acl-untap");
+        expect(winterOrb.staticEffects).toHaveLength(1);
+        const effect = winterOrb.staticEffects?.[0];
+        expect(effect?.kind).toBe("untap-restriction");
+        if (effect?.kind === "untap-restriction") {
+            expect(effect.maxUntap).toBe(1);
+            expect(effect.filter).toEqual({ types: "Land" });
+        }
+    });
+
+    it("the printed legacy keyword `limits-acl-untap` is no longer declared", () => {
+        expect(winterOrb.staticAbilities ?? []).not.toContain(
+            "limits-acl-untap"
+        );
     });
 
     // Drives the incoming player's UNTAP step by advancing from END_STEP:
-    // CLEANUP auto-resolves, turn flips, UNTAP auto-resolves, state settles
-    // in UPKEEP of the intended player.
+    // CLEANUP auto-resolves, turn flips, UNTAP auto-resolves (or
+    // suspends on an `untap-pick` prompt), state settles either in UPKEEP
+    // or with `pendingChoices` non-empty awaiting a pick.
     function runUntapFor(playerId: string, state: GameState): void {
         state.activePlayerId = playerId === "p1" ? "p2" : "p1";
         state.phase = "END_STEP";
         advancePhase(state);
     }
 
-    it("without Winter Orb, every ACL the active player controls untaps", () => {
+    it("without Winter Orb, every land + creature the active player controls untaps", () => {
         const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
         const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
         const creature = makeInstance(grizzlyBears.id, {
@@ -3427,9 +3440,54 @@ describe("Winter Orb (caps ACL untaps to one per untap step, CR 502.1)", () => {
         expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(false);
         expect(bf.find((c) => c.id === "l2")?.isTapped).toBe(false);
         expect(bf.find((c) => c.id === "bear")?.isTapped).toBe(false);
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.pendingChoices ?? []).toEqual([]);
     });
 
-    it("with Winter Orb in play, the active player untaps at most one ACL", () => {
+    it("with 0 tapped lands, no prompt — UNTAP auto-resolves to UPKEEP", () => {
+        const orb = makeInstance(winterOrb.id, { id: "orb", isTapped: true });
+        const land = makeInstance(plains.id, { id: "l1", isTapped: false });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [orb, land] }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapFor("p1", state);
+
+        expect(state.pendingChoices ?? []).toEqual([]);
+        expect(state.phase).toBe("UPKEEP");
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(false);
+        // Winter Orb itself is an artifact (not a land) — untaps normally.
+        expect(bf.find((c) => c.id === "orb")?.isTapped).toBe(false);
+    });
+
+    it("with 1+ tapped lands, an untap-pick PendingChoice is enqueued ({min:0,max:1}, land filter)", () => {
+        const orb = makeInstance(winterOrb.id, { id: "orb", isTapped: true });
+        const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [orb, land1, land2] }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapFor("p1", state);
+
+        expect(state.phase).toBe("UNTAP");
+        const queue = state.pendingChoices ?? [];
+        expect(queue).toHaveLength(1);
+        const head = queue[0];
+        expect(head.kind).toBe("untap-pick");
+        expect(head.playerId).toBe("p1");
+        expect(head.zone).toBe("battlefield");
+        expect(head.filter).toEqual({ types: "Land" });
+        expect(head.count).toEqual({ min: 0, max: 1 });
+        expect(state.priorityPlayerId).toBe("p1");
+    });
+
+    it("Winter Orb does NOT cap artifact or creature untaps — non-lands untap normally", () => {
         const orb = makeInstance(winterOrb.id, { id: "orb", isTapped: true });
         const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
         const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
@@ -3449,20 +3507,19 @@ describe("Winter Orb (caps ACL untaps to one per untap step, CR 502.1)", () => {
         runUntapFor("p1", state);
 
         const bf = state.players[0].battlefield;
-        const untappedAcl = bf.filter(
-            (c) =>
-                !c.isTapped &&
-                (c.types.includes("Artifact") ||
-                    c.types.includes("Creature") ||
-                    c.types.includes("Land"))
-        );
-        expect(untappedAcl).toHaveLength(1);
+        // Non-land permanents are unrestricted — bear + orb untap regardless
+        // of the pending land-pick prompt.
+        expect(bf.find((c) => c.id === "bear")?.isTapped).toBe(false);
+        expect(bf.find((c) => c.id === "orb")?.isTapped).toBe(false);
+        // Both lands are still tapped — the pick must commit before they untap.
+        expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "l2")?.isTapped).toBe(true);
     });
 
     it("non-ACL permanents (enchantments) untap normally under Winter Orb", () => {
         const orb = makeInstance(winterOrb.id, { id: "orb", isTapped: false });
-        const land = makeInstance(plains.id, { id: "l1", isTapped: true });
-        // Castle is an Enchantment — not A/C/L, so it's exempt from the cap.
+        const land = makeInstance(plains.id, { id: "l1", isTapped: false });
+        // Castle is an Enchantment — not a Land, so it's exempt from the cap.
         const enchant = makeInstance(castle.id, {
             id: "castle",
             isTapped: true,
@@ -3477,9 +3534,11 @@ describe("Winter Orb (caps ACL untaps to one per untap step, CR 502.1)", () => {
 
         const bf = state.players[0].battlefield;
         expect(bf.find((c) => c.id === "castle")?.isTapped).toBe(false);
+        // No tapped lands so no prompt — phase advances to UPKEEP.
+        expect(state.phase).toBe("UPKEEP");
     });
 
-    it("Winter Orb on the opponent's side still restricts the active player", () => {
+    it("Winter Orb on the opponent's side still restricts the active player's land untaps", () => {
         const orb = makeInstance(winterOrb.id, {
             id: "orb",
             controllerId: "p2",
@@ -3496,9 +3555,40 @@ describe("Winter Orb (caps ACL untaps to one per untap step, CR 502.1)", () => {
         });
         runUntapFor("p1", state);
 
+        // Prompt enqueued, lands still tapped — cap applies regardless of
+        // who controls the source.
+        expect(state.pendingChoices?.[0].kind).toBe("untap-pick");
         const bf = state.players[0].battlefield;
-        const untappedCount = bf.filter((c) => !c.isTapped).length;
-        expect(untappedCount).toBe(1);
+        expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "l2")?.isTapped).toBe(true);
+    });
+
+    it("wire format: untap-pick prompt + land filter survive projectPublicState", () => {
+        const orb = makeInstance(winterOrb.id, { id: "orb", isTapped: true });
+        const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
+        const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [orb, land1, land2] }),
+                makePlayer("p2"),
+            ],
+        });
+        runUntapFor("p1", state);
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingChoices?.[0].kind).toBe("untap-pick");
+        expect(projected.pendingChoices?.[0].filter).toEqual({
+            types: "Land",
+        });
+        expect(projected.pendingChoices?.[0].count).toEqual({
+            min: 0,
+            max: 1,
+        });
+        // Active player's lands are still tapped in the projection — the
+        // engine has not committed any untap yet.
+        const slimBf = projected.players[0].battlefield;
+        expect(slimBf.find((c) => c.id === "l1")?.isTapped).toBe(true);
+        expect(slimBf.find((c) => c.id === "l2")?.isTapped).toBe(true);
     });
 });
 

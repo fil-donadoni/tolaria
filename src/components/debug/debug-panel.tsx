@@ -373,6 +373,32 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Winter Orb — land-only cap, untap-pick prompt (CR 502.1, ADR 0005)",
+        cards: [
+            // Winter Orb in play caps land untaps at one per untap step
+            // (modern Oracle, ADR 0004). The active player has three
+            // tapped lands + a tapped Grizzly Bears: at the next untap
+            // step the engine enqueues an `untap-pick` PendingChoice
+            // ({ min: 0, max: 1 }, filter: { types: "Land" }) routed to
+            // the active player. The Bears (non-land) untap normally,
+            // demonstrating the Oracle fix. Click any tapped land to
+            // commit the pick + auto-untap; click "Skip untap" to
+            // exercise the ADR 0003 tactical zero-branch (CR 701.39 —
+            // the cap is permissive). End your turn to drive into the
+            // opponent's turn and back into your UNTAP step to see the
+            // prompt fire end-to-end.
+            { name: "Winter Orb", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, tapped: true, count: 3 },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                tapped: true,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Skip / restrict untap step — Basalt Monolith / Mana Vault / Meekstone / Smoke / Stasis / Paralyze (CR 502.1)",
         cards: [
             // Gap J showcase. Basalt Monolith and Mana Vault enter tapped and

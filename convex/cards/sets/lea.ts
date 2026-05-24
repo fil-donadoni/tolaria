@@ -27,6 +27,7 @@ import { damageTakenTrigger } from "../abilities/triggers/damageTakenTrigger";
 import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
+import { untapRestriction } from "../abilities/static/untapRestriction";
 import { tokenPrintIdFor } from "../tokenPrintLookup";
 
 // export const animateWall: CardDefinition = {
@@ -5749,20 +5750,30 @@ export const throneOfBone: CardDefinition = makeColorSphere({
 //     types: ["Artifact"],
 // };
 
-// Winter Orb — "Players can't untap more than one artifact, creature, or
-// land during their untap steps." (CR 502.1) Encoded as a global static
-// ability keyword; untapStep consults every battlefield for the marker and
-// caps the active player's ACL (artifact/creature/land) untaps at one. The
-// modern Oracle omits the "while Winter Orb is untapped" rider, so the
-// restriction applies regardless of Winter Orb's own state.
+// Winter Orb — modern Oracle (Scryfall, ADR 0004): "Players can't untap
+// more than one land during their untap steps." (CR 502.1). Encoded as a
+// data-driven `untapRestriction` (ADR 0002 / 0005): the engine dispatcher
+// in `untapStep` collects the restriction, computes the active player's
+// tapped-lands eligible set, and either auto-resolves the cap or enqueues
+// an `untap-pick` `PendingChoice` for the active player to declare which
+// land untaps. Non-land permanents (artifacts, creatures, enchantments)
+// are unaffected — the printed "artifact, creature, or land" clause from
+// the LEA printing is intentionally NOT followed (ADR 0004).
 export const winterOrb: CardDefinition = {
     id: "9359f60c-9a27-4e53-b35b-964a121a6fba",
     name: "Winter Orb",
     oracleText:
-        "As long as this artifact is untapped, players can't untap more than one land during their untap steps.",
+        "Players can't untap more than one land during their untap steps.",
     manaCost: { X: 2 },
     types: ["Artifact"],
-    staticAbilities: ["limits-acl-untap"],
+    staticEffects: [
+        untapRestriction({
+            id: "winter-orb-land-cap",
+            oracleText: "Untap up to one land (Winter Orb).",
+            filter: { types: "Land" },
+            maxUntap: 1,
+        }),
+    ],
 };
 
 export const woodenSphere: CardDefinition = makeColorSphere({

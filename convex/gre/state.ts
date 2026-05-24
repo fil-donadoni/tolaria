@@ -538,9 +538,18 @@ export type PendingChoice = {
     /** Optional battlefield filter (card types / subtypes / keywords). Ignored
      *  for hand choices. */
     filter?: PermanentFilter;
-    /** Exact number of items to pick. For `may-pay`, this is always 1 and the
-     *  selection is the literal string "yes" or "no". */
-    count: number;
+    /** Number of items to pick. Two shapes:
+     *  - `number` (fixed N) — commit when `selected.length >= N` (existing
+     *    sacrifice / keep-hand / mulligan-bottom flow).
+     *  - `{ min, max }` (range) — engine-internal choices with a tactical
+     *    zero-branch (ADR 0003 cap-style: `untap-pick` under Winter Orb /
+     *    Smoke / Meekstone). Commit happens at `max` via
+     *    `selectResolutionChoice` or at any point in `[min, max]` via a
+     *    family-specific submit mutation. Use `getPendingChoiceMax` /
+     *    `getPendingChoiceMin` to read either shape.
+     *  For `may-pay`, this is always 1 and the selection is the literal
+     *  string "yes" or "no". */
+    count: number | { min: number; max: number };
     /** Ids already selected by the chooser. For `may-pay`, the entry is
      *  "yes" or "no" — committed by `submitMayPay`. */
     selected: string[];
@@ -550,6 +559,22 @@ export type PendingChoice = {
      *  118.4). Undefined for cost-less yes/no choices ("may draw a card"). */
     cost?: ManaCost;
 };
+
+/** Reads the upper bound out of a `PendingChoice.count`, regardless of
+ *  whether it's the fixed-N shape or the `{ min, max }` range shape. The
+ *  commit threshold for `selectResolutionChoice` accumulation is always the
+ *  max — picking past max is a contract violation. */
+export function getPendingChoiceMax(count: PendingChoice["count"]): number {
+    return typeof count === "number" ? count : count.max;
+}
+
+/** Reads the lower bound out of a `PendingChoice.count`. For fixed-N
+ *  choices min === count (the player must pick exactly N). For range
+ *  choices min is the floor — typically 0 for cap-style restrictions where
+ *  ADR 0003's "tactical zero-branch" applies (Winter Orb skip, Smoke skip). */
+export function getPendingChoiceMin(count: PendingChoice["count"]): number {
+    return typeof count === "number" ? count : count.min;
+}
 
 /** Tracks target selection for a spell being announced (CR 601.2c) or an
  *  activated ability with targets (CR 602.2b). */
@@ -745,6 +770,14 @@ export type GameState = {
      *  Empty / undefined means "accept the replacement" (the typical CR
      *  decision for Library of Leng-style cards). */
     playerPreferences?: Record<string, PlayerPreferences>;
+    /** Resume cursor for a multi-restriction untap step (CR 502.1). Present
+     *  only while `untapStep` is mid-processing — the dispatcher walks
+     *  `StaticUntapRestriction` instances in deterministic order and
+     *  enqueues an `untap-pick` `PendingChoice` per binding restriction;
+     *  when the choice is committed, the engine re-enters `untapStep` and
+     *  resumes from `restrictionCursor`. Cleared once every restriction is
+     *  processed and the post-step untap+flag cleanup has run. */
+    pendingUntapStep?: { restrictionCursor: number };
 };
 
 /** Player-level replacement preferences. Each entry is opt-in: undefined

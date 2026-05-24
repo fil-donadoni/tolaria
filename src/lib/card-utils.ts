@@ -394,8 +394,6 @@ export function getDisplayAbilities(
  *  here; they round-trip through `capitalizeKeyword` and render as
  *  "Flying" / "Trample" / "First strike" / etc. unchanged. */
 const KEYWORD_DISPLAY: Record<string, string> = {
-    "limits-acl-untap":
-        "Players can't untap more than one artifact, creature, or land during their untap steps.",
     "does-not-untap":
         "This permanent doesn't untap during its controller's untap step.",
     "skip-untap-step": "Players skip their untap steps.",
