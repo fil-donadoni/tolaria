@@ -1702,6 +1702,7 @@ export function removePermanentTo(
                 type: "CREATURE_DIED",
                 creatureInstanceId: cardId,
                 creatureControllerId: snapshotControllerId,
+                creatureTypes: lkiTypes,
                 damagedBySources: snapshotDamagedBy,
                 creaturePower: snapshotPower,
                 creatureToughness: snapshotToughness,

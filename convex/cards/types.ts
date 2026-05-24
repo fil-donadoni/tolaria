@@ -1026,6 +1026,11 @@ export interface CreatureDiedEvent {
     type: "CREATURE_DIED";
     creatureInstanceId: string;
     creatureControllerId: string;
+    /** Card types snapshotted at the moment of death (CR 603.10 last known
+     *  information). Mirrors `PermanentLeftEvent.types`; consumed by
+     *  `diedTrigger`'s last-known-information payload so authors don't have
+     *  to refetch from a separate event source. */
+    creatureTypes: ReadonlyArray<CardType>;
     /** Instance ids of sources that dealt damage to this creature this turn. */
     damagedBySources: readonly string[];
     /** Effective power of the dying creature snapshotted at the moment it

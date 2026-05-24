@@ -20,6 +20,9 @@ import {
 } from "../abilities";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
 import { damageTakenTrigger } from "../abilities/triggers/damageTakenTrigger";
+import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
+import { diedTrigger } from "../abilities/triggers/diedTrigger";
+import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { tokenPrintIdFor } from "../tokenPrintLookup";
 
 // export const animateWall: CardDefinition = {
@@ -439,33 +442,16 @@ export const farmstead: CardDefinition = {
         subtypeFilter: "Plains",
     },
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "farmstead-upkeep",
             oracleText:
                 "At the beginning of the upkeep step of enchanted land's controller, that player gains 2 life.",
-            event: "PHASE_BEGIN",
-            matches: (event, self, state) => {
-                if (event.type !== "PHASE_BEGIN") return false;
-                if (event.phase !== "UPKEEP") return false;
-                if (!self.attachedTo) return false;
-                for (const p of state?.players ?? []) {
-                    const host = p.battlefield.find(
-                        (c) => c.id === self.attachedTo
-                    );
-                    if (host) return host.controllerId === event.activePlayerId;
-                }
-                return false;
+            phase: "UPKEEP",
+            scope: "host-controller",
+            resolve: (ctx, _event, hostController) => {
+                ctx.gainLife(hostController, 2);
             },
-            resolve: (ctx) => {
-                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
-                if (!hostId) return;
-                const controller = ctx.getController({
-                    type: "permanent",
-                    id: hostId,
-                });
-                ctx.gainLife(controller, 2);
-            },
-        },
+        }),
     ],
 };
 
@@ -608,16 +594,13 @@ export const karma: CardDefinition = {
     manaCost: { X: 2, W: 2 },
     types: ["Enchantment"],
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "karma-upkeep",
             oracleText:
                 "At the beginning of each player's upkeep, Karma deals damage to that player equal to the number of Swamps they control.",
-            event: "PHASE_BEGIN",
-            matches: (event) =>
-                event.type === "PHASE_BEGIN" && event.phase === "UPKEEP",
-            resolve: (ctx, event) => {
-                if (event.type !== "PHASE_BEGIN") return;
-                const playerId = event.activePlayerId;
+            phase: "UPKEEP",
+            scope: "each",
+            resolve: (ctx, _event, playerId) => {
                 const swamps = ctx.getBattlefieldIds(playerId, {
                     subtypes: "Swamp",
                 }).length;
@@ -625,7 +608,7 @@ export const karma: CardDefinition = {
                     ctx.dealDamage({ type: "player", id: playerId }, swamps);
                 }
             },
-        },
+        }),
     ],
 };
 
@@ -1253,23 +1236,20 @@ export const creatureBond: CardDefinition = {
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
     triggeredAbilities: [
-        {
+        diedTrigger({
             id: "creature-bond-death",
             oracleText:
                 "When enchanted creature dies, Creature Bond deals damage equal to that creature's toughness to the creature's controller.",
-            event: "CREATURE_DIED",
-            matches: (event, self) => {
-                if (event.type !== "CREATURE_DIED") return false;
-                return event.creatureInstanceId === self.attachedTo;
-            },
-            resolve: (ctx, event) => {
-                if (event.type !== "CREATURE_DIED") return;
+            scope: "any",
+            condition: (event, self) =>
+                event.creatureInstanceId === self.attachedTo,
+            resolve: (ctx, _event, dead) => {
                 ctx.dealDamage(
-                    { type: "player", id: event.creatureControllerId },
-                    event.creatureToughness
+                    { type: "player", id: dead.controllerId },
+                    dead.lastKnownToughness
                 );
             },
-        },
+        }),
     ],
 };
 
@@ -1295,33 +1275,16 @@ export const feedback: CardDefinition = {
     subtypes: ["Aura"],
     targetRequirement: { type: "Enchantment", count: 1 },
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "feedback-upkeep",
             oracleText:
                 "At the beginning of the upkeep of enchanted enchantment's controller, Feedback deals 1 damage to that player.",
-            event: "PHASE_BEGIN",
-            matches: (event, self, state) => {
-                if (event.type !== "PHASE_BEGIN") return false;
-                if (event.phase !== "UPKEEP") return false;
-                if (!self.attachedTo) return false;
-                for (const p of state?.players ?? []) {
-                    const host = p.battlefield.find(
-                        (c) => c.id === self.attachedTo
-                    );
-                    if (host) return host.controllerId === event.activePlayerId;
-                }
-                return false;
+            phase: "UPKEEP",
+            scope: "host-controller",
+            resolve: (ctx, _event, hostController) => {
+                ctx.dealDamage({ type: "player", id: hostController }, 1);
             },
-            resolve: (ctx) => {
-                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
-                if (!hostId) return;
-                const controller = ctx.getController({
-                    type: "permanent",
-                    id: hostId,
-                });
-                ctx.dealDamage({ type: "player", id: controller }, 1);
-            },
-        },
+        }),
     ],
 };
 
@@ -1487,8 +1450,10 @@ export const merfolkOfThePearlTrident: CardDefinition = {
 // <consequence>" pattern (CR 603.6a phase trigger, CR 117.3a optional cost).
 // Used by cards whose upkeep cost is a flat may-pay with a hard consequence
 // on decline (Phantasmal Forces → sacrifice self, Force of Nature → deal
-// damage to controller). Cumulative upkeep (CR 702.23, post-LEA) is a
-// distinct mechanic and not modeled here.
+// damage to controller, Stasis / Pestilence → sacrifice self). Cumulative
+// upkeep (CR 702.23, post-LEA) is a distinct mechanic and not modeled here.
+// Delegates to the `phaseTrigger` factory so the matches() narrowing and
+// scope filter live in one place.
 function makeUpkeepPayOrElse(args: {
     id: string;
     oracleText: string;
@@ -1496,14 +1461,11 @@ function makeUpkeepPayOrElse(args: {
     prompt: string;
     onDecline: (ctx: SpellContext) => void;
 }): TriggeredAbility {
-    return {
+    return phaseTrigger({
         id: args.id,
         oracleText: args.oracleText,
-        event: "PHASE_BEGIN",
-        matches: (event, self) =>
-            event.type === "PHASE_BEGIN" &&
-            event.phase === "UPKEEP" &&
-            event.activePlayerId === self.controllerId,
+        phase: "UPKEEP",
+        scope: "your",
         resolve: (ctx) => {
             const accept = ctx.requestMayPay({
                 playerId: ctx.controller,
@@ -1514,7 +1476,7 @@ function makeUpkeepPayOrElse(args: {
             if (accept === undefined) return;
             if (!accept) args.onDecline(ctx);
         },
-    };
+    });
 }
 
 // Phantasmal Forces — "Flying. At the beginning of your upkeep, sacrifice
@@ -1609,40 +1571,23 @@ export const powerLeak: CardDefinition = {
     subtypes: ["Aura"],
     targetRequirement: { type: "Enchantment", count: 1 },
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "power-leak-upkeep",
             oracleText:
                 "At the beginning of the upkeep of enchanted enchantment's controller, that player loses 1 life unless they pay {U}.",
-            event: "PHASE_BEGIN",
-            matches: (event, self, state) => {
-                if (event.type !== "PHASE_BEGIN") return false;
-                if (event.phase !== "UPKEEP") return false;
-                if (!self.attachedTo) return false;
-                for (const p of state?.players ?? []) {
-                    const host = p.battlefield.find(
-                        (c) => c.id === self.attachedTo
-                    );
-                    if (host) return host.controllerId === event.activePlayerId;
-                }
-                return false;
-            },
-            resolve: (ctx) => {
-                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
-                if (!hostId) return;
-                const controller = ctx.getController({
-                    type: "permanent",
-                    id: hostId,
-                });
+            phase: "UPKEEP",
+            scope: "host-controller",
+            resolve: (ctx, _event, hostController) => {
                 const accept = ctx.requestMayPay({
-                    playerId: controller,
-                    choiceId: controller,
+                    playerId: hostController,
+                    choiceId: hostController,
                     cost: { U: 1 },
                     prompt: "Pay {U} to avoid losing 1 life from Power Leak?",
                 });
                 if (accept === undefined) return;
-                if (!accept) ctx.loseLife(controller, 1);
+                if (!accept) ctx.loseLife(hostController, 1);
             },
-        },
+        }),
     ],
 };
 
@@ -1826,27 +1771,14 @@ export const stasis: CardDefinition = {
     types: ["Enchantment"],
     staticAbilities: ["skip-untap-step"],
     triggeredAbilities: [
-        {
+        makeUpkeepPayOrElse({
             id: "stasis-upkeep",
             oracleText:
                 "At the beginning of your upkeep, sacrifice this enchantment unless you pay {U}.",
-            event: "PHASE_BEGIN",
-            matches: (event, self) => {
-                if (event.type !== "PHASE_BEGIN") return false;
-                if (event.phase !== "UPKEEP") return false;
-                return event.activePlayerId === self.controllerId;
-            },
-            resolve: (ctx) => {
-                const accept = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: ctx.controller,
-                    cost: { U: 1 },
-                    prompt: "Pay {U} to keep Stasis?",
-                });
-                if (accept === undefined) return;
-                if (!accept) ctx.sacrifice(ctx.sourceInstanceId);
-            },
-        },
+            cost: { U: 1 },
+            prompt: "Pay {U} to keep Stasis?",
+            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+        }),
     ],
 };
 
@@ -2183,33 +2115,16 @@ export const cursedLand: CardDefinition = {
     subtypes: ["Aura"],
     targetRequirement: { type: "Land", count: 1 },
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "cursed-land-upkeep",
             oracleText:
                 "At the beginning of the upkeep of enchanted land's controller, Cursed Land deals 1 damage to that player.",
-            event: "PHASE_BEGIN",
-            matches: (event, self, state) => {
-                if (event.type !== "PHASE_BEGIN") return false;
-                if (event.phase !== "UPKEEP") return false;
-                if (!self.attachedTo) return false;
-                for (const p of state?.players ?? []) {
-                    const host = p.battlefield.find(
-                        (c) => c.id === self.attachedTo
-                    );
-                    if (host) return host.controllerId === event.activePlayerId;
-                }
-                return false;
+            phase: "UPKEEP",
+            scope: "host-controller",
+            resolve: (ctx, _event, hostController) => {
+                ctx.dealDamage({ type: "player", id: hostController }, 1);
             },
-            resolve: (ctx) => {
-                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
-                if (!hostId) return;
-                const controller = ctx.getController({
-                    type: "permanent",
-                    id: hostId,
-                });
-                ctx.dealDamage({ type: "player", id: controller }, 1);
-            },
-        },
+        }),
     ],
 };
 
@@ -2308,15 +2223,12 @@ export const demonicHordes: CardDefinition = {
         },
     ],
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "demonic-hordes-upkeep",
             oracleText:
                 "At the beginning of your upkeep, unless you pay {B}{B}{B}, tap this creature and sacrifice a land of an opponent's choice.",
-            event: "PHASE_BEGIN",
-            matches: (event, self) =>
-                event.type === "PHASE_BEGIN" &&
-                event.phase === "UPKEEP" &&
-                event.activePlayerId === self.controllerId,
+            phase: "UPKEEP",
+            scope: "your",
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,
@@ -2350,7 +2262,7 @@ export const demonicHordes: CardDefinition = {
                 if (picks === undefined) return;
                 for (const id of picks) ctx.sacrifice(id);
             },
-        },
+        }),
     ],
 };
 
@@ -2578,19 +2490,16 @@ export const lich: CardDefinition = {
     manaCost: { X: 2, B: 2 },
     types: ["Enchantment"],
     triggeredAbilities: [
-        {
+        enteredTrigger({
             id: "lich-etb",
             oracleText:
                 "As this enchantment enters, you lose life equal to your life total.",
-            event: "PERMANENT_ENTERED",
-            matches: (event, self) =>
-                event.type === "PERMANENT_ENTERED" &&
-                event.instanceId === self.id,
+            scope: "self",
             resolve: (ctx) => {
                 const life = ctx.getLife(ctx.controller);
                 if (life > 0) ctx.loseLife(ctx.controller, life);
             },
-        },
+        }),
         damageTakenTrigger({
             id: "lich-damage",
             oracleText:
@@ -2810,33 +2719,18 @@ export const paralyze: CardDefinition = {
         if (host) ctx.tap(host);
     },
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "paralyze-upkeep",
             oracleText:
                 "At the beginning of the upkeep of enchanted creature's controller, that player may pay {4}. If the player does, untap the creature.",
-            event: "PHASE_BEGIN",
-            matches: (event, self, state) => {
-                if (event.type !== "PHASE_BEGIN") return false;
-                if (event.phase !== "UPKEEP") return false;
-                if (!self.attachedTo) return false;
-                for (const p of state?.players ?? []) {
-                    const host = p.battlefield.find(
-                        (c) => c.id === self.attachedTo
-                    );
-                    if (host) return host.controllerId === event.activePlayerId;
-                }
-                return false;
-            },
-            resolve: (ctx) => {
+            phase: "UPKEEP",
+            scope: "host-controller",
+            resolve: (ctx, _event, hostController) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (!hostId) return;
-                const controller = ctx.getController({
-                    type: "permanent",
-                    id: hostId,
-                });
                 const accept = ctx.requestMayPay({
-                    playerId: controller,
-                    choiceId: controller,
+                    playerId: hostController,
+                    choiceId: hostController,
                     cost: { X: 4 },
                     prompt: "Pay {4} to untap the creature paralyzed?",
                 });
@@ -2845,7 +2739,7 @@ export const paralyze: CardDefinition = {
                     ctx.untap({ type: "permanent", id: hostId });
                 }
             },
-        },
+        }),
     ],
 };
 
@@ -2863,27 +2757,14 @@ export const pestilence: CardDefinition = {
     manaCost: { X: 2, B: 2 },
     types: ["Enchantment"],
     triggeredAbilities: [
-        {
+        makeUpkeepPayOrElse({
             id: "pestilence-upkeep",
             oracleText:
                 "At the beginning of the upkeep of Pestilence's controller, sacrifice Pestilence unless that player pays {B}.",
-            event: "PHASE_BEGIN",
-            matches: (event, self) => {
-                if (event.type !== "PHASE_BEGIN") return false;
-                if (event.phase !== "UPKEEP") return false;
-                return event.activePlayerId === self.controllerId;
-            },
-            resolve: (ctx) => {
-                const accept = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: ctx.controller,
-                    cost: { B: 1 },
-                    prompt: "Pay {B} to keep Pestilence?",
-                });
-                if (accept === undefined) return;
-                if (!accept) ctx.sacrifice(ctx.sourceInstanceId);
-            },
-        },
+            cost: { B: 1 },
+            prompt: "Pay {B} to keep Pestilence?",
+            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+        }),
     ],
     activatedAbilities: [
         {
@@ -3046,15 +2927,12 @@ export const scavengingGhoul: CardDefinition = {
     power: 2,
     toughness: 2,
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "scavenging-ghoul-corpse",
             oracleText:
                 "At the beginning of each end step, put a corpse counter on this creature for each creature that died this turn.",
-            event: "PHASE_BEGIN",
-            matches: (event) => {
-                if (event.type !== "PHASE_BEGIN") return false;
-                return event.phase === "END_STEP";
-            },
+            phase: "END_STEP",
+            scope: "each",
             resolve: (ctx) => {
                 const n = ctx.getDeathsThisTurn();
                 if (n <= 0) return;
@@ -3064,7 +2942,7 @@ export const scavengingGhoul: CardDefinition = {
                     n
                 );
             },
-        },
+        }),
     ],
     activatedAbilities: [
         {
@@ -3098,16 +2976,13 @@ export const sengirVampire: CardDefinition = {
     toughness: 4,
     staticAbilities: ["flying"],
     triggeredAbilities: [
-        {
+        diedTrigger({
             id: "sengir-vampire-counter",
             oracleText:
                 "Whenever another creature dies, if Sengir Vampire dealt damage to it this turn, put a +1/+1 counter on Sengir Vampire.",
-            event: "CREATURE_DIED",
-            matches: (event, self) => {
-                if (event.type !== "CREATURE_DIED") return false;
-                if (event.creatureInstanceId === self.id) return false;
-                return event.damagedBySources.includes(self.id);
-            },
+            scope: "any-other",
+            condition: (event, self) =>
+                event.damagedBySources.includes(self.id),
             resolve: (ctx) => {
                 ctx.addCounter(
                     { type: "permanent", id: ctx.sourceInstanceId },
@@ -3115,7 +2990,7 @@ export const sengirVampire: CardDefinition = {
                     1
                 );
             },
-        },
+        }),
     ],
 };
 
@@ -3227,33 +3102,16 @@ export const warpArtifact: CardDefinition = {
     subtypes: ["Aura"],
     targetRequirement: { type: "Artifact", count: 1 },
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "warp-artifact-upkeep",
             oracleText:
                 "At the beginning of the upkeep of enchanted artifact's controller, Warp Artifact deals 1 damage to that player.",
-            event: "PHASE_BEGIN",
-            matches: (event, self, state) => {
-                if (event.type !== "PHASE_BEGIN") return false;
-                if (event.phase !== "UPKEEP") return false;
-                if (!self.attachedTo) return false;
-                for (const p of state?.players ?? []) {
-                    const host = p.battlefield.find(
-                        (c) => c.id === self.attachedTo
-                    );
-                    if (host) return host.controllerId === event.activePlayerId;
-                }
-                return false;
+            phase: "UPKEEP",
+            scope: "host-controller",
+            resolve: (ctx, _event, hostController) => {
+                ctx.dealDamage({ type: "player", id: hostController }, 1);
             },
-            resolve: (ctx) => {
-                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
-                if (!hostId) return;
-                const controller = ctx.getController({
-                    type: "permanent",
-                    id: hostId,
-                });
-                ctx.dealDamage({ type: "player", id: controller }, 1);
-            },
-        },
+        }),
     ],
 };
 
@@ -3908,16 +3766,13 @@ export const powerSurge: CardDefinition = {
     manaCost: { R: 2 },
     types: ["Enchantment"],
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "power-surge-damage",
             oracleText:
                 "At the beginning of each player's upkeep, Power Surge deals damage to that player equal to the number of untapped lands they control.",
-            event: "PHASE_BEGIN",
-            matches: (event) =>
-                event.type === "PHASE_BEGIN" && event.phase === "UPKEEP",
-            resolve: (ctx, event) => {
-                if (event.type !== "PHASE_BEGIN") return;
-                const playerId = event.activePlayerId;
+            phase: "UPKEEP",
+            scope: "each",
+            resolve: (ctx, _event, playerId) => {
                 const landIds = ctx.getBattlefieldIds(playerId, {
                     types: "Land",
                 });
@@ -3928,7 +3783,7 @@ export const powerSurge: CardDefinition = {
                 if (untapped > 0)
                     ctx.dealDamage({ type: "player", id: playerId }, untapped);
             },
-        },
+        }),
     ],
 };
 
@@ -4913,33 +4768,16 @@ export const wanderlust: CardDefinition = {
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "wanderlust-upkeep",
             oracleText:
                 "At the beginning of the upkeep of enchanted creature's controller, this Aura deals 1 damage to that player.",
-            event: "PHASE_BEGIN",
-            matches: (event, self, state) => {
-                if (event.type !== "PHASE_BEGIN") return false;
-                if (event.phase !== "UPKEEP") return false;
-                if (!self.attachedTo) return false;
-                for (const p of state?.players ?? []) {
-                    const host = p.battlefield.find(
-                        (c) => c.id === self.attachedTo
-                    );
-                    if (host) return host.controllerId === event.activePlayerId;
-                }
-                return false;
+            phase: "UPKEEP",
+            scope: "host-controller",
+            resolve: (ctx, _event, hostController) => {
+                ctx.dealDamage({ type: "player", id: hostController }, 1);
             },
-            resolve: (ctx) => {
-                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
-                if (!hostId) return;
-                const controller = ctx.getController({
-                    type: "permanent",
-                    id: hostId,
-                });
-                ctx.dealDamage({ type: "player", id: controller }, 1);
-            },
-        },
+        }),
     ],
 };
 
@@ -5135,19 +4973,19 @@ export const clockworkBeast: CardDefinition = {
     toughness: 4,
     entersWith: { counters: [{ type: "+1/+0", count: 7 }] },
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "clockwork-beast-decay",
             oracleText:
                 "At end of combat, if this creature attacked or blocked this combat, remove a +1/+0 counter from it.",
-            event: "PHASE_BEGIN",
-            matches: (event, self) => {
-                if (event.type !== "PHASE_BEGIN") return false;
-                if (event.phase !== "END_OF_COMBAT") return false;
-                return (
-                    self.hasAttackedThisTurn === true ||
-                    self.hasBlockedThisTurn === true
-                );
-            },
+            phase: "END_OF_COMBAT",
+            scope: "each",
+            // CR 603.4d intervening-if — checked at both trigger time and
+            // resolve. The "attacked or blocked this combat" markers persist
+            // past END_OF_COMBAT so the resolve-time re-check sees the same
+            // values.
+            interveningIf: (_event, self) =>
+                self.hasAttackedThisTurn === true ||
+                self.hasBlockedThisTurn === true,
             resolve: (ctx) => {
                 ctx.removeCounter(
                     { type: "permanent", id: ctx.sourceInstanceId },
@@ -5155,7 +4993,7 @@ export const clockworkBeast: CardDefinition = {
                     1
                 );
             },
-        },
+        }),
     ],
     activatedAbilities: [
         {
@@ -5217,18 +5055,16 @@ export const copperTablet: CardDefinition = {
     manaCost: { X: 2 },
     types: ["Artifact"],
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "copper-tablet-upkeep",
             oracleText:
                 "At the beginning of each player's upkeep, Copper Tablet deals 1 damage to that player.",
-            event: "PHASE_BEGIN",
-            matches: (event) =>
-                event.type === "PHASE_BEGIN" && event.phase === "UPKEEP",
-            resolve: (ctx, event) => {
-                if (event.type !== "PHASE_BEGIN") return;
-                ctx.dealDamage({ type: "player", id: event.activePlayerId }, 1);
+            phase: "UPKEEP",
+            scope: "each",
+            resolve: (ctx, _event, playerId) => {
+                ctx.dealDamage({ type: "player", id: playerId }, 1);
             },
-        },
+        }),
     ],
 };
 
@@ -5354,31 +5190,20 @@ export const howlingMine: CardDefinition = {
     manaCost: { X: 2 },
     types: ["Artifact"],
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "howling-mine-draw",
             oracleText:
                 "At the beginning of each player's draw step, if Howling Mine is untapped, that player draws an additional card.",
-            event: "PHASE_BEGIN",
-            matches: (event, self) => {
-                if (event.type !== "PHASE_BEGIN") return false;
-                if (event.phase !== "DRAW") return false;
-                // CR 603.4: intervening-if — the artifact must be untapped at
-                // the moment the trigger would go on the stack.
-                return !self.isTapped;
+            phase: "DRAW",
+            scope: "each",
+            // CR 603.4d intervening-if — checked at both trigger time and
+            // resolve. If the artifact is tapped between trigger and
+            // resolve (Icy Manipulator response), the trigger fizzles.
+            interveningIf: (_event, self) => !self.isTapped,
+            resolve: (ctx, _event, playerId) => {
+                ctx.drawCards(playerId, 1);
             },
-            resolve: (ctx, event) => {
-                if (event.type !== "PHASE_BEGIN") return;
-                // CR 603.4: intervening-if re-check at resolution. If the
-                // artifact has been tapped (or left the battlefield) between
-                // trigger and resolve, the ability does nothing.
-                const sourceRef: TargetSelection = {
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                };
-                if (ctx.getIsTapped(sourceRef)) return;
-                ctx.drawCards(event.activePlayerId, 1);
-            },
-        },
+        }),
     ],
 };
 
@@ -5654,16 +5479,12 @@ export const manaVault: CardDefinition = {
     types: ["Artifact"],
     staticAbilities: ["does-not-untap"],
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "mana-vault-upkeep",
             oracleText:
                 "At the beginning of your upkeep, you may pay {4}. If you do, untap this artifact.",
-            event: "PHASE_BEGIN",
-            matches: (event, self) => {
-                if (event.type !== "PHASE_BEGIN") return false;
-                if (event.phase !== "UPKEEP") return false;
-                return event.activePlayerId === self.controllerId;
-            },
+            phase: "UPKEEP",
+            scope: "your",
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,
@@ -5679,30 +5500,21 @@ export const manaVault: CardDefinition = {
                     });
                 }
             },
-        },
-        {
+        }),
+        phaseTrigger({
             id: "mana-vault-draw-damage",
             oracleText:
                 "At the beginning of your draw step, if this artifact is tapped, it deals 1 damage to you.",
-            event: "PHASE_BEGIN",
-            matches: (event, self) => {
-                if (event.type !== "PHASE_BEGIN") return false;
-                if (event.phase !== "DRAW") return false;
-                if (event.activePlayerId !== self.controllerId) return false;
-                // CR 603.4: intervening-if — the artifact must be tapped at
-                // the moment the trigger would go on the stack.
-                return self.isTapped === true;
-            },
+            phase: "DRAW",
+            scope: "your",
+            // CR 603.4d intervening-if — checked at both trigger time and
+            // resolve. If the artifact has untapped between trigger and
+            // resolve (e.g. paid upkeep), the ping fizzles.
+            interveningIf: (_event, self) => self.isTapped === true,
             resolve: (ctx) => {
-                // CR 603.4 intervening-if re-check at resolution.
-                const sourceRef: TargetSelection = {
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                };
-                if (!ctx.getIsTapped(sourceRef)) return;
                 ctx.dealDamage({ type: "player", id: ctx.controller }, 1);
             },
-        },
+        }),
     ],
     activatedAbilities: [
         makeTapForMana({
@@ -5884,12 +5696,11 @@ export const soulNet: CardDefinition = {
     manaCost: { X: 1 },
     types: ["Artifact"],
     triggeredAbilities: [
-        {
+        diedTrigger({
             id: "soul-net-life",
             oracleText:
                 "Whenever a creature dies, you may pay {1}. If you do, you gain 1 life.",
-            event: "CREATURE_DIED",
-            matches: (event) => event.type === "CREATURE_DIED",
+            scope: "any",
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,
@@ -5900,7 +5711,7 @@ export const soulNet: CardDefinition = {
                 if (accept === undefined) return;
                 if (accept) ctx.gainLife(ctx.controller, 1);
             },
-        },
+        }),
     ],
 };
 
