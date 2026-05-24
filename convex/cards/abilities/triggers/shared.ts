@@ -8,7 +8,49 @@
 // is fixed at ADR 0002 — keep this file as the single source of truth so the
 // four factories stay in lockstep.
 
-import type { PermanentView } from "../../types";
+import type {
+    PermanentView,
+    PhaseBeginEvent,
+    TriggerStateView,
+} from "../../types";
+
+/** Who the trigger cares about — drives both the `matches()` filter and the
+ *  `scopedPlayerId` passed to the per-card resolve body. See
+ *  `phaseTrigger.ts` for the per-scope contract. */
+export type TriggerScope = "your" | "each" | "opponents" | "host-controller";
+
+/** Resolves a `TriggerScope` against the current PHASE_BEGIN event.
+ *  Returns the playerId the trigger is "about", or `null` if the scope
+ *  predicate fails and the trigger should not fire. */
+export function resolvePhaseScope(
+    scope: TriggerScope,
+    event: PhaseBeginEvent,
+    self: PermanentView,
+    state?: TriggerStateView
+): string | null {
+    if (scope === "each") return event.activePlayerId;
+    if (scope === "your") {
+        return event.activePlayerId === self.controllerId
+            ? self.controllerId
+            : null;
+    }
+    if (scope === "opponents") {
+        return event.activePlayerId !== self.controllerId
+            ? event.activePlayerId
+            : null;
+    }
+    // host-controller (CR 303.4b — Aura trigger keyed on enchanted permanent).
+    if (!self.attachedTo) return null;
+    for (const p of state?.players ?? []) {
+        const host = p.battlefield.find((c) => c.id === self.attachedTo);
+        if (host) {
+            return host.controllerId === event.activePlayerId
+                ? host.controllerId
+                : null;
+        }
+    }
+    return null;
+}
 
 /** Source-relative scope vocabulary shared by permanent-anchored trigger
  *  factories. Mirrors the ADR 0002 scope axis for died/entered/left/tapped. */

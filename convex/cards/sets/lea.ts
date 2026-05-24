@@ -20,6 +20,7 @@ import {
 } from "../abilities";
 import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
+import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { tokenPrintIdFor } from "../tokenPrintLookup";
 
 // export const animateWall: CardDefinition = {
