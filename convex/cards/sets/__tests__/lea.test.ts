@@ -11366,6 +11366,32 @@ describe("Lich (multi-replacement enchantment)", () => {
         expect(state.gameOver).toBeUndefined();
     });
 
+    it("wire format: lich-etb life drop survives projectPublicState", () => {
+        // Visible-on-board effect produced by an enteredTrigger factory
+        // (lich-etb → loseLife). Re-runs the life assertion against the
+        // projected state so the projection layer can't silently strip the
+        // controller's life change.
+        const lichInst = makeInstance(lich.id, {
+            id: "lich",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 17, hand: [lichInst] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, lich.id, "p1");
+        resolveTopOfStack(state);
+        processPendingActionTriggers(state);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(0);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(0);
+    });
+
     it("lifegain → draw cards instead (CR 614 lifegain replacement)", () => {
         const lichInst = makeInstance(lich.id, {
             id: "lich",
