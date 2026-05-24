@@ -18,6 +18,7 @@ import {
     makeDualLand,
     makeTapForMana,
 } from "../abilities";
+import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
 import { damageTakenTrigger } from "../abilities/triggers/damageTakenTrigger";
 import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
@@ -4691,16 +4692,12 @@ export const verduranEnchantress: CardDefinition = {
     power: 0,
     toughness: 2,
     triggeredAbilities: [
-        {
+        spellCastTrigger({
             id: "verduran-enchantress-draw",
             oracleText:
                 "Whenever you cast an enchantment spell, you may draw a card.",
-            event: "SPELL_CAST",
-            matches: (event, self) => {
-                if (event.type !== "SPELL_CAST") return false;
-                if (event.casterId !== self.controllerId) return false;
-                return event.spellTypes.includes("Enchantment");
-            },
+            scope: "you",
+            filter: { types: "Enchantment" },
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,
@@ -4710,7 +4707,7 @@ export const verduranEnchantress: CardDefinition = {
                 if (accept === undefined) return;
                 if (accept) ctx.drawCards(ctx.controller, 1);
             },
-        },
+        }),
     ],
 };
 
@@ -5087,14 +5084,11 @@ function makeColorSphere(args: {
         manaCost: { X: 1 },
         types: ["Artifact"],
         triggeredAbilities: [
-            {
+            spellCastTrigger({
                 id: `${args.abilityIdSuffix}-life`,
                 oracleText: `Whenever a player casts a ${args.colorWord.toLowerCase()} spell, you may pay {1}. If you do, you gain 1 life.`,
-                event: "SPELL_CAST",
-                matches: (event) => {
-                    if (event.type !== "SPELL_CAST") return false;
-                    return event.spellColors.includes(args.color);
-                },
+                scope: "any",
+                filter: { colors: args.color },
                 resolve: (ctx) => {
                     const accept = ctx.requestMayPay({
                         playerId: ctx.controller,
@@ -5105,7 +5099,7 @@ function makeColorSphere(args: {
                     if (accept === undefined) return;
                     if (accept) ctx.gainLife(ctx.controller, 1);
                 },
-            },
+            }),
         ],
     };
 }
