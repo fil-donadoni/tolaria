@@ -4,6 +4,7 @@ import { isProtectedFromSource } from "./protection";
 import { getEffectivePower } from "./layers";
 import { hasColor } from "./rules";
 import { getCardById } from "../cards";
+import { evaluateBlockerKeywords } from "./combat-registry";
 
 export type AttackerValidation =
     | { eligible: true }
@@ -150,17 +151,14 @@ export function validateBlockerEligibility(
         };
     }
 
-    if (attacker.staticAbilities.includes("flying")) {
-        if (
-            !blocker.staticAbilities.includes("flying") &&
-            !blocker.staticAbilities.includes("reach")
-        ) {
-            return {
-                eligible: false,
-                reason: "Only creatures with flying or reach can block a creature with flying",
-            };
-        }
-    }
+    // CR 702.9b+ — keyword-level evasion rules (registry-driven).
+    // Flying is the first keyword migrated; remaining keywords follow in S1.
+    const keywordResult = evaluateBlockerKeywords(
+        attacker,
+        blocker,
+        defenderBattlefield
+    );
+    if (!keywordResult.eligible) return keywordResult;
 
     // CR 509.1b — Ironclaw Orcs: "can't block creatures with power 2 or
     // greater." Predicate is on the blocker; reads the attacker's effective
