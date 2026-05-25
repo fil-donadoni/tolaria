@@ -1308,21 +1308,26 @@ export const flight: CardDefinition = {
 };
 
 // Invisibility — "Enchant creature. Enchanted creature can't be blocked
-// except by Walls." (CR 303.4 aura, 509.1b block restriction). Encoded as
-// a `cant-be-blocked-except-by-wall` keyword granted to the host; the combat
-// validator enforces the Wall-only check.
+// except by Walls." (CR 303.4 aura, 509.1b block restriction). The
+// block-restriction is on the aura's staticEffects; the combat validator
+// discovers it by scanning permanents attached to the attacker.
 export const invisibility: CardDefinition = {
     id: "1858ac51-e6a7-48d7-8759-166070ca13d8",
     name: "Invisibility",
+    oracleText:
+        "Enchant creature\nEnchanted creature can't be blocked except by Walls.",
     manaCost: { U: 2 },
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
     staticEffects: [
         {
-            kind: "keyword-grant",
-            applies: AURA_AFFECTS_HOST,
-            keyword: "cant-be-blocked-except-by-wall",
+            kind: "block-restriction",
+            id: "invisibility-wall-only",
+            side: "attacker" as const,
+            // CR 509.1b — can be blocked only by Walls
+            predicate: (_self, opponent) => opponent.subtypes.includes("Wall"),
+            oracleText: "Enchanted creature can't be blocked except by Walls.",
         },
     ],
 };
@@ -3572,19 +3577,29 @@ export const hurloonMinotaur: CardDefinition = {
 };
 
 // Ironclaw Orcs — "Ironclaw Orcs can't block creatures with power 2 or
-// greater." (CR 509.1b block restriction). Encoded as a self
-// `cant-block-power-2-or-greater` keyword; the combat validator reads the
-// attacker's effective power (CR 613 layer 7c) so layer-buffed attackers
-// still trip the restriction.
+// greater." (CR 509.1b block restriction, CR 613 layer 7c for effective
+// power). The combat validator enriches P/T to post-layer values before
+// calling the predicate, so `opponent.power` is already effective.
 export const ironclawOrcs: CardDefinition = {
     id: "d56421a8-34ae-4033-943f-c59a7bf2b6f9",
     name: "Ironclaw Orcs",
+    oracleText: "Ironclaw Orcs can't block creatures with power 2 or greater.",
     manaCost: { X: 1, R: 1 },
     types: ["Creature"],
     subtypes: ["Orc"],
     power: 2,
     toughness: 2,
-    staticAbilities: ["cant-block-power-2-or-greater"],
+    staticEffects: [
+        {
+            kind: "block-restriction",
+            id: "ironclaw-power-bound",
+            side: "blocker" as const,
+            // CR 509.1b — can't block power ≥ 2 (layer 7c via enrichment)
+            predicate: (_self, opponent) => (opponent.power ?? 0) < 2,
+            oracleText:
+                "Ironclaw Orcs can't block creatures with power 2 or greater.",
+        },
+    ],
 };
 
 // Keldon Warlord — "Keldon Warlord's power and toughness are each equal to
@@ -5389,7 +5404,17 @@ export const juggernaut: CardDefinition = {
     subtypes: ["Juggernaut"],
     power: 5,
     toughness: 3,
-    staticAbilities: ["attacks-if-able", "cant-be-blocked-by-wall"],
+    staticAbilities: ["attacks-if-able"],
+    staticEffects: [
+        {
+            kind: "block-restriction",
+            id: "juggernaut-no-walls",
+            side: "attacker" as const,
+            // CR 509.1b — can't be blocked by Walls
+            predicate: (_self, opponent) => !opponent.subtypes.includes("Wall"),
+            oracleText: "This creature can't be blocked by Walls.",
+        },
+    ],
 };
 
 // export const kormusBell: CardDefinition = {

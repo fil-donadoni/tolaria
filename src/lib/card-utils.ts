@@ -399,9 +399,6 @@ const KEYWORD_DISPLAY: Record<string, string> = {
     "skip-untap-step": "Players skip their untap steps.",
     "cant-attack-unless-defender-controls-Island":
         "This creature can't attack unless defending player controls an Island.",
-    "cant-be-blocked-by-wall": "This creature can't be blocked by Walls.",
-    "cant-block-power-2-or-greater":
-        "This creature can't block creatures with power 2 or greater.",
     "attacks-if-able": "Attacks each combat if able.",
 };
 
