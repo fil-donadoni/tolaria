@@ -437,9 +437,12 @@ describe("untapRestriction dispatcher (CR 502.1, ADR 0005)", () => {
             // (vampire vetoed by Meekstone's hard-skip filter).
             expect(state.pendingChoices).toHaveLength(1);
             expect(state.pendingChoices![0].kind).toBe("untap-pick");
-            expect(state.pendingChoices![0].filter).toEqual({
-                types: "Creature",
-            });
+            expect(state.pendingChoices![0].filter).toEqual(
+                expect.objectContaining({ types: "Creature" })
+            );
+            expect(
+                state.pendingChoices![0].filter!.excludeInstanceIds
+            ).toContain("vamp");
             expect(
                 state.players[0].battlefield.find((c) => c.id === "vamp")
                     ?.isTapped
@@ -501,7 +504,9 @@ describe("untapRestriction dispatcher (CR 502.1, ADR 0005)", () => {
 
             // Winter Orb's land prompt is unaffected by Meekstone (lands don't match Creature filter).
             expect(state.pendingChoices).toHaveLength(1);
-            expect(state.pendingChoices![0].filter).toEqual({ types: "Land" });
+            expect(state.pendingChoices![0].filter).toEqual(
+                expect.objectContaining({ types: "Land" })
+            );
             // Vampire stays tapped (Meekstone hard skip).
             expect(
                 state.players[0].battlefield.find((c) => c.id === "vamp")

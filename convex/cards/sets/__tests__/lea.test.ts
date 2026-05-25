@@ -11285,7 +11285,10 @@ describe("Meekstone + Smoke (hard-skip ∩ cap filter overlap, CR 502.1)", () =>
         expect(queue).toHaveLength(1);
         const head = queue[0];
         expect(head.kind).toBe("untap-pick");
-        expect(head.filter).toEqual({ types: "Creature" });
+        expect(head.filter).toEqual(
+            expect.objectContaining({ types: "Creature" })
+        );
+        expect(head.filter!.excludeInstanceIds).toContain("vamp");
         expect(head.count).toEqual({ min: 0, max: 1 });
         // Vampire stays tapped regardless of the Smoke prompt.
         const bf = state.players[0].battlefield;
@@ -11433,9 +11436,9 @@ describe("Meekstone + Smoke (hard-skip ∩ cap filter overlap, CR 502.1)", () =>
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.pendingChoices).toHaveLength(1);
         expect(projected.pendingChoices![0].kind).toBe("untap-pick");
-        expect(projected.pendingChoices![0].filter).toEqual({
-            types: "Creature",
-        });
+        expect(projected.pendingChoices![0].filter).toEqual(
+            expect.objectContaining({ types: "Creature" })
+        );
         // Vampire still tapped in projected view.
         const slim = projected.players[0].battlefield;
         expect(slim.find((c) => c.id === "vamp")?.isTapped).toBe(true);

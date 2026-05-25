@@ -283,7 +283,22 @@ export function untapStep(state: GameState): void {
             zoneOwnerId: state.activePlayerId,
             kind: "untap-pick",
             zone: "battlefield",
-            filter: r.filter,
+            filter: {
+                ...r.filter,
+                excludeInstanceIds:
+                    hardSkipFilters.length > 0
+                        ? player.battlefield
+                              .filter((c) =>
+                                  hardSkipFilters.some((f) =>
+                                      matchesPermanentFilter(
+                                          effectivePermanentView(state, c),
+                                          f
+                                      )
+                                  )
+                              )
+                              .map((c) => c.id)
+                        : undefined,
+            },
             count: { min: 0, max: r.maxUntap },
             selected: [],
             prompt: r.oracleText,

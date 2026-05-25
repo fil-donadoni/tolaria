@@ -412,6 +412,40 @@ function expandStackItem(compact: CompactCard): StackItem {
     return item;
 }
 
+/** Optional GameState keys that are persisted through the DB round-trip.
+ *  Single source of truth — used by both compactState and expandState.
+ *  The schema drift guard test in serialize.test.ts asserts every optional
+ *  GameState key appears here or in TRANSIENT_KEYS. */
+export const PERSISTED_OPTIONAL_KEYS = [
+    "pendingCast",
+    "pendingActivation",
+    "pendingTarget",
+    "pendingChoices",
+    "autoPassPlayers",
+    "singleShotAutoPass",
+    "combat",
+    "nextGrantSeq",
+    "mulligan",
+    "gameOver",
+    "extraTurns",
+    "preventionEffects",
+    "targetPreventionShields",
+    "delayedTriggers",
+    "nextDelayedSeq",
+    "nextTokenSeq",
+    "pendingEvents",
+    "deathsThisTurn",
+    "pendingUntapStep",
+    "damageDealtToPlayerThisTurn",
+    "damageRedirections",
+    "playerPreferences",
+] as const;
+
+/** Optional GameState keys that are intentionally ephemeral — never
+ *  persisted to the DB. The schema drift guard test accepts keys in this
+ *  set without requiring them in PERSISTED_OPTIONAL_KEYS. */
+export const TRANSIENT_KEYS = new Set<string>([]);
+
 /** Pack a GameState into the slim Convex-storage form. */
 export function compactState(state: GameState): Record<string, unknown> {
     const out: Record<string, unknown> = {
@@ -425,32 +459,7 @@ export function compactState(state: GameState): Record<string, unknown> {
         rngSeed: state.rngSeed,
         rngCounter: state.rngCounter,
     };
-    // Every optional GameState field that must survive across mutations
-    // needs an entry in BOTH this array and the expandState twin below.
-    // Missing an entry silently strips the field on save → breaks resume
-    // cursors (see #32: pendingUntapStep was dropped, resetting the untap
-    // dispatcher on every round-trip).
-    for (const k of [
-        "pendingCast",
-        "pendingActivation",
-        "pendingTarget",
-        "pendingChoices",
-        "pendingUntapStep",
-        "autoPassPlayers",
-        "singleShotAutoPass",
-        "combat",
-        "nextGrantSeq",
-        "mulligan",
-        "gameOver",
-        "extraTurns",
-        "preventionEffects",
-        "targetPreventionShields",
-        "delayedTriggers",
-        "nextDelayedSeq",
-        "nextTokenSeq",
-        "pendingEvents",
-        "deathsThisTurn",
-    ] as const) {
+    for (const k of PERSISTED_OPTIONAL_KEYS) {
         const v = (state as Record<string, unknown>)[k];
         if (v === undefined || v === null) continue;
         if (isPlainEmpty(v)) continue;
@@ -473,28 +482,7 @@ export function expandState(data: Record<string, unknown>): GameState {
         rngSeed: data.rngSeed as number,
         rngCounter: data.rngCounter as number,
     };
-    // Mirror of compactState — same keys, same order.
-    for (const k of [
-        "pendingCast",
-        "pendingActivation",
-        "pendingTarget",
-        "pendingChoices",
-        "pendingUntapStep",
-        "autoPassPlayers",
-        "singleShotAutoPass",
-        "combat",
-        "nextGrantSeq",
-        "mulligan",
-        "gameOver",
-        "extraTurns",
-        "preventionEffects",
-        "targetPreventionShields",
-        "delayedTriggers",
-        "nextDelayedSeq",
-        "nextTokenSeq",
-        "pendingEvents",
-        "deathsThisTurn",
-    ] as const) {
+    for (const k of PERSISTED_OPTIONAL_KEYS) {
         const v = data[k];
         if (v === undefined || v === null) continue;
         (result as Record<string, unknown>)[k] = v;

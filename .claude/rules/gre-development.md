@@ -57,6 +57,16 @@ const slimTarget = projected.players[i].battlefield.find(
 expect(getEffectiveToughness(projected, slimTarget)).toBe(expected);
 ```
 
+## Serialization requirement
+
+Every optional field on `GameState` must be added to `PERSISTED_OPTIONAL_KEYS` in `serialize.ts` (or `TRANSIENT_KEYS` if intentionally ephemeral). The schema drift guard test in `serialize.test.ts` fails when a GameState key is missing from both sets — this prevents silent field loss across DB writes.
+
+When adding a new optional field to `GameState`:
+
+1. Add the key to `PERSISTED_OPTIONAL_KEYS` in `serialize.ts`
+2. Add a round-trip smoke test in `serialize.test.ts` with a non-empty representative value
+3. Run `bun run test` — the drift guard will catch omissions
+
 ## Code patterns
 
 - All game state mutations are pure functions (no side effects, no async)

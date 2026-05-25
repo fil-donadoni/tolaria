@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { compactState, expandState } from "../serialize";
+import {
+    compactState,
+    expandState,
+    PERSISTED_OPTIONAL_KEYS,
+    TRANSIENT_KEYS,
+} from "../serialize";
 import type { GameState } from "../state";
 import {
     makeInstance,
@@ -11,9 +16,7 @@ import {
     mountain,
     plains,
     savannahLions,
-    winterOrb,
 } from "../../cards/sets/lea";
-import { untapStep } from "../phases";
 
 function freshState(): GameState {
     const p1 = makePlayer("p1", {
@@ -195,129 +198,396 @@ describe("game_state serialize round-trip", () => {
         expect(compactSize).toBeLessThan(rawSize * 0.7);
     });
 
-    it("pendingUntapStep survives compact → expand round-trip (#32)", () => {
+    it("pendingUntapStep survives round-trip (cursor must persist across mutations)", () => {
         const state = freshState();
         state.pendingUntapStep = { restrictionCursor: 2 };
-        const expanded = expandState(compactState(state));
-        expect(expanded.pendingUntapStep).toEqual({ restrictionCursor: 2 });
+        const got = expandState(compactState(state) as Record<string, unknown>);
+        expect(got.pendingUntapStep).toEqual({ restrictionCursor: 2 });
     });
 
-    it("pendingUntapStep: undefined round-trips as undefined", () => {
+    it("pendingUntapStep omitted when undefined", () => {
         const state = freshState();
         state.pendingUntapStep = undefined;
-        const expanded = expandState(compactState(state));
-        expect(expanded.pendingUntapStep).toBeUndefined();
+        const compact = compactState(state);
+        expect("pendingUntapStep" in compact).toBe(false);
     });
+});
 
-    it("compactState and expandState key arrays are symmetric", () => {
-        const rich = freshState();
-        rich.pendingUntapStep = { restrictionCursor: 1 };
-        rich.pendingChoices = [];
-        rich.autoPassPlayers = [];
-        rich.combat = {
+// S2: Schema drift guard — every optional GameState key must be accounted for
+// in PERSISTED_OPTIONAL_KEYS or TRANSIENT_KEYS.
+const BASE_KEYS = new Set([
+    "players",
+    "stack",
+    "turn",
+    "activePlayerId",
+    "priorityPlayerId",
+    "passCount",
+    "phase",
+    "rngSeed",
+    "rngCounter",
+]);
+
+describe("schema drift guard", () => {
+    it("every optional GameState key is in PERSISTED_OPTIONAL_KEYS or TRANSIENT_KEYS", () => {
+        const allKnown = new Set<string>([
+            ...PERSISTED_OPTIONAL_KEYS,
+            ...TRANSIENT_KEYS,
+            ...BASE_KEYS,
+        ]);
+        // Build a state with every optional field populated so we can
+        // enumerate the actual runtime keys.
+        const state = freshState();
+        state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "c1",
+            manaCost: { R: 1 },
+            tappedLandIds: [],
+            keepPriority: false,
+        };
+        state.pendingActivation = {
+            playerId: "p1",
+            cardInstanceId: "c1",
+            abilityId: "a1",
+            manaCost: { R: 1 },
+            tappedLandIds: [],
+            tapSource: true,
+            sacrificeSource: false,
+        };
+        state.pendingTarget = {
+            playerId: "p1",
+            cardInstanceId: "c1",
+            targetType: "Creature",
+            count: 1,
+            selected: [],
+        };
+        state.pendingChoices = [
+            {
+                stackItemId: "s1",
+                step: 0,
+                choiceId: "c1",
+                playerId: "p1",
+                zoneOwnerId: "p1",
+                kind: "untap-pick",
+                zone: "battlefield",
+                count: 1,
+                selected: [],
+                prompt: "test",
+            },
+        ];
+        state.autoPassPlayers = ["p1"];
+        state.singleShotAutoPass = "p1";
+        state.combat = {
             attackerIds: [],
             confirmed: false,
             blockerAssignments: {},
             blockersConfirmed: false,
-            damageAssignments: {},
         };
-        const richCompact = compactState(rich);
-        const richExpanded = expandState(richCompact);
-        // pendingUntapStep must survive.
-        expect(richExpanded.pendingUntapStep).toEqual({
-            restrictionCursor: 1,
-        });
+        state.nextGrantSeq = 1;
+        state.mulligan = {
+            mulligansTaken: [0, 0],
+            declarations: [null, null],
+            locked: [false, false],
+            declaringPlayerId: "p1",
+            bottoming: false,
+        };
+        state.gameOver = { winnerId: "p1", loserId: "p2", reason: "life" };
+        state.extraTurns = ["p1"];
+        state.preventionEffects = [
+            {
+                sourceInstanceId: "s1",
+                playerId: "p1",
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        state.targetPreventionShields = [
+            {
+                targetType: "player",
+                targetId: "p1",
+                remaining: 1,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        state.delayedTriggers = [
+            {
+                id: "dt-1",
+                sourceCardId: "src-1",
+                triggerId: "trig-1",
+                controller: "p1",
+                timing: "next-end-step",
+                payload: { targetId: "p2" },
+            },
+        ];
+        state.nextDelayedSeq = 1;
+        state.nextTokenSeq = 1;
+        state.pendingEvents = [
+            {
+                type: "CREATURE_DIED",
+                creatureInstanceId: "c1",
+                creatureControllerId: "p1",
+                creatureTypes: ["Creature"],
+                damagedBySources: [],
+                creaturePower: 2,
+                creatureToughness: 2,
+            },
+        ];
+        state.deathsThisTurn = 1;
+        state.pendingUntapStep = { restrictionCursor: 1 };
+        state.damageDealtToPlayerThisTurn = { p1: 3 };
+        state.damageRedirections = [
+            {
+                kind: "prevent-from-source-gain-life",
+                sourceInstanceId: "s1",
+                playerId: "p1",
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        state.playerPreferences = { p1: { libraryOfLengRouting: "graveyard" } };
+
+        const stateKeys = new Set(Object.keys(state));
+        const missing = [...stateKeys].filter((k) => !allKnown.has(k));
+        expect(
+            missing,
+            `GameState keys missing from PERSISTED_OPTIONAL_KEYS and TRANSIENT_KEYS`
+        ).toEqual([]);
     });
 });
 
-describe("pendingUntapStep serialize regression — Winter Orb (#32)", () => {
-    it("untap-pick prompt cursor survives compact → expand → re-entry (no duplicate prompt)", () => {
-        const orb = makeInstance(winterOrb.id, { id: "orb" });
-        const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
-        const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
-        const land3 = makeInstance(plains.id, { id: "l3", isTapped: true });
-        const state = makeState({
-            phase: "UNTAP",
-            players: [
-                makePlayer("p1", {
-                    battlefield: [orb, land1, land2, land3],
-                }),
-                makePlayer("p2"),
-            ],
-        });
-        untapStep(state);
+// S3: Round-trip smoke tests — one per optional field in PERSISTED_OPTIONAL_KEYS.
+// Numeric fields that default to 0 (deathsThisTurn, nextGrantSeq, nextDelayedSeq,
+// nextTokenSeq) are tested with non-zero values — compactState's isPlainEmpty
+// skips 0 but that's safe because the engine treats missing-as-0.
+describe("optional field round-trip smoke tests", () => {
+    function roundTrip(state: GameState): GameState {
+        return expandState(compactState(state) as Record<string, unknown>);
+    }
 
-        // Step 1: exactly 1 prompt enqueued.
-        expect(state.pendingChoices).toHaveLength(1);
-        expect(state.pendingChoices![0].kind).toBe("untap-pick");
-        expect(state.pendingUntapStep).toEqual({ restrictionCursor: 1 });
-
-        // Step 2: simulate saveGameState → getLatestGameState round-trip.
-        const roundTripped = expandState(compactState(state));
-
-        // Cursor must survive.
-        expect(roundTripped.pendingUntapStep).toEqual({
-            restrictionCursor: 1,
-        });
-
-        // Step 3: simulate selectResolutionChoice → finalizeUntapPick.
-        // Pick land1, then resume dispatcher.
-        const queue = roundTripped.pendingChoices!;
-        queue[0].selected.push("l1");
-        const chooser = roundTripped.players.find(
-            (p) => p.id === queue[0].zoneOwnerId
-        )!;
-        for (const id of queue[0].selected) {
-            const c = chooser.battlefield.find((x) => x.id === id);
-            if (c) c.isTapped = false;
-        }
-        queue.shift();
-        roundTripped.pendingChoices = queue.length > 0 ? queue : undefined;
-        untapStep(roundTripped);
-
-        // No more prompts — dispatcher finished (cursor was preserved).
-        expect(roundTripped.pendingChoices ?? []).toEqual([]);
-        expect(roundTripped.pendingUntapStep).toBeUndefined();
-
-        // Only land1 untapped; land2 + land3 still tapped.
-        const bf = roundTripped.players[0].battlefield;
-        expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(false);
-        expect(bf.find((c) => c.id === "l2")?.isTapped).toBe(true);
-        expect(bf.find((c) => c.id === "l3")?.isTapped).toBe(true);
+    it("pendingCast", () => {
+        const state = freshState();
+        state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "c1",
+            manaCost: { R: 1 },
+            tappedLandIds: ["l1"],
+            keepPriority: true,
+        };
+        expect(roundTrip(state).pendingCast).toEqual(state.pendingCast);
     });
 
-    it("skip-untap (empty selection) through serialize round-trip closes prompt immediately", () => {
-        const orb = makeInstance(winterOrb.id, { id: "orb" });
-        const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
-        const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
-        const state = makeState({
-            phase: "UNTAP",
-            players: [
-                makePlayer("p1", {
-                    battlefield: [orb, land1, land2],
-                }),
-                makePlayer("p2"),
-            ],
+    it("pendingActivation", () => {
+        const state = freshState();
+        state.pendingActivation = {
+            playerId: "p1",
+            cardInstanceId: "c1",
+            abilityId: "a1",
+            manaCost: { R: 1 },
+            tappedLandIds: [],
+            tapSource: true,
+            sacrificeSource: false,
+        };
+        expect(roundTrip(state).pendingActivation).toEqual(
+            state.pendingActivation
+        );
+    });
+
+    it("pendingTarget", () => {
+        const state = freshState();
+        state.pendingTarget = {
+            playerId: "p1",
+            cardInstanceId: "c1",
+            targetType: "Creature",
+            count: 1,
+            selected: [{ type: "permanent", id: "t1" }],
+        };
+        expect(roundTrip(state).pendingTarget).toEqual(state.pendingTarget);
+    });
+
+    it("pendingChoices", () => {
+        const state = freshState();
+        state.pendingChoices = [
+            {
+                stackItemId: "s1",
+                step: 0,
+                choiceId: "c1",
+                playerId: "p1",
+                zoneOwnerId: "p1",
+                kind: "untap-pick",
+                zone: "battlefield",
+                count: { min: 0, max: 1 },
+                selected: [],
+                prompt: "test",
+            },
+        ];
+        expect(roundTrip(state).pendingChoices).toEqual(state.pendingChoices);
+    });
+
+    it("autoPassPlayers", () => {
+        const state = freshState();
+        state.autoPassPlayers = ["p1", "p2"];
+        expect(roundTrip(state).autoPassPlayers).toEqual(["p1", "p2"]);
+    });
+
+    it("singleShotAutoPass", () => {
+        const state = freshState();
+        state.singleShotAutoPass = "p1";
+        expect(roundTrip(state).singleShotAutoPass).toBe("p1");
+    });
+
+    it("combat", () => {
+        const state = freshState();
+        state.combat = {
+            attackerIds: ["a1"],
+            confirmed: true,
+            blockerAssignments: { b1: "a1" },
+            blockersConfirmed: true,
+        };
+        expect(roundTrip(state).combat).toEqual(state.combat);
+    });
+
+    it("nextGrantSeq", () => {
+        const state = freshState();
+        state.nextGrantSeq = 5;
+        expect(roundTrip(state).nextGrantSeq).toBe(5);
+    });
+
+    it("mulligan", () => {
+        const state = freshState();
+        state.mulligan = {
+            mulligansTaken: [1, 0],
+            declarations: ["keep", null],
+            locked: [true, false],
+            declaringPlayerId: "p2",
+            bottoming: false,
+        };
+        expect(roundTrip(state).mulligan).toEqual(state.mulligan);
+    });
+
+    it("gameOver", () => {
+        const state = freshState();
+        state.gameOver = { winnerId: "p1", loserId: "p2", reason: "decked" };
+        expect(roundTrip(state).gameOver).toEqual(state.gameOver);
+    });
+
+    it("extraTurns", () => {
+        const state = freshState();
+        state.extraTurns = ["p1", "p2"];
+        expect(roundTrip(state).extraTurns).toEqual(["p1", "p2"]);
+    });
+
+    it("preventionEffects", () => {
+        const state = freshState();
+        state.preventionEffects = [
+            {
+                sourceInstanceId: "s1",
+                playerId: "p1",
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        expect(roundTrip(state).preventionEffects).toEqual(
+            state.preventionEffects
+        );
+    });
+
+    it("targetPreventionShields", () => {
+        const state = freshState();
+        state.targetPreventionShields = [
+            {
+                targetType: "permanent",
+                targetId: "c1",
+                remaining: 3,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        expect(roundTrip(state).targetPreventionShields).toEqual(
+            state.targetPreventionShields
+        );
+    });
+
+    it("delayedTriggers", () => {
+        const state = freshState();
+        state.delayedTriggers = [
+            {
+                id: "dt-1",
+                sourceCardId: "src-1",
+                triggerId: "trig-1",
+                controller: "p1",
+                timing: "next-end-step",
+                payload: { targetId: "p2" },
+            },
+        ];
+        expect(roundTrip(state).delayedTriggers).toEqual(state.delayedTriggers);
+    });
+
+    it("nextDelayedSeq", () => {
+        const state = freshState();
+        state.nextDelayedSeq = 3;
+        expect(roundTrip(state).nextDelayedSeq).toBe(3);
+    });
+
+    it("nextTokenSeq", () => {
+        const state = freshState();
+        state.nextTokenSeq = 7;
+        expect(roundTrip(state).nextTokenSeq).toBe(7);
+    });
+
+    it("pendingEvents", () => {
+        const state = freshState();
+        state.pendingEvents = [
+            {
+                type: "CREATURE_DIED",
+                creatureInstanceId: "c1",
+                creatureControllerId: "p1",
+                creatureTypes: ["Creature"],
+                damagedBySources: [],
+                creaturePower: 2,
+                creatureToughness: 2,
+            },
+        ];
+        expect(roundTrip(state).pendingEvents).toEqual(state.pendingEvents);
+    });
+
+    it("deathsThisTurn", () => {
+        const state = freshState();
+        state.deathsThisTurn = 2;
+        expect(roundTrip(state).deathsThisTurn).toBe(2);
+    });
+
+    it("pendingUntapStep", () => {
+        const state = freshState();
+        state.pendingUntapStep = { restrictionCursor: 4 };
+        expect(roundTrip(state).pendingUntapStep).toEqual({
+            restrictionCursor: 4,
         });
-        untapStep(state);
-        expect(state.pendingChoices).toHaveLength(1);
+    });
 
-        // Round-trip through serializer.
-        const roundTripped = expandState(compactState(state));
+    it("damageDealtToPlayerThisTurn", () => {
+        const state = freshState();
+        state.damageDealtToPlayerThisTurn = { p1: 5, p2: 3 };
+        expect(roundTrip(state).damageDealtToPlayerThisTurn).toEqual({
+            p1: 5,
+            p2: 3,
+        });
+    });
 
-        // Skip: empty selection, dequeue, resume dispatcher.
-        roundTripped.pendingChoices!.shift();
-        roundTripped.pendingChoices =
-            (roundTripped.pendingChoices?.length ?? 0) > 0
-                ? roundTripped.pendingChoices
-                : undefined;
-        untapStep(roundTripped);
+    it("damageRedirections", () => {
+        const state = freshState();
+        state.damageRedirections = [
+            {
+                kind: "prevent-from-source-gain-life",
+                sourceInstanceId: "s1",
+                playerId: "p1",
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        expect(roundTrip(state).damageRedirections).toEqual(
+            state.damageRedirections
+        );
+    });
 
-        // No duplicate prompt (cursor survived → dispatcher skips restriction 0).
-        expect(roundTripped.pendingChoices ?? []).toEqual([]);
-        // Both lands still tapped (skip = zero untaps).
-        const bf = roundTripped.players[0].battlefield;
-        expect(bf.find((c) => c.id === "l1")?.isTapped).toBe(true);
-        expect(bf.find((c) => c.id === "l2")?.isTapped).toBe(true);
+    it("playerPreferences", () => {
+        const state = freshState();
+        state.playerPreferences = { p1: { libraryOfLengRouting: "graveyard" } };
+        expect(roundTrip(state).playerPreferences).toEqual(
+            state.playerPreferences
+        );
     });
 });

@@ -900,6 +900,8 @@ export default function DebugPanel({
 }: DebugPanelProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [showScenarios, setShowScenarios] = useState(false);
+    const [verbose, setVerbose] = useState(false);
+    const [copyFeedback, setCopyFeedback] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
     const pageVisible = usePageVisible();
 
@@ -921,6 +923,40 @@ export default function DebugPanel({
         api.game.getFullState,
         isOpen && pageVisible ? { gameId } : "skip"
     );
+
+    const prevStateRef = useRef<typeof state>(undefined);
+    useEffect(() => {
+        if (!verbose || !state) return;
+        const prev = prevStateRef.current;
+        prevStateRef.current = state;
+        if (!prev) {
+            console.log("[GRE:verbose] initial state", state);
+            return;
+        }
+        const delta: Record<string, unknown> = {};
+        if (prev.phase !== state.phase)
+            delta.phase = `${prev.phase} → ${state.phase}`;
+        if (prev.turn !== state.turn)
+            delta.turn = `${prev.turn} → ${state.turn}`;
+        if (prev.activePlayerId !== state.activePlayerId)
+            delta.activePlayer = state.activePlayerId;
+        if (prev.priorityPlayerId !== state.priorityPlayerId)
+            delta.priority = state.priorityPlayerId;
+        if (
+            JSON.stringify(prev.pendingChoices) !==
+            JSON.stringify(state.pendingChoices)
+        )
+            delta.pendingChoices = state.pendingChoices;
+        if (
+            JSON.stringify(prev.pendingUntapStep) !==
+            JSON.stringify(state.pendingUntapStep)
+        )
+            delta.pendingUntapStep = state.pendingUntapStep;
+        if (JSON.stringify(prev.stack) !== JSON.stringify(state.stack))
+            delta.stack = state.stack;
+        if (Object.keys(delta).length > 0)
+            console.log("[GRE:verbose] state changed", delta);
+    }, [verbose, state]);
     const game = useQuery(
         api.game.getGame,
         isOpen && pageVisible ? { gameId } : "skip"
@@ -984,6 +1020,25 @@ export default function DebugPanel({
                             </DebugButton>
                             <DebugButton
                                 onClick={() => {
+                                    if (state) {
+                                        navigator.clipboard.writeText(
+                                            JSON.stringify(state, null, 2)
+                                        );
+                                        setCopyFeedback(true);
+                                        setTimeout(
+                                            () => setCopyFeedback(false),
+                                            1500
+                                        );
+                                    }
+                                }}
+                            >
+                                {copyFeedback ? "Copied!" : "Copy State"}
+                            </DebugButton>
+                            <DebugButton onClick={() => setVerbose((v) => !v)}>
+                                {verbose ? "Verbose ON" : "Verbose"}
+                            </DebugButton>
+                            <DebugButton
+                                onClick={() => {
                                     localStorage.clear();
                                     sessionStorage.clear();
                                     window.location.reload();
@@ -999,23 +1054,26 @@ export default function DebugPanel({
                                 <span className="text-white/40 text-[10px] uppercase tracking-wide">
                                     Load scenario
                                 </span>
-                                {PRESET_SCENARIOS.map((scenario) => (
-                                    <DebugButton
-                                        key={scenario.label}
-                                        onClick={() =>
-                                            setupScenario({
-                                                gameId,
-                                                cards: scenario.cards,
-                                                phase: scenario.phase,
-                                                landCount: scenario.landCount,
-                                                libraryCount:
-                                                    scenario.libraryCount,
-                                            })
-                                        }
-                                    >
-                                        {scenario.label}
-                                    </DebugButton>
-                                ))}
+                                <div className="max-h-[250px] overflow-y-auto flex flex-col gap-1">
+                                    {PRESET_SCENARIOS.map((scenario) => (
+                                        <DebugButton
+                                            key={scenario.label}
+                                            onClick={() =>
+                                                setupScenario({
+                                                    gameId,
+                                                    cards: scenario.cards,
+                                                    phase: scenario.phase,
+                                                    landCount:
+                                                        scenario.landCount,
+                                                    libraryCount:
+                                                        scenario.libraryCount,
+                                                })
+                                            }
+                                        >
+                                            {scenario.label}
+                                        </DebugButton>
+                                    ))}
+                                </div>
                             </div>
                         )}
 
