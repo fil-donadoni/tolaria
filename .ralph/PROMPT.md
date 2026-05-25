@@ -133,6 +133,26 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 Stage explicitly. Do NOT `git add -A`. List files individually or use targeted paths.
 
+## Step 5b — Rebase on latest main
+
+Main may have advanced while you were implementing (e.g. a previous PR was merged). Rebase to avoid conflicts on the PR:
+
+```bash
+git fetch origin main
+git rebase origin/main
+```
+
+If conflicts arise during rebase:
+
+- Resolve them, then re-run quality gates (Step 4).
+- If after 2 attempts the conflicts are unresolvable, print:
+
+    ```
+    <promise>HALT</promise>
+    ```
+
+    with a one-paragraph explanation of what conflicted and why. Then `git rebase --abort` and exit. Leave the branch local for inspection — do NOT push.
+
 ## Step 6 — Push + PR
 
 ```bash
