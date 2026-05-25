@@ -1064,7 +1064,7 @@ export default function DebugPanel({
                                     placeholder="Search scenarios…"
                                     className="w-full px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40"
                                 />
-                                <div className="max-h-[250px] overflow-y-auto flex flex-col gap-1">
+                                <div className="max-h-62.5 overflow-y-auto flex flex-col gap-1">
                                     {PRESET_SCENARIOS.filter((s) =>
                                         s.label
                                             .toLowerCase()

@@ -11,8 +11,6 @@ export interface Player {
     name: string;
     bgColor: string;
     life: number;
-    /** Opaque on the frontend — only the server's buildPlayerState reads it. */
-    deck: unknown;
     /** Own hand has full cards; opponent's hand is a list of nulls when viewed via getPublicState. */
     hand: (CardInstance | null)[];
     /** Full array when the viewer has full-state access, { count } when hidden (getPublicState). */

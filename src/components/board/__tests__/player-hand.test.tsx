@@ -24,7 +24,6 @@ function makePlayer(
         name: id,
         bgColor: "#000",
         life: 20,
-        deck: { id: "d", name: "d", cards: [], format: "standard" },
         hand,
         library: [],
         graveyard: [],

@@ -24,11 +24,10 @@
         "noFallthroughCasesInSwitch": true,
         "noUncheckedSideEffectImports": true,
 
-        "baseUrl": ".",
         "paths": {
-            "~/*": ["src/*"],
-            "@/*": ["src/*"],
-            "@convex/*": ["convex/*"]
+            "~/*": ["./src/*"],
+            "@/*": ["./src/*"],
+            "@convex/*": ["./convex/*"]
         }
     },
     "include": [
