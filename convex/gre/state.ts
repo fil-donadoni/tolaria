@@ -1010,6 +1010,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     power: sourceCard.power,
                     toughness: sourceCard.toughness,
                     attachedTo: sourceCard.attachedTo,
+                    counters: sourceCard.counters,
                     card: sourceCard.card as Record<string, unknown>,
                 };
                 if (!ability.interveningIf(top.triggerEvent, selfView, state)) {

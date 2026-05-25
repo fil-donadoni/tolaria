@@ -118,6 +118,7 @@ function buildPermanentView(card: CardInstanceState): PermanentView {
         power: card.power,
         toughness: card.toughness,
         attachedTo: card.attachedTo,
+        counters: card.counters,
         card: card.card as Record<string, unknown>,
     };
 }
@@ -178,6 +179,15 @@ function buildApplyCtx(
         },
         adjustLifeRaw: (playerId, delta) => {
             getPlayer(state, playerId).life += delta;
+        },
+        removeCounter: (type, count) => {
+            if (!source.counters) return 0;
+            const current = source.counters[type] ?? 0;
+            const removed = Math.min(current, count);
+            if (removed <= 0) return 0;
+            source.counters[type] = current - removed;
+            if (source.counters[type] === 0) delete source.counters[type];
+            return removed;
         },
         state: buildStateView(state),
         self: buildPermanentView(source),

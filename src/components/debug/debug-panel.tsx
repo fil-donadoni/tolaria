@@ -961,6 +961,41 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "Rock Hydra + Gauntlet — counters, replacement, mana bonus (W23)",
+        cards: [
+            { name: "Rock Hydra", owner: "me" as const },
+            { name: "Gauntlet of Might", owner: "me" as const },
+            {
+                name: "Mons's Goblin Raiders",
+                owner: "me" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 6 },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Living Artifact — vitality counters + upkeep life (W23)",
+        cards: [
+            { name: "Sol Ring", owner: "me" as const },
+            { name: "Living Artifact", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 2 },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

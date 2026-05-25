@@ -1436,6 +1436,10 @@ export interface ReplacementApplyContext {
      *  category of life-change (e.g. lifegain → draw N implicitly converts
      *  the gain to 0). Bypasses the replacement loop to avoid recursion. */
     adjustLifeRaw: (playerId: string, delta: number) => void;
+    /** Removes up to `count` counters of `type` from the source permanent.
+     *  Returns the number actually removed (clamped to availability). Used by
+     *  Rock Hydra's damage→counter-removal replacement (CR 614.1a). */
+    removeCounter: (type: string, count: number) => number;
     /** Read-only inspector for state used by `appliesTo` predicates and by
      *  `replace` bodies that need to inspect the source's environment. */
     state: ReplacementStateView;

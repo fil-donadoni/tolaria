@@ -14144,6 +14144,390 @@ describe("preventAllCombatDamageThisTurn serialization", () => {
 });
 
 // ---------------------------------------------------------------------------
+// W23 — Rock Hydra + Guardian Angel + Gauntlet of Might + Living Artifact
+// ---------------------------------------------------------------------------
+
+import {
+    rockHydra,
+    guardianAngel,
+    gauntletOfMight,
+    livingArtifact,
+} from "../lea";
+
+describe("Rock Hydra (CR 107.3 — enters with X +1/+1 counters)", () => {
+    it("enters with X +1/+1 counters when cast with X=3", () => {
+        const state = makeState();
+        const item = pushSpell(state, rockHydra.id, "p1");
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        const onField = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === rockHydra.id
+        )!;
+        expect(onField.counters?.["+1/+1"]).toBe(3);
+        expect(getEffectivePower(state, onField)).toBe(3);
+        expect(getEffectiveToughness(state, onField)).toBe(3);
+    });
+
+    it("replacement effect: damage removes +1/+1 counters instead of being dealt", () => {
+        const hydra = makeInstance(rockHydra.id, {
+            id: "hydra",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+1": 4 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hydra] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "hydra" },
+        ]);
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "hydra"
+        )!;
+        expect(after.counters?.["+1/+1"]).toBe(1);
+        expect(after.damageMarked).toBeFalsy();
+    });
+
+    it("replacement effect: excess damage gets through when counters are insufficient", () => {
+        // Hydra with 2 counters (effective 2/2) takes 3 bolt: replacement
+        // removes 2 counters (prevents 2), 1 excess damage marks on the now
+        // 0/0 creature → lethal → destroyed inline (CR 704.5g).
+        const hydra = makeInstance(rockHydra.id, {
+            id: "hydra",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+1": 2 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hydra] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "hydra" },
+        ]);
+        resolveTopOfStack(state);
+        // Hydra should be in the graveyard — 0/0 with 1 excess damage is lethal
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "hydra")
+        ).toBeUndefined();
+        expect(
+            state.players[0].graveyard.find((c) => c.id === "hydra")
+        ).toBeDefined();
+    });
+
+    it("{R}: prevent next 1 damage to Rock Hydra this turn", () => {
+        const hydra = makeInstance(rockHydra.id, {
+            id: "hydra",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+1": 2 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hydra] }),
+                makePlayer("p2"),
+            ],
+        });
+        activatePump(state, hydra, "rock-hydra-prevent");
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "hydra" },
+        ]);
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "hydra"
+        )!;
+        // 3 damage bolt: 1 prevented by shield, 2 absorbed by counter-removal
+        expect(after.counters?.["+1/+1"]).toBeUndefined();
+        expect(after.damageMarked).toBeFalsy();
+    });
+
+    it("{RRR}: adds a +1/+1 counter (only during upkeep)", () => {
+        const hydra = makeInstance(rockHydra.id, {
+            id: "hydra",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+1": 2 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hydra] }),
+                makePlayer("p2"),
+            ],
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        });
+        activatePump(state, hydra, "rock-hydra-grow");
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "hydra"
+        )!;
+        expect(after.counters?.["+1/+1"]).toBe(3);
+    });
+
+    it("{RRR} is restricted to upkeep phase (definition check)", () => {
+        const def = tryGetCardById(rockHydra.id)!;
+        const growAbility = def.activatedAbilities!.find(
+            (a) => a.id === "rock-hydra-grow"
+        )!;
+        expect(growAbility.activationPhaseRestriction).toEqual(["UPKEEP"]);
+        expect(growAbility.controllerTurnOnly).toBe(true);
+    });
+});
+
+describe("Guardian Angel (CR 615.1 — prevent next X damage to target)", () => {
+    it("prevents X damage to a targeted creature", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, guardianAngel.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        // Shield is now active — deal 3 damage with bolt
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(after.damageMarked).toBeFalsy();
+    });
+
+    it("prevents X damage to a targeted player", () => {
+        const state = makeState({
+            players: [makePlayer("p1", { life: 20 }), makePlayer("p2")],
+        });
+        const item = pushSpell(state, guardianAngel.id, "p1", [
+            { type: "player", id: "p1" },
+        ]);
+        item.chosenX = 2;
+        resolveTopOfStack(state);
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        // 3 damage - 2 prevented = 1 damage through
+        expect(state.players[0].life).toBe(19);
+    });
+});
+
+describe("Gauntlet of Might (static pt-buff + tapped trigger)", () => {
+    it("red creatures get +1/+1", () => {
+        const goblin = makeInstance(monssGoblinRaiders.id, {
+            id: "goblin",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const gauntlet = makeInstance(gauntletOfMight.id, {
+            id: "gauntlet",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [goblin, gauntlet] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Mons's Goblin Raiders is 1/1 red creature
+        expect(getEffectivePower(state, goblin)).toBe(2);
+        expect(getEffectiveToughness(state, goblin)).toBe(2);
+    });
+
+    it("does NOT buff non-red creatures", () => {
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const gauntlet = makeInstance(gauntletOfMight.id, {
+            id: "gauntlet",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lion, gauntlet] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Savannah Lions is 2/1 white — should NOT be buffed
+        expect(getEffectivePower(state, lion)).toBe(2);
+        expect(getEffectiveToughness(state, lion)).toBe(1);
+    });
+
+    it("buffs opponent's red creatures too", () => {
+        const oppGoblin = makeInstance(monssGoblinRaiders.id, {
+            id: "opp-gob",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const gauntlet = makeInstance(gauntletOfMight.id, {
+            id: "gauntlet",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gauntlet] }),
+                makePlayer("p2", { battlefield: [oppGoblin] }),
+            ],
+        });
+        expect(getEffectivePower(state, oppGoblin)).toBe(2);
+        expect(getEffectiveToughness(state, oppGoblin)).toBe(2);
+    });
+
+    it("wire format: red creature pt-buff survives projection", () => {
+        const goblin = makeInstance(monssGoblinRaiders.id, {
+            id: "goblin",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const gauntlet = makeInstance(gauntletOfMight.id, {
+            id: "gauntlet",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [goblin, gauntlet] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slimGoblin = projected.players[0].battlefield.find(
+            (c) => c.id === "goblin"
+        )!;
+        expect(getEffectivePower(projected, slimGoblin)).toBe(2);
+        expect(getEffectiveToughness(projected, slimGoblin)).toBe(2);
+    });
+
+    it("Mountains produce extra {R} when tapped for mana", () => {
+        const mtn = makeInstance(mountain.id, {
+            id: "mtn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const gauntlet = makeInstance(gauntletOfMight.id, {
+            id: "gauntlet",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mtn, gauntlet] }),
+                makePlayer("p2"),
+            ],
+        });
+        emitPermanentTapped(state, mtn, true, { R: 1 });
+        processPendingActionTriggers(state);
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool["R"]).toBe(1);
+    });
+});
+
+describe("Living Artifact (Aura — vitality counters + upkeep life gain)", () => {
+    it("gains vitality counters when controller is dealt damage", () => {
+        const artifact = makeInstance(solRing.id, {
+            id: "host-art",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(livingArtifact.id, {
+            id: "la",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host-art",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [artifact, aura],
+                    life: 20,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        processPendingActionTriggers(state);
+        resolveTopOfStack(state);
+        const auraAfter = state.players[0].battlefield.find(
+            (c) => c.id === "la"
+        )!;
+        expect(auraAfter.counters?.["vitality"]).toBe(3);
+    });
+
+    it("upkeep: may remove a vitality counter to gain 1 life", () => {
+        const artifact = makeInstance(solRing.id, {
+            id: "host-art",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(livingArtifact.id, {
+            id: "la",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host-art",
+            counters: { vitality: 2 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [artifact, aura],
+                    life: 17,
+                }),
+                makePlayer("p2"),
+            ],
+            phase: "UNTAP",
+            activePlayerId: "p1",
+        });
+        advancePhase(state); // UNTAP → UPKEEP fires the phaseTrigger
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.stack.length).toBe(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "living-artifact-upkeep"
+        );
+        // First resolveTopOfStack enqueues the may-pay choice
+        resolveTopOfStack(state);
+        expect(state.pendingChoices?.length).toBe(1);
+        expect(state.pendingChoices![0].kind).toBe("may-pay");
+        // Simulate submitMayPay accept=yes
+        const pending = state.pendingChoices![0];
+        const stackItem = state.stack.find(
+            (s) => s.id === pending.stackItemId
+        )!;
+        const key = `${pending.step}:${pending.choiceId}`;
+        stackItem.collectedChoices = { [key]: ["yes"] };
+        state.pendingChoices = undefined;
+        // Re-invoke resolveTopOfStack to resume
+        resolveTopOfStack(state);
+        const auraAfter = state.players[0].battlefield.find(
+            (c) => c.id === "la"
+        )!;
+        expect(auraAfter.counters?.["vitality"]).toBe(1);
+        expect(state.players[0].life).toBe(18);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
 

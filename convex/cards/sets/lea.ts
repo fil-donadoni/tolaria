@@ -469,13 +469,23 @@ export const greenWard: CardDefinition = makeColorWard({
     color: "green",
 });
 
-// export const guardianAngel: CardDefinition = {
-//     id: "0f84d676-5327-454c-a033-b4498a9d28e2",
-//     name: "Guardian Angel",
-//     oracleText: "Prevent the next X damage that would be dealt to any target this turn. Until end of turn, you may pay {1} any time you could cast an instant. If you do, prevent the next 1 damage that would be dealt to that permanent or player this turn.",
-//     manaCost: { X: "X", W: 1 },
-//     types: ["Instant"],
-// };
+export const guardianAngel: CardDefinition = {
+    id: "0f84d676-5327-454c-a033-b4498a9d28e2",
+    name: "Guardian Angel",
+    oracleText:
+        "Prevent the next X damage that would be dealt to any target this turn. Until end of turn, you may pay {1} any time you could cast an instant. If you do, prevent the next 1 damage that would be dealt to that permanent or player this turn.",
+    manaCost: { X: "X", W: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "any", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (!t) return;
+        const x = ctx.getX();
+        if (x > 0) {
+            ctx.preventNextNDamageToTarget(t, x, { phase: "end-of-turn" });
+        }
+    },
+};
 
 // Healing Salve — "Choose one — Target player gains 3 life. OR Prevent the
 // next 3 damage that would be dealt to any target this turn." (CR 700.2
@@ -3907,16 +3917,75 @@ export const rocOfKherRidges: CardDefinition = {
     staticAbilities: ["flying"],
 };
 
-// export const rockHydra: CardDefinition = {
-//     id: "410ac9e6-fbc1-4cc8-84db-84e2eb1bab97",
-//     name: "Rock Hydra",
-//     oracleText: "This creature enters with X +1/+1 counters on it.\nFor each 1 damage that would be dealt to this creature, if it has a +1/+1 counter on it, remove a +1/+1 counter from it and prevent that 1 damage.\n{R}: Prevent the next 1 damage that would be dealt to this creature this turn.\n{R}{R}{R}: Put a +1/+1 counter on this creature. Activate only during your upkeep.",
-//     manaCost: { X: "X", R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Hydra"],
-//     power: 0,
-//     toughness: 0,
-// };
+export const rockHydra: CardDefinition = {
+    id: "410ac9e6-fbc1-4cc8-84db-84e2eb1bab97",
+    name: "Rock Hydra",
+    oracleText:
+        "This creature enters with X +1/+1 counters on it.\nFor each 1 damage that would be dealt to this creature, if it has a +1/+1 counter on it, remove a +1/+1 counter from it and prevent that 1 damage.\n{R}: Prevent the next 1 damage that would be dealt to this creature this turn.\n{R}{R}{R}: Put a +1/+1 counter on this creature. Activate only during your upkeep.",
+    manaCost: { X: "X", R: 2 },
+    types: ["Creature"],
+    subtypes: ["Hydra"],
+    power: 0,
+    toughness: 0,
+    entersWith: { counters: [{ type: "+1/+1", count: "X" }] },
+    replacementEffects: [
+        {
+            id: "rock-hydra-counter-prevent",
+            oracleText:
+                "For each 1 damage that would be dealt to Rock Hydra, if it has a +1/+1 counter on it, remove a +1/+1 counter from it and prevent that 1 damage.",
+            eventKind: "damage",
+            appliesTo: (event, self) => {
+                if (event.kind !== "damage") return false;
+                if (event.target.type !== "permanent") return false;
+                if (event.target.id !== self.id) return false;
+                return (self.counters?.["+1/+1"] ?? 0) > 0;
+            },
+            replace: (event, ctx) => {
+                if (event.kind !== "damage") return { kind: "consumed" };
+                const prevented = ctx.removeCounter("+1/+1", event.amount);
+                if (prevented >= event.amount) {
+                    return { kind: "consumed" };
+                }
+                return {
+                    kind: "modified",
+                    event: { ...event, amount: event.amount - prevented },
+                };
+            },
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "rock-hydra-prevent",
+            oracleText:
+                "{R}: Prevent the next 1 damage that would be dealt to Rock Hydra this turn.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.preventNextNDamageToTarget(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+        {
+            id: "rock-hydra-grow",
+            oracleText:
+                "{R}{R}{R}: Put a +1/+1 counter on Rock Hydra. Activate only during your upkeep.",
+            cost: { mana: { R: 3 } },
+            useStack: true,
+            activationPhaseRestriction: ["UPKEEP"],
+            controllerTurnOnly: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "+1/+1",
+                    1
+                );
+            },
+        },
+    ],
+};
 
 export const sedgeTroll: CardDefinition = {
     id: "b13bf496-f3c0-4c13-8282-e7abfab6a198",
@@ -4644,14 +4713,62 @@ export const lifeforce: CardDefinition = {
 //     types: ["Instant"],
 // };
 
-// export const livingArtifact: CardDefinition = {
-//     id: "c9e753a2-a7d0-4d37-ae65-b5a1b5039a6e",
-//     name: "Living Artifact",
-//     oracleText: "Enchant artifact\nWhenever you're dealt damage, put that many vitality counters on this Aura.\nAt the beginning of your upkeep, you may remove a vitality counter from this Aura. If you do, you gain 1 life.",
-//     manaCost: { G: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+export const livingArtifact: CardDefinition = {
+    id: "c9e753a2-a7d0-4d37-ae65-b5a1b5039a6e",
+    name: "Living Artifact",
+    oracleText:
+        "Enchant artifact\nWhenever you're dealt damage, put that many vitality counters on this Aura.\nAt the beginning of your upkeep, you may remove a vitality counter from this Aura. If you do, you gain 1 life.",
+    manaCost: { G: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Artifact", count: 1 },
+    triggeredAbilities: [
+        damageTakenTrigger({
+            id: "living-artifact-vitality",
+            oracleText:
+                "Whenever you're dealt damage, put that many vitality counters on Living Artifact.",
+            target: {
+                kind: "player",
+                player: { relation: "controller" },
+            },
+            resolve: (ctx, _event, damage) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "vitality",
+                    damage.amount
+                );
+            },
+        }),
+        phaseTrigger({
+            id: "living-artifact-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, you may remove a vitality counter from Living Artifact. If you do, you gain 1 life.",
+            phase: "UPKEEP",
+            scope: "your",
+            interveningIf: (_event, self) => {
+                return (self.counters?.["vitality"] ?? 0) > 0;
+            },
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: ctx.controller,
+                    prompt: "Remove a vitality counter from Living Artifact to gain 1 life?",
+                });
+                if (accept === undefined) return;
+                if (accept) {
+                    const removed = ctx.removeCounter(
+                        { type: "permanent", id: ctx.sourceInstanceId },
+                        "vitality",
+                        1
+                    );
+                    if (removed > 0) {
+                        ctx.gainLife(ctx.controller, 1);
+                    }
+                }
+            },
+        }),
+    ],
+};
 
 // export const livingLands: CardDefinition = {
 //     id: "80be0580-7948-4d8e-8c0f-5e2797ac411b",
@@ -5359,13 +5476,36 @@ export const dingusEgg: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const gauntletOfMight: CardDefinition = {
-//     id: "da248001-ed75-4b68-9532-37d3cd5afc4c",
-//     name: "Gauntlet of Might",
-//     oracleText: "Red creatures get +1/+1.\nWhenever a Mountain is tapped for mana, its controller adds an additional {R}.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+export const gauntletOfMight: CardDefinition = {
+    id: "da248001-ed75-4b68-9532-37d3cd5afc4c",
+    name: "Gauntlet of Might",
+    oracleText:
+        "Red creatures get +1/+1.\nWhenever a Mountain is tapped for mana, its controller adds an additional {R}.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, _source, ctx) =>
+                ctx.isCreature(target) && ctx.getColors(target).includes("R"),
+            power: 1,
+            toughness: 1,
+        },
+    ],
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "gauntlet-mana-bonus",
+            oracleText:
+                "Whenever a Mountain is tapped for mana, its controller adds an additional {R}.",
+            scope: "any",
+            filter: { subtypes: "Mountain" },
+            forMana: true,
+            resolve: (ctx, _event, tapped) => {
+                ctx.addManaTo(tapped.controllerId, { R: 1 });
+            },
+        }),
+    ],
+};
 
 // export const glassesOfUrza: CardDefinition = {
 //     id: "cafc2350-5d64-4379-9198-79a114654d45",
