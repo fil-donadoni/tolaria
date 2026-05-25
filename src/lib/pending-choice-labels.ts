@@ -14,6 +14,7 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "search-library": "Search",
     "pick-source": "Pick source",
     "untap-pick": "Untap step",
+    "discard-hand": "Discard",
     // yes-no family
     "may-pay": "Optional",
     // order family

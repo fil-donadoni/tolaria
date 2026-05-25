@@ -205,7 +205,10 @@ import {
     livingWall,
     ankhOfMishra,
     dingusEgg,
+    disruptingScepter,
+    fog,
     forest,
+    terror,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -13925,6 +13928,218 @@ describe("Dingus Egg (land LTB to graveyard → 2 damage to controller)", () => 
             (s) => s.triggeredAbilityId === "dingus-egg-land-dies"
         );
         expect(eggTriggers).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Terror (CR 701.7, 701.15c — destroy target nonartifact, nonblack creature)
+// ---------------------------------------------------------------------------
+
+describe("Terror (destroy target nonartifact, nonblack creature, CR 701.7)", () => {
+    it("destroys a non-artifact, non-black creature", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, terror.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard).toHaveLength(1);
+    });
+
+    it("cannot target artifact creatures (excludeTypes)", () => {
+        const jugger = makeInstance(juggernaut.id, {
+            id: "jugger",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [jugger] }),
+            ],
+        });
+        const targets = getLegalTargets(state, terror.targetRequirement!, []);
+        expect(targets.find((t) => t.id === "jugger")).toBeUndefined();
+    });
+
+    it("cannot target black creatures (excludeColors)", () => {
+        const knight = makeInstance(blackKnight.id, {
+            id: "bk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [knight] }),
+            ],
+        });
+        const targets = getLegalTargets(state, terror.targetRequirement!, []);
+        expect(targets.find((t) => t.id === "bk")).toBeUndefined();
+    });
+
+    it("can target a white creature (not excluded)", () => {
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [lion] }),
+            ],
+        });
+        const targets = getLegalTargets(state, terror.targetRequirement!, []);
+        expect(targets.find((t) => t.id === "lion")).toBeDefined();
+    });
+
+    it("destroyed creature can't be regenerated (cantBeRegenerated)", () => {
+        const troll = makeInstance(uthdenTroll.id, {
+            id: "troll",
+            controllerId: "p2",
+            ownerId: "p2",
+            regenerationShields: 1,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [troll] }),
+            ],
+        });
+        pushSpell(state, terror.id, "p1", [{ type: "permanent", id: "troll" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard).toHaveLength(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Fog (CR 615 — prevent all combat damage this turn)
+// ---------------------------------------------------------------------------
+
+describe("Fog (prevent all combat damage this turn, CR 615)", () => {
+    it("prevents all combat damage", async () => {
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+            combat: {
+                attackerIds: ["bear"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
+        });
+        pushSpell(state, fog.id, "p2");
+        resolveTopOfStack(state);
+        expect(state.preventAllCombatDamageThisTurn).toBe(true);
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, {});
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("does not prevent non-combat damage", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { life: 20 })],
+        });
+        pushSpell(state, fog.id, "p2");
+        resolveTopOfStack(state);
+        expect(state.preventAllCombatDamageThisTurn).toBe(true);
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17);
+    });
+
+    it("preventAllCombatDamageThisTurn flag cleared at cleanup", () => {
+        const state = makeState({
+            phase: "END_STEP",
+            preventAllCombatDamageThisTurn: true,
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        advancePhase(state);
+        expect(state.preventAllCombatDamageThisTurn).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Disrupting Scepter (CR 701.8, 602.5b — {3},{T}: target player discards)
+// ---------------------------------------------------------------------------
+
+describe("Disrupting Scepter ({3},{T}: target player discards, CR 701.8)", () => {
+    it("opponent chooses which card to discard", () => {
+        const scepter = makeInstance(disruptingScepter.id, {
+            id: "scepter",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const handCard1 = makeInstance(grizzlyBears.id, {
+            id: "h1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const handCard2 = makeInstance(lightningBolt.id, {
+            id: "h2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [scepter] }),
+                makePlayer("p2", { hand: [handCard1, handCard2] }),
+            ],
+        });
+        const ability = disruptingScepter.activatedAbilities![0];
+        const item = pushSpell(state, disruptingScepter.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.abilityId = ability.id;
+        resolveTopOfStack(state);
+        expect(state.pendingChoices).toBeDefined();
+        expect(state.pendingChoices!.length).toBe(1);
+        expect(state.pendingChoices![0].kind).toBe("discard-hand");
+    });
+
+    it("can only be activated during controller's turn (controllerTurnOnly)", () => {
+        const ability = disruptingScepter.activatedAbilities![0];
+        expect(ability.controllerTurnOnly).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Serialization: preventAllCombatDamageThisTurn round-trip
+// ---------------------------------------------------------------------------
+
+describe("preventAllCombatDamageThisTurn serialization", () => {
+    it("round-trips through compactState / expandState", async () => {
+        const { compactState, expandState } =
+            await import("../../../gre/serialize");
+        const state = makeState({
+            preventAllCombatDamageThisTurn: true,
+        });
+        const compact = compactState(state);
+        const expanded = expandState(compact);
+        expect(expanded.preventAllCombatDamageThisTurn).toBe(true);
     });
 });
 

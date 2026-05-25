@@ -102,6 +102,14 @@ export interface TargetRequirement {
      *  battlefield-permanent targets (Simulacrum: "target creature you
      *  control"). Ignored for player / spell targets. */
     controller?: "you" | "opponent" | "any";
+    /** Excludes permanents whose `types` include any of these (CR 205).
+     *  Used by Terror ("target nonartifact, nonblack creature"). Single
+     *  string is shorthand for one type. */
+    excludeTypes?: CardType | CardType[];
+    /** Excludes permanents whose mana-cost-derived colors include any of
+     *  these (CR 202.2). Used by Terror ("target nonblack creature"). Single
+     *  value is shorthand for one color. */
+    excludeColors?: Color | Color[];
 }
 
 export interface TargetSelection {
@@ -621,6 +629,9 @@ export interface SpellContext {
      *  delayed triggers. Returns false for players and for permanents no
      *  longer on the battlefield. */
     hasAttackedThisTurn: (target: TargetSelection) => boolean;
+    /** Prevents all combat damage for the remainder of this turn (CR 615,
+     *  Fog). Cleared at CLEANUP. Non-combat damage is unaffected. */
+    preventAllCombatDamage: () => void;
 
     // --- Mid-resolution choices (CR 608.2, 101.4) ---
 

@@ -343,6 +343,7 @@ describe("schema drift guard", () => {
             },
         ];
         state.playerPreferences = { p1: { libraryOfLengRouting: "graveyard" } };
+        state.preventAllCombatDamageThisTurn = true;
 
         const stateKeys = new Set(Object.keys(state));
         const missing = [...stateKeys].filter((k) => !allKnown.has(k));
@@ -596,6 +597,12 @@ describe("optional field round-trip smoke tests", () => {
         const state = freshState();
         state.nextInstanceId = 42;
         expect(roundTrip(state).nextInstanceId).toBe(42);
+    });
+
+    it("preventAllCombatDamageThisTurn", () => {
+        const state = freshState();
+        state.preventAllCombatDamageThisTurn = true;
+        expect(roundTrip(state).preventAllCombatDamageThisTurn).toBe(true);
     });
 });
 

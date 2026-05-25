@@ -6178,3 +6178,72 @@ export const forest: CardDefinition = {
     supertypes: ["Basic"],
     subtypes: ["Forest"],
 };
+
+// Terror — {1}{B} Instant. "Destroy target nonartifact, nonblack creature.
+// It can't be regenerated." (CR 701.7, 701.15c, 202.2, 205)
+export const terror: CardDefinition = {
+    id: "21004958-2c7e-4a55-bc80-411c4d780106",
+    name: "Terror",
+    oracleText:
+        "Destroy target nonartifact, nonblack creature. It can't be regenerated.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: "Creature",
+        count: 1,
+        excludeTypes: "Artifact",
+        excludeColors: "B",
+    },
+    resolve: (ctx: SpellContext) => {
+        ctx.destroy(ctx.targets[0], { cantBeRegenerated: true });
+    },
+};
+
+// Fog — {G} Instant. "Prevent all combat damage that would be dealt this
+// turn." (CR 615)
+export const fog: CardDefinition = {
+    id: "cfba606d-bb55-43ba-aa0c-299649958788",
+    name: "Fog",
+    oracleText: "Prevent all combat damage that would be dealt this turn.",
+    manaCost: { G: 1 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        ctx.preventAllCombatDamage();
+    },
+};
+
+// Disrupting Scepter — {3} Artifact. "{3}, {T}: Target player discards a
+// card. Activate only during your turn." (CR 701.8, 602.5b)
+export const disruptingScepter: CardDefinition = {
+    id: "ca571ee8-07a2-43b8-9acf-89cbfd3cf7c9",
+    name: "Disrupting Scepter",
+    oracleText:
+        "{3}, {T}: Target player discards a card. Activate only during your turn.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "disrupting-scepter-discard",
+            oracleText:
+                "{3}, {T}: Target player discards a card. Activate only during your turn.",
+            cost: { tap: true, mana: { X: 3 } },
+            useStack: true,
+            controllerTurnOnly: true,
+            targetRequirement: { type: "player", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const targetPlayerId = ctx.targets[0].id;
+                if (ctx.getHandSize(targetPlayerId) === 0) return;
+                const picks = ctx.requestChoice({
+                    playerId: targetPlayerId,
+                    choiceId: targetPlayerId,
+                    kind: "discard-hand",
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Choose a card to discard",
+                });
+                if (!picks) return;
+                ctx.discardCard(targetPlayerId, picks[0]);
+            },
+        },
+    ],
+};

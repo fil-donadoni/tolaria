@@ -780,6 +780,9 @@ export type GameState = {
      *  resumes from `restrictionCursor`. Cleared once every restriction is
      *  processed and the post-step untap+flag cleanup has run. */
     pendingUntapStep?: { restrictionCursor: number };
+    /** When true, all combat damage is prevented this turn (CR 615, Fog).
+     *  Checked at the top of `applyAllCombatDamage`; cleared at CLEANUP. */
+    preventAllCombatDamageThisTurn?: boolean;
 };
 
 /** Player-level replacement preferences. Each entry is opt-in: undefined
@@ -2746,6 +2749,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (target.type !== "permanent") return false;
             const found = findOnBattlefield(state, target.id);
             return found?.card.hasAttackedThisTurn === true;
+        },
+
+        preventAllCombatDamage(): void {
+            state.preventAllCombatDamageThisTurn = true;
         },
 
         // --- Mid-resolution choices (CR 608.2, 101.4) ---

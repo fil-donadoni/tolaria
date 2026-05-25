@@ -9,4 +9,5 @@ await run({
     agent: claudeCode("claude-opus-4-7"),
     sandbox: docker(),
     promptFile: "./.sandcastle/prompt.md",
+    maxIterations: 15,
 });

@@ -41,7 +41,8 @@ export type ZonePickKind =
     | "keep-hand"
     | "search-library"
     | "pick-source"
-    | "untap-pick";
+    | "untap-pick"
+    | "discard-hand";
 export type YesNoChoiceKind = "may-pay";
 export type OrderChoiceKind = "mulligan-bottom";
 export type PendingChoiceKind =

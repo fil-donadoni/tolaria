@@ -167,10 +167,10 @@ async function saveGameState(
     existing: Doc<"game_states"> | null
 ) {
     const stored = compactState(state as GameState);
-    const _blobSize = JSON.stringify(stored).length;
-    console.log(
-        `[BANDWIDTH] blob=${_blobSize} bytes, seq=${seq}, gameId=${gameId}`
-    );
+    // const _blobSize = JSON.stringify(stored).length;
+    // console.log(
+    //     `[BANDWIDTH] blob=${_blobSize} bytes, seq=${seq}, gameId=${gameId}`
+    // );
     if (existing) {
         await ctx.db.patch(existing._id, {
             seq,

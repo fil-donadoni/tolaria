@@ -437,6 +437,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "damageDealtToPlayerThisTurn",
     "damageRedirections",
     "playerPreferences",
+    "preventAllCombatDamageThisTurn",
 ] as const;
 
 /** Optional GameState keys that are intentionally ephemeral — never

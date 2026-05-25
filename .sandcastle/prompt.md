@@ -21,7 +21,7 @@ Work on issues in this order:
 3. **Polish** — improving existing functionality (error messages, UX, docs)
 4. **Refactors** — internal cleanups with no user-visible change
 
-Pick the highest-priority open issue that is not blocked by another open issue.
+Scan ALL open issues before picking one. Pick the highest-priority issue that is not blocked by another open issue. Use the `bug` label to identify bug fixes — they always come first regardless of creation date.
 
 ## Workflow
 

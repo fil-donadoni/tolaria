@@ -912,9 +912,54 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             },
             { name: "Mountain", owner: "me" as const, count: 3 },
             { name: "Forest", owner: "opp" as const, count: 3 },
+            { name: "Mountain", owner: "opp" as const, zone: "hand" as const },
+            { name: "Stone Rain", owner: "me" as const, zone: "hand" as const },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 2,
+    },
+    {
+        label: "Fog — prevent all combat damage (CR 615)",
+        cards: [
+            { name: "Fog", owner: "me" as const, zone: "hand" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Serra Angel", owner: "opp" as const },
+            { name: "Forest", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "me" as const },
+        ],
+        phase: "DECLARE_ATTACKERS",
+        landCount: 0,
+    },
+    {
+        label: "Terror — destroy nonartifact, nonblack creature (CR 701.7)",
+        cards: [
+            { name: "Terror", owner: "me" as const, zone: "hand" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Juggernaut", owner: "opp" as const },
+            { name: "Black Knight", owner: "opp" as const },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Disrupting Scepter — {3},{T}: target player discards (CR 701.8)",
+        cards: [
+            { name: "Disrupting Scepter", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
     },
 ];
 

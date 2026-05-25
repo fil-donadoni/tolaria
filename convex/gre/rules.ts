@@ -370,6 +370,16 @@ export function getLegalTargets(
             ? requirement.subtypeFilter
             : [requirement.subtypeFilter]
         : undefined;
+    const excludeTypes = requirement.excludeTypes
+        ? Array.isArray(requirement.excludeTypes)
+            ? requirement.excludeTypes
+            : [requirement.excludeTypes]
+        : undefined;
+    const excludeColors = requirement.excludeColors
+        ? Array.isArray(requirement.excludeColors)
+            ? requirement.excludeColors
+            : [requirement.excludeColors]
+        : undefined;
 
     // CR 115.4: "any target" means any creature, planeswalker, player, or
     // battle — the four object types that can be damaged (CR 120.3).
@@ -407,6 +417,20 @@ export function getLegalTargets(
                 if (
                     subtypeFilter &&
                     !subtypeFilter.some((s) => card.subtypes.includes(s))
+                ) {
+                    continue;
+                }
+                // CR 205 / 202.2: exclude types and colors (Terror's
+                // "nonartifact, nonblack" filter).
+                if (
+                    excludeTypes &&
+                    excludeTypes.some((t) => card.types.includes(t as never))
+                ) {
+                    continue;
+                }
+                if (
+                    excludeColors &&
+                    excludeColors.some((c) => hasColor(card, c))
                 ) {
                     continue;
                 }

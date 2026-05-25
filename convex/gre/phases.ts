@@ -497,6 +497,7 @@ export function applyAllCombatDamage(
     kind: DamageKind = "regular"
 ): void {
     if (!state.combat) return;
+    if (state.preventAllCombatDamageThisTurn) return;
 
     const activePlayer = getPlayer(state, state.activePlayerId);
     const defenderId = getOpponentId(state, state.activePlayerId);
@@ -980,6 +981,13 @@ function tickAllDurations(state: GameState): void {
             }
             card.temporaryPTMods = kept.length > 0 ? kept : undefined;
         }
+    }
+
+    // Fog-style blanket combat-damage prevention (CR 615). Only meaningful
+    // at CLEANUP — the flag is set at resolution time and lasts until end of
+    // turn. Cleared unconditionally so it doesn't persist across turns.
+    if (state.preventAllCombatDamageThisTurn) {
+        state.preventAllCombatDamageThisTurn = undefined;
     }
 }
 
