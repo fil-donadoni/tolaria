@@ -258,20 +258,21 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             if (selectedAttackerIds.includes(card.id)) return true;
             if (card.staticAbilities?.includes("defender")) return false;
             if (card.isTapped || card.isSummoningSick) return false;
-            // CR 508.1c — conditional attack restriction tied to a defender
-            // subtype. Server enforces; UI mirrors so the option isn't even
-            // offered.
-            for (const ab of card.staticAbilities ?? []) {
-                const m = ab.match(
-                    /^cant-attack-unless-defender-controls-(.+)$/
-                );
-                if (!m) continue;
-                const requiredSubtype = m[1];
+            // CR 508.1c — card-level attack restrictions from staticEffects[].
+            // Server enforces; UI mirrors so the option isn't even offered.
+            const attackDef = getCardById(card.card.id);
+            if (attackDef.staticEffects) {
                 const defender = allPlayers.find((p) => p.id !== player.id);
-                const ok = !!defender?.battlefield.some((c) =>
-                    c.subtypes?.includes(requiredSubtype)
-                );
-                if (!ok) return false;
+                for (const eff of attackDef.staticEffects) {
+                    if (eff.kind !== "attack-restriction") continue;
+                    if (
+                        !eff.predicate(
+                            card as never,
+                            (defender?.battlefield ?? []) as never
+                        )
+                    )
+                        return false;
+                }
             }
             return true;
         }
@@ -496,9 +497,13 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             // Pre-check client-side for instant feedback (the server also
             // rejects this via toggleAttacker).
             const alreadySelected = selectedAttackerIds.includes(card.id);
+            const reqDef = getCardById(card.card.id);
+            const hasAttackReq = !!reqDef.staticEffects?.some(
+                (e) => e.kind === "attack-requirement"
+            );
             const mustAttackClient =
                 alreadySelected &&
-                (card.staticAbilities?.includes("attacks-if-able") ?? false) &&
+                hasAttackReq &&
                 !card.isTapped &&
                 !card.isSummoningSick;
             if (mustAttackClient) {

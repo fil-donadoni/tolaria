@@ -397,9 +397,6 @@ const KEYWORD_DISPLAY: Record<string, string> = {
     "does-not-untap":
         "This permanent doesn't untap during its controller's untap step.",
     "skip-untap-step": "Players skip their untap steps.",
-    "cant-attack-unless-defender-controls-Island":
-        "This creature can't attack unless defending player controls an Island.",
-    "attacks-if-able": "Attacks each combat if able.",
 };
 
 /** Renders a `staticAbilities` keyword for display. Internal slug keywords

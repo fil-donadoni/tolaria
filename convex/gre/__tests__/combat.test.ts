@@ -344,7 +344,7 @@ describe("validateBlockerEligibility — block-restriction staticEffects (CR 509
     it("stacks attacker-side restriction with flying", () => {
         const jug = makeInstance(juggernaut.id, {
             id: "jug",
-            staticAbilities: ["attacks-if-able", "flying"],
+            staticAbilities: ["flying"],
         });
         const groundWall = makeInstance(wallOfSwords.id, {
             id: "wall",
@@ -553,53 +553,44 @@ describe("validateBlockerEligibility — Ironclaw Orcs power-bound (CR 509.1b + 
 // ---------------------------------------------------------------------------
 
 describe("mustAttack / getRequiredAttackerIds (CR 508.1d)", () => {
-    it("eligible creature with attacks-if-able must attack", () => {
-        const jug = makeCard({
-            types: ["Creature"],
-            staticAbilities: ["attacks-if-able"],
-        });
+    it("eligible creature with attack-requirement must attack", () => {
+        const jug = makeInstance(juggernaut.id, { id: "jug" });
         expect(mustAttack(jug)).toBe(true);
     });
 
-    it("tapped creature with attacks-if-able is not required (can't attack)", () => {
-        const jug = makeCard({
-            types: ["Creature"],
-            staticAbilities: ["attacks-if-able"],
+    it("tapped creature with attack-requirement is not required (can't attack)", () => {
+        const jug = makeInstance(juggernaut.id, {
+            id: "jug",
             isTapped: true,
         });
         expect(mustAttack(jug)).toBe(false);
     });
 
-    it("summoning-sick creature with attacks-if-able is not required", () => {
-        const jug = makeCard({
-            types: ["Creature"],
-            staticAbilities: ["attacks-if-able"],
+    it("summoning-sick creature with attack-requirement is not required", () => {
+        const jug = makeInstance(juggernaut.id, {
+            id: "jug",
             isSummoningSick: true,
         });
         expect(mustAttack(jug)).toBe(false);
     });
 
-    it("creature with defender + attacks-if-able is not required", () => {
-        const brick = makeCard({
-            types: ["Creature"],
-            staticAbilities: ["attacks-if-able", "defender"],
+    it("creature with defender + attack-requirement is not required", () => {
+        const jug = makeInstance(juggernaut.id, {
+            id: "jug",
+            staticAbilities: ["defender"],
         });
-        expect(mustAttack(brick)).toBe(false);
+        expect(mustAttack(jug)).toBe(false);
     });
 
-    it("getRequiredAttackerIds filters out ineligible required attackers", () => {
-        const jugA = makeCard({
-            id: "a",
-            types: ["Creature"],
-            staticAbilities: ["attacks-if-able"],
+    it("getRequiredAttackerIds collects from staticEffects[] data-driven", () => {
+        const eligible = makeInstance(juggernaut.id, { id: "jug1" });
+        const sick = makeInstance(juggernaut.id, {
+            id: "jug2",
+            isSummoningSick: true,
         });
-        const jugB = makeCard({
-            id: "b",
-            types: ["Creature"],
-            staticAbilities: ["attacks-if-able"],
-            isTapped: true,
-        });
-        const bears = makeCard({ id: "c", types: ["Creature"] });
-        expect(getRequiredAttackerIds([jugA, jugB, bears])).toEqual(["a"]);
+        const bears = makeInstance(savannahLions.id, { id: "bears" });
+        expect(getRequiredAttackerIds([eligible, sick, bears])).toEqual([
+            "jug1",
+        ]);
     });
 });

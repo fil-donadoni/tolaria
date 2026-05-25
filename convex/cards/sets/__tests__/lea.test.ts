@@ -1850,6 +1850,18 @@ describe("Sengir Vampire (+1/+1 on damaged-creature death, CR 603.2)", () => {
 });
 
 describe("Sea Serpent (CR 508.1c attack restriction + CR 603.8 state trigger)", () => {
+    it("uses data-driven attack-restriction (no magic string)", () => {
+        expect(seaSerpent.staticAbilities).not.toContain(
+            "cant-attack-unless-defender-controls-Island"
+        );
+        expect(seaSerpent.staticEffects).toBeDefined();
+        expect(
+            seaSerpent.staticEffects!.some(
+                (e) => e.kind === "attack-restriction"
+            )
+        ).toBe(true);
+    });
+
     function setup(opts: {
         controllerHasIsland: boolean;
         defenderHasIsland: boolean;
@@ -3703,8 +3715,12 @@ describe("Juggernaut (CR 508.1d + 509.1b)", () => {
         expect(juggernaut.subtypes).toEqual(["Juggernaut"]);
         expect(juggernaut.power).toBe(5);
         expect(juggernaut.toughness).toBe(3);
-        expect(juggernaut.staticAbilities).toContain("attacks-if-able");
         expect(juggernaut.staticEffects).toBeDefined();
+        expect(
+            juggernaut.staticEffects!.some(
+                (e) => e.kind === "attack-requirement"
+            )
+        ).toBe(true);
         expect(
             juggernaut.staticEffects!.some(
                 (e) => e.kind === "block-restriction"
@@ -6969,6 +6985,18 @@ describe("Jump (instant — target creature gains flying until end of turn)", ()
 });
 
 describe("Pirate Ship ({T}: 1 dmg + can't attack unless defender controls Island)", () => {
+    it("uses data-driven attack-restriction (no magic string)", () => {
+        expect(pirateShip.staticAbilities).not.toContain(
+            "cant-attack-unless-defender-controls-Island"
+        );
+        expect(pirateShip.staticEffects).toBeDefined();
+        expect(
+            pirateShip.staticEffects!.some(
+                (e) => e.kind === "attack-restriction"
+            )
+        ).toBe(true);
+    });
+
     function setup(opts: { defenderHasIsland: boolean }) {
         const ship = makeInstance(pirateShip.id, {
             id: "ship",

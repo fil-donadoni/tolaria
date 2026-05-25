@@ -979,6 +979,39 @@ export interface StaticBlockRestriction {
     oracleText: string;
 }
 
+/** Card-level attack restriction (CR 508.1c). Declares that a creature
+ *  cannot attack unless a condition on the defending player's battlefield
+ *  is met. The engine collects these from the card's `staticEffects[]` at
+ *  attack-declaration time.
+ *
+ *  The predicate receives the attacking creature and the full defender
+ *  battlefield so conditional restrictions ("can't attack unless defending
+ *  player controls an Island") are expressible. */
+export interface StaticAttackRestriction {
+    kind: "attack-restriction";
+    id: string;
+    /** Returns `true` when the attack is LEGAL, `false` to reject.
+     *  `self` = the creature attempting to attack.
+     *  `defenderBattlefield` = the defending player's permanents. */
+    predicate: (
+        self: PermanentView,
+        defenderBattlefield: readonly PermanentView[]
+    ) => boolean;
+    /** Oracle text displayed as the rejection reason. */
+    oracleText: string;
+}
+
+/** Card-level attack requirement (CR 508.1d). Declares that a creature
+ *  must attack each combat if able. The engine collects these from the
+ *  card's `staticEffects[]` and enforces the requirement when the creature
+ *  is otherwise eligible (not tapped, not summoning-sick, no defender). */
+export interface StaticAttackRequirement {
+    kind: "attack-requirement";
+    id: string;
+    /** Oracle text shown when the requirement forces an attack. */
+    oracleText: string;
+}
+
 export type StaticEffect =
     | StaticPTBuff
     | StaticPTCDA
@@ -987,7 +1020,9 @@ export type StaticEffect =
     | StaticActivatedGrant
     | StaticTypeAdd
     | StaticUntapRestriction
-    | StaticBlockRestriction;
+    | StaticBlockRestriction
+    | StaticAttackRestriction
+    | StaticAttackRequirement;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
  *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted

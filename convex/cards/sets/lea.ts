@@ -4,6 +4,7 @@ import type {
     Color,
     ManaCost,
     PermanentFilter,
+    PermanentView,
     SpellContext,
     TargetSelection,
     TriggeredAbility,
@@ -1530,8 +1531,8 @@ export const phantomMonster: CardDefinition = {
 // Pirate Ship — "Pirate Ship can't attack unless defender controls an Island.
 // {T}: Pirate Ship deals 1 damage to any target." (CR 508.1c attack
 // restriction, 605 activated ability, 120.1 damage). The attack restriction
-// is enforced by combat.ts via the `cant-attack-unless-defender-controls-X`
-// static keyword (same pattern as Sea Serpent).
+// is data-driven via `staticEffects[attack-restriction]` (same pattern as
+// Sea Serpent).
 export const pirateShip: CardDefinition = {
     id: "d0a7cb23-d229-43c5-addd-dcf423984b0c",
     name: "Pirate Ship",
@@ -1542,7 +1543,20 @@ export const pirateShip: CardDefinition = {
     subtypes: ["Human", "Pirate"],
     power: 4,
     toughness: 3,
-    staticAbilities: ["cant-attack-unless-defender-controls-Island"],
+    staticAbilities: [],
+    staticEffects: [
+        {
+            // CR 508.1c — can't attack unless defending player controls an Island
+            kind: "attack-restriction" as const,
+            id: "pirate-ship-island-restriction",
+            predicate: (
+                _self: PermanentView,
+                defenderBattlefield: readonly PermanentView[]
+            ) => defenderBattlefield.some((c) => c.subtypes.includes("Island")),
+            oracleText:
+                "Pirate Ship can't attack unless defending player controls an Island.",
+        },
+    ],
     activatedAbilities: [
         {
             id: "pirate-ship-zap",
@@ -1676,9 +1690,9 @@ export const psychicVenom: CardDefinition = {
 };
 
 // CR 508.1c — "can't attack unless defending player controls an Island" is
-// encoded as a generic `cant-attack-unless-defender-controls-Island` static
-// ability so the same restriction shape is reusable for other cards (Reef
-// Pirates, Phantom Monster variants).
+// encoded as a data-driven `staticEffects[attack-restriction]` so the same
+// pattern is reusable for other cards (Reef Pirates, Phantom Monster
+// variants).
 // CR 603.8 — "When you control no Islands, sacrifice this creature" is a
 // state-triggered ability: the trigger fires as soon as the condition becomes
 // true, then doesn't trigger again until it has resolved or otherwise left
@@ -1694,7 +1708,20 @@ export const seaSerpent: CardDefinition = {
     subtypes: ["Serpent"],
     power: 5,
     toughness: 5,
-    staticAbilities: ["cant-attack-unless-defender-controls-Island"],
+    staticAbilities: [],
+    staticEffects: [
+        {
+            // CR 508.1c — can't attack unless defending player controls an Island
+            kind: "attack-restriction" as const,
+            id: "sea-serpent-island-restriction",
+            predicate: (
+                _self: PermanentView,
+                defenderBattlefield: readonly PermanentView[]
+            ) => defenderBattlefield.some((c) => c.subtypes.includes("Island")),
+            oracleText:
+                "Sea Serpent can't attack unless defending player controls an Island.",
+        },
+    ],
     triggeredAbilities: [
         // CR 603.8 — state-triggered ability. `stateTrigger` wires `STATE_CHECK`
         // narrowing and the resolve-time re-check (intervening-if) so the
@@ -5404,8 +5431,14 @@ export const juggernaut: CardDefinition = {
     subtypes: ["Juggernaut"],
     power: 5,
     toughness: 3,
-    staticAbilities: ["attacks-if-able"],
+    staticAbilities: [],
     staticEffects: [
+        {
+            // CR 508.1d — attacks each combat if able
+            kind: "attack-requirement" as const,
+            id: "juggernaut-attacks-if-able",
+            oracleText: "Juggernaut attacks each combat if able.",
+        },
         {
             kind: "block-restriction",
             id: "juggernaut-no-walls",
