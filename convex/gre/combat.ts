@@ -1,10 +1,11 @@
 import type { CardInstanceState, GameState } from "./state";
-import { LANDWALK_KEYWORDS } from "./constants";
 import { isProtectedFromSource } from "./protection";
 import { getEffectivePower } from "./layers";
-import { hasColor } from "./rules";
 import { getCardById } from "../cards";
-import { evaluateBlockerKeywords } from "./combatRegistry";
+import {
+    evaluateBlockerKeywords,
+    evaluateAttackerKeywords,
+} from "./combatRegistry";
 
 export type AttackerValidation =
     | { eligible: true }
@@ -25,12 +26,9 @@ export function validateAttackerEligibility(
     if (!card.types.includes("Creature")) {
         return { eligible: false, reason: "Only creatures can attack" };
     }
-    if (card.staticAbilities.includes("defender")) {
-        return {
-            eligible: false,
-            reason: "Creatures with defender cannot attack",
-        };
-    }
+    // CR 702.3a+ — keyword-level attack restrictions (registry-driven).
+    const keywordResult = evaluateAttackerKeywords(card);
+    if (!keywordResult.eligible) return keywordResult;
     if (card.isTapped) {
         return { eligible: false, reason: "Tapped creatures cannot attack" };
     }
@@ -69,15 +67,11 @@ export type BlockerValidation =
 
 /**
  * Validates whether `blocker` can be legally assigned to block `attacker`
- * given the defending player's battlefield. Covers evasion abilities:
- *  - Flying (CR 702.9b): only flying/reach can block a flier.
- *  - Landwalk (CR 702.13b): attacker can't be blocked at all as long as
- *    the defender controls a land of the matching subtype.
- *  - Unblockable (CR 509.1b): no creature can block.
- *  - Wall-only (Invisibility, CR 509.1b): only Walls can block.
- *  - Fear (CR 702.36b): only artifact and/or black creatures can block.
- *  - Power-bound block restriction (Ironclaw Orcs, CR 509.1b): blocker
- *    can't block creatures with effective power ≥ 2.
+ * given the defending player's battlefield. Evaluation order:
+ *  1. Keyword-level evasion (registry): unblockable, landwalk, fear, flying.
+ *  2. Card-specific string restrictions: Wall-only, cant-be-blocked-by-wall,
+ *     power-bound (migrating to StaticEffect in S2).
+ *  3. Protection (CR 702.16f).
  *
  * `state` is optional — required only for the power-bound restriction so
  * the validator can call `getEffectivePower(state, attacker)` (CR 613 layer
@@ -89,33 +83,20 @@ export function validateBlockerEligibility(
     defenderBattlefield: CardInstanceState[],
     state?: GameState
 ): BlockerValidation {
-    // CR 509.1b — global "can't be blocked" (Dwarven Warriors temporary
-    // grant). Encoded as an `unblockable` static ability that may be granted
-    // for end-of-turn via `grantStaticAbility`.
-    if (attacker.staticAbilities.includes("unblockable")) {
-        return {
-            eligible: false,
-            reason: "Attacker can't be blocked",
-        };
-    }
+    // Pass 1 — keyword-level evasion (registry-driven).
+    // Covers: unblockable (509.1b), landwalk (702.13b), fear (702.36b),
+    // flying (702.9b).
+    const keywordResult = evaluateBlockerKeywords(
+        attacker,
+        blocker,
+        defenderBattlefield
+    );
+    if (!keywordResult.eligible) return keywordResult;
 
-    for (const [keyword, subtype] of Object.entries(LANDWALK_KEYWORDS)) {
-        if (!attacker.staticAbilities.includes(keyword)) continue;
-        const hasLand = defenderBattlefield.some(
-            (card) =>
-                card.types.includes("Land") && card.subtypes.includes(subtype)
-        );
-        if (hasLand) {
-            return {
-                eligible: false,
-                reason: `Attacker can't be blocked while defender controls a ${subtype}`,
-            };
-        }
-    }
+    // Pass 2 — card-specific string restrictions (migrating to
+    // StaticEffect block-restriction in S2).
 
-    // Subtype-based block restriction (CR 509.1b). Juggernaut: "This creature
-    // can't be blocked by Walls." Generalizable to other subtype restrictions
-    // via `cant-be-blocked-by-<subtype>` static ability strings.
+    // CR 509.1b — Juggernaut: "This creature can't be blocked by Walls."
     if (
         attacker.staticAbilities.includes("cant-be-blocked-by-wall") &&
         blocker.subtypes.includes("Wall")
@@ -137,29 +118,6 @@ export function validateBlockerEligibility(
         };
     }
 
-    // CR 702.36b — Fear: "This creature can't be blocked except by artifact
-    // creatures and/or black creatures." Color check uses hasColor so
-    // hybrid / multicolor blockers including Black still count.
-    if (
-        attacker.staticAbilities.includes("fear") &&
-        !blocker.types.includes("Artifact") &&
-        !hasColor(blocker, "B")
-    ) {
-        return {
-            eligible: false,
-            reason: "Attacker has fear — only artifact or black creatures can block",
-        };
-    }
-
-    // CR 702.9b+ — keyword-level evasion rules (registry-driven).
-    // Flying is the first keyword migrated; remaining keywords follow in S1.
-    const keywordResult = evaluateBlockerKeywords(
-        attacker,
-        blocker,
-        defenderBattlefield
-    );
-    if (!keywordResult.eligible) return keywordResult;
-
     // CR 509.1b — Ironclaw Orcs: "can't block creatures with power 2 or
     // greater." Predicate is on the blocker; reads the attacker's effective
     // power so layer-7c buffs (Crusade, Bad Moon, etc.) are honored.
@@ -175,8 +133,7 @@ export function validateBlockerEligibility(
         }
     }
 
-    // CR 702.16f: an attacking creature with "protection from [color]" can't
-    // be blocked by creatures of that color.
+    // Pass 3 — protection (CR 702.16f).
     if (isProtectedFromSource(attacker, blocker)) {
         return {
             eligible: false,
