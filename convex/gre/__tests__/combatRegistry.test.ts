@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluateBlockerKeywords, EVASION_RULES } from "../combat-registry";
+import { evaluateBlockerKeywords, EVASION_RULES } from "../combatRegistry";
 import type { CardInstanceState } from "../state";
 import type { CardType } from "../../cards/types";
 

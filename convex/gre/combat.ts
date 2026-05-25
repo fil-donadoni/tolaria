@@ -4,7 +4,7 @@ import { isProtectedFromSource } from "./protection";
 import { getEffectivePower } from "./layers";
 import { hasColor } from "./rules";
 import { getCardById } from "../cards";
-import { evaluateBlockerKeywords } from "./combat-registry";
+import { evaluateBlockerKeywords } from "./combatRegistry";
 
 export type AttackerValidation =
     | { eligible: true }
