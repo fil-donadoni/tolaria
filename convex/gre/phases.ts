@@ -7,6 +7,7 @@ import type {
     StackItem,
 } from "./state";
 import {
+    allocInstanceId,
     applyTargetPrevention,
     bumpDamageDealtToPlayer,
     consumePreventionIfAny,
@@ -746,7 +747,7 @@ function fireDelayedTriggers(
     if (firing.length === 0) return;
     for (const t of firing) {
         const stackItem: StackItem = {
-            id: crypto.randomUUID(),
+            id: allocInstanceId(state),
             card: { id: t.sourceCardId },
             controllerId: t.controller,
             ownerId: t.controller,

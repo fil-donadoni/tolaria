@@ -37,6 +37,7 @@ import {
     discardPermanentTappedEvent,
     processPendingActionTriggers,
     getPendingChoiceMax,
+    allocInstanceId,
 } from "./gre/state";
 import type { Color, ManaCost, SpellMode } from "./cards/types";
 import {
@@ -99,11 +100,14 @@ type PlayerInput = {
     deck: DeckInput;
 };
 
-function buildPlayerState(player: PlayerInput): PlayerState {
+function buildPlayerState(
+    player: PlayerInput,
+    counter: { nextInstanceId?: number }
+): PlayerState {
     const instances = player.deck.cards.map((deckCard) => {
         const def = getCardById(deckCard.cardId);
         return {
-            id: crypto.randomUUID(),
+            id: allocInstanceId(counter),
             card: { id: def.id },
             types: def.types,
             subtypes: def.subtypes ?? [],
@@ -122,7 +126,6 @@ function buildPlayerState(player: PlayerInput): PlayerState {
         name: player.name,
         bgColor: player.bgColor,
         life: 20,
-        deck: player.deck,
         hand: [],
         library: instances,
         graveyard: [],
@@ -655,7 +658,10 @@ export const createSoloGame = mutation({
             updatedAt: now,
         });
 
-        const playersState = allPlayers.map(buildPlayerState);
+        const idCounter: { nextInstanceId?: number } = {};
+        const playersState = allPlayers.map((p) =>
+            buildPlayerState(p, idCounter)
+        );
         // CR 500.1: starting player begins their first turn at game start.
         playersState[0].turnsTaken = 1;
 
@@ -670,6 +676,7 @@ export const createSoloGame = mutation({
             phase: "UNTAP" as Phase,
             rngSeed,
             rngCounter: 0,
+            nextInstanceId: idCounter.nextInstanceId,
         };
 
         for (const player of initialState.players) {
@@ -721,7 +728,10 @@ export const joinGame = mutation({
             updatedAt: now,
         });
 
-        const playersState = allPlayers.map(buildPlayerState);
+        const idCounter: { nextInstanceId?: number } = {};
+        const playersState = allPlayers.map((p) =>
+            buildPlayerState(p, idCounter)
+        );
         // CR 500.1: starting player begins their first turn at game start.
         playersState[0].turnsTaken = 1;
 
@@ -736,6 +746,7 @@ export const joinGame = mutation({
             phase: "UNTAP" as Phase,
             rngSeed,
             rngCounter: 0,
+            nextInstanceId: idCounter.nextInstanceId,
         };
 
         for (const player of initialState.players) {
@@ -3754,8 +3765,9 @@ export const debugResetGame = mutation({
 
         const existing = await getLatestGameState(ctx, args.gameId);
 
+        const idCounter: { nextInstanceId?: number } = {};
         const playersState = game.players.map((p) =>
-            buildPlayerState(p as PlayerInput)
+            buildPlayerState(p as PlayerInput, idCounter)
         );
         // CR 500.1: starting player begins their first turn at game start.
         playersState[0].turnsTaken = 1;
@@ -3770,6 +3782,7 @@ export const debugResetGame = mutation({
             phase: "UNTAP" as Phase,
             rngSeed,
             rngCounter: 0,
+            nextInstanceId: idCounter.nextInstanceId,
         };
         for (const player of initialState.players) {
             seededShuffle(initialState, player.library);
@@ -3861,7 +3874,7 @@ export const debugSetupScenario = mutation({
         ) {
             const def = getCardByName(cardName);
             return {
-                id: crypto.randomUUID(),
+                id: allocInstanceId(state),
                 card: { id: def.id },
                 types: def.types,
                 subtypes: def.subtypes ?? [],

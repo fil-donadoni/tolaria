@@ -311,7 +311,6 @@ export type PlayerState = {
     name: string;
     bgColor: string;
     life: number;
-    deck: Record<string, unknown>;
     hand: CardInstanceState[];
     library: CardInstanceState[];
     graveyard: CardInstanceState[];
@@ -740,6 +739,9 @@ export type GameState = {
     /** Monotonic counter advanced by each createToken() call. Generates
      *  deterministic `token-N` ids so replays reproduce the same identifiers. */
     nextTokenSeq?: number;
+    /** Monotonic counter for card instance IDs. Each call to
+     *  `allocInstanceId` increments this and returns the string form. */
+    nextInstanceId?: number;
     /** Buffer of game events emitted during the current action that have not
      *  yet been scanned for triggered abilities (CR 603.2). Filled by the
      *  state mutators (CREATURE_DIED on death, etc.) and drained by the
@@ -2876,6 +2878,11 @@ export function getPlayer(state: GameState, playerId: string): PlayerState {
     const player = state.players.find((p) => p.id === playerId);
     if (!player) throw new Error(`Player not found: ${playerId}`);
     return player;
+}
+
+export function allocInstanceId(counter: { nextInstanceId?: number }): string {
+    counter.nextInstanceId = (counter.nextInstanceId ?? 0) + 1;
+    return String(counter.nextInstanceId);
 }
 
 /** Returns the id of the other player (2-player game). */

@@ -13,17 +13,18 @@
 import type { GameEvent, StateCheckEvent } from "../cards/types";
 import { tryGetCardById } from "../cards";
 import type { CardInstanceState, GameState, StackItem } from "./state";
-import { getPlayer } from "./state";
+import { getPlayer, allocInstanceId } from "./state";
 
 /** Builds a StackItem representing a triggered ability on the stack. */
 function buildTriggerItem(
+    state: GameState,
     self: CardInstanceState,
     triggeredAbilityId: string,
     event: GameEvent
 ): StackItem {
     return {
         ...self,
-        id: crypto.randomUUID(),
+        id: allocInstanceId(state),
         zone: "stack",
         castById: self.controllerId,
         triggeredAbilityId,
@@ -116,7 +117,9 @@ export function collectTriggers(
                 for (const event of events) {
                     if (event.type !== ability.event) continue;
                     if (!ability.matches(event, permanent, state)) continue;
-                    out.push(buildTriggerItem(permanent, ability.id, event));
+                    out.push(
+                        buildTriggerItem(state, permanent, ability.id, event)
+                    );
                 }
             }
         }
@@ -164,7 +167,7 @@ export function collectStateTriggers(state: GameState): StackItem[] {
                 if (stateTriggerAlreadyOnStack(state, permanent.id, ability.id))
                     continue;
                 if (!ability.matches(event, permanent, state)) continue;
-                out.push(buildTriggerItem(permanent, ability.id, event));
+                out.push(buildTriggerItem(state, permanent, ability.id, event));
             }
         }
     }

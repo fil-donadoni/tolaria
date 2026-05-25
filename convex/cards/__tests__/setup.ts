@@ -47,7 +47,6 @@ export function makePlayer(
         name: id,
         bgColor: "#000",
         life: 20,
-        deck: {},
         hand: [],
         library: [],
         graveyard: [],

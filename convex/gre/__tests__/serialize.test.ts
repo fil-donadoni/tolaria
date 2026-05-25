@@ -319,6 +319,7 @@ describe("schema drift guard", () => {
         ];
         state.nextDelayedSeq = 1;
         state.nextTokenSeq = 1;
+        state.nextInstanceId = 80;
         state.pendingEvents = [
             {
                 type: "CREATURE_DIED",
@@ -589,5 +590,54 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).playerPreferences).toEqual(
             state.playerPreferences
         );
+    });
+
+    it("nextInstanceId", () => {
+        const state = freshState();
+        state.nextInstanceId = 42;
+        expect(roundTrip(state).nextInstanceId).toBe(42);
+    });
+});
+
+describe("backward compatibility", () => {
+    it("expands an old-format blob with deck field and UUID instance IDs", () => {
+        const state = freshState();
+        const compact = compactState(state) as Record<string, unknown>;
+        // Simulate old format: inject deck into each player
+        const players = compact.players as Array<Record<string, unknown>>;
+        players[0].deck = {
+            id: "preset-1",
+            name: "Test Deck",
+            format: "standard",
+            cards: [],
+        };
+        players[1].deck = {
+            id: "preset-2",
+            name: "Test Deck 2",
+            format: "standard",
+            cards: [],
+        };
+        // Simulate old UUID-style instance IDs in library tuples
+        const lib = players[0].library as Array<[string, string]>;
+        if (lib.length > 0) {
+            lib[0] = ["550e8400-e29b-41d4-a716-446655440000", lib[0][1]];
+        }
+        const expanded = expandState(compact);
+        // deck should not appear on PlayerState
+        expect("deck" in expanded.players[0]).toBe(false);
+        // UUID-style ID should still work (it's a valid string)
+        if (expanded.players[0].library.length > 0) {
+            expect(expanded.players[0].library[0].id).toBe(
+                "550e8400-e29b-41d4-a716-446655440000"
+            );
+        }
+    });
+});
+
+describe("blob size regression guard", () => {
+    it("compact form is under 5 KB for a representative game state", () => {
+        const state = freshState();
+        const compactSize = JSON.stringify(compactState(state)).length;
+        expect(compactSize).toBeLessThan(5000);
     });
 });

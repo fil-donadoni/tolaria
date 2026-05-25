@@ -63,7 +63,6 @@ function makePlayer(overrides: Partial<PlayerState> = {}): PlayerState {
         name: "Player 1",
         bgColor: "#000",
         life: 20,
-        deck: {},
         hand: [],
         library: [],
         graveyard: [],

@@ -80,7 +80,6 @@ function makeBarePlayer(id: string, library: CardInstanceState[]): PlayerState {
         name: id,
         bgColor: "#000",
         life: 20,
-        deck: {},
         hand: [],
         library,
         graveyard: [],

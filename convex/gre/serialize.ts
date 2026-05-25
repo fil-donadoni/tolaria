@@ -259,7 +259,6 @@ type CompactPlayer = {
     name: string;
     bgColor: string;
     life: number;
-    deck: Record<string, unknown>;
     hand: CompactCard[];
     library: LibraryEntry[];
     graveyard: CompactCard[];
@@ -278,7 +277,6 @@ function compactPlayer(player: PlayerState): CompactPlayer {
         name: player.name,
         bgColor: player.bgColor,
         life: player.life,
-        deck: player.deck,
         hand: player.hand.map((c) => compactCard(c, { ownerId: player.id })),
         library: compactLibrary(player.library),
         graveyard: player.graveyard.map((c) =>
@@ -307,7 +305,6 @@ function expandPlayer(player: CompactPlayer): PlayerState {
         name: player.name,
         bgColor: player.bgColor,
         life: player.life,
-        deck: player.deck,
         hand: player.hand.map((c) =>
             expandCard(c, { ownerId: player.id, zone: "hand" })
         ),
@@ -433,6 +430,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "delayedTriggers",
     "nextDelayedSeq",
     "nextTokenSeq",
+    "nextInstanceId",
     "pendingEvents",
     "deathsThisTurn",
     "pendingUntapStep",
