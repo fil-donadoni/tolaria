@@ -900,6 +900,7 @@ export default function DebugPanel({
 }: DebugPanelProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [showScenarios, setShowScenarios] = useState(false);
+    const [scenarioFilter, setScenarioFilter] = useState("");
     const [verbose, setVerbose] = useState(false);
     const [copyFeedback, setCopyFeedback] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
@@ -1054,8 +1055,23 @@ export default function DebugPanel({
                                 <span className="text-white/40 text-[10px] uppercase tracking-wide">
                                     Load scenario
                                 </span>
+                                <input
+                                    type="text"
+                                    value={scenarioFilter}
+                                    onChange={(e) =>
+                                        setScenarioFilter(e.target.value)
+                                    }
+                                    placeholder="Search scenarios…"
+                                    className="w-full px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40"
+                                />
                                 <div className="max-h-[250px] overflow-y-auto flex flex-col gap-1">
-                                    {PRESET_SCENARIOS.map((scenario) => (
+                                    {PRESET_SCENARIOS.filter((s) =>
+                                        s.label
+                                            .toLowerCase()
+                                            .includes(
+                                                scenarioFilter.toLowerCase()
+                                            )
+                                    ).map((scenario) => (
                                         <DebugButton
                                             key={scenario.label}
                                             onClick={() =>
