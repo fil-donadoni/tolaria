@@ -58,7 +58,7 @@ trap 'echo; echo "Interrupted at iter $i. Last log: $LOG"; exit 130' INT
 for ((i=1; i<=MAX_ITERS; i++)); do
   TS="$(date +%Y%m%d-%H%M%S)"
   LOG="$LOG_DIR/iter-${i}-${TS}.log"
-  echo "════════ Iter $i / $MAX_ITERS  ($TS) ════════"
+  echo "════════ Iter $i ($TS) ════════"
   echo "log: $LOG"
 
   git checkout "$MAIN_BRANCH" >/dev/null 2>&1 || true

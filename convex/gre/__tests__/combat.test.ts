@@ -7,13 +7,24 @@ import {
 } from "../combat";
 import type { CardInstanceState } from "../state";
 import type { CardType } from "../../cards/types";
-import { makeInstance } from "../../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup";
 import {
     drudgeSkeletons,
     grizzlyBears,
     hypnoticSpecter,
+    invisibility,
+    ironclawOrcs,
     jadeStatue,
+    juggernaut,
+    savannahLions,
+    wallOfSwords,
 } from "../../cards/sets/lea";
+import { resolveTopOfStack } from "../state";
+import { pushSpell } from "../../cards/__tests__/setup";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -295,55 +306,71 @@ describe("validateBlockerEligibility — landwalk (CR 702.13b)", () => {
 // validateBlockerEligibility — subtype restriction (CR 509.1b)
 // ---------------------------------------------------------------------------
 
-describe("validateBlockerEligibility — can't be blocked by Walls (CR 509.1b)", () => {
-    it("rejects a Wall blocker against an attacker with the restriction", () => {
-        const jug = makeCard({
-            types: ["Creature"],
-            staticAbilities: ["cant-be-blocked-by-wall"],
+describe("validateBlockerEligibility — block-restriction staticEffects (CR 509.1b)", () => {
+    it("rejects a Wall blocker against Juggernaut (attacker-side restriction)", () => {
+        const jug = makeInstance(juggernaut.id, { id: "jug" });
+        const wall = makeInstance(wallOfSwords.id, {
+            id: "wall",
+            controllerId: "p2",
         });
-        const wall = makeCard({
-            types: ["Creature"],
-            subtypes: ["Wall"],
-            staticAbilities: ["defender"],
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [jug] }),
+                makePlayer("p2", { battlefield: [wall] }),
+            ],
         });
-        const result = validateBlockerEligibility(jug, wall, [wall]);
+        const result = validateBlockerEligibility(jug, wall, [wall], state);
         expect(result.eligible).toBe(false);
         if (!result.eligible) expect(result.reason).toMatch(/Wall/);
     });
 
-    it("allows non-Wall blockers", () => {
-        const jug = makeCard({
-            types: ["Creature"],
-            staticAbilities: ["cant-be-blocked-by-wall"],
+    it("allows non-Wall blockers against Juggernaut", () => {
+        const jug = makeInstance(juggernaut.id, { id: "jug" });
+        const bears = makeInstance(savannahLions.id, {
+            id: "bears",
+            controllerId: "p2",
         });
-        const bears = makeCard({ types: ["Creature"], staticAbilities: [] });
-        expect(validateBlockerEligibility(jug, bears, [bears])).toEqual({
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [jug] }),
+                makePlayer("p2", { battlefield: [bears] }),
+            ],
+        });
+        expect(validateBlockerEligibility(jug, bears, [bears], state)).toEqual({
             eligible: true,
         });
     });
 
-    it("stacks with flying when both apply", () => {
-        const flyingJug = makeCard({
-            types: ["Creature"],
-            staticAbilities: ["cant-be-blocked-by-wall", "flying"],
+    it("stacks attacker-side restriction with flying", () => {
+        const jug = makeInstance(juggernaut.id, {
+            id: "jug",
+            staticAbilities: ["attacks-if-able", "flying"],
         });
-        const groundWall = makeCard({
-            types: ["Creature"],
-            subtypes: ["Wall"],
-            staticAbilities: ["defender"],
+        const groundWall = makeInstance(wallOfSwords.id, {
+            id: "wall",
+            controllerId: "p2",
         });
-        const flyer = makeCard({
-            types: ["Creature"],
+        const flyer = makeInstance(savannahLions.id, {
+            id: "flyer",
+            controllerId: "p2",
             staticAbilities: ["flying"],
         });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [jug] }),
+                makePlayer("p2", { battlefield: [groundWall, flyer] }),
+            ],
+        });
         expect(
-            validateBlockerEligibility(flyingJug, groundWall, [
+            validateBlockerEligibility(
+                jug,
                 groundWall,
-                flyer,
-            ]).eligible
+                [groundWall, flyer],
+                state
+            ).eligible
         ).toBe(false);
         expect(
-            validateBlockerEligibility(flyingJug, flyer, [groundWall, flyer])
+            validateBlockerEligibility(jug, flyer, [groundWall, flyer], state)
         ).toEqual({ eligible: true });
     });
 });
@@ -375,30 +402,60 @@ describe("validateBlockerEligibility — unblockable (CR 509.1b)", () => {
     });
 });
 
-describe("validateBlockerEligibility — Invisibility, Wall-only (CR 509.1b)", () => {
-    it("rejects non-Wall blockers", () => {
-        const ghost = makeCard({
-            types: ["Creature"],
-            staticAbilities: ["cant-be-blocked-except-by-wall"],
+describe("validateBlockerEligibility — Invisibility aura block-restriction (CR 509.1b)", () => {
+    function setup() {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
         });
-        const bears = makeCard({ types: ["Creature"], staticAbilities: [] });
-        const result = validateBlockerEligibility(ghost, bears, [bears]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, invisibility.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        return { state };
+    }
+
+    it("rejects non-Wall blockers against enchanted creature", () => {
+        const { state } = setup();
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        const blocker = makeInstance(grizzlyBears.id, {
+            id: "blk",
+            controllerId: "p2",
+        });
+        state.players[1].battlefield.push(blocker);
+        const result = validateBlockerEligibility(
+            bear,
+            blocker,
+            state.players[1].battlefield,
+            state
+        );
         expect(result.eligible).toBe(false);
     });
 
-    it("accepts Wall blockers", () => {
-        const ghost = makeCard({
-            types: ["Creature"],
-            staticAbilities: ["cant-be-blocked-except-by-wall"],
+    it("accepts Wall blockers against enchanted creature", () => {
+        const { state } = setup();
+        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        const wall = makeInstance(wallOfSwords.id, {
+            id: "wall",
+            controllerId: "p2",
         });
-        const wall = makeCard({
-            types: ["Creature"],
-            subtypes: ["Wall"],
-            staticAbilities: ["defender"],
-        });
-        expect(validateBlockerEligibility(ghost, wall, [wall])).toEqual({
-            eligible: true,
-        });
+        state.players[1].battlefield.push(wall);
+        expect(
+            validateBlockerEligibility(
+                bear,
+                wall,
+                state.players[1].battlefield,
+                state
+            )
+        ).toEqual({ eligible: true });
     });
 });
 
@@ -449,33 +506,43 @@ describe("validateBlockerEligibility — fear (CR 702.36b)", () => {
 });
 
 describe("validateBlockerEligibility — Ironclaw Orcs power-bound (CR 509.1b + 613)", () => {
-    it("rejects blocking an attacker with base power ≥ 2", () => {
-        const orc = makeCard({
-            types: ["Creature"],
-            staticAbilities: ["cant-block-power-2-or-greater"],
-            power: 2,
+    it("rejects blocking an attacker with power ≥ 2", () => {
+        const orc = makeInstance(ironclawOrcs.id, {
+            id: "orc",
+            controllerId: "p1",
         });
-        const big = makeCard({
-            types: ["Creature"],
-            staticAbilities: [],
-            power: 3,
+        const big = makeInstance(grizzlyBears.id, {
+            id: "big",
+            controllerId: "p2",
         });
-        const result = validateBlockerEligibility(big, orc, [orc]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [orc] }),
+                makePlayer("p2", { battlefield: [big] }),
+            ],
+        });
+        const result = validateBlockerEligibility(big, orc, [orc], state);
         expect(result.eligible).toBe(false);
     });
 
-    it("accepts blocking an attacker with base power < 2", () => {
-        const orc = makeCard({
-            types: ["Creature"],
-            staticAbilities: ["cant-block-power-2-or-greater"],
-            power: 2,
+    it("accepts blocking an attacker with power < 2", () => {
+        const orc = makeInstance(ironclawOrcs.id, {
+            id: "orc",
+            controllerId: "p1",
         });
-        const small = makeCard({
-            types: ["Creature"],
-            staticAbilities: [],
+        const small = makeInstance(savannahLions.id, {
+            id: "small",
+            controllerId: "p2",
             power: 1,
+            toughness: 1,
         });
-        expect(validateBlockerEligibility(small, orc, [orc])).toEqual({
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [orc] }),
+                makePlayer("p2", { battlefield: [small] }),
+            ],
+        });
+        expect(validateBlockerEligibility(small, orc, [orc], state)).toEqual({
             eligible: true,
         });
     });

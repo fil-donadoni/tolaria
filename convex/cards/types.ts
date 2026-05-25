@@ -951,6 +951,34 @@ export interface StaticUntapRestriction {
     scope: "each-player";
 }
 
+/** Card-level block restriction (CR 509.1b). Declares that a permanent
+ *  (or its host, for auras) either restricts what can block it when
+ *  attacking (`side: "attacker"`) or restricts what it can block
+ *  (`side: "blocker"`). The engine collects these from the card definition
+ *  and from attached auras at block-declaration time.
+ *
+ *  The predicate receives P/T already enriched to effective (post-layer-7c)
+ *  values by the combat validator, so predicates that check `opponent.power`
+ *  automatically honor static buffs (Crusade, Bad Moon, etc.). */
+export interface StaticBlockRestriction {
+    kind: "block-restriction";
+    id: string;
+    /** "attacker" — restricts which blockers may be assigned to this
+     *  creature when it attacks.
+     *  "blocker" — restricts which attackers this creature may block. */
+    side: "attacker" | "blocker";
+    /** Returns `true` when the block is LEGAL, `false` to reject.
+     *  For side "attacker": `self` = attacker, `opponent` = candidate blocker.
+     *  For side "blocker": `self` = blocker, `opponent` = attacker. */
+    predicate: (
+        self: PermanentView,
+        opponent: PermanentView,
+        state?: StaticEffectStateView
+    ) => boolean;
+    /** Oracle text displayed as the rejection reason. */
+    oracleText: string;
+}
+
 export type StaticEffect =
     | StaticPTBuff
     | StaticPTCDA
@@ -958,7 +986,8 @@ export type StaticEffect =
     | StaticControlChange
     | StaticActivatedGrant
     | StaticTypeAdd
-    | StaticUntapRestriction;
+    | StaticUntapRestriction
+    | StaticBlockRestriction;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
  *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted

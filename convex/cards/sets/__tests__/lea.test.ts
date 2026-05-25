@@ -3697,23 +3697,34 @@ describe("Shanodin Dryads (forestwalk evasion, CR 702.13b)", () => {
 });
 
 describe("Juggernaut (CR 508.1d + 509.1b)", () => {
-    it("is a 5/3 Juggernaut for {4} with the two restrictions/requirements", () => {
+    it("is a 5/3 Juggernaut for {4} with attack-requirement + block-restriction", () => {
         expect(juggernaut.manaCost).toEqual({ X: 4 });
         expect(juggernaut.types).toEqual(["Artifact", "Creature"]);
         expect(juggernaut.subtypes).toEqual(["Juggernaut"]);
         expect(juggernaut.power).toBe(5);
         expect(juggernaut.toughness).toBe(3);
         expect(juggernaut.staticAbilities).toContain("attacks-if-able");
-        expect(juggernaut.staticAbilities).toContain("cant-be-blocked-by-wall");
+        expect(juggernaut.staticEffects).toBeDefined();
+        expect(
+            juggernaut.staticEffects!.some(
+                (e) => e.kind === "block-restriction"
+            )
+        ).toBe(true);
     });
 
-    it("can't be blocked by Walls (CR 509.1b)", () => {
+    it("can't be blocked by Walls (CR 509.1b) — via staticEffects", () => {
         const jug = makeInstance(juggernaut.id, { id: "jug" });
         const wall = makeInstance(wallOfSwords.id, {
             id: "wall",
             controllerId: "p2",
         });
-        const result = validateBlockerEligibility(jug, wall, [wall]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [jug] }),
+                makePlayer("p2", { battlefield: [wall] }),
+            ],
+        });
+        const result = validateBlockerEligibility(jug, wall, [wall], state);
         expect(result.eligible).toBe(false);
         if (!result.eligible) expect(result.reason).toMatch(/Wall/);
     });
@@ -3724,7 +3735,13 @@ describe("Juggernaut (CR 508.1d + 509.1b)", () => {
             id: "bears",
             controllerId: "p2",
         });
-        expect(validateBlockerEligibility(jug, bears, [bears])).toEqual({
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [jug] }),
+                makePlayer("p2", { battlefield: [bears] }),
+            ],
+        });
+        expect(validateBlockerEligibility(jug, bears, [bears], state)).toEqual({
             eligible: true,
         });
     });
@@ -9946,12 +9963,17 @@ describe("Invisibility (Aura — host can be blocked only by Walls)", () => {
         return { state };
     }
 
-    it("grants the Wall-only restriction keyword to the host", () => {
+    it("places a block-restriction aura on the battlefield attached to the host", () => {
         const { state } = setup();
-        const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
-        expect(bear.staticAbilities).toContain(
-            "cant-be-blocked-except-by-wall"
-        );
+        const aura = state.players[0].battlefield.find((c) => c.id !== "bear")!;
+        expect(aura).toBeDefined();
+        expect(aura.attachedTo).toBe("bear");
+        expect(invisibility.staticEffects).toBeDefined();
+        expect(
+            invisibility.staticEffects!.some(
+                (e) => e.kind === "block-restriction"
+            )
+        ).toBe(true);
     });
 
     it("non-Wall blocker is illegal against the enchanted attacker", () => {
@@ -9963,7 +9985,13 @@ describe("Invisibility (Aura — host can be blocked only by Walls)", () => {
             ownerId: "p2",
             isSummoningSick: false,
         });
-        const result = validateBlockerEligibility(bear, blocker, [blocker]);
+        state.players[1].battlefield.push(blocker);
+        const result = validateBlockerEligibility(
+            bear,
+            blocker,
+            state.players[1].battlefield,
+            state
+        );
         expect(result.eligible).toBe(false);
     });
 
@@ -9976,9 +10004,15 @@ describe("Invisibility (Aura — host can be blocked only by Walls)", () => {
             ownerId: "p2",
             isSummoningSick: false,
         });
-        expect(validateBlockerEligibility(bear, wall, [wall])).toEqual({
-            eligible: true,
-        });
+        state.players[1].battlefield.push(wall);
+        expect(
+            validateBlockerEligibility(
+                bear,
+                wall,
+                state.players[1].battlefield,
+                state
+            )
+        ).toEqual({ eligible: true });
     });
 });
 
@@ -10040,10 +10074,13 @@ describe("Fear (Aura — host can be blocked only by Black or Artifact)", () => 
 });
 
 describe("Ironclaw Orcs (can't block creatures with power 2 or greater)", () => {
-    it("declares the keyword on the card", () => {
-        expect(ironclawOrcs.staticAbilities).toContain(
-            "cant-block-power-2-or-greater"
-        );
+    it("declares a block-restriction on the card definition", () => {
+        expect(ironclawOrcs.staticEffects).toBeDefined();
+        expect(
+            ironclawOrcs.staticEffects!.some(
+                (e) => e.kind === "block-restriction" && e.side === "blocker"
+            )
+        ).toBe(true);
     });
 
     it("blocking a 2/2 attacker is illegal", () => {
@@ -10097,7 +10134,6 @@ describe("Ironclaw Orcs (can't block creatures with power 2 or greater)", () => 
     });
 
     it("layer-buffed attacker (Crusade-style) trips the restriction", () => {
-        // Synthesize a 1/1 white creature so Crusade pumps it to 2/2.
         const orc = makeInstance(ironclawOrcs.id, {
             id: "orc",
             controllerId: "p1",
@@ -10123,10 +10159,48 @@ describe("Ironclaw Orcs (can't block creatures with power 2 or greater)", () => 
                 makePlayer("p2", { battlefield: [lion, crusadeEnch] }),
             ],
         });
-        // Crusade pumps Savannah Lions to 2/2 → Ironclaw can't block.
         expect(
             validateBlockerEligibility(lion, orc, [orc], state).eligible
         ).toBe(false);
+    });
+
+    it("wire format: power-keyed restriction survives projection (layer 7c)", () => {
+        const orc = makeInstance(ironclawOrcs.id, {
+            id: "orc",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+            power: 1,
+            toughness: 1,
+            isSummoningSick: false,
+        });
+        const crusadeEnch = makeInstance(crusade.id, {
+            id: "crusade",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [orc] }),
+                makePlayer("p2", { battlefield: [lion, crusadeEnch] }),
+            ],
+        });
+        // GRE-level: Crusade pumps lion to 2/2 → Ironclaw can't block
+        expect(getEffectivePower(state, lion)).toBe(2);
+        expect(
+            validateBlockerEligibility(lion, orc, [orc], state).eligible
+        ).toBe(false);
+        // Wire format: same assertion against projected state
+        const projected = projectPublicState(state, 1, "p1");
+        const slimLion = projected.players[1].battlefield.find(
+            (c) => c.id === "lion"
+        )!;
+        expect(getEffectivePower(projected, slimLion)).toBe(2);
     });
 });
 
