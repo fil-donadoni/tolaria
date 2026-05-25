@@ -1,5 +1,8 @@
 import type { CardInstanceState, GameState } from "./state";
-import type { StaticBlockRestriction } from "../cards/types";
+import type {
+    StaticAttackRestriction,
+    StaticBlockRestriction,
+} from "../cards/types";
 import { isProtectedFromSource } from "./protection";
 import { getEffectivePower } from "./layers";
 import { tryGetCardById } from "../cards";
@@ -11,6 +14,21 @@ import {
 export type AttackerValidation =
     | { eligible: true }
     | { eligible: false; reason: string };
+
+/** Collects `attack-restriction` static effects from a card's definition
+ *  (CR 508.1c). Mirrors `collectBlockRestrictions` — reads the card
+ *  definition via the registry. */
+function collectAttackRestrictions(
+    card: CardInstanceState
+): StaticAttackRestriction[] {
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId) return [];
+    const def = tryGetCardById(cardId);
+    if (!def?.staticEffects) return [];
+    return def.staticEffects.filter(
+        (e): e is StaticAttackRestriction => e.kind === "attack-restriction"
+    );
+}
 
 /** Validates whether a card instance is eligible to be declared as an attacker
  *  (CR 508.1a-d). `defenderBattlefield` (CR 508.1c) lets the check evaluate
@@ -36,28 +54,11 @@ export function validateAttackerEligibility(
     if (card.isSummoningSick) {
         return { eligible: false, reason: "Creature has summoning sickness" };
     }
+    // CR 508.1c — card-level attack restrictions from staticEffects[].
     if (defenderBattlefield) {
-        // CR 508.1c — conditional attack restriction. Sea Serpent: "can't
-        // attack unless defending player controls an Island." Encoded as a
-        // `cant-attack-unless-defender-controls-<Subtype>` static ability so
-        // additional cards with the same shape (Merfolk of the Pearl Trident
-        // variants, Reef Pirates, etc.) can opt in by changing the subtype.
-        for (const ability of card.staticAbilities) {
-            const match = ability.match(
-                /^cant-attack-unless-defender-controls-(.+)$/
-            );
-            if (!match) continue;
-            const requiredSubtype = match[1];
-            const ok = defenderBattlefield.some((c) =>
-                c.subtypes.includes(requiredSubtype)
-            );
-            if (!ok) {
-                const def = tryGetCardById(card.card.id as string);
-                const name = def?.name ?? "Creature";
-                return {
-                    eligible: false,
-                    reason: `${name} can't attack unless defending player controls a ${requiredSubtype}`,
-                };
+        for (const r of collectAttackRestrictions(card)) {
+            if (!r.predicate(card, defenderBattlefield)) {
+                return { eligible: false, reason: r.oracleText };
             }
         }
     }
@@ -169,6 +170,17 @@ export function validateBlockerEligibility(
     return { eligible: true };
 }
 
+/** True if `card` carries an `attack-requirement` static effect
+ *  (CR 508.1d). Checked separately from eligibility so the engine can
+ *  distinguish "must attack" from "can attack". */
+function hasAttackRequirement(card: CardInstanceState): boolean {
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId) return false;
+    const def = tryGetCardById(cardId);
+    if (!def?.staticEffects) return false;
+    return def.staticEffects.some((e) => e.kind === "attack-requirement");
+}
+
 /**
  * True if `card` is subject to an "attacks each combat if able" requirement
  * (CR 508.1d) and is currently eligible to attack. Creatures with the
@@ -179,7 +191,7 @@ export function mustAttack(
     card: CardInstanceState,
     defenderBattlefield?: CardInstanceState[]
 ): boolean {
-    if (!card.staticAbilities.includes("attacks-if-able")) return false;
+    if (!hasAttackRequirement(card)) return false;
     return validateAttackerEligibility(card, defenderBattlefield).eligible;
 }
 
