@@ -31,8 +31,8 @@ function makeSelf(overrides: Partial<PermanentView> = {}): PermanentView {
 function makeStateView(): TriggerStateView {
     return {
         players: [
-            { id: "p1", life: 20, battlefield: [] },
-            { id: "p2", life: 20, battlefield: [] },
+            { id: "p1", life: 20, hand: [], battlefield: [] },
+            { id: "p2", life: 20, hand: [], battlefield: [] },
         ],
     };
 }

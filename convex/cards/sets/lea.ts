@@ -2631,16 +2631,51 @@ export const lich: CardDefinition = {
     ],
 };
 
-// export const lordOfThePit: CardDefinition = {
-//     id: "2926777a-4f6e-4965-ba83-22cf7df02602",
-//     name: "Lord of the Pit",
-//     oracleText: "Flying, trample\nAt the beginning of your upkeep, sacrifice a creature other than this creature. If you can't, this creature deals 7 damage to you.",
-//     manaCost: { X: 4, B: 3 },
-//     types: ["Creature"],
-//     subtypes: ["Demon"],
-//     power: 7,
-//     toughness: 7,
-// };
+export const lordOfThePit: CardDefinition = {
+    id: "2926777a-4f6e-4965-ba83-22cf7df02602",
+    name: "Lord of the Pit",
+    oracleText:
+        "Flying, trample\nAt the beginning of your upkeep, sacrifice a creature other than Lord of the Pit. If you can't, Lord of the Pit deals 7 damage to you.",
+    manaCost: { X: 4, B: 3 },
+    types: ["Creature"],
+    subtypes: ["Demon"],
+    power: 7,
+    toughness: 7,
+    staticAbilities: ["flying", "trample"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "lord-of-the-pit-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice a creature other than Lord of the Pit. If you can't, Lord of the Pit deals 7 damage to you.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                const others = ctx.getBattlefieldIds(ctx.controller, {
+                    types: "Creature",
+                    excludeInstanceIds: [ctx.sourceInstanceId],
+                });
+                if (others.length === 0) {
+                    ctx.dealDamage({ type: "player", id: ctx.controller }, 7);
+                    return;
+                }
+                const pick = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: ctx.controller,
+                    kind: "sacrifice-permanents",
+                    zone: "battlefield",
+                    filter: {
+                        types: "Creature",
+                        excludeInstanceIds: [ctx.sourceInstanceId],
+                    },
+                    count: 1,
+                    prompt: "Sacrifice a creature other than Lord of the Pit.",
+                });
+                if (pick === undefined) return;
+                ctx.sacrifice(pick[0]);
+            },
+        }),
+    ],
+};
 
 // Mind Twist — "Target player discards X cards at random." (CR 107.3 X cost,
 // 701.8a random discard). Routes through `discardAtRandom` which uses the
@@ -3310,16 +3345,33 @@ export const burrowing: CardDefinition = {
 //     toughness: 3,
 // };
 
-// export const dwarvenDemolitionTeam: CardDefinition = {
-//     id: "03482c9c-1f25-4d73-9243-17462ea37ac4",
-//     name: "Dwarven Demolition Team",
-//     oracleText: "{T}: Destroy target Wall.",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Dwarf"],
-//     power: 1,
-//     toughness: 1,
-// };
+export const dwarvenDemolitionTeam: CardDefinition = {
+    id: "03482c9c-1f25-4d73-9243-17462ea37ac4",
+    name: "Dwarven Demolition Team",
+    oracleText: "{T}: Destroy target Wall.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Dwarf"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "dwarven-demolition-team-destroy",
+            oracleText: "{T}: Destroy target Wall.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                subtypeFilter: "Wall",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target) ctx.destroy(target);
+            },
+        },
+    ],
+};
 
 // Dwarven Warriors — "{T}: Target creature with power 2 or less can't be
 // blocked this turn." (CR 113.1 grant of `unblockable` keyword via
@@ -3866,16 +3918,50 @@ export const rocOfKherRidges: CardDefinition = {
 //     toughness: 0,
 // };
 
-// export const sedgeTroll: CardDefinition = {
-//     id: "b13bf496-f3c0-4c13-8282-e7abfab6a198",
-//     name: "Sedge Troll",
-//     oracleText: "This creature gets +1/+1 as long as you control a Swamp.\n{B}: Regenerate this creature.",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Troll"],
-//     power: 2,
-//     toughness: 2,
-// };
+export const sedgeTroll: CardDefinition = {
+    id: "b13bf496-f3c0-4c13-8282-e7abfab6a198",
+    name: "Sedge Troll",
+    oracleText:
+        "Sedge Troll gets +1/+1 as long as you control a Swamp.\n{B}: Regenerate Sedge Troll.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Troll"],
+    power: 2,
+    toughness: 2,
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: EFFECT_AFFECTS_SELF,
+            compute: (source, state) => {
+                for (const player of state.players) {
+                    for (const p of player.battlefield) {
+                        if (
+                            p.controllerId === source.controllerId &&
+                            p.subtypes.includes("Swamp")
+                        ) {
+                            return { power: 1, toughness: 1 };
+                        }
+                    }
+                }
+                return { power: 0, toughness: 0 };
+            },
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "sedge-troll-regenerate",
+            oracleText: "{B}: Regenerate Sedge Troll.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.applyRegenerationShield({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
 
 // Shatter — "Destroy target artifact." (CR 701.7). Declarative shorthand via
 // the shared destroy-target effect, same shape as Sinkhole / Disenchant.
@@ -4085,14 +4171,39 @@ export const wheelOfFortune: CardDefinition = {
     },
 };
 
-// export const aspectOfWolf: CardDefinition = {
-//     id: "fd9ac9e6-1395-4fbd-80e2-645f0d910c29",
-//     name: "Aspect of Wolf",
-//     oracleText: "Enchant creature\nEnchanted creature gets +X/+Y, where X is half the number of Forests you control, rounded down, and Y is half the number of Forests you control, rounded up.",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+export const aspectOfWolf: CardDefinition = {
+    id: "fd9ac9e6-1395-4fbd-80e2-645f0d910c29",
+    name: "Aspect of Wolf",
+    oracleText:
+        "Enchant creature\nEnchanted creature gets +X/+Y, where X is half the number of Forests you control, rounded down, and Y is half the number of Forests you control, rounded up.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: AURA_AFFECTS_HOST,
+            compute: (source, state) => {
+                let forests = 0;
+                for (const player of state.players) {
+                    for (const p of player.battlefield) {
+                        if (
+                            p.controllerId === source.controllerId &&
+                            p.subtypes.includes("Forest")
+                        ) {
+                            forests++;
+                        }
+                    }
+                }
+                return {
+                    power: Math.floor(forests / 2),
+                    toughness: Math.ceil(forests / 2),
+                };
+            },
+        },
+    ],
+};
 
 // Berserk — "Cast this spell only before the combat damage step. Target
 // creature gains trample and gets +X/+0 until end of turn, where X is its
@@ -4895,13 +5006,26 @@ export const wildGrowth: CardDefinition = {
     ],
 };
 
-// export const ankhOfMishra: CardDefinition = {
-//     id: "f594b7aa-d44e-47c4-989b-565f881e25f1",
-//     name: "Ankh of Mishra",
-//     oracleText: "Whenever a land enters, this artifact deals 2 damage to that land's controller.",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
+export const ankhOfMishra: CardDefinition = {
+    id: "f594b7aa-d44e-47c4-989b-565f881e25f1",
+    name: "Ankh of Mishra",
+    oracleText:
+        "Whenever a land enters the battlefield, Ankh of Mishra deals 2 damage to that land's controller.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "ankh-of-mishra-land-etb",
+            oracleText:
+                "Whenever a land enters the battlefield, Ankh of Mishra deals 2 damage to that land's controller.",
+            scope: "any",
+            filter: { types: "Land" },
+            resolve: (ctx, _event, entered) => {
+                ctx.dealDamage({ type: "player", id: entered.controllerId }, 2);
+            },
+        }),
+    ],
+};
 
 // Basalt Monolith — "This artifact doesn't untap during your untap step.
 // {T}: Add {C}{C}{C}. {3}: Untap this artifact." (CR 502.1 untap restriction,
@@ -4959,13 +5083,41 @@ export const blackLotus: CardDefinition = {
     ],
 };
 
-// export const blackVise: CardDefinition = {
-//     id: "76ac72f8-5b1e-4d67-a796-ef69cde27424",
-//     name: "Black Vise",
-//     oracleText: "As this artifact enters, choose an opponent.\nAt the beginning of the chosen player's upkeep, this artifact deals X damage to that player, where X is the number of cards in their hand minus 4.",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-// };
+export const blackVise: CardDefinition = {
+    id: "76ac72f8-5b1e-4d67-a796-ef69cde27424",
+    name: "Black Vise",
+    oracleText:
+        "As Black Vise enters the battlefield, choose an opponent.\nAt the beginning of the chosen player's upkeep, Black Vise deals X damage to that player, where X is the number of cards in their hand minus 4, minimum 0.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "black-vise-upkeep",
+            oracleText:
+                "At the beginning of the chosen player's upkeep, Black Vise deals X damage to that player, where X is the number of cards in their hand minus 4, minimum 0.",
+            phase: "UPKEEP",
+            scope: "opponents",
+            condition: (_event, _self, state) => {
+                if (!state) return false;
+                const opp = state.players.find(
+                    (p) => p.id === _event.activePlayerId
+                );
+                if (!opp) return false;
+                return opp.hand.length > 4;
+            },
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const handSize = ctx.getHandSize(scopedPlayerId);
+                const damage = handSize - 4;
+                if (damage > 0) {
+                    ctx.dealDamage(
+                        { type: "player", id: scopedPlayerId },
+                        damage
+                    );
+                }
+            },
+        }),
+    ],
+};
 
 // Celestial Prism — "{2}, {T}: Add one mana of any color." (CR 605.1a mana
 // ability, 605.3a useStack: false). The choice of color is presented to the
@@ -5169,13 +5321,27 @@ export const crystalRod: CardDefinition = makeColorSphere({
 //     types: ["Artifact"],
 // };
 
-// export const dingusEgg: CardDefinition = {
-//     id: "65eb6cda-e512-40a8-9c1f-335b713409ff",
-//     name: "Dingus Egg",
-//     oracleText: "Whenever a land is put into a graveyard from the battlefield, this artifact deals 2 damage to that land's controller.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+export const dingusEgg: CardDefinition = {
+    id: "65eb6cda-e512-40a8-9c1f-335b713409ff",
+    name: "Dingus Egg",
+    oracleText:
+        "Whenever a land is put into a graveyard from the battlefield, Dingus Egg deals 2 damage to that land's controller.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        leftTrigger({
+            id: "dingus-egg-land-dies",
+            oracleText:
+                "Whenever a land is put into a graveyard from the battlefield, Dingus Egg deals 2 damage to that land's controller.",
+            scope: "any",
+            toZone: "graveyard",
+            filter: { types: "Land" },
+            resolve: (ctx, _event, leaving) => {
+                ctx.dealDamage({ type: "player", id: leaving.controllerId }, 2);
+            },
+        }),
+    ],
+};
 
 // export const disruptingScepter: CardDefinition = {
 //     id: "ca571ee8-07a2-43b8-9acf-89cbfd3cf7c9",
@@ -5510,16 +5676,32 @@ export const libraryOfLeng: CardDefinition = {
     ],
 };
 
-// export const livingWall: CardDefinition = {
-//     id: "4a98ada6-923a-44a5-bdef-ea6a160b481e",
-//     name: "Living Wall",
-//     oracleText: "Defender (This creature can't attack.)\n{1}: Regenerate this creature.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact", "Creature"],
-//     subtypes: ["Wall"],
-//     power: 0,
-//     toughness: 6,
-// };
+export const livingWall: CardDefinition = {
+    id: "4a98ada6-923a-44a5-bdef-ea6a160b481e",
+    name: "Living Wall",
+    oracleText:
+        "Defender (This creature can't attack.)\n{1}: Regenerate Living Wall.",
+    manaCost: { X: 4 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 6,
+    staticAbilities: ["defender"],
+    activatedAbilities: [
+        {
+            id: "living-wall-regenerate",
+            oracleText: "{1}: Regenerate Living Wall.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.applyRegenerationShield({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
 
 // Mana Vault — "This artifact doesn't untap during your untap step. At the
 // beginning of your upkeep, you may pay {4}. If you do, untap this artifact.

@@ -50,6 +50,7 @@ function makeView(): TriggerStateView {
             {
                 id: "p1",
                 life: 20,
+                hand: [],
                 battlefield: [
                     {
                         id: "self-1",
@@ -64,6 +65,7 @@ function makeView(): TriggerStateView {
             {
                 id: "p2",
                 life: 15,
+                hand: [],
                 battlefield: [
                     {
                         id: "opp-1",

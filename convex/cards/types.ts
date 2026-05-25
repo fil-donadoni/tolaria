@@ -1276,6 +1276,7 @@ export interface TriggerStateView {
             subtypes: ReadonlyArray<string>;
             staticAbilities: ReadonlyArray<string>;
         }>;
+        hand: { readonly length: number };
     }>;
 }
 

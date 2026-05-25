@@ -39,8 +39,8 @@ function makeState(
 ): TriggerStateView {
     return {
         players: [
-            { id: "p1", life: 20, battlefield: [] },
-            { id: "p2", life: 20, battlefield: [] },
+            { id: "p1", life: 20, hand: [], battlefield: [] },
+            { id: "p2", life: 20, hand: [], battlefield: [] },
         ],
         ...overrides,
     };
@@ -97,8 +97,8 @@ describe("resolvePhaseScope", () => {
         };
         const state = makeState({
             players: [
-                { id: "p1", life: 20, battlefield: [] },
-                { id: "p2", life: 20, battlefield: [host] },
+                { id: "p1", life: 20, hand: [], battlefield: [] },
+                { id: "p2", life: 20, hand: [], battlefield: [host] },
             ],
         });
         // Host controller is p2; trigger fires only on p2's upkeep.

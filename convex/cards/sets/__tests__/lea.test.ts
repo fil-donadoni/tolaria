@@ -197,6 +197,15 @@ import {
     spellBlast,
     animateArtifact,
     sacrifice,
+    sedgeTroll,
+    aspectOfWolf,
+    dwarvenDemolitionTeam,
+    lordOfThePit,
+    blackVise,
+    livingWall,
+    ankhOfMishra,
+    dingusEgg,
+    forest,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -13361,6 +13370,561 @@ describe("Spell Blast ({X}{U} — counter target spell with cmc = X)", () => {
         expect(spellBlast.targetRequirement?.cmcFilter).toEqual({
             equals: "X",
         });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// W12: Free cards
+// ---------------------------------------------------------------------------
+
+describe("Sedge Troll (conditional +1/+1 if Swamp + {B}: regen, CR 611/701.15a)", () => {
+    it("gets +1/+1 when controller has a Swamp", () => {
+        const troll = makeInstance(sedgeTroll.id, {
+            id: "troll",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const sw = makeInstance(swamp.id, {
+            id: "swamp-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [troll, sw] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, troll)).toBe(3);
+        expect(getEffectiveToughness(state, troll)).toBe(3);
+    });
+
+    it("stays at base 2/2 without a Swamp", () => {
+        const troll = makeInstance(sedgeTroll.id, {
+            id: "troll",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [troll] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, troll)).toBe(2);
+        expect(getEffectiveToughness(state, troll)).toBe(2);
+    });
+
+    it("does NOT count opponent's Swamps", () => {
+        const troll = makeInstance(sedgeTroll.id, {
+            id: "troll",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppSwamp = makeInstance(swamp.id, {
+            id: "opp-swamp",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [troll] }),
+                makePlayer("p2", { battlefield: [oppSwamp] }),
+            ],
+        });
+        expect(getEffectivePower(state, troll)).toBe(2);
+        expect(getEffectiveToughness(state, troll)).toBe(2);
+    });
+
+    it("CDA buff survives the projection boundary (wire format)", () => {
+        const troll = makeInstance(sedgeTroll.id, {
+            id: "troll",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const sw = makeInstance(swamp.id, {
+            id: "swamp-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [troll, sw] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectiveToughness(state, troll)).toBe(3);
+        const projected = projectPublicState(state, 0, "p1");
+        const slimTroll = projected.players[0].battlefield.find(
+            (c) => c.id === "troll"
+        );
+        if (!slimTroll) throw new Error("troll not in projection");
+        expect(getEffectivePower(projected, slimTroll)).toBe(3);
+        expect(getEffectiveToughness(projected, slimTroll)).toBe(3);
+    });
+
+    it("has {B}: Regenerate activated ability", () => {
+        const ability = sedgeTroll.activatedAbilities?.[0];
+        expect(ability?.id).toBe("sedge-troll-regenerate");
+        expect(ability?.cost).toEqual({ mana: { B: 1 } });
+        expect(ability?.useStack).toBe(true);
+    });
+});
+
+describe("Aspect of Wolf (aura CDA: +floor(forests/2)/+ceil(forests/2))", () => {
+    function setup(forests: number) {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "host",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(aspectOfWolf.id, {
+            id: "aow",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const bf: CardInstanceState[] = [host, aura];
+        for (let i = 0; i < forests; i++) {
+            bf.push(
+                makeInstance(forest.id, {
+                    id: `forest-${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                })
+            );
+        }
+        return makeState({
+            players: [makePlayer("p1", { battlefield: bf }), makePlayer("p2")],
+        });
+    }
+
+    it("with 0 forests host stays at base P/T", () => {
+        const state = setup(0);
+        const host = state.players[0].battlefield[0];
+        expect(getEffectivePower(state, host)).toBe(2);
+        expect(getEffectiveToughness(state, host)).toBe(2);
+    });
+
+    it("with 3 forests: +1/+2 (floor(3/2)=1, ceil(3/2)=2)", () => {
+        const state = setup(3);
+        const host = state.players[0].battlefield[0];
+        expect(getEffectivePower(state, host)).toBe(3);
+        expect(getEffectiveToughness(state, host)).toBe(4);
+    });
+
+    it("with 4 forests: +2/+2 (floor(4/2)=2, ceil(4/2)=2)", () => {
+        const state = setup(4);
+        const host = state.players[0].battlefield[0];
+        expect(getEffectivePower(state, host)).toBe(4);
+        expect(getEffectiveToughness(state, host)).toBe(4);
+    });
+
+    it("does NOT count opponent's Forests", () => {
+        const state = setup(0);
+        state.players[1].battlefield.push(
+            makeInstance(forest.id, {
+                id: "opp-forest",
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const host = state.players[0].battlefield[0];
+        expect(getEffectivePower(state, host)).toBe(2);
+        expect(getEffectiveToughness(state, host)).toBe(2);
+    });
+
+    it("CDA survives the projection boundary (wire format)", () => {
+        const state = setup(5);
+        const host = state.players[0].battlefield[0];
+        expect(getEffectivePower(state, host)).toBe(4);
+        expect(getEffectiveToughness(state, host)).toBe(5);
+        const projected = projectPublicState(state, 0, "p1");
+        const slimHost = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        );
+        if (!slimHost) throw new Error("host not in projection");
+        expect(getEffectivePower(projected, slimHost)).toBe(4);
+        expect(getEffectiveToughness(projected, slimHost)).toBe(5);
+    });
+});
+
+describe("Dwarven Demolition Team ({T}: destroy target Wall)", () => {
+    it("has a tap-activated ability targeting Walls", () => {
+        const ability = dwarvenDemolitionTeam.activatedAbilities?.[0];
+        expect(ability?.id).toBe("dwarven-demolition-team-destroy");
+        expect(ability?.cost).toEqual({ tap: true });
+        expect(ability?.targetRequirement?.subtypeFilter).toBe("Wall");
+    });
+
+    it("destroys a target Wall on resolution", () => {
+        const ddt = makeInstance(dwarvenDemolitionTeam.id, {
+            id: "ddt",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const wall = makeInstance(wallOfBone.id, {
+            id: "wall",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ddt] }),
+                makePlayer("p2", { battlefield: [wall] }),
+            ],
+        });
+        state.stack.push({
+            ...ddt,
+            id: "stack-ddt",
+            zone: "stack",
+            castById: "p1",
+            abilityId: "dwarven-demolition-team-destroy",
+            targets: [{ type: "permanent", id: "wall" }],
+        });
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "wall")
+        ).toBeUndefined();
+        expect(
+            state.players[1].graveyard.find((c) => c.id === "wall")
+        ).toBeDefined();
+    });
+});
+
+describe("Lord of the Pit (flying, trample, upkeep sacrifice-or-7dmg)", () => {
+    it("has flying and trample", () => {
+        expect(lordOfThePit.staticAbilities).toContain("flying");
+        expect(lordOfThePit.staticAbilities).toContain("trample");
+    });
+
+    it("upkeep with no other creatures deals 7 damage to controller", () => {
+        const lord = makeInstance(lordOfThePit.id, {
+            id: "lord",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lord], life: 20 }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "UNTAP",
+        });
+        advancePhase(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "lord-of-the-pit-upkeep"
+        );
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(13);
+    });
+
+    it("upkeep with another creature requests sacrifice choice", () => {
+        const lord = makeInstance(lordOfThePit.id, {
+            id: "lord",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const fodder = makeInstance(grizzlyBears.id, {
+            id: "fodder",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [lord, fodder],
+                    life: 20,
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "UNTAP",
+        });
+        advancePhase(state);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("sacrifice-permanents");
+        const item = state.stack.find((s) => s.id === head!.stackItemId)!;
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${head!.step}:${head!.choiceId}`]: ["fodder"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "fodder")
+        ).toBeUndefined();
+        expect(state.players[0].life).toBe(20);
+    });
+});
+
+describe("Black Vise (opponent upkeep: deal hand-4 damage)", () => {
+    it("deals damage when opponent's hand > 4", () => {
+        const vise = makeInstance(blackVise.id, {
+            id: "vise",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppHand: CardInstanceState[] = [];
+        for (let i = 0; i < 7; i++) {
+            oppHand.push(
+                makeInstance(grizzlyBears.id, {
+                    id: `card-${i}`,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone: "hand",
+                })
+            );
+        }
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [vise] }),
+                makePlayer("p2", { hand: oppHand, life: 20 }),
+            ],
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+            phase: "UNTAP",
+        });
+        advancePhase(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("black-vise-upkeep");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17);
+    });
+
+    it("deals no damage when opponent's hand <= 4", () => {
+        const vise = makeInstance(blackVise.id, {
+            id: "vise",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppHand: CardInstanceState[] = [];
+        for (let i = 0; i < 3; i++) {
+            oppHand.push(
+                makeInstance(grizzlyBears.id, {
+                    id: `card-${i}`,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone: "hand",
+                })
+            );
+        }
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [vise] }),
+                makePlayer("p2", { hand: oppHand, life: 20 }),
+            ],
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+            phase: "UNTAP",
+        });
+        advancePhase(state);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("does not trigger on controller's own upkeep", () => {
+        const vise = makeInstance(blackVise.id, {
+            id: "vise",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [vise] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "UNTAP",
+        });
+        advancePhase(state);
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
+describe("Living Wall (0/6 Artifact Creature Wall, defender, {1}: regen)", () => {
+    it("has defender", () => {
+        expect(livingWall.staticAbilities).toContain("defender");
+    });
+
+    it("has {1}: Regenerate activated ability", () => {
+        const ability = livingWall.activatedAbilities?.[0];
+        expect(ability?.id).toBe("living-wall-regenerate");
+        expect(ability?.cost).toEqual({ mana: { X: 1 } });
+        expect(ability?.useStack).toBe(true);
+    });
+
+    it("is 0/6 base stats", () => {
+        expect(livingWall.power).toBe(0);
+        expect(livingWall.toughness).toBe(6);
+    });
+
+    it("types include Artifact and Creature", () => {
+        expect(livingWall.types).toContain("Artifact");
+        expect(livingWall.types).toContain("Creature");
+    });
+});
+
+describe("Ankh of Mishra (land ETB → 2 damage to land's controller)", () => {
+    it("triggers on any land entering the battlefield", () => {
+        const ankh = makeInstance(ankhOfMishra.id, {
+            id: "ankh",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ankh], life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        state.pendingEvents = [
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: "new-land",
+                controllerId: "p2",
+                types: ["Land"],
+            },
+        ];
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "ankh-of-mishra-land-etb"
+        );
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("triggers for controller's own lands too", () => {
+        const ankh = makeInstance(ankhOfMishra.id, {
+            id: "ankh",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ankh], life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        state.pendingEvents = [
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: "my-land",
+                controllerId: "p1",
+                types: ["Land"],
+            },
+        ];
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(18);
+    });
+
+    it("does NOT trigger on non-Land permanents entering", () => {
+        const ankh = makeInstance(ankhOfMishra.id, {
+            id: "ankh",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ankh], life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        state.pendingEvents = [
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: "new-creature",
+                controllerId: "p2",
+                types: ["Creature"],
+            },
+        ];
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
+describe("Dingus Egg (land LTB to graveyard → 2 damage to controller)", () => {
+    it("triggers when a land is put into graveyard from battlefield", () => {
+        const egg = makeInstance(dingusEgg.id, {
+            id: "egg",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(swamp.id, {
+            id: "target-land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [egg] }),
+                makePlayer("p2", { battlefield: [land], life: 20 }),
+            ],
+        });
+        removePermanentTo(state, "target-land", "graveyard");
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("dingus-egg-land-dies");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("does NOT trigger when a land is exiled (not graveyard)", () => {
+        const egg = makeInstance(dingusEgg.id, {
+            id: "egg",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(swamp.id, {
+            id: "target-land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [egg] }),
+                makePlayer("p2", { battlefield: [land], life: 20 }),
+            ],
+        });
+        removePermanentTo(state, "target-land", "exile");
+        processPendingActionTriggers(state);
+        const landTriggers = state.stack.filter(
+            (s) => s.triggeredAbilityId === "dingus-egg-land-dies"
+        );
+        expect(landTriggers).toHaveLength(0);
+    });
+
+    it("does NOT trigger when a non-Land permanent goes to graveyard", () => {
+        const egg = makeInstance(dingusEgg.id, {
+            id: "egg",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const creature = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [egg] }),
+                makePlayer("p2", { battlefield: [creature], life: 20 }),
+            ],
+        });
+        removePermanentTo(state, "bear", "graveyard");
+        processPendingActionTriggers(state);
+        const eggTriggers = state.stack.filter(
+            (s) => s.triggeredAbilityId === "dingus-egg-land-dies"
+        );
+        expect(eggTriggers).toHaveLength(0);
     });
 });
 

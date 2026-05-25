@@ -879,6 +879,43 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "Lord of the Pit — upkeep sacrifice-or-7dmg (CR 603.6a)",
+        cards: [
+            {
+                name: "Lord of the Pit",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Ankh of Mishra + Dingus Egg — land ETB/LTB damage",
+        cards: [
+            {
+                name: "Ankh of Mishra",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Dingus Egg",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 3 },
+            { name: "Forest", owner: "opp" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
 ];
 
 type DebugPanelProps = {
