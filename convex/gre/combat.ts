@@ -1,7 +1,8 @@
 import type { CardInstanceState, GameState } from "./state";
+import type { StaticBlockRestriction } from "../cards/types";
 import { isProtectedFromSource } from "./protection";
 import { getEffectivePower } from "./layers";
-import { getCardById } from "../cards";
+import { tryGetCardById } from "../cards";
 import {
     evaluateBlockerKeywords,
     evaluateAttackerKeywords,
@@ -51,9 +52,11 @@ export function validateAttackerEligibility(
                 c.subtypes.includes(requiredSubtype)
             );
             if (!ok) {
+                const def = tryGetCardById(card.card.id as string);
+                const name = def?.name ?? "Creature";
                 return {
                     eligible: false,
-                    reason: `${getCardById(card.card.id as string).name} can't attack unless defending player controls a ${requiredSubtype}`,
+                    reason: `${name} can't attack unless defending player controls a ${requiredSubtype}`,
                 };
             }
         }
@@ -65,17 +68,49 @@ export type BlockerValidation =
     | { eligible: true }
     | { eligible: false; reason: string };
 
+/** Collects `block-restriction` static effects from a card's definition
+ *  and from any auras attached to it (CR 303.4 — aura effects apply to
+ *  their host). Requires `state` to discover attached auras; without state
+ *  only the card's own restrictions are returned. */
+function collectBlockRestrictions(
+    card: CardInstanceState,
+    side: "attacker" | "blocker",
+    state?: GameState
+): StaticBlockRestriction[] {
+    const restrictions: StaticBlockRestriction[] = [];
+    const collect = (cardId: string | undefined) => {
+        if (!cardId) return;
+        const def = tryGetCardById(cardId);
+        if (!def?.staticEffects) return;
+        for (const effect of def.staticEffects) {
+            if (effect.kind === "block-restriction" && effect.side === side) {
+                restrictions.push(effect);
+            }
+        }
+    };
+    collect((card.card as { id?: string }).id);
+    if (state) {
+        for (const player of state.players) {
+            for (const perm of player.battlefield) {
+                if (perm.attachedTo !== card.id) continue;
+                collect((perm.card as { id?: string }).id);
+            }
+        }
+    }
+    return restrictions;
+}
+
 /**
  * Validates whether `blocker` can be legally assigned to block `attacker`
  * given the defending player's battlefield. Evaluation order:
  *  1. Keyword-level evasion (registry): unblockable, landwalk, fear, flying.
- *  2. Card-specific string restrictions: Wall-only, cant-be-blocked-by-wall,
- *     power-bound (migrating to StaticEffect in S2).
+ *  2. Card-level block restrictions from staticEffects[] (Juggernaut,
+ *     Invisibility, Ironclaw Orcs, etc.) — predicate-driven via S2.
  *  3. Protection (CR 702.16f).
  *
- * `state` is optional — required only for the power-bound restriction so
- * the validator can call `getEffectivePower(state, attacker)` (CR 613 layer
- * 7c). Callers without state degrade gracefully to `attacker.power ?? 0`.
+ * `state` is optional — required for block-restriction predicates that check
+ * effective P/T (CR 613 layer 7c). Without state, predicates degrade to
+ * base P/T values.
  */
 export function validateBlockerEligibility(
     attacker: CardInstanceState,
@@ -93,43 +128,33 @@ export function validateBlockerEligibility(
     );
     if (!keywordResult.eligible) return keywordResult;
 
-    // Pass 2 — card-specific string restrictions (migrating to
-    // StaticEffect block-restriction in S2).
-
-    // CR 509.1b — Juggernaut: "This creature can't be blocked by Walls."
-    if (
-        attacker.staticAbilities.includes("cant-be-blocked-by-wall") &&
-        blocker.subtypes.includes("Wall")
-    ) {
-        return {
-            eligible: false,
-            reason: "Attacker can't be blocked by Walls",
-        };
-    }
-
-    // CR 509.1b — Invisibility-style "can be blocked only by Walls".
-    if (
-        attacker.staticAbilities.includes("cant-be-blocked-except-by-wall") &&
-        !blocker.subtypes.includes("Wall")
-    ) {
-        return {
-            eligible: false,
-            reason: "Attacker can be blocked only by Walls",
-        };
-    }
-
-    // CR 509.1b — Ironclaw Orcs: "can't block creatures with power 2 or
-    // greater." Predicate is on the blocker; reads the attacker's effective
-    // power so layer-7c buffs (Crusade, Bad Moon, etc.) are honored.
-    if (blocker.staticAbilities.includes("cant-block-power-2-or-greater")) {
-        const power = state
-            ? getEffectivePower(state, attacker)
-            : (attacker.power ?? 0);
-        if (power >= 2) {
-            return {
-                eligible: false,
-                reason: "Blocker can't block creatures with power 2 or greater",
-            };
+    // Pass 2 — card-level block restrictions from staticEffects[] (S2).
+    const attackerRestrictions = collectBlockRestrictions(
+        attacker,
+        "attacker",
+        state
+    );
+    const blockerRestrictions = collectBlockRestrictions(
+        blocker,
+        "blocker",
+        state
+    );
+    if (attackerRestrictions.length > 0 || blockerRestrictions.length > 0) {
+        const effAttacker = state
+            ? { ...attacker, power: getEffectivePower(state, attacker) }
+            : attacker;
+        const effBlocker = state
+            ? { ...blocker, power: getEffectivePower(state, blocker) }
+            : blocker;
+        for (const r of attackerRestrictions) {
+            if (!r.predicate(effAttacker, effBlocker, state)) {
+                return { eligible: false, reason: r.oracleText };
+            }
+        }
+        for (const r of blockerRestrictions) {
+            if (!r.predicate(effBlocker, effAttacker, state)) {
+                return { eligible: false, reason: r.oracleText };
+            }
         }
     }
 
