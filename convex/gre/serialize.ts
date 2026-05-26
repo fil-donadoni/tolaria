@@ -106,6 +106,7 @@ function compactCard(
     if (card.grantedTypes && card.grantedTypes.length > 0) {
         out.grantedTypes = card.grantedTypes;
     }
+    if (card.exileOnDeath) out.exileOnDeath = true;
     return out;
 }
 
@@ -200,6 +201,7 @@ function expandCard(
         result.grantedTypes =
             compact.grantedTypes as CardInstanceState["grantedTypes"];
     }
+    if (compact.exileOnDeath) result.exileOnDeath = true;
     return result;
 }
 

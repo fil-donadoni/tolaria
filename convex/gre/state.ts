@@ -254,6 +254,11 @@ export type CardInstanceState = {
      *  reset at the active player's turn start. Read by the activation
      *  validator to enforce `ActivatedAbility.oncePerTurn`. */
     activationsThisTurn?: Record<string, number>;
+    /** When set, the lethal-damage SBA exiles this creature instead of sending
+     *  it to the graveyard (CR 614.1a — Disintegrate). Also incompatible with
+     *  regeneration: the SBA path treats this identically to `cantBeRegenerated`.
+     *  Transient — cleared at CLEANUP (CR 514.2). */
+    exileOnDeath?: boolean;
     /** Tracks card types added by `StaticTypeAdd` effects (layer 4 surrogate
      *  — see `cards/types.ts` for the model's limits). One entry per
      *  `(auraId, type)` pair so multiple concurrent sources don't double-add
@@ -1635,8 +1640,12 @@ export function regenerateOrDestroy(
     // (A creature with indestructible and lethal damage marks survives — the
     // marked damage stays, but SBA 704.5g doesn't fire on it.)
     if (found.card.staticAbilities.includes("indestructible")) return false;
+    // CR 614.1a (Disintegrate) — exileOnDeath suppresses regeneration and
+    // routes death to exile instead of graveyard.
+    const exileOnDeath = found.card.exileOnDeath === true;
+    const cantRegen = opts?.cantBeRegenerated || exileOnDeath;
     const shields = found.card.regenerationShields ?? 0;
-    if (shields > 0 && !opts?.cantBeRegenerated) {
+    if (shields > 0 && !cantRegen) {
         const next = shields - 1;
         if (next === 0) delete found.card.regenerationShields;
         else found.card.regenerationShields = next;
@@ -1668,7 +1677,7 @@ export function regenerateOrDestroy(
         }
         return false;
     }
-    removePermanentTo(state, cardId, "graveyard");
+    removePermanentTo(state, cardId, exileOnDeath ? "exile" : "graveyard");
     return true;
 }
 
@@ -1883,6 +1892,7 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.manaCommitted;
     delete card.counters;
     delete card.temporaryPTMods;
+    delete card.exileOnDeath;
 }
 
 /** Reanimation helper: drops a card that has been removed from its source
@@ -2754,6 +2764,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
 
         preventAllCombatDamage(): void {
             state.preventAllCombatDamageThisTurn = true;
+        },
+
+        setExileOnDeath(target: TargetSelection): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            if (!found.card.types.includes("Creature")) return;
+            found.card.exileOnDeath = true;
         },
 
         // --- Mid-resolution choices (CR 608.2, 101.4) ---
