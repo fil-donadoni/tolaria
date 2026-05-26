@@ -23,6 +23,7 @@ import ActionButton from "~/components/board/action-button";
 import DashboardTopBar from "./dashboard-top-bar";
 import DashboardPlayBox from "./dashboard-play-box";
 import DeckList from "./deck-list";
+import LobbyBackground from "./lobby-background";
 
 function Lobby() {
     const navigate = useNavigate();
@@ -194,8 +195,9 @@ function Lobby() {
     );
 
     return (
-        <div className="min-h-screen bg-surface-base text-text">
-            <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
+        <div className="relative min-h-screen overflow-hidden bg-surface-base text-text">
+            <LobbyBackground />
+            <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
                 <DashboardTopBar />
 
                 <div className="flex items-baseline justify-between">

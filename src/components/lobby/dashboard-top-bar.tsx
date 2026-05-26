@@ -5,7 +5,6 @@ import { api } from "@convex/_generated/api";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { Panel } from "~/components/ui/panel";
 
 const NICKNAME_MIN = 1;
 const NICKNAME_MAX = 32;
@@ -57,10 +56,8 @@ export default function DashboardTopBar() {
     const initial = user.nickname.charAt(0).toUpperCase();
 
     return (
-        <Panel
-            density="compact"
-            className="flex-row items-center justify-between gap-4"
-        >
+        // <Panel className="flex-row items-center justify-between gap-4">
+        <div className="flex justify-end items-center gap-4">
             <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-base font-bold text-surface-base">
                     {initial}
@@ -115,6 +112,7 @@ export default function DashboardTopBar() {
             >
                 Sign out
             </Button>
-        </Panel>
+        </div>
+        // </Panel>
     );
 }
