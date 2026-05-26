@@ -3,11 +3,11 @@ import type { DeckCard } from "~/types/game";
 import { groupDeckIntoPiles } from "./deckGrouping";
 import ManaPile from "./mana-pile";
 
-interface MoneyPileViewProps {
+interface ManaPileViewProps {
     cards: DeckCard[];
 }
 
-export default function MoneyPileView({ cards }: MoneyPileViewProps) {
+export default function ManaPileView({ cards }: ManaPileViewProps) {
     const piles = useMemo(() => groupDeckIntoPiles(cards), [cards]);
 
     if (piles.length === 0) {
@@ -17,7 +17,7 @@ export default function MoneyPileView({ cards }: MoneyPileViewProps) {
     }
 
     return (
-        <div className="flex items-start gap-6 overflow-x-auto pb-4">
+        <div className="flex items-start gap-2 md:gap-6 overflow-x-auto">
             {piles.map((pile) => (
                 <ManaPile
                     key={pile.key}

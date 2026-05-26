@@ -179,14 +179,14 @@ function Lobby() {
         <>
             <button
                 onClick={() => handleEditDeck(deck.presetId)}
-                className="rounded-sm border border-border-subtle/40 bg-surface-elevated/20 px-3 py-2 text-xs text-text hover:bg-surface-elevated/40"
+                className="font-beleren tracking-wide rounded-sm border border-secondary-accent/45 bg-secondary-accent-soft/30 px-3 py-2 text-xs text-secondary-accent-strong hover:bg-secondary-accent-soft/50 active:bg-secondary-accent-soft/65 transition-colors cursor-pointer"
                 title="Edit deck"
             >
                 Edit
             </button>
             <button
                 onClick={() => handleDeleteDeck(deck.presetId)}
-                className="rounded-sm border border-danger/30 bg-danger-soft/20 px-3 py-2 text-xs text-danger-strong hover:bg-danger-soft/40"
+                className="font-beleren tracking-wide rounded-sm border border-danger/45 bg-danger-soft/45 px-3 py-2 text-xs text-danger-strong hover:bg-danger-soft/65 active:bg-danger-soft/80 transition-colors cursor-pointer"
                 title="Delete deck"
             >
                 Delete
@@ -200,15 +200,6 @@ function Lobby() {
             <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
                 <DashboardTopBar />
 
-                <div className="flex items-baseline justify-between">
-                    <h1 className="text-3xl font-bold font-beleren tracking-wide text-parchment">
-                        Tolaria
-                    </h1>
-                    <span className="text-xs uppercase tracking-[0.3em] text-text-muted">
-                        Dashboard
-                    </span>
-                </div>
-
                 <DashboardPlayBox
                     selectedDeck={selectedDeck}
                     openGames={openGames}
@@ -220,34 +211,38 @@ function Lobby() {
                 />
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                    <Panel>
-                        <DeckList
-                            title="My Decks"
-                            decks={userLobbyDecks}
-                            selectedPresetId={storedPresetId}
-                            onFocus={handleFocusDeck}
-                            onSelect={handleSelectDeck}
-                            emptyLabel="No saved decks yet. Create one to start building."
-                            renderActions={renderUserActions}
-                            headerExtra={
-                                <button
-                                    onClick={handleNewDeck}
-                                    className="rounded-sm bg-accent px-3 py-1.5 text-xs font-semibold text-surface-base hover:bg-accent-strong"
-                                >
-                                    + New Deck
-                                </button>
-                            }
-                        />
+                    <Panel className="max-h-[400px]">
+                        <div className="overflow-auto max-h-[calc(400px-3rem)]">
+                            <DeckList
+                                title="My Decks"
+                                decks={userLobbyDecks}
+                                selectedPresetId={storedPresetId}
+                                onFocus={handleFocusDeck}
+                                onSelect={handleSelectDeck}
+                                emptyLabel="No saved decks yet. Create one to start building."
+                                renderActions={renderUserActions}
+                                headerExtra={
+                                    <button
+                                        onClick={handleNewDeck}
+                                        className="font-beleren tracking-wide rounded-sm border border-accent/45 bg-accent-soft/30 px-3 py-1.5 text-xs text-accent-strong hover:bg-accent-soft/50 active:bg-accent-soft/65 transition-colors cursor-pointer shadow-md"
+                                    >
+                                        + New Deck
+                                    </button>
+                                }
+                            />
+                        </div>
                     </Panel>
 
-                    <Panel>
-                        <DeckList
-                            title="Preset Decks"
-                            decks={presetLobbyDecks}
-                            selectedPresetId={storedPresetId}
-                            onFocus={handleFocusDeck}
-                            onSelect={handleSelectDeck}
-                        />
+                    <Panel className="max-h-[400px]">
+                        <div className="overflow-auto max-h-[calc(400px-3rem)]">
+                            <DeckList
+                                title="Preset Decks"
+                                decks={presetLobbyDecks}
+                                selectedPresetId={storedPresetId}
+                                onFocus={handleFocusDeck}
+                                onSelect={handleSelectDeck}
+                            />
+                        </div>
                     </Panel>
                 </div>
             </div>

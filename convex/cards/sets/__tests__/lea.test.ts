@@ -224,6 +224,8 @@ import {
     timeVault,
     naturalSelection,
     glassesOfUrza,
+    cockatrice,
+    thicketBasilisk,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -269,6 +271,7 @@ import {
     effectiveMaxHandSize,
     effectivePermanentView,
     finalizeCleanupDiscard,
+    emitBlockersConfirmedEvents,
 } from "../../../gre/phases";
 import { tryGetCardById } from "../../index";
 import type { CardDefinition, CardType } from "../../types";
@@ -16480,5 +16483,159 @@ describe("Glasses of Urza (reveal hand, CR 401.4)", () => {
         // p2 should NOT see the reveal field
         const forP2 = projectPublicState(state, 1, "p2");
         expect(forP2.players[1].revealedHand).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Cockatrice (CR 509.1h — combat kill trigger, CR 511.3 end-of-combat destroy)
+// ---------------------------------------------------------------------------
+describe("Cockatrice (blocks/blocked-by → destroy at end of combat, CR 509.1h)", () => {
+    function setupCombat(opts: {
+        selfIsAttacker: boolean;
+        opponentSubtypes?: string[];
+    }) {
+        const cockCard = makeInstance(cockatrice.id, {
+            id: "cock",
+            controllerId: opts.selfIsAttacker ? "p1" : "p2",
+            ownerId: opts.selfIsAttacker ? "p1" : "p2",
+            zone: "battlefield",
+            isAttacking: opts.selfIsAttacker ? true : undefined,
+            isBlocking: opts.selfIsAttacker ? undefined : true,
+        });
+        const opponent = makeInstance(grizzlyBears.id, {
+            id: "opp-creature",
+            controllerId: opts.selfIsAttacker ? "p2" : "p1",
+            ownerId: opts.selfIsAttacker ? "p2" : "p1",
+            zone: "battlefield",
+            types: ["Creature"],
+            subtypes: opts.opponentSubtypes ?? [],
+            isAttacking: opts.selfIsAttacker ? undefined : true,
+            isBlocking: opts.selfIsAttacker ? true : undefined,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: opts.selfIsAttacker ? [cockCard] : [opponent],
+                }),
+                makePlayer("p2", {
+                    battlefield: opts.selfIsAttacker ? [opponent] : [cockCard],
+                }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: [opts.selfIsAttacker ? "cock" : "opp-creature"],
+                confirmed: true,
+                blockerAssignments: opts.selfIsAttacker
+                    ? { "opp-creature": ["cock"] }
+                    : { cock: ["opp-creature"] },
+                blockersConfirmed: true,
+            },
+        });
+        return state;
+    }
+
+    it("has flying", () => {
+        expect(cockatrice.staticAbilities).toContain("flying");
+    });
+
+    it("triggers when cockatrice attacks and is blocked by a non-Wall", () => {
+        const state = setupCombat({ selfIsAttacker: true });
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack.length).toBe(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "cockatrice-combat-kill"
+        );
+    });
+
+    it("triggers when cockatrice blocks a non-Wall attacker", () => {
+        const state = setupCombat({ selfIsAttacker: false });
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack.length).toBe(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "cockatrice-combat-kill"
+        );
+    });
+
+    it("does NOT trigger against Wall creatures", () => {
+        const state = setupCombat({
+            selfIsAttacker: true,
+            opponentSubtypes: ["Wall"],
+        });
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack.length).toBe(0);
+    });
+
+    it("schedules delayed destroy at end-of-combat on resolution", () => {
+        const state = setupCombat({ selfIsAttacker: true });
+        emitBlockersConfirmedEvents(state);
+        resolveTopOfStack(state);
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].timing).toBe("next-end-of-combat");
+        expect(state.delayedTriggers![0].payload.targetId).toBe("opp-creature");
+    });
+
+    it("delayed trigger destroys opponent at END_OF_COMBAT", () => {
+        const state = setupCombat({ selfIsAttacker: true });
+        emitBlockersConfirmedEvents(state);
+        resolveTopOfStack(state);
+        // Set phase to COMBAT_DAMAGE so advancePhase enters END_OF_COMBAT
+        state.phase = "COMBAT_DAMAGE";
+        advancePhase(state);
+        expect(state.phase).toBe("END_OF_COMBAT");
+        // Delayed trigger is now on stack
+        expect(state.stack.length).toBeGreaterThanOrEqual(1);
+        resolveTopOfStack(state);
+        // Opponent creature should be in graveyard
+        const oppPlayer = state.players[1];
+        expect(
+            oppPlayer.battlefield.find((c) => c.id === "opp-creature")
+        ).toBeUndefined();
+        expect(
+            oppPlayer.graveyard.find((c) => c.id === "opp-creature")
+        ).toBeDefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Thicket Basilisk (same combat kill, no flying)
+// ---------------------------------------------------------------------------
+describe("Thicket Basilisk (same combat kill as Cockatrice, no flying)", () => {
+    it("does NOT have flying", () => {
+        expect(thicketBasilisk.staticAbilities ?? []).not.toContain("flying");
+    });
+
+    it("triggers on blocking a non-Wall creature", () => {
+        const basilisk = makeInstance(thicketBasilisk.id, {
+            id: "basilisk",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            isBlocking: true,
+        });
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "att",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            types: ["Creature"],
+            subtypes: [],
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: [basilisk] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["att"],
+                confirmed: true,
+                blockerAssignments: { basilisk: ["att"] },
+                blockersConfirmed: true,
+            },
+        });
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack.length).toBe(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("basilisk-combat-kill");
     });
 });

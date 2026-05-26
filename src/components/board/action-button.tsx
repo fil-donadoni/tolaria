@@ -20,11 +20,11 @@ function ShortcutHint({ shortcut }: { shortcut: string }) {
 
 const TONE_CLASSES: Record<ActionButtonTone, string> = {
     primary:
-        "bg-accent-soft/30 border-accent/45 text-accent-strong hover:bg-accent-soft/50",
+        "bg-accent-soft/30 border-accent/45 text-accent-strong hover:bg-accent-soft/50 active:bg-accent-soft/65",
     secondary:
-        "bg-surface-elevated/40 border-border-subtle/45 text-text hover:bg-surface-elevated/60",
+        "bg-secondary-accent-soft/30 border-secondary-accent/45 text-secondary-accent-strong hover:bg-secondary-accent-soft/50 active:bg-secondary-accent-soft/65",
     destructive:
-        "bg-danger-soft/45 border-danger/45 text-danger-strong hover:bg-danger-soft/65",
+        "bg-danger-soft/45 border-danger/45 text-danger-strong hover:bg-danger-soft/65 active:bg-danger-soft/80",
 };
 
 const DISABLED_CLASS =

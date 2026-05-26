@@ -60,6 +60,7 @@ import {
     advancePhase,
     drainAutoPasses,
     applyAllCombatDamage,
+    emitBlockersConfirmedEvents,
 } from "./gre/phases";
 import { freshSeed, seededShuffle } from "./gre/rng";
 import {
@@ -2431,6 +2432,7 @@ export const confirmBlockers = mutation({
 
         state.combat.pendingBlockerId = undefined;
         state.combat.blockersConfirmed = true;
+        emitBlockersConfirmedEvents(state);
 
         // CR 509.2 — active player gets priority immediately after blockers
         // are declared. The historic damage-assignment-order turn-based

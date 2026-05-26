@@ -2,7 +2,7 @@ import type { LobbyDeck } from "~/lib/deckTypes";
 import { cn } from "~/lib/utils";
 import ManaSymbol from "../cards/mana-symbol";
 import ActionButton from "../board/action-button";
-import MoneyPileView from "./money-pile-view";
+import ManaPileView from "./mana-pile-view";
 
 interface DeckDetailProps {
     deck: LobbyDeck;
@@ -18,49 +18,56 @@ export default function DeckDetail({
     onSelect,
 }: DeckDetailProps) {
     return (
-        <div className="flex h-screen w-full flex-col gap-4 p-6 text-text">
-            <div className="flex items-center gap-4">
-                <ActionButton
-                    onClick={onBack}
-                    label="← Back"
-                    tone="secondary"
-                />
-                <div className="flex flex-1 flex-col">
-                    <div className="flex items-center gap-3">
-                        <h1 className="text-xl font-bold font-beleren text-parchment">
-                            {deck.name}
-                        </h1>
-                        <div className="flex items-center gap-1 text-xl">
-                            {deck.colors.map((c) => (
-                                <ManaSymbol key={c} symbol={c} />
-                            ))}
-                        </div>
-                        <span className="text-xs text-text-muted">
-                            {deck.cards.length} cards · {deck.format}
-                        </span>
+        <div className="flex w-full flex-col gap-4 p-6 text-text">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
+                <div className="flex items-center gap-3">
+                    <ActionButton
+                        onClick={onBack}
+                        label="← Back"
+                        tone="secondary"
+                    />
+                    <h1 className="text-xl font-bold font-beleren text-parchment">
+                        {deck.name}
+                    </h1>
+                    <div className="flex items-center gap-1 text-xl">
+                        {deck.colors.map((c) => (
+                            <ManaSymbol key={c} symbol={c} />
+                        ))}
                     </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 md:flex-1">
+                    <span className="text-xs text-text-muted">
+                        {deck.cards.length} cards · {deck.format}
+                    </span>
                     {deck.description && (
                         <p className="text-sm text-text-muted">
                             {deck.description}
                         </p>
                     )}
+                    <button
+                        onClick={onSelect}
+                        disabled={isSelected}
+                        className={cn(
+                            "font-beleren tracking-wide px-4 py-2 rounded-sm text-sm border transition-colors shadow-md md:ml-auto",
+                            isSelected
+                                ? "bg-surface/40 border-border-subtle/40 text-text-disabled cursor-not-allowed"
+                                : "bg-accent-soft/30 border-accent/45 text-accent-strong hover:bg-accent-soft/50 active:bg-accent-soft/65 cursor-pointer"
+                        )}
+                    >
+                        {isSelected ? "Selected" : "Select this deck"}
+                    </button>
                 </div>
-                <button
-                    onClick={onSelect}
-                    disabled={isSelected}
-                    className={cn(
-                        "rounded-sm px-4 py-2 text-sm font-semibold transition",
-                        isSelected
-                            ? "bg-accent-soft/30 text-accent"
-                            : "bg-accent text-surface-base hover:bg-accent-strong"
-                    )}
-                >
-                    {isSelected ? "Selected" : "Select this deck"}
-                </button>
             </div>
 
-            <div className="flex-1 overflow-auto">
-                <MoneyPileView cards={deck.cards} />
+            <div
+                className=""
+                style={
+                    {
+                        "--card-w": "min(8rem, 20vw, 19vh)",
+                    } as React.CSSProperties
+                }
+            >
+                <ManaPileView cards={deck.cards} />
             </div>
         </div>
     );

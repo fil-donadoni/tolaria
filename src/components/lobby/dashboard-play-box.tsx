@@ -31,25 +31,31 @@ export default function DashboardPlayBox({
             <PanelHeader title="Play" />
             <PanelBody>
                 {selectedDeck ? (
-                    <div className="flex flex-wrap items-center gap-3">
-                        <span className="text-lg font-semibold text-parchment">
-                            {selectedDeck.name}
-                        </span>
-                        <div className="flex items-center gap-1 text-xl">
-                            {selectedDeck.colors.map((c) => (
-                                <ManaSymbol key={c} symbol={c} />
-                            ))}
-                        </div>
-                        {selectedDeck.kind === "user" && (
-                            <span className="rounded-sm bg-accent-soft/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
-                                Custom
+                    <div className="flex flex-col md:flex-row flex-wrap justify-between items-center gap-3 mb-8">
+                        <div className="flex gap-4">
+                            <span className="text-lg font-semibold text-parchment">
+                                {selectedDeck.name}
                             </span>
-                        )}
-                        <ActionButton
-                            onClick={onChangeDeck}
-                            label="Change deck"
-                            tone="secondary"
-                        />
+
+                            <div className="flex items-center gap-1 text-xl">
+                                {selectedDeck.colors.map((c) => (
+                                    <ManaSymbol key={c} symbol={c} />
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between w-full">
+                            {selectedDeck.kind === "user" && (
+                                <span className="rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-strong/80">
+                                    Custom
+                                </span>
+                            )}
+                            <ActionButton
+                                onClick={onChangeDeck}
+                                label="Change deck"
+                                tone="secondary"
+                            />
+                        </div>
                     </div>
                 ) : (
                     <p className="text-sm text-text-muted">

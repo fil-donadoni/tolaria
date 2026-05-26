@@ -22,20 +22,20 @@ export default function BuilderPile({
     }rem)`;
 
     return (
-        <div className="flex w-[var(--card-w)] shrink-0 flex-col gap-2">
+        <div className="flex w-(--card-w) shrink-0 flex-col gap-2">
             <div className="flex items-baseline justify-between gap-2 text-xs text-white/70">
                 <span className="font-semibold">{label}</span>
                 <span className="text-white/40">{cards.length}</span>
             </div>
             <div
-                className="relative w-[var(--card-w)]"
+                className="relative w-(--card-w)"
                 style={{ height: pileHeight }}
             >
                 {cards.map((card, idx) => (
                     <button
                         key={`${card.cardId}-${idx}`}
                         onClick={() => onRemove(card.cardId)}
-                        className="group absolute left-0 aspect-5/7 w-[var(--card-w)] transition hover:translate-x-1"
+                        className="group absolute left-0 aspect-5/7 w-(--card-w) transition hover:translate-x-1"
                         style={{ top: `${idx * OFFSET_Y_REM}rem` }}
                         title={`Remove ${card.cardName}`}
                     >

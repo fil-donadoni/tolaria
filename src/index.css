@@ -99,6 +99,9 @@
     --color-accent: #c8a060;
     --color-accent-strong: #e0c08a;
     --color-accent-soft: #7a5a2e;
+    --color-secondary-accent: #5a7a8a;
+    --color-secondary-accent-strong: #8cb0c4;
+    --color-secondary-accent-soft: #2e4450;
     --color-danger: #a04040;
     --color-danger-strong: #d48080;
     --color-danger-soft: #5c1e1e;
@@ -170,6 +173,26 @@
         --card-w: min(8rem, 10vw, 9.5vh);
         --card-h: calc(var(--card-w) * 7 / 5);
         --card-w-sm: calc(var(--card-w) * 0.75);
+    }
+
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--color-border-accent) transparent;
+    }
+
+    *::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    *::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    *::-webkit-scrollbar-thumb {
+        background: var(--color-border-accent);
+        border-radius: 3px;
+    }
+    *::-webkit-scrollbar-thumb:hover {
+        background: var(--color-text-muted);
     }
 
     .leader-line {

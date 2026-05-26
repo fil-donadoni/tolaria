@@ -2,6 +2,7 @@ import type {
     ActivatedAbilityContext,
     CardDefinition,
     Color,
+    DelayedTriggerDef,
     ManaCost,
     PermanentFilter,
     PermanentView,
@@ -4597,16 +4598,80 @@ export const channel: CardDefinition = {
     },
 };
 
-// export const cockatrice: CardDefinition = {
-//     id: "9cd91814-6177-4a3d-a1c1-a3be7d7c7957",
-//     name: "Cockatrice",
-//     oracleText: "Flying\nWhenever this creature blocks or becomes blocked by a non-Wall creature, destroy that creature at end of combat.",
-//     manaCost: { X: 3, G: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Cockatrice"],
-//     power: 2,
-//     toughness: 4,
-// };
+// --- Combat kill pattern (Cockatrice, Thicket Basilisk) ---
+// "Whenever this creature blocks or becomes blocked by a non-Wall creature,
+// destroy that creature at end of combat." (CR 509.1h, CR 511.3)
+
+function combatKillTrigger(
+    cardId: string,
+    abilityId: string
+): TriggeredAbility {
+    const destroyTriggerId = `${abilityId}-destroy`;
+    return {
+        id: abilityId,
+        oracleText:
+            "Whenever this creature blocks or becomes blocked by a non-Wall creature, destroy that creature at end of combat.",
+        event: "BLOCKERS_CONFIRMED",
+        matches: (event, self) => {
+            if (event.type !== "BLOCKERS_CONFIRMED") return false;
+            const isSelfAttacker = event.attackerId === self.id;
+            const isSelfBlocker = event.blockerId === self.id;
+            if (!isSelfAttacker && !isSelfBlocker) return false;
+            const opponentSubtypes = isSelfAttacker
+                ? event.blockerSubtypes
+                : event.attackerSubtypes;
+            return !opponentSubtypes.includes("Wall");
+        },
+        resolve: (ctx, event) => {
+            if (event.type !== "BLOCKERS_CONFIRMED") return;
+            const isSelfAttacker = event.attackerId === ctx.sourceInstanceId;
+            const opponentId = isSelfAttacker
+                ? event.blockerId
+                : event.attackerId;
+            ctx.scheduleDelayedTrigger(
+                cardId,
+                destroyTriggerId,
+                "next-end-of-combat",
+                {
+                    targetId: opponentId,
+                }
+            );
+        },
+    };
+}
+
+function combatKillDelayed(triggerId: string): DelayedTriggerDef {
+    return {
+        id: triggerId,
+        oracleText: "Destroy that creature at end of combat.",
+        timing: "next-end-of-combat",
+        resolve: (ctx, payload) => {
+            if (!payload.targetId) return;
+            ctx.destroy({ type: "permanent", id: payload.targetId });
+        },
+    };
+}
+
+// Cockatrice — {3}{G}{G} 2/4, flying. "Whenever this creature blocks or
+// becomes blocked by a non-Wall creature, destroy that creature at end of
+// combat." (CR 509.1h combat pairing trigger, CR 511.3 end-of-combat timing)
+const COCKATRICE_ID = "9cd91814-6177-4a3d-a1c1-a3be7d7c7957";
+export const cockatrice: CardDefinition = {
+    id: COCKATRICE_ID,
+    name: "Cockatrice",
+    oracleText:
+        "Flying\nWhenever this creature blocks or becomes blocked by a non-Wall creature, destroy that creature at end of combat.",
+    manaCost: { X: 3, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Cockatrice"],
+    power: 2,
+    toughness: 4,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        combatKillTrigger(COCKATRICE_ID, "cockatrice-combat-kill"),
+    ],
+    delayedTriggers: [combatKillDelayed("cockatrice-combat-kill-destroy")],
+};
 
 export const crawWurm: CardDefinition = {
     id: "bfed1a95-bd67-4e16-a781-81866028af2f",
@@ -5160,16 +5225,23 @@ export const streamOfLife: CardDefinition = {
     },
 };
 
-// export const thicketBasilisk: CardDefinition = {
-//     id: "e92cce01-b3bd-4307-aae5-9a7c8fa386ab",
-//     name: "Thicket Basilisk",
-//     oracleText: "Whenever this creature blocks or becomes blocked by a non-Wall creature, destroy that creature at end of combat.",
-//     manaCost: { X: 3, G: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Basilisk"],
-//     power: 2,
-//     toughness: 4,
-// };
+// Thicket Basilisk — {3}{G}{G} 2/4. Same combat kill as Cockatrice, no flying.
+const THICKET_BASILISK_ID = "e92cce01-b3bd-4307-aae5-9a7c8fa386ab";
+export const thicketBasilisk: CardDefinition = {
+    id: THICKET_BASILISK_ID,
+    name: "Thicket Basilisk",
+    oracleText:
+        "Whenever this creature blocks or becomes blocked by a non-Wall creature, destroy that creature at end of combat.",
+    manaCost: { X: 3, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Basilisk"],
+    power: 2,
+    toughness: 4,
+    triggeredAbilities: [
+        combatKillTrigger(THICKET_BASILISK_ID, "basilisk-combat-kill"),
+    ],
+    delayedTriggers: [combatKillDelayed("basilisk-combat-kill-destroy")],
+};
 
 // export const timberWolves: CardDefinition = {
 //     id: "bc2570a4-eef9-430d-b6c2-cd51d29b9d01",
@@ -6028,9 +6100,13 @@ export const juggernaut: CardDefinition = {
 
 // Library of Leng — "You have no maximum hand size. If an effect causes you
 // to discard a card, discard it, but you may put it on top of your library
-// instead of into your graveyard." (CR 614 discard replacement.) The
-// engine doesn't currently enforce a maximum hand size, so the first
-// clause is a no-op in practice.
+// instead of into your graveyard." (CR 402.2 / 514.1 + CR 614 discard
+// replacement.) The first clause is a `StaticHandSizeOverride` ("unlimited")
+// — read by `effectiveMaxHandSize` in `convex/gre/phases.ts` at CLEANUP, so
+// the controller is never prompted to discard down to seven while the
+// artifact is in play. No PlayerState mutation: the override is computed
+// inline from the battlefield (mirror of the `untap-restriction` pattern),
+// so multiple copies / mid-turn enter/leave events need no bookkeeping.
 //
 // The "may" clause is resolved via `state.playerPreferences[playerId]
 // .libraryOfLengRouting`, which the UI can toggle through a dedicated

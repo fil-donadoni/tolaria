@@ -1219,6 +1219,19 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
         libraryCount: 5,
     },
+    {
+        label: "Cockatrice + Thicket Basilisk (combat kill, CR 509.1h)",
+        cards: [
+            { name: "Cockatrice", owner: "me" as const },
+            { name: "Thicket Basilisk", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 5 },
+            { name: "Grizzly Bears", owner: "opp" as const, count: 2 },
+            { name: "Wall of Bone", owner: "opp" as const },
+            { name: "Swamp", owner: "opp" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

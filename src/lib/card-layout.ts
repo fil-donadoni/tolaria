@@ -43,7 +43,7 @@ export function getFanStyle(
 
 /** ClassName for cards in the player's fan layout. */
 export const fanCardClassName =
-    "w-[var(--card-w)] aspect-5/7 shrink-0 mb-2 transition-[translate,transform,margin] hover:-translate-y-4 hover:z-10";
+    "w-(--card-w) aspect-5/7 shrink-0 mb-2 transition-[translate,transform,margin] hover:-translate-y-4 hover:z-10";
 
 /** ClassName for cards in the opponent's fan layout. */
 export const fanCardOpponentClassName =

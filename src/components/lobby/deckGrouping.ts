@@ -9,7 +9,7 @@ export interface DeckPileGroup {
 }
 
 /**
- * Groups deck cards into vertical piles for the "money pile" view.
+ * Groups deck cards into vertical piles for the "mana pile" view.
  * Lands go in a dedicated first pile; remaining cards are bucketed by mana value.
  * Buckets are dynamic — only CMC values present in the deck appear.
  */

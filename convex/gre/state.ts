@@ -430,7 +430,7 @@ export type DelayedTriggerInstance = {
     /** Controller of the delayed trigger (CR 113.7). */
     controller: string;
     /** When the trigger should fire. */
-    timing: "next-end-step";
+    timing: "next-end-step" | "next-end-of-combat";
     /** Payload carried over from the scheduling spell's resolution. */
     payload: Record<string, string>;
 };
@@ -2771,7 +2771,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         scheduleDelayedTrigger(
             sourceCardId: string,
             triggerId: string,
-            timing: "next-end-step",
+            timing: "next-end-step" | "next-end-of-combat",
             payload: Record<string, string>
         ): void {
             state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;

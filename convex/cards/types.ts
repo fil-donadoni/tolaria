@@ -644,7 +644,7 @@ export interface SpellContext {
     scheduleDelayedTrigger: (
         sourceCardId: string,
         triggerId: string,
-        timing: "next-end-step",
+        timing: "next-end-step" | "next-end-of-combat",
         payload: Record<string, string>
     ) => void;
     /** Returns true if the target permanent was declared as an attacker this
@@ -797,7 +797,7 @@ export interface DelayedTriggerDef {
     /** Oracle text shown on the stack when the trigger fires. */
     oracleText: string;
     /** When the trigger should fire. */
-    timing: "next-end-step";
+    timing: "next-end-step" | "next-end-of-combat";
     /** Invoked when the trigger resolves from the stack. `payload` carries
      *  serialized references (ids) chosen at scheduling time. */
     resolve: (ctx: SpellContext, payload: Record<string, string>) => void;
@@ -1190,7 +1190,8 @@ export type GameEventType =
     | "SPELL_CAST"
     | "PERMANENT_TAPPED"
     | "STATE_CHECK"
-    | "TRIGGER_FIZZLED";
+    | "TRIGGER_FIZZLED"
+    | "BLOCKERS_CONFIRMED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -1370,6 +1371,22 @@ export interface TriggerFizzledEvent {
     reason: "intervening-if-false";
 }
 
+/** Combat pairing event emitted once per attacker-blocker pair after the
+ *  defending player confirms blockers (CR 509.1). Used by "blocks or becomes
+ *  blocked by" triggers (Cockatrice, Thicket Basilisk). One event per pair
+ *  lets the trigger match on its own involvement. */
+export interface BlockersConfirmedEvent {
+    type: "BLOCKERS_CONFIRMED";
+    attackerId: string;
+    attackerControllerId: string;
+    attackerTypes: ReadonlyArray<CardType>;
+    attackerSubtypes: ReadonlyArray<string>;
+    blockerId: string;
+    blockerControllerId: string;
+    blockerTypes: ReadonlyArray<CardType>;
+    blockerSubtypes: ReadonlyArray<string>;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
@@ -1379,7 +1396,8 @@ export type GameEvent =
     | SpellCastEvent
     | PermanentTappedEvent
     | StateCheckEvent
-    | TriggerFizzledEvent;
+    | TriggerFizzledEvent
+    | BlockersConfirmedEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can

@@ -71,10 +71,10 @@ function Panel({
             data-slot="panel"
             className={cn(
                 "relative bg-surface/90 border backdrop-blur-md rounded-sm text-text shadow-[0_0_50px_rgba(0,0,0,0.8)] select-none opacity-80",
+                density === "compact" ? "p-2" : "p-6",
                 tone === "accent"
                     ? "border-accent/30"
                     : "border-border-subtle/80",
-                density === "compact" ? "p-2" : "p-4 sm:p-6",
                 SIZE_CLASSES[size],
                 className
             )}

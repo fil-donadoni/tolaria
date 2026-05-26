@@ -803,6 +803,53 @@ function fireDelayedTriggers(
     state.passCount = 0;
 }
 
+/** Emits one BLOCKERS_CONFIRMED event per attacker-blocker pair and pushes
+ *  any matching triggers onto the stack (CR 509.1h — "blocks or becomes
+ *  blocked by" triggers). Called from both the manual `confirmBlockers`
+ *  mutation and the auto-confirm path in `drainAutoPasses`. */
+export function emitBlockersConfirmedEvents(state: GameState): void {
+    if (!state.combat) return;
+    const events: GameEvent[] = [];
+    const activePlayer = getPlayer(state, state.activePlayerId);
+    const defenderId = getOpponentId(state, state.activePlayerId);
+    const defender = getPlayer(state, defenderId);
+
+    for (const [blockerId, attackerIds] of Object.entries(
+        state.combat.blockerAssignments
+    )) {
+        const blocker =
+            defender.battlefield.find((c) => c.id === blockerId) ??
+            activePlayer.battlefield.find((c) => c.id === blockerId);
+        if (!blocker) continue;
+        for (const attackerId of attackerIds) {
+            const attacker =
+                activePlayer.battlefield.find((c) => c.id === attackerId) ??
+                defender.battlefield.find((c) => c.id === attackerId);
+            if (!attacker) continue;
+            events.push({
+                type: "BLOCKERS_CONFIRMED",
+                attackerId: attacker.id,
+                attackerControllerId: attacker.controllerId,
+                attackerTypes: attacker.types,
+                attackerSubtypes: attacker.subtypes,
+                blockerId: blocker.id,
+                blockerControllerId: blocker.controllerId,
+                blockerTypes: blocker.types,
+                blockerSubtypes: blocker.subtypes,
+            });
+        }
+    }
+    if (events.length === 0) return;
+    const triggers = collectTriggers(state, events);
+    for (const t of triggers) {
+        state.stack.push(t);
+    }
+    if (triggers.length > 0) {
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+    }
+}
+
 /** Perform automatic entry actions for the current phase. */
 function performPhaseEntry(state: GameState): void {
     switch (state.phase) {
@@ -853,6 +900,8 @@ function performPhaseEntry(state: GameState): void {
             break;
         }
         case "END_OF_COMBAT": {
+            fireDelayedTriggers(state, "next-end-of-combat");
+
             if (state.combat) {
                 const activePlayer = getPlayer(state, state.activePlayerId);
                 const defenderId = getOpponentId(state, state.activePlayerId);
@@ -1450,6 +1499,7 @@ export function drainAutoPasses(state: GameState): void {
             }
             state.combat.pendingBlockerId = undefined;
             state.combat.blockersConfirmed = true;
+            emitBlockersConfirmedEvents(state);
         }
 
         // Auto-confirm damage assignment when active player auto-passes

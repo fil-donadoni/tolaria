@@ -3,7 +3,6 @@ import { useMutation } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "@convex/_generated/api";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
-import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 
 const NICKNAME_MIN = 1;
@@ -56,8 +55,13 @@ export default function DashboardTopBar() {
     const initial = user.nickname.charAt(0).toUpperCase();
 
     return (
-        // <Panel className="flex-row items-center justify-between gap-4">
-        <div className="flex justify-end items-center gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col items-center md:items-start">
+                <h1 className="text-3xl font-bold font-beleren tracking-wide text-parchment">
+                    Tolaria
+                </h1>
+            </div>
+
             <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-base font-bold text-surface-base">
                     {initial}
@@ -71,17 +75,20 @@ export default function DashboardTopBar() {
                             autoFocus
                             className="h-8 w-48"
                         />
-                        <Button type="submit" size="sm" disabled={saving}>
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className="font-beleren tracking-wide rounded-sm border border-accent/45 bg-accent-soft/30 px-3 py-1.5 text-xs text-accent-strong hover:bg-accent-soft/50 active:bg-accent-soft/65 transition-colors cursor-pointer disabled:bg-surface/40 disabled:border-border-subtle/40 disabled:text-text-disabled disabled:cursor-not-allowed"
+                        >
                             {saving ? "Saving…" : "Save"}
-                        </Button>
-                        <Button
+                        </button>
+                        <button
                             type="button"
-                            size="sm"
-                            variant="ghost"
                             onClick={() => setEditing(false)}
+                            className="font-beleren tracking-wide rounded-sm border border-secondary-accent/45 bg-secondary-accent-soft/30 px-3 py-1.5 text-xs text-secondary-accent-strong hover:bg-secondary-accent-soft/50 active:bg-secondary-accent-soft/65 transition-colors cursor-pointer"
                         >
                             Cancel
-                        </Button>
+                        </button>
                         {error && (
                             <span className="text-xs text-danger-strong">
                                 {error}
@@ -103,16 +110,14 @@ export default function DashboardTopBar() {
                         </span>
                     </div>
                 )}
+                <button
+                    type="button"
+                    onClick={() => signOut()}
+                    className="font-beleren tracking-wide rounded-sm border border-secondary-accent/45 bg-secondary-accent-soft/30 px-3 py-1.5 text-xs text-secondary-accent-strong hover:bg-secondary-accent-soft/50 active:bg-secondary-accent-soft/65 transition-colors cursor-pointer"
+                >
+                    Sign out
+                </button>
             </div>
-            <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => signOut()}
-            >
-                Sign out
-            </Button>
         </div>
-        // </Panel>
     );
 }

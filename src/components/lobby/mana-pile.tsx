@@ -14,19 +14,19 @@ export default function ManaPile({ label, cards }: ManaPileProps) {
     }rem)`;
 
     return (
-        <div className="flex w-[var(--card-w)] shrink-0 flex-col gap-2">
+        <div className="flex w-(--card-w) shrink-0 flex-col gap-2">
             <div className="flex items-baseline justify-between gap-2 text-xs text-text-muted">
                 <span className="font-semibold">{label}</span>
                 <span className="text-text-disabled">{cards.length}</span>
             </div>
             <div
-                className="relative w-[var(--card-w)]"
+                className="relative w-(--card-w)"
                 style={{ height: pileHeight }}
             >
                 {cards.map((card, idx) => (
                     <div
                         key={`${card.cardId}-${idx}`}
-                        className="absolute left-0 w-[var(--card-w)] aspect-5/7"
+                        className="absolute left-0 w-(--card-w) aspect-5/7"
                         style={{ top: `${idx * OFFSET_Y_REM}rem` }}
                     >
                         <CardImage card={{ id: card.cardId }} />
