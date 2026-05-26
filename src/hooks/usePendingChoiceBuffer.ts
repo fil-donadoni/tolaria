@@ -12,7 +12,11 @@ import type { PendingChoice, PendingChoiceKind } from "~/types/game";
  *  removes the legacy path entirely and this set can collapse to
  *  "everything except may-pay". */
 export const CLIENT_BUFFERED_KINDS: ReadonlySet<PendingChoiceKind> =
-    new Set<PendingChoiceKind>(["discard-hand", "untap-pick"]);
+    new Set<PendingChoiceKind>([
+        "discard-hand",
+        "untap-pick",
+        "mulligan-bottom",
+    ]);
 
 export function isClientBufferedKind(kind: PendingChoiceKind): boolean {
     return CLIENT_BUFFERED_KINDS.has(kind);

@@ -101,10 +101,10 @@ describe("isClientBufferedKind", () => {
     it("returns true for kinds already migrated to client-buffered submit", () => {
         expect(isClientBufferedKind("discard-hand")).toBe(true);
         expect(isClientBufferedKind("untap-pick")).toBe(true);
+        expect(isClientBufferedKind("mulligan-bottom")).toBe(true);
     });
 
     it("returns false for kinds not yet migrated", () => {
-        expect(isClientBufferedKind("mulligan-bottom")).toBe(false);
         expect(isClientBufferedKind("keep-permanents")).toBe(false);
         expect(isClientBufferedKind("search-library")).toBe(false);
         expect(isClientBufferedKind("may-pay")).toBe(false);

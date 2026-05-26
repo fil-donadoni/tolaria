@@ -5,6 +5,7 @@
 import { describe, it, expect } from "vitest";
 import { resolveTopOfStack, type GameState } from "../state";
 import { advancePhase, untapStep } from "../phases";
+import { recordDeclaration, makeMulliganState } from "../mulligan";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import {
     disruptingScepter,
@@ -19,6 +20,8 @@ import {
     makeState,
     pushSpell,
 } from "../../cards/__tests__/setup";
+
+const STARTING_HAND_SIZE = 7;
 
 function setupCleanupDiscard(handSize: number): GameState {
     const hand = Array.from({ length: handSize }, (_, i) =>
@@ -402,20 +405,116 @@ describe("applyPendingChoiceSubmit — untap-pick (CR 502.1)", () => {
     });
 });
 
+// ---------------------------------------------------------------------------
+// mulligan-bottom (CR 103.5) — London mulligan bottoming
+// ---------------------------------------------------------------------------
+
+function makeMulliganGame(): GameState {
+    const deckSize = 60;
+    function deck(owner: string) {
+        return Array.from({ length: deckSize }, (_, i) =>
+            makeInstance(grizzlyBears.id, {
+                id: `${owner}-lib-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+    }
+    const state = makeState({
+        phase: "MULLIGAN",
+        players: [
+            makePlayer("p1", { library: deck("p1") }),
+            makePlayer("p2", { library: deck("p2") }),
+        ],
+    });
+    state.mulligan = makeMulliganState(state);
+    return state;
+}
+
+describe("applyPendingChoiceSubmit — mulligan-bottom (CR 103.5)", () => {
+    it("happy path: bottoms the chosen cards and advances to UPKEEP", () => {
+        const state = makeMulliganGame();
+        recordDeclaration(state, "p1", "mull");
+        recordDeclaration(state, "p2", "keep");
+        recordDeclaration(state, "p1", "keep");
+
+        expect(state.pendingChoices).toHaveLength(1);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("mulligan-bottom");
+        expect(head.count).toBe(1);
+
+        const pickedId = state.players[0].hand[0].id;
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [pickedId],
+        });
+
+        expect(state.mulligan).toBeUndefined();
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].hand).toHaveLength(STARTING_HAND_SIZE - 1);
+        expect(
+            state.players[0].library[state.players[0].library.length - 1].id
+        ).toBe(pickedId);
+    });
+
+    it("rejects card not in hand", () => {
+        const state = makeMulliganGame();
+        recordDeclaration(state, "p1", "mull");
+        recordDeclaration(state, "p2", "keep");
+        recordDeclaration(state, "p1", "keep");
+        const head = state.pendingChoices![0];
+
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["nonexistent"],
+            })
+        ).toThrow(/not in hand/i);
+    });
+
+    it("rejects wrong count", () => {
+        const state = makeMulliganGame();
+        recordDeclaration(state, "p1", "mull");
+        recordDeclaration(state, "p2", "keep");
+        recordDeclaration(state, "p1", "keep");
+        const head = state.pendingChoices![0];
+        expect(head.count).toBe(1);
+
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: [],
+            })
+        ).toThrow(/at least/i);
+    });
+});
+
 describe("applyPendingChoiceSubmit — unsupported kinds", () => {
-    it("throws for mulligan-bottom (handled by selectResolutionChoice until #84)", () => {
+    it("throws for keep-permanents", () => {
         const state = makeState({
             pendingChoices: [
                 {
-                    stackItemId: "",
+                    stackItemId: "s1",
                     step: 0,
-                    choiceId: "bottom",
+                    choiceId: "p1",
                     playerId: "p1",
-                    kind: "mulligan-bottom",
-                    zone: "hand",
+                    kind: "keep-permanents",
+                    zone: "battlefield",
                     count: 1,
                     selected: [],
-                    prompt: "Bottom 1",
+                    prompt: "Keep 1",
                 },
             ],
         });
@@ -423,9 +522,9 @@ describe("applyPendingChoiceSubmit — unsupported kinds", () => {
         expect(() =>
             applyPendingChoiceSubmit(state, {
                 playerId: "p1",
-                stackItemId: "",
+                stackItemId: "s1",
                 step: 0,
-                choiceId: "bottom",
+                choiceId: "p1",
                 cardInstanceIds: [],
             })
         ).toThrow(/does not yet handle/i);

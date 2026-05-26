@@ -20,15 +20,15 @@ function ShortcutHint({ shortcut }: { shortcut: string }) {
 
 const TONE_CLASSES: Record<ActionButtonTone, string> = {
     primary:
-        "bg-[#7a5a2e]/30 border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50",
+        "bg-accent-soft/30 border-accent/45 text-accent-strong hover:bg-accent-soft/50",
     secondary:
-        "bg-zinc-800/40 border-zinc-600/45 text-zinc-300 hover:bg-zinc-700/40",
+        "bg-surface-elevated/40 border-border-subtle/45 text-text hover:bg-surface-elevated/60",
     destructive:
-        "bg-[#5c1e1e]/45 border-[#a04040]/45 text-[#d48080] hover:bg-[#5c1e1e]/65",
+        "bg-danger-soft/45 border-danger/45 text-danger-strong hover:bg-danger-soft/65",
 };
 
 const DISABLED_CLASS =
-    "bg-zinc-900/40 border-zinc-700/40 text-zinc-500 cursor-not-allowed";
+    "bg-surface/40 border-border-subtle/40 text-text-disabled cursor-not-allowed";
 
 export default function ActionButton({
     onClick,

@@ -5,6 +5,7 @@ import { api } from "@convex/_generated/api";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { Panel } from "~/components/ui/panel";
 
 const NICKNAME_MIN = 1;
 const NICKNAME_MAX = 32;
@@ -56,9 +57,12 @@ export default function DashboardTopBar() {
     const initial = user.nickname.charAt(0).toUpperCase();
 
     return (
-        <header className="flex w-full items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 backdrop-blur">
+        <Panel
+            density="compact"
+            className="flex-row items-center justify-between gap-4"
+        >
             <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-sky-500 text-base font-bold text-emerald-950">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-base font-bold text-surface-base">
                     {initial}
                 </div>
                 {editing ? (
@@ -82,7 +86,7 @@ export default function DashboardTopBar() {
                             Cancel
                         </Button>
                         {error && (
-                            <span className="text-xs text-rose-300">
+                            <span className="text-xs text-danger-strong">
                                 {error}
                             </span>
                         )}
@@ -92,12 +96,12 @@ export default function DashboardTopBar() {
                         <button
                             type="button"
                             onClick={startEdit}
-                            className="text-left text-sm font-semibold text-white hover:underline"
+                            className="text-left text-sm font-semibold text-parchment hover:underline"
                             title="Edit nickname"
                         >
                             {user.nickname}
                         </button>
-                        <span className="text-xs text-white/50">
+                        <span className="text-xs text-text-muted">
                             {user.email}
                         </span>
                     </div>
@@ -111,6 +115,6 @@ export default function DashboardTopBar() {
             >
                 Sign out
             </Button>
-        </header>
+        </Panel>
     );
 }

@@ -18,6 +18,7 @@ import {
     finalizeCleanupDiscard,
     finalizeUntapPick,
 } from "./phases";
+import { applyMulliganBottomChoice } from "./mulligan";
 
 export type SubmitChoiceArgs = {
     playerId: string;
@@ -53,7 +54,11 @@ export function applyPendingChoiceSubmit(
         throw new Error("Stale pending choice — try again");
     }
 
-    if (head.kind !== "discard-hand" && head.kind !== "untap-pick") {
+    if (
+        head.kind !== "discard-hand" &&
+        head.kind !== "untap-pick" &&
+        head.kind !== "mulligan-bottom"
+    ) {
         throw new Error(
             `submitResolutionChoice does not yet handle kind=${head.kind}`
         );
@@ -79,6 +84,29 @@ export function applyPendingChoiceSubmit(
     }
 
     const zoneOwner = getPlayer(state, head.zoneOwnerId ?? args.playerId);
+
+    if (head.kind === "mulligan-bottom") {
+        // CR 103.5 pre-game mulligan bottoming. Validate that all ids are
+        // in the chooser's hand, then shim into `applyMulliganBottomChoice`
+        // which reads `head.selected`.
+        for (const id of args.cardInstanceIds) {
+            if (!zoneOwner.hand.find((c: CardInstanceState) => c.id === id)) {
+                throw new Error("Card not in hand");
+            }
+        }
+        head.selected = [...args.cardInstanceIds];
+        applyMulliganBottomChoice(state);
+        state.pendingChoices =
+            (state.pendingChoices?.length ?? 0) > 0
+                ? state.pendingChoices
+                : undefined;
+        if ((state.pendingChoices?.length ?? 0) === 0) {
+            state.priorityPlayerId = state.activePlayerId;
+            state.passCount = 0;
+            drainAutoPasses(state);
+        }
+        return;
+    }
 
     if (head.kind === "untap-pick") {
         // CR 502.1 cap-style restriction commit (Winter Orb, Smoke, etc.).
