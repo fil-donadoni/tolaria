@@ -410,11 +410,11 @@ export const disenchantLeb: CardPrint = {
 //     setCode: "leb",
 // };
 
-// export const dragonWhelpLeb: CardPrint = {
-//     printId: "2e009adf-aded-4d64-ba3e-ddc3448c967a",
-//     definitionId: "6bbf1eab-bc32-4835-b566-8634b1fe81b0", // dragonWhelp (stub)
-//     setCode: "leb",
-// };
+export const dragonWhelpLeb: CardPrint = {
+    printId: "2e009adf-aded-4d64-ba3e-ddc3448c967a",
+    definitionId: "6bbf1eab-bc32-4835-b566-8634b1fe81b0",
+    setCode: "leb",
+};
 
 export const drainLifeLeb: CardPrint = {
     printId: "9fbc6761-c4fc-4b4c-afb5-94ad4d21bc05",
@@ -1076,11 +1076,11 @@ export const moxSapphireLeb: CardPrint = {
 //     setCode: "leb",
 // };
 
-// export const nettlingImpLeb: CardPrint = {
-//     printId: "576220c3-1e6b-43f3-a47e-5e8246ee7d46",
-//     definitionId: "8105973c-a94d-444c-ba20-ab0fa978bee8", // nettlingImp (stub)
-//     setCode: "leb",
-// };
+export const nettlingImpLeb: CardPrint = {
+    printId: "576220c3-1e6b-43f3-a47e-5e8246ee7d46",
+    definitionId: "8105973c-a94d-444c-ba20-ab0fa978bee8",
+    setCode: "leb",
+};
 
 export const nevinyrralsDiskLeb: CardPrint = {
     printId: "dbb21f21-668a-4d57-8d05-8db11fb82d99",
@@ -1466,11 +1466,11 @@ export const stealArtifactLeb: CardPrint = {
     setCode: "leb",
 };
 
-// export const stoneGiantLeb: CardPrint = {
-//     printId: "a2b5f545-a87d-4292-880f-5cd2f6755748",
-//     definitionId: "7ffaedb9-25f8-4304-9085-e12505b93312", // stoneGiant (stub)
-//     setCode: "leb",
-// };
+export const stoneGiantLeb: CardPrint = {
+    printId: "a2b5f545-a87d-4292-880f-5cd2f6755748",
+    definitionId: "7ffaedb9-25f8-4304-9085-e12505b93312",
+    setCode: "leb",
+};
 
 // export const stoneRainLeb: CardPrint = {
 //     printId: "901831ad-1840-4287-b6a0-bea310598dc2",

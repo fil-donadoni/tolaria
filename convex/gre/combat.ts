@@ -171,9 +171,10 @@ export function validateBlockerEligibility(
 }
 
 /** True if `card` carries an `attack-requirement` static effect
- *  (CR 508.1d). Checked separately from eligibility so the engine can
- *  distinguish "must attack" from "can attack". */
+ *  (CR 508.1d) or has been forced to attack this turn by an external
+ *  effect (Nettling Imp — `mustAttackThisTurn`). */
 function hasAttackRequirement(card: CardInstanceState): boolean {
+    if (card.mustAttackThisTurn) return true;
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return false;
     const def = tryGetCardById(cardId);

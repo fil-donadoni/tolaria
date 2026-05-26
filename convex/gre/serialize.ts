@@ -107,6 +107,7 @@ function compactCard(
         out.grantedTypes = card.grantedTypes;
     }
     if (card.exileOnDeath) out.exileOnDeath = true;
+    if (card.mustAttackThisTurn) out.mustAttackThisTurn = true;
     return out;
 }
 
@@ -202,6 +203,7 @@ function expandCard(
             compact.grantedTypes as CardInstanceState["grantedTypes"];
     }
     if (compact.exileOnDeath) result.exileOnDeath = true;
+    if (compact.mustAttackThisTurn) result.mustAttackThisTurn = true;
     return result;
 }
 

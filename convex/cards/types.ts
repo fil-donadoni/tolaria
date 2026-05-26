@@ -115,6 +115,15 @@ export interface TargetRequirement {
      *  these (CR 202.2). Used by Terror ("target nonblack creature"). Single
      *  value is shorthand for one color. */
     excludeColors?: Color | Color[];
+    /** Excludes permanents whose subtypes include any of these (CR 205.3).
+     *  Used by Nettling Imp ("target non-Wall creature"). Single string is
+     *  shorthand for one subtype. */
+    excludeSubtypes?: string | string[];
+    /** Restricts legal permanent targets by effective toughness (CR 613
+     *  layer 7c). Both bounds inclusive. Used by Stone Giant ("target
+     *  creature you control with toughness less than Stone Giant's power").
+     *  Ignored for player / spell targets. */
+    toughnessFilter?: { min?: number; max?: number };
 }
 
 export interface TargetSelection {
@@ -204,6 +213,15 @@ export interface ActivatedAbility {
      *  which is phase-keyed and turn-independent. Used by Instill Energy's
      *  "{0}: Untap enchanted creature. Activate only during your turn." */
     controllerTurnOnly?: boolean;
+    /** Dynamic target requirement computed at activation time from the source
+     *  permanent's state. If set, overrides `targetRequirement`. Used by
+     *  abilities whose target legality depends on the source (Stone Giant:
+     *  "target creature you control with toughness less than Stone Giant's
+     *  power"). */
+    getTargetRequirement?: (
+        source: PermanentView,
+        state: TriggerStateView
+    ) => TargetRequirement;
     /** Cap activations per turn per source instance (CR 602.5 — "activate
      *  this ability only once each turn"). Engine tracks counts in
      *  `CardInstanceState.activationsThisTurn[abilityId]` and resets at
@@ -642,6 +660,14 @@ export interface SpellContext {
      *  Cleared at CLEANUP. No-op if target is not a creature on the
      *  battlefield. */
     setExileOnDeath: (target: TargetSelection) => void;
+    /** Returns the number of times the given ability has been activated this
+     *  turn on the source permanent (CR 602.5). Used by Dragon Whelp to
+     *  check if the pump has been activated 4+ times. */
+    getActivationCount: (abilityId: string) => number;
+    /** Marks a creature so it must attack this combat if able (CR 508.1d).
+     *  Cleared at CLEANUP. No-op if target is not a creature on the
+     *  battlefield. Used by Nettling Imp. */
+    setMustAttackThisTurn: (target: TargetSelection) => void;
 
     // --- Mid-resolution choices (CR 608.2, 101.4) ---
 

@@ -865,6 +865,10 @@ function performPhaseEntry(state: GameState): void {
                     if (card.exileOnDeath !== undefined) {
                         card.exileOnDeath = undefined;
                     }
+                    // CR 508.1d — forced-attack flag is turn-scoped.
+                    if (card.mustAttackThisTurn !== undefined) {
+                        card.mustAttackThisTurn = undefined;
+                    }
                 }
             }
             // TODO: hand size check (CR 514.1).

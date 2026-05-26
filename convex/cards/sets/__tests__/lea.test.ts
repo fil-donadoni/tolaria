@@ -212,7 +212,10 @@ import {
     righteousness,
     terror,
     disintegrate,
+    dragonWhelp,
     fastbond,
+    nettlingImp,
+    stoneGiant,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -14983,6 +14986,448 @@ describe("Fastbond ({G} Enchantment — unlimited land drops, CR 305.2)", () => 
         processPendingActionTriggers(state);
         // No trigger should fire for the first land
         expect(state.stack.length).toBe(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// W15: Dragon Whelp, Nettling Imp, Stone Giant
+// ---------------------------------------------------------------------------
+
+describe("Dragon Whelp (CR 602.5, 603.7a — activation-count delayed sacrifice)", () => {
+    const PUMP_ID = "dragon-whelp-pump";
+
+    function setup() {
+        const whelp = makeInstance(dragonWhelp.id, {
+            id: "whelp",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [whelp] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, whelp };
+    }
+
+    function pumpOnce(state: GameState, source: CardInstanceState) {
+        source.activationsThisTurn = {
+            ...source.activationsThisTurn,
+            [PUMP_ID]: (source.activationsThisTurn?.[PUMP_ID] ?? 0) + 1,
+        };
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: "p1",
+            abilityId: PUMP_ID,
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("declares flying and a {R} pump ability", () => {
+        expect(dragonWhelp.staticAbilities).toContain("flying");
+        const ability = dragonWhelp.activatedAbilities?.[0];
+        expect(ability?.id).toBe(PUMP_ID);
+        expect(ability?.cost).toEqual({ mana: { R: 1 } });
+        expect(ability?.useStack).toBe(true);
+    });
+
+    it("pump 3 times → no delayed sacrifice scheduled", () => {
+        const { state, whelp } = setup();
+        pumpOnce(state, whelp);
+        pumpOnce(state, whelp);
+        pumpOnce(state, whelp);
+        expect(getEffectivePower(state, whelp)).toBe(2 + 3);
+        expect(state.delayedTriggers).toBeUndefined();
+    });
+
+    it("pump 4 times → delayed sacrifice scheduled", () => {
+        const { state, whelp } = setup();
+        pumpOnce(state, whelp);
+        pumpOnce(state, whelp);
+        pumpOnce(state, whelp);
+        pumpOnce(state, whelp);
+        expect(getEffectivePower(state, whelp)).toBe(2 + 4);
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].triggerId).toBe(
+            "dragon-whelp-sacrifice"
+        );
+    });
+
+    it("delayed sacrifice destroys the creature on resolution", () => {
+        const { state, whelp } = setup();
+        pumpOnce(state, whelp);
+        pumpOnce(state, whelp);
+        pumpOnce(state, whelp);
+        pumpOnce(state, whelp);
+        // Simulate end-step firing: put the delayed trigger on the stack
+        const dt = state.delayedTriggers![0];
+        state.stack.push({
+            id: "delayed-1",
+            card: { id: dt.sourceCardId },
+            controllerId: dt.controller,
+            ownerId: dt.controller,
+            zone: "stack",
+            types: [],
+            subtypes: [],
+            staticAbilities: [],
+            isTapped: false,
+            castById: dt.controller,
+            delayedTriggerId: dt.triggerId,
+            delayedPayload: dt.payload,
+        });
+        state.delayedTriggers = undefined;
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "whelp")
+        ).toBeUndefined();
+        expect(
+            state.players[0].graveyard.find((c) => c.id === "whelp")
+        ).toBeDefined();
+    });
+
+    it("pump 5+ times → only sacrificed once (destroy is no-op after first)", () => {
+        const { state, whelp } = setup();
+        for (let i = 0; i < 5; i++) pumpOnce(state, whelp);
+        // Two delayed triggers scheduled (one at activation 4, one at 5)
+        expect(state.delayedTriggers!.length).toBe(2);
+        // Resolve first — creature dies
+        const dt1 = state.delayedTriggers![0];
+        state.stack.push({
+            id: "delayed-1",
+            card: { id: dt1.sourceCardId },
+            controllerId: dt1.controller,
+            ownerId: dt1.controller,
+            zone: "stack",
+            types: [],
+            subtypes: [],
+            staticAbilities: [],
+            isTapped: false,
+            castById: dt1.controller,
+            delayedTriggerId: dt1.triggerId,
+            delayedPayload: dt1.payload,
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].graveyard).toHaveLength(1);
+        // Resolve second — no-op (creature already in graveyard)
+        const dt2 = state.delayedTriggers![1];
+        state.stack.push({
+            id: "delayed-2",
+            card: { id: dt2.sourceCardId },
+            controllerId: dt2.controller,
+            ownerId: dt2.controller,
+            zone: "stack",
+            types: [],
+            subtypes: [],
+            staticAbilities: [],
+            isTapped: false,
+            castById: dt2.controller,
+            delayedTriggerId: dt2.triggerId,
+            delayedPayload: dt2.payload,
+        });
+        resolveTopOfStack(state);
+        // Still only one creature in graveyard
+        expect(state.players[0].graveyard).toHaveLength(1);
+    });
+});
+
+describe("Nettling Imp (CR 508.1d, 603.7a — forced attack + delayed destroy)", () => {
+    const ABILITY_ID = "nettling-imp-force";
+
+    function setup() {
+        const imp = makeInstance(nettlingImp.id, {
+            id: "imp",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "victim",
+            controllerId: "p2",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [imp] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+        return { state, imp, victim };
+    }
+
+    function activate(
+        state: GameState,
+        source: CardInstanceState,
+        targetId: string
+    ) {
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: "p1",
+            abilityId: ABILITY_ID,
+            targets: [{ type: "permanent", id: targetId }],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("declares a non-Wall creature target with phase restriction", () => {
+        const ability = nettlingImp.activatedAbilities?.[0];
+        expect(ability?.id).toBe(ABILITY_ID);
+        expect(ability?.cost).toEqual({ tap: true });
+        expect(ability?.useStack).toBe(true);
+        expect(ability?.targetRequirement?.excludeSubtypes).toBe("Wall");
+        expect(ability?.targetRequirement?.controller).toBe("opponent");
+        expect(ability?.activationPhaseRestriction).toEqual([
+            "UPKEEP",
+            "DRAW",
+            "PRECOMBAT_MAIN",
+            "BEGINNING_OF_COMBAT",
+        ]);
+    });
+
+    it("sets mustAttackThisTurn on target creature", () => {
+        const { state, imp, victim } = setup();
+        activate(state, imp, "victim");
+        expect(victim.mustAttackThisTurn).toBe(true);
+    });
+
+    it("schedules delayed destroy at end step", () => {
+        const { state, imp } = setup();
+        activate(state, imp, "victim");
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].triggerId).toBe(
+            "nettling-imp-destroy"
+        );
+    });
+
+    it("creature forced to attack is required by mustAttack()", () => {
+        const { state, imp, victim } = setup();
+        activate(state, imp, "victim");
+        expect(mustAttack(victim)).toBe(true);
+    });
+
+    it("delayed trigger does NOT destroy if creature attacked", () => {
+        const { state, imp, victim } = setup();
+        activate(state, imp, "victim");
+        victim.hasAttackedThisTurn = true;
+        const dt = state.delayedTriggers![0];
+        state.stack.push({
+            id: "delayed-1",
+            card: { id: dt.sourceCardId },
+            controllerId: dt.controller,
+            ownerId: dt.controller,
+            zone: "stack",
+            types: [],
+            subtypes: [],
+            staticAbilities: [],
+            isTapped: false,
+            castById: dt.controller,
+            delayedTriggerId: dt.triggerId,
+            delayedPayload: dt.payload,
+        });
+        state.delayedTriggers = undefined;
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "victim")
+        ).toBeDefined();
+    });
+
+    it("delayed trigger destroys creature if it didn't attack", () => {
+        const { state, imp } = setup();
+        activate(state, imp, "victim");
+        // victim did NOT attack
+        const dt = state.delayedTriggers![0];
+        state.stack.push({
+            id: "delayed-1",
+            card: { id: dt.sourceCardId },
+            controllerId: dt.controller,
+            ownerId: dt.controller,
+            zone: "stack",
+            types: [],
+            subtypes: [],
+            staticAbilities: [],
+            isTapped: false,
+            castById: dt.controller,
+            delayedTriggerId: dt.triggerId,
+            delayedPayload: dt.payload,
+        });
+        state.delayedTriggers = undefined;
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "victim")
+        ).toBeUndefined();
+        expect(
+            state.players[1].graveyard.find((c) => c.id === "victim")
+        ).toBeDefined();
+    });
+
+    it("non-Wall filter excludes Walls from legal targets", () => {
+        const { state } = setup();
+        const wall = makeInstance(wallOfBone.id, {
+            id: "wall",
+            controllerId: "p2",
+        });
+        state.players[1].battlefield.push(wall);
+        const req = nettlingImp.activatedAbilities![0].targetRequirement!;
+        const legal = getLegalTargets(state, req, [], "p1");
+        const ids = legal.map((t) => t.id);
+        expect(ids).toContain("victim");
+        expect(ids).not.toContain("wall");
+    });
+
+    it("canActivate returns false during controller's own turn", () => {
+        const { state, imp } = setup();
+        state.activePlayerId = "p1"; // Imp controller's turn
+        const ability = nettlingImp.activatedAbilities![0];
+        expect(ability.canActivate!(imp, state)).toBe(false);
+    });
+
+    it("canActivate returns true during opponent's turn", () => {
+        const { state, imp } = setup();
+        state.activePlayerId = "p2"; // Opponent's turn
+        const ability = nettlingImp.activatedAbilities![0];
+        expect(ability.canActivate!(imp, state)).toBe(true);
+    });
+});
+
+describe("Stone Giant (CR 113.1, 611.1b, 603.7a — dynamic toughness target + flying + delayed destroy)", () => {
+    const ABILITY_ID = "stone-giant-fling";
+
+    function setup() {
+        const giant = makeInstance(stoneGiant.id, {
+            id: "giant",
+            isSummoningSick: false,
+        });
+        // toughness 2 < power 3 → legal target
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [giant, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, giant, bear };
+    }
+
+    function activate(
+        state: GameState,
+        source: CardInstanceState,
+        targetId: string
+    ) {
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: "p1",
+            abilityId: ABILITY_ID,
+            targets: [{ type: "permanent", id: targetId }],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("declares a tap-cost ability", () => {
+        const ability = stoneGiant.activatedAbilities?.[0];
+        expect(ability?.id).toBe(ABILITY_ID);
+        expect(ability?.cost).toEqual({ tap: true });
+        expect(ability?.useStack).toBe(true);
+    });
+
+    it("getTargetRequirement computes toughnessFilter from source power", () => {
+        const ability = stoneGiant.activatedAbilities![0];
+        const req = ability.getTargetRequirement!(
+            {
+                id: "g",
+                types: ["Creature"],
+                subtypes: ["Giant"],
+                power: 3,
+                toughness: 4,
+                staticAbilities: [],
+                isTapped: false,
+                controllerId: "p1",
+                ownerId: "p1",
+            },
+            { players: [], activePlayerId: "p1" }
+        );
+        expect(req.toughnessFilter).toEqual({ max: 2 });
+        expect(req.controller).toBe("you");
+    });
+
+    it("only targets creatures with toughness < source power", () => {
+        const { state, giant } = setup();
+        // Use dynamic requirement to get the effective target req
+        const ability = stoneGiant.activatedAbilities![0];
+        const req = ability.getTargetRequirement!(giant, state);
+        const legal = getLegalTargets(state, req, [], "p1");
+        const ids = legal.map((t) => t.id);
+        // bear (toughness 2) is legal, giant itself (toughness 4) is not
+        expect(ids).toContain("bear");
+        expect(ids).not.toContain("giant");
+    });
+
+    it("creature with toughness >= source power is NOT a legal target", () => {
+        const { state, giant } = setup();
+        // Add a 3/3 creature — toughness 3 is NOT < 3
+        const bigCreature = makeInstance(grizzlyBears.id, {
+            id: "big",
+            controllerId: "p1",
+            toughness: 3,
+        });
+        state.players[0].battlefield.push(bigCreature);
+        const ability = stoneGiant.activatedAbilities![0];
+        const req = ability.getTargetRequirement!(giant, state);
+        const legal = getLegalTargets(state, req, [], "p1");
+        const ids = legal.map((t) => t.id);
+        expect(ids).not.toContain("big");
+    });
+
+    it("grants flying until end of turn on resolution", () => {
+        const { state, giant, bear } = setup();
+        activate(state, giant, "bear");
+        expect(bear.staticAbilities).toContain("flying");
+        expect(bear.grantedStaticAbilities).toHaveLength(1);
+        expect(bear.grantedStaticAbilities![0].ability).toBe("flying");
+    });
+
+    it("schedules delayed destroy at end step", () => {
+        const { state, giant } = setup();
+        activate(state, giant, "bear");
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].triggerId).toBe("stone-giant-destroy");
+        expect(state.delayedTriggers![0].payload.targetId).toBe("bear");
+    });
+
+    it("delayed trigger destroys the target at end step", () => {
+        const { state, giant } = setup();
+        activate(state, giant, "bear");
+        const dt = state.delayedTriggers![0];
+        state.stack.push({
+            id: "delayed-1",
+            card: { id: dt.sourceCardId },
+            controllerId: dt.controller,
+            ownerId: dt.controller,
+            zone: "stack",
+            types: [],
+            subtypes: [],
+            staticAbilities: [],
+            isTapped: false,
+            castById: dt.controller,
+            delayedTriggerId: dt.triggerId,
+            delayedPayload: dt.payload,
+        });
+        state.delayedTriggers = undefined;
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "bear")
+        ).toBeUndefined();
+        expect(
+            state.players[0].graveyard.find((c) => c.id === "bear")
+        ).toBeDefined();
     });
 });
 

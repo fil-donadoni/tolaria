@@ -50,7 +50,11 @@ import {
     matchesCmcFilter,
     resolveCmcFilter,
 } from "./gre/rules";
-import { STATIC_EFFECT_CTX, getEffectivePower } from "./gre/layers";
+import {
+    STATIC_EFFECT_CTX,
+    getEffectivePower,
+    getEffectiveToughness,
+} from "./gre/layers";
 import { projectFullState, projectPublicState } from "./gameProjections";
 import { compactState, expandState } from "./gre/serialize";
 import {
@@ -1234,6 +1238,19 @@ export const announceCast = mutation({
                 ...(activeTargetRequirement.powerFilter
                     ? { powerFilter: activeTargetRequirement.powerFilter }
                     : {}),
+                ...(activeTargetRequirement.toughnessFilter
+                    ? {
+                          toughnessFilter:
+                              activeTargetRequirement.toughnessFilter,
+                      }
+                    : {}),
+                ...(() => {
+                    const es = activeTargetRequirement.excludeSubtypes;
+                    if (!es) return {};
+                    return {
+                        excludeSubtypes: Array.isArray(es) ? es : [es],
+                    };
+                })(),
                 ...(resolvedCmcFilter ? { cmcFilter: resolvedCmcFilter } : {}),
             };
 
@@ -1907,6 +1924,38 @@ export const selectTarget = mutation({
                 ) {
                     throw new Error(
                         `Target must have power ≤ ${pt.powerFilter.max}`
+                    );
+                }
+            }
+            // CR 613 layer 7c: toughness-bounded target (Stone Giant).
+            if (pt.toughnessFilter) {
+                const toughness = getEffectiveToughness(state, matchedCard);
+                if (
+                    pt.toughnessFilter.min !== undefined &&
+                    toughness < pt.toughnessFilter.min
+                ) {
+                    throw new Error(
+                        `Target must have toughness ≥ ${pt.toughnessFilter.min}`
+                    );
+                }
+                if (
+                    pt.toughnessFilter.max !== undefined &&
+                    toughness > pt.toughnessFilter.max
+                ) {
+                    throw new Error(
+                        `Target must have toughness ≤ ${pt.toughnessFilter.max}`
+                    );
+                }
+            }
+            // CR 205.3: exclude subtypes (Nettling Imp's "non-Wall").
+            if (pt.excludeSubtypes && pt.excludeSubtypes.length > 0) {
+                if (
+                    pt.excludeSubtypes.some((s) =>
+                        matchedCard!.subtypes.includes(s)
+                    )
+                ) {
+                    throw new Error(
+                        `Target must not be ${pt.excludeSubtypes.join(" or ")}`
                     );
                 }
             }
@@ -3173,7 +3222,10 @@ export const activateAbility = mutation({
         // costs. Mana availability is deferred to finalizeTargetSelection
         // (which enters pendingActivation when the pool doesn't cover the
         // cost — mirrors the spell announceCast flow).
-        if (ability.targetRequirement) {
+        const effectiveTargetReq = ability.getTargetRequirement
+            ? ability.getTargetRequirement(card, state)
+            : ability.targetRequirement;
+        if (effectiveTargetReq) {
             if (state.pendingTarget) {
                 throw new Error("Target selection is in progress");
             }
@@ -3218,7 +3270,7 @@ export const activateAbility = mutation({
             const abilitySourceColors = STATIC_EFFECT_CTX.getColors(card);
             const legal = getLegalTargets(
                 state,
-                ability.targetRequirement,
+                effectiveTargetReq,
                 abilitySourceColors,
                 args.playerId,
                 targetChosenX
@@ -3227,20 +3279,25 @@ export const activateAbility = mutation({
                 throw new Error("No legal targets available");
             }
             const abilityCount = resolveTargetCount(
-                ability.targetRequirement.count,
+                effectiveTargetReq.count,
                 targetChosenX
             );
-            const abilitySubtypeFilter = ability.targetRequirement.subtypeFilter
-                ? Array.isArray(ability.targetRequirement.subtypeFilter)
-                    ? ability.targetRequirement.subtypeFilter
-                    : [ability.targetRequirement.subtypeFilter]
+            const abilitySubtypeFilter = effectiveTargetReq.subtypeFilter
+                ? Array.isArray(effectiveTargetReq.subtypeFilter)
+                    ? effectiveTargetReq.subtypeFilter
+                    : [effectiveTargetReq.subtypeFilter]
+                : undefined;
+            const abilityExcludeSubtypes = effectiveTargetReq.excludeSubtypes
+                ? Array.isArray(effectiveTargetReq.excludeSubtypes)
+                    ? effectiveTargetReq.excludeSubtypes
+                    : [effectiveTargetReq.excludeSubtypes]
                 : undefined;
             state.pendingTarget = {
                 playerId: args.playerId,
                 cardInstanceId: card.id,
-                targetType: ability.targetRequirement.type,
+                targetType: effectiveTargetReq.type,
                 count: abilityCount,
-                colorFilter: ability.targetRequirement.colorFilter,
+                colorFilter: effectiveTargetReq.colorFilter,
                 selected: [],
                 keepPriority: args.keepPriority,
                 kind: "ability",
@@ -3249,21 +3306,27 @@ export const activateAbility = mutation({
                     ? { chosenX: targetChosenX }
                     : {}),
                 ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
-                ...(ability.targetRequirement.zone
-                    ? { zone: ability.targetRequirement.zone }
+                ...(effectiveTargetReq.zone
+                    ? { zone: effectiveTargetReq.zone }
                     : {}),
-                ...(ability.targetRequirement.controller
-                    ? { controller: ability.targetRequirement.controller }
+                ...(effectiveTargetReq.controller
+                    ? { controller: effectiveTargetReq.controller }
                     : {}),
                 ...(abilitySubtypeFilter
                     ? { subtypeFilter: abilitySubtypeFilter }
                     : {}),
-                ...(ability.targetRequirement.powerFilter
-                    ? { powerFilter: ability.targetRequirement.powerFilter }
+                ...(effectiveTargetReq.powerFilter
+                    ? { powerFilter: effectiveTargetReq.powerFilter }
+                    : {}),
+                ...(effectiveTargetReq.toughnessFilter
+                    ? { toughnessFilter: effectiveTargetReq.toughnessFilter }
+                    : {}),
+                ...(abilityExcludeSubtypes
+                    ? { excludeSubtypes: abilityExcludeSubtypes }
                     : {}),
                 ...(() => {
                     const resolved = resolveCmcFilter(
-                        ability.targetRequirement.cmcFilter,
+                        effectiveTargetReq.cmcFilter,
                         targetChosenX
                     );
                     return resolved ? { cmcFilter: resolved } : {};

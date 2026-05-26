@@ -259,6 +259,10 @@ export type CardInstanceState = {
      *  regeneration: the SBA path treats this identically to `cantBeRegenerated`.
      *  Transient — cleared at CLEANUP (CR 514.2). */
     exileOnDeath?: boolean;
+    /** When set, the creature must attack this combat if able (CR 508.1d).
+     *  Set by Nettling Imp's activated ability. Checked by combat enforcement
+     *  in `mustAttack()`. Transient — cleared at CLEANUP (CR 514.2). */
+    mustAttackThisTurn?: boolean;
     /** Tracks card types added by `StaticTypeAdd` effects (layer 4 surrogate
      *  — see `cards/types.ts` for the model's limits). One entry per
      *  `(auraId, type)` pair so multiple concurrent sources don't double-add
@@ -604,6 +608,13 @@ export type PendingTarget = {
      *  (CR 613 layer 7c). Propagated from TargetRequirement.powerFilter.
      *  Both bounds inclusive. */
     powerFilter?: { min?: number; max?: number };
+    /** If set, restricts legal permanent targets by effective toughness
+     *  (CR 613 layer 7c). Propagated from TargetRequirement.toughnessFilter.
+     *  Both bounds inclusive. */
+    toughnessFilter?: { min?: number; max?: number };
+    /** If set, excludes permanents whose subtypes include any of these
+     *  (CR 205.3). Propagated from TargetRequirement.excludeSubtypes. */
+    excludeSubtypes?: string[];
     /** Mana value range (CR 202.3). Propagated from TargetRequirement.cmcFilter
      *  after resolving any `"X"` placeholders against the announced chosenX.
      *  Used by Spell Blast ("counter target spell with mana value X"). */
@@ -2771,6 +2782,20 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (!found) return;
             if (!found.card.types.includes("Creature")) return;
             found.card.exileOnDeath = true;
+        },
+
+        getActivationCount(abilityId: string): number {
+            const source = findOnBattlefield(state, item.id);
+            if (!source) return 0;
+            return source.card.activationsThisTurn?.[abilityId] ?? 0;
+        },
+
+        setMustAttackThisTurn(target: TargetSelection): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            if (!found.card.types.includes("Creature")) return;
+            found.card.mustAttackThisTurn = true;
         },
 
         // --- Mid-resolution choices (CR 608.2, 101.4) ---

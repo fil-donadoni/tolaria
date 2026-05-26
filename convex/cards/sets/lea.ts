@@ -2726,16 +2726,77 @@ export const mindTwist: CardDefinition = {
 //     toughness: 1,
 // };
 
-// export const nettlingImp: CardDefinition = {
-//     id: "8105973c-a94d-444c-ba20-ab0fa978bee8",
-//     name: "Nettling Imp",
-//     oracleText: "{T}: Choose target non-Wall creature the active player has controlled continuously since the beginning of the turn. That creature attacks this turn if able. Destroy it at the beginning of the next end step if it didn't attack this turn. Activate only during an opponent's turn, before attackers are declared.",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Imp"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Nettling Imp — "{T}: Target non-Wall creature the active player controls
+// attacks this combat if able. If it doesn't, destroy it at the beginning of
+// the next end step. Activate only before attackers are declared."
+// (CR 508.1d, 603.7a, 602.5)
+//
+// canActivate enforces "only during opponent's turn" (active != controller).
+// activationPhaseRestriction enforces "before attackers are declared" (phases
+// before DECLARE_ATTACKERS). resolve sets mustAttackThisTurn on the target and
+// schedules a delayed end-step trigger that checks hasAttackedThisTurn.
+const NETTLING_IMP_ID = "8105973c-a94d-444c-ba20-ab0fa978bee8";
+
+export const nettlingImp: CardDefinition = {
+    id: NETTLING_IMP_ID,
+    name: "Nettling Imp",
+    oracleText:
+        "{T}: Target non-Wall creature the active player controls attacks this combat if able. If it doesn't, destroy it at the beginning of the next end step. Activate only during an opponent's turn, before attackers are declared.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Imp"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "nettling-imp-force",
+            oracleText:
+                "{T}: Target non-Wall creature the active player controls attacks this combat if able. If it doesn't, destroy it at the beginning of the next end step.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "opponent",
+                excludeSubtypes: "Wall",
+            },
+            activationPhaseRestriction: [
+                "UPKEEP",
+                "DRAW",
+                "PRECOMBAT_MAIN",
+                "BEGINNING_OF_COMBAT",
+            ],
+            canActivate: (source, state) =>
+                state.activePlayerId !== source.controllerId,
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (!target || target.type !== "permanent") return;
+                ctx.setMustAttackThisTurn(target);
+                ctx.scheduleDelayedTrigger(
+                    NETTLING_IMP_ID,
+                    "nettling-imp-destroy",
+                    "next-end-step",
+                    { targetId: target.id }
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "nettling-imp-destroy",
+            oracleText:
+                "Destroy that creature at the beginning of the next end step if it didn't attack this turn.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                const targetId = payload.targetId;
+                if (!targetId) return;
+                const target = { type: "permanent" as const, id: targetId };
+                if (ctx.hasAttackedThisTurn(target)) return;
+                ctx.destroy(target);
+            },
+        },
+    ],
+};
 
 // Nightmare — Flying. "Nightmare's power and toughness are each equal to the
 // number of Swamps you control." (CR 604.3 CDA, layer 7b). Modeled as a
@@ -3354,16 +3415,69 @@ export const burrowing: CardDefinition = {
 //     types: ["Sorcery"],
 // };
 
-// export const dragonWhelp: CardDefinition = {
-//     id: "6bbf1eab-bc32-4835-b566-8634b1fe81b0",
-//     name: "Dragon Whelp",
-//     oracleText: "Flying\n{R}: This creature gets +1/+0 until end of turn. If this ability has been activated four or more times this turn, sacrifice this creature at the beginning of the next end step.",
-//     manaCost: { X: 2, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Dragon"],
-//     power: 2,
-//     toughness: 3,
-// };
+// Dragon Whelp — "Flying. {R}: Dragon Whelp gets +1/+0 until end of turn.
+// If this ability has been activated four or more times this turn, sacrifice
+// Dragon Whelp at the beginning of the next end step." (CR 602.5, 603.7a)
+//
+// The pump is a standard addTemporaryPTBuff. After resolution, getActivationCount
+// reads the per-source counter. On the 4th+ activation, a delayed end-step
+// sacrifice is scheduled. Only one delayed trigger is ever created per turn
+// (tracked via payload flag on delayedTriggers).
+const DRAGON_WHELP_ID = "6bbf1eab-bc32-4835-b566-8634b1fe81b0";
+
+export const dragonWhelp: CardDefinition = {
+    id: DRAGON_WHELP_ID,
+    name: "Dragon Whelp",
+    oracleText:
+        "Flying\n{R}: Dragon Whelp gets +1/+0 until end of turn. If this ability has been activated four or more times this turn, sacrifice Dragon Whelp at the beginning of the next end step.",
+    manaCost: { X: 2, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Dragon"],
+    power: 2,
+    toughness: 3,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "dragon-whelp-pump",
+            oracleText:
+                "{R}: Dragon Whelp gets +1/+0 until end of turn. If this ability has been activated four or more times this turn, sacrifice Dragon Whelp at the beginning of the next end step.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+                // CR 602.5: activation count includes the current one
+                // (already incremented before resolve).
+                const count = ctx.getActivationCount("dragon-whelp-pump");
+                if (count >= 4) {
+                    ctx.scheduleDelayedTrigger(
+                        DRAGON_WHELP_ID,
+                        "dragon-whelp-sacrifice",
+                        "next-end-step",
+                        { targetId: ctx.sourceInstanceId }
+                    );
+                }
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "dragon-whelp-sacrifice",
+            oracleText:
+                "Sacrifice Dragon Whelp at the beginning of the next end step.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                const targetId = payload.targetId;
+                if (!targetId) return;
+                ctx.destroy({ type: "permanent", id: targetId });
+            },
+        },
+    ],
+};
 
 export const dwarvenDemolitionTeam: CardDefinition = {
     id: "03482c9c-1f25-4d73-9243-17462ea37ac4",
@@ -4121,16 +4235,71 @@ export const smoke: CardDefinition = {
     ],
 };
 
-// export const stoneGiant: CardDefinition = {
-//     id: "7ffaedb9-25f8-4304-9085-e12505b93312",
-//     name: "Stone Giant",
-//     oracleText: "{T}: Target creature you control with toughness less than this creature's power gains flying until end of turn. Destroy that creature at the beginning of the next end step.",
-//     manaCost: { X: 2, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Giant"],
-//     power: 3,
-//     toughness: 4,
-// };
+// Stone Giant — "{T}: Target creature you control with toughness less than
+// Stone Giant's power gains flying until end of turn. Destroy that creature
+// at the beginning of the next end step." (CR 113.1, 611.1b, 603.7a)
+//
+// getTargetRequirement computes a dynamic toughnessFilter from the source's
+// current power. resolve grants flying EOT and schedules a delayed destroy.
+const STONE_GIANT_ID = "7ffaedb9-25f8-4304-9085-e12505b93312";
+
+export const stoneGiant: CardDefinition = {
+    id: STONE_GIANT_ID,
+    name: "Stone Giant",
+    oracleText:
+        "{T}: Target creature you control with toughness less than Stone Giant's power gains flying until end of turn. Destroy that creature at the beginning of the next end step.",
+    manaCost: { X: 2, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Giant"],
+    power: 3,
+    toughness: 4,
+    activatedAbilities: [
+        {
+            id: "stone-giant-fling",
+            oracleText:
+                "{T}: Target creature you control with toughness less than Stone Giant's power gains flying until end of turn. Destroy that creature at the beginning of the next end step.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+            getTargetRequirement: (source) => ({
+                type: "Creature",
+                count: 1,
+                controller: "you" as const,
+                toughnessFilter: { max: (source.power ?? 0) - 1 },
+            }),
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (!target || target.type !== "permanent") return;
+                ctx.grantStaticAbility(target, "flying", {
+                    phase: "end-of-turn",
+                });
+                ctx.scheduleDelayedTrigger(
+                    STONE_GIANT_ID,
+                    "stone-giant-destroy",
+                    "next-end-step",
+                    { targetId: target.id }
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "stone-giant-destroy",
+            oracleText:
+                "Destroy that creature at the beginning of the next end step.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                const targetId = payload.targetId;
+                if (!targetId) return;
+                ctx.destroy({ type: "permanent", id: targetId });
+            },
+        },
+    ],
+};
 
 // Stone Rain — "Destroy target land." (CR 701.7). Identical shape to Sinkhole
 // modulo cost / type.

@@ -10,7 +10,11 @@ import {
     isTapLockedBySummoningSickness,
     manaValue,
 } from "./constants";
-import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
+import {
+    STATIC_EFFECT_CTX,
+    getEffectivePower,
+    getEffectiveToughness,
+} from "./layers";
 import { isProtectedFromColors } from "./protection";
 import { getInstanceManaCost, tryGetCardById } from "../cards";
 import { normalizeManaCost } from "./state";
@@ -396,6 +400,12 @@ export function getLegalTargets(
             ? requirement.excludeColors
             : [requirement.excludeColors]
         : undefined;
+    const excludeSubtypes = requirement.excludeSubtypes
+        ? Array.isArray(requirement.excludeSubtypes)
+            ? requirement.excludeSubtypes
+            : [requirement.excludeSubtypes]
+        : undefined;
+    const toughnessFilter = requirement.toughnessFilter;
 
     // CR 115.4: "any target" means any creature, planeswalker, player, or
     // battle — the four object types that can be damaged (CR 120.3).
@@ -450,6 +460,13 @@ export function getLegalTargets(
                 ) {
                     continue;
                 }
+                // CR 205.3: exclude subtypes (Nettling Imp's "non-Wall").
+                if (
+                    excludeSubtypes &&
+                    excludeSubtypes.some((s) => card.subtypes.includes(s))
+                ) {
+                    continue;
+                }
                 // CR 202.2: filter by color for "source of color X" choices.
                 if (colorFilter && !hasColor(card, colorFilter)) continue;
                 // CR 701.20: tap-state filter for "target tapped/untapped ~".
@@ -473,6 +490,20 @@ export function getLegalTargets(
                     if (
                         powerFilter.max !== undefined &&
                         power > powerFilter.max
+                    )
+                        continue;
+                }
+                // CR 613 layer 7c: toughness filter reads effective toughness.
+                if (toughnessFilter) {
+                    const toughness = getEffectiveToughness(state, card);
+                    if (
+                        toughnessFilter.min !== undefined &&
+                        toughness < toughnessFilter.min
+                    )
+                        continue;
+                    if (
+                        toughnessFilter.max !== undefined &&
+                        toughness > toughnessFilter.max
                     )
                         continue;
                 }

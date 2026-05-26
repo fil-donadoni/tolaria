@@ -1040,6 +1040,16 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "Dragon Whelp — 4-activation sacrifice risk (W15)",
+        cards: [
+            { name: "Dragon Whelp", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 5 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
