@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import type { CardInstance } from "~/types/game";
 import CardImage from "../cards/card-image";
 import {
@@ -11,6 +12,9 @@ import {
     ContextMenuContent,
     ContextMenuItem,
 } from "~/components/ui/context-menu";
+import ActionSheet, {
+    type ActionSheetItem,
+} from "~/components/ui/action-sheet";
 import { useGameContext } from "~/hooks/useGameContext";
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { isCreature } from "~/lib/card-utils";
@@ -48,6 +52,8 @@ export default function BattlefieldCard({
 }) {
     const hasAbilities = !!activatableAbilities?.length;
     const { allPlayers } = useGameContext();
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const isTouchRef = useRef(false);
 
     // Scope transitions to transform+opacity only. `transition-all` kept the
     // layer in an "animating" state and Chrome's compositor served a downsampled
@@ -131,12 +137,21 @@ export default function BattlefieldCard({
         </div>
     );
 
-    // When the card carries activatable abilities, a left click opens the
-    // ability menu (via ContextMenuTrigger) instead of running the bare
-    // onClick — otherwise Basalt Monolith would silently tap-for-mana while
-    // ALSO opening the menu, leaving the player confused about which option
-    // they picked. The menu surfaces the mana ability as one of its entries.
-    const handleCardClick = hasAbilities ? undefined : onClick;
+    const handleAbilityTap = hasAbilities
+        ? (e: React.MouseEvent) => {
+              if (!isTouchRef.current) return;
+              e.preventDefault();
+              e.stopPropagation();
+              if (activatableAbilities!.length === 1) {
+                  onActivateAbility?.(activatableAbilities![0].id, false);
+              } else {
+                  setSheetOpen(true);
+              }
+          }
+        : undefined;
+
+    const handleCardClick = hasAbilities ? handleAbilityTap : onClick;
+
     const cardContent = vs.tooltip ? (
         <Tooltip>
             <TooltipTrigger
@@ -144,6 +159,9 @@ export default function BattlefieldCard({
                 className={cardClassName}
                 style={boxStyle}
                 onClick={handleCardClick}
+                onTouchStart={() => {
+                    isTouchRef.current = true;
+                }}
             >
                 {inner}
             </TooltipTrigger>
@@ -155,6 +173,9 @@ export default function BattlefieldCard({
             className={cardClassName}
             style={boxStyle}
             onClick={handleCardClick}
+            onTouchStart={() => {
+                isTouchRef.current = true;
+            }}
         >
             {inner}
         </div>
@@ -162,21 +183,41 @@ export default function BattlefieldCard({
 
     if (!hasAbilities) return cardContent;
 
+    const sheetItems: ActionSheetItem[] = activatableAbilities!.map((a) => ({
+        key: a.id,
+        label: formatOracleText(a.oracleText),
+        onSelect: (e: React.MouseEvent | React.TouchEvent) => {
+            const keepPriority =
+                "ctrlKey" in e ? e.ctrlKey || e.metaKey : false;
+            onActivateAbility?.(a.id, keepPriority);
+        },
+    }));
+
     return (
-        <ContextMenu>
-            <ContextMenuTrigger>{cardContent}</ContextMenuTrigger>
-            <ContextMenuContent className="w-72">
-                {activatableAbilities.map((a) => (
-                    <ContextMenuItem
-                        key={a.id}
-                        onClick={(e) =>
-                            onActivateAbility?.(a.id, e.ctrlKey || e.metaKey)
-                        }
-                    >
-                        {formatOracleText(a.oracleText)}
-                    </ContextMenuItem>
-                ))}
-            </ContextMenuContent>
-        </ContextMenu>
+        <>
+            <ContextMenu>
+                <ContextMenuTrigger>{cardContent}</ContextMenuTrigger>
+                <ContextMenuContent className="w-72">
+                    {activatableAbilities!.map((a) => (
+                        <ContextMenuItem
+                            key={a.id}
+                            onClick={(e) =>
+                                onActivateAbility?.(
+                                    a.id,
+                                    e.ctrlKey || e.metaKey
+                                )
+                            }
+                        >
+                            {formatOracleText(a.oracleText)}
+                        </ContextMenuItem>
+                    ))}
+                </ContextMenuContent>
+            </ContextMenu>
+            <ActionSheet
+                open={sheetOpen}
+                onClose={() => setSheetOpen(false)}
+                items={sheetItems}
+            />
+        </>
     );
 }

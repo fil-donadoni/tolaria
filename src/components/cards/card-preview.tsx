@@ -18,6 +18,7 @@ import {
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { formatOracleText } from "~/lib/oracle-text";
 import { GameContext } from "~/hooks/useGameContext";
+import { useLongPress } from "~/hooks/useLongPress";
 import type { CardInstance } from "~/types/game";
 
 const ZOOM_WIDTH = 128 * 2;
@@ -130,6 +131,10 @@ export default function CardPreview({
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const zoomRef = useRef<HTMLDivElement>(null);
+
+    const longPress = useLongPress({});
+    const showOverlay =
+        longPress.phase === "longPressed" || longPress.phase === "locked";
 
     const openZoom = useCallback(() => {
         setMeasured(false);
@@ -317,10 +322,15 @@ export default function CardPreview({
               ?.name ?? null)
         : null;
 
+    const dismissOverlay = useCallback(() => {
+        longPress.dismiss();
+    }, [longPress]);
+
     return (
         <div
             ref={containerRef}
             className="w-full h-full"
+            style={longPress.scaleStyle}
             onMouseEnter={() => {
                 isHovered.current = true;
                 clearHoverTimeout();
@@ -336,8 +346,137 @@ export default function CardPreview({
             }}
             onMouseDown={handleMouseDown}
             onContextMenu={handleContextMenu}
+            {...longPress.handlers}
         >
             {children}
+            {showOverlay &&
+                createPortal(
+                    <div
+                        className="fixed inset-0 z-100 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                        onTouchEnd={(e) => {
+                            e.preventDefault();
+                            dismissOverlay();
+                        }}
+                        onClick={dismissOverlay}
+                    >
+                        <div
+                            className="flex flex-col rounded-2xl shadow-2xl bg-zinc-900/95 overflow-hidden max-h-[90vh] max-w-[90vw]"
+                            style={{ width: ZOOM_WIDTH * 1.5 }}
+                            onTouchEnd={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div
+                                className="relative w-full"
+                                style={{ aspectRatio: ART_CROP_RATIO }}
+                            >
+                                {imageSrc ? (
+                                    <img
+                                        src={imageSrc}
+                                        className="w-full h-full block"
+                                        alt={cardName}
+                                        style={{ objectFit: "cover" }}
+                                    />
+                                ) : (
+                                    <TokenPlaceholder
+                                        name={displayName}
+                                        types={types}
+                                        subtypes={
+                                            cardInstance?.subtypes ??
+                                            def?.subtypes ??
+                                            []
+                                        }
+                                        power={effPower ?? basePower}
+                                        toughness={
+                                            effToughness ?? baseToughness
+                                        }
+                                        staticAbilities={
+                                            cardInstance?.staticAbilities ??
+                                            def?.staticAbilities ??
+                                            []
+                                        }
+                                    />
+                                )}
+                            </div>
+                            <div className="p-4 text-sm text-white space-y-2 overflow-y-auto">
+                                <div className="flex items-baseline justify-between gap-2">
+                                    <span className="font-semibold text-base">
+                                        {displayName}
+                                    </span>
+                                    {manaCost && (
+                                        <span className="shrink-0 text-base leading-none">
+                                            {formatOracleText(manaCost)}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-zinc-300">{typeLine}</div>
+                                {oracleParagraphs && (
+                                    <div className="border-t border-zinc-700 pt-2 space-y-1.5 text-zinc-100">
+                                        {oracleParagraphs.map((p, i) => (
+                                            <div key={`oracle-${i}`}>
+                                                {formatOracleText(p)}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {hasBody && (
+                                    <div className="border-t border-zinc-700 pt-2 space-y-1.5">
+                                        {abilities.keywords.length > 0 && (
+                                            <div className="space-y-0.5">
+                                                {abilities.keywords.map(
+                                                    (k, i) => (
+                                                        <KeywordRow
+                                                            key={`kw-${i}-${k.name}`}
+                                                            name={k.name}
+                                                            state={k.state}
+                                                        />
+                                                    )
+                                                )}
+                                            </div>
+                                        )}
+                                        {abilities.activated.map((a, i) => (
+                                            <AbilityRow
+                                                key={`act-${i}-${a.id}`}
+                                                text={a.oracleText}
+                                                state={a.state}
+                                            />
+                                        ))}
+                                        {abilities.triggered.map((t, i) => (
+                                            <AbilityRow
+                                                key={`tr-${i}-${t.id}`}
+                                                text={t.oracleText}
+                                                state="native"
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                                {hasPT && (
+                                    <div className="text-right font-semibold text-base border-t border-zinc-700 pt-2 flex justify-end items-baseline gap-2">
+                                        <span
+                                            className={
+                                                ptModified
+                                                    ? "text-emerald-400"
+                                                    : "text-white"
+                                            }
+                                        >
+                                            {effPower ?? 0}/{effToughness ?? 0}
+                                        </span>
+                                        {ptModified && (
+                                            <span className="text-red-400 text-sm font-normal">
+                                                ({basePower}/{baseToughness})
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                                {ownerName && (
+                                    <div className="text-zinc-400 border-t pt-2 text-sm italic">
+                                        Owner: {ownerName}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
+                )}
             {showZoom &&
                 createPortal(
                     <div

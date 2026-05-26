@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
     ContextMenu,
     ContextMenuContent,
@@ -10,6 +10,9 @@ import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { getCardById } from "@convex/cards";
+import ActionSheet, {
+    type ActionSheetItem,
+} from "~/components/ui/action-sheet";
 
 import type { CardAction, CardInstance } from "~/types/game";
 
@@ -131,6 +134,9 @@ export default function SelectableCard({
         console.log(`Exiling card ${cardInstance.id}`);
     };
 
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const isTouchRef = useRef(false);
+
     const hasActions =
         allowedActions.length > 0 &&
         !pendingCast &&
@@ -230,10 +236,32 @@ export default function SelectableCard({
         );
     }
 
+    const sheetItems: ActionSheetItem[] = actionEntries.map(
+        ({ action, label, handler }) => ({
+            key: action,
+            label,
+            onSelect: handler as (
+                e: React.MouseEvent | React.TouchEvent
+            ) => void,
+        })
+    );
+
     return (
         <>
             <ContextMenu>
-                <ContextMenuTrigger className="flex items-center justify-center rounded-md border border-dashed text-sm">
+                <ContextMenuTrigger
+                    className="flex items-center justify-center rounded-md border border-dashed text-sm"
+                    onTouchStart={() => {
+                        isTouchRef.current = true;
+                    }}
+                    onClick={(e) => {
+                        if (isTouchRef.current) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSheetOpen(true);
+                        }
+                    }}
+                >
                     <CardImage card={cardInstance} />
                 </ContextMenuTrigger>
 
@@ -245,6 +273,11 @@ export default function SelectableCard({
                     ))}
                 </ContextMenuContent>
             </ContextMenu>
+            <ActionSheet
+                open={sheetOpen}
+                onClose={() => setSheetOpen(false)}
+                items={sheetItems}
+            />
             {modePickerOverlay}
         </>
     );

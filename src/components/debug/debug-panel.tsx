@@ -1277,6 +1277,37 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "Mobile Touch Test — activated abilities + multi-action hand",
+        cards: [
+            { name: "Prodigal Sorcerer", owner: "me" as const },
+            { name: "Royal Assassin", owner: "me" as const },
+            { name: "Icy Manipulator", owner: "me" as const },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Disenchant",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "me" as const },
+            { name: "Plains", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                tapped: true,
+            },
+            { name: "Sol Ring", owner: "opp" as const },
+            { name: "Forest", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

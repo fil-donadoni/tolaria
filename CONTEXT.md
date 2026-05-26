@@ -203,6 +203,23 @@ _Avoid_: Player (too vague when control changes)
 **Owner**:
 The **Player** who started the game with a card in their **Deck**. Never changes. **Tokens** are owned by the **Controller** who created them.
 
+### Interaction
+
+**Card Preview Overlay**:
+A full-screen centered overlay showing a card's art and oracle text at maximum legible size. On touch devices, triggered by **Long-Press**. On desktop, the lateral zoom panel serves the same purpose (triggered by hover).
+_Avoid_: Tooltip, zoom (overloaded — "zoom" is the desktop variant)
+
+**Action Sheet**:
+A bottom sheet listing available actions for a card when more than one is legal (cast, play land, activate abilities). Touch-device replacement for the desktop right-click context menu.
+_Avoid_: Context menu (that's the desktop variant), popup
+
+**Long-Press**:
+A 400ms sustained touch on a card that opens the **Card Preview Overlay**. Cancelled if finger moves >10px (scroll intent). Provides visual feedback via progressive scale (1.05×).
+_Avoid_: Long tap, press-and-hold
+
+**Peek/Lock**:
+The dismiss model for the **Card Preview Overlay** on touch devices. Release before 1s = peek (closes immediately). Hold >1s = lock (stays open, dismiss via tap on backdrop).
+
 ### Flow
 
 **Announce**:
