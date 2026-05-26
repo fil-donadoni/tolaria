@@ -13,6 +13,7 @@ type GameDialogProps = {
     open: boolean;
     onOpenChange?: (open: boolean) => void;
     title: string;
+    subtitle?: string;
     icon?: React.ReactNode;
     size?: GameDialogSize;
     dismissable?: boolean;
@@ -60,6 +61,7 @@ export default function GameDialog({
     open,
     onOpenChange,
     title,
+    subtitle,
     icon,
     size = "default",
     dismissable = true,
@@ -100,17 +102,23 @@ export default function GameDialog({
                         {icon && <SunburstIcon>{icon}</SunburstIcon>}
 
                         <div className="flex-1 flex flex-col w-full min-w-0">
-                            {/* Title — Beleren font */}
-                            <DialogTitle className="text-xl sm:text-2xl font-bold tracking-wide text-[#f1f1e8] font-[var(--font-beleren)] drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
+                            {/* Title — Beleren font, centered */}
+                            <DialogTitle className="text-xl sm:text-2xl font-bold tracking-wide text-[#f1f1e8] font-beleren text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
                                 {title}
                             </DialogTitle>
 
-                            {/* Gradient divider */}
-                            <div className="h-[1px] w-full bg-gradient-to-r from-zinc-600 via-zinc-500/40 to-transparent my-2" />
+                            {subtitle && (
+                                <p className="text-zinc-400 text-sm text-center mt-1">
+                                    {subtitle}
+                                </p>
+                            )}
+
+                            {/* Gradient divider — symmetric */}
+                            <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-zinc-500/40 to-transparent my-2" />
 
                             {/* sr-only description for a11y */}
                             <DialogDescription className="sr-only">
-                                {title}
+                                {subtitle ?? title}
                             </DialogDescription>
 
                             {children}

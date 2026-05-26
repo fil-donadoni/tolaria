@@ -55,7 +55,7 @@ export default function MulliganPrompt({
                 <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-zinc-500/40" />
 
                 <div className="flex flex-col items-center gap-1 w-full">
-                    <p className="font-[var(--font-beleren)] text-sm tracking-wide text-[#f1f1e8]">
+                    <p className="font-beleren text-sm tracking-wide text-[#f1f1e8]">
                         Mulligan
                     </p>
                     <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-zinc-500/40 to-transparent" />
@@ -71,7 +71,7 @@ export default function MulliganPrompt({
                         <button
                             type="button"
                             onClick={onKeep}
-                            className="px-4 py-2 rounded-sm bg-emerald-900/40 border border-emerald-700/50 text-emerald-300 text-sm font-[var(--font-beleren)] tracking-wide hover:bg-emerald-900/60 transition-colors cursor-pointer"
+                            className="px-4 py-2 rounded-sm bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] text-sm font-beleren tracking-wide hover:bg-[#7a5a2e]/50 transition-colors cursor-pointer"
                         >
                             Keep
                         </button>
@@ -79,7 +79,7 @@ export default function MulliganPrompt({
                             type="button"
                             onClick={onMull}
                             disabled={nextHandSize < 0}
-                            className="px-4 py-2 rounded-sm bg-rose-900/40 border border-rose-700/50 text-rose-300 text-sm font-[var(--font-beleren)] tracking-wide hover:bg-rose-900/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                            className="px-4 py-2 rounded-sm bg-[#5c1e1e]/45 border border-[#a04040]/45 text-[#d48080] text-sm font-beleren tracking-wide hover:bg-[#5c1e1e]/65 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                         >
                             {nextHandSize >= 0
                                 ? `Mulligan to ${nextHandSize}`
@@ -89,7 +89,7 @@ export default function MulliganPrompt({
                 ) : (
                     <p className="text-zinc-400 text-xs">
                         Waiting for{" "}
-                        <span className="text-[#f1f1e8] font-[var(--font-beleren)]">
+                        <span className="text-[#f1f1e8] font-beleren">
                             {declaringPlayer?.name ?? "opponent"}
                         </span>
                     </p>

@@ -4,6 +4,8 @@ import {
     drainAutoPasses,
     isSorceryTiming,
     applyAllCombatDamage,
+    effectiveMaxHandSize,
+    finalizeCleanupDiscard,
 } from "../phases";
 import type {
     GameState,
@@ -1561,5 +1563,203 @@ describe("applyAllCombatDamage", () => {
         // Attacker takes 2+3=5, dies (5 >= 5)
         const p1 = state.players.find((p) => p.id === "p1")!;
         expect(p1.battlefield).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Cleanup discard (CR 514.1)
+// ---------------------------------------------------------------------------
+
+describe("cleanup discard (CR 514.1)", () => {
+    function handOf(n: number): CardInstanceState[] {
+        return Array.from({ length: n }, (_, i) =>
+            makeCard({ id: `hand-${i}`, zone: "hand", ownerId: "p1" })
+        );
+    }
+
+    describe("effectiveMaxHandSize", () => {
+        it("defaults to 7 when no override is set (CR 402.2)", () => {
+            expect(effectiveMaxHandSize(makePlayer())).toBe(7);
+        });
+
+        it("returns Infinity for unlimited (Library of Leng)", () => {
+            const p = makePlayer({ maxHandSizeOverride: "unlimited" });
+            expect(effectiveMaxHandSize(p)).toBe(Infinity);
+        });
+
+        it("returns the numeric override when set", () => {
+            const p = makePlayer({ maxHandSizeOverride: 5 });
+            expect(effectiveMaxHandSize(p)).toBe(5);
+        });
+    });
+
+    describe("CLEANUP entry", () => {
+        function endStepState(handSize: number): GameState {
+            const p1 = makePlayer({ id: "p1", hand: handOf(handSize) });
+            return makeGameState({
+                phase: "END_STEP",
+                turn: 1,
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                players: [p1, makePlayer({ id: "p2" })],
+            });
+        }
+
+        it("8 cards in hand → suspends CLEANUP with a discard-hand prompt for 1", () => {
+            const state = endStepState(8);
+            const traversed = advancePhase(state);
+
+            // The recursion stopped at CLEANUP because of the suspension.
+            expect(state.phase).toBe("CLEANUP");
+            expect(traversed).toEqual(["CLEANUP"]);
+            expect(state.pendingCleanupDiscard).toEqual({ playerId: "p1" });
+            expect(state.pendingChoices?.length).toBe(1);
+            const choice = state.pendingChoices![0];
+            expect(choice.kind).toBe("discard-hand");
+            expect(choice.stackItemId).toBe("");
+            expect(choice.zone).toBe("hand");
+            expect(choice.count).toBe(1);
+            expect(choice.playerId).toBe("p1");
+            expect(state.priorityPlayerId).toBe("p1");
+        });
+
+        it("10 cards in hand → count is 3 (excess)", () => {
+            const state = endStepState(10);
+            advancePhase(state);
+            expect(state.pendingChoices![0].count).toBe(3);
+        });
+
+        it("exactly 7 cards → no prompt, advances cleanly to next turn UPKEEP", () => {
+            const state = endStepState(7);
+            const traversed = advancePhase(state);
+
+            expect(state.pendingCleanupDiscard).toBeUndefined();
+            expect(state.pendingChoices).toBeUndefined();
+            expect(state.phase).toBe("UPKEEP");
+            expect(traversed).toEqual(["CLEANUP", "UNTAP", "UPKEEP"]);
+        });
+
+        it("maxHandSizeOverride='unlimited' suppresses the prompt entirely", () => {
+            const state = endStepState(12);
+            state.players[0].maxHandSizeOverride = "unlimited";
+            advancePhase(state);
+            expect(state.pendingCleanupDiscard).toBeUndefined();
+            expect(state.pendingChoices).toBeUndefined();
+            expect(state.phase).toBe("UPKEEP");
+        });
+
+        it("numeric maxHandSizeOverride lowers the threshold", () => {
+            const state = endStepState(8);
+            state.players[0].maxHandSizeOverride = 5;
+            advancePhase(state);
+            // hand 8, cap 5 → discard 3.
+            expect(state.pendingChoices![0].count).toBe(3);
+        });
+
+        it("non-active player's oversized hand is ignored (CR 514.1 is AP-only)", () => {
+            const state = endStepState(4);
+            state.players[1].hand = handOf(20);
+            advancePhase(state);
+            expect(state.pendingCleanupDiscard).toBeUndefined();
+            expect(state.phase).toBe("UPKEEP");
+        });
+    });
+
+    describe("phase ordering (CR 514.1 before 514.2)", () => {
+        it("'until end of turn' grants are still present when the discard prompt is enqueued", () => {
+            const state = makeGameState({
+                phase: "END_STEP",
+                turn: 1,
+                activePlayerId: "p1",
+                players: [
+                    makePlayer({ id: "p1", hand: handOf(8) }),
+                    makePlayer({ id: "p2" }),
+                ],
+            });
+            // Mirror a Channel-style "until end of turn" grant on p1.
+            state.players[0].grantedAbilities = [
+                {
+                    id: "grant-1",
+                    abilityId: "channel-mana",
+                    sourceCardId: "channel",
+                    duration: { phase: "end-of-turn", playerId: "p1" },
+                    grantedAtTurn: 1,
+                },
+            ];
+            advancePhase(state);
+
+            // The grant must survive 514.1; tickAllDurations runs only in 514.2.
+            expect(state.players[0].grantedAbilities).toBeDefined();
+            expect(state.pendingCleanupDiscard).toEqual({ playerId: "p1" });
+        });
+    });
+
+    describe("finalizeCleanupDiscard (post-commit resume)", () => {
+        it("moves the picks to graveyard, clears the cursor, and lands on next turn UPKEEP", () => {
+            const state = makeGameState({
+                phase: "END_STEP",
+                turn: 1,
+                activePlayerId: "p1",
+                players: [
+                    makePlayer({ id: "p1", hand: handOf(9) }),
+                    makePlayer({ id: "p2" }),
+                ],
+            });
+            advancePhase(state);
+            expect(state.pendingChoices![0].count).toBe(2);
+
+            const toDiscard = [
+                state.players[0].hand[0].id,
+                state.players[0].hand[1].id,
+            ];
+            finalizeCleanupDiscard(state, toDiscard);
+
+            expect(state.pendingCleanupDiscard).toBeUndefined();
+            expect(state.pendingChoices).toBeUndefined();
+            expect(state.players[0].hand.length).toBe(7);
+            expect(state.players[0].graveyard.map((c) => c.id).sort()).toEqual(
+                toDiscard.sort()
+            );
+            // Cleanup completed → advanced into next turn's UPKEEP.
+            expect(state.phase).toBe("UPKEEP");
+            expect(state.activePlayerId).toBe("p2");
+            expect(state.turn).toBe(2);
+        });
+
+        it("CR 514.2 actions run after the discard (damage marks wiped)", () => {
+            const damagedCreature = makeCard({
+                id: "wounded",
+                zone: "battlefield",
+                ownerId: "p1",
+                controllerId: "p1",
+                types: ["Creature"],
+                power: 2,
+                toughness: 3,
+                damageMarked: 1,
+            });
+            const state = makeGameState({
+                phase: "END_STEP",
+                turn: 1,
+                activePlayerId: "p1",
+                players: [
+                    makePlayer({
+                        id: "p1",
+                        hand: handOf(8),
+                        battlefield: [damagedCreature],
+                    }),
+                    makePlayer({ id: "p2" }),
+                ],
+            });
+            advancePhase(state);
+            // 514.1 runs first — damage must still be on the creature here.
+            expect(state.players[0].battlefield[0].damageMarked).toBe(1);
+
+            finalizeCleanupDiscard(state, [state.players[0].hand[0].id]);
+
+            // 514.2 ran after the discard committed.
+            expect(
+                state.players[0].battlefield[0].damageMarked
+            ).toBeUndefined();
+        });
     });
 });

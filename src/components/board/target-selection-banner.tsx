@@ -120,23 +120,24 @@ export default function TargetSelectionBanner({
                 <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-zinc-500/40" />
 
                 <div className="text-sm">
-                    <span className="font-[var(--font-beleren)] tracking-wide text-[#f1f1e8]">
+                    <span className="font-beleren tracking-wide text-[#f1f1e8]">
                         {cardName}
                     </span>
+                    <br />
                     <span className="text-zinc-400 ml-2">{hint}</span>
                 </div>
                 {showDone && (
                     <button
                         disabled={!minReached}
                         onClick={() => confirmTargets({ gameId, playerId })}
-                        className="px-3 py-1 rounded-sm text-xs font-[var(--font-beleren)] tracking-wide bg-emerald-900/40 border border-emerald-700/50 text-emerald-300 hover:bg-emerald-900/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        className="px-3 py-1 rounded-sm text-xs font-beleren tracking-wide bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                     >
                         Done
                     </button>
                 )}
                 <button
                     onClick={() => cancelTarget({ gameId, playerId })}
-                    className="px-3 py-1 rounded-sm text-xs font-[var(--font-beleren)] tracking-wide bg-rose-900/40 border border-rose-700/50 text-rose-300 hover:bg-rose-900/60 transition-colors cursor-pointer"
+                    className="px-3 py-1 rounded-sm text-xs font-beleren tracking-wide bg-[#5c1e1e]/45 border border-[#a04040]/45 text-[#d48080] hover:bg-[#5c1e1e]/65 transition-colors cursor-pointer"
                 >
                     Cancel
                 </button>

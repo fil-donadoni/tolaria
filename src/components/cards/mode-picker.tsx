@@ -25,7 +25,7 @@ function ModeRow({
             onClick={() => onSelect(mode.id)}
             className="flex flex-col items-start gap-0.5 rounded-sm px-3 py-2.5 text-left hover:bg-white/5 border border-transparent hover:border-zinc-700/50 transition-colors cursor-pointer"
         >
-            <span className="font-[var(--font-beleren)] text-sm tracking-wide text-zinc-100">
+            <span className="font-beleren text-sm tracking-wide text-zinc-100">
                 {mode.label}
             </span>
             <span className="text-xs text-zinc-500">{mode.oracleText}</span>
@@ -52,7 +52,7 @@ function ModePickerPortal({
                 <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-zinc-500/40" />
                 <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-zinc-500/40" />
 
-                <p className="text-sm font-[var(--font-beleren)] tracking-wide text-[#f1f1e8] mb-1 px-2">
+                <p className="text-sm font-beleren tracking-wide text-[#f1f1e8] mb-1 px-2">
                     {cardName}
                 </p>
                 <div className="h-[1px] w-full bg-gradient-to-r from-zinc-600 via-zinc-500/40 to-transparent mb-1" />

@@ -49,10 +49,10 @@ export default function PlayerGrantedAbilities({ player }: { player: Player }) {
                         onClick={() => handleClick(grant)}
                         disabled={disabled}
                         title={grant.oracleText}
-                        className={`text-xs font-semibold px-3 py-1.5 rounded-md whitespace-nowrap shadow-md transition-colors ${
+                        className={`text-xs font-beleren tracking-wide px-3 py-1.5 rounded-sm whitespace-nowrap shadow-md transition-colors border ${
                             disabled
-                                ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                                : "bg-emerald-700 hover:bg-emerald-600 text-white cursor-pointer"
+                                ? "bg-zinc-800/40 border-zinc-700/40 text-zinc-500 cursor-not-allowed"
+                                : "bg-[#7a5a2e]/30 border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50 cursor-pointer"
                         }`}
                     >
                         {formatOracleText(grant.oracleText)}

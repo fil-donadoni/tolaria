@@ -4,8 +4,10 @@ import type {
     CardInstanceState,
     DelayedTriggerInstance,
     GameState,
+    PlayerState,
     StackItem,
 } from "./state";
+import { MAX_HAND_SIZE } from "./constants";
 import {
     allocInstanceId,
     applyTargetPrevention,
@@ -16,13 +18,14 @@ import {
     getOpponentId,
     getPlayer,
     matchesPermanentFilter,
+    moveCard,
     regenerateOrDestroy,
     resolveTopOfStack,
     runDamageReplacement,
     tickDuration,
 } from "./state";
 import { tryGetCardById } from "../cards";
-import { describeDamageSource } from "./replacements";
+import { applyDiscardReplacements, describeDamageSource } from "./replacements";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
 import { isProtectedFromSource } from "./protection";
 import { collectTriggers } from "./triggers";
@@ -840,47 +843,154 @@ function performPhaseEntry(state: GameState): void {
             break;
         }
         case "CLEANUP":
-            // CR 514.2 — "until end of turn" effects end at the cleanup step.
-            tickAllDurations(state);
-            // CR 514.2 — marked damage is removed from all permanents, and
-            // turn-scoped combat flags are cleared.
-            for (const p of state.players) {
-                for (const card of p.battlefield) {
-                    if (card.damageMarked !== undefined) {
-                        card.damageMarked = undefined;
-                    }
-                    if (card.hasAttackedThisTurn) {
-                        card.hasAttackedThisTurn = undefined;
-                    }
-                    if (card.hasBlockedThisTurn) {
-                        card.hasBlockedThisTurn = undefined;
-                    }
-                    if (card.damagedBySources !== undefined) {
-                        card.damagedBySources = undefined;
-                    }
-                    // CR 701.15a — regeneration shields apply only "this turn".
-                    // Unused shields wear off here.
-                    if (card.regenerationShields !== undefined) {
-                        card.regenerationShields = undefined;
-                    }
-                    // CR 614.1a — Disintegrate's exile-on-death flag is turn-scoped.
-                    if (card.exileOnDeath !== undefined) {
-                        card.exileOnDeath = undefined;
-                    }
-                    // CR 508.1d — forced-attack flag is turn-scoped.
-                    if (card.mustAttackThisTurn !== undefined) {
-                        card.mustAttackThisTurn = undefined;
-                    }
-                    if (card.canBlockAdditional !== undefined) {
-                        card.canBlockAdditional = undefined;
-                    }
-                    if (card.mustBlockAllThisTurn) {
-                        card.mustBlockAllThisTurn = undefined;
-                    }
-                }
-            }
-            // TODO: hand size check (CR 514.1).
+            // CR 514.1 runs first: if the active player's hand exceeds their
+            // maximum hand size, they discard down to it before any of the
+            // 514.2 turn-based actions fire. The discard requires interactive
+            // input, so the step may suspend on a `discard-hand` PendingChoice
+            // here — `finalizeCleanup` runs out of the commit handler when the
+            // discards land.
+            if (tryEnqueueCleanupDiscard(state)) break;
+            finalizeCleanup(state);
             break;
+    }
+}
+
+/** Returns the effective maximum hand size for a player (CR 402.2). The
+ *  default is `MAX_HAND_SIZE` (7); `maxHandSizeOverride` can raise, lower,
+ *  or remove the cap entirely. */
+export function effectiveMaxHandSize(player: PlayerState): number {
+    if (player.maxHandSizeOverride === "unlimited") return Infinity;
+    if (typeof player.maxHandSizeOverride === "number") {
+        return player.maxHandSizeOverride;
+    }
+    return MAX_HAND_SIZE;
+}
+
+/** CR 514.1 — at CLEANUP, if the active player has more cards in hand than
+ *  their maximum hand size, they discard down to it. The chooser selects
+ *  which cards; the engine suspends on a `discard-hand` PendingChoice
+ *  (`stackItemId: ""` — the same phase-level sentinel used by `untap-pick`).
+ *  Returns true when a discard prompt was enqueued (caller must NOT run
+ *  514.2 yet — wait for the commit handler), false when no discard is
+ *  required and CLEANUP can continue immediately. */
+function tryEnqueueCleanupDiscard(state: GameState): boolean {
+    const active = getPlayer(state, state.activePlayerId);
+    const max = effectiveMaxHandSize(active);
+    const excess = active.hand.length - max;
+    if (excess <= 0) return false;
+    state.pendingChoices = state.pendingChoices ?? [];
+    state.pendingChoices.push({
+        stackItemId: "",
+        step: 0,
+        choiceId: `cleanup-discard-${state.activePlayerId}`,
+        playerId: state.activePlayerId,
+        zoneOwnerId: state.activePlayerId,
+        kind: "discard-hand",
+        zone: "hand",
+        count: excess,
+        selected: [],
+        prompt:
+            excess === 1
+                ? "Discard a card (hand size)"
+                : `Discard ${excess} cards (hand size)`,
+    });
+    state.pendingCleanupDiscard = { playerId: state.activePlayerId };
+    state.priorityPlayerId = state.activePlayerId;
+    return true;
+}
+
+/** Commits a CR 514.1 cleanup-discard `PendingChoice`: moves each selected
+ *  card out of the chooser's hand (honoring discard replacement effects
+ *  like Library of Leng, CR 614), clears the suspension marker, runs the
+ *  remainder of CLEANUP (CR 514.2 — damage wipe, "until end of turn"
+ *  expiry), then leaves CLEANUP via the normal auto-phase recursion. No-op
+ *  if the head choice is not a cleanup discard. */
+export function finalizeCleanupDiscard(
+    state: GameState,
+    selectedIds: string[]
+): void {
+    const queue = state.pendingChoices ?? [];
+    const head = queue[0];
+    if (
+        !head ||
+        head.kind !== "discard-hand" ||
+        head.stackItemId !== "" ||
+        !state.pendingCleanupDiscard
+    ) {
+        return;
+    }
+    const player = getPlayer(state, state.pendingCleanupDiscard.playerId);
+    for (const cardInstanceId of selectedIds) {
+        // Defense-in-depth: a discard replacement (Library of Leng) earlier
+        // in the loop could in principle have routed an id away from hand
+        // before the loop reaches it. `findIndex === -1` makes the second
+        // pick a silent no-op rather than a throw — matches the SpellContext
+        // `discardCard` contract used by Disrupting Scepter / discardAtRandom.
+        const idx = player.hand.findIndex((c) => c.id === cardInstanceId);
+        if (idx === -1) continue;
+        const repl = applyDiscardReplacements(state, {
+            kind: "discard",
+            playerId: player.id,
+            cardInstanceId,
+        });
+        if (repl === null) continue;
+        moveCard(player, repl.cardInstanceId, "hand", "graveyard");
+    }
+    queue.shift();
+    state.pendingChoices = queue.length > 0 ? queue : undefined;
+    state.pendingCleanupDiscard = undefined;
+    // CR 514.2 — runs only after the discard lands.
+    finalizeCleanup(state);
+    // CLEANUP is an auto-phase. Leaving it lands at the next turn's UNTAP →
+    // UPKEEP via the normal auto-phase recursion (CR 500.1). Drain any
+    // auto-pass left on the new active player so priority settles correctly.
+    advancePhase(state);
+    drainAutoPasses(state);
+}
+
+/** CR 514.2 — runs after the (possibly empty) 514.1 discard. Exported so
+ *  the commit handler in `game.ts` can resume CLEANUP after the discards
+ *  land. "Until end of turn" effects expire, marked damage is removed from
+ *  every permanent, and turn-scoped combat flags are cleared. */
+export function finalizeCleanup(state: GameState): void {
+    // CR 514.2 — "until end of turn" effects end at the cleanup step.
+    tickAllDurations(state);
+    // CR 514.2 — marked damage is removed from all permanents, and
+    // turn-scoped combat flags are cleared.
+    for (const p of state.players) {
+        for (const card of p.battlefield) {
+            if (card.damageMarked !== undefined) {
+                card.damageMarked = undefined;
+            }
+            if (card.hasAttackedThisTurn) {
+                card.hasAttackedThisTurn = undefined;
+            }
+            if (card.hasBlockedThisTurn) {
+                card.hasBlockedThisTurn = undefined;
+            }
+            if (card.damagedBySources !== undefined) {
+                card.damagedBySources = undefined;
+            }
+            // CR 701.15a — regeneration shields apply only "this turn".
+            // Unused shields wear off here.
+            if (card.regenerationShields !== undefined) {
+                card.regenerationShields = undefined;
+            }
+            // CR 614.1a — Disintegrate's exile-on-death flag is turn-scoped.
+            if (card.exileOnDeath !== undefined) {
+                card.exileOnDeath = undefined;
+            }
+            // CR 508.1d — forced-attack flag is turn-scoped.
+            if (card.mustAttackThisTurn !== undefined) {
+                card.mustAttackThisTurn = undefined;
+            }
+            if (card.canBlockAdditional !== undefined) {
+                card.canBlockAdditional = undefined;
+            }
+            if (card.mustBlockAllThisTurn) {
+                card.mustBlockAllThisTurn = undefined;
+            }
+        }
     }
 }
 

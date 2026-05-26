@@ -51,15 +51,15 @@ export default function GameOverDialog({
             icon={<SkullIcon />}
             dismissable={false}
         >
-            <div className="flex flex-col items-center sm:items-start gap-2 mt-1">
+            <div className="flex flex-col items-center text-center gap-2 mt-1">
                 <p className="text-zinc-400 text-sm">{reasonText}</p>
-                <span className="text-2xl sm:text-3xl font-bold text-amber-400 font-[var(--font-beleren)] tracking-wide">
+                <span className="text-2xl sm:text-3xl font-bold text-amber-400 font-beleren tracking-wide">
                     {winner?.name ?? "?"} wins!
                 </span>
                 <button
                     type="button"
                     onClick={handleLeave}
-                    className="mt-3 w-full py-2.5 rounded-sm bg-zinc-800/60 border border-zinc-700/60 text-zinc-200 font-[var(--font-beleren)] tracking-wider hover:bg-zinc-700/60 transition-colors cursor-pointer"
+                    className="mt-3 w-full py-2.5 rounded-sm bg-zinc-800/40 border border-zinc-600/45 text-zinc-300 font-beleren tracking-wide hover:bg-zinc-700/40 transition-colors cursor-pointer"
                 >
                     Back to Lobby
                 </button>

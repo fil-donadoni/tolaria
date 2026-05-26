@@ -6,9 +6,13 @@
 @font-face {
     font-family: "Beleren";
     src: url("./assets/fonts/beleren-2016-bold.woff") format("woff");
-    font-weight: 700;
+    font-weight: 100 900;
     font-style: normal;
     font-display: swap;
+}
+
+:root {
+    --font-beleren: "Beleren", serif;
 }
 
 @custom-variant dark (&:is(.dark *));

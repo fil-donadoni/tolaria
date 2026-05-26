@@ -282,6 +282,7 @@ type CompactPlayer = {
     turnsTaken?: number;
     grantedAbilities?: PlayerState["grantedAbilities"];
     skipNextTurn?: boolean;
+    maxHandSizeOverride?: number | "unlimited";
 };
 
 function compactPlayer(player: PlayerState): CompactPlayer {
@@ -310,6 +311,9 @@ function compactPlayer(player: PlayerState): CompactPlayer {
         out.grantedAbilities = player.grantedAbilities;
     }
     if (player.skipNextTurn) out.skipNextTurn = true;
+    if (player.maxHandSizeOverride !== undefined) {
+        out.maxHandSizeOverride = player.maxHandSizeOverride;
+    }
     return out;
 }
 
@@ -345,6 +349,9 @@ function expandPlayer(player: CompactPlayer): PlayerState {
         result.grantedAbilities = player.grantedAbilities;
     }
     if (player.skipNextTurn) result.skipNextTurn = true;
+    if (player.maxHandSizeOverride !== undefined) {
+        result.maxHandSizeOverride = player.maxHandSizeOverride;
+    }
     return result;
 }
 
@@ -449,6 +456,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "pendingEvents",
     "deathsThisTurn",
     "pendingUntapStep",
+    "pendingCleanupDiscard",
     "damageDealtToPlayerThisTurn",
     "damageRedirections",
     "playerPreferences",

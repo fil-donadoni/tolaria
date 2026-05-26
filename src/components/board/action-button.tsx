@@ -1,36 +1,40 @@
-type ActionButtonColor = "red" | "blue" | "amber" | "yellow" | "gray";
+type ActionButtonTone = "primary" | "secondary" | "destructive";
 
-const COLOR_CLASSES: Record<ActionButtonColor, string> = {
-    red: "bg-red-600 hover:bg-red-500 text-white",
-    blue: "bg-blue-600 hover:bg-blue-500 text-white",
-    amber: "bg-amber-500 hover:bg-amber-400 text-black",
-    yellow: "bg-yellow-600 hover:bg-yellow-500 text-white",
-    gray: "bg-gray-600 text-gray-300 cursor-not-allowed",
+const TONE_CLASSES: Record<ActionButtonTone, string> = {
+    primary:
+        "bg-[#7a5a2e]/30 border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50",
+    secondary:
+        "bg-zinc-800/40 border-zinc-600/45 text-zinc-300 hover:bg-zinc-700/40",
+    destructive:
+        "bg-[#5c1e1e]/45 border-[#a04040]/45 text-[#d48080] hover:bg-[#5c1e1e]/65",
 };
+
+const DISABLED_CLASS =
+    "bg-zinc-900/40 border-zinc-700/40 text-zinc-500 cursor-not-allowed";
 
 export default function ActionButton({
     onClick,
     label,
-    color = "red",
+    tone = "primary",
     disabled = false,
     shortcut,
 }: {
     onClick: () => void;
     label: string;
-    color?: ActionButtonColor;
+    tone?: ActionButtonTone;
     disabled?: boolean;
     shortcut?: string;
 }) {
-    const colorClass = disabled ? COLOR_CLASSES.gray : COLOR_CLASSES[color];
+    const toneClass = disabled ? DISABLED_CLASS : TONE_CLASSES[tone];
     return (
         <button
             onClick={onClick}
             disabled={disabled}
-            className={`font-bold px-6 py-2 rounded-lg text-sm transition-colors shadow-lg ${colorClass}`}
+            className={`font-beleren tracking-wide px-5 py-2 rounded-sm text-sm border transition-colors shadow-md ${toneClass} ${disabled ? "" : "cursor-pointer"}`}
         >
             {label}
             {shortcut && (
-                <span className="ml-2 text-xs opacity-90 hidden md:inline">
+                <span className="ml-2 text-xs opacity-70 hidden md:inline">
                     [{shortcut}]
                 </span>
             )}

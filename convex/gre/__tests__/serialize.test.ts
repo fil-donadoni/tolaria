@@ -337,6 +337,7 @@ describe("schema drift guard", () => {
         ];
         state.deathsThisTurn = 1;
         state.pendingUntapStep = { restrictionCursor: 1 };
+        state.pendingCleanupDiscard = { playerId: "p1" };
         state.damageDealtToPlayerThisTurn = { p1: 3 };
         state.damageRedirections = [
             {
@@ -563,6 +564,23 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).pendingUntapStep).toEqual({
             restrictionCursor: 4,
         });
+    });
+
+    it("pendingCleanupDiscard (CR 514.1)", () => {
+        const state = freshState();
+        state.pendingCleanupDiscard = { playerId: "p2" };
+        expect(roundTrip(state).pendingCleanupDiscard).toEqual({
+            playerId: "p2",
+        });
+    });
+
+    it("maxHandSizeOverride on PlayerState (CR 402.2)", () => {
+        const state = freshState();
+        state.players[0].maxHandSizeOverride = "unlimited";
+        state.players[1].maxHandSizeOverride = 10;
+        const got = roundTrip(state);
+        expect(got.players[0].maxHandSizeOverride).toBe("unlimited");
+        expect(got.players[1].maxHandSizeOverride).toBe(10);
     });
 
     it("damageDealtToPlayerThisTurn", () => {

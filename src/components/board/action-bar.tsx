@@ -172,7 +172,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 key="cancel-cast"
                 onClick={() => cancelCast({ gameId, playerId })}
                 label="Cancel Cast"
-                color="red"
+                tone="destructive"
                 shortcut="U"
             />
         );
@@ -182,7 +182,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 key="cancel-activation"
                 onClick={() => cancelActivation({ gameId, playerId })}
                 label="Cancel Ability"
-                color="red"
+                tone="destructive"
                 shortcut="U"
             />
         );
@@ -196,7 +196,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                         ? `Confirm Attackers (${selectedAttackerIds.length})`
                         : "Skip Attack"
                 }
-                color="red"
+                tone="primary"
                 shortcut="space"
             />
         );
@@ -210,7 +210,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                         ? `Confirm Blockers (${blockerCount})`
                         : "No Blockers"
                 }
-                color="blue"
+                tone="primary"
                 shortcut="space"
             />
         );
@@ -220,7 +220,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 key="confirm-damage"
                 onClick={() => confirmDamage({ gameId, playerId })}
                 label="Confirm Damage"
-                color="red"
+                tone="primary"
                 disabled={!allDamageAssigned}
             />
         );
@@ -230,7 +230,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 key="pass"
                 onClick={handlePass}
                 label="Pass"
-                color="amber"
+                tone="primary"
                 shortcut="space"
             />
         );
@@ -239,7 +239,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 key="pass-turn"
                 onClick={handleEndTurn}
                 label="Pass Turn"
-                color="red"
+                tone="destructive"
                 shortcut="enter"
             />
         );
@@ -247,7 +247,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         buttons.push(
             <div
                 key="waiting-opponent"
-                className="bg-black/60 text-white/60 px-6 py-2 rounded-lg text-sm"
+                className="relative bg-[#0c0d12]/90 border border-zinc-800/80 backdrop-blur-md rounded-sm px-5 py-2 text-zinc-500 text-sm font-beleren tracking-wide shadow-md"
             >
                 {opponentSelectingAttackers
                     ? "Opponent declaring attackers..."
@@ -259,10 +259,10 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
             <button
                 key="auto-pass"
                 onClick={handleCancelAutoPass}
-                className="bg-black/60 hover:bg-black/80 text-white/60 hover:text-white px-6 py-2 rounded-lg text-sm transition-colors shadow-lg"
+                className="bg-zinc-800/40 hover:bg-zinc-700/40 border border-zinc-600/45 text-zinc-300 px-5 py-2 rounded-sm text-sm font-beleren tracking-wide transition-colors shadow-md cursor-pointer"
             >
                 Auto-passing... (cancel)
-                <span className="ml-2 text-xs opacity-90 hidden md:inline">
+                <span className="ml-2 text-xs opacity-70 hidden md:inline">
                     [enter]
                 </span>
             </button>

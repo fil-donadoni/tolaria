@@ -10,6 +10,7 @@ import LobbyRoute from "./routes/lobby.route";
 import DeckBuilderRoute from "./routes/deck-builder.route";
 import DeckDetailRoute from "./routes/deck-detail.route";
 import GameRoute from "./routes/game.route";
+import PrototypeButtonsRoute from "./routes/prototype-buttons.route";
 
 const rootRoute = createRootRoute({
     component: () => (
@@ -49,12 +50,19 @@ const gameRoute = createRoute({
     component: GameRoute,
 });
 
+const prototypeButtonsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/prototype/buttons",
+    component: PrototypeButtonsRoute,
+});
+
 const routeTree = rootRoute.addChildren([
     indexRoute,
     decksCreateRoute,
     deckDetailRoute,
     deckEditRoute,
     gameRoute,
+    prototypeButtonsRoute,
 ]);
 
 const router = createRouter({ routeTree });

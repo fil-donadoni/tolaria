@@ -397,18 +397,18 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 selectedAttackerIds.includes(card.id) &&
                 !combat?.confirmed
             ) {
-                ringClass = "ring-2 ring-red-500 rounded-sm";
+                ringClass = "ring-2 ring-[#a04040] rounded-sm";
             }
         }
         if (!ringClass && isTargetSelected) {
-            ringClass = "ring-2 ring-emerald-400 rounded-sm";
+            ringClass = "ring-2 ring-[#c8a060] rounded-sm";
         } else if (!ringClass && isValidTarget) {
-            ringClass = "ring-2 ring-orange-400 rounded-sm";
+            ringClass = "ring-2 ring-[#c8a060]/50 rounded-sm";
         }
         if (!ringClass && isChoiceSelected) {
-            ringClass = "ring-2 ring-emerald-400 rounded-sm";
+            ringClass = "ring-2 ring-[#c8a060] rounded-sm";
         } else if (!ringClass && isValidChoice) {
-            ringClass = "ring-2 ring-violet-400/60 rounded-sm";
+            ringClass = "ring-2 ring-[#c8a060]/40 rounded-sm";
         }
 
         // Tooltip for ineligible creatures

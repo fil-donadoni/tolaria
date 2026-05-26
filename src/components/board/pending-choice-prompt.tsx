@@ -79,23 +79,30 @@ export default function PendingChoicePrompt({
         >
             <div
                 {...dragHandlers}
-                className="flex flex-col items-center gap-1 bg-violet-900/90 border border-violet-400/50 rounded-lg px-5 py-3 backdrop-blur-sm shadow-lg cursor-move select-none pointer-events-auto"
+                className="relative flex flex-col items-center gap-2 bg-[#0c0d12]/90 border border-zinc-800/80 backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none pointer-events-auto"
             >
+                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-zinc-500/40" />
+                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-zinc-500/40" />
+                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-zinc-500/40" />
+                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-zinc-500/40" />
+
                 {isChooser ? (
                     <>
-                        <div className="text-violet-100 text-sm font-medium">
-                            <span className="text-white font-bold">
+                        <div className="flex flex-col items-center text-center gap-1">
+                            <p className="font-beleren text-sm tracking-wide text-[#f1f1e8]">
                                 {sourceLabel}
-                            </span>
-                            {" — "}
-                            {choice.prompt}
+                            </p>
+                            <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-zinc-500/40 to-transparent" />
+                            <p className="text-zinc-400 text-xs">
+                                {choice.prompt}
+                            </p>
                         </div>
                         {isMayPay ? (
                             <div className="flex gap-2 mt-1">
                                 <button
                                     type="button"
                                     disabled={!canPay}
-                                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-white/50 disabled:cursor-not-allowed disabled:hover:bg-slate-700 rounded text-white text-xs font-semibold inline-flex items-center gap-1"
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                                     onClick={() =>
                                         submitMayPay({
                                             gameId,
@@ -117,7 +124,7 @@ export default function PendingChoicePrompt({
                                 </button>
                                 <button
                                     type="button"
-                                    className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-white text-xs font-semibold"
+                                    className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-zinc-800/40 border border-zinc-600/45 text-zinc-300 hover:bg-zinc-700/40 transition-colors cursor-pointer"
                                     onClick={() =>
                                         submitMayPay({
                                             gameId,
@@ -131,41 +138,36 @@ export default function PendingChoicePrompt({
                             </div>
                         ) : (
                             <>
-                                <div className="text-violet-300 text-xs">
+                                <p className="text-zinc-500 text-xs">
                                     {remaining > 0
                                         ? `${selected} / ${max} selected — click ${remaining === 1 ? "one more" : `up to ${remaining} more`}`
                                         : "Submitting..."}
-                                </div>
+                                </p>
                                 {showUntapCommit && (
-                                    <div className="flex gap-2 mt-1">
-                                        <button
-                                            type="button"
-                                            className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-white text-xs font-semibold"
-                                            onClick={() =>
-                                                confirmUntapPick({
-                                                    gameId,
-                                                    playerId,
-                                                })
-                                            }
-                                        >
-                                            {selected === 0
-                                                ? "Skip untap"
-                                                : "Done"}
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        className="mt-1 px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-zinc-800/40 border border-zinc-600/45 text-zinc-300 hover:bg-zinc-700/40 transition-colors cursor-pointer"
+                                        onClick={() =>
+                                            confirmUntapPick({
+                                                gameId,
+                                                playerId,
+                                            })
+                                        }
+                                    >
+                                        {selected === 0 ? "Skip untap" : "Done"}
+                                    </button>
                                 )}
                             </>
                         )}
                     </>
                 ) : (
-                    <div className="text-violet-100 text-sm font-medium">
+                    <p className="text-zinc-400 text-xs text-center">
                         Waiting for{" "}
-                        <span className="text-white font-bold">
+                        <span className="font-beleren text-[#f1f1e8]">
                             {chooserName}
-                        </span>
-                        {" — "}
-                        <span className="text-violet-200">{choice.prompt}</span>
-                    </div>
+                        </span>{" "}
+                        — {choice.prompt}
+                    </p>
                 )}
             </div>
         </div>

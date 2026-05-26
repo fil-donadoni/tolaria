@@ -5,7 +5,7 @@ export default function PauseMenuButton({ onOpen }: { onOpen: () => void }) {
         <button
             onClick={onOpen}
             aria-label="Open game menu"
-            className="bg-black/60 hover:bg-black/80 text-white/80 p-2 rounded-lg text-sm transition-colors shadow-lg"
+            className="bg-zinc-800/40 hover:bg-zinc-700/40 border border-zinc-600/45 text-zinc-300 hover:text-zinc-100 p-2 rounded-sm transition-colors shadow-md cursor-pointer"
         >
             <Menu className="w-4 h-4" />
         </button>

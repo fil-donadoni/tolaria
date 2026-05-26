@@ -52,6 +52,12 @@ export const MANA_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
  *  budget — out of scope for the current rule set. */
 export const LAND_DROPS_PER_TURN = 1;
 
+/** Default maximum hand size (CR 402.2). Enforced by the cleanup-step discard
+ *  (CR 514.1) — the active player discards down to this number unless their
+ *  `PlayerState.maxHandSizeOverride` says otherwise (Library of Leng sets it
+ *  to "unlimited"). */
+export const MAX_HAND_SIZE = 7;
+
 /** Mana value of a cost (CR 202.3). Numeric `X` counts as its value; string `X` counts as 0 (unpaid). */
 export function manaValue(cost?: ManaCost): number {
     if (!cost) return 0;

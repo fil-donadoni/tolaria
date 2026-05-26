@@ -352,6 +352,13 @@ export type PlayerState = {
     /** When true, this player's next turn is skipped entirely (CR 614.10).
      *  Checked and cleared by advanceTurn(). Set by Time Vault's untap ability. */
     skipNextTurn?: boolean;
+    /** Override for this player's maximum hand size (CR 402.2). Absent means
+     *  the default `MAX_HAND_SIZE` (7). `"unlimited"` represents the Library
+     *  of Leng / Reliquary Tower clause "you have no maximum hand size";
+     *  numeric values cover cards that set hand size to a specific count.
+     *  Read by the cleanup discard step (CR 514.1) via
+     *  `effectiveMaxHandSize`. */
+    maxHandSizeOverride?: number | "unlimited";
 };
 
 export type StackItem = CardInstanceState & {
@@ -809,6 +816,15 @@ export type GameState = {
      *  resumes from `restrictionCursor`. Cleared once every restriction is
      *  processed and the post-step untap+flag cleanup has run. */
     pendingUntapStep?: { restrictionCursor: number };
+    /** Suspension marker for the cleanup-step mandatory discard (CR 514.1).
+     *  Set when the active player's hand exceeds their maximum hand size at
+     *  CLEANUP entry: the dispatcher enqueues a `discard-hand` `PendingChoice`
+     *  (with `stackItemId: ""` — the same sentinel used by `untap-pick`) and
+     *  parks this cursor so the commit handler knows it is closing out a
+     *  cleanup discard rather than a spell-driven one (e.g. Disrupting
+     *  Scepter). Cleared once the discards land and the remainder of CLEANUP
+     *  (CR 514.2 — damage wipe, "until end of turn" expiry) runs. */
+    pendingCleanupDiscard?: { playerId: string };
     /** When true, all combat damage is prevented this turn (CR 615, Fog).
      *  Checked at the top of `applyAllCombatDamage`; cleared at CLEANUP. */
     preventAllCombatDamageThisTurn?: boolean;

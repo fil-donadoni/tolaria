@@ -64,6 +64,7 @@ import {
     untapStep,
     computeHardSkipFilters,
     effectivePermanentView,
+    finalizeCleanupDiscard,
 } from "./gre/phases";
 import { freshSeed, seededShuffle } from "./gre/rng";
 import {
@@ -2760,6 +2761,16 @@ export const selectResolutionChoice = mutation({
                 // enqueue the next restriction's prompt or fall through to
                 // flag cleanup; in the latter case advancePhase leaves UNTAP.
                 finalizeUntapPick(state, head.selected);
+            } else if (
+                head.kind === "discard-hand" &&
+                head.stackItemId === "" &&
+                state.pendingCleanupDiscard
+            ) {
+                // CR 514.1 — phase-level cleanup discard. `stackItemId === ""`
+                // distinguishes this from a spell-driven discard-hand pick
+                // (Disrupting Scepter), which carries a real stack id and
+                // falls through to the mid-resolution branch below.
+                finalizeCleanupDiscard(state, head.selected);
             } else if (head.kind === "mulligan-bottom") {
                 // Pre-game mulligan bottoming (CR 103.5) — no stack item; the
                 // mulligan module moves the picks to the bottom of the

@@ -50,7 +50,7 @@ export default function PaymentBanner(props: Props) {
                 <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-zinc-500/40" />
                 <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-zinc-500/40" />
 
-                <p className="font-[var(--font-beleren)] text-sm tracking-wide text-[#f1f1e8]">
+                <p className="font-beleren text-sm tracking-wide text-[#f1f1e8]">
                     {cardName}
                 </p>
                 <div className="h-[1px] w-full bg-gradient-to-r from-zinc-600 via-zinc-500/40 to-transparent my-1.5" />
