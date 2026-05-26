@@ -1190,6 +1190,35 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "Natural Selection + Glasses of Urza (peek/reorder/reveal, CR 401.4)",
+        cards: [
+            {
+                name: "Natural Selection",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Forest", owner: "me" as const },
+            {
+                name: "Glasses of Urza",
+                owner: "me" as const,
+            },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Counterspell",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 5,
+    },
 ];
 
 type DebugPanelProps = {

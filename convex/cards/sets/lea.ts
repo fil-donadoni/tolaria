@@ -5016,13 +5016,49 @@ export const lure: CardDefinition = {
     ],
 };
 
-// export const naturalSelection: CardDefinition = {
-//     id: "a8917dc8-01c0-4e72-9310-c4d501775411",
-//     name: "Natural Selection",
-//     oracleText: "Look at the top three cards of target player's library, then put them back in any order. You may have that player shuffle.",
-//     manaCost: { G: 1 },
-//     types: ["Instant"],
-// };
+// Natural Selection — {G} Instant. "Look at the top three cards of target
+// player's library, then put them back in any order. You may have that
+// player shuffle." (CR 401.4 — peek; CR 701.20 — shuffle)
+export const naturalSelection: CardDefinition = {
+    id: "a8917dc8-01c0-4e72-9310-c4d501775411",
+    name: "Natural Selection",
+    oracleText:
+        "Look at the top three cards of target player's library, then put them back in any order. You may have that player shuffle.",
+    manaCost: { G: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "player", count: 1 },
+    resolveSteps: [
+        // Step 0: peek top 3, request reorder
+        (ctx: SpellContext) => {
+            const target = ctx.targets[0];
+            const topIds = ctx.peekLibraryTop(target.id, 3);
+            const count = Math.min(topIds.length, 3);
+            if (count === 0) return;
+            const ordered = ctx.requestChoice({
+                playerId: ctx.controller,
+                choiceId: ctx.controller,
+                kind: "reorder-library",
+                zone: "library",
+                count,
+                zoneOwnerId: target.id,
+                prompt: "Put these cards back in any order (first = top).",
+            });
+            if (!ordered) return;
+            ctx.reorderLibraryTop(target.id, ordered);
+        },
+        // Step 1: optional shuffle
+        (ctx: SpellContext) => {
+            const target = ctx.targets[0];
+            const doShuffle = ctx.requestMayPay({
+                playerId: ctx.controller,
+                choiceId: ctx.controller,
+                prompt: "Shuffle target player's library?",
+            });
+            if (doShuffle === undefined) return;
+            if (doShuffle) ctx.shuffleLibrary(target.id);
+        },
+    ],
+};
 
 // Regeneration — "Enchant creature. {G}: Regenerate enchanted creature."
 // (CR 303.4 aura attachment, 701.15a regenerate, 614.5 destroy replacement,
@@ -5718,13 +5754,28 @@ export const gauntletOfMight: CardDefinition = {
     ],
 };
 
-// export const glassesOfUrza: CardDefinition = {
-//     id: "cafc2350-5d64-4379-9198-79a114654d45",
-//     name: "Glasses of Urza",
-//     oracleText: "{T}: Look at target player's hand.",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-// };
+// Glasses of Urza — {1} Artifact. "{T}: Look at target player's hand."
+// (CR 401.4 — "look at" is a one-time reveal to the ability's controller)
+export const glassesOfUrza: CardDefinition = {
+    id: "cafc2350-5d64-4379-9198-79a114654d45",
+    name: "Glasses of Urza",
+    oracleText: "{T}: Look at target player's hand.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "glasses-look",
+            cost: { tap: true },
+            oracleText: "{T}: Look at target player's hand.",
+            useStack: true,
+            targetRequirement: { type: "player", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                ctx.revealHand(target.id);
+            },
+        },
+    ],
+};
 
 // export const helmOfChatzuk: CardDefinition = {
 //     id: "3792c6ef-c4e6-4923-9a51-7d28fbc5c393",

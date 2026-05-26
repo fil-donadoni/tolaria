@@ -222,6 +222,8 @@ import {
     twoHeadedGiantOfForiys,
     manaShort,
     timeVault,
+    naturalSelection,
+    glassesOfUrza,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -16246,3 +16248,237 @@ function pushDelayedTrigger(
         delayedPayload: dt.payload,
     });
 }
+
+// ---------------------------------------------------------------------------
+// Natural Selection (CR 401.4 — peek, reorder-library, optional shuffle)
+// ---------------------------------------------------------------------------
+describe("Natural Selection (peek top 3 + reorder + optional shuffle, CR 401.4)", () => {
+    function commitHead(state: GameState, picks: string[]) {
+        const queue = state.pendingChoices ?? [];
+        const head = queue[0];
+        const item = state.stack.find((s) => s.id === head.stackItemId);
+        if (!item) throw new Error("stack item missing");
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${head.step}:${head.choiceId}`]: picks,
+        };
+        queue.shift();
+        state.pendingChoices = queue.length > 0 ? queue : undefined;
+    }
+
+    function setup(libIds: string[] = ["c1", "c2", "c3", "c4"]) {
+        const library = libIds.map((id) =>
+            makeInstance(swamp.id, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { library })],
+        });
+        pushSpell(state, naturalSelection.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        return state;
+    }
+
+    it("enqueues a reorder-library pending choice for the controller", () => {
+        const state = setup();
+        resolveTopOfStack(state);
+
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.pendingChoices![0]).toMatchObject({
+            playerId: "p1",
+            kind: "reorder-library",
+            zone: "library",
+            count: 3,
+            zoneOwnerId: "p2",
+        });
+    });
+
+    it("reorders the top 3 cards of target's library according to chosen order", () => {
+        const state = setup();
+        resolveTopOfStack(state);
+
+        // Reorder: c3, c1, c2 (was c1, c2, c3, c4)
+        commitHead(state, ["c3", "c1", "c2"]);
+        resolveTopOfStack(state);
+
+        // Step 1: may-pay for shuffle — decline
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.pendingChoices![0].kind).toBe("may-pay");
+        commitHead(state, ["no"]);
+        resolveTopOfStack(state);
+
+        const lib = state.players[1].library.map((c) => c.id);
+        expect(lib).toEqual(["c3", "c1", "c2", "c4"]);
+    });
+
+    it("shuffles target's library when the caster accepts the may-pay", () => {
+        const state = setup();
+        resolveTopOfStack(state);
+
+        commitHead(state, ["c2", "c3", "c1"]);
+        resolveTopOfStack(state);
+
+        // Accept shuffle
+        commitHead(state, ["yes"]);
+        resolveTopOfStack(state);
+
+        // After shuffle the library still has 4 cards but order changed
+        // (deterministic RNG with seed 0). Just verify the library size
+        // and that the spell is fully resolved.
+        expect(state.players[1].library).toHaveLength(4);
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
+    });
+
+    it("handles target's library with fewer than 3 cards", () => {
+        const state = setup(["c1", "c2"]);
+        resolveTopOfStack(state);
+
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.pendingChoices![0].count).toBe(2);
+    });
+
+    it("skips entirely when target's library is empty", () => {
+        const state = setup([]);
+        resolveTopOfStack(state);
+
+        // Step 0 returns early (0 cards) → step 1 runs → may-pay
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.pendingChoices![0].kind).toBe("may-pay");
+    });
+
+    it("wire format: exposes top 3 of target's library as libraryPeek to the chooser", () => {
+        const state = setup();
+        resolveTopOfStack(state);
+
+        const forP1 = projectPublicState(state, 1, "p1");
+        // p2's library peek exposed to p1 (the chooser)
+        expect(forP1.players[1].libraryPeek?.map((c) => c.id)).toEqual([
+            "c1",
+            "c2",
+            "c3",
+        ]);
+        expect(forP1.players[1].library).toEqual({ count: 4 });
+
+        // p2 (not the chooser) should NOT see the peek
+        const forP2 = projectPublicState(state, 1, "p2");
+        expect(forP2.players[1].libraryPeek).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Glasses of Urza (CR 401.4 — look at target player's hand)
+// ---------------------------------------------------------------------------
+describe("Glasses of Urza (reveal hand, CR 401.4)", () => {
+    function commitHead(state: GameState, picks: string[]) {
+        const queue = state.pendingChoices ?? [];
+        const head = queue[0];
+        const item = state.stack.find((s) => s.id === head.stackItemId);
+        if (!item) throw new Error("stack item missing");
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${head.step}:${head.choiceId}`]: picks,
+        };
+        queue.shift();
+        state.pendingChoices = queue.length > 0 ? queue : undefined;
+    }
+
+    function setup() {
+        const glasses = makeInstance(glassesOfUrza.id, {
+            id: "glasses",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const opponentHand = [
+            makeInstance(swamp.id, {
+                id: "h1",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }),
+            makeInstance(swamp.id, {
+                id: "h2",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [glasses] }),
+                makePlayer("p2", { hand: opponentHand }),
+            ],
+        });
+        return state;
+    }
+
+    function activateGlasses(state: GameState) {
+        const ability = glassesOfUrza.activatedAbilities![0];
+        const glasses = state.players[0].battlefield[0];
+        glasses.isTapped = true;
+        state.stack.push({
+            ...glasses,
+            zone: "stack",
+            castById: "p1",
+            targets: [{ type: "player", id: "p2" }],
+            abilityId: ability.id,
+        } as CardInstanceState & {
+            castById: string;
+            targets: { type: "player"; id: string }[];
+            abilityId: string;
+        });
+    }
+
+    it("enqueues a reveal-hand pending choice for the controller", () => {
+        const state = setup();
+        activateGlasses(state);
+        resolveTopOfStack(state);
+
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.pendingChoices![0]).toMatchObject({
+            playerId: "p1",
+            kind: "reveal-hand",
+            zone: "hand",
+            count: 0,
+            zoneOwnerId: "p2",
+        });
+    });
+
+    it("resolves after controller acknowledges the reveal", () => {
+        const state = setup();
+        activateGlasses(state);
+        resolveTopOfStack(state);
+
+        // Controller acknowledges (submits empty selection)
+        commitHead(state, []);
+        resolveTopOfStack(state);
+
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("wire format: exposes opponent's hand as revealedHand to the controller", () => {
+        const state = setup();
+        activateGlasses(state);
+        resolveTopOfStack(state);
+
+        const forP1 = projectPublicState(state, 1, "p1");
+        // p2's hand revealed to p1
+        expect(forP1.players[1].revealedHand?.map((c) => c.id)).toEqual([
+            "h1",
+            "h2",
+        ]);
+        // p2's normal hand still shows as null[] to p1
+        expect(forP1.players[1].hand).toEqual([null, null]);
+
+        // p2 should NOT see the reveal field
+        const forP2 = projectPublicState(state, 1, "p2");
+        expect(forP2.players[1].revealedHand).toBeUndefined();
+    });
+});

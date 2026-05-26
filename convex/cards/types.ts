@@ -770,6 +770,22 @@ export interface SpellContext {
     /** Marks `playerId` to skip their next turn (CR 614.10). The flag is
      *  consumed and cleared by advanceTurn(). Used by Time Vault. */
     setSkipNextTurn: (playerId: string) => void;
+
+    // --- Library peek / reorder (CR 401) ---
+
+    /** Returns the instance ids of the top N cards of `playerId`'s library
+     *  without moving them (CR 401.4). */
+    peekLibraryTop: (playerId: string, n: number) => string[];
+
+    /** Reorders the top cards of `playerId`'s library so they match the order
+     *  given by `orderedIds` (CR 401). All ids must already be in the top N. */
+    reorderLibraryTop: (playerId: string, orderedIds: string[]) => void;
+
+    /** Reveals `targetPlayerId`'s hand to the controller via a display-only
+     *  pending choice (CR 401.4 — "look at"). Returns the revealed card ids
+     *  on acknowledgement, `undefined` while suspended waiting for the
+     *  controller to dismiss. */
+    revealHand: (targetPlayerId: string) => string[] | undefined;
 }
 
 /** Delayed triggered ability template (CR 603.7a). Declared on the

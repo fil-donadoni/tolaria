@@ -2009,7 +2009,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         return found.card;
     }
 
-    return {
+    const ctx: SpellContext = {
         caster: item.castById,
         controller: item.castById,
         // Triggered abilities (CR 603) get a fresh stack-item id, but their
@@ -2976,7 +2976,39 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         setSkipNextTurn(playerId: string): void {
             getPlayer(state, playerId).skipNextTurn = true;
         },
+
+        // --- Library peek / reorder (CR 401.4) ---
+
+        peekLibraryTop(playerId: string, n: number): string[] {
+            return getPlayer(state, playerId)
+                .library.slice(0, n)
+                .map((c) => c.id);
+        },
+        reorderLibraryTop(playerId: string, orderedIds: string[]): void {
+            const player = getPlayer(state, playerId);
+            const n = orderedIds.length;
+            const topCards = player.library.splice(0, n);
+            const reordered = orderedIds.map((id) => {
+                const card = topCards.find((c) => c.id === id);
+                if (!card)
+                    throw new Error(`Card ${id} not in top ${n} of library`);
+                return card;
+            });
+            player.library.unshift(...reordered);
+        },
+        revealHand(targetPlayerId: string): string[] | undefined {
+            return ctx.requestChoice({
+                playerId: item.castById,
+                choiceId: `reveal-${targetPlayerId}`,
+                kind: "reveal-hand",
+                zone: "hand",
+                count: 0,
+                zoneOwnerId: targetPlayerId,
+                prompt: `Look at ${getPlayer(state, targetPlayerId).name}'s hand.`,
+            });
+        },
     };
+    return ctx;
 }
 
 const ZONE_TO_FIELD: Record<Exclude<Zone, "stack">, keyof PlayerState> = {

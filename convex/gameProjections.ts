@@ -5,6 +5,7 @@ import type {
     PlayerState,
     StackItem,
 } from "./gre/state";
+import { getPendingChoiceMax } from "./gre/state";
 import type { CardAction } from "./gre/types";
 import type { ActivatedAbility, ManaCost } from "./cards/types";
 import { getLegalActions } from "./gre/rules";
@@ -53,6 +54,8 @@ export type PublicPlayer = Omit<
     hand: (SlimHandCard | null)[];
     library: { count: number };
     librarySearch?: SlimCardInstance[];
+    libraryPeek?: SlimCardInstance[];
+    revealedHand?: SlimCardInstance[];
     graveyard: SlimCardInstance[];
     exile: SlimCardInstance[];
     battlefield: SlimCardInstance[];
@@ -144,10 +147,38 @@ export function projectPublicState(
         head.zone === "library" &&
         head.playerId === viewerId;
 
+    // CR 401.4: reorder-library exposes the top N cards of the zone owner's
+    // library to the chooser so the UI can render them for reordering.
+    const exposeLibraryPeek =
+        head?.kind === "reorder-library" &&
+        head.zone === "library" &&
+        head.playerId === viewerId;
+    const peekCount = exposeLibraryPeek ? getPendingChoiceMax(head!.count) : 0;
+    const peekZoneOwner = exposeLibraryPeek
+        ? (head!.zoneOwnerId ?? head!.playerId)
+        : undefined;
+
+    // CR 401.4: reveal-hand exposes the zone owner's hand to the chooser.
+    const exposeRevealHand =
+        head?.kind === "reveal-hand" &&
+        head.zone === "hand" &&
+        head.playerId === viewerId;
+    const revealZoneOwner = exposeRevealHand
+        ? (head!.zoneOwnerId ?? head!.playerId)
+        : undefined;
+
     const players = state.players.map((player): PublicPlayer => {
         const librarySearch =
             exposeLibraryForViewer && player.id === viewerId
                 ? player.library.map(slimCard)
+                : undefined;
+        const libraryPeek =
+            exposeLibraryPeek && player.id === peekZoneOwner
+                ? player.library.slice(0, peekCount).map(slimCard)
+                : undefined;
+        const revealedHand =
+            exposeRevealHand && player.id === revealZoneOwner
+                ? player.hand.map(slimCard)
                 : undefined;
         const common = {
             ...player,
@@ -156,6 +187,8 @@ export function projectPublicState(
             battlefield: player.battlefield.map(slimCard),
             library: { count: player.library.length },
             librarySearch,
+            libraryPeek,
+            revealedHand,
             grantedAbilities: hydrateGrantedAbilities(player.grantedAbilities),
         };
         if (player.id === viewerId) {
