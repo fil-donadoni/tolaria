@@ -2,6 +2,7 @@ import type { CardInstanceState, GameState } from "./state";
 import type {
     StaticAttackRestriction,
     StaticBlockRestriction,
+    StaticBlockRequirement,
 } from "../cards/types";
 import { isProtectedFromSource } from "./protection";
 import { getEffectivePower } from "./layers";
@@ -234,4 +235,128 @@ export function hasAnyLegalBlock(
         }
     }
     return false;
+}
+
+/** Collects `block-requirement` static effects from a card's definition
+ *  and from any auras attached to it (CR 509.1c). The scope "all-able"
+ *  means every eligible creature must block this attacker (Lure). */
+function collectBlockRequirements(
+    card: CardInstanceState,
+    state?: GameState
+): StaticBlockRequirement[] {
+    const requirements: StaticBlockRequirement[] = [];
+    const collect = (cardId: string | undefined) => {
+        if (!cardId) return;
+        const def = tryGetCardById(cardId);
+        if (!def?.staticEffects) return;
+        for (const effect of def.staticEffects) {
+            if (effect.kind === "block-requirement") {
+                requirements.push(effect);
+            }
+        }
+    };
+    collect((card.card as { id?: string }).id);
+    if (state) {
+        for (const player of state.players) {
+            for (const perm of player.battlefield) {
+                if (perm.attachedTo !== card.id) continue;
+                collect((perm.card as { id?: string }).id);
+            }
+        }
+    }
+    return requirements;
+}
+
+/** Maximum number of attackers a blocker can block. Reads from both the
+ *  card definition (static, e.g. Two-Headed Giant) and the instance
+ *  (temporary, e.g. Blaze of Glory), taking the max of both. */
+export function getMaxBlockTargets(card: CardInstanceState): number {
+    const defVal =
+        tryGetCardById((card.card as { id?: string })?.id ?? "")
+            ?.canBlockAdditional ?? 0;
+    const instanceVal = card.canBlockAdditional ?? 0;
+    return 1 + Math.max(defVal, instanceVal);
+}
+
+/** Computes mandatory blocker assignments for must-block requirements
+ *  (CR 509.1c — Lure, Blaze of Glory mustBlockAll). Returns a map of
+ *  blockerId → attackerIds[] that must be added to the current
+ *  blockerAssignments. Only assigns blockers that are:
+ *  - untapped creatures
+ *  - not already at their max block limit
+ *  - able to legally block the attacker (evasion, protection, etc.) */
+export function getRequiredBlockerAssignments(
+    attackerBattlefield: CardInstanceState[],
+    defenderBattlefield: CardInstanceState[],
+    attackerIds: string[],
+    currentAssignments: Record<string, string[]>,
+    state?: GameState
+): Record<string, string[]> {
+    const result: Record<string, string[]> = {};
+
+    const attackers = attackerIds
+        .map((id) => attackerBattlefield.find((c) => c.id === id))
+        .filter((c): c is CardInstanceState => c !== undefined);
+
+    const candidates = defenderBattlefield.filter(
+        (c) => c.types.includes("Creature") && !c.isTapped
+    );
+
+    // Phase 1: Collect attackers that have block requirements (Lure)
+    const attackersWithRequirement: CardInstanceState[] = [];
+    for (const attacker of attackers) {
+        const reqs = collectBlockRequirements(attacker, state);
+        if (reqs.some((r) => r.scope === "all-able")) {
+            attackersWithRequirement.push(attacker);
+        }
+    }
+
+    // Phase 2: For each candidate blocker, determine what it must block
+    for (const blocker of candidates) {
+        const currentBlocks = [
+            ...(currentAssignments[blocker.id] ?? []),
+            ...(result[blocker.id] ?? []),
+        ];
+        const maxTargets = getMaxBlockTargets(blocker);
+
+        // Check mustBlockAllThisTurn (Blaze of Glory)
+        if (blocker.mustBlockAllThisTurn) {
+            for (const attacker of attackers) {
+                if (currentBlocks.length >= maxTargets) break;
+                if (currentBlocks.includes(attacker.id)) continue;
+                if (
+                    validateBlockerEligibility(
+                        attacker,
+                        blocker,
+                        defenderBattlefield,
+                        state
+                    ).eligible
+                ) {
+                    if (!result[blocker.id]) result[blocker.id] = [];
+                    result[blocker.id].push(attacker.id);
+                    currentBlocks.push(attacker.id);
+                }
+            }
+        }
+
+        // Check block requirements from attackers (Lure)
+        for (const attacker of attackersWithRequirement) {
+            if (currentBlocks.length >= maxTargets) break;
+            if (currentBlocks.includes(attacker.id)) continue;
+            if (
+                validateBlockerEligibility(
+                    attacker,
+                    blocker,
+                    defenderBattlefield,
+                    state
+                ).eligible
+            ) {
+                if (!result[blocker.id]) result[blocker.id] = [];
+                result[blocker.id].push(attacker.id);
+                currentBlocks.push(attacker.id);
+            }
+        }
+    }
+
+    return result;
 }

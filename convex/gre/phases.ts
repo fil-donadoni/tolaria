@@ -318,15 +318,17 @@ function drawStep(state: GameState): void {
     drawCard(getPlayer(state, state.activePlayerId));
 }
 
-/** Inverts blockerAssignments (blockerId→attackerId) to attackerId→blockerId[]. */
+/** Inverts blockerAssignments (blockerId→attackerIds[]) to attackerId→blockerId[]. */
 function getBlockersPerAttacker(state: GameState): Record<string, string[]> {
     const result: Record<string, string[]> = {};
     if (!state.combat) return result;
-    for (const [blockerId, attackerId] of Object.entries(
+    for (const [blockerId, attackerIds] of Object.entries(
         state.combat.blockerAssignments
     )) {
-        if (!result[attackerId]) result[attackerId] = [];
-        result[attackerId].push(blockerId);
+        for (const attackerId of attackerIds) {
+            if (!result[attackerId]) result[attackerId] = [];
+            result[attackerId].push(blockerId);
+        }
     }
     return result;
 }
@@ -860,6 +862,12 @@ function performPhaseEntry(state: GameState): void {
                     // Unused shields wear off here.
                     if (card.regenerationShields !== undefined) {
                         card.regenerationShields = undefined;
+                    }
+                    if (card.canBlockAdditional !== undefined) {
+                        card.canBlockAdditional = undefined;
+                    }
+                    if (card.mustBlockAllThisTurn) {
+                        card.mustBlockAllThisTurn = undefined;
                     }
                 }
             }

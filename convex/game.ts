@@ -81,6 +81,7 @@ import {
     validateBlockerEligibility,
     getRequiredAttackerIds,
     mustAttack,
+    getRequiredBlockerAssignments,
 } from "./gre/combat";
 import { checkStateBasedActions } from "./gre/sba";
 
@@ -2221,9 +2222,7 @@ export const selectBlocker = mutation({
         }
 
         // If this card is already assigned as a blocker, unassign it
-        if (
-            state.combat.blockerAssignments[args.cardInstanceId] !== undefined
-        ) {
+        if (state.combat.blockerAssignments[args.cardInstanceId]?.length > 0) {
             delete state.combat.blockerAssignments[args.cardInstanceId];
             if (state.combat.pendingBlockerId === args.cardInstanceId) {
                 state.combat.pendingBlockerId = undefined;
@@ -2307,8 +2306,25 @@ export const assignBlockerTarget = mutation({
             }
         }
 
-        state.combat.blockerAssignments[state.combat.pendingBlockerId] =
-            args.attackerId;
+        const blockerId = state.combat.pendingBlockerId;
+        const existing = state.combat.blockerAssignments[blockerId] ?? [];
+        // Multi-block check: how many attackers can this blocker handle?
+        const blockerCard = blocker;
+        const defBlockAdditional =
+            tryGetCardById((blockerCard?.card as { id?: string })?.id ?? "")
+                ?.canBlockAdditional ?? 0;
+        const instanceBlockAdditional = blockerCard?.canBlockAdditional ?? 0;
+        const maxAttackers =
+            1 + Math.max(defBlockAdditional, instanceBlockAdditional);
+        if (existing.length >= maxAttackers) {
+            throw new Error(
+                `This creature can only block ${maxAttackers} attacker${maxAttackers > 1 ? "s" : ""}`
+            );
+        }
+        state.combat.blockerAssignments[blockerId] = [
+            ...existing,
+            args.attackerId,
+        ];
         state.combat.pendingBlockerId = undefined;
 
         await saveGameState(
@@ -2345,6 +2361,23 @@ export const confirmBlockers = mutation({
         }
 
         const player = getPlayer(state, args.playerId);
+
+        // CR 509.1c: auto-assign must-block requirements (Lure, Blaze of Glory)
+        const activePlayer = getPlayer(state, state.activePlayerId);
+        const required = getRequiredBlockerAssignments(
+            activePlayer.battlefield,
+            player.battlefield,
+            state.combat.attackerIds,
+            state.combat.blockerAssignments,
+            state
+        );
+        for (const [blockerId, attackerIds] of Object.entries(required)) {
+            const existing = state.combat.blockerAssignments[blockerId] ?? [];
+            state.combat.blockerAssignments[blockerId] = [
+                ...existing,
+                ...attackerIds,
+            ];
+        }
 
         // Mark each assigned blocker
         for (const blockerId of Object.keys(state.combat.blockerAssignments)) {
@@ -2432,7 +2465,11 @@ export const setDamageAssignment = mutation({
                 }
                 continue;
             }
-            if (state.combat.blockerAssignments[targetId] !== args.attackerId) {
+            if (
+                !state.combat.blockerAssignments[targetId]?.includes(
+                    args.attackerId
+                )
+            ) {
                 throw new Error(`${targetId} is not blocking this attacker`);
             }
         }

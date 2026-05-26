@@ -204,13 +204,28 @@ export const blackWard: CardDefinition = makeColorWard({
     color: "black",
 });
 
-// export const blazeOfGlory: CardDefinition = {
-//     id: "98fba951-c5bb-497c-9292-ce1b2a1e1247",
-//     name: "Blaze of Glory",
-//     oracleText: "Cast this spell only during combat before blockers are declared.\nTarget creature defending player controls can block any number of creatures this turn. It blocks each attacking creature this turn if able.",
-//     manaCost: { W: 1 },
-//     types: ["Instant"],
-// };
+// Blaze of Glory — "Cast this spell only during combat before blockers are
+// declared. Target creature defending player controls can block any number
+// of creatures this turn. It blocks each attacking creature this turn if
+// able." (CR 509.1a — multi-block, CR 509.1c — must-block-all).
+// castPhaseRestriction limits to BEGINNING_OF_COMBAT and DECLARE_ATTACKERS.
+export const blazeOfGlory: CardDefinition = {
+    id: "98fba951-c5bb-497c-9292-ce1b2a1e1247",
+    name: "Blaze of Glory",
+    oracleText:
+        "Cast this spell only during combat before blockers are declared.\nTarget creature defending player controls can block any number of creatures this turn. It blocks each attacking creature this turn if able.",
+    manaCost: { W: 1 },
+    types: ["Instant"],
+    castPhaseRestriction: ["BEGINNING_OF_COMBAT", "DECLARE_ATTACKERS"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type === "permanent") {
+            ctx.setCanBlockAdditional(target, 999);
+            ctx.setMustBlockAll(target);
+        }
+    },
+};
 
 // Blessing — "Enchant creature. {W}: Enchanted creature gets +1/+1 until
 // end of turn." (CR 303.4 aura, CR 611.1 temp P/T mod, activated-on-aura
@@ -4069,16 +4084,22 @@ export const tunnel: CardDefinition = {
     effect: "destroy-target",
 };
 
-// export const twoHeadedGiantOfForiys: CardDefinition = {
-//     id: "31c687dc-ee0c-4e54-a2b3-5d8e633b3245",
-//     name: "Two-Headed Giant of Foriys",
-//     oracleText: "Trample\nThis creature can block an additional creature each combat.",
-//     manaCost: { X: 4, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Giant"],
-//     power: 4,
-//     toughness: 4,
-// };
+// Two-Headed Giant of Foriys — "Trample. Two-Headed Giant of Foriys can
+// block an additional creature each combat." (CR 509.1a — multi-block).
+// canBlockAdditional: 1 lets the combat validator allow blocking 2 attackers.
+export const twoHeadedGiantOfForiys: CardDefinition = {
+    id: "31c687dc-ee0c-4e54-a2b3-5d8e633b3245",
+    name: "Two-Headed Giant of Foriys",
+    oracleText:
+        "Trample\nTwo-Headed Giant of Foriys can block an additional creature each combat.",
+    manaCost: { X: 4, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Giant"],
+    power: 4,
+    toughness: 4,
+    staticAbilities: ["trample"],
+    canBlockAdditional: 1,
+};
 
 // Uthden Troll — "{R}: Regenerate Uthden Troll." Same self-regen shape as
 // Drudge Skeletons / Wall of Bone / Will-o'-the-Wisp.
@@ -4679,14 +4700,29 @@ export const llanowarElves: CardDefinition = {
     ],
 };
 
-// export const lure: CardDefinition = {
-//     id: "2a87b26e-0431-42e9-b44f-94ba8546111a",
-//     name: "Lure",
-//     oracleText: "Enchant creature\nAll creatures able to block enchanted creature do so.",
-//     manaCost: { X: 1, G: 2 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Lure — "Enchant creature. All creatures able to block enchanted creature
+// do so." (CR 509.1c — block requirement, scope "all-able"). The
+// StaticBlockRequirement is collected from attached auras at
+// block-confirmation time; the combat validator auto-assigns every
+// eligible defender creature to block the enchanted attacker.
+export const lure: CardDefinition = {
+    id: "2a87b26e-0431-42e9-b44f-94ba8546111a",
+    name: "Lure",
+    oracleText:
+        "Enchant creature\nAll creatures able to block enchanted creature do so.",
+    manaCost: { X: 1, G: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "block-requirement",
+            id: "lure-must-block",
+            oracleText: "All creatures able to block enchanted creature do so.",
+            scope: "all-able",
+        },
+    ],
+};
 
 // export const naturalSelection: CardDefinition = {
 //     id: "a8917dc8-01c0-4e72-9310-c4d501775411",

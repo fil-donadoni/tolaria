@@ -76,11 +76,13 @@ function buildStateView(state: GameState): ReplacementStateView {
     if (state.combat) {
         const blockersByAttacker: Record<string, string[]> = {};
         for (const id of state.combat.attackerIds) blockersByAttacker[id] = [];
-        for (const [blockerId, attackerId] of Object.entries(
+        for (const [blockerId, attackerIds] of Object.entries(
             state.combat.blockerAssignments
         )) {
-            if (blockersByAttacker[attackerId])
-                blockersByAttacker[attackerId].push(blockerId);
+            for (const attackerId of attackerIds) {
+                if (blockersByAttacker[attackerId])
+                    blockersByAttacker[attackerId].push(blockerId);
+            }
         }
         combat = {
             attackerIds: state.combat.attackerIds,

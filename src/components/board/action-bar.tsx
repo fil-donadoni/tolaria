@@ -66,11 +66,13 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
     const blockersPerAttacker = useMemo(() => {
         const map: Record<string, string[]> = {};
         if (!combat) return map;
-        for (const [blockerId, attackerId] of Object.entries(
+        for (const [blockerId, attackerIds] of Object.entries(
             combat.blockerAssignments
         )) {
-            if (!map[attackerId]) map[attackerId] = [];
-            map[attackerId].push(blockerId);
+            for (const attackerId of attackerIds) {
+                if (!map[attackerId]) map[attackerId] = [];
+                map[attackerId].push(blockerId);
+            }
         }
         return map;
     }, [combat]);

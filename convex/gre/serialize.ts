@@ -106,6 +106,10 @@ function compactCard(
     if (card.grantedTypes && card.grantedTypes.length > 0) {
         out.grantedTypes = card.grantedTypes;
     }
+    if (card.canBlockAdditional !== undefined) {
+        out.canBlockAdditional = card.canBlockAdditional;
+    }
+    if (card.mustBlockAllThisTurn) out.mustBlockAllThisTurn = true;
     return out;
 }
 
@@ -200,6 +204,10 @@ function expandCard(
         result.grantedTypes =
             compact.grantedTypes as CardInstanceState["grantedTypes"];
     }
+    if (compact.canBlockAdditional !== undefined) {
+        result.canBlockAdditional = compact.canBlockAdditional as number;
+    }
+    if (compact.mustBlockAllThisTurn) result.mustBlockAllThisTurn = true;
     return result;
 }
 

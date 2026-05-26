@@ -166,7 +166,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         const map: Record<string, number> = {};
         if (!combat) return map;
         const attackersWithBlockers = new Set(
-            Object.values(combat.blockerAssignments)
+            Object.values(combat.blockerAssignments).flat()
         );
         let colorIdx = 0;
         for (const attackerId of combat.attackerIds) {
@@ -181,11 +181,13 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     const blockersPerAttacker = useMemo(() => {
         const map: Record<string, string[]> = {};
         if (!combat) return map;
-        for (const [blockerId, attackerId] of Object.entries(
+        for (const [blockerId, attackerIds] of Object.entries(
             combat.blockerAssignments
         )) {
-            if (!map[attackerId]) map[attackerId] = [];
-            map[attackerId].push(blockerId);
+            for (const attackerId of attackerIds) {
+                if (!map[attackerId]) map[attackerId] = [];
+                map[attackerId].push(blockerId);
+            }
         }
         return map;
     }, [combat]);
@@ -278,7 +280,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         }
 
         if (isSelectingBlockers && isCreature(card)) {
-            if (blockerAssignments[card.id] !== undefined) return true;
+            if ((blockerAssignments[card.id]?.length ?? 0) > 0) return true;
             if (pendingBlockerId === card.id) return true;
             return !card.isTapped && canBlockAnyAttacker(card);
         }
@@ -358,7 +360,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             !!(
                 isSelectingBlockers &&
                 creature &&
-                blockerAssignments[card.id] === undefined &&
+                !blockerAssignments[card.id]?.length &&
                 pendingBlockerId !== card.id &&
                 (card.isTapped || !canBlockAnyAttacker(card))
             );
@@ -371,7 +373,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 !combat.confirmed &&
                 selectedAttackerIds.includes(card.id)) ||
             card.isAttacking ||
-            blockerAssignments[card.id] !== undefined ||
+            (blockerAssignments[card.id]?.length ?? 0) > 0 ||
             card.isBlocking
         ) {
             combatOffset = towardCenter;
@@ -387,9 +389,10 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         ) {
             ringClass = `ring-2 ${COMBAT_GROUP_RING[combatGroupColors[card.id]]} rounded-sm`;
         } else {
-            const targetAtkId = blockerAssignments[card.id];
-            if (targetAtkId && combatGroupColors[targetAtkId] !== undefined) {
-                ringClass = `ring-2 ${COMBAT_GROUP_RING[combatGroupColors[targetAtkId]]} rounded-sm`;
+            const targetAtkIds = blockerAssignments[card.id];
+            const firstAtkId = targetAtkIds?.[0];
+            if (firstAtkId && combatGroupColors[firstAtkId] !== undefined) {
+                ringClass = `ring-2 ${COMBAT_GROUP_RING[combatGroupColors[firstAtkId]]} rounded-sm`;
             } else if (
                 selectedAttackerIds.includes(card.id) &&
                 !combat?.confirmed
@@ -432,11 +435,12 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 index: combatGroupColors[card.id],
             };
         } else {
-            const targetAtkId = blockerAssignments[card.id];
-            if (targetAtkId && combatGroupColors[targetAtkId] !== undefined) {
+            const targetAtkIds = blockerAssignments[card.id];
+            const firstAtkId = targetAtkIds?.[0];
+            if (firstAtkId && combatGroupColors[firstAtkId] !== undefined) {
                 badge = {
-                    color: COMBAT_GROUP_BG[combatGroupColors[targetAtkId]],
-                    index: combatGroupColors[targetAtkId],
+                    color: COMBAT_GROUP_BG[combatGroupColors[firstAtkId]],
+                    index: combatGroupColors[firstAtkId],
                 };
             }
         }
