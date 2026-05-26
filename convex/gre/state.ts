@@ -1161,8 +1161,7 @@ function finalizeSpellResolution(
         }
         controller.battlefield.push(item);
         // CR 122.1, 614.1c — apply ETB-counters before the layer system runs
-        // so effective P/T reads include them immediately (Rock Hydra,
-        // Clockwork Beast).
+        // so effective P/T reads include them immediately (Clockwork Beast).
         const etbCounters = cardDef?.entersWith?.counters;
         if (etbCounters && etbCounters.length > 0) {
             const counters: Record<string, number> = {
@@ -1206,7 +1205,7 @@ function finalizeSpellResolution(
 /** Emits PERMANENT_ENTERED for a card that has just been placed on the
  *  battlefield (CR 603.6). Snapshots last-known type info so the trigger
  *  matcher can filter without a registry lookup. */
-function emitPermanentEntered(
+export function emitPermanentEntered(
     state: GameState,
     card: { id: string; controllerId: string; types: CardType[]; card: unknown }
 ): void {
