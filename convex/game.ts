@@ -82,6 +82,7 @@ import {
     getRequiredAttackerIds,
     mustAttack,
     getRequiredBlockerAssignments,
+    getMaxBlockTargets,
 } from "./gre/combat";
 import { checkStateBasedActions } from "./gre/sba";
 
@@ -2308,14 +2309,7 @@ export const assignBlockerTarget = mutation({
 
         const blockerId = state.combat.pendingBlockerId;
         const existing = state.combat.blockerAssignments[blockerId] ?? [];
-        // Multi-block check: how many attackers can this blocker handle?
-        const blockerCard = blocker;
-        const defBlockAdditional =
-            tryGetCardById((blockerCard?.card as { id?: string })?.id ?? "")
-                ?.canBlockAdditional ?? 0;
-        const instanceBlockAdditional = blockerCard?.canBlockAdditional ?? 0;
-        const maxAttackers =
-            1 + Math.max(defBlockAdditional, instanceBlockAdditional);
+        const maxAttackers = blocker ? getMaxBlockTargets(blocker) : 1;
         if (existing.length >= maxAttackers) {
             throw new Error(
                 `This creature can only block ${maxAttackers} attacker${maxAttackers > 1 ? "s" : ""}`
