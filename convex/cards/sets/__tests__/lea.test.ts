@@ -13438,8 +13438,8 @@ describe("Instill Energy (aura — pseudo-haste + {0} untap host, your-turn + on
     });
 });
 
-describe("Animate Artifact ({3}{U} — aura: artifact becomes creature with P/T = CMC)", () => {
-    it("adds Creature type and grants P/T equal to host's printed CMC", () => {
+describe("Animate Artifact ({3}{U} — aura: artifact becomes creature with P/T = MV)", () => {
+    it("adds Creature type and grants P/T equal to host's printed MV", () => {
         const vault = makeInstance(manaVault.id, {
             id: "vault",
             controllerId: "p1",
@@ -13458,7 +13458,7 @@ describe("Animate Artifact ({3}{U} — aura: artifact becomes creature with P/T 
         const vaultAfter = state.players[0].battlefield.find(
             (c) => c.id === "vault"
         )!;
-        // Mana Vault printed cost is {1} → CMC 1. After Animate Artifact:
+        // Mana Vault printed cost is {1} → MV 1. After Animate Artifact:
         // host has Creature type and 1/1.
         expect(vaultAfter.types).toContain("Creature");
         expect(getEffectivePower(state, vaultAfter)).toBe(1);
@@ -13516,28 +13516,28 @@ describe("Animate Artifact ({3}{U} — aura: artifact becomes creature with P/T 
     });
 });
 
-describe("Sacrifice ({B} — additional cost sac creature, add B mana = CMC)", () => {
-    it("resolve adds B mana equal to snapshotted sacrificed CMC", () => {
+describe("Sacrifice ({B} — additional cost sac creature, add B mana = MV)", () => {
+    it("resolve adds B mana equal to snapshotted sacrificed MV", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
         const item = pushSpell(state, sacrifice.id, "p1");
         item.additionalSacrificeSnapshot = {
             cardInstanceId: "fake",
-            cmc: 5,
+            mv: 5,
         };
         resolveTopOfStack(state);
         expect(state.players[0].manaPool.B).toBe(5);
     });
 
-    it("getAdditionalSacrificeCmc on SpellContext reads the snapshot", () => {
+    it("getAdditionalSacrificeMv on SpellContext reads the snapshot", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
         const item = pushSpell(state, sacrifice.id, "p1");
         item.additionalSacrificeSnapshot = {
             cardInstanceId: "fake",
-            cmc: 3,
+            mv: 3,
         };
         resolveTopOfStack(state);
         expect(state.players[0].manaPool.B).toBe(3);
@@ -13550,12 +13550,12 @@ describe("Sacrifice ({B} — additional cost sac creature, add B mana = CMC)", (
     });
 });
 
-describe("Spell Blast ({X}{U} — counter target spell with cmc = X)", () => {
+describe("Spell Blast ({X}{U} — counter target spell with mv = X)", () => {
     it("counters a target spell whose mana value equals X", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        // Opp casts Lightning Bolt (cmc 1). p1 responds with Spell Blast X=1.
+        // Opp casts Lightning Bolt (mv 1). p1 responds with Spell Blast X=1.
         const bolt = pushSpell(state, lightningBolt.id, "p2", [
             { type: "player", id: "p1" },
         ]);
@@ -13568,18 +13568,18 @@ describe("Spell Blast ({X}{U} — counter target spell with cmc = X)", () => {
         expect(state.stack.find((s) => s.id === bolt.id)).toBeUndefined();
     });
 
-    it("getCmc on a stack spell folds in the chosen X", () => {
+    it("getManaValue on a stack spell folds in the chosen X", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        // Push Braingeyser with chosenX=4 → cmc = printed (2) + 4 = 6.
+        // Push Braingeyser with chosenX=4 → mv = printed (2) + 4 = 6.
         const bg = pushSpell(state, braingeyser.id, "p2", [
             { type: "player", id: "p2" },
         ]);
         bg.chosenX = 4;
-        // Spell Blast with X=5 (not 6) → blast resolves but target's cmc !=
+        // Spell Blast with X=5 (not 6) → blast resolves but target's mv !=
         // X, the spell-target validation has already been bypassed by
-        // pushSpell, so the resolve goes through.  Re-check via getCmc.
+        // pushSpell, so the resolve goes through.  Re-check via getManaValue.
         const blast = pushSpell(state, spellBlast.id, "p1", [
             { type: "spell", id: bg.id },
         ]);
@@ -13588,8 +13588,8 @@ describe("Spell Blast ({X}{U} — counter target spell with cmc = X)", () => {
         expect(state.stack.find((s) => s.id === bg.id)).toBeUndefined();
     });
 
-    it("declares cmcFilter equals X on the target requirement", () => {
-        expect(spellBlast.targetRequirement?.cmcFilter).toEqual({
+    it("declares mvFilter equals X on the target requirement", () => {
+        expect(spellBlast.targetRequirement?.mvFilter).toEqual({
             equals: "X",
         });
     });

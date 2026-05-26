@@ -33,20 +33,20 @@ describe("groupDeckIntoPiles", () => {
         expect(piles[0].cards).toHaveLength(2);
     });
 
-    it("only creates CMC buckets that exist in the deck", () => {
+    it("only creates MV buckets that exist in the deck", () => {
         const piles = groupDeckIntoPiles([LIGHTNING_BOLT, SERRA_ANGEL]);
         const keys = piles.map((p) => p.key);
-        expect(keys).toEqual(["cmc-1", "cmc-5"]);
+        expect(keys).toEqual(["mv-1", "mv-5"]);
     });
 
-    it("sorts CMC buckets ascending", () => {
+    it("sorts MV buckets ascending", () => {
         const piles = groupDeckIntoPiles([
             SERRA_ANGEL,
             LIGHTNING_BOLT,
             SAVANNAH_LIONS,
             MOX_PEARL,
         ]);
-        expect(piles.map((p) => p.key)).toEqual(["cmc-0", "cmc-1", "cmc-5"]);
+        expect(piles.map((p) => p.key)).toEqual(["mv-0", "mv-1", "mv-5"]);
     });
 
     it("groups duplicates within the same bucket adjacent", () => {
@@ -55,8 +55,8 @@ describe("groupDeckIntoPiles", () => {
             SAVANNAH_LIONS,
             LIGHTNING_BOLT,
         ]);
-        const cmc1 = piles.find((p) => p.key === "cmc-1")!;
-        expect(cmc1.cards.map((c) => c.cardName)).toEqual([
+        const mv1 = piles.find((p) => p.key === "mv-1")!;
+        expect(mv1.cards.map((c) => c.cardName)).toEqual([
             "Lightning Bolt",
             "Lightning Bolt",
             "Savannah Lions",

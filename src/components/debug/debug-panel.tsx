@@ -692,11 +692,11 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
-        label: "Additional cost — Sacrifice ({B} instant, sac creature for B mana = CMC)",
+        label: "Additional cost — Sacrifice ({B} instant, sac creature for B mana = MV)",
         cards: [
             // Sacrifice in hand ({B} instant). Cast it: the engine prompts
             // you to pick a creature to sacrifice (additional cost). After
-            // sac, you gain B mana equal to that creature's CMC. Use the
+            // sac, you gain B mana equal to that creature's MV. Use the
             // floating mana for another spell same turn.
             {
                 name: "Sacrifice",
@@ -722,7 +722,7 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         label: "Layer 4 type-add — Animate Artifact + Mana Vault",
         cards: [
             // Animate Artifact in hand ({3}{U} aura). Cast on Mana Vault
-            // (cmc 1) — Mana Vault becomes a 1/1 artifact creature. Then
+            // (mv 1) — Mana Vault becomes a 1/1 artifact creature. Then
             // try to block / attack with it to see the type-add land in
             // the combat layer.
             {
@@ -741,15 +741,15 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
-        label: "CMC-target — Spell Blast (counter spell with cmc = X)",
+        label: "MV-target — Spell Blast (counter spell with mv = X)",
         cards: [
             // Spell Blast in hand ({X}{U}) — chooses X at announcement,
             // then target a stack spell whose mana value equals X.
             //
             // Have Lightning Bolt and Braingeyser in hand to cast as targets.
-            // Announce Bolt (cmc 1) → respond with Spell Blast X=1: legal.
-            // Try Spell Blast X=2 against Bolt: rejected by cmcFilter.
-            // Cast Braingeyser with X=4 (cmc 6) → Spell Blast X=6 counters.
+            // Announce Bolt (mv 1) → respond with Spell Blast X=1: legal.
+            // Try Spell Blast X=2 against Bolt: rejected by mvFilter.
+            // Cast Braingeyser with X=4 (mv 6) → Spell Blast X=6 counters.
             {
                 name: "Spell Blast",
                 owner: "me" as const,

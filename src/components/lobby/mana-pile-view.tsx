@@ -17,13 +17,14 @@ export default function ManaPileView({ cards }: ManaPileViewProps) {
     }
 
     return (
-        <div className="flex items-start gap-2 md:gap-6 overflow-x-auto">
-            {piles.map((pile) => (
-                <ManaPile
+        <div className="overflow-x-auto whitespace-nowrap">
+            {piles.map((pile, i) => (
+                <div
                     key={pile.key}
-                    label={pile.label}
-                    cards={pile.cards}
-                />
+                    className={`inline-block align-top whitespace-normal ${i > 0 ? "ml-2 md:ml-6" : ""}`}
+                >
+                    <ManaPile label={pile.label} cards={pile.cards} />
+                </div>
             ))}
         </div>
     );

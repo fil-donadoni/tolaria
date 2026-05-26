@@ -135,6 +135,10 @@ _Avoid_: Cost (too vague)
 A **Player**'s current available **Mana**. Empties at end of each **Phase**.
 _Avoid_: Resources, energy
 
+**Mana Value (MV)**:
+The total mana in a card's **Mana Cost** (CR 202.3). Abbreviated `mv` in code. Formerly "converted mana cost" (CMC) — that term is obsolete.
+_Avoid_: CMC, converted mana cost
+
 **Color**:
 One of the five mana colors: White (W), Blue (U), Black (B), Red (R), Green (G). Colorless (C) is not a color.
 

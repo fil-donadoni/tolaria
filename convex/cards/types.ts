@@ -84,8 +84,8 @@ export interface TargetRequirement {
     /** Restricts legal targets by mana value (CR 202.3). Inclusive bounds;
      *  string `"X"` resolves to the chosen value of X at announcement
      *  (CR 107.3) — used by Spell Blast ("counter target spell with mana
-     *  value X"). Honored for permanent targets and for stack spells. */
-    cmcFilter?: {
+     *  value X"). Honored for permanent and spell targets. */
+    mvFilter?: {
         min?: number | "X";
         max?: number | "X";
         equals?: number | "X";
@@ -483,13 +483,13 @@ export interface SpellContext {
      *  value from the stack item. Returns 0 for player / graveyard-card /
      *  unknown targets. Used by Spell Blast ("counter target spell with
      *  mana value X"). */
-    getCmc: (target: TargetSelection) => number;
+    getManaValue: (target: TargetSelection) => number;
     /** Mana value snapshotted on the stack item when this spell's
      *  additional sacrifice cost (CR 117.9) was paid at cast time. Returns
      *  `undefined` for spells without an `additionalCosts.sacrificeFilter`.
      *  Used by Sacrifice ("Add an amount of {B} equal to the sacrificed
      *  creature's mana value") to read the captured value at resolve. */
-    getAdditionalSacrificeCmc: () => number | undefined;
+    getAdditionalSacrificeMv: () => number | undefined;
     /** Deals `totalAmount` damage divided evenly, rounded down, among the
      *  given targets (CR 120.1, 603.3). Remainder (if any) is discarded.
      *  Used by Fireball and other "divided among any number of targets"
@@ -872,8 +872,8 @@ export interface StaticEffectContext {
     /** Printed mana value of a card (CR 202.3). X in the printed cost
      *  counts as 0 for permanents on the battlefield (the chosen X is not
      *  preserved). Used by characteristic-defining abilities that key off
-     *  the host's CMC (Animate Artifact). */
-    getCmc: (card: PermanentView) => number;
+     *  the host's mana value (Animate Artifact). */
+    getManaValue: (card: PermanentView) => number;
 }
 
 export interface StaticPTBuff {
@@ -1740,7 +1740,7 @@ export interface CardDefinition {
      *  `sacrificeFilter` on their own battlefield; the cast is illegal if no
      *  matching permanent exists (CR 117.9). The picked permanent is
      *  sacrificed on commit and its pre-sacrifice mana value is snapshotted
-     *  on the stack item so `SpellContext.getAdditionalSacrificeCmc()` can
+     *  on the stack item so `SpellContext.getAdditionalSacrificeMv()` can
      *  read it at resolve. Used by Sacrifice ("As an additional cost,
      *  sacrifice a creature. Add an amount of {B} equal to the sacrificed
      *  creature's mana value"). Currently exclusive with

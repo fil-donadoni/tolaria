@@ -11,11 +11,11 @@ export interface DeckPileGroup {
 /**
  * Groups deck cards into vertical piles for the "mana pile" view.
  * Lands go in a dedicated first pile; remaining cards are bucketed by mana value.
- * Buckets are dynamic — only CMC values present in the deck appear.
+ * Buckets are dynamic — only MV values present in the deck appear.
  */
 export function groupDeckIntoPiles(cards: DeckCard[]): DeckPileGroup[] {
     const lands: DeckCard[] = [];
-    const byCmc = new Map<number, DeckCard[]>();
+    const byMv = new Map<number, DeckCard[]>();
 
     for (const card of cards) {
         const def = getCardById(card.cardId);
@@ -24,9 +24,9 @@ export function groupDeckIntoPiles(cards: DeckCard[]): DeckPileGroup[] {
             continue;
         }
         const mv = manaValue(def.manaCost);
-        const bucket = byCmc.get(mv);
+        const bucket = byMv.get(mv);
         if (bucket) bucket.push(card);
-        else byCmc.set(mv, [card]);
+        else byMv.set(mv, [card]);
     }
 
     const sortInPlace = (arr: DeckCard[]) =>
@@ -40,12 +40,12 @@ export function groupDeckIntoPiles(cards: DeckCard[]): DeckPileGroup[] {
     if (lands.length > 0) {
         piles.push({ key: "lands", label: "Lands", cards: sortInPlace(lands) });
     }
-    const cmcs = [...byCmc.keys()].sort((a, b) => a - b);
-    for (const cmc of cmcs) {
+    const mvs = [...byMv.keys()].sort((a, b) => a - b);
+    for (const mv of mvs) {
         piles.push({
-            key: `cmc-${cmc}`,
-            label: `CMC ${cmc}`,
-            cards: sortInPlace(byCmc.get(cmc)!),
+            key: `mv-${mv}`,
+            label: `MV ${mv}`,
+            cards: sortInPlace(byMv.get(mv)!),
         });
     }
     return piles;

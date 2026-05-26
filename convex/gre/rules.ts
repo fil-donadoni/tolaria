@@ -267,11 +267,11 @@ export function hasColor(card: CardInstanceState, color: Color): boolean {
     return STATIC_EFFECT_CTX.getColors(card).includes(color);
 }
 
-/** Resolves a TargetRequirement.cmcFilter's `"X"` placeholders against the
+/** Resolves a TargetRequirement.mvFilter's `"X"` placeholders against the
  *  announced chosenX so downstream code only sees numeric bounds.
  *  Used by getLegalTargets and selectTarget validation. */
-export function resolveCmcFilter(
-    filter: TargetRequirement["cmcFilter"] | undefined,
+export function resolveMvFilter(
+    filter: TargetRequirement["mvFilter"] | undefined,
     chosenX: number | undefined
 ): { min?: number; max?: number; equals?: number } | undefined {
     if (!filter) return undefined;
@@ -293,28 +293,28 @@ export function resolveCmcFilter(
  *  battlefield, X-cost permanents currently report 0 for X (the chosen X
  *  is not persisted on the resulting permanent). For stack spells, X folds
  *  in the chosen value carried by the stack item. */
-function cmcOfPermanent(card: CardInstanceState): number {
+function mvOfPermanent(card: CardInstanceState): number {
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetCardById(cardId) : undefined;
     return manaValue(def?.manaCost);
 }
 
-function cmcOfStackItem(item: { card: unknown; chosenX?: number }): number {
+function mvOfStackItem(item: { card: unknown; chosenX?: number }): number {
     const cardId = (item.card as { id?: string }).id;
     const def = cardId ? tryGetCardById(cardId) : undefined;
     return manaValue(def?.manaCost) + (item.chosenX ?? 0);
 }
 
-/** Tests a resolved cmcFilter against a target's mana value. Empty filter
+/** Tests a resolved mvFilter against a target's mana value. Empty filter
  *  always matches; otherwise all declared bounds (min/max/equals) must hold. */
-export function matchesCmcFilter(
+export function matchesMvFilter(
     filter: { min?: number; max?: number; equals?: number } | undefined,
-    cmc: number
+    mv: number
 ): boolean {
     if (!filter) return true;
-    if (filter.equals !== undefined && cmc !== filter.equals) return false;
-    if (filter.min !== undefined && cmc < filter.min) return false;
-    if (filter.max !== undefined && cmc > filter.max) return false;
+    if (filter.equals !== undefined && mv !== filter.equals) return false;
+    if (filter.min !== undefined && mv < filter.min) return false;
+    if (filter.max !== undefined && mv > filter.max) return false;
     return true;
 }
 
@@ -324,7 +324,7 @@ export function matchesCmcFilter(
  *  (CR 702.16b) are excluded. `casterId` is required when
  *  `requirement.controller` is "you" / "opponent" — the relationship is
  *  resolved relative to the chooser. `chosenX` is required when the
- *  requirement carries a `cmcFilter` whose bounds use the `"X"` placeholder
+ *  requirement carries a `mvFilter` whose bounds use the `"X"` placeholder
  *  (CR 107.3 / 202.3, e.g. Spell Blast). */
 export function getLegalTargets(
     state: GameState,
@@ -384,7 +384,7 @@ export function getLegalTargets(
     const tappedFilter = requirement.tappedFilter;
     const combatRoleFilter = requirement.combatRoleFilter;
     const powerFilter = requirement.powerFilter;
-    const cmcFilter = resolveCmcFilter(requirement.cmcFilter, chosenX);
+    const mvFilter = resolveMvFilter(requirement.mvFilter, chosenX);
     const subtypeFilter = requirement.subtypeFilter
         ? Array.isArray(requirement.subtypeFilter)
             ? requirement.subtypeFilter
@@ -507,11 +507,11 @@ export function getLegalTargets(
                     )
                         continue;
                 }
-                // CR 202.3: cmcFilter narrows by printed mana value (X = 0
-                // for permanents — see resolveCmcFilter / cmcOfPermanent).
+                // CR 202.3: mvFilter narrows by printed mana value (X = 0
+                // for permanents — see resolveMvFilter / mvOfPermanent).
                 if (
-                    cmcFilter &&
-                    !matchesCmcFilter(cmcFilter, cmcOfPermanent(card))
+                    mvFilter &&
+                    !matchesMvFilter(mvFilter, mvOfPermanent(card))
                 ) {
                     continue;
                 }
@@ -535,10 +535,7 @@ export function getLegalTargets(
     if (wantsSpell) {
         for (const item of state.stack) {
             if (colorFilter && !hasColor(item, colorFilter)) continue;
-            if (
-                cmcFilter &&
-                !matchesCmcFilter(cmcFilter, cmcOfStackItem(item))
-            ) {
+            if (mvFilter && !matchesMvFilter(mvFilter, mvOfStackItem(item))) {
                 continue;
             }
             targets.push({ type: "spell", id: item.id });

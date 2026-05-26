@@ -375,8 +375,8 @@ export type StackItem = CardInstanceState & {
     chosenModeId?: string;
     /** Snapshot of the permanent sacrificed as an additional cost at
      *  announcement (CR 117.9 / 601.2f). Captured at commit and read at
-     *  resolve via `SpellContext.getAdditionalSacrificeCmc`. */
-    additionalSacrificeSnapshot?: { cardInstanceId: string; cmc: number };
+     *  resolve via `SpellContext.getAdditionalSacrificeMv`. */
+    additionalSacrificeSnapshot?: { cardInstanceId: string; mv: number };
     /** If set, this stack item is an activated ability (not a spell). Source permanent stays on battlefield. */
     abilityId?: string;
     /** When the activated ability was GRANTED to the source by another card
@@ -626,10 +626,10 @@ export type PendingTarget = {
     /** If set, excludes permanents whose subtypes include any of these
      *  (CR 205.3). Propagated from TargetRequirement.excludeSubtypes. */
     excludeSubtypes?: string[];
-    /** Mana value range (CR 202.3). Propagated from TargetRequirement.cmcFilter
+    /** Mana value range (CR 202.3). Propagated from TargetRequirement.mvFilter
      *  after resolving any `"X"` placeholders against the announced chosenX.
      *  Used by Spell Blast ("counter target spell with mana value X"). */
-    cmcFilter?: { min?: number; max?: number; equals?: number };
+    mvFilter?: { min?: number; max?: number; equals?: number };
     /** Zone the target lives in (CR 109.2). Default "battlefield" — set to
      *  "graveyard" for reanimation/recursion spells like Regrowth. Propagated
      *  from TargetRequirement.zone. */
@@ -2513,10 +2513,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         // not currently preserved on the resulting permanent). For stack
         // spells, X folds in the chosen value from the stack item.
         // Players / graveyard-card / synthetic targets return 0.
-        getAdditionalSacrificeCmc(): number | undefined {
-            return item.additionalSacrificeSnapshot?.cmc;
+        getAdditionalSacrificeMv(): number | undefined {
+            return item.additionalSacrificeSnapshot?.mv;
         },
-        getCmc(target: TargetSelection): number {
+        getManaValue(target: TargetSelection): number {
             if (target.type === "permanent") {
                 const found = findOnBattlefield(state, target.id);
                 if (!found) return 0;

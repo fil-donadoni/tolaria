@@ -46,8 +46,8 @@ import {
     getPendingTargetSourceColors,
     hasColor,
     isProtectedFromColors,
-    matchesCmcFilter,
-    resolveCmcFilter,
+    matchesMvFilter,
+    resolveMvFilter,
 } from "./gre/rules";
 import {
     STATIC_EFFECT_CTX,
@@ -425,7 +425,7 @@ function tryAutoCommitPendingCast(
 
     // Sacrifice the picked permanent (CR 117.9) and snapshot its mana value
     // for the stack item — the resolve reads it via
-    // SpellContext.getAdditionalSacrificeCmc.
+    // SpellContext.getAdditionalSacrificeMv.
     let additionalSacrificeSnapshot: StackItem["additionalSacrificeSnapshot"];
     if (ac?.pickedId) {
         const sacrificed = player.battlefield.find((c) => c.id === ac.pickedId);
@@ -438,7 +438,7 @@ function tryAutoCommitPendingCast(
         }
         const sacCardId = (sacrificed.card as { id?: string }).id;
         const sacDef = sacCardId ? tryGetCardById(sacCardId) : undefined;
-        const cmc = sacDef?.manaCost
+        const mv = sacDef?.manaCost
             ? Object.entries(sacDef.manaCost).reduce<number>(
                   (acc, [, v]) => acc + (typeof v === "number" ? v : 0),
                   0
@@ -446,7 +446,7 @@ function tryAutoCommitPendingCast(
             : 0;
         additionalSacrificeSnapshot = {
             cardInstanceId: sacrificed.id,
-            cmc,
+            mv,
         };
         removePermanentTo(state, sacrificed.id, "graveyard");
     }
@@ -1216,8 +1216,8 @@ export const announceCast = mutation({
                     ? activeTargetRequirement.excludeSubtypes
                     : [activeTargetRequirement.excludeSubtypes]
                 : undefined;
-            const resolvedCmcFilter = resolveCmcFilter(
-                activeTargetRequirement.cmcFilter,
+            const resolvedMvFilter = resolveMvFilter(
+                activeTargetRequirement.mvFilter,
                 chosenX
             );
             // Enter target selection phase before mana payment
@@ -1249,7 +1249,7 @@ export const announceCast = mutation({
                       }
                     : {}),
                 ...(excludeSubtypes ? { excludeSubtypes } : {}),
-                ...(resolvedCmcFilter ? { cmcFilter: resolvedCmcFilter } : {}),
+                ...(resolvedMvFilter ? { mvFilter: resolvedMvFilter } : {}),
             };
 
             await saveGameState(
@@ -1957,12 +1957,12 @@ export const selectTarget = mutation({
                     );
                 }
             }
-            // CR 202.3: cmcFilter narrows by mana value (X already resolved
-            // upstream in resolveCmcFilter).
-            if (pt.cmcFilter) {
+            // CR 202.3: mvFilter narrows by mana value (X already resolved
+            // upstream in resolveMvFilter).
+            if (pt.mvFilter) {
                 const cardId = (matchedCard.card as { id?: string }).id;
                 const def = cardId ? tryGetCardById(cardId) : undefined;
-                const cmc =
+                const mv =
                     def && def.manaCost
                         ? Object.entries(def.manaCost).reduce<number>(
                               (acc, [, v]) =>
@@ -1970,7 +1970,7 @@ export const selectTarget = mutation({
                               0
                           )
                         : 0;
-                if (!matchesCmcFilter(pt.cmcFilter, cmc)) {
+                if (!matchesMvFilter(pt.mvFilter, mv)) {
                     throw new Error(
                         "Target does not match the required mana value"
                     );
@@ -2005,10 +2005,10 @@ export const selectTarget = mutation({
             if (pt.colorFilter && !hasColor(spell, pt.colorFilter as Color)) {
                 throw new Error(`Target must be ${pt.colorFilter}`);
             }
-            if (pt.cmcFilter) {
+            if (pt.mvFilter) {
                 const cardId = (spell.card as { id?: string }).id;
                 const def = cardId ? tryGetCardById(cardId) : undefined;
-                const baseCmc =
+                const baseMv =
                     def && def.manaCost
                         ? Object.entries(def.manaCost).reduce<number>(
                               (acc, [, v]) =>
@@ -2016,8 +2016,8 @@ export const selectTarget = mutation({
                               0
                           )
                         : 0;
-                const cmc = baseCmc + (spell.chosenX ?? 0);
-                if (!matchesCmcFilter(pt.cmcFilter, cmc)) {
+                const mv = baseMv + (spell.chosenX ?? 0);
+                if (!matchesMvFilter(pt.mvFilter, mv)) {
                     throw new Error(
                         "Target does not match the required mana value"
                     );
@@ -3171,11 +3171,11 @@ export const activateAbility = mutation({
                     ? { excludeSubtypes: abilityExcludeSubtypes }
                     : {}),
                 ...(() => {
-                    const resolved = resolveCmcFilter(
-                        effectiveTargetReq.cmcFilter,
+                    const resolved = resolveMvFilter(
+                        effectiveTargetReq.mvFilter,
                         targetChosenX
                     );
-                    return resolved ? { cmcFilter: resolved } : {};
+                    return resolved ? { mvFilter: resolved } : {};
                 })(),
             };
 

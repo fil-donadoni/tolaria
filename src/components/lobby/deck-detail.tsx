@@ -60,10 +60,10 @@ export default function DeckDetail({
             </div>
 
             <div
-                className=""
                 style={
                     {
                         "--card-w": "min(8rem, 20vw, 19vh)",
+                        "--card-h": "calc(min(8rem, 20vw, 19vh) * 7 / 5)",
                     } as React.CSSProperties
                 }
             >

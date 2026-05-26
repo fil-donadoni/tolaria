@@ -1126,8 +1126,8 @@ export const animateArtifact: CardDefinition = {
             applies: (target, source, ctx) =>
                 AURA_AFFECTS_HOST(target, source, ctx),
             compute: (_source, _state, ctx, target) => {
-                const cmc = ctx.getCmc(target);
-                return { power: cmc, toughness: cmc };
+                const mv = ctx.getManaValue(target);
+                return { power: mv, toughness: mv };
             },
         },
     ],
@@ -1784,7 +1784,7 @@ export const seaSerpent: CardDefinition = {
 
 // Spell Blast — "Counter target spell with mana value X." (CR 107.3 X cost,
 // CR 202.3 mana value, CR 701.5a counter.) Target selection uses the new
-// `cmcFilter: { equals: "X" }` which resolves X at announcement against the
+// `mvFilter: { equals: "X" }` which resolves X at announcement against the
 // chosen value and filters the stack to spells whose mana value equals X.
 export const spellBlast: CardDefinition = {
     id: "845734da-ab03-4dbc-bb5f-96481d3b8e88",
@@ -1796,7 +1796,7 @@ export const spellBlast: CardDefinition = {
     targetRequirement: {
         type: "spell",
         count: 1,
-        cmcFilter: { equals: "X" },
+        mvFilter: { equals: "X" },
     },
     resolve: (ctx: SpellContext) => {
         const t = ctx.targets[0];
@@ -3049,9 +3049,9 @@ export const sacrifice: CardDefinition = {
         sacrificeFilter: { types: "Creature" },
     },
     resolve: (ctx: SpellContext) => {
-        const cmc = ctx.getAdditionalSacrificeCmc();
-        if (cmc === undefined || cmc <= 0) return;
-        ctx.addMana({ B: cmc });
+        const mv = ctx.getAdditionalSacrificeMv();
+        if (mv === undefined || mv <= 0) return;
+        ctx.addMana({ B: mv });
     },
 };
 

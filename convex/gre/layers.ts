@@ -49,7 +49,7 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
     hasSubtype(card: PermanentView, subtype: string): boolean {
         return card.subtypes.includes(subtype);
     },
-    getCmc(card: PermanentView): number {
+    getManaValue(card: PermanentView): number {
         // CR 202.3 — numeric X in the printed cost contributes to mana
         // value (the codebase encodes generic cost as `X: number`); only
         // the string-X placeholder for variable-X cards is treated as 0.
