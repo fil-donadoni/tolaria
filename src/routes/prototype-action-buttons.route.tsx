@@ -7,7 +7,7 @@
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import ActionButton from "~/components/board/action-button";
 
-const TONES = ["primary", "secondary", "destructive"] as const;
+const TONES = ["primary", "secondary", "destructive", "ghost"] as const;
 
 function ButtonMatrix() {
     return (
@@ -84,7 +84,7 @@ function StateSimulated({
     tone,
     state,
 }: {
-    tone: "primary" | "secondary" | "destructive";
+    tone: "primary" | "secondary" | "destructive" | "ghost";
     state: "hover" | "active";
 }) {
     const classes: Record<string, Record<string, string>> = {
@@ -94,6 +94,7 @@ function StateSimulated({
                 "bg-secondary-accent-soft/50 border-secondary-accent/45 text-secondary-accent-strong",
             destructive:
                 "bg-danger-soft/65 border-danger/45 text-danger-strong",
+            ghost: "bg-transparent border-transparent text-parchment shadow-none",
         },
         active: {
             primary: "bg-accent-soft/65 border-accent/45 text-accent-strong",
@@ -101,6 +102,7 @@ function StateSimulated({
                 "bg-secondary-accent-soft/65 border-secondary-accent/45 text-secondary-accent-strong",
             destructive:
                 "bg-danger-soft/80 border-danger/45 text-danger-strong",
+            ghost: "bg-transparent border-transparent text-parchment shadow-none",
         },
     };
     return (
@@ -290,6 +292,14 @@ function RawToneClasses() {
             text: "text-danger-strong",
             hoverBg: "bg-danger-soft/65",
             activeBg: "bg-danger-soft/80",
+        },
+        {
+            name: "ghost",
+            bg: "bg-transparent",
+            border: "border-transparent",
+            text: "text-text-muted",
+            hoverBg: "text-parchment",
+            activeBg: "text-parchment",
         },
         {
             name: "disabled",

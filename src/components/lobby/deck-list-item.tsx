@@ -76,10 +76,10 @@ export default function DeckListItem({
                         }}
                         disabled={isSelected}
                         className={cn(
-                            "rounded-sm px-3 py-2 text-xs font-semibold transition",
+                            "font-beleren tracking-wide rounded-sm px-3 py-2 text-xs border transition-colors shadow-md",
                             isSelected
-                                ? "cursor-not-allowed bg-accent-soft/30 text-accent"
-                                : "bg-accent text-surface-base hover:bg-accent-strong"
+                                ? "bg-surface/40 border-border-subtle/40 text-text-disabled cursor-not-allowed"
+                                : "bg-accent-soft/30 border-accent/45 text-accent-strong hover:bg-accent-soft/50 active:bg-accent-soft/65 cursor-pointer"
                         )}
                         title={isSelected ? "Already selected" : "Select deck"}
                     >

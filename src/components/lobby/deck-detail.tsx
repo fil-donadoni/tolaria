@@ -24,7 +24,7 @@ export default function DeckDetail({
                     <ActionButton
                         onClick={onBack}
                         label="← Back"
-                        tone="secondary"
+                        tone="ghost"
                     />
                     <h1 className="text-xl font-bold font-beleren text-parchment">
                         {deck.name}
