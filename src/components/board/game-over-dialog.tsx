@@ -1,13 +1,22 @@
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "~/components/ui/dialog";
-import { Button } from "~/components/ui/button";
+import GameDialog from "~/components/ui/game-dialog";
 import type { GameOver, Player } from "~/types/game";
+
+function SkullIcon() {
+    return (
+        <svg
+            viewBox="0 0 100 100"
+            className="w-16 h-16 sm:w-20 sm:h-20 fill-[#cfc5b0] opacity-90"
+        >
+            <ellipse cx="50" cy="42" rx="30" ry="32" />
+            <circle cx="38" cy="38" r="8" fill="#0c0d12" />
+            <circle cx="62" cy="38" r="8" fill="#0c0d12" />
+            <path d="M44 55 L48 65 L52 65 L56 55" fill="#0c0d12" />
+            <rect x="40" y="68" width="5" height="12" rx="1" />
+            <rect x="48" y="68" width="5" height="12" rx="1" />
+            <rect x="56" y="68" width="5" height="12" rx="1" />
+        </svg>
+    );
+}
 
 type GameOverDialogProps = {
     gameOver: GameOver;
@@ -36,30 +45,25 @@ export default function GameOverDialog({
     };
 
     return (
-        <Dialog open onOpenChange={() => {}} disablePointerDismissal>
-            <DialogContent showCloseButton={false} className="max-w-sm">
-                <DialogHeader>
-                    <DialogTitle className="text-center text-xl">
-                        Game Over
-                    </DialogTitle>
-                    <DialogDescription className="text-center">
-                        {reasonText}
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="flex flex-col items-center gap-2 py-4">
-                    <span className="text-3xl font-bold text-foreground">
-                        {winner?.name ?? "?"}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                        wins the game
-                    </span>
-                </div>
-                <DialogFooter>
-                    <Button onClick={handleLeave} className="w-full">
-                        Back to lobby
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <GameDialog
+            open
+            title="Game Over"
+            icon={<SkullIcon />}
+            dismissable={false}
+        >
+            <div className="flex flex-col items-center sm:items-start gap-2 mt-1">
+                <p className="text-zinc-400 text-sm">{reasonText}</p>
+                <span className="text-2xl sm:text-3xl font-bold text-amber-400 font-[var(--font-beleren)] tracking-wide">
+                    {winner?.name ?? "?"} wins!
+                </span>
+                <button
+                    type="button"
+                    onClick={handleLeave}
+                    className="mt-3 w-full py-2.5 rounded-sm bg-zinc-800/60 border border-zinc-700/60 text-zinc-200 font-[var(--font-beleren)] tracking-wider hover:bg-zinc-700/60 transition-colors cursor-pointer"
+                >
+                    Back to Lobby
+                </button>
+            </div>
+        </GameDialog>
     );
 }

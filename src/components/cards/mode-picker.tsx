@@ -1,51 +1,104 @@
 import { createPortal } from "react-dom";
 import type { SpellMode } from "@convex/cards/types";
+import GameDialog from "~/components/ui/game-dialog";
 
 type ModePickerProps = {
     modes: SpellMode[];
-    position: { x: number; y: number };
+    cardName: string;
+    variant?: "dialog" | "portal";
+    position?: { x: number; y: number };
     onSelect: (modeId: string) => void;
     onCancel: () => void;
 };
 
-/** Mode picker for modal spells (CR 700.2). Shown after the cast click on a
- *  card with `modes`; the chooser picks exactly one mode before announcement
- *  proceeds. The picker is purely UI — selection forwards the mode id to
- *  `announceCast` which validates server-side.
- *
- *  Rendered via a React portal to `document.body` because the hand cards
- *  use CSS transforms for the fan layout, and an ancestor `transform`
- *  reframes `position: fixed` to act like `position: absolute` relative to
- *  that ancestor (CSS containing-block spec). The portal escapes the
- *  transformed subtree so the picker positions against the viewport. */
-export default function ModePicker({
+function ModeRow({
+    mode,
+    onSelect,
+}: {
+    mode: SpellMode;
+    onSelect: (id: string) => void;
+}) {
+    return (
+        <button
+            key={mode.id}
+            type="button"
+            onClick={() => onSelect(mode.id)}
+            className="flex flex-col items-start gap-0.5 rounded-sm px-3 py-2.5 text-left hover:bg-white/5 border border-transparent hover:border-zinc-700/50 transition-colors cursor-pointer"
+        >
+            <span className="font-[var(--font-beleren)] text-sm tracking-wide text-zinc-100">
+                {mode.label}
+            </span>
+            <span className="text-xs text-zinc-500">{mode.oracleText}</span>
+        </button>
+    );
+}
+
+function ModePickerPortal({
     modes,
+    cardName,
     position,
     onSelect,
     onCancel,
-}: ModePickerProps) {
+}: ModePickerProps & { position: { x: number; y: number } }) {
     return createPortal(
         <>
-            <div className="fixed inset-0 z-40" onClick={onCancel} />
+            <div className="fixed inset-0 z-40" onMouseDown={onCancel} />
             <div
-                className="fixed z-50 flex min-w-64 flex-col gap-1 rounded-lg bg-black/90 p-2 shadow-xl ring-1 ring-white/20"
+                className="fixed z-50 flex min-w-64 flex-col gap-1 rounded-sm bg-[#0c0d12]/95 border border-zinc-800/80 backdrop-blur-md p-3 shadow-[0_0_50px_rgba(0,0,0,0.8)]"
                 style={{ left: position.x, top: position.y }}
             >
+                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-zinc-500/40" />
+                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-zinc-500/40" />
+                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-zinc-500/40" />
+                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-zinc-500/40" />
+
+                <p className="text-sm font-[var(--font-beleren)] tracking-wide text-[#f1f1e8] mb-1 px-2">
+                    {cardName}
+                </p>
+                <div className="h-[1px] w-full bg-gradient-to-r from-zinc-600 via-zinc-500/40 to-transparent mb-1" />
                 {modes.map((mode) => (
-                    <button
-                        key={mode.id}
-                        type="button"
-                        className="flex flex-col items-start gap-0.5 rounded px-3 py-2 text-left text-sm text-white hover:bg-white/10 cursor-pointer"
-                        onClick={() => onSelect(mode.id)}
-                    >
-                        <span className="font-semibold">{mode.label}</span>
-                        <span className="text-xs text-white/70">
-                            {mode.oracleText}
-                        </span>
-                    </button>
+                    <ModeRow key={mode.id} mode={mode} onSelect={onSelect} />
                 ))}
             </div>
         </>,
         document.body
+    );
+}
+
+export default function ModePicker({
+    modes,
+    cardName,
+    variant = "dialog",
+    position,
+    onSelect,
+    onCancel,
+}: ModePickerProps) {
+    if (variant === "portal" && position) {
+        return (
+            <ModePickerPortal
+                modes={modes}
+                cardName={cardName}
+                position={position}
+                onSelect={onSelect}
+                onCancel={onCancel}
+            />
+        );
+    }
+
+    return (
+        <GameDialog
+            open
+            onOpenChange={(open) => {
+                if (!open) onCancel();
+            }}
+            title={cardName}
+            dismissable
+        >
+            <div className="flex flex-col gap-1.5 mt-2">
+                {modes.map((mode) => (
+                    <ModeRow key={mode.id} mode={mode} onSelect={onSelect} />
+                ))}
+            </div>
+        </GameDialog>
     );
 }

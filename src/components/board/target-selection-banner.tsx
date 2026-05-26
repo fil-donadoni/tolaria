@@ -112,25 +112,31 @@ export default function TargetSelectionBanner({
         >
             <div
                 {...dragHandlers}
-                className="flex items-center gap-3 bg-amber-900/90 border border-amber-500/50 rounded-lg px-5 py-3 backdrop-blur-sm shadow-lg cursor-move select-none"
+                className="relative flex items-center gap-3 bg-[#0c0d12]/90 border border-zinc-800/80 backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none"
             >
-                <div className="text-amber-200 text-sm font-medium">
-                    <span className="text-white font-bold">{cardName}</span>
-                    {" — "}
-                    {hint}
+                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-zinc-500/40" />
+                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-zinc-500/40" />
+                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-zinc-500/40" />
+                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-zinc-500/40" />
+
+                <div className="text-sm">
+                    <span className="font-[var(--font-beleren)] tracking-wide text-[#f1f1e8]">
+                        {cardName}
+                    </span>
+                    <span className="text-zinc-400 ml-2">{hint}</span>
                 </div>
                 {showDone && (
                     <button
                         disabled={!minReached}
                         onClick={() => confirmTargets({ gameId, playerId })}
-                        className="ml-2 px-3 py-1 rounded text-xs font-bold bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white transition-colors cursor-pointer"
+                        className="px-3 py-1 rounded-sm text-xs font-[var(--font-beleren)] tracking-wide bg-emerald-900/40 border border-emerald-700/50 text-emerald-300 hover:bg-emerald-900/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                     >
                         Done
                     </button>
                 )}
                 <button
                     onClick={() => cancelTarget({ gameId, playerId })}
-                    className="ml-2 px-3 py-1 rounded text-xs font-bold bg-red-600 hover:bg-red-500 text-white transition-colors cursor-pointer"
+                    className="px-3 py-1 rounded-sm text-xs font-[var(--font-beleren)] tracking-wide bg-rose-900/40 border border-rose-700/50 text-rose-300 hover:bg-rose-900/60 transition-colors cursor-pointer"
                 >
                     Cancel
                 </button>

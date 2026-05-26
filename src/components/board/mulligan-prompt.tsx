@@ -47,14 +47,23 @@ export default function MulliganPrompt({
         >
             <div
                 {...dragHandlers}
-                className="flex flex-col items-center gap-3 bg-indigo-900/90 border border-indigo-400/50 rounded-lg px-6 py-4 backdrop-blur-sm shadow-lg cursor-move select-none pointer-events-auto"
+                className="relative flex flex-col items-center gap-3 bg-[#0c0d12]/90 border border-zinc-800/80 backdrop-blur-md rounded-sm px-6 py-4 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none pointer-events-auto"
             >
-                <div className="text-indigo-100 text-sm font-medium">
-                    <span className="text-white font-bold">Mulligan</span>
-                    {" — "}
-                    {viewerMulls > 0
-                        ? `you have taken ${viewerMulls} mulligan${viewerMulls === 1 ? "" : "s"}`
-                        : "review your opening hand"}
+                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-zinc-500/40" />
+                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-zinc-500/40" />
+                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-zinc-500/40" />
+                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-zinc-500/40" />
+
+                <div className="flex flex-col items-center gap-1 w-full">
+                    <p className="font-[var(--font-beleren)] text-sm tracking-wide text-[#f1f1e8]">
+                        Mulligan
+                    </p>
+                    <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-zinc-500/40 to-transparent" />
+                    <p className="text-zinc-400 text-xs">
+                        {viewerMulls > 0
+                            ? `you have taken ${viewerMulls} mulligan${viewerMulls === 1 ? "" : "s"}`
+                            : "review your opening hand"}
+                    </p>
                 </div>
 
                 {isDeclarer ? (
@@ -62,7 +71,7 @@ export default function MulliganPrompt({
                         <button
                             type="button"
                             onClick={onKeep}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-md px-4 py-2 text-sm cursor-pointer"
+                            className="px-4 py-2 rounded-sm bg-emerald-900/40 border border-emerald-700/50 text-emerald-300 text-sm font-[var(--font-beleren)] tracking-wide hover:bg-emerald-900/60 transition-colors cursor-pointer"
                         >
                             Keep
                         </button>
@@ -70,7 +79,7 @@ export default function MulliganPrompt({
                             type="button"
                             onClick={onMull}
                             disabled={nextHandSize < 0}
-                            className="bg-rose-600 hover:bg-rose-500 disabled:bg-rose-900 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium rounded-md px-4 py-2 text-sm cursor-pointer"
+                            className="px-4 py-2 rounded-sm bg-rose-900/40 border border-rose-700/50 text-rose-300 text-sm font-[var(--font-beleren)] tracking-wide hover:bg-rose-900/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                         >
                             {nextHandSize >= 0
                                 ? `Mulligan to ${nextHandSize}`
@@ -78,13 +87,12 @@ export default function MulliganPrompt({
                         </button>
                     </div>
                 ) : (
-                    <div className="text-indigo-200 text-xs">
+                    <p className="text-zinc-400 text-xs">
                         Waiting for{" "}
-                        <span className="text-white font-bold">
+                        <span className="text-[#f1f1e8] font-[var(--font-beleren)]">
                             {declaringPlayer?.name ?? "opponent"}
-                        </span>{" "}
-                        to declare
-                    </div>
+                        </span>
+                    </p>
                 )}
             </div>
         </div>

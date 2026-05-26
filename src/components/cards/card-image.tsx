@@ -42,7 +42,7 @@ function CardImageImpl({ card }: CardImageProps) {
     return (
         <CardPreview cardId={defId} cardName={name} cardInstance={cardInstance}>
             <div
-                className="relative w-full h-full rounded-sm overflow-hidden"
+                className="relative w-full h-full rounded-[7%] overflow-hidden"
                 style={STABLE_LAYER}
             >
                 {imageId ? (

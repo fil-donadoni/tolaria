@@ -1,11 +1,6 @@
 import { useMemo, useState } from "react";
 import type { CardInstance } from "~/types/game";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
+import GameDialog from "~/components/ui/game-dialog";
 import CardBack from "../cards/card-back";
 import SelectableCard from "../cards/selectable-card";
 import CardImage from "../cards/card-image";
@@ -20,22 +15,130 @@ type CardsPileProps = {
     isFaceDown?: boolean;
     emptyLabel?: string;
     title?: string;
-    /** When set, every card rendered inside the pile-expansion dialog is
-     *  wrapped in a clickable button that invokes this handler. Used by
-     *  graveyard target-selection (CR 109.2 / 400.7) so the chooser can pick
-     *  a card from the dialog view of an opaque pile. */
+    layout?: "fan" | "grid";
     onCardClick?: (card: CardInstance) => void;
-    /** When true, the dialog is forced open and cannot be dismissed. Used for
-     *  search-library (CR 701.19): the player must pick a card before play
-     *  resumes. */
     forceOpen?: boolean;
 };
+
+function FanLayout({
+    cards,
+    isFaceDown,
+    onCardClick,
+    onClose,
+}: {
+    cards: CardInstance[];
+    isFaceDown: boolean;
+    onCardClick?: (card: CardInstance) => void;
+    onClose: () => void;
+}) {
+    return (
+        <div
+            className="overflow-x-auto px-2 py-6"
+            style={
+                {
+                    "--pile-card-w": "clamp(9rem, 14vw, 13rem)",
+                } as React.CSSProperties
+            }
+        >
+            <div
+                className="flex mx-auto"
+                style={{
+                    width: `calc(var(--pile-card-w) * ${(cards.length + 1) / 2})`,
+                    minWidth: "min-content",
+                }}
+            >
+                {cards.map((cardInstance, cardIndex) => {
+                    const inner = isFaceDown ? (
+                        <CardBack />
+                    ) : (
+                        <CardImage card={cardInstance} />
+                    );
+                    const clickable = !isFaceDown && !!onCardClick;
+                    return (
+                        <div
+                            key={cardInstance.id}
+                            className="w-(--pile-card-w) aspect-5/7 shrink-0"
+                            style={{
+                                marginLeft:
+                                    cardIndex === 0
+                                        ? "0"
+                                        : "calc(var(--pile-card-w) * -0.5)",
+                            }}
+                        >
+                            {clickable ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        onCardClick(cardInstance);
+                                        onClose();
+                                    }}
+                                    className="w-full h-full bg-transparent border-0 p-0 cursor-pointer ring-2 ring-amber-400 hover:ring-amber-300 rounded"
+                                >
+                                    {inner}
+                                </button>
+                            ) : (
+                                inner
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function GridLayout({
+    cards,
+    isFaceDown,
+    onCardClick,
+    onClose,
+}: {
+    cards: CardInstance[];
+    isFaceDown: boolean;
+    onCardClick?: (card: CardInstance) => void;
+    onClose: () => void;
+}) {
+    return (
+        <div className="flex flex-wrap gap-2 justify-center py-4 px-2">
+            {cards.map((cardInstance) => {
+                const inner = isFaceDown ? (
+                    <CardBack />
+                ) : (
+                    <CardImage card={cardInstance} />
+                );
+                const clickable = !isFaceDown && !!onCardClick;
+                return (
+                    <div
+                        key={cardInstance.id}
+                        className="w-24 sm:w-28 aspect-5/7 shrink-0"
+                    >
+                        {clickable ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onCardClick(cardInstance);
+                                    onClose();
+                                }}
+                                className="w-full h-full bg-transparent border-0 p-0 cursor-pointer ring-2 ring-amber-400 hover:ring-amber-300 rounded"
+                            >
+                                {inner}
+                            </button>
+                        ) : (
+                            inner
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
 
 export default function CardsPile({
     cards,
     isFaceDown = false,
     emptyLabel,
     title,
+    layout = "fan",
     onCardClick,
     forceOpen = false,
 }: CardsPileProps) {
@@ -84,71 +187,38 @@ export default function CardsPile({
         );
     });
 
+    const dialogTitle = `${title || "Cards"} (${cards.length})`;
+
     return (
         <>
             <div className="cursor-pointer" onClick={() => setIsOpen(true)}>
                 {pileCards}
             </div>
 
-            <Dialog open={isOpen} onOpenChange={setIsOpen}>
-                <DialogContent
-                    className="px-4 max-w-[90vw]"
-                    style={{
-                        ["--pile-card-w" as string]: "clamp(9rem, 14vw, 13rem)",
-                        width: `min(90vw, max(28rem, calc(var(--pile-card-w) * ${(cards.length + 1) / 2} + 2rem)))`,
-                    }}
-                >
-                    <DialogHeader>
-                        <DialogTitle>
-                            {title || "Cards"} ({cards.length})
-                        </DialogTitle>
-                    </DialogHeader>
-                    <div className="overflow-x-auto px-4 py-8">
-                        <div
-                            className="flex mx-auto"
-                            style={{
-                                width: `calc(var(--pile-card-w) * ${(cards.length + 1) / 2})`,
-                            }}
-                        >
-                            {cards.map((cardInstance, cardIndex) => {
-                                const inner = isFaceDown ? (
-                                    <CardBack />
-                                ) : (
-                                    <CardImage card={cardInstance} />
-                                );
-                                const clickable = !isFaceDown && !!onCardClick;
-                                return (
-                                    <div
-                                        key={cardInstance.id}
-                                        className="w-(--pile-card-w) aspect-5/7 shrink-0"
-                                        style={{
-                                            marginLeft:
-                                                cardIndex === 0
-                                                    ? "0"
-                                                    : "calc(var(--pile-card-w) * -0.5)",
-                                        }}
-                                    >
-                                        {clickable ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    onCardClick(cardInstance);
-                                                    setIsOpen(false);
-                                                }}
-                                                className="w-full h-full bg-transparent border-0 p-0 cursor-pointer ring-2 ring-amber-400 hover:ring-amber-300 rounded"
-                                            >
-                                                {inner}
-                                            </button>
-                                        ) : (
-                                            inner
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <GameDialog
+                open={isOpen}
+                onOpenChange={setIsOpen}
+                title={dialogTitle}
+                size="wide"
+                dismissable={!forceOpen}
+                showCloseButton={!forceOpen}
+            >
+                {layout === "fan" ? (
+                    <FanLayout
+                        cards={cards}
+                        isFaceDown={isFaceDown}
+                        onCardClick={onCardClick}
+                        onClose={() => setIsOpen(false)}
+                    />
+                ) : (
+                    <GridLayout
+                        cards={cards}
+                        isFaceDown={isFaceDown}
+                        onCardClick={onCardClick}
+                        onClose={() => setIsOpen(false)}
+                    />
+                )}
+            </GameDialog>
         </>
     );
 }

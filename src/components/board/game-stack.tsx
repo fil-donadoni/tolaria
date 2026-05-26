@@ -41,7 +41,11 @@ export default function GameStack({ stack }: GameStackProps) {
                 transform: `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,
             }}
         >
-            <div className="bg-black/60 rounded-lg backdrop-blur-sm overflow-hidden">
+            <div className="relative bg-[#0c0d12]/90 border border-zinc-800/80 backdrop-blur-md rounded-sm shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden">
+                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-zinc-500/40 pointer-events-none z-10" />
+                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-zinc-500/40 pointer-events-none z-10" />
+                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-zinc-500/40 pointer-events-none z-10" />
+                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-zinc-500/40 pointer-events-none z-10" />
                 <DragHandle label="Stack" handlers={dragHandlers} />
                 <div className="flex items-start p-3">
                     {reversed.map((item, i) => {

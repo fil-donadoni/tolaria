@@ -2,14 +2,7 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "~/components/ui/dialog";
-import { Button } from "~/components/ui/button";
+import GameDialog from "~/components/ui/game-dialog";
 
 type Step = "menu" | "confirm-concede";
 
@@ -40,51 +33,46 @@ export default function PauseMenuDialog({
     };
 
     return (
-        <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogContent showCloseButton={false} className="max-w-sm">
+        <GameDialog
+            open={open}
+            onOpenChange={handleOpenChange}
+            title="Game Menu"
+            showCloseButton
+            dismissable
+        >
+            <div className="flex flex-col gap-3 mt-2">
                 {step === "menu" ? (
-                    <>
-                        <DialogHeader>
-                            <DialogTitle className="text-center">
-                                Game menu
-                            </DialogTitle>
-                        </DialogHeader>
-                        <DialogFooter className="sm:justify-center">
-                            <Button
-                                variant="destructive"
-                                onClick={() => setStep("confirm-concede")}
-                                className="w-full"
-                            >
-                                Concede
-                            </Button>
-                        </DialogFooter>
-                    </>
+                    <button
+                        type="button"
+                        onClick={() => setStep("confirm-concede")}
+                        className="w-full py-2.5 rounded-sm bg-red-900/30 border border-red-800/50 text-red-400 font-[var(--font-beleren)] tracking-wider hover:bg-red-900/50 transition-colors cursor-pointer"
+                    >
+                        Concede
+                    </button>
                 ) : (
                     <>
-                        <DialogHeader>
-                            <DialogTitle className="text-center">
-                                Do you really want to concede?
-                            </DialogTitle>
-                        </DialogHeader>
-                        <DialogFooter className="sm:justify-center">
-                            <Button
-                                variant="outline"
+                        <p className="text-zinc-300 text-sm text-center">
+                            Do you really want to concede?
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
                                 onClick={() => setStep("menu")}
-                                className="flex-1"
+                                className="flex-1 py-2 rounded-sm border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer"
                             >
                                 No
-                            </Button>
-                            <Button
-                                variant="destructive"
+                            </button>
+                            <button
+                                type="button"
                                 onClick={handleConcede}
-                                className="flex-1"
+                                className="flex-1 py-2 rounded-sm bg-red-900/40 border border-red-800/50 text-red-400 hover:bg-red-900/60 transition-colors cursor-pointer"
                             >
                                 Yes
-                            </Button>
-                        </DialogFooter>
+                            </button>
+                        </div>
                     </>
                 )}
-            </DialogContent>
-        </Dialog>
+            </div>
+        </GameDialog>
     );
 }

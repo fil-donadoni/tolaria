@@ -25,13 +25,13 @@ export default function PaymentBanner(props: Props) {
             (c) => c !== null && c.id === props.pendingCast.cardInstanceId
         );
         cardName = cardInHand ? getCardById(cardInHand.card.id).name : "spell";
-        subtitle = " — pay the casting costs";
+        subtitle = "pay the casting costs";
     } else {
         const source = props.me?.battlefield.find(
             (c) => c.id === props.pendingActivation.cardInstanceId
         );
         cardName = source ? getCardById(source.card.id).name : "ability";
-        subtitle = " — pay the activation costs";
+        subtitle = "pay the activation costs";
     }
 
     return (
@@ -43,12 +43,18 @@ export default function PaymentBanner(props: Props) {
         >
             <div
                 {...dragHandlers}
-                className="bg-amber-900/90 border border-amber-500/50 rounded-lg px-5 py-3 backdrop-blur-sm shadow-lg cursor-move select-none"
+                className="relative bg-[#0c0d12]/90 border border-zinc-800/80 backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none"
             >
-                <div className="text-amber-200 text-sm font-medium">
-                    <span className="text-white font-bold">{cardName}</span>
-                    {subtitle}
-                </div>
+                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-zinc-500/40" />
+                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-zinc-500/40" />
+                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-zinc-500/40" />
+                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-zinc-500/40" />
+
+                <p className="font-[var(--font-beleren)] text-sm tracking-wide text-[#f1f1e8]">
+                    {cardName}
+                </p>
+                <div className="h-[1px] w-full bg-gradient-to-r from-zinc-600 via-zinc-500/40 to-transparent my-1.5" />
+                <p className="text-zinc-400 text-xs">{subtitle}</p>
             </div>
         </div>
     );

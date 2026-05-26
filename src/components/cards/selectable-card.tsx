@@ -147,6 +147,8 @@ export default function SelectableCard({
         modePickerState && def.modes ? (
             <ModePicker
                 modes={def.modes}
+                cardName={def.name}
+                variant="portal"
                 position={modePickerState.position}
                 onSelect={(modeId) => {
                     const { chosenX, keepPriority } = modePickerState;
