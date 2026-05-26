@@ -269,6 +269,7 @@ type CompactPlayer = {
     landsPlayedThisTurn?: number;
     turnsTaken?: number;
     grantedAbilities?: PlayerState["grantedAbilities"];
+    skipNextTurn?: boolean;
 };
 
 function compactPlayer(player: PlayerState): CompactPlayer {
@@ -296,6 +297,7 @@ function compactPlayer(player: PlayerState): CompactPlayer {
     if (player.grantedAbilities?.length) {
         out.grantedAbilities = player.grantedAbilities;
     }
+    if (player.skipNextTurn) out.skipNextTurn = true;
     return out;
 }
 
@@ -330,6 +332,7 @@ function expandPlayer(player: CompactPlayer): PlayerState {
     if (player.grantedAbilities) {
         result.grantedAbilities = player.grantedAbilities;
     }
+    if (player.skipNextTurn) result.skipNextTurn = true;
     return result;
 }
 

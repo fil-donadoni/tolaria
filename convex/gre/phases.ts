@@ -1024,7 +1024,9 @@ function revertAnimation(card: CardInstanceState): void {
 
 /** Advance turn: increment counter, swap active player, reset autoPass.
  *  CR 500.7: if an extra turn is queued, the next active player is the one
- *  at the end of the queue (LIFO) instead of the normal turn-order swap. */
+ *  at the end of the queue (LIFO) instead of the normal turn-order swap.
+ *  CR 614.10: if the next active player has skipNextTurn set, clear the flag
+ *  and skip their entire turn — advance to the following player instead. */
 function advanceTurn(state: GameState): void {
     state.turn += 1;
     if (state.extraTurns && state.extraTurns.length > 0) {
@@ -1034,6 +1036,14 @@ function advanceTurn(state: GameState): void {
         state.activePlayerId = nextActive;
     } else {
         state.activePlayerId = getOpponentId(state, state.activePlayerId);
+    }
+    // CR 614.10: if the next active player's turn should be skipped, clear
+    // the flag and recurse to advance past their turn entirely.
+    const candidate = getPlayer(state, state.activePlayerId);
+    if (candidate.skipNextTurn) {
+        candidate.skipNextTurn = undefined;
+        advanceTurn(state);
+        return;
     }
     // CR 500.1: bump the new active player's per-player turn counter. Extra
     // turns (CR 500.7) increment this normally — the recipient is genuinely

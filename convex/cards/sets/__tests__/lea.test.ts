@@ -206,9 +206,12 @@ import {
     ankhOfMishra,
     dingusEgg,
     disruptingScepter,
+    drainPower,
     fog,
     forest,
+    manaShort,
     terror,
+    timeVault,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -14140,6 +14143,374 @@ describe("preventAllCombatDamageThisTurn serialization", () => {
         const compact = compactState(state);
         const expanded = expandState(compact);
         expect(expanded.preventAllCombatDamageThisTurn).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// W20: Skip-turn + mana drain — timeVault, manaShort, drainPower
+// ---------------------------------------------------------------------------
+
+describe("Time Vault (skip-turn / extra-turn artifact, CR 614.10 + 500.7)", () => {
+    it("is a {2} Artifact with entersTapped and does-not-untap", () => {
+        expect(timeVault.manaCost).toEqual({ X: 2 });
+        expect(timeVault.types).toEqual(["Artifact"]);
+        expect(timeVault.entersTapped).toBe(true);
+        expect(timeVault.staticAbilities).toContain("does-not-untap");
+    });
+
+    it("enters the battlefield tapped", () => {
+        const state = makeState();
+        pushSpell(state, timeVault.id, "p1");
+        resolveTopOfStack(state);
+        const vault = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === timeVault.id
+        );
+        expect(vault).toBeDefined();
+        expect(vault!.isTapped).toBe(true);
+    });
+
+    it("does not untap during untap step (does-not-untap keyword)", () => {
+        const vault = makeInstance(timeVault.id, {
+            id: "vault",
+            isTapped: true,
+        });
+        const land = makeInstance(forest.id, {
+            id: "land1",
+            isTapped: true,
+        });
+        // p2 is active at END_STEP — advancing lands on p1's UNTAP step.
+        const state = makeState({
+            phase: "END_STEP",
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [vault, land] }),
+                makePlayer("p2"),
+            ],
+        });
+        advancePhase(state); // END_STEP → CLEANUP → p1's UNTAP
+        const vaultAfter = state.players[0].battlefield.find(
+            (c) => c.id === "vault"
+        );
+        const landAfter = state.players[0].battlefield.find(
+            (c) => c.id === "land1"
+        );
+        expect(vaultAfter!.isTapped).toBe(true);
+        expect(landAfter!.isTapped).toBe(false);
+    });
+
+    it("skip-turn ability: sets skipNextTurn and untaps vault", () => {
+        const vault = makeInstance(timeVault.id, {
+            id: "vault",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [vault] }),
+                makePlayer("p2"),
+            ],
+        });
+        const ability = timeVault.activatedAbilities![0];
+        expect(ability.id).toBe("time-vault-untap");
+        const item = pushSpell(state, timeVault.id, "p1");
+        item.id = "vault"; // match battlefield source id
+        item.abilityId = ability.id;
+        resolveTopOfStack(state);
+        expect(state.players[0].skipNextTurn).toBe(true);
+        const vaultAfter = state.players[0].battlefield.find(
+            (c) => c.id === "vault"
+        );
+        expect(vaultAfter!.isTapped).toBe(false);
+    });
+
+    it("extra-turn ability: queues an extra turn for controller", () => {
+        const vault = makeInstance(timeVault.id, {
+            id: "vault",
+            isTapped: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [vault] }),
+                makePlayer("p2"),
+            ],
+        });
+        const ability = timeVault.activatedAbilities![1];
+        expect(ability.id).toBe("time-vault-extra-turn");
+        expect(ability.cost.tap).toBe(true);
+        const item = pushSpell(state, timeVault.id, "p1");
+        item.abilityId = ability.id;
+        resolveTopOfStack(state);
+        expect(state.extraTurns).toEqual(["p1"]);
+    });
+
+    it("skipNextTurn: player's turn is entirely skipped (CR 614.10)", () => {
+        const state = makeState({
+            phase: "END_STEP",
+            turn: 1,
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { skipNextTurn: true }),
+                makePlayer("p2"),
+            ],
+        });
+        // p1 ends their turn. p2 would normally be next, but p2 has
+        // skipNextTurn, so actually p2 is the one being skipped... Let's
+        // set up correctly: p1 is active, p2 has skipNextTurn.
+        state.players[1].skipNextTurn = true;
+        state.players[0].skipNextTurn = undefined;
+        advancePhase(state); // END_STEP → CLEANUP → next turn
+        // p2's turn is skipped, so it goes to p1 again
+        expect(state.activePlayerId).toBe("p1");
+        expect(state.players[1].skipNextTurn).toBeUndefined();
+        expect(state.turn).toBe(3); // turn 1 → skip p2 (turn 2) → p1 (turn 3)
+    });
+
+    it("skipNextTurn on self: caster skips their own next turn", () => {
+        // From p2's end-of-turn with p1 having skipNextTurn set.
+        const state = makeState({
+            phase: "END_STEP",
+            turn: 2,
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { skipNextTurn: true }),
+                makePlayer("p2"),
+            ],
+        });
+        advancePhase(state); // p2's END_STEP → CLEANUP → next turn
+        // p1's turn is skipped
+        expect(state.activePlayerId).toBe("p2");
+        expect(state.players[0].skipNextTurn).toBeUndefined();
+    });
+
+    it("full cycle: skip-turn to untap, then tap for extra turn", () => {
+        const vault = makeInstance(timeVault.id, {
+            id: "vault",
+            isTapped: true,
+        });
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [vault] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        // Step 1: Activate skip-turn ability to untap vault
+        const skipAbility = timeVault.activatedAbilities![0];
+        const item1 = pushSpell(state, timeVault.id, "p1");
+        item1.id = "vault"; // match battlefield source id
+        item1.abilityId = skipAbility.id;
+        resolveTopOfStack(state);
+        expect(state.players[0].skipNextTurn).toBe(true);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "vault")!.isTapped
+        ).toBe(false);
+
+        // Step 2: Activate tap-for-extra-turn ability
+        const extraAbility = timeVault.activatedAbilities![1];
+        const item2 = pushSpell(state, timeVault.id, "p1");
+        item2.id = "vault";
+        item2.abilityId = extraAbility.id;
+        resolveTopOfStack(state);
+        expect(state.extraTurns).toEqual(["p1"]);
+
+        // Step 3: Advance through end of turn. Extra turn consumed first
+        // (CR 500.7), then skipNextTurn checked (CR 614.10). Skip cancels
+        // the extra turn — p1's extra turn is skipped, normal swap → p2.
+        state.phase = "END_STEP";
+        advancePhase(state);
+        expect(state.players[0].skipNextTurn).toBeUndefined();
+    });
+});
+
+describe("Mana Short (tap all lands + drain mana pool, CR 106.4)", () => {
+    it("is a {2}{U} Instant targeting a player", () => {
+        expect(manaShort.manaCost).toEqual({ X: 2, U: 1 });
+        expect(manaShort.types).toEqual(["Instant"]);
+        expect(manaShort.targetRequirement).toEqual({
+            type: "player",
+            count: 1,
+        });
+    });
+
+    it("taps all target's lands and empties their mana pool", () => {
+        const land1 = makeInstance(forest.id, {
+            id: "f1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const land2 = makeInstance(island.id, {
+            id: "f2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const creature = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [land1, land2, creature],
+                    manaPool: { W: 0, U: 2, B: 0, R: 0, G: 1, C: 0 },
+                }),
+            ],
+        });
+        pushSpell(state, manaShort.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        // Lands should be tapped
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "f1")!.isTapped
+        ).toBe(true);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "f2")!.isTapped
+        ).toBe(true);
+        // Creature should NOT be tapped
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")!.isTapped
+        ).toBe(false);
+        // Mana pool should be empty
+        expect(state.players[1].manaPool.U).toBe(0);
+        expect(state.players[1].manaPool.G).toBe(0);
+    });
+
+    it("already-tapped lands stay tapped (no-op)", () => {
+        const land = makeInstance(forest.id, {
+            id: "f1",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        pushSpell(state, manaShort.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "f1")!.isTapped
+        ).toBe(true);
+    });
+});
+
+describe("Drain Power (tap lands + transfer mana, CR 106.4)", () => {
+    it("is a {U}{U} Sorcery targeting a player", () => {
+        expect(drainPower.manaCost).toEqual({ U: 2 });
+        expect(drainPower.types).toEqual(["Sorcery"]);
+        expect(drainPower.targetRequirement).toEqual({
+            type: "player",
+            count: 1,
+        });
+    });
+
+    it("taps target's lands, drains their mana, and adds it to caster", () => {
+        const land1 = makeInstance(forest.id, {
+            id: "f1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const land2 = makeInstance(mountain.id, {
+            id: "m1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    manaPool: { W: 0, U: 1, B: 0, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2", {
+                    battlefield: [land1, land2],
+                    manaPool: { W: 0, U: 0, B: 0, R: 3, G: 2, C: 0 },
+                }),
+            ],
+        });
+        pushSpell(state, drainPower.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        // p2's lands tapped
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "f1")!.isTapped
+        ).toBe(true);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "m1")!.isTapped
+        ).toBe(true);
+        // p2's mana pool drained
+        expect(state.players[1].manaPool.R).toBe(0);
+        expect(state.players[1].manaPool.G).toBe(0);
+        // p1 gains p2's drained mana (added to existing pool)
+        expect(state.players[0].manaPool.R).toBe(3);
+        expect(state.players[0].manaPool.G).toBe(2);
+        expect(state.players[0].manaPool.U).toBe(1); // unchanged
+    });
+
+    it("drainManaPool returns correct amounts when pool is empty", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                }),
+            ],
+        });
+        pushSpell(state, drainPower.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        // p1's pool unchanged (nothing drained)
+        expect(state.players[0].manaPool).toEqual({
+            W: 0,
+            U: 0,
+            B: 0,
+            R: 0,
+            G: 0,
+            C: 0,
+        });
+    });
+
+    it("spell goes to graveyard after resolution (sorcery)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, drainPower.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].graveyard.some(
+                (c) => (c.card as { id: string }).id === drainPower.id
+            )
+        ).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Serialization: skipNextTurn on PlayerState round-trip
+// ---------------------------------------------------------------------------
+
+describe("skipNextTurn serialization", () => {
+    it("round-trips through compactState / expandState", async () => {
+        const { compactState, expandState } =
+            await import("../../../gre/serialize");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { skipNextTurn: true }),
+                makePlayer("p2"),
+            ],
+        });
+        const compact = compactState(state);
+        const expanded = expandState(compact);
+        expect(expanded.players[0].skipNextTurn).toBe(true);
+        expect(expanded.players[1].skipNextTurn).toBeUndefined();
+    });
+
+    it("omitted when undefined", async () => {
+        const { compactState } = await import("../../../gre/serialize");
+        const state = makeState();
+        const compact = compactState(state);
+        const players = compact.players as Array<Record<string, unknown>>;
+        expect("skipNextTurn" in players[0]).toBe(false);
     });
 });
 

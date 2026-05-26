@@ -961,6 +961,20 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "Time Vault — skip-turn ↔ extra-turn cycle (CR 614.10 + 500.7)",
+        cards: [
+            { name: "Time Vault", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 3 },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

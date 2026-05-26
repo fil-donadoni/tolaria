@@ -714,6 +714,19 @@ export interface SpellContext {
      *  that target / affect the enchanted permanent without re-targeting it
      *  (e.g. Regeneration's "{G}: Regenerate enchanted creature."). */
     getAttachedTo: (sourceInstanceId: string) => string | undefined;
+
+    /** Taps all lands controlled by `playerId` (CR 701.20a). Used by Mana
+     *  Short and Drain Power. No-op for lands already tapped. */
+    tapAllLands: (playerId: string) => void;
+
+    /** Empties `playerId`'s mana pool and returns the drained amounts as a
+     *  ManaCost (CR 106.4). Used by Mana Short (drain + discard) and Drain
+     *  Power (drain + transfer). */
+    drainManaPool: (playerId: string) => ManaCost;
+
+    /** Marks `playerId` to skip their next turn (CR 614.10). The flag is
+     *  consumed and cleared by advanceTurn(). Used by Time Vault. */
+    setSkipNextTurn: (playerId: string) => void;
 }
 
 /** Delayed triggered ability template (CR 603.7a). Declared on the
