@@ -6,10 +6,18 @@ import {
     getPendingChoiceMax,
     getPendingChoiceMin,
     getPlayer,
+    matchesPermanentFilter,
     resolveTopOfStack,
+    type CardInstanceState,
     type GameState,
 } from "./state";
-import { drainAutoPasses, finalizeCleanupDiscard } from "./phases";
+import {
+    computeHardSkipFilters,
+    drainAutoPasses,
+    effectivePermanentView,
+    finalizeCleanupDiscard,
+    finalizeUntapPick,
+} from "./phases";
 
 export type SubmitChoiceArgs = {
     playerId: string;
@@ -45,7 +53,7 @@ export function applyPendingChoiceSubmit(
         throw new Error("Stale pending choice — try again");
     }
 
-    if (head.kind !== "discard-hand") {
+    if (head.kind !== "discard-hand" && head.kind !== "untap-pick") {
         throw new Error(
             `submitResolutionChoice does not yet handle kind=${head.kind}`
         );
@@ -71,8 +79,38 @@ export function applyPendingChoiceSubmit(
     }
 
     const zoneOwner = getPlayer(state, head.zoneOwnerId ?? args.playerId);
+
+    if (head.kind === "untap-pick") {
+        // CR 502.1 cap-style restriction commit (Winter Orb, Smoke, etc.).
+        // Validate every pick against zone, filter, tapped state,
+        // `does-not-untap` markers, and any hard-skip filter veto (defense-
+        // in-depth — the dispatcher already excludes these from the
+        // eligible set, but stale client state could send a forbidden id).
+        const vetoFilters = computeHardSkipFilters(state);
+        for (const id of args.cardInstanceIds) {
+            const card = zoneOwner.battlefield.find(
+                (c: CardInstanceState) => c.id === id
+            );
+            if (!card) throw new Error("Card not on battlefield");
+            if (head.filter && !matchesPermanentFilter(card, head.filter)) {
+                throw new Error("Card does not match the required filter");
+            }
+            if (!card.isTapped) throw new Error("Card is not tapped");
+            if (card.staticAbilities.includes("does-not-untap")) {
+                throw new Error("Card cannot untap");
+            }
+            const view = effectivePermanentView(state, card);
+            if (vetoFilters.some((f) => matchesPermanentFilter(view, f))) {
+                throw new Error("Card cannot untap");
+            }
+        }
+        finalizeUntapPick(state, args.cardInstanceIds);
+        return;
+    }
+
+    // discard-hand kind from here on.
     for (const id of args.cardInstanceIds) {
-        if (!zoneOwner.hand.find((c) => c.id === id)) {
+        if (!zoneOwner.hand.find((c: CardInstanceState) => c.id === id)) {
             throw new Error("Card not in hand");
         }
     }

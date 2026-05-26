@@ -4,12 +4,14 @@
 
 import { describe, it, expect } from "vitest";
 import { resolveTopOfStack, type GameState } from "../state";
-import { advancePhase } from "../phases";
+import { advancePhase, untapStep } from "../phases";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import {
     disruptingScepter,
     grizzlyBears,
     lightningBolt,
+    plains,
+    winterOrb,
 } from "../../cards/sets/lea";
 import {
     makeInstance,
@@ -259,22 +261,161 @@ describe("applyPendingChoiceSubmit — discard-hand cleanup (CR 514.1)", () => {
     });
 });
 
-describe("applyPendingChoiceSubmit — unsupported kinds (slice #80 scope)", () => {
-    it("throws for untap-pick (handled by selectResolutionChoice until #83)", () => {
+// ---------------------------------------------------------------------------
+// untap-pick (CR 502.1) — cap-style restriction commit (Winter Orb, Smoke)
+// ---------------------------------------------------------------------------
+
+function setupUntapPick(tappedLandCount: number): GameState {
+    const orb = makeInstance(winterOrb.id, {
+        id: "orb",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const lands = Array.from({ length: tappedLandCount }, (_, i) =>
+        makeInstance(plains.id, {
+            id: `land-${i}`,
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        })
+    );
+    const state = makeState({
+        phase: "UNTAP",
+        activePlayerId: "p1",
+        players: [
+            makePlayer("p1", { battlefield: [orb, ...lands] }),
+            makePlayer("p2"),
+        ],
+    });
+    // Trigger the untap dispatcher to enqueue the untap-pick choice.
+    untapStep(state);
+    return state;
+}
+
+describe("applyPendingChoiceSubmit — untap-pick (CR 502.1)", () => {
+    it("happy path: untaps the chosen land and advances past UNTAP", () => {
+        const state = setupUntapPick(3);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("untap-pick");
+        expect(head.count).toEqual({ min: 0, max: 1 });
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["land-1"],
+        });
+
+        // land-1 untapped, others still tapped, phase advanced past UNTAP.
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "land-1")!.isTapped).toBe(false);
+        expect(bf.find((c) => c.id === "land-0")!.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "land-2")!.isTapped).toBe(true);
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.phase).not.toBe("UNTAP");
+    });
+
+    it("skip (empty list, min===0): untaps nothing and still advances", () => {
+        const state = setupUntapPick(2);
+        const head = state.pendingChoices![0];
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [],
+        });
+
+        // Both lands still tapped, phase advanced.
+        expect(
+            state.players[0].battlefield.filter((c) => c.isTapped).length
+        ).toBe(2);
+        expect(state.phase).not.toBe("UNTAP");
+    });
+
+    it("rejects a non-tapped permanent", () => {
+        const state = setupUntapPick(1);
+        // Manually untap land-0 to test rejection.
+        state.players[0].battlefield.find((c) => c.id === "land-0")!.isTapped =
+            false;
+        const head = state.pendingChoices![0];
+
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["land-0"],
+            })
+        ).toThrow(/not tapped/i);
+    });
+
+    it("rejects a permanent with does-not-untap", () => {
+        const state = setupUntapPick(1);
+        state.players[0].battlefield.find(
+            (c) => c.id === "land-0"
+        )!.staticAbilities = ["does-not-untap"];
+        const head = state.pendingChoices![0];
+
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["land-0"],
+            })
+        ).toThrow(/cannot untap/i);
+    });
+
+    it("rejects when card is not on battlefield", () => {
+        const state = setupUntapPick(1);
+        const head = state.pendingChoices![0];
+
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["nonexistent"],
+            })
+        ).toThrow(/not on battlefield/i);
+    });
+
+    it("rejects count > max", () => {
+        const state = setupUntapPick(3);
+        const head = state.pendingChoices![0];
+
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["land-0", "land-1"],
+            })
+        ).toThrow(/at most/i);
+    });
+});
+
+describe("applyPendingChoiceSubmit — unsupported kinds", () => {
+    it("throws for mulligan-bottom (handled by selectResolutionChoice until #84)", () => {
         const state = makeState({
-            phase: "UNTAP",
             pendingChoices: [
                 {
                     stackItemId: "",
                     step: 0,
-                    choiceId: "untap-pick-0",
+                    choiceId: "bottom",
                     playerId: "p1",
-                    zoneOwnerId: "p1",
-                    kind: "untap-pick",
-                    zone: "battlefield",
-                    count: { min: 0, max: 1 },
+                    kind: "mulligan-bottom",
+                    zone: "hand",
+                    count: 1,
                     selected: [],
-                    prompt: "Untap up to 1",
+                    prompt: "Bottom 1",
                 },
             ],
         });
@@ -284,7 +425,7 @@ describe("applyPendingChoiceSubmit — unsupported kinds (slice #80 scope)", () 
                 playerId: "p1",
                 stackItemId: "",
                 step: 0,
-                choiceId: "untap-pick-0",
+                choiceId: "bottom",
                 cardInstanceIds: [],
             })
         ).toThrow(/does not yet handle/i);

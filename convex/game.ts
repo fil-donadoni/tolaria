@@ -61,10 +61,10 @@ import {
     advancePhase,
     drainAutoPasses,
     applyAllCombatDamage,
-    untapStep,
     computeHardSkipFilters,
     effectivePermanentView,
     finalizeCleanupDiscard,
+    finalizeUntapPick,
 } from "./gre/phases";
 import { freshSeed, seededShuffle } from "./gre/rng";
 import {
@@ -2876,72 +2876,6 @@ export const selectResolutionChoice = mutation({
                 }
             }
         }
-
-        const nextSeq = gameState.seq + 1;
-        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
-        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
-    },
-});
-
-/** Commits an `untap-pick` `PendingChoice` (CR 502.1): untaps the chosen
- *  ids on the chooser's battlefield, pops the choice off the queue, and
- *  resumes the untap dispatcher (`untapStep`). If the dispatcher enqueues
- *  the next restriction's prompt, priority stays with the chooser; if all
- *  restrictions are resolved, `advancePhase` leaves UNTAP and routes
- *  priority to the active player for UPKEEP. */
-function finalizeUntapPick(state: GameState, selectedIds: string[]): void {
-    const queue = state.pendingChoices ?? [];
-    const head = queue[0];
-    if (!head || head.kind !== "untap-pick") return;
-    const chooser = getPlayer(state, head.zoneOwnerId ?? head.playerId);
-    for (const id of selectedIds) {
-        const card = chooser.battlefield.find((c) => c.id === id);
-        if (card) card.isTapped = false;
-    }
-    queue.shift();
-    state.pendingChoices = queue.length > 0 ? queue : undefined;
-    untapStep(state);
-    if ((state.pendingChoices?.length ?? 0) > 0) {
-        state.priorityPlayerId = state.pendingChoices![0].playerId;
-        return;
-    }
-    // No more restrictions to resolve — leave UNTAP and continue the
-    // normal auto-phase recursion (UNTAP → UPKEEP, granting priority).
-    advancePhase(state);
-    drainAutoPasses(state);
-}
-
-/** Commits the current `untap-pick` selection (CR 502.1) with whatever
- *  ids the chooser has accumulated in `head.selected` — including the
- *  empty list (the ADR 0003 "untap zero" tactical zero-branch surfaced
- *  in the UI as the "Skip untap" action). `selectResolutionChoice`
- *  remains the path that auto-commits once `selected.length` reaches
- *  `max`; this mutation handles the early-commit / skip case where the
- *  chooser is satisfied with `[min, max)` picks. */
-export const confirmUntapPick = mutation({
-    args: {
-        gameId: v.id("games"),
-        playerId: v.string(),
-    },
-    handler: async (ctx, args) => {
-        const gameState = await getLatestGameState(ctx, args.gameId);
-        if (!gameState) throw new Error("Game not found");
-
-        const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-
-        const queue = state.pendingChoices ?? [];
-        if (queue.length === 0) throw new Error("No pending choice");
-        const head = queue[0];
-        if (head.kind !== "untap-pick") {
-            throw new Error("Pending choice is not an untap-pick");
-        }
-        if (head.playerId !== args.playerId) {
-            throw new Error("Not your pending choice");
-        }
-
-        finalizeUntapPick(state, [...head.selected]);
-        checkStateBasedActions(state);
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);

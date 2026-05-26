@@ -139,6 +139,37 @@ export function computeHardSkipFilters(state: GameState) {
         .map((r) => r.restriction.filter);
 }
 
+/** Commits an `untap-pick` `PendingChoice` (CR 502.1): untaps the chosen
+ *  ids on the chooser's battlefield, pops the choice off the queue, and
+ *  resumes the untap dispatcher (`untapStep`). If the dispatcher enqueues
+ *  the next restriction's prompt, priority stays with the chooser; if all
+ *  restrictions are resolved, `advancePhase` leaves UNTAP and routes
+ *  priority to the active player for UPKEEP. */
+export function finalizeUntapPick(
+    state: GameState,
+    selectedIds: string[]
+): void {
+    const queue = state.pendingChoices ?? [];
+    const head = queue[0];
+    if (!head || head.kind !== "untap-pick") return;
+    const chooser = getPlayer(state, head.zoneOwnerId ?? head.playerId);
+    for (const id of selectedIds) {
+        const card = chooser.battlefield.find((c) => c.id === id);
+        if (card) card.isTapped = false;
+    }
+    queue.shift();
+    state.pendingChoices = queue.length > 0 ? queue : undefined;
+    untapStep(state);
+    if ((state.pendingChoices?.length ?? 0) > 0) {
+        state.priorityPlayerId = state.pendingChoices![0].playerId;
+        return;
+    }
+    // No more restrictions to resolve — leave UNTAP and continue the
+    // normal auto-phase recursion (UNTAP → UPKEEP, granting priority).
+    advancePhase(state);
+    drainAutoPasses(state);
+}
+
 /** Returns a `MatchablePermanent`-shaped view of `card` with its `power` and
  *  `toughness` overridden by the effective values read at call time
  *  (CR 613 layer 7c/7d — counters, +N/+N auras, temporary buffs). The
@@ -193,7 +224,7 @@ export function untapStep(state: GameState): void {
 
     // Data-driven dispatcher loop. `state.pendingUntapStep.restrictionCursor`
     // is set when a prior call enqueued an `untap-pick` prompt; resumption
-    // (from `selectResolutionChoice` / `confirmUntapPick`) re-enters here
+    // (from `submitResolutionChoice` / `selectResolutionChoice`) re-enters here
     // and continues from where we left off.
     const restrictions = collectUntapRestrictions(state);
     const startCursor = state.pendingUntapStep?.restrictionCursor ?? 0;
@@ -1329,7 +1360,7 @@ export function advancePhase(state: GameState): Phase[] {
     // 502.1 — e.g. UNTAP under Winter Orb prompts the active player to
     // pick which land to untap). In that case do NOT recurse: the engine
     // is suspended awaiting input, and the submitter (`selectResolutionChoice`
-    // / `confirmUntapPick`) is responsible for re-entering this function
+    // / `submitResolutionChoice`) is responsible for re-entering this function
     // once the choice is committed. Priority has already been routed to
     // the chooser by the phase-entry hook.
     if ((state.pendingChoices?.length ?? 0) > 0) {

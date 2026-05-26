@@ -1,6 +1,10 @@
 import { useMemo, useState } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
+import {
+    isClientBufferedKind,
+    usePendingChoiceBuffer,
+} from "~/hooks/usePendingChoiceBuffer";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { getCardById } from "@convex/cards";
@@ -65,6 +69,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     const selectResolutionChoice = useMutation(api.game.selectResolutionChoice);
     const selectAdditionalCost = useMutation(api.game.selectAdditionalCost);
     const activateAbility = useMutation(api.game.activateAbility);
+    const bufferCtx = usePendingChoiceBuffer();
 
     // Mana choice picker state. `inPayment` routes the selection to
     // tapForPayment (committing the cast) vs tapUntap (floating mana).
@@ -116,6 +121,8 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         isViewerChoosing &&
         choiceZoneOwnerId === player.id &&
         activeChoice!.zone === "battlefield";
+    const isBufferedChoice =
+        isSelectingChoice && isClientBufferedKind(activeChoice!.kind);
 
     // Additional-cost picker (CR 117.9 / 601.2f). Active when this player's
     // pendingCast is waiting for them to pick a permanent on their own
@@ -217,10 +224,14 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
 
     function canInteract(card: CardInstance): boolean {
         // Mid-resolution choice: only the chooser's own battlefield cards
-        // matching the filter are interactive. Already-picked ids stay clickable
-        // so the player can deselect (not supported yet — future toggle).
+        // matching the filter are interactive. For client-buffered kinds
+        // (ADR 0007), already-picked ids stay clickable so the chooser can
+        // toggle them off. Legacy kinds still lock picked ids until commit.
         if (isSelectingChoice && activeChoice) {
-            if (activeChoice.selected.includes(card.id)) return false;
+            const isPicked = isBufferedChoice
+                ? bufferCtx.buffer.includes(card.id)
+                : activeChoice.selected.includes(card.id);
+            if (isPicked) return isBufferedChoice;
             if (
                 activeChoice.filter &&
                 !matchesPermanentFilter(card, activeChoice.filter)
@@ -334,7 +345,9 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         const isChoiceSelected =
             isSelectingChoice &&
             !!activeChoice &&
-            activeChoice.selected.includes(card.id);
+            (isBufferedChoice
+                ? bufferCtx.buffer.includes(card.id)
+                : activeChoice.selected.includes(card.id));
 
         const interactive = isSelectingChoice
             ? isValidChoice
@@ -460,6 +473,10 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         if (!canInteract(card)) return;
 
         if (isSelectingChoice) {
+            if (isBufferedChoice) {
+                bufferCtx.toggle(card.id);
+                return;
+            }
             guardMutation(
                 selectResolutionChoice({
                     gameId,

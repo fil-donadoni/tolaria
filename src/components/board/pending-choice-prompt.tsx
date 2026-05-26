@@ -29,9 +29,9 @@ function getCountMax(count: PendingChoice["count"]): number {
  *
  *  For `may-pay` choices, the prompt renders Pay/Skip buttons that submit
  *  through `submitMayPay`. For kinds not yet migrated to client-buffered
- *  submit (`untap-pick`, `mulligan-bottom` until slices #83/#84 land), the
- *  legacy per-click counter is shown with the existing `confirmUntapPick`
- *  Skip/Done button where applicable. */
+ *  submit (`mulligan-bottom` until slice #84 lands), the legacy per-click
+ *  counter is shown without a Done button — commit is server-side at
+ *  `selected.length === max`. */
 export default function PendingChoicePrompt({
     choice,
     playerId,
@@ -44,12 +44,10 @@ export default function PendingChoicePrompt({
     const { allPlayers } = useGameContext();
     const { offset, dragHandlers } = useDraggable();
     const submitMayPay = useMutation(api.game.submitMayPay);
-    const confirmUntapPick = useMutation(api.game.confirmUntapPick);
     const bufferCtx = usePendingChoiceBuffer();
     const isChooser = choice.playerId === playerId;
     const min = getCountMin(choice.count);
     const max = getCountMax(choice.count);
-    const isUntapPick = choice.kind === "untap-pick";
     const isMayPay = choice.kind === "may-pay";
     const isBuffered = isClientBufferedKind(choice.kind);
 
@@ -60,11 +58,6 @@ export default function PendingChoicePrompt({
         ? bufferCtx.buffer.length
         : choice.selected.length;
     const remaining = Math.max(0, max - selected);
-
-    // Cap-style untap restrictions surface a "Skip"/"Done" button so the
-    // ADR 0003 tactical zero-branch (CR 502.1, 701.39) is reachable in one
-    // click — automatic commit only triggers once `selected.length === max`.
-    const showUntapCommit = isUntapPick && min === 0;
 
     const chooserName =
         allPlayers.find((p) => p.id === choice.playerId)?.name ?? "opponent";
@@ -173,27 +166,11 @@ export default function PendingChoicePrompt({
                                 </button>
                             </>
                         ) : (
-                            <>
-                                <p className="text-zinc-500 text-xs">
-                                    {remaining > 0
-                                        ? `${selected} / ${max} selected — click ${remaining === 1 ? "one more" : `up to ${remaining} more`}`
-                                        : "Submitting..."}
-                                </p>
-                                {showUntapCommit && (
-                                    <button
-                                        type="button"
-                                        className="mt-1 px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-zinc-800/40 border border-zinc-600/45 text-zinc-300 hover:bg-zinc-700/40 transition-colors cursor-pointer"
-                                        onClick={() =>
-                                            confirmUntapPick({
-                                                gameId,
-                                                playerId,
-                                            })
-                                        }
-                                    >
-                                        {selected === 0 ? "Skip untap" : "Done"}
-                                    </button>
-                                )}
-                            </>
+                            <p className="text-zinc-500 text-xs">
+                                {remaining > 0
+                                    ? `${selected} / ${max} selected — click ${remaining === 1 ? "one more" : `up to ${remaining} more`}`
+                                    : "Submitting..."}
+                            </p>
                         )}
                     </>
                 ) : (
