@@ -1102,6 +1102,21 @@ export interface StaticBlockRequirement {
     scope: "all-able";
 }
 
+/** Continuous static effect that overrides the controller's maximum hand
+ *  size (CR 402.2 / 514.1). Player-scoped, not per-permanent: the reader in
+ *  `effectiveMaxHandSize` (`convex/gre/phases.ts`) walks the controller's
+ *  battlefield and merges every active override into a single effective
+ *  cap. `"unlimited"` always wins; among numeric values the largest (most
+ *  permissive) prevails. Used by Library of Leng / Reliquary Tower /
+ *  Spellbook-style cards.
+ *
+ *  Unlike per-permanent statics (`pt-buff`, `keyword-grant`), this kind has
+ *  no `applies` predicate — it always applies to the source's controller. */
+export interface StaticHandSizeOverride {
+    kind: "hand-size-override";
+    value: number | "unlimited";
+}
+
 export type StaticEffect =
     | StaticPTBuff
     | StaticPTCDA
@@ -1113,7 +1128,8 @@ export type StaticEffect =
     | StaticBlockRestriction
     | StaticAttackRestriction
     | StaticAttackRequirement
-    | StaticBlockRequirement;
+    | StaticBlockRequirement
+    | StaticHandSizeOverride;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
  *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted

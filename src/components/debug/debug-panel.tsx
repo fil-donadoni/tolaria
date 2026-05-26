@@ -943,6 +943,49 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Cleanup discard — CR 514.1 (with optional Library of Leng for the unlimited path)",
+        cards: [
+            // 9 cards in hand on END_STEP: passing priority cycles into
+            // CLEANUP and prompts the active player to discard 2. Drop a
+            // Library of Leng in (also in hand) to verify the "no maximum
+            // hand size" clause suppresses the prompt entirely; cast it
+            // first, then pass through end of turn.
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 3,
+            },
+            {
+                name: "Giant Growth",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 2,
+            },
+            {
+                name: "Healing Salve",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 2,
+            },
+            {
+                name: "Dark Ritual",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 1,
+            },
+            {
+                name: "Library of Leng",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+        ],
+        phase: "END_STEP",
+        landCount: 0,
+    },
+    {
         label: "Disrupting Scepter — {3},{T}: target player discards (CR 701.8)",
         cards: [
             { name: "Disrupting Scepter", owner: "me" as const },

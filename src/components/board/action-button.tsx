@@ -1,4 +1,22 @@
+import { CornerDownLeft, Space } from "lucide-react";
+
 type ActionButtonTone = "primary" | "secondary" | "destructive";
+
+function ShortcutHint({ shortcut }: { shortcut: string }) {
+    const key = shortcut.toLowerCase();
+    if (key === "space") {
+        return <Space className="w-3.5 h-3.5 opacity-70" aria-label="Space" />;
+    }
+    if (key === "enter") {
+        return (
+            <CornerDownLeft
+                className="w-3.5 h-3.5 opacity-70"
+                aria-label="Enter"
+            />
+        );
+    }
+    return <span className="text-xs opacity-70">[{shortcut}]</span>;
+}
 
 const TONE_CLASSES: Record<ActionButtonTone, string> = {
     primary:
@@ -32,12 +50,14 @@ export default function ActionButton({
             disabled={disabled}
             className={`font-beleren tracking-wide px-5 py-2 rounded-sm text-sm border transition-colors shadow-md ${toneClass} ${disabled ? "" : "cursor-pointer"}`}
         >
-            {label}
-            {shortcut && (
-                <span className="ml-2 text-xs opacity-70 hidden md:inline">
-                    [{shortcut}]
-                </span>
-            )}
+            <span className="inline-flex items-center gap-2">
+                {label}
+                {shortcut && (
+                    <span className="hidden md:inline-flex items-center">
+                        <ShortcutHint shortcut={shortcut} />
+                    </span>
+                )}
+            </span>
         </button>
     );
 }

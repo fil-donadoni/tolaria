@@ -40,7 +40,7 @@ function CornerAccent({ className }: { className: string }) {
 
 function SunburstIcon({ children }: { children: React.ReactNode }) {
     return (
-        <div className="relative flex-shrink-0 w-28 h-28 sm:w-36 sm:h-36 flex items-center justify-center overflow-hidden rounded-full border border-zinc-800/30 bg-zinc-950/40">
+        <div className="relative shrink-0 w-28 h-28 sm:w-36 sm:h-36 flex items-center justify-center overflow-hidden rounded-full border border-zinc-800/30 bg-zinc-950/40">
             <div
                 className="absolute inset-0 opacity-35 mix-blend-color-dodge animate-[spin_80s_linear_infinite]"
                 style={{
@@ -114,7 +114,7 @@ export default function GameDialog({
                             )}
 
                             {/* Gradient divider — symmetric */}
-                            <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-zinc-500/40 to-transparent my-2" />
+                            <div className="h-px w-full bg-linear-to-r from-transparent via-zinc-500/40 to-transparent my-2" />
 
                             {/* sr-only description for a11y */}
                             <DialogDescription className="sr-only">

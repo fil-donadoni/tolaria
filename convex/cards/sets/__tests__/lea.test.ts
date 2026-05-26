@@ -264,7 +264,9 @@ import {
     advancePhase,
     untapStep,
     computeHardSkipFilters,
+    effectiveMaxHandSize,
     effectivePermanentView,
+    finalizeCleanupDiscard,
 } from "../../../gre/phases";
 import { tryGetCardById } from "../../index";
 import type { CardDefinition, CardType } from "../../types";
@@ -12116,6 +12118,201 @@ describe("Animate Dead (Aura — CR 303.4i graveyard-target reanimation + CR 603
 // ---------------------------------------------------------------------------
 // Replacement effects framework (gap U — CR 614)
 // ---------------------------------------------------------------------------
+
+describe("Library of Leng — no maximum hand size (CR 402.2 / 514.1)", () => {
+    function handOf(n: number, ownerId: string) {
+        return Array.from({ length: n }, (_, i) =>
+            makeInstance(grizzlyBears.id, {
+                id: `${ownerId}-hand-${i}`,
+                ownerId,
+                controllerId: ownerId,
+                zone: "hand",
+            })
+        );
+    }
+
+    it("effectiveMaxHandSize returns Infinity when the controller has Library of Leng in play", () => {
+        const leng = makeInstance(libraryOfLeng.id, {
+            id: "leng",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [leng] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(effectiveMaxHandSize(state.players[0])).toBe(Infinity);
+        // Opponent unaffected — Library of Leng is controller-scoped.
+        expect(effectiveMaxHandSize(state.players[1])).toBe(7);
+    });
+
+    it("Library of Leng on the opponent's side does not raise the controller's cap", () => {
+        const leng = makeInstance(libraryOfLeng.id, {
+            id: "leng",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [leng] }),
+            ],
+        });
+        expect(effectiveMaxHandSize(state.players[0])).toBe(7);
+        expect(effectiveMaxHandSize(state.players[1])).toBe(Infinity);
+    });
+
+    it("CLEANUP with 12 cards in hand + Library of Leng in play → no discard prompt", () => {
+        const leng = makeInstance(libraryOfLeng.id, {
+            id: "leng",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            phase: "END_STEP",
+            turn: 1,
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [leng],
+                    hand: handOf(12, "p1"),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        advancePhase(state);
+        expect(state.pendingCleanupDiscard).toBeUndefined();
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.players[0].hand.length).toBe(12);
+    });
+
+    it("Library of Leng leaves play → next cleanup enforces hand size normally", () => {
+        const leng = makeInstance(libraryOfLeng.id, {
+            id: "leng",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            phase: "END_STEP",
+            turn: 1,
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [leng],
+                    hand: handOf(9, "p1"),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // Turn 1 ends — Library of Leng still in play, no discard.
+        advancePhase(state);
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].hand.length).toBe(9);
+
+        // Library of Leng leaves. Fast-forward to p1's END_STEP for turn 2.
+        state.players[0].battlefield = [];
+        state.phase = "END_STEP";
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+
+        advancePhase(state);
+        // Now CR 514.1 kicks in: hand has 9, cap 7 → prompted to discard 2.
+        expect(state.pendingCleanupDiscard).toEqual({ playerId: "p1" });
+        expect(state.pendingChoices![0].count).toBe(2);
+    });
+
+    it("Disrupting Scepter forces a discard while Library of Leng is in play → CR 614 routes to library top", () => {
+        // Already exercised by the existing CR 614 tests below via Mind Twist;
+        // this rephrasing pins the combined "discard from outside cleanup +
+        // Leng clause 2" path doesn't regress when clause 1 is wired up.
+        const leng = makeInstance(libraryOfLeng.id, { id: "leng" });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [leng],
+                    hand: [bear],
+                    library: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "topdeck",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, mindTwist.id, "p1", [{ type: "player", id: "p1" }]);
+        state.stack[state.stack.length - 1].chosenX = 1;
+        resolveTopOfStack(state);
+        expect(state.players[0].library[0].id).toBe("bear");
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "bear"
+        );
+    });
+
+    it("cleanup-driven discard after Library of Leng leaves still honors any subsequent Library of Leng routing (CR 614 still fires)", () => {
+        // Setup: 9 cards in hand at end-of-turn, no Library of Leng yet →
+        // cleanup prompts for 2 discards. Then BEFORE committing, drop a
+        // Library of Leng in. The commit goes through applyDiscardReplacements
+        // and routes the discards to the library top (CR 614 still fires).
+        const lengId = "leng-after";
+        const state = makeState({
+            phase: "END_STEP",
+            turn: 1,
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: handOf(9, "p1"),
+                    library: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "topdeck",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        advancePhase(state);
+        expect(state.pendingChoices![0].count).toBe(2);
+
+        // Library of Leng drops in mid-CLEANUP. Clause 1 ("no maximum hand
+        // size") doesn't retroact on the already-enqueued prompt — the count
+        // is fixed at enqueue time — but clause 2 (CR 614 routing) still
+        // fires on each discard event.
+        state.players[0].battlefield.push(
+            makeInstance(libraryOfLeng.id, {
+                id: lengId,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+
+        const picks = [
+            state.players[0].hand[0].id,
+            state.players[0].hand[1].id,
+        ];
+        finalizeCleanupDiscard(state, picks);
+
+        // Both picks routed to library top (CR 614), not graveyard.
+        expect(state.players[0].graveyard.length).toBe(0);
+        expect(
+            state.players[0].library
+                .slice(0, 2)
+                .map((c) => c.id)
+                .sort()
+        ).toEqual(picks.sort());
+        expect(state.players[0].hand.length).toBe(7);
+        expect(state.pendingCleanupDiscard).toBeUndefined();
+    });
+});
 
 describe("Library of Leng (CR 614 discard → library top)", () => {
     it("opt-out via state.playerPreferences routes the discard to the graveyard normally", () => {

@@ -1,11 +1,12 @@
-import { Keyboard } from "lucide-react";
+import { CornerDownLeft, Keyboard, Space } from "lucide-react";
+import type { ReactNode } from "react";
 import {
     Popover,
     PopoverContent,
     PopoverTrigger,
 } from "~/components/ui/popover";
 
-type HotkeyRow = { keys: string[]; label: string };
+type HotkeyRow = { keys: (string | ReactNode)[]; label: string };
 
 const isMac =
     typeof navigator !== "undefined" &&
@@ -13,8 +14,14 @@ const isMac =
 const modKey = isMac ? "⌘" : "Ctrl";
 
 const HOTKEYS: HotkeyRow[] = [
-    { keys: ["Space"], label: "Pass priority / confirm" },
-    { keys: ["Enter"], label: "Pass turn" },
+    {
+        keys: [<Space className="w-3.5 h-3.5" aria-label="Space" />],
+        label: "Pass priority / confirm",
+    },
+    {
+        keys: [<CornerDownLeft className="w-3.5 h-3.5" aria-label="Enter" />],
+        label: "Pass turn",
+    },
     { keys: ["U"], label: "Undo / cancel cast" },
     { keys: [modKey, "click"], label: "Keep priority after casting" },
     { keys: ["Esc"], label: "Concede" },
@@ -45,7 +52,7 @@ export default function HotkeysLegend() {
                                                 +
                                             </span>
                                         )}
-                                        <kbd className="px-1.5 py-0.5 rounded bg-white/10 border border-white/20 text-[10px] font-mono text-white/90">
+                                        <kbd className="inline-flex items-center px-1.5 py-0.5 rounded bg-white/10 border border-white/20 text-[10px] font-mono text-white/90">
                                             {k}
                                         </kbd>
                                     </span>

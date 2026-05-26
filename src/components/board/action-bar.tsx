@@ -231,7 +231,6 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 onClick={handlePass}
                 label="Pass"
                 tone="primary"
-                shortcut="space"
             />
         );
         buttons.push(
@@ -240,7 +239,6 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 onClick={handleEndTurn}
                 label="Pass Turn"
                 tone="destructive"
-                shortcut="enter"
             />
         );
     } else if (waitingOnOpponent) {

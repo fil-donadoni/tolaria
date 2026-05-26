@@ -5995,6 +5995,12 @@ export const libraryOfLeng: CardDefinition = {
         "You have no maximum hand size.\nIf an effect causes you to discard a card, discard it, but you may put it on top of your library instead of into your graveyard.",
     manaCost: { X: 1 },
     types: ["Artifact"],
+    staticEffects: [
+        {
+            kind: "hand-size-override",
+            value: "unlimited",
+        },
+    ],
     replacementEffects: [
         {
             id: "leng-discard",

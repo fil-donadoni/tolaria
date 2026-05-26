@@ -856,14 +856,54 @@ function performPhaseEntry(state: GameState): void {
 }
 
 /** Returns the effective maximum hand size for a player (CR 402.2). The
- *  default is `MAX_HAND_SIZE` (7); `maxHandSizeOverride` can raise, lower,
- *  or remove the cap entirely. */
+ *  default is `MAX_HAND_SIZE` (7); the value is mutated by two channels:
+ *
+ *  - `player.maxHandSizeOverride` — player-scoped override (Vanguard-style
+ *    effects that don't live on a battlefield permanent).
+ *  - Any `StaticHandSizeOverride` (`kind: "hand-size-override"`) on a
+ *    permanent the player controls — Library of Leng / Reliquary Tower
+ *    grants "unlimited" while in play, Spellbook-style cards set a numeric
+ *    value.
+ *
+ *  Merge semantics: `"unlimited"` always wins. Among numeric overrides the
+ *  largest is taken (most permissive). Absent any override, the default
+ *  cap applies. No state mutation — the cap is recomputed on every CLEANUP
+ *  entry, so multiple copies / mid-turn enter-and-leave events need no
+ *  bookkeeping. */
 export function effectiveMaxHandSize(player: PlayerState): number {
-    if (player.maxHandSizeOverride === "unlimited") return Infinity;
-    if (typeof player.maxHandSizeOverride === "number") {
-        return player.maxHandSizeOverride;
+    let bestNumeric: number | null = null;
+    let unlimited = false;
+
+    const consider = (v: number | "unlimited" | undefined): boolean => {
+        if (v === undefined) return false;
+        if (v === "unlimited") {
+            unlimited = true;
+            return true;
+        }
+        if (bestNumeric === null || v > bestNumeric) bestNumeric = v;
+        return false;
+    };
+
+    if (consider(player.maxHandSizeOverride)) {
+        return Infinity;
     }
-    return MAX_HAND_SIZE;
+
+    for (const card of player.battlefield) {
+        const cardId = (card.card as { id?: string }).id;
+        if (!cardId) continue;
+        const def = tryGetCardById(cardId);
+        for (const effect of def?.staticEffects ?? []) {
+            if (
+                effect.kind === "hand-size-override" &&
+                consider(effect.value)
+            ) {
+                return Infinity;
+            }
+        }
+    }
+
+    if (unlimited) return Infinity;
+    return bestNumeric ?? MAX_HAND_SIZE;
 }
 
 /** CR 514.1 — at CLEANUP, if the active player has more cards in hand than
