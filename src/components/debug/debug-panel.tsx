@@ -1008,6 +1008,38 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "Fastbond — multiple land drops + self-damage (W16)",
+        cards: [
+            { name: "Fastbond", owner: "me" as const },
+            {
+                name: "Forest",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 4,
+            },
+            { name: "Forest", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Forest", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Disintegrate — exile-on-death + regen blocked (W16)",
+        cards: [
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Drudge Skeletons", owner: "opp" as const },
+            {
+                name: "Disintegrate",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 5 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

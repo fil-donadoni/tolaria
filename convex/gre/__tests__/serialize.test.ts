@@ -160,6 +160,7 @@ describe("game_state serialize round-trip", () => {
         lion.controlChanges = [
             { auraId: "aura-1", previousControllerId: "p1" },
         ];
+        lion.exileOnDeath = true;
 
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
@@ -189,6 +190,7 @@ describe("game_state serialize round-trip", () => {
         expect(got.controlChanges).toEqual([
             { auraId: "aura-1", previousControllerId: "p1" },
         ]);
+        expect(got.exileOnDeath).toBe(true);
     });
 
     it("compact form is materially smaller than raw JSON", () => {

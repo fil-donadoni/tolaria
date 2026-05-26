@@ -637,6 +637,11 @@ export interface SpellContext {
     /** Prevents all combat damage for the remainder of this turn (CR 615,
      *  Fog). Cleared at CLEANUP. Non-combat damage is unaffected. */
     preventAllCombatDamage: () => void;
+    /** Marks a creature so that if it would die this turn, it is exiled
+     *  instead (CR 614.1a — Disintegrate). Also suppresses regeneration.
+     *  Cleared at CLEANUP. No-op if target is not a creature on the
+     *  battlefield. */
+    setExileOnDeath: (target: TargetSelection) => void;
 
     // --- Mid-resolution choices (CR 608.2, 101.4) ---
 
@@ -1301,6 +1306,7 @@ export interface TriggerStateView {
             staticAbilities: ReadonlyArray<string>;
         }>;
         hand: { readonly length: number };
+        landsPlayedThisTurn?: number;
     }>;
 }
 
@@ -1639,6 +1645,10 @@ export interface CardDefinition {
      *  list. Used by Berserk ("cast only before the combat damage step") —
      *  the instant-speed check still applies, this only narrows further. */
     castPhaseRestriction?: Phase[];
+    /** Extra land drops per turn granted to the controller while this permanent
+     *  is on the battlefield (CR 305.2 — Fastbond). Added to LAND_DROPS_PER_TURN
+     *  at land-play legality check time. Use 999 for unlimited. */
+    extraLandDrops?: number;
     /** CR 702.16n — an Aura that grants the enchanted permanent protection
      *  from its own color (e.g. White Ward gives pro-white and is itself
      *  white) normally falls off via 702.16c. Cards with this flag carry

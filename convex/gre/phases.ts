@@ -861,6 +861,10 @@ function performPhaseEntry(state: GameState): void {
                     if (card.regenerationShields !== undefined) {
                         card.regenerationShields = undefined;
                     }
+                    // CR 614.1a — Disintegrate's exile-on-death flag is turn-scoped.
+                    if (card.exileOnDeath !== undefined) {
+                        card.exileOnDeath = undefined;
+                    }
                 }
             }
             // TODO: hand size check (CR 514.1).

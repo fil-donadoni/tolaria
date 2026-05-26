@@ -6408,3 +6408,60 @@ export const disruptingScepter: CardDefinition = {
         },
     ],
 };
+
+// ---------------------------------------------------------------------------
+// W16: Exile-on-death + unlimited land drops
+// ---------------------------------------------------------------------------
+
+// Disintegrate — {X}{R} Sorcery. "Disintegrate deals X damage to any target.
+// If it's a creature, it can't be regenerated this turn, and if it would die
+// this turn, exile it instead." (CR 614.1a — exile-on-death replacement)
+export const disintegrate: CardDefinition = {
+    id: "8712c49e-f171-4669-bed9-87575a37af11",
+    name: "Disintegrate",
+    oracleText:
+        "Disintegrate deals X damage to any target. If it's a creature, it can't be regenerated this turn, and if it would die this turn, exile it instead.",
+    manaCost: { X: "X", R: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "any", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (!t) return;
+        if (t.type === "permanent") {
+            ctx.setExileOnDeath(t);
+        }
+        ctx.dealDamage(t, ctx.getX());
+    },
+};
+
+// Fastbond — {G} Enchantment. "You may play any number of lands on each of
+// your turns. Whenever you play a land, if it wasn't the first land you played
+// this turn, Fastbond deals 1 damage to you." (CR 305.2 — extra land drops)
+export const fastbond: CardDefinition = {
+    id: "a575a9af-e1de-4a1d-91d8-440585377e4f",
+    name: "Fastbond",
+    oracleText:
+        "You may play any number of lands on each of your turns.\nWhenever you play a land, if it wasn't the first land you played this turn, this enchantment deals 1 damage to you.",
+    manaCost: { G: 1 },
+    types: ["Enchantment"],
+    extraLandDrops: 999,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "fastbond-land-etb",
+            oracleText:
+                "Whenever you play a land, if it wasn't the first land you played this turn, Fastbond deals 1 damage to you.",
+            scope: "yours",
+            filter: { types: "Land" },
+            condition: (_event, self, state) => {
+                if (!state) return false;
+                const player = state.players.find(
+                    (p) => p.id === self.controllerId
+                );
+                return (player?.landsPlayedThisTurn ?? 0) > 1;
+            },
+            resolve: (ctx) => {
+                ctx.dealDamage({ type: "player", id: ctx.controller }, 1);
+            },
+        }),
+    ],
+};

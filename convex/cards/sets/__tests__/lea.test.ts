@@ -211,6 +211,8 @@ import {
     orcishOriflamme,
     righteousness,
     terror,
+    disintegrate,
+    fastbond,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -14724,6 +14726,263 @@ describe("Righteousness (target blocking creature gets +7/+7, CR 509.1)", () => 
         )!;
         expect(getEffectivePower(projected, projBlocker)).toBe(9);
         expect(getEffectiveToughness(projected, projBlocker)).toBe(9);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// W16: Exile-on-death + unlimited land drops — Disintegrate, Fastbond
+// ---------------------------------------------------------------------------
+
+describe("Disintegrate ({X}{R} Sorcery — exile-on-death, CR 614.1a)", () => {
+    it("creature taking lethal damage is exiled, not sent to graveyard", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        const item = pushSpell(state, disintegrate.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        // Bear had 2 toughness, took 3 damage → lethal → exiled
+        expect(
+            state.players[1].graveyard.find((c) => c.id === "bear")
+        ).toBeUndefined();
+        expect(
+            state.players[1].exile.find((c) => c.id === "bear")
+        ).toBeDefined();
+    });
+
+    it("creature can't be regenerated (regen shield doesn't save it)", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            regenerationShields: 1,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        const item = pushSpell(state, disintegrate.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        // Regen shield should not have saved the creature
+        expect(
+            state.players[1].exile.find((c) => c.id === "bear")
+        ).toBeDefined();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")
+        ).toBeUndefined();
+    });
+
+    it("exileOnDeath cleared at CLEANUP — creatures dying next turn go to graveyard normally", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            exileOnDeath: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+            phase: "END_STEP",
+        });
+        advancePhase(state); // END_STEP → CLEANUP (clears exileOnDeath)
+        const bearAfter = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        );
+        expect(bearAfter?.exileOnDeath).toBeUndefined();
+        // Destroy after cleanup — should go to graveyard, not exile
+        regenerateOrDestroy(state, "bear");
+        expect(
+            state.players[1].graveyard.find((c) => c.id === "bear")
+        ).toBeDefined();
+        expect(
+            state.players[1].exile.find((c) => c.id === "bear")
+        ).toBeUndefined();
+    });
+
+    it("deals X damage to a player target", () => {
+        const state = makeState();
+        const item = pushSpell(state, disintegrate.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.chosenX = 5;
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(15);
+    });
+});
+
+describe("Fastbond ({G} Enchantment — unlimited land drops, CR 305.2)", () => {
+    it("player can play 2+ lands per turn with Fastbond on battlefield", () => {
+        const fb = makeInstance(fastbond.id, {
+            id: "fb",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const land1 = makeInstance(forest.id, {
+            id: "land1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const land2 = makeInstance(forest.id, {
+            id: "land2",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [fb],
+                    hand: [land1, land2],
+                    landsPlayedThisTurn: 1,
+                }),
+                makePlayer("p2"),
+            ],
+            phase: "PRECOMBAT_MAIN",
+        });
+        // With Fastbond, player should still be able to play a land
+        // even after playing 1 this turn
+        const actions = getLegalActions(state, state.players[0], land2);
+        expect(actions).toContain("play");
+    });
+
+    it("without Fastbond, player can't play more than 1 land per turn", () => {
+        const land = makeInstance(forest.id, {
+            id: "land",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [land],
+                    landsPlayedThisTurn: 1,
+                }),
+                makePlayer("p2"),
+            ],
+            phase: "PRECOMBAT_MAIN",
+        });
+        const actions = getLegalActions(state, state.players[0], land);
+        expect(actions).not.toContain("play");
+    });
+
+    it("removing Fastbond reverts to normal land-drop limit", () => {
+        const fb = makeInstance(fastbond.id, {
+            id: "fb",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const land = makeInstance(forest.id, {
+            id: "land",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [fb],
+                    hand: [land],
+                    landsPlayedThisTurn: 1,
+                }),
+                makePlayer("p2"),
+            ],
+            phase: "PRECOMBAT_MAIN",
+        });
+        // With Fastbond: can play
+        expect(getLegalActions(state, state.players[0], land)).toContain(
+            "play"
+        );
+        // Remove Fastbond from battlefield
+        removePermanentTo(state, "fb", "graveyard");
+        // Without Fastbond: cannot play (already played 1)
+        expect(getLegalActions(state, state.players[0], land)).not.toContain(
+            "play"
+        );
+    });
+
+    it("takes 1 damage for each land after the first (trigger fires)", () => {
+        const fb = makeInstance(fastbond.id, {
+            id: "fb",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [fb],
+                    landsPlayedThisTurn: 2,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // Simulate a land entering the battlefield (2nd land already played)
+        const landEvent = {
+            type: "PERMANENT_ENTERED" as const,
+            instanceId: "new-land",
+            controllerId: "p1",
+            types: ["Land" as const],
+        };
+        state.pendingEvents = [landEvent];
+        processPendingActionTriggers(state);
+        // Fastbond trigger should be on stack
+        expect(state.stack.length).toBe(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("fastbond-land-etb");
+        // Resolve the trigger — should deal 1 damage to controller
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(19);
+    });
+
+    it("does NOT trigger on the first land played this turn", () => {
+        const fb = makeInstance(fastbond.id, {
+            id: "fb",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [fb],
+                    landsPlayedThisTurn: 1,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const landEvent = {
+            type: "PERMANENT_ENTERED" as const,
+            instanceId: "first-land",
+            controllerId: "p1",
+            types: ["Land" as const],
+        };
+        state.pendingEvents = [landEvent];
+        processPendingActionTriggers(state);
+        // No trigger should fire for the first land
+        expect(state.stack.length).toBe(0);
     });
 });
 

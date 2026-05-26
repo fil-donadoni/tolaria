@@ -22,6 +22,19 @@ export {
     parseProtectionFromColor,
 } from "./protection";
 
+/** Reads extra land drops granted by permanents on the player's battlefield
+ *  (CR 305.2 — Fastbond). Scans card definitions for `extraLandDrops`. */
+function getExtraLandDrops(player: PlayerState): number {
+    let extra = 0;
+    for (const card of player.battlefield) {
+        const cardId = (card.card as { id?: string }).id;
+        if (!cardId) continue;
+        const def = tryGetCardById(cardId);
+        if (def?.extraLandDrops) extra += def.extraLandDrops;
+    }
+    return extra;
+}
+
 const ALL_HAND_ACTIONS: CardAction[] = [
     "play",
     "cast",
@@ -67,7 +80,9 @@ export function getLegalActions(
     // and the player must not have already used their per-turn land drops (CR 305.2).
     if (types.includes("Land")) {
         const landsPlayed = player.landsPlayedThisTurn ?? 0;
-        if (isSorceryTiming(state) && landsPlayed < LAND_DROPS_PER_TURN) {
+        const extraDrops = getExtraLandDrops(player);
+        const maxDrops = LAND_DROPS_PER_TURN + extraDrops;
+        if (isSorceryTiming(state) && landsPlayed < maxDrops) {
             actions.push("play");
         }
     }
