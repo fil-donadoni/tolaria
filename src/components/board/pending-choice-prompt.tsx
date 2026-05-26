@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -41,6 +42,7 @@ export default function PendingChoicePrompt({
     const { allPlayers } = useGameContext();
     const { offset, dragHandlers } = useDraggable();
     const submitMayPay = useMutation(api.game.submitMayPay);
+    const [isBusy, setIsBusy] = useState(false);
     const bufferCtx = usePendingChoiceBuffer();
     const isChooser = choice.playerId === playerId;
     const min = getCountMin(choice.count);
@@ -105,15 +107,21 @@ export default function PendingChoicePrompt({
                             <div className="flex gap-2 mt-1">
                                 <button
                                     type="button"
-                                    disabled={!canPay}
+                                    disabled={isBusy || !canPay}
                                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                    onClick={() =>
-                                        submitMayPay({
-                                            gameId,
-                                            playerId,
-                                            accept: true,
-                                        })
-                                    }
+                                    onClick={async () => {
+                                        if (isBusy) return;
+                                        setIsBusy(true);
+                                        try {
+                                            await submitMayPay({
+                                                gameId,
+                                                playerId,
+                                                accept: true,
+                                            });
+                                        } finally {
+                                            setIsBusy(false);
+                                        }
+                                    }}
                                 >
                                     {choice.cost ? (
                                         <>
@@ -128,14 +136,21 @@ export default function PendingChoicePrompt({
                                 </button>
                                 <button
                                     type="button"
-                                    className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-zinc-800/40 border border-zinc-600/45 text-zinc-300 hover:bg-zinc-700/40 transition-colors cursor-pointer"
-                                    onClick={() =>
-                                        submitMayPay({
-                                            gameId,
-                                            playerId,
-                                            accept: false,
-                                        })
-                                    }
+                                    disabled={isBusy}
+                                    className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-zinc-800/40 border border-zinc-600/45 text-zinc-300 hover:bg-zinc-700/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                                    onClick={async () => {
+                                        if (isBusy) return;
+                                        setIsBusy(true);
+                                        try {
+                                            await submitMayPay({
+                                                gameId,
+                                                playerId,
+                                                accept: false,
+                                            });
+                                        } finally {
+                                            setIsBusy(false);
+                                        }
+                                    }}
                                 >
                                     {choice.cost ? "Skip" : "No"}
                                 </button>

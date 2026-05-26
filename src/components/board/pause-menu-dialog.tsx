@@ -20,6 +20,7 @@ export default function PauseMenuDialog({
     playerId,
 }: PauseMenuDialogProps) {
     const [step, setStep] = useState<Step>("menu");
+    const [isBusy, setIsBusy] = useState(false);
     const concede = useMutation(api.game.concede);
 
     const handleOpenChange = (nextOpen: boolean) => {
@@ -28,8 +29,14 @@ export default function PauseMenuDialog({
     };
 
     const handleConcede = async () => {
-        await concede({ gameId, playerId });
-        handleOpenChange(false);
+        if (isBusy) return;
+        setIsBusy(true);
+        try {
+            await concede({ gameId, playerId });
+            handleOpenChange(false);
+        } finally {
+            setIsBusy(false);
+        }
     };
 
     if (step === "confirm-concede") {
@@ -52,7 +59,8 @@ export default function PauseMenuDialog({
                     <button
                         type="button"
                         onClick={handleConcede}
-                        className="flex-1 py-2 rounded-sm bg-[#5c1e1e]/45 border border-[#a04040]/45 text-[#d48080] font-beleren tracking-wide hover:bg-[#5c1e1e]/65 transition-colors cursor-pointer"
+                        disabled={isBusy}
+                        className="flex-1 py-2 rounded-sm bg-[#5c1e1e]/45 border border-[#a04040]/45 text-[#d48080] font-beleren tracking-wide hover:bg-[#5c1e1e]/65 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                     >
                         Yes
                     </button>

@@ -31,6 +31,7 @@ function Lobby() {
         getStoredDeckPresetId()
     );
     const [deleteTarget, setDeleteTarget] = useState<LobbyDeck | null>(null);
+    const [isBusy, setIsBusy] = useState(false);
     const userDecks = useUserDecks();
     const { remove: removeUserDeck } = useUserDeckMutations();
 
@@ -75,33 +76,48 @@ function Lobby() {
     }, [presetDecks, userDecks, storedPresetId, selectedDeck]);
 
     const handleCreate = async () => {
-        if (!selectedDeck || !user) return;
-        const id = await createGame({
-            name: `${user.nickname}'s game`,
-            deck: deckPayload(selectedDeck),
-        });
-        storeSession(id, user._id);
-        void navigate({ to: "/game" });
+        if (isBusy || !selectedDeck || !user) return;
+        setIsBusy(true);
+        try {
+            const id = await createGame({
+                name: `${user.nickname}'s game`,
+                deck: deckPayload(selectedDeck),
+            });
+            storeSession(id, user._id);
+            void navigate({ to: "/game" });
+        } finally {
+            setIsBusy(false);
+        }
     };
 
     const handleCreateSolo = async () => {
-        if (!selectedDeck || !user) return;
-        const id = await createSoloGame({
-            name: `${user.nickname}'s solo game`,
-            deck: deckPayload(selectedDeck),
-        });
-        storeSession(id, `${user._id}-p1`);
-        void navigate({ to: "/game" });
+        if (isBusy || !selectedDeck || !user) return;
+        setIsBusy(true);
+        try {
+            const id = await createSoloGame({
+                name: `${user.nickname}'s solo game`,
+                deck: deckPayload(selectedDeck),
+            });
+            storeSession(id, `${user._id}-p1`);
+            void navigate({ to: "/game" });
+        } finally {
+            setIsBusy(false);
+        }
     };
 
     const handleJoin = async (targetGameId: Id<"games">) => {
-        if (!selectedDeck || !user) return;
-        await joinGame({
-            gameId: targetGameId,
-            deck: deckPayload(selectedDeck),
-        });
-        storeSession(targetGameId, user._id);
-        void navigate({ to: "/game" });
+        if (isBusy || !selectedDeck || !user) return;
+        setIsBusy(true);
+        try {
+            await joinGame({
+                gameId: targetGameId,
+                deck: deckPayload(selectedDeck),
+            });
+            storeSession(targetGameId, user._id);
+            void navigate({ to: "/game" });
+        } finally {
+            setIsBusy(false);
+        }
     };
 
     const handleFocusDeck = (presetId: string) => {
@@ -198,6 +214,7 @@ function Lobby() {
                     onCreateMultiplayer={handleCreate}
                     onJoin={handleJoin}
                     onChangeDeck={handleChangeDeck}
+                    busy={isBusy}
                 />
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

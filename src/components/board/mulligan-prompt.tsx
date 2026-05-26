@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -24,6 +25,7 @@ export default function MulliganPrompt({
 }) {
     const { offset, dragHandlers } = useDraggable();
     const declareMulligan = useMutation(api.game.declareMulligan);
+    const [isBusy, setIsBusy] = useState(false);
 
     const declaringPlayer = allPlayers.find(
         (p) => p.id === mulligan.declaringPlayerId
@@ -33,10 +35,32 @@ export default function MulliganPrompt({
     const viewerMulls = viewerIdx >= 0 ? mulligan.mulligansTaken[viewerIdx] : 0;
     const nextHandSize = STARTING_HAND_SIZE - viewerMulls - 1;
 
-    const onKeep = () =>
-        declareMulligan({ gameId, playerId: viewerId, decision: "keep" });
-    const onMull = () =>
-        declareMulligan({ gameId, playerId: viewerId, decision: "mull" });
+    const onKeep = async () => {
+        if (isBusy) return;
+        setIsBusy(true);
+        try {
+            await declareMulligan({
+                gameId,
+                playerId: viewerId,
+                decision: "keep",
+            });
+        } finally {
+            setIsBusy(false);
+        }
+    };
+    const onMull = async () => {
+        if (isBusy) return;
+        setIsBusy(true);
+        try {
+            await declareMulligan({
+                gameId,
+                playerId: viewerId,
+                decision: "mull",
+            });
+        } finally {
+            setIsBusy(false);
+        }
+    };
 
     return (
         <div
@@ -71,14 +95,15 @@ export default function MulliganPrompt({
                         <button
                             type="button"
                             onClick={onKeep}
-                            className="px-4 py-2 rounded-sm bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] text-sm font-beleren tracking-wide hover:bg-[#7a5a2e]/50 transition-colors cursor-pointer"
+                            disabled={isBusy}
+                            className="px-4 py-2 rounded-sm bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] text-sm font-beleren tracking-wide hover:bg-[#7a5a2e]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                         >
                             Keep
                         </button>
                         <button
                             type="button"
                             onClick={onMull}
-                            disabled={nextHandSize < 0}
+                            disabled={isBusy || nextHandSize < 0}
                             className="px-4 py-2 rounded-sm bg-[#5c1e1e]/45 border border-[#a04040]/45 text-[#d48080] text-sm font-beleren tracking-wide hover:bg-[#5c1e1e]/65 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                         >
                             {nextHandSize >= 0

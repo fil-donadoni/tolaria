@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -83,6 +84,7 @@ export default function TargetSelectionBanner({
 }) {
     const cancelTarget = useMutation(api.game.cancelTarget);
     const confirmTargets = useMutation(api.game.confirmTargets);
+    const [isBusy, setIsBusy] = useState(false);
     const { offset, dragHandlers } = useDraggable();
 
     const cardInHand = me?.hand.find(
@@ -128,16 +130,33 @@ export default function TargetSelectionBanner({
                 </div>
                 {showDone && (
                     <button
-                        disabled={!minReached}
-                        onClick={() => confirmTargets({ gameId, playerId })}
+                        disabled={isBusy || !minReached}
+                        onClick={async () => {
+                            if (isBusy) return;
+                            setIsBusy(true);
+                            try {
+                                await confirmTargets({ gameId, playerId });
+                            } finally {
+                                setIsBusy(false);
+                            }
+                        }}
                         className="px-3 py-1 rounded-sm text-xs font-beleren tracking-wide bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                     >
                         Done
                     </button>
                 )}
                 <button
-                    onClick={() => cancelTarget({ gameId, playerId })}
-                    className="px-3 py-1 rounded-sm text-xs font-beleren tracking-wide bg-[#5c1e1e]/45 border border-[#a04040]/45 text-[#d48080] hover:bg-[#5c1e1e]/65 transition-colors cursor-pointer"
+                    disabled={isBusy}
+                    onClick={async () => {
+                        if (isBusy) return;
+                        setIsBusy(true);
+                        try {
+                            await cancelTarget({ gameId, playerId });
+                        } finally {
+                            setIsBusy(false);
+                        }
+                    }}
+                    className="px-3 py-1 rounded-sm text-xs font-beleren tracking-wide bg-[#5c1e1e]/45 border border-[#a04040]/45 text-[#d48080] hover:bg-[#5c1e1e]/65 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
                     Cancel
                 </button>

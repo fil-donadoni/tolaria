@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
@@ -60,6 +60,8 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
     const hasPriority = computeHasPriority(priorityCtx);
     const isAutoPass = autoPassPlayers?.includes(playerId) ?? false;
 
+    const [isBusy, setIsBusy] = useState(false);
+
     const selectedAttackerIds = combat?.attackerIds ?? [];
     const blockerCount = Object.keys(combat?.blockerAssignments ?? {}).length;
 
@@ -102,20 +104,39 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         activePlayerId,
     ]);
 
-    const handlePass = useCallback(() => {
-        if (hasPriority && !isAutoPass) passPriority({ gameId, playerId });
-    }, [hasPriority, isAutoPass, passPriority, gameId, playerId]);
+    const handlePass = useCallback(async () => {
+        if (isBusy || !hasPriority || isAutoPass) return;
+        setIsBusy(true);
+        try {
+            await passPriority({ gameId, playerId });
+        } finally {
+            setIsBusy(false);
+        }
+    }, [isBusy, hasPriority, isAutoPass, passPriority, gameId, playerId]);
 
-    const handleEndTurn = useCallback(() => {
-        if (hasPriority && !isAutoPass) endTurn({ gameId, playerId });
-    }, [hasPriority, isAutoPass, endTurn, gameId, playerId]);
+    const handleEndTurn = useCallback(async () => {
+        if (isBusy || !hasPriority || isAutoPass) return;
+        setIsBusy(true);
+        try {
+            await endTurn({ gameId, playerId });
+        } finally {
+            setIsBusy(false);
+        }
+    }, [isBusy, hasPriority, isAutoPass, endTurn, gameId, playerId]);
 
-    const handleCancelAutoPass = useCallback(() => {
-        if (isAutoPass) cancelAutoPass({ gameId, playerId });
-    }, [isAutoPass, cancelAutoPass, gameId, playerId]);
+    const handleCancelAutoPass = useCallback(async () => {
+        if (isBusy || !isAutoPass) return;
+        setIsBusy(true);
+        try {
+            await cancelAutoPass({ gameId, playerId });
+        } finally {
+            setIsBusy(false);
+        }
+    }, [isBusy, isAutoPass, cancelAutoPass, gameId, playerId]);
 
     useEffect(() => {
         function onKeyDown(e: KeyboardEvent) {
+            if (isBusy) return;
             if (e.key === "u" && !e.metaKey && !e.ctrlKey && !e.altKey) {
                 if (isPayingCast) {
                     e.preventDefault();
@@ -148,6 +169,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
     }, [
+        isBusy,
         handlePass,
         handleEndTurn,
         handleCancelAutoPass,
@@ -170,27 +192,53 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         buttons.push(
             <ActionButton
                 key="cancel-cast"
-                onClick={() => cancelCast({ gameId, playerId })}
+                onClick={async () => {
+                    if (isBusy) return;
+                    setIsBusy(true);
+                    try {
+                        await cancelCast({ gameId, playerId });
+                    } finally {
+                        setIsBusy(false);
+                    }
+                }}
                 label="Cancel Cast"
                 tone="destructive"
                 shortcut="U"
+                disabled={isBusy}
             />
         );
     } else if (isPayingActivation) {
         buttons.push(
             <ActionButton
                 key="cancel-activation"
-                onClick={() => cancelActivation({ gameId, playerId })}
+                onClick={async () => {
+                    if (isBusy) return;
+                    setIsBusy(true);
+                    try {
+                        await cancelActivation({ gameId, playerId });
+                    } finally {
+                        setIsBusy(false);
+                    }
+                }}
                 label="Cancel Ability"
                 tone="destructive"
                 shortcut="U"
+                disabled={isBusy}
             />
         );
     } else if (isSelectingAttackers) {
         buttons.push(
             <ActionButton
                 key="confirm-attackers"
-                onClick={() => confirmAttackers({ gameId, playerId })}
+                onClick={async () => {
+                    if (isBusy) return;
+                    setIsBusy(true);
+                    try {
+                        await confirmAttackers({ gameId, playerId });
+                    } finally {
+                        setIsBusy(false);
+                    }
+                }}
                 label={
                     selectedAttackerIds.length > 0
                         ? `Confirm Attackers (${selectedAttackerIds.length})`
@@ -198,13 +246,22 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 }
                 tone="primary"
                 shortcut="space"
+                disabled={isBusy}
             />
         );
     } else if (isSelectingBlockers) {
         buttons.push(
             <ActionButton
                 key="confirm-blockers"
-                onClick={() => confirmBlockers({ gameId, playerId })}
+                onClick={async () => {
+                    if (isBusy) return;
+                    setIsBusy(true);
+                    try {
+                        await confirmBlockers({ gameId, playerId });
+                    } finally {
+                        setIsBusy(false);
+                    }
+                }}
                 label={
                     blockerCount > 0
                         ? `Confirm Blockers (${blockerCount})`
@@ -212,16 +269,25 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 }
                 tone="primary"
                 shortcut="space"
+                disabled={isBusy}
             />
         );
     } else if (isAssigningDamage) {
         buttons.push(
             <ActionButton
                 key="confirm-damage"
-                onClick={() => confirmDamage({ gameId, playerId })}
+                onClick={async () => {
+                    if (isBusy) return;
+                    setIsBusy(true);
+                    try {
+                        await confirmDamage({ gameId, playerId });
+                    } finally {
+                        setIsBusy(false);
+                    }
+                }}
                 label="Confirm Damage"
                 tone="primary"
-                disabled={!allDamageAssigned}
+                disabled={isBusy || !allDamageAssigned}
             />
         );
     } else if (hasPriority) {
@@ -231,6 +297,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 onClick={handlePass}
                 label="Pass"
                 tone="primary"
+                disabled={isBusy}
             />
         );
         buttons.push(
@@ -239,6 +306,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 onClick={handleEndTurn}
                 label="Pass Turn"
                 tone="destructive"
+                disabled={isBusy}
             />
         );
     } else if (waitingOnOpponent) {
@@ -257,6 +325,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
             <button
                 key="auto-pass"
                 onClick={handleCancelAutoPass}
+                disabled={isBusy}
                 className="bg-zinc-800/40 hover:bg-zinc-700/40 border border-zinc-600/45 text-zinc-300 px-5 py-2 rounded-sm text-sm font-beleren tracking-wide transition-colors shadow-md cursor-pointer"
             >
                 Auto-passing... (cancel)

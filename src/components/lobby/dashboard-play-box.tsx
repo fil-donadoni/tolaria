@@ -12,6 +12,7 @@ interface DashboardPlayBoxProps {
     onCreateMultiplayer: () => void;
     onJoin: (gameId: Id<"games">) => void;
     onChangeDeck: () => void;
+    busy?: boolean;
 }
 
 export default function DashboardPlayBox({
@@ -21,8 +22,9 @@ export default function DashboardPlayBox({
     onCreateMultiplayer,
     onJoin,
     onChangeDeck,
+    busy = false,
 }: DashboardPlayBoxProps) {
-    const canPlay = !!selectedDeck;
+    const canPlay = !!selectedDeck && !busy;
 
     return (
         <Panel tone="accent">
