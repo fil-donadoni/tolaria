@@ -1160,8 +1160,7 @@ function finalizeSpellResolution(
         }
         controller.battlefield.push(item);
         // CR 122.1, 614.1c — apply ETB-counters before the layer system runs
-        // so effective P/T reads include them immediately (Rock Hydra,
-        // Clockwork Beast).
+        // so effective P/T reads include them immediately (Clockwork Beast).
         const etbCounters = cardDef?.entersWith?.counters;
         if (etbCounters && etbCounters.length > 0) {
             const counters: Record<string, number> = {

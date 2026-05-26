@@ -1565,8 +1565,8 @@ export interface CardDefinition {
     entersTapped?: boolean;
     /** Counters placed on the permanent when it enters the battlefield
      *  (CR 122.1, 614.1c). Each entry is a counter type and a count, where
-     *  `count: "X"` reads the value chosen for X at cast time (CR 107.3) —
-     *  used by Rock Hydra ("enters with X +1/+1 counters"). Applied by
+     *  `count: "X"` reads the value chosen for X at cast time (CR 107.3).
+     *  Applied by
      *  `finalizeSpellResolution` after the permanent is on the battlefield. */
     entersWith?: { counters?: { type: string; count: number | "X" }[] };
     staticAbilities?: string[];
