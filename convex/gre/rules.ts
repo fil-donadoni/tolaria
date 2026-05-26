@@ -439,6 +439,18 @@ export function getLegalTargets(
                 // CR 701.20: tap-state filter for "target tapped/untapped ~".
                 if (tappedFilter === "tapped" && !card.isTapped) continue;
                 if (tappedFilter === "untapped" && card.isTapped) continue;
+                // CR 508.1 / 509.1: combat-role filter for "target attacking
+                // creature" or "target blocking creature".
+                if (
+                    requirement.combatRoleFilter === "attacking" &&
+                    !card.isAttacking
+                )
+                    continue;
+                if (
+                    requirement.combatRoleFilter === "blocking" &&
+                    !card.isBlocking
+                )
+                    continue;
                 // CR 613 layer 7c: power filter reads effective power so
                 // current buffs/debuffs are honored at target selection.
                 if (powerFilter) {

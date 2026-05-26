@@ -857,13 +857,23 @@ export const reverseDamage: CardDefinition = {
     },
 };
 
-// export const righteousness: CardDefinition = {
-//     id: "d0ba7b76-f3d0-47d0-8a35-0c08e67200fb",
-//     name: "Righteousness",
-//     oracleText: "Target blocking creature gets +7/+7 until end of turn.",
-//     manaCost: { W: 1 },
-//     types: ["Instant"],
-// };
+export const righteousness: CardDefinition = {
+    id: "d0ba7b76-f3d0-47d0-8a35-0c08e67200fb",
+    name: "Righteousness",
+    oracleText: "Target blocking creature gets +7/+7 until end of turn.",
+    manaCost: { W: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: "Creature",
+        count: 1,
+        combatRoleFilter: "blocking",
+    },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (!target) return;
+        ctx.addTemporaryPTBuff(target, 7, 7, { phase: "end-of-turn" });
+    },
+};
 
 // Samite Healer — "{T}: Prevent the next 1 damage that would be dealt to
 // any target this turn." (CR 615.1, 120.3 "any target" = creature/player).
@@ -3838,13 +3848,24 @@ export const orcishArtillery: CardDefinition = {
     ],
 };
 
-// export const orcishOriflamme: CardDefinition = {
-//     id: "911538ea-322c-4c40-a9c3-35e47fe60fce",
-//     name: "Orcish Oriflamme",
-//     oracleText: "Attacking creatures you control get +1/+0.",
-//     manaCost: { X: 3, R: 1 },
-//     types: ["Enchantment"],
-// };
+export const orcishOriflamme: CardDefinition = {
+    id: "911538ea-322c-4c40-a9c3-35e47fe60fce",
+    name: "Orcish Oriflamme",
+    oracleText: "Attacking creatures you control get +1/+0.",
+    manaCost: { X: 3, R: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, source, ctx) =>
+                ctx.isCreature(target) &&
+                !!target.isAttacking &&
+                target.controllerId === source.controllerId,
+            power: 1,
+            toughness: 0,
+        },
+    ],
+};
 
 // Power Surge — "At the beginning of each player's upkeep, Power Surge
 // deals damage to that player equal to the number of untapped lands they

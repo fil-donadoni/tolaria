@@ -961,6 +961,19 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "Orcish Oriflamme — attacking creatures you control get +1/+0 (CR 508.1)",
+        cards: [
+            { name: "Orcish Oriflamme", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Savannah Lions", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
