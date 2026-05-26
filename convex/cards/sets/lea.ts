@@ -1289,14 +1289,6 @@ export const creatureBond: CardDefinition = {
     ],
 };
 
-// export const drainPower: CardDefinition = {
-//     id: "ea3830c5-cc66-453e-9e53-0636e00ee0ee",
-//     name: "Drain Power",
-//     oracleText: "Target player activates a mana ability of each land they control. Then that player loses all unspent mana and you add the mana lost this way.",
-//     manaCost: { U: 2 },
-//     types: ["Sorcery"],
-// };
-
 // Feedback — "Enchant enchantment. At the beginning of the upkeep of enchanted
 // enchantment's controller, Feedback deals 1 damage to that player." (CR 303.4
 // aura attachment to a non-creature host, 603.6a phase trigger). Trigger fires
@@ -1464,14 +1456,6 @@ export const mahamotiDjinn: CardDefinition = {
     toughness: 6,
     staticAbilities: ["flying"],
 };
-
-// export const manaShort: CardDefinition = {
-//     id: "73e3e0b3-5284-464f-8c62-0f7801c966f5",
-//     name: "Mana Short",
-//     oracleText: "Tap all lands target player controls and that player loses all unspent mana.",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Instant"],
-// };
 
 export const merfolkOfThePearlTrident: CardDefinition = {
     id: "2b871039-6a66-4ac3-95e7-24759c1f2f92",
@@ -6387,14 +6371,6 @@ export const throneOfBone: CardDefinition = makeColorSphere({
     colorWord: "Black",
 });
 
-// export const timeVault: CardDefinition = {
-//     id: "902441dc-c976-4c92-b897-6376eaa0fe38",
-//     name: "Time Vault",
-//     oracleText: "This artifact enters tapped.\nThis artifact doesn't untap during your untap step.\nIf you would begin your turn while this artifact is tapped, you may skip that turn instead. If you do, untap this artifact.\n{T}: Take an extra turn after this one.",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
-
 // Winter Orb — modern Oracle (Scryfall, ADR 0004): "Players can't untap
 // more than one land during their untap steps." (CR 502.1). Encoded as a
 // data-driven `untapRestriction` (ADR 0002 / 0005): the engine dispatcher
@@ -6670,4 +6646,76 @@ export const fastbond: CardDefinition = {
             },
         }),
     ],
+};
+
+// Time Vault — {2} Artifact. Enters tapped. Doesn't untap during your untap
+// step. "Skip your next turn: Untap Time Vault." "{T}: Take an extra turn
+// after this one." (CR 614.10, 500.7)
+export const timeVault: CardDefinition = {
+    id: "c01a4081-dbb0-4a40-a27b-26e9a1b48803",
+    name: "Time Vault",
+    oracleText:
+        "Time Vault enters tapped.\nTime Vault doesn't untap during your untap step.\nSkip your next turn: Untap Time Vault.\n{T}: Take an extra turn after this one.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    entersTapped: true,
+    staticAbilities: ["does-not-untap"],
+    activatedAbilities: [
+        {
+            id: "time-vault-untap",
+            oracleText: "Skip your next turn: Untap Time Vault.",
+            cost: {},
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.setSkipNextTurn(ctx.controller);
+                ctx.untap({ type: "permanent", id: ctx.sourceInstanceId });
+            },
+        },
+        {
+            id: "time-vault-extra-turn",
+            oracleText: "{T}: Take an extra turn after this one.",
+            cost: { tap: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.takeExtraTurn(ctx.controller);
+            },
+        },
+    ],
+};
+
+// Mana Short — {2}{U} Instant. "Tap all lands target player controls. That
+// player loses all unspent mana." (CR 106.4)
+export const manaShort: CardDefinition = {
+    id: "a0486cfc-b33f-4e20-a28e-c2a7e92e3a17",
+    name: "Mana Short",
+    oracleText:
+        "Tap all lands target player controls. That player loses all unspent mana.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "player", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const targetPlayerId = ctx.targets[0].id;
+        ctx.tapAllLands(targetPlayerId);
+        ctx.drainManaPool(targetPlayerId);
+    },
+};
+
+// Drain Power — {U}{U} Sorcery. "Target player activates a mana ability of
+// each land they control. Then that player loses all unspent mana and you add
+// the mana lost this way." Simplified model: tap all target's lands, drain
+// their pool, add drained mana to caster. (CR 106.4)
+export const drainPower: CardDefinition = {
+    id: "b4f0660a-40e6-4d6e-9e1b-4d26e2e7de47",
+    name: "Drain Power",
+    oracleText:
+        "Target player activates a mana ability of each land they control. Then that player loses all unspent mana and you add the mana lost this way.",
+    manaCost: { U: 2 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const targetPlayerId = ctx.targets[0].id;
+        ctx.tapAllLands(targetPlayerId);
+        const drained = ctx.drainManaPool(targetPlayerId);
+        ctx.addManaTo(ctx.controller, drained);
+    },
 };

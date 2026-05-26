@@ -1009,6 +1009,20 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Time Vault — skip-turn ↔ extra-turn cycle (CR 614.10 + 500.7)",
+        cards: [
+            { name: "Time Vault", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 3 },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Fastbond — multiple land drops + self-damage (W16)",
         cards: [
             { name: "Fastbond", owner: "me" as const },
@@ -1020,6 +1034,36 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             },
             { name: "Forest", owner: "me" as const, count: 2 },
             { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Forest", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Mana Short — tap lands + drain mana pool (CR 106.4)",
+        cards: [
+            {
+                name: "Mana Short",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 3 },
+            { name: "Forest", owner: "opp" as const, count: 4 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Drain Power — tap lands + steal mana (CR 106.4)",
+        cards: [
+            {
+                name: "Drain Power",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 3 },
+            { name: "Mountain", owner: "opp" as const, count: 3 },
             { name: "Forest", owner: "opp" as const, count: 2 },
         ],
         phase: "PRECOMBAT_MAIN",

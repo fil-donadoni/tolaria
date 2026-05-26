@@ -349,6 +349,9 @@ export type PlayerState = {
      *  Add {C}." until end of turn). Each entry is a reference to a template
      *  on another card; duration controls when CLEANUP purges it. */
     grantedAbilities?: GrantedAbilityInstance[];
+    /** When true, this player's next turn is skipped entirely (CR 614.10).
+     *  Checked and cleared by advanceTurn(). Set by Time Vault's untap ability. */
+    skipNextTurn?: boolean;
 };
 
 export type StackItem = CardInstanceState & {
@@ -2936,6 +2939,33 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         getAttachedTo(sourceInstanceId: string): string | undefined {
             const found = findOnBattlefield(state, sourceInstanceId);
             return found?.card.attachedTo;
+        },
+        // CR 701.20a: tap all lands controlled by playerId. Used by Mana Short
+        // and Drain Power.
+        tapAllLands(playerId: string): void {
+            const player = getPlayer(state, playerId);
+            for (const card of player.battlefield) {
+                if (card.types.includes("Land") && !card.isTapped) {
+                    card.isTapped = true;
+                }
+            }
+        },
+        // CR 106.4: empty a player's mana pool, returning what was drained.
+        drainManaPool(playerId: string): CardManaCost {
+            const player = getPlayer(state, playerId);
+            const drained: CardManaCost = {};
+            for (const color of Object.keys(player.manaPool)) {
+                const amount = player.manaPool[color];
+                if (amount > 0) {
+                    drained[color as keyof CardManaCost] = amount;
+                    player.manaPool[color] = 0;
+                }
+            }
+            return drained;
+        },
+        // CR 614.10: mark a player to skip their next turn (Time Vault).
+        setSkipNextTurn(playerId: string): void {
+            getPlayer(state, playerId).skipNextTurn = true;
         },
     };
 }
