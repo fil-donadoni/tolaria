@@ -217,8 +217,10 @@ import {
     resolveTopOfStack,
     emitSpellCastEvent,
     emitPermanentTapped,
+    emitPermanentEntered,
     processPendingActionTriggers,
     matchesPermanentFilter,
+    moveCard,
     type CardInstanceState,
     type GameState,
 } from "../../../gre/state";
@@ -13851,6 +13853,43 @@ describe("Ankh of Mishra (land ETB → 2 damage to land's controller)", () => {
         ];
         processPendingActionTriggers(state);
         expect(state.stack).toHaveLength(0);
+    });
+
+    it("integration: play-land flow emits PERMANENT_ENTERED and triggers Ankh (CR 603.6a)", () => {
+        const ankh = makeInstance(ankhOfMishra.id, {
+            id: "ankh",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const landInHand = makeInstance(swamp.id, {
+            id: "played-land",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ankh], life: 20 }),
+                makePlayer("p2", { hand: [landInHand], life: 20 }),
+            ],
+        });
+
+        const card = moveCard(
+            state.players[1],
+            "played-land",
+            "hand",
+            "battlefield"
+        );
+        emitPermanentEntered(state, card);
+        processPendingActionTriggers(state);
+
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "ankh-of-mishra-land-etb"
+        );
+
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(18);
     });
 });
 

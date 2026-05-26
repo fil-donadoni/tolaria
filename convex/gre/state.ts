@@ -1205,7 +1205,7 @@ function finalizeSpellResolution(
 /** Emits PERMANENT_ENTERED for a card that has just been placed on the
  *  battlefield (CR 603.6). Snapshots last-known type info so the trigger
  *  matcher can filter without a registry lookup. */
-function emitPermanentEntered(
+export function emitPermanentEntered(
     state: GameState,
     card: { id: string; controllerId: string; types: CardType[]; card: unknown }
 ): void {

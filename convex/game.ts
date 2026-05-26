@@ -34,6 +34,7 @@ import {
     isManaCostCovered,
     emitSpellCastEvent,
     emitPermanentTapped,
+    emitPermanentEntered,
     discardPermanentTappedEvent,
     processPendingActionTriggers,
     getPendingChoiceMax,
@@ -803,6 +804,11 @@ export const playCard = mutation({
         if (card.types.includes("Land")) {
             player.landsPlayedThisTurn = (player.landsPlayedThisTurn ?? 0) + 1;
         }
+
+        // CR 603.6a — emit PERMANENT_ENTERED so triggered abilities
+        // (e.g. Ankh of Mishra) see the land entering the battlefield.
+        emitPermanentEntered(state, card);
+        processPendingActionTriggers(state);
 
         const nextSeq = gameState.seq + 1;
 
