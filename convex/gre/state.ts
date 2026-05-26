@@ -272,6 +272,14 @@ export type CardInstanceState = {
      *  effect; `unapplySourceStaticEffects` removes from `types[]` once the
      *  last origin entry is gone, provided the type wasn't printed. */
     grantedTypes?: { type: string; auraId: string }[];
+    /** Temporary multi-block grant (CR 509.1a). When set, this creature can
+     *  block up to 1 + canBlockAdditional attackers. 999 = "any number".
+     *  Cleared at CLEANUP. Static multi-block (Two-Headed Giant) is read from
+     *  the CardDefinition instead. */
+    canBlockAdditional?: number;
+    /** Transient flag: this creature must block every attacker it can this
+     *  turn (Blaze of Glory). Cleared at CLEANUP. */
+    mustBlockAllThisTurn?: boolean;
 };
 
 /** A one-shot damage prevention effect (CR 615.1, 615.6). The next time the
@@ -710,8 +718,10 @@ export type GameState = {
     combat?: {
         attackerIds: string[];
         confirmed: boolean;
-        /** blockerId → attackerId mapping. */
-        blockerAssignments: Record<string, string>;
+        /** blockerId → attackerIds mapping. Each blocker maps to the array of
+         *  attackers it is blocking. Normally length 1; multi-block creatures
+         *  (Two-Headed Giant, Blaze of Glory) may have 2+. */
+        blockerAssignments: Record<string, string[]>;
         /** Blocker currently being assigned by the defending player (visible to both clients). */
         pendingBlockerId?: string;
         blockersConfirmed: boolean;
@@ -2796,6 +2806,20 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (!found) return;
             if (!found.card.types.includes("Creature")) return;
             found.card.mustAttackThisTurn = true;
+        },
+
+        setCanBlockAdditional(target: TargetSelection, value: number): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.canBlockAdditional = value;
+        },
+
+        setMustBlockAll(target: TargetSelection): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.mustBlockAllThisTurn = true;
         },
 
         // --- Mid-resolution choices (CR 608.2, 101.4) ---

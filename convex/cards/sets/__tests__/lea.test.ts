@@ -216,6 +216,9 @@ import {
     fastbond,
     nettlingImp,
     stoneGiant,
+    lure,
+    blazeOfGlory,
+    twoHeadedGiantOfForiys,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -251,6 +254,8 @@ import {
     validateBlockerEligibility,
     mustAttack,
     getRequiredAttackerIds,
+    getRequiredBlockerAssignments,
+    getMaxBlockTargets,
 } from "../../../gre/combat";
 import {
     advancePhase,
@@ -1688,7 +1693,7 @@ describe("Sengir Vampire (+1/+1 on damaged-creature death, CR 603.2)", () => {
             combat: {
                 attackerIds: ["vamp"],
                 confirmed: true,
-                blockerAssignments: { bear: "vamp" },
+                blockerAssignments: { bear: ["vamp"] },
                 blockersConfirmed: true,
             },
         });
@@ -1746,7 +1751,7 @@ describe("Sengir Vampire (+1/+1 on damaged-creature death, CR 603.2)", () => {
             combat: {
                 attackerIds: ["vamp", "other"],
                 confirmed: true,
-                blockerAssignments: { bear1: "vamp", bear2: "other" },
+                blockerAssignments: { bear1: ["vamp"], bear2: ["other"] },
                 blockersConfirmed: true,
             },
         });
@@ -1789,7 +1794,7 @@ describe("Sengir Vampire (+1/+1 on damaged-creature death, CR 603.2)", () => {
             combat: {
                 attackerIds: ["vamp"],
                 confirmed: true,
-                blockerAssignments: { bear: "vamp" },
+                blockerAssignments: { bear: ["vamp"] },
                 blockersConfirmed: true,
             },
         });
@@ -1853,7 +1858,7 @@ describe("Sengir Vampire (+1/+1 on damaged-creature death, CR 603.2)", () => {
             combat: {
                 attackerIds: ["vamp"],
                 confirmed: true,
-                blockerAssignments: { bear: "vamp" },
+                blockerAssignments: { bear: ["vamp"] },
                 blockersConfirmed: true,
             },
         });
@@ -2217,7 +2222,7 @@ describe("Elvish Archers (first strike, CR 702.7)", () => {
             combat: {
                 attackerIds: ["archer"],
                 confirmed: true,
-                blockerAssignments: { bear: "archer" },
+                blockerAssignments: { bear: ["archer"] },
                 blockersConfirmed: true,
             },
         });
@@ -2266,7 +2271,7 @@ describe("Elvish Archers (first strike, CR 702.7)", () => {
             combat: {
                 attackerIds: ["archer"],
                 confirmed: true,
-                blockerAssignments: { ogre: "archer" },
+                blockerAssignments: { ogre: ["archer"] },
                 blockersConfirmed: true,
             },
         });
@@ -2419,7 +2424,7 @@ describe("White Knight (first strike + protection from black, CR 702.7 + 702.16)
             combat: {
                 attackerIds: ["wraith"],
                 confirmed: true,
-                blockerAssignments: { wk: "wraith" },
+                blockerAssignments: { wk: ["wraith"] },
                 blockersConfirmed: true,
             },
         });
@@ -6083,7 +6088,7 @@ describe("Regeneration ({1}{G} Aura — {G}: Regenerate enchanted creature, CR 7
             combat: {
                 attackerIds: ["angel"],
                 confirmed: true,
-                blockerAssignments: { bear: "angel" },
+                blockerAssignments: { bear: ["angel"] },
                 blockersConfirmed: true,
             },
         });
@@ -12330,7 +12335,7 @@ describe("Veteran Bodyguard (CR 614 continuous damage redirect)", () => {
             combat: {
                 attackerIds: ["bear-att"],
                 confirmed: true,
-                blockerAssignments: { blk: "bear-att" },
+                blockerAssignments: { blk: ["bear-att"] },
                 blockersConfirmed: true,
             },
         });
@@ -14186,6 +14191,303 @@ describe("preventAllCombatDamageThisTurn serialization", () => {
         const compact = compactState(state);
         const expanded = expandState(compact);
         expect(expanded.preventAllCombatDamageThisTurn).toBe(true);
+    });
+});
+
+// ===========================================================================
+// W17 — Must-block requirement + multi-block
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Lure (CR 509.1c — block requirement, scope "all-able")
+// ---------------------------------------------------------------------------
+
+describe("lure — all creatures able to block enchanted creature do so (CR 509.1c)", () => {
+    function setupLure() {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear-att",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const blocker1 = makeInstance(grizzlyBears.id, {
+            id: "blk1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const blocker2 = makeInstance(savannahLions.id, {
+            id: "blk2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2", { battlefield: [blocker1, blocker2] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["bear-att"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        // Attach Lure to the attacker
+        pushSpell(state, lure.id, "p1", [
+            { type: "permanent", id: "bear-att" },
+        ]);
+        resolveTopOfStack(state);
+        return { state };
+    }
+
+    it("all eligible blockers must block the enchanted creature", () => {
+        const { state } = setupLure();
+        const required = getRequiredBlockerAssignments(
+            state.players[0].battlefield,
+            state.players[1].battlefield,
+            state.combat!.attackerIds,
+            state.combat!.blockerAssignments,
+            state
+        );
+        expect(Object.keys(required)).toContain("blk1");
+        expect(Object.keys(required)).toContain("blk2");
+        expect(required["blk1"]).toContain("bear-att");
+        expect(required["blk2"]).toContain("bear-att");
+    });
+
+    it("tapped creatures are exempt from Lure", () => {
+        const { state } = setupLure();
+        const blk1 = state.players[1].battlefield.find((c) => c.id === "blk1")!;
+        blk1.isTapped = true;
+        const required = getRequiredBlockerAssignments(
+            state.players[0].battlefield,
+            state.players[1].battlefield,
+            state.combat!.attackerIds,
+            state.combat!.blockerAssignments,
+            state
+        );
+        expect(required["blk1"]).toBeUndefined();
+        expect(required["blk2"]).toContain("bear-att");
+    });
+
+    it("creatures that can't legally block (evasion) are exempt", () => {
+        const { state } = setupLure();
+        const bear = state.players[0].battlefield.find(
+            (c) => c.id === "bear-att"
+        )!;
+        bear.staticAbilities = [...bear.staticAbilities, "flying"];
+        const required = getRequiredBlockerAssignments(
+            state.players[0].battlefield,
+            state.players[1].battlefield,
+            state.combat!.attackerIds,
+            state.combat!.blockerAssignments,
+            state
+        );
+        expect(required["blk1"]).toBeUndefined();
+        expect(required["blk2"]).toBeUndefined();
+    });
+
+    it("already-assigned blockers are not double-assigned", () => {
+        const { state } = setupLure();
+        state.combat!.blockerAssignments = { blk1: ["bear-att"] };
+        const required = getRequiredBlockerAssignments(
+            state.players[0].battlefield,
+            state.players[1].battlefield,
+            state.combat!.attackerIds,
+            state.combat!.blockerAssignments,
+            state
+        );
+        expect(required["blk1"]).toBeUndefined();
+        expect(required["blk2"]).toContain("bear-att");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Blaze of Glory (CR 509.1a — multi-block + must-block-all)
+// ---------------------------------------------------------------------------
+
+describe("blazeOfGlory — target can block all attackers (CR 509.1a)", () => {
+    it("sets canBlockAdditional and mustBlockAllThisTurn on target", () => {
+        const blocker = makeInstance(grizzlyBears.id, {
+            id: "blk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+            phase: "DECLARE_ATTACKERS",
+        });
+        pushSpell(state, blazeOfGlory.id, "p1", [
+            { type: "permanent", id: "blk" },
+        ]);
+        resolveTopOfStack(state);
+        const blk = state.players[1].battlefield.find((c) => c.id === "blk")!;
+        expect(blk.canBlockAdditional).toBe(999);
+        expect(blk.mustBlockAllThisTurn).toBe(true);
+    });
+
+    it("can only be cast during combat before blockers (timing)", () => {
+        expect(blazeOfGlory.castPhaseRestriction).toEqual([
+            "BEGINNING_OF_COMBAT",
+            "DECLARE_ATTACKERS",
+        ]);
+    });
+
+    it("mustBlockAll auto-assigns blocker to all attackers", () => {
+        const att1 = makeInstance(grizzlyBears.id, {
+            id: "att1",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const att2 = makeInstance(savannahLions.id, {
+            id: "att2",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const blocker = makeInstance(grizzlyBears.id, {
+            id: "blk",
+            controllerId: "p2",
+            canBlockAdditional: 999,
+            mustBlockAllThisTurn: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [att1, att2] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["att1", "att2"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const required = getRequiredBlockerAssignments(
+            state.players[0].battlefield,
+            state.players[1].battlefield,
+            state.combat!.attackerIds,
+            state.combat!.blockerAssignments,
+            state
+        );
+        expect(required["blk"]).toContain("att1");
+        expect(required["blk"]).toContain("att2");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Two-Headed Giant of Foriys (CR 509.1a — multi-block)
+// ---------------------------------------------------------------------------
+
+describe("twoHeadedGiantOfForiys — can block 2 attackers (CR 509.1a)", () => {
+    it("has trample", () => {
+        expect(twoHeadedGiantOfForiys.staticAbilities).toContain("trample");
+    });
+
+    it("has canBlockAdditional: 1", () => {
+        expect(twoHeadedGiantOfForiys.canBlockAdditional).toBe(1);
+    });
+
+    it("getMaxBlockTargets returns 2", () => {
+        const giant = makeInstance(twoHeadedGiantOfForiys.id, {
+            id: "giant",
+            controllerId: "p2",
+        });
+        expect(getMaxBlockTargets(giant)).toBe(2);
+    });
+
+    it("can block 2 attackers simultaneously (data model)", () => {
+        const att1 = makeInstance(grizzlyBears.id, {
+            id: "att1",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const att2 = makeInstance(savannahLions.id, {
+            id: "att2",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const giant = makeInstance(twoHeadedGiantOfForiys.id, {
+            id: "giant",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [att1, att2] }),
+                makePlayer("p2", { battlefield: [giant] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["att1", "att2"],
+                confirmed: true,
+                blockerAssignments: { giant: ["att1", "att2"] },
+                blockersConfirmed: true,
+            },
+        });
+        // Verify getBlockersPerAttacker works with multi-block
+        const combat = state.combat!;
+        expect(combat.blockerAssignments["giant"]).toEqual(["att1", "att2"]);
+    });
+
+    it("cannot block 3 attackers (only 1 additional)", () => {
+        const giant = makeInstance(twoHeadedGiantOfForiys.id, {
+            id: "giant",
+            controllerId: "p2",
+        });
+        expect(getMaxBlockTargets(giant)).toBe(2);
+    });
+
+    it("4/4 power and toughness", () => {
+        expect(twoHeadedGiantOfForiys.power).toBe(4);
+        expect(twoHeadedGiantOfForiys.toughness).toBe(4);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// canBlockAdditional + mustBlockAllThisTurn serialization
+// ---------------------------------------------------------------------------
+
+describe("canBlockAdditional / mustBlockAllThisTurn serialization", () => {
+    it("canBlockAdditional round-trips through compactCard", async () => {
+        const { compactState, expandState } =
+            await import("../../../gre/serialize");
+        const card = makeInstance(grizzlyBears.id, {
+            id: "blk",
+            controllerId: "p1",
+            canBlockAdditional: 999,
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [card] })],
+        });
+        const compact = compactState(state);
+        const expanded = expandState(compact);
+        const blk = expanded.players[0].battlefield.find(
+            (c) => c.id === "blk"
+        )!;
+        expect(blk.canBlockAdditional).toBe(999);
+    });
+
+    it("mustBlockAllThisTurn round-trips through compactCard", async () => {
+        const { compactState, expandState } =
+            await import("../../../gre/serialize");
+        const card = makeInstance(grizzlyBears.id, {
+            id: "blk",
+            controllerId: "p1",
+            mustBlockAllThisTurn: true,
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [card] })],
+        });
+        const compact = compactState(state);
+        const expanded = expandState(compact);
+        const blk = expanded.players[0].battlefield.find(
+            (c) => c.id === "blk"
+        )!;
+        expect(blk.mustBlockAllThisTurn).toBe(true);
     });
 });
 

@@ -314,7 +314,7 @@ describe("advancePhase", () => {
                 combat: {
                     attackerIds: ["bear"],
                     confirmed: true,
-                    blockerAssignments: { wall: "bear" },
+                    blockerAssignments: { wall: ["bear"] },
                     blockersConfirmed: true,
                 },
             });
@@ -351,7 +351,7 @@ describe("advancePhase", () => {
                 combat: {
                     attackerIds: ["archer"],
                     confirmed: true,
-                    blockerAssignments: { bear: "archer" },
+                    blockerAssignments: { bear: ["archer"] },
                     blockersConfirmed: true,
                 },
             });
@@ -1289,8 +1289,8 @@ describe("applyAllCombatDamage", () => {
     function makeCombatState(opts: {
         attackers: CardInstanceState[];
         blockers: CardInstanceState[];
-        /** blockerId → attackerId */
-        blockerAssignments: Record<string, string>;
+        /** blockerId → attackerIds */
+        blockerAssignments: Record<string, string[]>;
     }) {
         const p1 = makePlayer({
             id: "p1",
@@ -1333,7 +1333,7 @@ describe("applyAllCombatDamage", () => {
         const state = makeCombatState({
             attackers: [attacker],
             blockers: [blocker],
-            blockerAssignments: { blk: "att" },
+            blockerAssignments: { blk: ["att"] },
         });
 
         applyAllCombatDamage(state, { att: { blk: 4 } });
@@ -1369,7 +1369,7 @@ describe("applyAllCombatDamage", () => {
         const state = makeCombatState({
             attackers: [attacker],
             blockers: [blocker],
-            blockerAssignments: { blk: "att" },
+            blockerAssignments: { blk: ["att"] },
         });
 
         // Assign 1 to blocker (lethal), 2 to defender (p2)
@@ -1401,7 +1401,7 @@ describe("applyAllCombatDamage", () => {
         const state = makeCombatState({
             attackers: [attacker],
             blockers: [blocker],
-            blockerAssignments: { blk: "att" },
+            blockerAssignments: { blk: ["att"] },
         });
 
         // All damage to blocker, none to defender
@@ -1464,7 +1464,7 @@ describe("applyAllCombatDamage", () => {
         const state = makeCombatState({
             attackers: [attacker],
             blockers: [blocker1, blocker2],
-            blockerAssignments: { blk1: "att", blk2: "att" },
+            blockerAssignments: { blk1: ["att"], blk2: ["att"] },
         });
 
         // 1 to blk1 (lethal), 1 to blk2 (lethal), 1 to defender
@@ -1507,7 +1507,7 @@ describe("applyAllCombatDamage", () => {
         const state = makeCombatState({
             attackers: [attacker],
             blockers: [blocker1, blocker2],
-            blockerAssignments: { blk1: "att", blk2: "att" },
+            blockerAssignments: { blk1: ["att"], blk2: ["att"] },
         });
 
         // 2 to blk1, 1 to blk2 — all damage used on blockers
@@ -1548,7 +1548,7 @@ describe("applyAllCombatDamage", () => {
         const state = makeCombatState({
             attackers: [attacker],
             blockers: [blocker1, blocker2],
-            blockerAssignments: { blk1: "att", blk2: "att" },
+            blockerAssignments: { blk1: ["att"], blk2: ["att"] },
         });
 
         // 2 to blk1 (lethal), 3 to blk2 (lethal)

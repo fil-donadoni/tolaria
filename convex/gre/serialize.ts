@@ -108,6 +108,10 @@ function compactCard(
     }
     if (card.exileOnDeath) out.exileOnDeath = true;
     if (card.mustAttackThisTurn) out.mustAttackThisTurn = true;
+    if (card.canBlockAdditional !== undefined) {
+        out.canBlockAdditional = card.canBlockAdditional;
+    }
+    if (card.mustBlockAllThisTurn) out.mustBlockAllThisTurn = true;
     return out;
 }
 
@@ -204,6 +208,10 @@ function expandCard(
     }
     if (compact.exileOnDeath) result.exileOnDeath = true;
     if (compact.mustAttackThisTurn) result.mustAttackThisTurn = true;
+    if (compact.canBlockAdditional !== undefined) {
+        result.canBlockAdditional = compact.canBlockAdditional as number;
+    }
+    if (compact.mustBlockAllThisTurn) result.mustBlockAllThisTurn = true;
     return result;
 }
 

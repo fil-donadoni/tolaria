@@ -443,7 +443,7 @@ describe("optional field round-trip smoke tests", () => {
         state.combat = {
             attackerIds: ["a1"],
             confirmed: true,
-            blockerAssignments: { b1: "a1" },
+            blockerAssignments: { b1: ["a1"] },
             blockersConfirmed: true,
         };
         expect(roundTrip(state).combat).toEqual(state.combat);

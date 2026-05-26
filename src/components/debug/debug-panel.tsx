@@ -1050,6 +1050,23 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "Lure — force all blockers (CR 509.1c block-requirement)",
+        cards: [
+            {
+                name: "Lure",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 3 },
+            { name: "Grizzly Bears", owner: "opp" as const, count: 2 },
+            { name: "Hill Giant", owner: "opp" as const },
+            { name: "Forest", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

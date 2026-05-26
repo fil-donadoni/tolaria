@@ -100,7 +100,7 @@ export interface CardInstance {
 export interface Combat {
     attackerIds: string[];
     confirmed: boolean;
-    blockerAssignments: Record<string, string>;
+    blockerAssignments: Record<string, string[]>;
     pendingBlockerId?: string;
     blockersConfirmed: boolean;
     damageAssignments?: Record<string, Record<string, number>>;

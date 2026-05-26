@@ -668,6 +668,13 @@ export interface SpellContext {
      *  Cleared at CLEANUP. No-op if target is not a creature on the
      *  battlefield. Used by Nettling Imp. */
     setMustAttackThisTurn: (target: TargetSelection) => void;
+    /** Grants a target permanent the ability to block additional attackers
+     *  this turn (CR 509.1a). `value` is the number of EXTRA attackers (999
+     *  = "any number"). Cleared at CLEANUP. Used by Blaze of Glory. */
+    setCanBlockAdditional: (target: TargetSelection, value: number) => void;
+    /** Marks a target permanent as "must block all attackers if able" this
+     *  turn (Blaze of Glory). Cleared at CLEANUP. */
+    setMustBlockAll: (target: TargetSelection) => void;
 
     // --- Mid-resolution choices (CR 608.2, 101.4) ---
 
@@ -1067,6 +1074,21 @@ export interface StaticAttackRequirement {
     oracleText: string;
 }
 
+/** Card-level block requirement (CR 509.1c). Declares that creatures
+ *  able to block the enchanted/source permanent must do so. The engine
+ *  collects these from the card definition and attached auras at
+ *  block-confirmation time and auto-assigns missing blockers.
+ *
+ *  Scope "all-able" means every eligible creature the defending player
+ *  controls must block this attacker (Lure). */
+export interface StaticBlockRequirement {
+    kind: "block-requirement";
+    id: string;
+    /** Oracle text shown when the requirement forces a block. */
+    oracleText: string;
+    scope: "all-able";
+}
+
 export type StaticEffect =
     | StaticPTBuff
     | StaticPTCDA
@@ -1077,7 +1099,8 @@ export type StaticEffect =
     | StaticUntapRestriction
     | StaticBlockRestriction
     | StaticAttackRestriction
-    | StaticAttackRequirement;
+    | StaticAttackRequirement
+    | StaticBlockRequirement;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
  *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted
@@ -1685,6 +1708,12 @@ export interface CardDefinition {
      *  even an exempt aura to detach, but no multi-source protection cards
      *  exist in the current set, so we model this as a flat exemption. */
     exemptFromProtectionDetach?: boolean;
+    /** Number of additional creatures this permanent can block beyond the
+     *  default of 1 (CR 509.1a). E.g. Two-Headed Giant of Foriys declares 1,
+     *  meaning it can block 2 total. The combat validator reads this from the
+     *  card definition; temporary grants (Blaze of Glory) set
+     *  `CardInstanceState.canBlockAdditional` instead. */
+    canBlockAdditional?: number;
     /** For synthesized token CardDefinitions (CR 111, 707.1): Scryfall id of
      *  a printed token card to use as the visual representation. The card
      *  image layer prefers this over the def's own id when fetching art —
