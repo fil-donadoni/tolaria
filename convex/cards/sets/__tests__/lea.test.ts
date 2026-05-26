@@ -15061,22 +15061,7 @@ describe("Dragon Whelp (CR 602.5, 603.7a — activation-count delayed sacrifice)
         pumpOnce(state, whelp);
         pumpOnce(state, whelp);
         pumpOnce(state, whelp);
-        // Simulate end-step firing: put the delayed trigger on the stack
-        const dt = state.delayedTriggers![0];
-        state.stack.push({
-            id: "delayed-1",
-            card: { id: dt.sourceCardId },
-            controllerId: dt.controller,
-            ownerId: dt.controller,
-            zone: "stack",
-            types: [],
-            subtypes: [],
-            staticAbilities: [],
-            isTapped: false,
-            castById: dt.controller,
-            delayedTriggerId: dt.triggerId,
-            delayedPayload: dt.payload,
-        });
+        pushDelayedTrigger(state, state.delayedTriggers![0]);
         state.delayedTriggers = undefined;
         resolveTopOfStack(state);
         expect(
@@ -15093,39 +15078,11 @@ describe("Dragon Whelp (CR 602.5, 603.7a — activation-count delayed sacrifice)
         // Two delayed triggers scheduled (one at activation 4, one at 5)
         expect(state.delayedTriggers!.length).toBe(2);
         // Resolve first — creature dies
-        const dt1 = state.delayedTriggers![0];
-        state.stack.push({
-            id: "delayed-1",
-            card: { id: dt1.sourceCardId },
-            controllerId: dt1.controller,
-            ownerId: dt1.controller,
-            zone: "stack",
-            types: [],
-            subtypes: [],
-            staticAbilities: [],
-            isTapped: false,
-            castById: dt1.controller,
-            delayedTriggerId: dt1.triggerId,
-            delayedPayload: dt1.payload,
-        });
+        pushDelayedTrigger(state, state.delayedTriggers![0], "delayed-1");
         resolveTopOfStack(state);
         expect(state.players[0].graveyard).toHaveLength(1);
         // Resolve second — no-op (creature already in graveyard)
-        const dt2 = state.delayedTriggers![1];
-        state.stack.push({
-            id: "delayed-2",
-            card: { id: dt2.sourceCardId },
-            controllerId: dt2.controller,
-            ownerId: dt2.controller,
-            zone: "stack",
-            types: [],
-            subtypes: [],
-            staticAbilities: [],
-            isTapped: false,
-            castById: dt2.controller,
-            delayedTriggerId: dt2.triggerId,
-            delayedPayload: dt2.payload,
-        });
+        pushDelayedTrigger(state, state.delayedTriggers![1], "delayed-2");
         resolveTopOfStack(state);
         // Still only one creature in graveyard
         expect(state.players[0].graveyard).toHaveLength(1);
@@ -15213,21 +15170,7 @@ describe("Nettling Imp (CR 508.1d, 603.7a — forced attack + delayed destroy)",
         const { state, imp, victim } = setup();
         activate(state, imp, "victim");
         victim.hasAttackedThisTurn = true;
-        const dt = state.delayedTriggers![0];
-        state.stack.push({
-            id: "delayed-1",
-            card: { id: dt.sourceCardId },
-            controllerId: dt.controller,
-            ownerId: dt.controller,
-            zone: "stack",
-            types: [],
-            subtypes: [],
-            staticAbilities: [],
-            isTapped: false,
-            castById: dt.controller,
-            delayedTriggerId: dt.triggerId,
-            delayedPayload: dt.payload,
-        });
+        pushDelayedTrigger(state, state.delayedTriggers![0]);
         state.delayedTriggers = undefined;
         resolveTopOfStack(state);
         expect(
@@ -15238,22 +15181,7 @@ describe("Nettling Imp (CR 508.1d, 603.7a — forced attack + delayed destroy)",
     it("delayed trigger destroys creature if it didn't attack", () => {
         const { state, imp } = setup();
         activate(state, imp, "victim");
-        // victim did NOT attack
-        const dt = state.delayedTriggers![0];
-        state.stack.push({
-            id: "delayed-1",
-            card: { id: dt.sourceCardId },
-            controllerId: dt.controller,
-            ownerId: dt.controller,
-            zone: "stack",
-            types: [],
-            subtypes: [],
-            staticAbilities: [],
-            isTapped: false,
-            castById: dt.controller,
-            delayedTriggerId: dt.triggerId,
-            delayedPayload: dt.payload,
-        });
+        pushDelayedTrigger(state, state.delayedTriggers![0]);
         state.delayedTriggers = undefined;
         resolveTopOfStack(state);
         expect(
@@ -15343,14 +15271,14 @@ describe("Stone Giant (CR 113.1, 611.1b, 603.7a — dynamic toughness target + f
         const req = ability.getTargetRequirement!(
             {
                 id: "g",
-                types: ["Creature"],
+                types: ["Creature"] as CardType[],
                 subtypes: ["Giant"],
                 power: 3,
                 toughness: 4,
-                staticAbilities: [],
                 isTapped: false,
                 controllerId: "p1",
                 ownerId: "p1",
+                card: { id: stoneGiant.id },
             },
             { players: [], activePlayerId: "p1" }
         );
@@ -15405,21 +15333,7 @@ describe("Stone Giant (CR 113.1, 611.1b, 603.7a — dynamic toughness target + f
     it("delayed trigger destroys the target at end step", () => {
         const { state, giant } = setup();
         activate(state, giant, "bear");
-        const dt = state.delayedTriggers![0];
-        state.stack.push({
-            id: "delayed-1",
-            card: { id: dt.sourceCardId },
-            controllerId: dt.controller,
-            ownerId: dt.controller,
-            zone: "stack",
-            types: [],
-            subtypes: [],
-            staticAbilities: [],
-            isTapped: false,
-            castById: dt.controller,
-            delayedTriggerId: dt.triggerId,
-            delayedPayload: dt.payload,
-        });
+        pushDelayedTrigger(state, state.delayedTriggers![0]);
         state.delayedTriggers = undefined;
         resolveTopOfStack(state);
         expect(
@@ -15439,4 +15353,31 @@ function grizzlyBearsId(): string {
     // grizzlyBears is exported from lea.ts — use getCardByName to stay
     // decoupled if we rename the variable.
     return "ce2d603a-3231-4a8c-bf39-1617586ea870";
+}
+
+/** Push a delayed trigger instance onto the stack for resolution. */
+function pushDelayedTrigger(
+    state: GameState,
+    dt: {
+        sourceCardId: string;
+        controller: string;
+        triggerId: string;
+        payload: Record<string, string>;
+    },
+    id = "delayed-1"
+): void {
+    state.stack.push({
+        id,
+        card: { id: dt.sourceCardId },
+        controllerId: dt.controller,
+        ownerId: dt.controller,
+        zone: "stack",
+        types: [],
+        subtypes: [],
+        staticAbilities: [],
+        isTapped: false,
+        castById: dt.controller,
+        delayedTriggerId: dt.triggerId,
+        delayedPayload: dt.payload,
+    });
 }

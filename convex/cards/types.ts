@@ -1334,6 +1334,7 @@ export interface TriggerStateView {
         hand: { readonly length: number };
         landsPlayedThisTurn?: number;
     }>;
+    activePlayerId?: string;
 }
 
 export interface TriggeredAbility {

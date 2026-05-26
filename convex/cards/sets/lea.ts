@@ -3421,8 +3421,9 @@ export const burrowing: CardDefinition = {
 //
 // The pump is a standard addTemporaryPTBuff. After resolution, getActivationCount
 // reads the per-source counter. On the 4th+ activation, a delayed end-step
-// sacrifice is scheduled. Only one delayed trigger is ever created per turn
-// (tracked via payload flag on delayedTriggers).
+// sacrifice is scheduled. Each activation past the 3rd adds a separate
+// delayed trigger (all resolve independently; the creature is already gone
+// by the time later ones fire, so extra triggers are no-ops).
 const DRAGON_WHELP_ID = "6bbf1eab-bc32-4835-b566-8634b1fe81b0";
 
 export const dragonWhelp: CardDefinition = {

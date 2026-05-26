@@ -1212,6 +1212,11 @@ export const announceCast = mutation({
                     ? activeTargetRequirement.subtypeFilter
                     : [activeTargetRequirement.subtypeFilter]
                 : undefined;
+            const excludeSubtypes = activeTargetRequirement.excludeSubtypes
+                ? Array.isArray(activeTargetRequirement.excludeSubtypes)
+                    ? activeTargetRequirement.excludeSubtypes
+                    : [activeTargetRequirement.excludeSubtypes]
+                : undefined;
             const resolvedCmcFilter = resolveCmcFilter(
                 activeTargetRequirement.cmcFilter,
                 chosenX
@@ -1244,13 +1249,7 @@ export const announceCast = mutation({
                               activeTargetRequirement.toughnessFilter,
                       }
                     : {}),
-                ...(() => {
-                    const es = activeTargetRequirement.excludeSubtypes;
-                    if (!es) return {};
-                    return {
-                        excludeSubtypes: Array.isArray(es) ? es : [es],
-                    };
-                })(),
+                ...(excludeSubtypes ? { excludeSubtypes } : {}),
                 ...(resolvedCmcFilter ? { cmcFilter: resolvedCmcFilter } : {}),
             };
 
