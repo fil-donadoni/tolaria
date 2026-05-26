@@ -35,13 +35,17 @@ function getStaticEffects(card: PermanentView): StaticEffect[] {
 /** Context passed to every static-effect predicate. Pure, state-free. */
 export const STATIC_EFFECT_CTX: StaticEffectContext = {
     getColors(card: PermanentView): Color[] {
-        // Resolve manaCost via registry. The embedded card.card is slimmed to { id }
-        // in public/full projections, so reading manaCost directly would silently yield [].
         const embedded = (card.card as { manaCost?: ManaCost }).manaCost;
         const cardId = (card.card as { id?: string }).id;
         const cost =
             embedded ?? (cardId ? tryGetCardById(cardId)?.manaCost : undefined);
-        return getColorsFromCost(cost);
+        const base = getColorsFromCost(cost);
+        const granted = (card as { grantedColors?: { color: string }[] })
+            .grantedColors;
+        if (!granted?.length) return base;
+        const all = new Set(base);
+        for (const g of granted) all.add(g.color as Color);
+        return [...all];
     },
     isCreature(card: PermanentView): boolean {
         return card.types.includes("Creature");

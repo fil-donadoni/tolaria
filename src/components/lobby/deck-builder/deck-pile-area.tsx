@@ -13,14 +13,14 @@ export default function DeckPileArea({ cards, onRemove }: DeckPileAreaProps) {
 
     if (cards.length === 0) {
         return (
-            <div className="flex h-full items-center justify-center text-sm text-white/40">
+            <div className="flex h-full items-center justify-center text-sm text-text-muted">
                 Click cards above to add them to your deck.
             </div>
         );
     }
 
     return (
-        <div className="flex items-start gap-6 overflow-x-auto p-4">
+        <div className="flex items-start gap-3 overflow-x-auto p-3 md:gap-6 md:p-4">
             {piles.map((pile) => (
                 <BuilderPile
                     key={pile.key}

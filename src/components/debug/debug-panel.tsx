@@ -772,6 +772,51 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Animate-land — Living Lands + Kormus Bell (lands become creatures)",
+        cards: [
+            {
+                name: "Living Lands",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Kormus Bell",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Forest", owner: "me" as const, count: 3 },
+            { name: "Swamp", owner: "opp" as const, count: 3 },
+            { name: "Island", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Subtype-set — Evil Presence + Conversion (land type change)",
+        cards: [
+            // Evil Presence in hand ({B} aura on land). Cast on opponent's
+            // Mountain — it becomes a Swamp and produces {B} instead of {R}.
+            // Conversion on battlefield — all Mountains become Plains.
+            // After Conversion enters, tap a Mountain: {W}, not {R}.
+            {
+                name: "Evil Presence",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Conversion",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "opp" as const, count: 3 },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Plains", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Activation timing (CR 602.5) — Instill Energy + Blessing",
         cards: [
             // Goblin King's grizzly partner here, attached by both auras.

@@ -52,7 +52,7 @@ describe("PanelHeader", () => {
     it("renders title with Beleren font", () => {
         render(<PanelHeader title="Test Title" />);
         const heading = screen.getByRole("heading", { name: "Test Title" });
-        expect(heading.className).toContain("font-beleren");
+        expect(heading.className).toContain("heading-panel");
     });
 
     it("renders subtitle when provided", () => {

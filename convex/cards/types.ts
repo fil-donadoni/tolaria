@@ -162,8 +162,14 @@ export interface SpellMode {
      *  with no targets. */
     targetRequirement?: TargetRequirement;
     /** Resolution body. Receives the full SpellContext; targets come from
-     *  the announcement-time selection driven by `targetRequirement`. */
-    resolve: (ctx: SpellContext) => void;
+     *  the announcement-time selection driven by `targetRequirement`. Omit
+     *  for modes whose only effect is continuous (via `staticEffects`). */
+    resolve?: (ctx: SpellContext) => void;
+    /** Static effects that apply when this mode is chosen. For modal auras
+     *  (e.g. Phantasmal Terrain — "choose a basic land type"), the engine
+     *  reads the chosen mode's static effects instead of the card-level ones.
+     *  Supports subtype-set, keyword-grant, etc. */
+    staticEffects?: StaticEffect[];
 }
 
 export interface ActivatedAbility {
@@ -394,6 +400,9 @@ export interface SpellContext {
         opts?: { cantBeRegenerated?: boolean }
     ) => boolean;
     exile: (target: TargetSelection) => void;
+    /** Replaces a target permanent's subtypes (CR 305.7). One-shot mutation,
+     *  not a continuous effect — used by Cyclopean Tomb's LTB trigger. */
+    setSubtypes: (target: TargetSelection, subtypes: string[]) => void;
     /** Returns a target permanent to its owner's hand (CR 701.10). The card
      *  becomes a new object on the zone change (CR 400.7) — battlefield-only
      *  transient state (tapped, marked damage, regen shields, summoning
@@ -1133,6 +1142,35 @@ export interface StaticHandSizeOverride {
     value: number | "unlimited";
 }
 
+/** Layer 4 subtype replacement (CR 305.7 — "enchanted land is a [type]").
+ *  Replaces the target's subtypes entirely with the specified array. The
+ *  engine stores the printed subtypes before the first replacement so removal
+ *  of the source restores them. Multiple concurrent sources stack: the last
+ *  applied wins (timestamp order), and unapplying one falls back to the
+ *  previous source or to printed subtypes when none remain. */
+export interface StaticSubtypeSet {
+    kind: "subtype-set";
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    subtypes: string[];
+}
+
+/** Layer 5 color grant (CR 305.7 — "is a black creature"). Adds colors to
+ *  the target without affecting its mana cost. Tracked via `grantedColors`
+ *  on CardInstanceState so unapply can restore the original color identity. */
+export interface StaticColorGrant {
+    kind: "color-grant";
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    colors: Color[];
+}
+
 export type StaticEffect =
     | StaticPTBuff
     | StaticPTCDA
@@ -1140,6 +1178,8 @@ export type StaticEffect =
     | StaticControlChange
     | StaticActivatedGrant
     | StaticTypeAdd
+    | StaticSubtypeSet
+    | StaticColorGrant
     | StaticUntapRestriction
     | StaticBlockRestriction
     | StaticAttackRestriction

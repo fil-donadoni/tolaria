@@ -8,6 +8,7 @@ import type {
     PermanentFilter,
     PermanentView,
     SpellContext,
+    StaticEffect,
     TargetRequirement,
     TargetSelection,
     TokenSpec,
@@ -135,6 +136,10 @@ export type CardInstanceState = {
     /** Mana choice made when activating a manaChoices ability (e.g. Birds of Paradise).
      *  Stored so untap can refund the exact mana that was added. Cleared at untap step. */
     chosenMana?: CardManaCost;
+    /** Mode chosen at cast time for modal permanents (CR 700.2c). Survives
+     *  from the stack to the battlefield so the layer system can read
+     *  mode-specific static effects (e.g. Phantasmal Terrain). */
+    chosenModeId?: string;
     /** Set when this land's mana has been consumed by a spell. Cannot be manually untapped. Resets at untap step. */
     manaCommitted?: boolean;
     /** Set when a creature enters the battlefield. Cleared at untap step. Prevents attacking. */
@@ -272,6 +277,19 @@ export type CardInstanceState = {
      *  effect; `unapplySourceStaticEffects` removes from `types[]` once the
      *  last origin entry is gone, provided the type wasn't printed. */
     grantedTypes?: { type: string; auraId: string }[];
+    /** Layer 4 subtype replacements (CR 305.7). Each entry records one
+     *  source's override. The engine also snapshots `printedSubtypes` before
+     *  the first replacement so unapply can restore them. When multiple
+     *  sources overlap, the last entry's subtypes are the active ones. */
+    grantedSubtypes?: { subtypes: string[]; sourceId: string }[];
+    /** Layer 5 color grants (CR 305.7). Each entry records one source's
+     *  granted colors. Used by Kormus Bell ("black creatures"). */
+    grantedColors?: { color: string; sourceId: string }[];
+    /** Original printed subtypes, snapshotted before the first subtype-set
+     *  static effect overwrites `subtypes`. Undefined until a subtype-set
+     *  effect fires. Used by `unapplySourceStaticEffects` to restore the
+     *  printed value when the last grant is removed. */
+    printedSubtypes?: string[];
     /** Temporary multi-block grant (CR 509.1a). When set, this creature can
      *  block up to 1 + canBlockAdditional attackers. 999 = "any number".
      *  Cleared at CLEANUP. Static multi-block (Two-Headed Giant) is read from
@@ -1108,7 +1126,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     if (cardDef) {
         if (top.chosenModeId && cardDef.modes && cardDef.modes.length > 0) {
             const mode = cardDef.modes.find((m) => m.id === top.chosenModeId);
-            if (mode) {
+            if (mode?.resolve) {
                 const ctx = buildSpellContext(state, top);
                 mode.resolve(ctx);
                 if ((state.pendingChoices?.length ?? 0) > 0) return null;
@@ -1260,6 +1278,27 @@ export function emitPermanentEntered(
     ];
 }
 
+/** Returns the effective static effects for a card, merging card-level and
+ *  mode-level effects when a `chosenModeId` is present (CR 700.2c). */
+function getEffectiveStaticEffects(
+    def:
+        | {
+              staticEffects?: StaticEffect[];
+              modes?: { id: string; staticEffects?: StaticEffect[] }[];
+          }
+        | null
+        | undefined,
+    chosenModeId: string | undefined
+): StaticEffect[] {
+    const cardEffects = def?.staticEffects ?? [];
+    if (!chosenModeId || !def?.modes) return cardEffects;
+    const mode = def.modes.find((m) => m.id === chosenModeId);
+    const modeEffects = mode?.staticEffects ?? [];
+    if (modeEffects.length === 0) return cardEffects;
+    if (cardEffects.length === 0) return modeEffects;
+    return [...cardEffects, ...modeEffects];
+}
+
 /** Applies every `keyword-grant` static effect declared on `source`'s card
  *  definition (CR 611) by scanning the whole battlefield and pushing the
  *  granted keyword into every permanent for which `applies(target, source)`
@@ -1277,7 +1316,7 @@ export function applySourceStaticEffects(
 ): void {
     const cardId = (source.card as { id?: string }).id;
     const def = cardId ? tryGetCardById(cardId) : null;
-    const effects = def?.staticEffects ?? [];
+    const effects = getEffectiveStaticEffects(def, source.chosenModeId);
     if (effects.length === 0) return;
     for (const player of state.players) {
         for (const target of player.battlefield) {
@@ -1310,6 +1349,7 @@ export function applySourceStaticEffects(
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
                         continue;
                     }
+                    const wasCreature = target.types.includes("Creature");
                     const origins = target.grantedTypes ?? [];
                     for (const type of effect.types) {
                         const already = origins.some(
@@ -1323,6 +1363,48 @@ export function applySourceStaticEffects(
                     }
                     target.grantedTypes =
                         origins.length > 0 ? origins : undefined;
+                    if (
+                        !wasCreature &&
+                        target.types.includes("Creature") &&
+                        target.isSummoningSick === undefined
+                    ) {
+                        target.isSummoningSick = true;
+                    }
+                } else if (effect.kind === "color-grant") {
+                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                        continue;
+                    }
+                    const colorGrants = target.grantedColors ?? [];
+                    for (const color of effect.colors) {
+                        const already = colorGrants.some(
+                            (g) => g.sourceId === source.id && g.color === color
+                        );
+                        if (!already) {
+                            colorGrants.push({ color, sourceId: source.id });
+                        }
+                    }
+                    target.grantedColors =
+                        colorGrants.length > 0 ? colorGrants : undefined;
+                } else if (effect.kind === "subtype-set") {
+                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                        continue;
+                    }
+                    if (!target.printedSubtypes) {
+                        target.printedSubtypes = [...target.subtypes];
+                    }
+                    const grants = target.grantedSubtypes ?? [];
+                    const already = grants.some(
+                        (g) => g.sourceId === source.id
+                    );
+                    if (!already) {
+                        grants.push({
+                            subtypes: effect.subtypes,
+                            sourceId: source.id,
+                        });
+                    }
+                    target.grantedSubtypes =
+                        grants.length > 0 ? grants : undefined;
+                    target.subtypes = [...effect.subtypes];
                 }
             }
         }
@@ -1392,6 +1474,28 @@ export function unapplySourceStaticEffects(
                     }
                 }
             }
+            const subtypeGrants = target.grantedSubtypes;
+            if (subtypeGrants && subtypeGrants.length > 0) {
+                const kept = subtypeGrants.filter(
+                    (g) => g.sourceId !== source.id
+                );
+                target.grantedSubtypes = kept.length > 0 ? kept : undefined;
+                if (kept.length > 0) {
+                    target.subtypes = [...kept[kept.length - 1].subtypes];
+                } else {
+                    target.subtypes = [
+                        ...(target.printedSubtypes ?? target.subtypes),
+                    ];
+                    target.printedSubtypes = undefined;
+                }
+            }
+            const colorGrants = target.grantedColors;
+            if (colorGrants && colorGrants.length > 0) {
+                const kept = colorGrants.filter(
+                    (g) => g.sourceId !== source.id
+                );
+                target.grantedColors = kept.length > 0 ? kept : undefined;
+            }
         }
     }
 }
@@ -1414,7 +1518,7 @@ export function applyExistingGrantsTo(
             if (source.id === newPermanent.id) continue;
             const cardId = (source.card as { id?: string }).id;
             const def = cardId ? tryGetCardById(cardId) : null;
-            const effects = def?.staticEffects ?? [];
+            const effects = getEffectiveStaticEffects(def, source.chosenModeId);
             for (const effect of effects) {
                 if (effect.kind === "keyword-grant") {
                     if (
@@ -1450,6 +1554,7 @@ export function applyExistingGrantsTo(
                     ) {
                         continue;
                     }
+                    const wasCreature = newPermanent.types.includes("Creature");
                     const origins = newPermanent.grantedTypes ?? [];
                     for (const type of effect.types) {
                         const already = origins.some(
@@ -1466,6 +1571,54 @@ export function applyExistingGrantsTo(
                     }
                     newPermanent.grantedTypes =
                         origins.length > 0 ? origins : undefined;
+                    if (
+                        !wasCreature &&
+                        newPermanent.types.includes("Creature") &&
+                        newPermanent.isSummoningSick === undefined
+                    ) {
+                        newPermanent.isSummoningSick = true;
+                    }
+                } else if (effect.kind === "color-grant") {
+                    if (
+                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
+                    ) {
+                        continue;
+                    }
+                    const colorGrants = newPermanent.grantedColors ?? [];
+                    for (const color of effect.colors) {
+                        const already = colorGrants.some(
+                            (g) => g.sourceId === source.id && g.color === color
+                        );
+                        if (!already) {
+                            colorGrants.push({ color, sourceId: source.id });
+                        }
+                    }
+                    newPermanent.grantedColors =
+                        colorGrants.length > 0 ? colorGrants : undefined;
+                } else if (effect.kind === "subtype-set") {
+                    if (
+                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
+                    ) {
+                        continue;
+                    }
+                    if (!newPermanent.printedSubtypes) {
+                        newPermanent.printedSubtypes = [
+                            ...newPermanent.subtypes,
+                        ];
+                    }
+                    const grants = newPermanent.grantedSubtypes ?? [];
+                    const already = grants.some(
+                        (g) => g.sourceId === source.id
+                    );
+                    if (!already) {
+                        grants.push({
+                            subtypes: effect.subtypes,
+                            sourceId: source.id,
+                        });
+                    }
+                    newPermanent.grantedSubtypes =
+                        grants.length > 0 ? grants : undefined;
+                    newPermanent.subtypes = [...effect.subtypes];
                 }
             }
         }
@@ -2306,6 +2459,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             found.card.counters =
                 Object.keys(next).length > 0 ? next : undefined;
             return removed;
+        },
+        setSubtypes(target: TargetSelection, subtypes: string[]): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.subtypes = [...subtypes];
+            found.card.grantedSubtypes = undefined;
+            found.card.printedSubtypes = undefined;
         },
         getCounterCount(target: TargetSelection, type: string): number {
             if (target.type !== "permanent") return 0;

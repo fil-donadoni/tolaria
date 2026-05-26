@@ -73,6 +73,7 @@ function compactCard(
     if (card.isBlocking) out.isBlocking = true;
     if (card.hasAttackedThisTurn) out.hasAttackedThisTurn = true;
     if (card.hasBlockedThisTurn) out.hasBlockedThisTurn = true;
+    if (card.chosenModeId) out.chosenModeId = card.chosenModeId;
     if (card.manaCommitted) out.manaCommitted = true;
     if (card.damageMarked) out.damageMarked = card.damageMarked;
     if (card.regenerationShields) {
@@ -105,6 +106,15 @@ function compactCard(
     }
     if (card.grantedTypes && card.grantedTypes.length > 0) {
         out.grantedTypes = card.grantedTypes;
+    }
+    if (card.grantedSubtypes && card.grantedSubtypes.length > 0) {
+        out.grantedSubtypes = card.grantedSubtypes;
+    }
+    if (card.printedSubtypes && card.printedSubtypes.length > 0) {
+        out.printedSubtypes = card.printedSubtypes;
+    }
+    if (card.grantedColors && card.grantedColors.length > 0) {
+        out.grantedColors = card.grantedColors;
     }
     if (card.exileOnDeath) out.exileOnDeath = true;
     if (card.mustAttackThisTurn) out.mustAttackThisTurn = true;
@@ -156,6 +166,8 @@ function expandCard(
     if (power !== undefined) result.power = power;
     if (toughness !== undefined) result.toughness = toughness;
 
+    if (compact.chosenModeId)
+        result.chosenModeId = compact.chosenModeId as string;
     if (compact.isToken) result.isToken = true;
     if (compact.isSummoningSick) result.isSummoningSick = true;
     if (compact.isAttacking) result.isAttacking = true;
@@ -205,6 +217,17 @@ function expandCard(
     if (compact.grantedTypes) {
         result.grantedTypes =
             compact.grantedTypes as CardInstanceState["grantedTypes"];
+    }
+    if (compact.grantedSubtypes) {
+        result.grantedSubtypes =
+            compact.grantedSubtypes as CardInstanceState["grantedSubtypes"];
+    }
+    if (compact.printedSubtypes) {
+        result.printedSubtypes = compact.printedSubtypes as string[];
+    }
+    if (compact.grantedColors) {
+        result.grantedColors =
+            compact.grantedColors as CardInstanceState["grantedColors"];
     }
     if (compact.exileOnDeath) result.exileOnDeath = true;
     if (compact.mustAttackThisTurn) result.mustAttackThisTurn = true;

@@ -11,7 +11,7 @@ export default function ManaSymbol({ symbol, className }: ManaSymbolProps) {
         <img
             src={`/img/symbols/${fileName}.svg`}
             alt={`{${symbol}}`}
-            className={cn("inline h-[1em] w-[1em] align-[-0.15em]", className)}
+            className={cn("inline size-6 align-[-0.15em]", className)}
             draggable={false}
         />
     );

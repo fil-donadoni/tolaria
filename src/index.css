@@ -166,6 +166,60 @@
     button {
         @apply cursor-pointer;
     }
+
+    /* ── Button system ── */
+    .btn-base {
+        @apply font-beleren tracking-wide rounded-sm border transition-colors shadow-md cursor-pointer;
+    }
+    .btn-tone-primary {
+        @apply bg-accent-soft/30 border-accent/45 text-accent-strong hover:bg-accent-soft/50 active:bg-accent-soft/65;
+    }
+    .btn-tone-secondary {
+        @apply bg-secondary-accent-soft/30 border-secondary-accent/45 text-secondary-accent-strong hover:bg-secondary-accent-soft/50 active:bg-secondary-accent-soft/65;
+    }
+    .btn-tone-destructive {
+        @apply bg-danger-soft/45 border-danger/45 text-danger-strong hover:bg-danger-soft/65 active:bg-danger-soft/80;
+    }
+    .btn-tone-ghost {
+        @apply bg-transparent border-transparent text-text-muted hover:text-parchment active:text-parchment shadow-none;
+    }
+    .btn-disabled {
+        @apply bg-surface/40 border-border-subtle/40 text-text-disabled cursor-not-allowed;
+    }
+
+    /* ── Panel heading + divider ── */
+    .heading-panel {
+        @apply text-xl sm:text-2xl font-bold tracking-wide text-parchment font-beleren text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)];
+    }
+    .divider-gradient {
+        @apply h-px w-full bg-linear-to-r from-transparent via-border-accent/40 to-transparent;
+    }
+
+    /* ── Input field ── */
+    .input-field {
+        @apply rounded-sm border border-border-subtle/40 bg-surface-elevated/20 px-4 py-2 text-sm text-text placeholder:text-text-disabled focus:border-border-accent/40 focus:bg-surface-elevated/30 focus:outline-none;
+    }
+
+    /* ── Filter chips ── */
+    .filter-chip-active {
+        @apply bg-accent-soft/30 ring-2 ring-accent/60;
+    }
+    .filter-chip-inactive {
+        @apply bg-surface-elevated/20 opacity-60 hover:opacity-100;
+    }
+
+    /* ── Segmented control ── */
+    .segment-active {
+        @apply bg-accent-soft/30 text-parchment;
+    }
+    .segment-inactive {
+        @apply text-text-muted hover:text-parchment;
+    }
+
+    /* ── Text labels ── */
+    .text-label {
+        @apply text-[10px] uppercase tracking-wide text-text-disabled;
+    }
 }
 
 @layer base {

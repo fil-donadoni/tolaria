@@ -19,12 +19,12 @@ export default function SearchBar({
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck={false}
-                className="w-full rounded border border-white/20 bg-white/5 px-4 py-2 text-sm text-white placeholder:text-white/30 focus:border-white/40 focus:bg-white/10 focus:outline-none"
+                className="input-field w-full"
             />
             {value.length > 0 && (
                 <button
                     onClick={() => onChange("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 text-xs text-white/40 hover:text-white"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 text-xs text-text-disabled hover:text-parchment"
                     aria-label="Clear search"
                 >
                     ×

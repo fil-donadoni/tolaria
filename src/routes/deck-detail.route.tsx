@@ -4,10 +4,14 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import DeckDetail from "~/components/lobby/deck-detail";
 import { usePageVisible } from "~/hooks/usePageVisible";
-import { useUserDecks } from "~/hooks/useUserDecks";
+import { useUserDecks, useUserDeckMutations } from "~/hooks/useUserDecks";
 import { findDeckBySlug } from "~/lib/deckLookup";
 import { toPresetLobbyDeck, type LobbyDeck } from "~/lib/deckTypes";
-import { getStoredDeckPresetId, storeDeckPresetId } from "~/lib/session";
+import {
+    clearDeckPresetId,
+    getStoredDeckPresetId,
+    storeDeckPresetId,
+} from "~/lib/session";
 
 export default function DeckDetailRoute() {
     const { slug } = useParams({ from: "/decks/$slug" });
@@ -16,6 +20,7 @@ export default function DeckDetailRoute() {
 
     const presetDecks = useQuery(api.decks.list, pageVisible ? {} : "skip");
     const userDecks = useUserDecks();
+    const { remove } = useUserDeckMutations();
     const selectedPresetId = getStoredDeckPresetId();
 
     const allDecks = useMemo<LobbyDeck[]>(() => {
@@ -37,13 +42,23 @@ export default function DeckDetailRoute() {
 
     if (presetDecks === undefined || userDecks === undefined) {
         return (
-            <div className="flex h-screen items-center justify-center text-white">
+            <div className="flex h-screen items-center justify-center text-text">
                 Loading...
             </div>
         );
     }
 
     if (!deck) return null;
+
+    const handleDelete =
+        deck.kind === "user"
+            ? () => {
+                  if (selectedPresetId === deck.presetId) clearDeckPresetId();
+                  void remove({ id: deck.userDeckId }).then(() =>
+                      navigate({ to: "/" })
+                  );
+              }
+            : undefined;
 
     return (
         <DeckDetail
@@ -54,6 +69,7 @@ export default function DeckDetailRoute() {
                 storeDeckPresetId(deck.presetId);
                 void navigate({ to: "/" });
             }}
+            onDelete={handleDelete}
         />
     );
 }

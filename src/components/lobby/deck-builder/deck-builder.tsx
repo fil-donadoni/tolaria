@@ -6,6 +6,8 @@ import { useUserDeckMutations } from "~/hooks/useUserDecks";
 import { type UserLobbyDeck } from "~/lib/deckTypes";
 import { nextDeckName } from "~/lib/userDecks";
 import type { DeckCard } from "~/types/game";
+import GameDialog from "~/components/ui/game-dialog";
+import ActionButton from "~/components/board/action-button";
 import ColorFilter from "./color-filter";
 import DeckPileArea from "./deck-pile-area";
 import ManaValueFilter from "./mana-value-filter";
@@ -32,6 +34,7 @@ interface DeckBuilderProps {
     initialDeck: UserLobbyDeck | null;
     initialDeckList: UserLobbyDeck[];
     onClose: (savedDeckId: string | null) => void;
+    onDelete?: () => Promise<void>;
 }
 
 const COLOR_ORDER = ["W", "U", "B", "R", "G"] as const;
@@ -55,7 +58,9 @@ export default function DeckBuilder({
     initialDeck,
     initialDeckList,
     onClose,
+    onDelete,
 }: DeckBuilderProps) {
+    const [confirmDelete, setConfirmDelete] = useState(false);
     const [deck, setDeck] = useState<WorkingDeck>(
         () =>
             initialDeck ?? {
@@ -243,18 +248,29 @@ export default function DeckBuilder({
     }, []);
 
     return (
-        <div className="flex h-screen flex-col bg-neutral-950 text-white">
-            <div className="flex flex-col gap-3 border-b border-white/10 bg-black/40 px-6 py-3">
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => void handleDone()}
-                        className="rounded border border-white/20 bg-white/5 px-3 py-1.5 text-sm hover:bg-white/10"
-                    >
-                        ← Back
-                    </button>
-                    <h1 className="text-lg font-semibold">
-                        {initialDeck ? "Edit Deck" : "New Deck"}
-                    </h1>
+        <div
+            className="flex h-screen flex-col bg-surface-base text-text"
+            style={
+                {
+                    "--card-w": "min(8rem, 18vw, 9.5vh)",
+                    "--card-h": "calc(min(8rem, 18vw, 9.5vh) * 7 / 5)",
+                    "--card-w-sm": "calc(min(8rem, 18vw, 9.5vh) * 0.75)",
+                } as React.CSSProperties
+            }
+        >
+            <div className="flex flex-col gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 md:px-6">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => void handleDone()}
+                            className="btn-base btn-tone-ghost px-3 py-1.5 text-sm"
+                        >
+                            ← Back
+                        </button>
+                        <h1 className="text-lg font-semibold font-beleren tracking-wide text-parchment">
+                            {initialDeck ? "Edit Deck" : "New Deck"}
+                        </h1>
+                    </div>
                     <SearchBar value={filters.text} onChange={setText} />
                 </div>
                 <div className="flex flex-wrap items-center gap-4">
@@ -282,7 +298,7 @@ export default function DeckBuilder({
             </div>
 
             <div className="grid flex-1 grid-rows-2 overflow-hidden">
-                <div className="overflow-y-auto border-b border-white/10">
+                <div className="overflow-y-auto border-b border-border-subtle/30">
                     <ResultsGrid
                         entries={entries}
                         idle={idle}
@@ -298,8 +314,32 @@ export default function DeckBuilder({
                 name={deck.name}
                 onChangeName={handleSetName}
                 onDone={() => void handleDone()}
+                onDelete={onDelete ? () => setConfirmDelete(true) : undefined}
                 cardCount={deck.cards.length}
             />
+
+            <GameDialog
+                open={confirmDelete}
+                onOpenChange={setConfirmDelete}
+                title={`Delete "${deck.name}"?`}
+                subtitle="This action cannot be undone."
+            >
+                <div className="flex justify-end gap-2 mt-4">
+                    <ActionButton
+                        onClick={() => setConfirmDelete(false)}
+                        label="Cancel"
+                        tone="secondary"
+                    />
+                    <ActionButton
+                        onClick={() => {
+                            setConfirmDelete(false);
+                            void onDelete?.();
+                        }}
+                        label="Delete"
+                        tone="destructive"
+                    />
+                </div>
+            </GameDialog>
         </div>
     );
 }

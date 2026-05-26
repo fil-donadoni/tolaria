@@ -2,6 +2,7 @@ interface SaveDeckBarProps {
     name: string;
     onChangeName: (name: string) => void;
     onDone: () => void;
+    onDelete?: () => void;
     cardCount: number;
 }
 
@@ -9,6 +10,7 @@ export default function SaveDeckBar({
     name,
     onChangeName,
     onDone,
+    onDelete,
     cardCount,
 }: SaveDeckBarProps) {
     return (
@@ -17,27 +19,36 @@ export default function SaveDeckBar({
                 e.preventDefault();
                 onDone();
             }}
-            className="flex items-center gap-3 border-t border-white/10 bg-black/40 px-6 py-3"
+            className="flex flex-wrap items-center gap-2 border-t border-border-subtle/30 bg-surface/60 px-4 py-3 md:gap-3 md:px-6"
         >
-            <span className="text-xs uppercase tracking-wide text-white/40">
-                {cardCount} cards
-            </span>
+            <span className="text-label">{cardCount} cards</span>
             <input
                 type="text"
                 value={name}
                 onChange={(e) => onChangeName(e.target.value)}
                 placeholder="Deck name"
-                className="flex-1 max-w-md rounded border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-white/40 focus:outline-none"
+                className="input-field min-w-0 flex-1 basis-40 px-3 md:max-w-md"
             />
-            <span className="text-[10px] uppercase tracking-wide text-emerald-400/70">
+            <span className="text-label text-accent/70 hidden md:inline">
                 Auto-saved
             </span>
-            <button
-                type="submit"
-                className="rounded bg-emerald-500/80 px-4 py-2 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-400"
-            >
-                Done
-            </button>
+            <div className="flex items-center gap-2 ml-auto">
+                {onDelete && (
+                    <button
+                        type="button"
+                        onClick={onDelete}
+                        className="btn-base btn-tone-destructive px-3 py-1.5 text-xs md:px-4 md:py-2 md:text-sm"
+                    >
+                        Delete
+                    </button>
+                )}
+                <button
+                    type="submit"
+                    className="btn-base btn-tone-primary px-3 py-1.5 text-xs md:px-4 md:py-2 md:text-sm"
+                >
+                    Done
+                </button>
+            </div>
         </form>
     );
 }

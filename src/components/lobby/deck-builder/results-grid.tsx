@@ -15,7 +15,7 @@ export default function ResultsGrid({
 }: ResultsGridProps) {
     if (entries === undefined) {
         return (
-            <div className="flex h-full items-center justify-center text-sm text-white/40">
+            <div className="flex h-full items-center justify-center text-sm text-text-muted">
                 Loading card library…
             </div>
         );
@@ -23,9 +23,9 @@ export default function ResultsGrid({
 
     if (idle) {
         return (
-            <div className="flex h-full flex-col items-center justify-center gap-1 text-sm text-white/40">
+            <div className="flex h-full flex-col items-center justify-center gap-1 text-sm text-text-muted">
                 <p>Search or pick a filter to see cards.</p>
-                <p className="text-xs text-white/30">
+                <p className="text-xs text-text-disabled">
                     Name, color, type, or mana value all narrow the list.
                 </p>
             </div>
@@ -34,14 +34,14 @@ export default function ResultsGrid({
 
     if (entries.length === 0) {
         return (
-            <div className="flex h-full items-center justify-center text-sm text-white/40">
+            <div className="flex h-full items-center justify-center text-sm text-text-muted">
                 No cards match these filters.
             </div>
         );
     }
 
     return (
-        <div className="flex flex-wrap gap-3 p-2">
+        <div className="flex flex-wrap gap-2 p-2 md:gap-3">
             {entries.map((entry) => (
                 <button
                     key={entry.cardId}
@@ -52,7 +52,7 @@ export default function ResultsGrid({
                     <div className="aspect-5/7 w-full">
                         <CardImage card={{ id: entry.cardId }} />
                     </div>
-                    <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent group-hover:ring-emerald-400/60" />
+                    <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent group-hover:ring-accent/60" />
                 </button>
             ))}
         </div>

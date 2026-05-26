@@ -66,8 +66,8 @@ export default function DeckListItem({
                 ))}
             </div>
 
-            <div className="flex justify-between items-center">
-                <span className="text-xs text-text-muted">View →</span>
+            <div className="flex justify-between items-center gap-2">
+                <span className="text-xs text-text-muted">View</span>
                 {onSelect && (
                     <button
                         onClick={(e) => {
@@ -76,10 +76,8 @@ export default function DeckListItem({
                         }}
                         disabled={isSelected}
                         className={cn(
-                            "font-beleren tracking-wide rounded-sm px-3 py-2 text-xs border transition-colors shadow-md",
-                            isSelected
-                                ? "bg-surface/40 border-border-subtle/40 text-text-disabled cursor-not-allowed"
-                                : "bg-accent-soft/30 border-accent/45 text-accent-strong hover:bg-accent-soft/50 active:bg-accent-soft/65 cursor-pointer"
+                            "btn-base px-3 py-2 text-xs",
+                            isSelected ? "btn-disabled" : "btn-tone-primary"
                         )}
                         title={isSelected ? "Already selected" : "Select deck"}
                     >

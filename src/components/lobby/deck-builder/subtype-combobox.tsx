@@ -45,7 +45,7 @@ export default function SubtypeCombobox({
                 <PopoverTrigger
                     aria-expanded={open}
                     className={cn(
-                        "flex h-8 min-w-50 items-center justify-between gap-2 rounded border border-white/15 bg-white/5 px-2.5 text-[11px] capitalize tracking-wide text-white/70 transition hover:bg-white/10 hover:text-white"
+                        "flex h-8 min-w-50 items-center justify-between gap-2 rounded-sm border border-border-subtle/40 bg-surface-elevated/20 px-2.5 text-[11px] capitalize tracking-wide text-text-muted transition hover:bg-surface-elevated/30 hover:text-parchment"
                     )}
                 >
                     <span>
@@ -56,7 +56,7 @@ export default function SubtypeCombobox({
                     <ChevronDownIcon className="size-3.5 opacity-60" />
                 </PopoverTrigger>
                 <PopoverContent
-                    className="w-[240px] border-white/15 bg-neutral-900 p-0"
+                    className="w-[240px] border-border-subtle/40 bg-surface p-0"
                     align="start"
                     side="bottom"
                     sideOffset={4}
@@ -91,12 +91,12 @@ export default function SubtypeCombobox({
                     {selected.map((tag) => (
                         <span
                             key={tag}
-                            className="flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[10px] capitalize tracking-wide text-white"
+                            className="flex items-center gap-1 rounded-full bg-accent-soft/30 px-2 py-0.5 text-[10px] capitalize tracking-wide text-parchment"
                         >
                             {tag}
                             <button
                                 onClick={() => onToggle(tag)}
-                                className="text-white/60 hover:text-white"
+                                className="text-text-muted hover:text-parchment"
                                 aria-label={`Remove ${tag}`}
                             >
                                 <X className="size-3" />

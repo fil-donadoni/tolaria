@@ -78,14 +78,14 @@ export default function DashboardTopBar() {
                         <button
                             type="submit"
                             disabled={saving}
-                            className="font-beleren tracking-wide rounded-sm border border-accent/45 bg-accent-soft/30 px-3 py-1.5 text-xs text-accent-strong hover:bg-accent-soft/50 active:bg-accent-soft/65 transition-colors cursor-pointer disabled:bg-surface/40 disabled:border-border-subtle/40 disabled:text-text-disabled disabled:cursor-not-allowed"
+                            className="btn-base btn-tone-primary px-3 py-1.5 text-xs disabled:btn-disabled"
                         >
                             {saving ? "Saving…" : "Save"}
                         </button>
                         <button
                             type="button"
                             onClick={() => setEditing(false)}
-                            className="font-beleren tracking-wide rounded-sm border border-secondary-accent/45 bg-secondary-accent-soft/30 px-3 py-1.5 text-xs text-secondary-accent-strong hover:bg-secondary-accent-soft/50 active:bg-secondary-accent-soft/65 transition-colors cursor-pointer"
+                            className="btn-base btn-tone-secondary px-3 py-1.5 text-xs"
                         >
                             Cancel
                         </button>
@@ -113,7 +113,7 @@ export default function DashboardTopBar() {
                 <button
                     type="button"
                     onClick={() => signOut()}
-                    className="font-beleren tracking-wide rounded-sm border border-secondary-accent/45 bg-secondary-accent-soft/30 px-3 py-1.5 text-xs text-secondary-accent-strong hover:bg-secondary-accent-soft/50 active:bg-secondary-accent-soft/65 transition-colors cursor-pointer"
+                    className="btn-base btn-tone-secondary px-3 py-1.5 text-xs"
                 >
                     Sign out
                 </button>

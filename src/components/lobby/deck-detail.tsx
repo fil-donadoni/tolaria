@@ -1,7 +1,9 @@
+import { useState } from "react";
 import type { LobbyDeck } from "~/lib/deckTypes";
 import { cn } from "~/lib/utils";
 import ManaSymbol from "../cards/mana-symbol";
 import ActionButton from "../board/action-button";
+import GameDialog from "../ui/game-dialog";
 import ManaPileView from "./mana-pile-view";
 
 interface DeckDetailProps {
@@ -9,6 +11,7 @@ interface DeckDetailProps {
     isSelected: boolean;
     onBack: () => void;
     onSelect: () => void;
+    onDelete?: () => void;
 }
 
 export default function DeckDetail({
@@ -16,7 +19,10 @@ export default function DeckDetail({
     isSelected,
     onBack,
     onSelect,
+    onDelete,
 }: DeckDetailProps) {
+    const [confirmDelete, setConfirmDelete] = useState(false);
+
     return (
         <div className="flex w-full flex-col gap-4 p-6 text-text">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
@@ -44,18 +50,25 @@ export default function DeckDetail({
                             {deck.description}
                         </p>
                     )}
-                    <button
-                        onClick={onSelect}
-                        disabled={isSelected}
-                        className={cn(
-                            "font-beleren tracking-wide px-4 py-2 rounded-sm text-sm border transition-colors shadow-md md:ml-auto",
-                            isSelected
-                                ? "bg-surface/40 border-border-subtle/40 text-text-disabled cursor-not-allowed"
-                                : "bg-accent-soft/30 border-accent/45 text-accent-strong hover:bg-accent-soft/50 active:bg-accent-soft/65 cursor-pointer"
+                    <div className="flex items-center gap-2 md:ml-auto">
+                        {onDelete && (
+                            <ActionButton
+                                onClick={() => setConfirmDelete(true)}
+                                label="Delete"
+                                tone="destructive"
+                            />
                         )}
-                    >
-                        {isSelected ? "Selected" : "Select this deck"}
-                    </button>
+                        <button
+                            onClick={onSelect}
+                            disabled={isSelected}
+                            className={cn(
+                                "btn-base px-4 py-2 text-sm",
+                                isSelected ? "btn-disabled" : "btn-tone-primary"
+                            )}
+                        >
+                            {isSelected ? "Selected" : "Select this deck"}
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -69,6 +82,29 @@ export default function DeckDetail({
             >
                 <ManaPileView cards={deck.cards} />
             </div>
+
+            <GameDialog
+                open={confirmDelete}
+                onOpenChange={setConfirmDelete}
+                title={`Delete "${deck.name}"?`}
+                subtitle="This action cannot be undone."
+            >
+                <div className="flex justify-end gap-2 mt-4">
+                    <ActionButton
+                        onClick={() => setConfirmDelete(false)}
+                        label="Cancel"
+                        tone="secondary"
+                    />
+                    <ActionButton
+                        onClick={() => {
+                            setConfirmDelete(false);
+                            onDelete?.();
+                        }}
+                        label="Delete"
+                        tone="destructive"
+                    />
+                </div>
+            </GameDialog>
         </div>
     );
 }

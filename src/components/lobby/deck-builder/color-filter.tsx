@@ -37,10 +37,10 @@ export default function ColorFilter({
                             key={c}
                             onClick={() => onToggleColor(c)}
                             className={cn(
-                                "flex h-8 w-8 items-center justify-center rounded-full text-lg transition",
+                                "flex size-8 items-center justify-center rounded-full text-lg transition",
                                 active
-                                    ? "bg-white/20 ring-2 ring-white/60"
-                                    : "bg-white/5 opacity-60 hover:opacity-100"
+                                    ? "filter-chip-active"
+                                    : "filter-chip-inactive"
                             )}
                             aria-pressed={active}
                             aria-label={`Color ${c}`}
@@ -54,8 +54,8 @@ export default function ColorFilter({
                     className={cn(
                         "flex h-8 w-8 items-center justify-center rounded-full text-lg transition",
                         includeColorless
-                            ? "bg-white/20 ring-2 ring-white/60"
-                            : "bg-white/5 opacity-60 hover:opacity-100"
+                            ? "filter-chip-active"
+                            : "filter-chip-inactive"
                     )}
                     aria-pressed={includeColorless}
                     aria-label="Colorless"
@@ -65,16 +65,14 @@ export default function ColorFilter({
                 </button>
             </div>
 
-            <div className="flex items-center gap-1 rounded border border-white/15 bg-white/5 p-0.5 text-[11px]">
+            <div className="flex items-center gap-1 rounded-sm border border-border-subtle/40 bg-surface-elevated/20 p-0.5 text-[11px]">
                 {(Object.keys(MODE_LABELS) as ColorMode[]).map((m) => (
                     <button
                         key={m}
                         onClick={() => onChangeMode(m)}
                         className={cn(
-                            "rounded px-2 py-1 transition",
-                            mode === m
-                                ? "bg-white/20 text-white"
-                                : "text-white/50 hover:text-white"
+                            "rounded-sm px-2 py-1 transition",
+                            mode === m ? "segment-active" : "segment-inactive"
                         )}
                     >
                         {MODE_LABELS[m]}

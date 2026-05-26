@@ -23,9 +23,9 @@ export default function BuilderPile({
 
     return (
         <div className="flex w-(--card-w) shrink-0 flex-col gap-2">
-            <div className="flex items-baseline justify-between gap-2 text-xs text-white/70">
+            <div className="flex items-baseline justify-between gap-2 text-xs text-text-muted">
                 <span className="font-semibold">{label}</span>
-                <span className="text-white/40">{cards.length}</span>
+                <span className="text-text-disabled">{cards.length}</span>
             </div>
             <div
                 className="relative w-(--card-w)"
@@ -40,7 +40,7 @@ export default function BuilderPile({
                         title={`Remove ${card.cardName}`}
                     >
                         <CardImage card={{ id: card.cardId }} />
-                        <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent group-hover:ring-rose-400/70" />
+                        <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent group-hover:ring-danger-strong/70" />
                     </button>
                 ))}
             </div>

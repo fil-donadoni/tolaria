@@ -388,13 +388,36 @@ export const consecrateLand: CardDefinition = {
     ],
 };
 
-// export const conversion: CardDefinition = {
-//     id: "13186bc9-8d9c-433b-ba15-121ef94dd68a",
-//     name: "Conversion",
-//     oracleText: "At the beginning of your upkeep, sacrifice this enchantment unless you pay {W}{W}.\nAll Mountains are Plains.",
-//     manaCost: { X: 2, W: 2 },
-//     types: ["Enchantment"],
-// };
+// Conversion — "At the beginning of your upkeep, sacrifice this enchantment
+// unless you pay {W}{W}. All Mountains are Plains." (CR 305.7 global
+// subtype replacement, CR 603.6a upkeep trigger, CR 117.3a pay-or-else).
+// Layer 4 subtype-set replaces subtypes on every permanent with subtype
+// "Mountain" with ["Plains"], changing their mana production.
+export const conversion: CardDefinition = {
+    id: "13186bc9-8d9c-433b-ba15-121ef94dd68a",
+    name: "Conversion",
+    oracleText:
+        "At the beginning of your upkeep, sacrifice Conversion unless you pay {W}{W}.\nAll Mountains are Plains.",
+    manaCost: { X: 2, W: 2 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "subtype-set",
+            applies: (target) => target.subtypes.includes("Mountain"),
+            subtypes: ["Plains"],
+        },
+    ],
+    triggeredAbilities: [
+        makeUpkeepPayOrElse({
+            id: "conversion-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice Conversion unless you pay {W}{W}.",
+            cost: { W: 2 },
+            prompt: "Pay {W}{W} to keep Conversion?",
+            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+        }),
+    ],
+};
 
 // Crusade — "White creatures get +1/+1." (CR 611 — static layer 7c, color via
 // CR 202.2). Mirrors Bad Moon's structure but filtered on white instead of
@@ -1527,14 +1550,82 @@ export const phantasmalForces: CardDefinition = {
     ],
 };
 
-// export const phantasmalTerrain: CardDefinition = {
-//     id: "1c371aa1-1619-41e3-8364-7bc9b8cf5d14",
-//     name: "Phantasmal Terrain",
-//     oracleText: "Enchant land\nAs this Aura enters, choose a basic land type.\nEnchanted land is the chosen type.",
-//     manaCost: { U: 2 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Phantasmal Terrain — "Enchant land. As this enters, choose a basic land
+// type. Enchanted land is the chosen type." (CR 305.7 subtype replacement,
+// CR 303.4 aura). Modal choice at cast time selects which basic land type
+// the host becomes. Each mode applies a subtype-set with a single subtype.
+export const phantasmalTerrain: CardDefinition = {
+    id: "1c371aa1-1619-41e3-8364-7bc9b8cf5d14",
+    name: "Phantasmal Terrain",
+    oracleText:
+        "Enchant land\nAs Phantasmal Terrain enters, choose a basic land type.\nEnchanted land is the chosen type.",
+    manaCost: { U: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1 },
+    modes: [
+        {
+            id: "plains",
+            label: "Plains",
+            oracleText: "Enchanted land is a Plains.",
+            staticEffects: [
+                {
+                    kind: "subtype-set",
+                    applies: AURA_AFFECTS_HOST,
+                    subtypes: ["Plains"],
+                },
+            ],
+        },
+        {
+            id: "island",
+            label: "Island",
+            oracleText: "Enchanted land is an Island.",
+            staticEffects: [
+                {
+                    kind: "subtype-set",
+                    applies: AURA_AFFECTS_HOST,
+                    subtypes: ["Island"],
+                },
+            ],
+        },
+        {
+            id: "swamp",
+            label: "Swamp",
+            oracleText: "Enchanted land is a Swamp.",
+            staticEffects: [
+                {
+                    kind: "subtype-set",
+                    applies: AURA_AFFECTS_HOST,
+                    subtypes: ["Swamp"],
+                },
+            ],
+        },
+        {
+            id: "mountain",
+            label: "Mountain",
+            oracleText: "Enchanted land is a Mountain.",
+            staticEffects: [
+                {
+                    kind: "subtype-set",
+                    applies: AURA_AFFECTS_HOST,
+                    subtypes: ["Mountain"],
+                },
+            ],
+        },
+        {
+            id: "forest",
+            label: "Forest",
+            oracleText: "Enchanted land is a Forest.",
+            staticEffects: [
+                {
+                    kind: "subtype-set",
+                    applies: AURA_AFFECTS_HOST,
+                    subtypes: ["Forest"],
+                },
+            ],
+        },
+    ],
+};
 
 export const phantomMonster: CardDefinition = {
     id: "e46d2cf5-e8d0-4fb2-b950-252d52084b63",
@@ -2406,14 +2497,26 @@ export const drudgeSkeletons: CardDefinition = {
     ],
 };
 
-// export const evilPresence: CardDefinition = {
-//     id: "0551d66e-8cd4-48f0-aa17-15f26be9d85f",
-//     name: "Evil Presence",
-//     oracleText: "Enchant land\nEnchanted land is a Swamp.",
-//     manaCost: { B: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Evil Presence — "Enchant land. Enchanted land is a Swamp." (CR 305.7
+// subtype replacement, CR 303.4 aura). Layer 4 subtype-set replaces the
+// host's subtypes with ["Swamp"], which also changes its mana production
+// via getBasicLandMana (Swamp → {B}).
+export const evilPresence: CardDefinition = {
+    id: "0551d66e-8cd4-48f0-aa17-15f26be9d85f",
+    name: "Evil Presence",
+    oracleText: "Enchant land\nEnchanted land is a Swamp.",
+    manaCost: { B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1 },
+    staticEffects: [
+        {
+            kind: "subtype-set",
+            applies: AURA_AFFECTS_HOST,
+            subtypes: ["Swamp"],
+        },
+    ],
+};
 
 // Fear — "Enchant creature. Enchanted creature has fear (it can't be blocked
 // except by artifact creatures and/or black creatures)." (CR 303.4 aura,
@@ -5031,13 +5134,29 @@ export const livingArtifact: CardDefinition = {
     ],
 };
 
-// export const livingLands: CardDefinition = {
-//     id: "80be0580-7948-4d8e-8c0f-5e2797ac411b",
-//     name: "Living Lands",
-//     oracleText: "All Forests are 1/1 creatures that are still lands.",
-//     manaCost: { X: 3, G: 1 },
-//     types: ["Enchantment"],
-// };
+// Living Lands — "All Forests are 1/1 creatures that are still lands."
+// (CR 305.7 type-add + pt-cda). Global static: type-add Creature to all
+// permanents with Forest subtype, pt-cda sets 1/1. Summoning sickness
+// applies to newly-animated lands.
+export const livingLands: CardDefinition = {
+    id: "80be0580-7948-4d8e-8c0f-5e2797ac411b",
+    name: "Living Lands",
+    oracleText: "All Forests are 1/1 creatures that are still lands.",
+    manaCost: { X: 3, G: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "type-add",
+            applies: (target) => target.subtypes.includes("Forest"),
+            types: ["Creature"],
+        },
+        {
+            kind: "pt-cda",
+            applies: (target) => target.subtypes.includes("Forest"),
+            compute: () => ({ power: 1, toughness: 1 }),
+        },
+    ],
+};
 
 export const llanowarElves: CardDefinition = {
     id: "d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb",
@@ -5749,13 +5868,71 @@ export const crystalRod: CardDefinition = makeColorSphere({
     colorWord: "Blue",
 });
 
-// export const cyclopeanTomb: CardDefinition = {
-//     id: "894c5cf2-8ae2-427a-bcbc-67df0bdfee9d",
-//     name: "Cyclopean Tomb",
-//     oracleText: "{2}, {T}: Put a mire counter on target non-Swamp land. That land is a Swamp for as long as it has a mire counter on it. Activate only during your upkeep.\nWhen this artifact is put into a graveyard from the battlefield, at the beginning of each of your upkeeps for the rest of the game, remove all mire counters from a land that a mire counter was put onto with this artifact but that a mire counter has not been removed from with this artifact.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+// Cyclopean Tomb — "{2}, {T}: Put a mire counter on target non-Swamp land.
+// That land is a Swamp for as long as it has a mire counter on it.
+// When this is put into a graveyard from the battlefield, remove all mire
+// counters and each land that had one becomes a Forest." (Simplified from
+// the modern Oracle text for LEA scope.)
+// CR 305.7 conditional subtype-set (mire counter > 0), CR 603.10 LTB.
+export const cyclopeanTomb: CardDefinition = {
+    id: "894c5cf2-8ae2-427a-bcbc-67df0bdfee9d",
+    name: "Cyclopean Tomb",
+    oracleText:
+        "{2}, {T}: Put a mire counter on target non-Swamp land. That land is a Swamp for as long as it has a mire counter on it.\nWhen Cyclopean Tomb is put into a graveyard from the battlefield, remove all mire counters from all lands. Each land that had a mire counter removed this way becomes a Forest.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "cyclopean-tomb-mire",
+            cost: { tap: true, mana: { X: 2 } },
+            useStack: true,
+            oracleText:
+                "{2}, {T}: Put a mire counter on target non-Swamp land.",
+            targetRequirement: {
+                type: "Land",
+                count: 1,
+                excludeSubtypes: ["Swamp"],
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") ctx.addCounter(t, "mire", 1);
+            },
+        },
+    ],
+    staticEffects: [
+        {
+            kind: "subtype-set",
+            applies: (target) => (target.counters?.mire ?? 0) > 0,
+            subtypes: ["Swamp"],
+        },
+    ],
+    triggeredAbilities: [
+        leftTrigger({
+            id: "cyclopean-tomb-ltb",
+            oracleText:
+                "When Cyclopean Tomb is put into a graveyard from the battlefield, remove all mire counters from all lands. Each land that had a mire counter removed this way becomes a Forest.",
+            scope: "self",
+            toZone: "graveyard",
+            resolve: (ctx) => {
+                for (const player of ctx.apNapOrder()) {
+                    const lands = ctx.getBattlefieldIds(player, {
+                        types: "Land",
+                    });
+                    for (const landId of lands) {
+                        const target: TargetSelection = {
+                            type: "permanent",
+                            id: landId,
+                        };
+                        const count = ctx.removeCounter(target, "mire", 999);
+                        if (count > 0) {
+                            ctx.setSubtypes(target, ["Forest"]);
+                        }
+                    }
+                }
+            },
+        }),
+    ],
+};
 
 export const dingusEgg: CardDefinition = {
     id: "65eb6cda-e512-40a8-9c1f-335b713409ff",
@@ -6090,13 +6267,33 @@ export const juggernaut: CardDefinition = {
     ],
 };
 
-// export const kormusBell: CardDefinition = {
-//     id: "3f4ef7a1-148d-44ac-89ed-0ef379cca0c6",
-//     name: "Kormus Bell",
-//     oracleText: "All Swamps are 1/1 black creatures that are still lands.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+// Kormus Bell — "All Swamps are 1/1 black creatures that are still lands."
+// (CR 305.7 type-add + pt-cda + color-grant). Same pattern as Living Lands
+// but for Swamps + grants black color.
+export const kormusBell: CardDefinition = {
+    id: "3f4ef7a1-148d-44ac-89ed-0ef379cca0c6",
+    name: "Kormus Bell",
+    oracleText: "All Swamps are 1/1 black creatures that are still lands.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    staticEffects: [
+        {
+            kind: "type-add",
+            applies: (target) => target.subtypes.includes("Swamp"),
+            types: ["Creature"],
+        },
+        {
+            kind: "pt-cda",
+            applies: (target) => target.subtypes.includes("Swamp"),
+            compute: () => ({ power: 1, toughness: 1 }),
+        },
+        {
+            kind: "color-grant",
+            applies: (target) => target.subtypes.includes("Swamp"),
+            colors: ["B"],
+        },
+    ],
+};
 
 // Library of Leng — "You have no maximum hand size. If an effect causes you
 // to discard a card, discard it, but you may put it on top of your library

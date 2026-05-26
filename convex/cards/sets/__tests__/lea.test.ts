@@ -226,6 +226,12 @@ import {
     glassesOfUrza,
     cockatrice,
     thicketBasilisk,
+    evilPresence,
+    phantasmalTerrain,
+    conversion,
+    livingLands,
+    kormusBell,
+    cyclopeanTomb,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -238,12 +244,20 @@ import {
     processPendingActionTriggers,
     matchesPermanentFilter,
     moveCard,
+    applySourceStaticEffects,
+    unapplySourceStaticEffects,
+    applyExistingGrantsTo,
     type CardInstanceState,
     type GameState,
 } from "../../../gre/state";
-import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+    STATIC_EFFECT_CTX,
+} from "../../../gre/layers";
 import {
     getActivatedManaColor,
+    getBasicLandMana,
     getFixedManaAmount,
     hasManaAbility,
 } from "../../../gre/constants";
@@ -274,6 +288,7 @@ import {
     emitBlockersConfirmedEvents,
 } from "../../../gre/phases";
 import { tryGetCardById } from "../../index";
+import { compactState, expandState } from "../../../gre/serialize";
 import type { CardDefinition, CardType } from "../../types";
 import {
     makeInstance,
@@ -16637,5 +16652,564 @@ describe("Thicket Basilisk (same combat kill as Cockatrice, no flying)", () => {
         emitBlockersConfirmedEvents(state);
         expect(state.stack.length).toBe(1);
         expect(state.stack[0].triggeredAbilityId).toBe("basilisk-combat-kill");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// W21a: Subtype-set core — evilPresence, phantasmalTerrain, conversion
+// ---------------------------------------------------------------------------
+
+describe("Evil Presence ({B} — aura: enchanted land is a Swamp)", () => {
+    it("replaces host's subtypes with Swamp", () => {
+        const state = makeState();
+        const mtn = makeInstance(mountain.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(mtn);
+        expect(mtn.subtypes).toEqual(["Mountain"]);
+
+        const aura = makeInstance(evilPresence.id, {
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        aura.attachedTo = mtn.id;
+        state.players[1].battlefield.push(aura);
+        applySourceStaticEffects(state, aura);
+
+        expect(mtn.subtypes).toEqual(["Swamp"]);
+        expect(mtn.printedSubtypes).toEqual(["Mountain"]);
+    });
+
+    it("host produces {B} after subtype change (mana sync)", () => {
+        const state = makeState();
+        const mtn = makeInstance(mountain.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(mtn);
+        expect(getBasicLandMana(mtn)).toBe("R");
+
+        const aura = makeInstance(evilPresence.id, {
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        aura.attachedTo = mtn.id;
+        state.players[1].battlefield.push(aura);
+        applySourceStaticEffects(state, aura);
+
+        expect(getBasicLandMana(mtn)).toBe("B");
+    });
+
+    it("removing aura restores original subtypes", () => {
+        const state = makeState();
+        const mtn = makeInstance(mountain.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(mtn);
+
+        const aura = makeInstance(evilPresence.id, {
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        aura.attachedTo = mtn.id;
+        state.players[1].battlefield.push(aura);
+        applySourceStaticEffects(state, aura);
+        expect(mtn.subtypes).toEqual(["Swamp"]);
+
+        unapplySourceStaticEffects(state, aura);
+        expect(mtn.subtypes).toEqual(["Mountain"]);
+        expect(mtn.printedSubtypes).toBeUndefined();
+        expect(getBasicLandMana(mtn)).toBe("R");
+    });
+
+    it("wire format: subtype change visible in projected state", () => {
+        const state = makeState();
+        const mtn = makeInstance(mountain.id, {
+            id: "mtn-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(mtn);
+
+        const aura = makeInstance(evilPresence.id, {
+            id: "ep-1",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        aura.attachedTo = mtn.id;
+        state.players[1].battlefield.push(aura);
+        applySourceStaticEffects(state, aura);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const projMtn = projected.players[0].battlefield.find(
+            (c) => c.id === "mtn-1"
+        )!;
+        expect(projMtn.subtypes).toEqual(["Swamp"]);
+    });
+
+    it("declares subtype-set static effect", () => {
+        expect(evilPresence.staticEffects).toHaveLength(1);
+        expect(evilPresence.staticEffects![0].kind).toBe("subtype-set");
+    });
+});
+
+describe("Phantasmal Terrain ({U}{U} — modal aura: choose basic land type)", () => {
+    it("applies chosen mode's subtype-set to host", () => {
+        const state = makeState();
+        const mtn = makeInstance(mountain.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(mtn);
+
+        const aura = makeInstance(phantasmalTerrain.id, {
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        aura.attachedTo = mtn.id;
+        aura.chosenModeId = "island";
+        state.players[1].battlefield.push(aura);
+        applySourceStaticEffects(state, aura);
+
+        expect(mtn.subtypes).toEqual(["Island"]);
+        expect(getBasicLandMana(mtn)).toBe("U");
+    });
+
+    it("forest mode makes host produce {G}", () => {
+        const state = makeState();
+        const pln = makeInstance(plains.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(pln);
+
+        const aura = makeInstance(phantasmalTerrain.id, {
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        aura.attachedTo = pln.id;
+        aura.chosenModeId = "forest";
+        state.players[1].battlefield.push(aura);
+        applySourceStaticEffects(state, aura);
+
+        expect(pln.subtypes).toEqual(["Forest"]);
+        expect(getBasicLandMana(pln)).toBe("G");
+    });
+
+    it("removing aura restores original subtypes", () => {
+        const state = makeState();
+        const mtn = makeInstance(mountain.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(mtn);
+
+        const aura = makeInstance(phantasmalTerrain.id, {
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        aura.attachedTo = mtn.id;
+        aura.chosenModeId = "swamp";
+        state.players[1].battlefield.push(aura);
+        applySourceStaticEffects(state, aura);
+        expect(mtn.subtypes).toEqual(["Swamp"]);
+
+        unapplySourceStaticEffects(state, aura);
+        expect(mtn.subtypes).toEqual(["Mountain"]);
+    });
+
+    it("has 5 modes (one per basic land type)", () => {
+        expect(phantasmalTerrain.modes).toHaveLength(5);
+        const ids = phantasmalTerrain.modes!.map((m) => m.id);
+        expect(ids).toEqual([
+            "plains",
+            "island",
+            "swamp",
+            "mountain",
+            "forest",
+        ]);
+    });
+});
+
+describe("Conversion ({2}{W}{W} — all Mountains are Plains)", () => {
+    it("replaces subtypes of all Mountains globally", () => {
+        const state = makeState();
+        const mtn1 = makeInstance(mountain.id, {
+            id: "mtn-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const mtn2 = makeInstance(mountain.id, {
+            id: "mtn-2",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(mtn1);
+        state.players[1].battlefield.push(mtn2);
+
+        const conv = makeInstance(conversion.id, {
+            id: "conv",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(conv);
+        applySourceStaticEffects(state, conv);
+
+        expect(mtn1.subtypes).toEqual(["Plains"]);
+        expect(mtn2.subtypes).toEqual(["Plains"]);
+        expect(getBasicLandMana(mtn1)).toBe("W");
+        expect(getBasicLandMana(mtn2)).toBe("W");
+    });
+
+    it("does not affect non-Mountain lands", () => {
+        const state = makeState();
+        const isl = makeInstance(island.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(isl);
+
+        const conv = makeInstance(conversion.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(conv);
+        applySourceStaticEffects(state, conv);
+
+        expect(isl.subtypes).toEqual(["Island"]);
+    });
+
+    it("removal restores all Mountains", () => {
+        const state = makeState();
+        const mtn = makeInstance(mountain.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(mtn);
+
+        const conv = makeInstance(conversion.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(conv);
+        applySourceStaticEffects(state, conv);
+        expect(mtn.subtypes).toEqual(["Plains"]);
+
+        unapplySourceStaticEffects(state, conv);
+        expect(mtn.subtypes).toEqual(["Mountain"]);
+        expect(getBasicLandMana(mtn)).toBe("R");
+    });
+
+    it("new Mountain entering after Conversion gets affected", () => {
+        const state = makeState();
+        const conv = makeInstance(conversion.id, {
+            id: "conv",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(conv);
+
+        const mtn = makeInstance(mountain.id, {
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        state.players[1].battlefield.push(mtn);
+        applyExistingGrantsTo(state, mtn);
+
+        expect(mtn.subtypes).toEqual(["Plains"]);
+    });
+
+    it("upkeep pay-or-else trigger declared", () => {
+        expect(conversion.triggeredAbilities).toHaveLength(1);
+        expect(conversion.triggeredAbilities![0].id).toBe("conversion-upkeep");
+    });
+});
+
+describe("grantedSubtypes serialization round-trip", () => {
+    it("grantedSubtypes + printedSubtypes survive compact → expand", () => {
+        const state = makeState();
+        const mtn = makeInstance(mountain.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(mtn);
+
+        const aura = makeInstance(evilPresence.id, {
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        aura.attachedTo = mtn.id;
+        state.players[1].battlefield.push(aura);
+        applySourceStaticEffects(state, aura);
+
+        const expanded = expandState(compactState(state));
+        const got = expanded.players[0].battlefield.find(
+            (c: CardInstanceState) => c.id === mtn.id
+        )!;
+        expect(got.grantedSubtypes).toEqual(mtn.grantedSubtypes);
+        expect(got.printedSubtypes).toEqual(["Mountain"]);
+        expect(got.subtypes).toEqual(["Swamp"]);
+    });
+
+    it("chosenModeId survives compact → expand for battlefield permanent", () => {
+        const state = makeState();
+        const aura = makeInstance(phantasmalTerrain.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        aura.chosenModeId = "island";
+        state.players[0].battlefield.push(aura);
+
+        const expanded = expandState(compactState(state));
+        const got = expanded.players[0].battlefield.find(
+            (c: CardInstanceState) => c.id === aura.id
+        )!;
+        expect(got.chosenModeId).toBe("island");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// W21b: Animate-land extension — livingLands, kormusBell, cyclopeanTomb
+// ---------------------------------------------------------------------------
+
+describe("Living Lands ({3}{G} — all Forests are 1/1 creatures, still lands)", () => {
+    it("Forests become 1/1 creatures and keep Land type", () => {
+        const state = makeState();
+        const f = makeInstance(forest.id, {
+            id: "forest-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(f);
+
+        const ll = makeInstance(livingLands.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(ll);
+        applySourceStaticEffects(state, ll);
+
+        expect(f.types).toContain("Creature");
+        expect(f.types).toContain("Land");
+        expect(getEffectivePower(state, f)).toBe(1);
+        expect(getEffectiveToughness(state, f)).toBe(1);
+    });
+
+    it("animated Forests get summoning sickness", () => {
+        const state = makeState();
+        const f = makeInstance(forest.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(f);
+
+        const ll = makeInstance(livingLands.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(ll);
+        applySourceStaticEffects(state, ll);
+
+        expect(f.isSummoningSick).toBe(true);
+    });
+
+    it("removal of Living Lands reverts Forests to non-creature", () => {
+        const state = makeState();
+        const f = makeInstance(forest.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(f);
+
+        const ll = makeInstance(livingLands.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(ll);
+        applySourceStaticEffects(state, ll);
+        expect(f.types).toContain("Creature");
+
+        unapplySourceStaticEffects(state, ll);
+        expect(f.types).not.toContain("Creature");
+        expect(f.types).toContain("Land");
+    });
+
+    it("wire format: animated Forest visible in projected state", () => {
+        const state = makeState();
+        const f = makeInstance(forest.id, {
+            id: "forest-w",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(f);
+
+        const ll = makeInstance(livingLands.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(ll);
+        applySourceStaticEffects(state, ll);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const projF = projected.players[0].battlefield.find(
+            (c) => c.id === "forest-w"
+        )!;
+        expect(projF.types).toContain("Creature");
+        expect(getEffectivePower(projected, projF)).toBe(1);
+        expect(getEffectiveToughness(projected, projF)).toBe(1);
+    });
+});
+
+describe("Kormus Bell ({4} — all Swamps are 1/1 black creatures, still lands)", () => {
+    it("Swamps become 1/1 black creatures", () => {
+        const state = makeState();
+        const sw = makeInstance(swamp.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(sw);
+
+        const kb = makeInstance(kormusBell.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(kb);
+        applySourceStaticEffects(state, kb);
+
+        expect(sw.types).toContain("Creature");
+        expect(sw.types).toContain("Land");
+        expect(getEffectivePower(state, sw)).toBe(1);
+        expect(getEffectiveToughness(state, sw)).toBe(1);
+    });
+
+    it("animated Swamps are black (color grant)", () => {
+        const state = makeState();
+        const sw = makeInstance(swamp.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(sw);
+
+        const kb = makeInstance(kormusBell.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(kb);
+        applySourceStaticEffects(state, kb);
+
+        const colors = STATIC_EFFECT_CTX.getColors(sw);
+        expect(colors).toContain("B");
+    });
+
+    it("removal of Kormus Bell reverts Swamps", () => {
+        const state = makeState();
+        const sw = makeInstance(swamp.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(sw);
+
+        const kb = makeInstance(kormusBell.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(kb);
+        applySourceStaticEffects(state, kb);
+
+        unapplySourceStaticEffects(state, kb);
+        expect(sw.types).not.toContain("Creature");
+        expect(sw.grantedColors).toBeUndefined();
+    });
+});
+
+describe("Cyclopean Tomb ({4} — mire counter + LTB)", () => {
+    it("mire counter makes land a Swamp via subtype-set", () => {
+        const state = makeState();
+        const mtn = makeInstance(mountain.id, {
+            id: "mtn-ct",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(mtn);
+
+        const tomb = makeInstance(cyclopeanTomb.id, {
+            id: "tomb",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        state.players[1].battlefield.push(tomb);
+
+        // Simulate putting a mire counter
+        mtn.counters = { mire: 1 };
+
+        // Apply static effects from tomb
+        applySourceStaticEffects(state, tomb);
+
+        expect(mtn.subtypes).toEqual(["Swamp"]);
+        expect(getBasicLandMana(mtn)).toBe("B");
+    });
+
+    it("no mire counter → subtype-set does not apply", () => {
+        const state = makeState();
+        const mtn = makeInstance(mountain.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(mtn);
+
+        const tomb = makeInstance(cyclopeanTomb.id, {
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        state.players[1].battlefield.push(tomb);
+        applySourceStaticEffects(state, tomb);
+
+        expect(mtn.subtypes).toEqual(["Mountain"]);
+    });
+
+    it("LTB trigger: removes mire counters and sets subtypes to Forest", () => {
+        const state = makeState();
+        const mtn = makeInstance(mountain.id, {
+            id: "mtn-ltb",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        mtn.counters = { mire: 2 };
+        mtn.subtypes = ["Swamp"];
+        mtn.printedSubtypes = ["Mountain"];
+        state.players[0].battlefield.push(mtn);
+
+        const tomb = makeInstance(cyclopeanTomb.id, {
+            id: "tomb-ltb",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        state.players[1].battlefield.push(tomb);
+
+        // Move tomb to graveyard + trigger
+        removePermanentTo(state, "tomb-ltb", "graveyard");
+        processPendingActionTriggers(state);
+
+        // LTB should have queued a triggered ability
+        expect(state.stack.length).toBe(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("cyclopean-tomb-ltb");
+
+        // Resolve the trigger
+        resolveTopOfStack(state);
+
+        // Mire counters removed, subtypes set to Forest
+        expect(mtn.counters?.mire).toBeUndefined();
+        expect(mtn.subtypes).toEqual(["Forest"]);
+        expect(getBasicLandMana(mtn)).toBe("G");
+    });
+
+    it("declares activated ability with target non-Swamp land", () => {
+        expect(cyclopeanTomb.activatedAbilities).toHaveLength(1);
+        expect(
+            cyclopeanTomb.activatedAbilities![0].targetRequirement
+                ?.excludeSubtypes
+        ).toEqual(["Swamp"]);
     });
 });

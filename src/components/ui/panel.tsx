@@ -107,15 +107,13 @@ function PanelHeader({
         >
             {icon && <SunburstIcon>{icon}</SunburstIcon>}
             <div className="flex-1 flex flex-col w-full min-w-0">
-                <h2 className="text-xl sm:text-2xl font-bold tracking-wide text-parchment font-beleren text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
-                    {title}
-                </h2>
+                <h2 className="heading-panel">{title}</h2>
                 {subtitle && (
                     <p className="text-text-muted text-sm text-center mt-1">
                         {subtitle}
                     </p>
                 )}
-                <div className="h-px w-full bg-linear-to-r from-transparent via-border-accent/40 to-transparent my-2" />
+                <div className="divider-gradient my-2" />
             </div>
         </div>
     );

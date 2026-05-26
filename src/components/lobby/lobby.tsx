@@ -179,14 +179,14 @@ function Lobby() {
         <>
             <button
                 onClick={() => handleEditDeck(deck.presetId)}
-                className="font-beleren tracking-wide rounded-sm border border-secondary-accent/45 bg-secondary-accent-soft/30 px-3 py-2 text-xs text-secondary-accent-strong hover:bg-secondary-accent-soft/50 active:bg-secondary-accent-soft/65 transition-colors cursor-pointer"
+                className="btn-base btn-tone-secondary px-3 py-2 text-xs"
                 title="Edit deck"
             >
                 Edit
             </button>
             <button
                 onClick={() => handleDeleteDeck(deck.presetId)}
-                className="font-beleren tracking-wide rounded-sm border border-danger/45 bg-danger-soft/45 px-3 py-2 text-xs text-danger-strong hover:bg-danger-soft/65 active:bg-danger-soft/80 transition-colors cursor-pointer"
+                className="btn-base btn-tone-destructive px-3 py-2 text-xs"
                 title="Delete deck"
             >
                 Delete
@@ -224,7 +224,7 @@ function Lobby() {
                                 headerExtra={
                                     <button
                                         onClick={handleNewDeck}
-                                        className="font-beleren tracking-wide rounded-sm border border-accent/45 bg-accent-soft/30 px-3 py-1.5 text-xs text-accent-strong hover:bg-accent-soft/50 active:bg-accent-soft/65 transition-colors cursor-pointer shadow-md"
+                                        className="btn-base btn-tone-primary px-3 py-1.5 text-xs"
                                     >
                                         + New Deck
                                     </button>

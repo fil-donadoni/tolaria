@@ -107,7 +107,7 @@ function StateSimulated({
     };
     return (
         <span
-            className={`font-beleren tracking-wide px-5 py-2 rounded-sm text-sm border shadow-md inline-flex items-center ${classes[state][tone]}`}
+            className={`btn-base px-5 py-2 text-sm inline-flex items-center ${classes[state][tone]}`}
         >
             {tone} {state}
         </span>
@@ -271,43 +271,38 @@ function RawToneClasses() {
     const tones = [
         {
             name: "primary",
+            cssClass: "btn-tone-primary",
             bg: "bg-accent-soft/30",
             border: "border-accent/45",
             text: "text-accent-strong",
-            hoverBg: "bg-accent-soft/50",
-            activeBg: "bg-accent-soft/65",
         },
         {
             name: "secondary",
+            cssClass: "btn-tone-secondary",
             bg: "bg-secondary-accent-soft/30",
             border: "border-secondary-accent/45",
             text: "text-secondary-accent-strong",
-            hoverBg: "bg-secondary-accent-soft/50",
-            activeBg: "bg-secondary-accent-soft/65",
         },
         {
             name: "destructive",
+            cssClass: "btn-tone-destructive",
             bg: "bg-danger-soft/45",
             border: "border-danger/45",
             text: "text-danger-strong",
-            hoverBg: "bg-danger-soft/65",
-            activeBg: "bg-danger-soft/80",
         },
         {
             name: "ghost",
+            cssClass: "btn-tone-ghost",
             bg: "bg-transparent",
             border: "border-transparent",
             text: "text-text-muted",
-            hoverBg: "text-parchment",
-            activeBg: "text-parchment",
         },
         {
             name: "disabled",
+            cssClass: "btn-disabled",
             bg: "bg-surface/40",
             border: "border-border-subtle/40",
             text: "text-text-disabled",
-            hoverBg: "—",
-            activeBg: "—",
         },
     ];
 
@@ -321,11 +316,10 @@ function RawToneClasses() {
                             <th className="pb-2 font-beleren text-parchment">
                                 Tone
                             </th>
+                            <th className="pb-2">CSS class</th>
                             <th className="pb-2">bg</th>
                             <th className="pb-2">border</th>
                             <th className="pb-2">text</th>
-                            <th className="pb-2">hover bg</th>
-                            <th className="pb-2">active bg</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -337,11 +331,12 @@ function RawToneClasses() {
                                 <td className="py-2 font-beleren text-parchment">
                                     {t.name}
                                 </td>
+                                <td className="py-2 font-mono text-accent">
+                                    {t.cssClass}
+                                </td>
                                 <td className="py-2 font-mono">{t.bg}</td>
                                 <td className="py-2 font-mono">{t.border}</td>
                                 <td className="py-2 font-mono">{t.text}</td>
-                                <td className="py-2 font-mono">{t.hoverBg}</td>
-                                <td className="py-2 font-mono">{t.activeBg}</td>
                             </tr>
                         ))}
                     </tbody>

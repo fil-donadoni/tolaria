@@ -27,8 +27,8 @@ export default function TypeFilter({ selected, onToggle }: TypeFilterProps) {
                         className={cn(
                             "rounded-full px-2.5 py-1 text-[11px] uppercase tracking-wide transition",
                             active
-                                ? "bg-white/20 text-white ring-1 ring-white/40"
-                                : "bg-white/5 text-white/50 hover:text-white"
+                                ? "filter-chip-active text-parchment"
+                                : "filter-chip-inactive text-text-muted hover:text-parchment"
                         )}
                     >
                         {t}
