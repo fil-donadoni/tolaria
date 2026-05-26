@@ -14249,15 +14249,10 @@ describe("Time Vault (skip-turn / extra-turn artifact, CR 614.10 + 500.7)", () =
             turn: 1,
             activePlayerId: "p1",
             players: [
-                makePlayer("p1", { skipNextTurn: true }),
-                makePlayer("p2"),
+                makePlayer("p1"),
+                makePlayer("p2", { skipNextTurn: true }),
             ],
         });
-        // p1 ends their turn. p2 would normally be next, but p2 has
-        // skipNextTurn, so actually p2 is the one being skipped... Let's
-        // set up correctly: p1 is active, p2 has skipNextTurn.
-        state.players[1].skipNextTurn = true;
-        state.players[0].skipNextTurn = undefined;
         advancePhase(state); // END_STEP → CLEANUP → next turn
         // p2's turn is skipped, so it goes to p1 again
         expect(state.activePlayerId).toBe("p1");

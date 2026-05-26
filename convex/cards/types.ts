@@ -720,8 +720,8 @@ export interface SpellContext {
     tapAllLands: (playerId: string) => void;
 
     /** Empties `playerId`'s mana pool and returns the drained amounts as a
-     *  ManaCost (CR 106.4). Used by Mana Short (drain + discard) and Drain
-     *  Power (drain + transfer). */
+     *  ManaCost (CR 106.4). Used by Mana Short (tap + drain) and Drain
+     *  Power (tap + drain + transfer to caster). */
     drainManaPool: (playerId: string) => ManaCost;
 
     /** Marks `playerId` to skip their next turn (CR 614.10). The flag is

@@ -975,6 +975,36 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "Mana Short — tap lands + drain mana pool (CR 106.4)",
+        cards: [
+            {
+                name: "Mana Short",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 3 },
+            { name: "Forest", owner: "opp" as const, count: 4 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "Drain Power — tap lands + steal mana (CR 106.4)",
+        cards: [
+            {
+                name: "Drain Power",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 3 },
+            { name: "Mountain", owner: "opp" as const, count: 3 },
+            { name: "Forest", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
