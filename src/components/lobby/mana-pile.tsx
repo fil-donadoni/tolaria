@@ -15,9 +15,9 @@ export default function ManaPile({ label, cards }: ManaPileProps) {
 
     return (
         <div className="flex w-[var(--card-w)] shrink-0 flex-col gap-2">
-            <div className="flex items-baseline justify-between gap-2 text-xs text-white/70">
+            <div className="flex items-baseline justify-between gap-2 text-xs text-text-muted">
                 <span className="font-semibold">{label}</span>
-                <span className="text-white/40">{cards.length}</span>
+                <span className="text-text-disabled">{cards.length}</span>
             </div>
             <div
                 className="relative w-[var(--card-w)]"

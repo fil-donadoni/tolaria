@@ -37,7 +37,6 @@ import {
     emitPermanentEntered,
     discardPermanentTappedEvent,
     processPendingActionTriggers,
-    getPendingChoiceMax,
     allocInstanceId,
 } from "./gre/state";
 import type { Color, ManaCost, SpellMode } from "./cards/types";
@@ -61,14 +60,9 @@ import {
     advancePhase,
     drainAutoPasses,
     applyAllCombatDamage,
-    computeHardSkipFilters,
-    effectivePermanentView,
-    finalizeCleanupDiscard,
-    finalizeUntapPick,
 } from "./gre/phases";
 import { freshSeed, seededShuffle } from "./gre/rng";
 import {
-    applyMulliganBottomChoice,
     finalizeMulligan,
     makeMulliganState,
     recordDeclaration,
@@ -220,7 +214,7 @@ function assertGameNotOver(state: GameState) {
 
 /** Guard: reject actions while the engine is suspended awaiting
  *  mid-resolution player choices (CR 608.2). Priority is frozen in this
- *  window — only `selectResolutionChoice` is legal.
+ *  window — only `submitResolutionChoice` is legal.
  *
  *  CR 117.3a exception: while a player is being asked an optional may-pay
  *  question, they may activate mana abilities to make the mana required.
@@ -2646,7 +2640,7 @@ export const passPriority = mutation({
                 // Resolution suspended awaiting player choices (CR 608.2).
                 // Hand priority to the chooser; the gate on passPriority and
                 // other priority-driven mutations prevents any action other
-                // than selectResolutionChoice.
+                // than submitResolutionChoice.
                 state.priorityPlayerId = state.pendingChoices![0].playerId;
             } else {
                 state.priorityPlayerId = state.activePlayerId;
@@ -2679,7 +2673,7 @@ export const passPriority = mutation({
  *  before dispatching to the existing finalize paths.
  *
  *  Slice #80 handles `discard-hand` only; other kinds (`untap-pick`,
- *  `mulligan-bottom`) still flow through `selectResolutionChoice` until
+ *  `mulligan-bottom`) still flow through `submitResolutionChoice` until
  *  their migration slices land. */
 export const submitResolutionChoice = mutation({
     args: {
@@ -2706,176 +2700,6 @@ export const submitResolutionChoice = mutation({
         });
 
         checkStateBasedActions(state);
-
-        const nextSeq = gameState.seq + 1;
-        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
-        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
-    },
-});
-
-/** Submit one pick for the currently-active mid-resolution choice (CR 608.2).
- *  Accumulates `cardInstanceId` into `pendingChoices[0].selected`; auto-
- *  finalizes when the count is reached by (a) moving the picks into the
- *  stack item's `collectedChoices`, (b) shifting the head off the queue,
- *  and (c) if the queue is empty, resuming the resolution via
- *  `resolveTopOfStack`. If the resume re-suspends on a new choice, priority
- *  is handed to the next chooser; otherwise priority returns to the active
- *  player and the pass count resets.
- *
- *  @deprecated for `discard-hand` — use `submitResolutionChoice`. Will be
- *  fully removed in slice #85 once all kinds have migrated. */
-export const selectResolutionChoice = mutation({
-    args: {
-        gameId: v.id("games"),
-        playerId: v.string(),
-        cardInstanceId: v.string(),
-    },
-    handler: async (ctx, args) => {
-        const gameState = await getLatestGameState(ctx, args.gameId);
-        if (!gameState) throw new Error("Game not found");
-
-        const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-
-        const queue = state.pendingChoices ?? [];
-        if (queue.length === 0) throw new Error("No pending choice");
-        const head = queue[0];
-        if (head.playerId !== args.playerId) {
-            throw new Error("Not your pending choice");
-        }
-        if (head.kind === "may-pay") {
-            throw new Error("Use submitMayPay for may-pay choices");
-        }
-        if (head.selected.includes(args.cardInstanceId)) {
-            throw new Error("Already selected");
-        }
-
-        // CR 608.2 — the zone being picked from is `zoneOwnerId ?? playerId`
-        // (default: chooser's own zone). When `zoneOwnerId` is set, the
-        // chooser is picking from another player's zone (e.g. Demonic Hordes
-        // → opponent picks a Land from controller's battlefield).
-        const zoneOwner = getPlayer(state, head.zoneOwnerId ?? args.playerId);
-        if (head.zone === "battlefield") {
-            const card = zoneOwner.battlefield.find(
-                (c) => c.id === args.cardInstanceId
-            );
-            if (!card) throw new Error("Card not on battlefield");
-            if (head.filter && !matchesPermanentFilter(card, head.filter)) {
-                throw new Error("Card does not match the required filter");
-            }
-            // Untap-pick (CR 502.1): can only pick a tapped permanent that
-            // is allowed to untap. `does-not-untap` markers (Basalt Monolith
-            // / Mana Vault / Paralyze's grant to its host) make the
-            // permanent ineligible regardless of filter match.
-            if (head.kind === "untap-pick") {
-                if (!card.isTapped) {
-                    throw new Error("Card is not tapped");
-                }
-                if (card.staticAbilities.includes("does-not-untap")) {
-                    throw new Error("Card cannot untap");
-                }
-                // CR 502.1 defense-in-depth: reject picks matching any
-                // hard-skip restriction (maxUntap === 0). The dispatcher
-                // already excludes these from the eligible set, but stale
-                // client state could send a forbidden id.
-                const vetoFilters = computeHardSkipFilters(state);
-                const view = effectivePermanentView(state, card);
-                if (vetoFilters.some((f) => matchesPermanentFilter(view, f))) {
-                    throw new Error("Card cannot untap");
-                }
-            }
-        } else if (head.zone === "hand") {
-            const card = zoneOwner.hand.find(
-                (c) => c.id === args.cardInstanceId
-            );
-            if (!card) throw new Error("Card not in hand");
-        } else {
-            const card = zoneOwner.library.find(
-                (c) => c.id === args.cardInstanceId
-            );
-            if (!card) throw new Error("Card not in library");
-        }
-
-        head.selected.push(args.cardInstanceId);
-
-        if (head.selected.length >= getPendingChoiceMax(head.count)) {
-            if (head.kind === "untap-pick") {
-                // Untap-step cap (CR 502.1) reached its max: finalize the
-                // pick — untap the chosen ids on the chooser's BF, dequeue,
-                // and resume the untap dispatcher. The dispatcher may
-                // enqueue the next restriction's prompt or fall through to
-                // flag cleanup; in the latter case advancePhase leaves UNTAP.
-                finalizeUntapPick(state, head.selected);
-            } else if (
-                head.kind === "discard-hand" &&
-                head.stackItemId === "" &&
-                state.pendingCleanupDiscard
-            ) {
-                // CR 514.1 — phase-level cleanup discard. `stackItemId === ""`
-                // distinguishes this from a spell-driven discard-hand pick
-                // (Disrupting Scepter), which carries a real stack id and
-                // falls through to the mid-resolution branch below.
-                finalizeCleanupDiscard(state, head.selected);
-            } else if (head.kind === "mulligan-bottom") {
-                // Pre-game mulligan bottoming (CR 103.5) — no stack item; the
-                // mulligan module moves the picks to the bottom of the
-                // library, pops the queue, and either advances priority to
-                // the next chooser or finalizes the mulligan phase
-                // (advancing to UPKEEP of turn 1).
-                applyMulliganBottomChoice(state);
-                state.pendingChoices =
-                    (state.pendingChoices?.length ?? 0) > 0
-                        ? state.pendingChoices
-                        : undefined;
-                if ((state.pendingChoices?.length ?? 0) === 0) {
-                    // finalizeMulligan ran — priority is set by advancePhase.
-                    state.priorityPlayerId = state.activePlayerId;
-                    state.passCount = 0;
-                    drainAutoPasses(state);
-                }
-                // SBA not run during MULLIGAN (no game-over conditions apply
-                // pre-game, CR 704.3); after finalizeMulligan we're in UPKEEP
-                // and the next mutation will run SBA as usual.
-            } else {
-                // Mid-resolution choice (CR 608.2) — commit into the stack
-                // item's collectedChoices so the next invocation of the step
-                // reads it back via requestChoice.
-                const stackItem = state.stack.find(
-                    (s) => s.id === head.stackItemId
-                );
-                if (!stackItem) throw new Error("Stack item not found");
-                const key = `${head.step}:${head.choiceId}`;
-                stackItem.collectedChoices = {
-                    ...(stackItem.collectedChoices ?? {}),
-                    [key]: head.selected,
-                };
-
-                queue.shift();
-                state.pendingChoices = queue.length > 0 ? queue : undefined;
-
-                // If the queue is empty, resume resolution. The resolve may
-                // enqueue fresh pending choices (next step) — treat that as a
-                // new suspension and hand priority to the new chooser.
-                if ((state.pendingChoices?.length ?? 0) === 0) {
-                    resolveTopOfStack(state);
-                    if ((state.pendingChoices?.length ?? 0) > 0) {
-                        state.priorityPlayerId =
-                            state.pendingChoices![0].playerId;
-                    } else {
-                        // Full resolution completed — priority returns to the
-                        // active player (CR 117.3d) and the pass count resets.
-                        state.priorityPlayerId = state.activePlayerId;
-                        state.passCount = 0;
-                        drainAutoPasses(state);
-                    }
-                    checkStateBasedActions(state);
-                } else {
-                    // More choices queued within the same step — move
-                    // priority to the next chooser.
-                    state.priorityPlayerId = state.pendingChoices![0].playerId;
-                }
-            }
-        }
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
@@ -2924,7 +2748,7 @@ export const submitMayPay = mutation({
             commitLandsForCost(player, normalized);
         }
 
-        head.selected = [args.accept ? "yes" : "no"];
+        const answer = [args.accept ? "yes" : "no"];
 
         // Commit into the stack item's collectedChoices so the resolve step
         // re-invocation reads the answer back via requestMayPay.
@@ -2933,7 +2757,7 @@ export const submitMayPay = mutation({
         const key = `${head.step}:${head.choiceId}`;
         stackItem.collectedChoices = {
             ...(stackItem.collectedChoices ?? {}),
-            [key]: head.selected,
+            [key]: answer,
         };
 
         queue.shift();
@@ -2965,7 +2789,7 @@ export const submitMayPay = mutation({
  *  mulligan engine executes the round (mull players reshuffle + redraw 7,
  *  keep players lock). When all players are locked, bottoming PendingChoices
  *  are enqueued for any player who took at least one mulligan; their picks
- *  are applied via `selectResolutionChoice` (kind "mulligan-bottom"). */
+ *  are applied via `submitResolutionChoice` (kind "mulligan-bottom"). */
 export const declareMulligan = mutation({
     args: {
         gameId: v.id("games"),

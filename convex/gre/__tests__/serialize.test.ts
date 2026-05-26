@@ -274,7 +274,6 @@ describe("schema drift guard", () => {
                 kind: "untap-pick",
                 zone: "battlefield",
                 count: 1,
-                selected: [],
                 prompt: "test",
             },
         ];
@@ -420,7 +419,6 @@ describe("optional field round-trip smoke tests", () => {
                 kind: "untap-pick",
                 zone: "battlefield",
                 count: { min: 0, max: 1 },
-                selected: [],
                 prompt: "test",
             },
         ];

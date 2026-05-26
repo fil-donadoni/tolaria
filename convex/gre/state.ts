@@ -565,20 +565,13 @@ export type PendingChoice = {
      *  for hand choices. */
     filter?: PermanentFilter;
     /** Number of items to pick. Two shapes:
-     *  - `number` (fixed N) — commit when `selected.length >= N` (existing
-     *    sacrifice / keep-hand / mulligan-bottom flow).
-     *  - `{ min, max }` (range) — engine-internal choices with a tactical
-     *    zero-branch (ADR 0003 cap-style: `untap-pick` under Winter Orb /
-     *    Smoke / Meekstone). Commit happens at `max` via
-     *    `selectResolutionChoice` or at any point in `[min, max]` via a
-     *    family-specific submit mutation. Use `getPendingChoiceMax` /
+     *  - `number` (fixed N) — the chooser must select exactly N.
+     *  - `{ min, max }` (range) — tactical zero-branch (ADR 0003 cap-style:
+     *    `untap-pick` under Winter Orb / Smoke). Done button enables at
+     *    `min`; client submits at most `max`. Use `getPendingChoiceMax` /
      *    `getPendingChoiceMin` to read either shape.
-     *  For `may-pay`, this is always 1 and the selection is the literal
-     *  string "yes" or "no". */
+     *  For `may-pay`, this is always 1 (Pay / Skip). */
     count: number | { min: number; max: number };
-    /** Ids already selected by the chooser. For `may-pay`, the entry is
-     *  "yes" or "no" — committed by `submitMayPay`. */
-    selected: string[];
     /** Prompt text shown to the chooser (e.g. "Choose 2 lands to keep"). */
     prompt: string;
     /** For `kind: "may-pay"`, the mana cost paid on accept (CR 117.3a /
@@ -2856,7 +2849,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 kind: req.kind,
                 zone: req.zone,
                 count: req.count,
-                selected: [],
+
                 prompt: req.prompt,
             };
             if (req.filter) entry.filter = req.filter;
@@ -2876,7 +2869,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 playerId: req.playerId,
                 kind: "may-pay",
                 count: 1,
-                selected: [],
+
                 prompt: req.prompt,
             };
             if (req.cost) entry.cost = req.cost;

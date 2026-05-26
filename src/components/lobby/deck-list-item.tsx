@@ -33,29 +33,29 @@ export default function DeckListItem({
             onClick={() => onFocus(deck.presetId)}
             onKeyDown={handleCardKeyDown}
             className={cn(
-                "flex cursor-pointer items-center gap-4 rounded border px-4 py-3 text-left transition",
+                "flex cursor-pointer items-center gap-4 rounded-sm border px-4 py-3 text-left transition",
                 isSelected
-                    ? "border-white/60 bg-white/10"
-                    : "border-white/20 bg-white/5 hover:bg-white/10"
+                    ? "border-accent/40 bg-accent-soft/20"
+                    : "border-border-subtle/40 bg-surface-elevated/20 hover:bg-surface-elevated/40"
             )}
         >
             <div className="flex flex-1 flex-col gap-1">
                 <div className="flex items-center gap-2">
-                    <span className="text-base font-semibold text-white">
+                    <span className="text-base font-semibold text-parchment">
                         {deck.name}
                     </span>
                     {isSelected && (
-                        <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                        <span className="rounded-sm bg-accent-soft/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
                             Selected
                         </span>
                     )}
                 </div>
                 {deck.description && (
-                    <span className="text-xs text-white/60">
+                    <span className="text-xs text-text-muted">
                         {deck.description}
                     </span>
                 )}
-                <span className="text-[10px] uppercase tracking-wide text-white/40">
+                <span className="text-[10px] uppercase tracking-wide text-text-disabled">
                     {deck.cards.length} cards · {deck.format}
                 </span>
             </div>
@@ -64,7 +64,7 @@ export default function DeckListItem({
                     <ManaSymbol key={c} symbol={c} />
                 ))}
             </div>
-            <span className="text-xs text-white/60">View →</span>
+            <span className="text-xs text-text-muted">View →</span>
             {onSelect && (
                 <button
                     onClick={(e) => {
@@ -73,10 +73,10 @@ export default function DeckListItem({
                     }}
                     disabled={isSelected}
                     className={cn(
-                        "rounded px-3 py-2 text-xs font-semibold transition",
+                        "rounded-sm px-3 py-2 text-xs font-semibold transition",
                         isSelected
-                            ? "cursor-not-allowed bg-emerald-500/20 text-emerald-300"
-                            : "bg-emerald-500/80 text-emerald-950 hover:bg-emerald-400"
+                            ? "cursor-not-allowed bg-accent-soft/30 text-accent"
+                            : "bg-accent text-surface-base hover:bg-accent-strong"
                     )}
                     title={isSelected ? "Already selected" : "Select deck"}
                 >

@@ -21,7 +21,6 @@ function makeChoice(overrides: Partial<PendingChoice> = {}): PendingChoice {
         kind: "discard-hand",
         zone: "hand",
         count: 1,
-        selected: [],
         prompt: "test",
         ...overrides,
     };

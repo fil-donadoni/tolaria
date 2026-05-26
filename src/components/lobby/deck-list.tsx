@@ -28,7 +28,7 @@ export default function DeckList({
             {(title || headerExtra) && (
                 <div className="flex items-center justify-between">
                     {title && (
-                        <h2 className="text-xs font-semibold uppercase tracking-wide text-white/50">
+                        <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                             {title}
                         </h2>
                     )}
@@ -37,7 +37,7 @@ export default function DeckList({
             )}
             {decks.length === 0
                 ? emptyLabel && (
-                      <p className="rounded border border-dashed border-white/10 px-4 py-3 text-xs text-white/40">
+                      <p className="rounded-sm border border-dashed border-border-subtle/30 px-4 py-3 text-xs text-text-disabled">
                           {emptyLabel}
                       </p>
                   )

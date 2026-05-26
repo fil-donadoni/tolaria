@@ -501,8 +501,8 @@ describe("applyPendingChoiceSubmit — mulligan-bottom (CR 103.5)", () => {
     });
 });
 
-describe("applyPendingChoiceSubmit — unsupported kinds", () => {
-    it("throws for keep-permanents", () => {
+describe("applyPendingChoiceSubmit — may-pay rejected", () => {
+    it("throws for may-pay (use submitMayPay instead)", () => {
         const state = makeState({
             pendingChoices: [
                 {
@@ -510,11 +510,9 @@ describe("applyPendingChoiceSubmit — unsupported kinds", () => {
                     step: 0,
                     choiceId: "p1",
                     playerId: "p1",
-                    kind: "keep-permanents",
-                    zone: "battlefield",
+                    kind: "may-pay",
                     count: 1,
-                    selected: [],
-                    prompt: "Keep 1",
+                    prompt: "Pay?",
                 },
             ],
         });
@@ -527,7 +525,7 @@ describe("applyPendingChoiceSubmit — unsupported kinds", () => {
                 choiceId: "p1",
                 cardInstanceIds: [],
             })
-        ).toThrow(/does not yet handle/i);
+        ).toThrow(/submitMayPay/i);
     });
 });
 

@@ -11,7 +11,9 @@ export default function MoneyPileView({ cards }: MoneyPileViewProps) {
     const piles = useMemo(() => groupDeckIntoPiles(cards), [cards]);
 
     if (piles.length === 0) {
-        return <p className="text-sm text-white/60">This deck has no cards.</p>;
+        return (
+            <p className="text-sm text-text-muted">This deck has no cards.</p>
+        );
     }
 
     return (

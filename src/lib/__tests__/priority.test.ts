@@ -226,7 +226,6 @@ describe("computeSoloViewerId", () => {
                             kind: "keep-permanents",
                             zone: "battlefield",
                             count: 1,
-                            selected: [],
                             prompt: "",
                         },
                     ],

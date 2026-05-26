@@ -17,6 +17,9 @@ import {
     storeDeckPresetId,
     storeSession,
 } from "~/lib/session";
+import { Panel } from "~/components/ui/panel";
+import GameDialog from "~/components/ui/game-dialog";
+import ActionButton from "~/components/board/action-button";
 import DashboardTopBar from "./dashboard-top-bar";
 import DashboardPlayBox from "./dashboard-play-box";
 import DeckList from "./deck-list";
@@ -27,6 +30,7 @@ function Lobby() {
     const [storedPresetId, setStoredPresetId] = useState<string | null>(() =>
         getStoredDeckPresetId()
     );
+    const [deleteTarget, setDeleteTarget] = useState<LobbyDeck | null>(null);
     const userDecks = useUserDecks();
     const { remove: removeUserDeck } = useUserDeckMutations();
 
@@ -121,15 +125,21 @@ function Lobby() {
         });
     };
 
-    const handleDeleteDeck = async (presetId: string) => {
+    const handleDeleteDeck = (presetId: string) => {
         const deck = userLobbyDecks.find((d) => d.presetId === presetId);
         if (!deck || deck.kind !== "user") return;
-        if (!window.confirm(`Delete "${deck.name}"?`)) return;
-        await removeUserDeck({ id: deck.userDeckId });
+        setDeleteTarget(deck);
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteTarget || deleteTarget.kind !== "user") return;
+        const presetId = deleteTarget.presetId;
+        await removeUserDeck({ id: deleteTarget.userDeckId });
         if (storedPresetId === presetId) {
             setStoredPresetId(null);
             clearDeckPresetId();
         }
+        setDeleteTarget(null);
     };
 
     const handleNewDeck = () => {
@@ -142,7 +152,7 @@ function Lobby() {
         user === undefined
     ) {
         return (
-            <div className="flex h-screen items-center justify-center text-white">
+            <div className="flex h-screen items-center justify-center text-text">
                 Loading...
             </div>
         );
@@ -152,14 +162,14 @@ function Lobby() {
         <>
             <button
                 onClick={() => handleEditDeck(deck.presetId)}
-                className="rounded border border-white/20 bg-white/5 px-3 py-2 text-xs hover:bg-white/10"
+                className="rounded-sm border border-border-subtle/40 bg-surface-elevated/20 px-3 py-2 text-xs text-text hover:bg-surface-elevated/40"
                 title="Edit deck"
             >
                 Edit
             </button>
             <button
-                onClick={() => void handleDeleteDeck(deck.presetId)}
-                className="rounded border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200 hover:bg-rose-500/20"
+                onClick={() => handleDeleteDeck(deck.presetId)}
+                className="rounded-sm border border-danger/30 bg-danger-soft/20 px-3 py-2 text-xs text-danger-strong hover:bg-danger-soft/40"
                 title="Delete deck"
             >
                 Delete
@@ -168,15 +178,15 @@ function Lobby() {
     );
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white">
+        <div className="min-h-screen bg-surface-base text-text">
             <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
                 <DashboardTopBar />
 
                 <div className="flex items-baseline justify-between">
-                    <h1 className="text-3xl font-bold tracking-tight">
+                    <h1 className="text-3xl font-bold font-beleren tracking-wide text-parchment">
                         Tolaria
                     </h1>
-                    <span className="text-xs uppercase tracking-[0.3em] text-white/40">
+                    <span className="text-xs uppercase tracking-[0.3em] text-text-muted">
                         Dashboard
                     </span>
                 </div>
@@ -191,7 +201,7 @@ function Lobby() {
                 />
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                    <section className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-6">
+                    <Panel>
                         <DeckList
                             title="My Decks"
                             decks={userLobbyDecks}
@@ -203,15 +213,15 @@ function Lobby() {
                             headerExtra={
                                 <button
                                     onClick={handleNewDeck}
-                                    className="rounded bg-emerald-500/80 px-3 py-1.5 text-xs font-semibold text-emerald-950 hover:bg-emerald-400"
+                                    className="rounded-sm bg-accent px-3 py-1.5 text-xs font-semibold text-surface-base hover:bg-accent-strong"
                                 >
                                     + New Deck
                                 </button>
                             }
                         />
-                    </section>
+                    </Panel>
 
-                    <section className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-6">
+                    <Panel>
                         <DeckList
                             title="Preset Decks"
                             decks={presetLobbyDecks}
@@ -219,9 +229,31 @@ function Lobby() {
                             onFocus={handleFocusDeck}
                             onSelect={handleSelectDeck}
                         />
-                    </section>
+                    </Panel>
                 </div>
             </div>
+
+            <GameDialog
+                open={deleteTarget !== null}
+                onOpenChange={(open) => {
+                    if (!open) setDeleteTarget(null);
+                }}
+                title={`Delete "${deleteTarget?.name ?? ""}"?`}
+                subtitle="This action cannot be undone."
+            >
+                <div className="flex justify-end gap-2 mt-4">
+                    <ActionButton
+                        onClick={() => setDeleteTarget(null)}
+                        label="Cancel"
+                        tone="secondary"
+                    />
+                    <ActionButton
+                        onClick={() => void confirmDelete()}
+                        label="Delete"
+                        tone="destructive"
+                    />
+                </div>
+            </GameDialog>
         </div>
     );
 }

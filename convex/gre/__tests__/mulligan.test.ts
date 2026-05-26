@@ -139,9 +139,8 @@ describe("london mulligan (CR 103.5)", () => {
         const handIdsBeforeBottom = p1.hand.map((c) => c.id);
         const pickedId = handIdsBeforeBottom[0];
 
-        // Simulate the player picking one card via selectResolutionChoice.
-        state.pendingChoices![0].selected = [pickedId];
-        applyMulliganBottomChoice(state);
+        // Simulate the player picking one card.
+        applyMulliganBottomChoice(state, [pickedId]);
 
         // Phase advanced to UPKEEP (turn 1) — finalize ran.
         expect(state.mulligan).toBeUndefined();

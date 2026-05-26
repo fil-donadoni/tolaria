@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/context-menu";
 import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
+import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import CardsPile from "./cards-pile";
 
 function libraryPlaceholders(count: number, playerId: string): CardInstance[] {
@@ -27,7 +28,7 @@ export default function PlayerLibrary({ player }: { player: Player }) {
     const draw = useMutation(api.game.drawCard);
     const millCard = useMutation(api.game.mill);
     const exile = useMutation(api.game.exileFromLibrary);
-    const selectChoice = useMutation(api.game.selectResolutionChoice);
+    const bufferCtx = usePendingChoiceBuffer();
     const isMe = player.id === playerId;
 
     // CR 401.4 / 701.19: while a `search-library` choice is active for the
@@ -54,12 +55,7 @@ export default function PlayerLibrary({ player }: { player: Player }) {
     const handleMill = () => millCard({ gameId, playerId });
     const handleExile = () => exile({ gameId, playerId });
     const onCardClick = isLibrarySearchTarget
-        ? (card: { id: string }) =>
-              void selectChoice({
-                  gameId,
-                  playerId,
-                  cardInstanceId: card.id,
-              })
+        ? (card: { id: string }) => bufferCtx.toggle(card.id)
         : undefined;
 
     const pile = (

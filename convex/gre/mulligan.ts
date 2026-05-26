@@ -185,7 +185,7 @@ export function enterBottomingPhase(state: GameState): void {
             kind: "mulligan-bottom",
             zone: "hand",
             count,
-            selected: [],
+
             prompt: `Put ${count} card${count === 1 ? "" : "s"} on the bottom of your library`,
         };
         state.pendingChoices.push(choice);
@@ -198,10 +198,13 @@ export function enterBottomingPhase(state: GameState): void {
     }
 }
 
-/** Apply the front `mulligan-bottom` PendingChoice (the chooser's selected
- *  cards) and pop it from the queue. If no further bottoming choices remain,
- *  finalize the mulligan phase. */
-export function applyMulliganBottomChoice(state: GameState): void {
+/** Apply the front `mulligan-bottom` PendingChoice and pop it from the
+ *  queue. If no further bottoming choices remain, finalize the mulligan
+ *  phase. `selectedIds` is the batch the chooser submitted (ADR 0007). */
+export function applyMulliganBottomChoice(
+    state: GameState,
+    selectedIds: string[]
+): void {
     const choices = state.pendingChoices;
     if (!choices || choices.length === 0) {
         throw new Error("No pending choice to apply");
@@ -212,16 +215,16 @@ export function applyMulliganBottomChoice(state: GameState): void {
             `applyMulliganBottomChoice called for kind ${choice.kind}`
         );
     }
-    if (choice.selected.length !== choice.count) {
+    if (selectedIds.length !== choice.count) {
         throw new Error(
-            `Mulligan bottom: expected ${choice.count} cards, got ${choice.selected.length}`
+            `Mulligan bottom: expected ${choice.count} cards, got ${selectedIds.length}`
         );
     }
 
     const player = state.players.find((p) => p.id === choice.playerId);
     if (!player) throw new Error(`Player not found: ${choice.playerId}`);
 
-    for (const cardId of choice.selected) {
+    for (const cardId of selectedIds) {
         // moveCard appends to library (push) — that's the bottom (CR 103.5),
         // since drawCard reads from index 0.
         moveCard(player, cardId, "hand", "library");

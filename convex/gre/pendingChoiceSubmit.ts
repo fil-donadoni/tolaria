@@ -30,13 +30,10 @@ export type SubmitChoiceArgs = {
 
 /** Validates and applies a client-buffered submission against the current
  *  head pending choice. Mutates `state` in place. Throws on validation
- *  failure (identity mismatch, stale queue head, unsupported kind,
- *  duplicate ids, count outside `[min, max]`, ids not in the chooser's
- *  zone). Each thrown message is user-facing — the client surfaces it via
- *  a transient toast (see ADR 0007).
- *
- *  Slice #80 handles `discard-hand` only; other kinds still flow through
- *  `selectResolutionChoice` until their migration slices land. */
+ *  failure (identity mismatch, may-pay kind, duplicate ids, count outside
+ *  `[min, max]`, ids not in the chooser's zone). Each thrown message is
+ *  user-facing — the client surfaces it via a transient toast (ADR 0007).
+ *  Handles all zone-pick kinds; `may-pay` stays on `submitMayPay`. */
 export function applyPendingChoiceSubmit(
     state: GameState,
     args: SubmitChoiceArgs
@@ -54,14 +51,9 @@ export function applyPendingChoiceSubmit(
         throw new Error("Stale pending choice — try again");
     }
 
-    if (
-        head.kind !== "discard-hand" &&
-        head.kind !== "untap-pick" &&
-        head.kind !== "mulligan-bottom"
-    ) {
-        throw new Error(
-            `submitResolutionChoice does not yet handle kind=${head.kind}`
-        );
+    // `may-pay` has its own mutation (`submitMayPay`) — reject here.
+    if (head.kind === "may-pay") {
+        throw new Error("Use submitMayPay for may-pay choices");
     }
 
     if (new Set(args.cardInstanceIds).size !== args.cardInstanceIds.length) {
@@ -85,17 +77,37 @@ export function applyPendingChoiceSubmit(
 
     const zoneOwner = getPlayer(state, head.zoneOwnerId ?? args.playerId);
 
-    if (head.kind === "mulligan-bottom") {
-        // CR 103.5 pre-game mulligan bottoming. Validate that all ids are
-        // in the chooser's hand, then shim into `applyMulliganBottomChoice`
-        // which reads `head.selected`.
+    // --- Zone-level validation: verify every id exists in the declared zone ---
+    if (head.zone === "battlefield") {
+        for (const id of args.cardInstanceIds) {
+            const card = zoneOwner.battlefield.find(
+                (c: CardInstanceState) => c.id === id
+            );
+            if (!card) throw new Error("Card not on battlefield");
+            if (head.filter && !matchesPermanentFilter(card, head.filter)) {
+                throw new Error("Card does not match the required filter");
+            }
+        }
+    } else if (head.zone === "hand") {
         for (const id of args.cardInstanceIds) {
             if (!zoneOwner.hand.find((c: CardInstanceState) => c.id === id)) {
                 throw new Error("Card not in hand");
             }
         }
-        head.selected = [...args.cardInstanceIds];
-        applyMulliganBottomChoice(state);
+    } else if (head.zone === "library") {
+        for (const id of args.cardInstanceIds) {
+            if (
+                !zoneOwner.library.find((c: CardInstanceState) => c.id === id)
+            ) {
+                throw new Error("Card not in library");
+            }
+        }
+    }
+
+    // --- Kind-specific dispatchers ---
+
+    if (head.kind === "mulligan-bottom") {
+        applyMulliganBottomChoice(state, args.cardInstanceIds);
         state.pendingChoices =
             (state.pendingChoices?.length ?? 0) > 0
                 ? state.pendingChoices
@@ -109,20 +121,12 @@ export function applyPendingChoiceSubmit(
     }
 
     if (head.kind === "untap-pick") {
-        // CR 502.1 cap-style restriction commit (Winter Orb, Smoke, etc.).
-        // Validate every pick against zone, filter, tapped state,
-        // `does-not-untap` markers, and any hard-skip filter veto (defense-
-        // in-depth — the dispatcher already excludes these from the
-        // eligible set, but stale client state could send a forbidden id).
+        // CR 502.1: additional untap-pick constraints beyond zone validation.
         const vetoFilters = computeHardSkipFilters(state);
         for (const id of args.cardInstanceIds) {
             const card = zoneOwner.battlefield.find(
                 (c: CardInstanceState) => c.id === id
-            );
-            if (!card) throw new Error("Card not on battlefield");
-            if (head.filter && !matchesPermanentFilter(card, head.filter)) {
-                throw new Error("Card does not match the required filter");
-            }
+            )!;
             if (!card.isTapped) throw new Error("Card is not tapped");
             if (card.staticAbilities.includes("does-not-untap")) {
                 throw new Error("Card cannot untap");
@@ -136,14 +140,11 @@ export function applyPendingChoiceSubmit(
         return;
     }
 
-    // discard-hand kind from here on.
-    for (const id of args.cardInstanceIds) {
-        if (!zoneOwner.hand.find((c: CardInstanceState) => c.id === id)) {
-            throw new Error("Card not in hand");
-        }
-    }
-
-    if (head.stackItemId === "" && state.pendingCleanupDiscard) {
+    if (
+        head.kind === "discard-hand" &&
+        head.stackItemId === "" &&
+        state.pendingCleanupDiscard
+    ) {
         // CR 514.1 phase-level cleanup discard. `finalizeCleanupDiscard`
         // handles the move, queue shift, CR 514.2 cleanup, and phase
         // advancement.

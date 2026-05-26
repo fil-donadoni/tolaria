@@ -11086,11 +11086,11 @@ describe("Smoke (creature-only untap cap, CR 502.1, ADR 0005)", () => {
         });
         runUntapForJ("p1", state);
         // Simulate the mutation's commit path.
-        state.pendingChoices![0].selected.push("bear-1");
+        const picked = ["bear-1"];
         const chooser = state.players.find(
             (p) => p.id === state.pendingChoices![0].zoneOwnerId
         )!;
-        for (const id of state.pendingChoices![0].selected) {
+        for (const id of picked) {
             const c = chooser.battlefield.find((x) => x.id === id);
             if (c) c.isTapped = false;
         }
@@ -11254,9 +11254,9 @@ describe("Winter Orb + Smoke (independent multi-restriction FIFO, CR 502.1, ADR 
         expect(head.filter).toEqual({ types: "Land" });
         expect(head.count).toEqual({ min: 0, max: 1 });
         // Commit a land pick and dispatch the next restriction.
-        head.selected.push("l1");
+        const landPick = ["l1"];
         const chooser = state.players.find((p) => p.id === head.zoneOwnerId)!;
-        for (const id of head.selected) {
+        for (const id of landPick) {
             const c = chooser.battlefield.find((x) => x.id === id);
             if (c) c.isTapped = false;
         }
@@ -11279,8 +11279,8 @@ describe("Winter Orb + Smoke (independent multi-restriction FIFO, CR 502.1, ADR 
         expect(bf.find((c) => c.id === "bear-2")?.isTapped).toBe(true);
 
         // Commit the creature pick and let UNTAP fall through to UPKEEP.
-        head.selected.push("bear-2");
-        for (const id of head.selected) {
+        const creaturePick = ["bear-2"];
+        for (const id of creaturePick) {
             const c = chooser.battlefield.find((x) => x.id === id);
             if (c) c.isTapped = false;
         }
@@ -11482,11 +11482,11 @@ describe("Meekstone + Smoke (hard-skip ∩ cap filter overlap, CR 502.1)", () =>
         runUntapForJ("p1", state);
 
         // Commit the bear pick.
-        state.pendingChoices![0].selected.push("bear");
+        const picked = ["bear"];
         const chooser = state.players.find(
             (p) => p.id === state.pendingChoices![0].zoneOwnerId
         )!;
-        for (const id of state.pendingChoices![0].selected) {
+        for (const id of picked) {
             const c = chooser.battlefield.find((x) => x.id === id);
             if (c) c.isTapped = false;
         }

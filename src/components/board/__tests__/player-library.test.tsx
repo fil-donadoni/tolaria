@@ -2,6 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import type { CardInstance, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
+import {
+    PendingChoiceBufferContext,
+    type PendingChoiceBuffer,
+} from "~/hooks/usePendingChoiceBuffer";
 import PlayerLibrary from "../player-library";
 
 // Capture the props that CardsPile receives so we can assert shape.
@@ -48,6 +52,16 @@ function makeCard(id: string): CardInstance {
     };
 }
 
+const noopBuffer: PendingChoiceBuffer = {
+    buffer: [],
+    toggle: () => {},
+    clear: () => {},
+    submit: async () => {},
+    isPending: false,
+    lastError: null,
+    dismissError: () => {},
+};
+
 function renderWithContext(ui: React.ReactElement, playerId = "me") {
     const value = {
         gameId: "game-id" as never,
@@ -61,7 +75,13 @@ function renderWithContext(ui: React.ReactElement, playerId = "me") {
         showAllCards: false,
         debugAllActions: false,
     } as React.ContextType<typeof GameContext>;
-    return render(<GameContext value={value}>{ui}</GameContext>);
+    return render(
+        <GameContext value={value}>
+            <PendingChoiceBufferContext value={noopBuffer}>
+                {ui}
+            </PendingChoiceBufferContext>
+        </GameContext>
+    );
 }
 
 describe("PlayerLibrary", () => {

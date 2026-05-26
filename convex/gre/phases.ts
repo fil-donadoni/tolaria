@@ -335,7 +335,7 @@ export function untapStep(state: GameState): void {
                         : undefined,
             },
             count: { min: 0, max: r.maxUntap },
-            selected: [],
+
             prompt: r.oracleText,
         });
         state.pendingUntapStep = { restrictionCursor: i + 1 };
@@ -959,7 +959,6 @@ function tryEnqueueCleanupDiscard(state: GameState): boolean {
         kind: "discard-hand",
         zone: "hand",
         count: excess,
-        selected: [],
         prompt:
             excess === 1
                 ? "Discard a card (hand size)"

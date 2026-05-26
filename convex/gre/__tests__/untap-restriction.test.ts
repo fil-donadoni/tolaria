@@ -169,12 +169,11 @@ describe("untapRestriction dispatcher (CR 502.1, ADR 0005)", () => {
             expect(state.activePlayerId).toBe("p1");
             expect(state.pendingChoices?.[0].kind).toBe("untap-pick");
 
-            // Simulate the submission path: append a pick, then dispatch the
+            // Simulate the submission path: pick ids, then dispatch the
             // commit logic by re-running the same routine the mutation uses.
-            state.pendingChoices![0].selected.push("l1");
+            const chosen = ["l1"];
             // Commit: untap chosen ids, dequeue, re-enter untapStep, leave
             // UNTAP if no further prompts pending.
-            const chosen = state.pendingChoices![0].selected;
             const chooserId =
                 state.pendingChoices![0].zoneOwnerId ??
                 state.pendingChoices![0].playerId;

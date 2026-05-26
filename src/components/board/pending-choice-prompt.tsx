@@ -4,10 +4,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { PendingChoice } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useDraggable } from "~/hooks/useDraggable";
-import {
-    isClientBufferedKind,
-    usePendingChoiceBuffer,
-} from "~/hooks/usePendingChoiceBuffer";
+import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { isManaCostCovered, manaCostToString } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
 import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
@@ -49,14 +46,9 @@ export default function PendingChoicePrompt({
     const min = getCountMin(choice.count);
     const max = getCountMax(choice.count);
     const isMayPay = choice.kind === "may-pay";
-    const isBuffered = isClientBufferedKind(choice.kind);
 
-    // Buffered chooser reads progress from the local buffer; legacy kinds
-    // read from `choice.selected`. Once all kinds migrate (slice #85) this
-    // branch collapses.
-    const selected = isBuffered
-        ? bufferCtx.buffer.length
-        : choice.selected.length;
+    // All zone-pick kinds use the client-side buffer (ADR 0007).
+    const selected = bufferCtx.buffer.length;
     const remaining = Math.max(0, max - selected);
 
     const chooserName =
@@ -148,7 +140,7 @@ export default function PendingChoicePrompt({
                                     {choice.cost ? "Skip" : "No"}
                                 </button>
                             </div>
-                        ) : isBuffered ? (
+                        ) : (
                             <>
                                 <p className="text-zinc-500 text-xs">
                                     {selected} / {max} selected
@@ -165,12 +157,6 @@ export default function PendingChoicePrompt({
                                     {submitLabel}
                                 </button>
                             </>
-                        ) : (
-                            <p className="text-zinc-500 text-xs">
-                                {remaining > 0
-                                    ? `${selected} / ${max} selected — click ${remaining === 1 ? "one more" : `up to ${remaining} more`}`
-                                    : "Submitting..."}
-                            </p>
                         )}
                     </>
                 ) : (
