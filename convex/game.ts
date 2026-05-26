@@ -91,6 +91,7 @@ import {
     getMaxBlockTargets,
 } from "./gre/combat";
 import { checkStateBasedActions } from "./gre/sba";
+import { applyPendingChoiceSubmit } from "./gre/pendingChoiceSubmit";
 
 export const STARTING_HAND_SIZE = 7;
 
@@ -2671,6 +2672,47 @@ export const passPriority = mutation({
     },
 });
 
+/** Atomic, client-buffered submission of the head pending choice (CR 608.2,
+ *  ADR 0007). The chooser accumulates picks locally and submits the full
+ *  list once. Validates identity (`stackItemId` + `step` + `choiceId` +
+ *  `playerId`), zone membership, dedup, and count within `[min, max]`
+ *  before dispatching to the existing finalize paths.
+ *
+ *  Slice #80 handles `discard-hand` only; other kinds (`untap-pick`,
+ *  `mulligan-bottom`) still flow through `selectResolutionChoice` until
+ *  their migration slices land. */
+export const submitResolutionChoice = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        stackItemId: v.string(),
+        step: v.number(),
+        choiceId: v.string(),
+        cardInstanceIds: v.array(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+
+        applyPendingChoiceSubmit(state, {
+            playerId: args.playerId,
+            stackItemId: args.stackItemId,
+            step: args.step,
+            choiceId: args.choiceId,
+            cardInstanceIds: args.cardInstanceIds,
+        });
+
+        checkStateBasedActions(state);
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
+    },
+});
+
 /** Submit one pick for the currently-active mid-resolution choice (CR 608.2).
  *  Accumulates `cardInstanceId` into `pendingChoices[0].selected`; auto-
  *  finalizes when the count is reached by (a) moving the picks into the
@@ -2678,7 +2720,10 @@ export const passPriority = mutation({
  *  and (c) if the queue is empty, resuming the resolution via
  *  `resolveTopOfStack`. If the resume re-suspends on a new choice, priority
  *  is handed to the next chooser; otherwise priority returns to the active
- *  player and the pass count resets. */
+ *  player and the pass count resets.
+ *
+ *  @deprecated for `discard-hand` — use `submitResolutionChoice`. Will be
+ *  fully removed in slice #85 once all kinds have migrated. */
 export const selectResolutionChoice = mutation({
     args: {
         gameId: v.id("games"),

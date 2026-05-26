@@ -8,6 +8,10 @@ import {
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
+import {
+    isClientBufferedKind,
+    usePendingChoiceBuffer,
+} from "~/hooks/usePendingChoiceBuffer";
 import { getCardById } from "@convex/cards";
 
 import type { CardAction, CardInstance } from "~/types/game";
@@ -36,20 +40,34 @@ export default function SelectableCard({
     const playCard = useMutation(api.game.playCard);
     const announceCast = useMutation(api.game.announceCast);
     const selectResolutionChoice = useMutation(api.game.selectResolutionChoice);
+    const bufferCtx = usePendingChoiceBuffer();
 
     // Mid-resolution hand pick (CR 608.2). When the chooser clicks one of
-    // their own hand cards during a "keep-hand" step, route to the choice
-    // mutation. Already-picked cards are visually distinct and inert.
+    // their own hand cards during a hand-zone choice (`discard-hand` or
+    // `mulligan-bottom`), route the click to either the client-side buffer
+    // (ADR 0007, kinds in `CLIENT_BUFFERED_KINDS`) or the legacy per-click
+    // `selectResolutionChoice` mutation. Already-picked cards are visually
+    // distinct; clicking a buffered selection deselects it.
     const activeChoice = pendingChoices?.[0];
     const isHandChoice =
         !!activeChoice &&
         activeChoice.playerId === playerId &&
         activeChoice.zone === "hand" &&
         cardInstance.ownerId === playerId;
+    const isBufferedChoice =
+        isHandChoice && isClientBufferedKind(activeChoice!.kind);
     const isChoiceSelected =
-        isHandChoice && activeChoice!.selected.includes(cardInstance.id);
+        isHandChoice &&
+        (isBufferedChoice
+            ? bufferCtx.buffer.includes(cardInstance.id)
+            : activeChoice!.selected.includes(cardInstance.id));
     const onChoiceClick = () => {
-        if (!activeChoice || isChoiceSelected) return;
+        if (!activeChoice) return;
+        if (isBufferedChoice) {
+            bufferCtx.toggle(cardInstance.id);
+            return;
+        }
+        if (isChoiceSelected) return;
         selectResolutionChoice({
             gameId,
             playerId,

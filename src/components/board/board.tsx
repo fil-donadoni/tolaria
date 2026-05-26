@@ -9,6 +9,10 @@ import {
     SkipPhasePrefsContext,
     useSkipPhasePrefsState,
 } from "~/hooks/useSkipPhasePreferences";
+import {
+    PendingChoiceBufferContext,
+    usePendingChoiceBufferState,
+} from "~/hooks/usePendingChoiceBuffer";
 import { preloadCardImages } from "~/lib/image-preload";
 import { computeSoloViewerId } from "~/lib/priority";
 import PlayerBoard from "./player-board";
@@ -23,6 +27,7 @@ import TargetSelectionBanner from "./target-selection-banner";
 import PaymentBanner from "./payment-banner";
 import PendingChoicePrompt from "./pending-choice-prompt";
 import MulliganPrompt from "./mulligan-prompt";
+import ValidationToast from "./validation-toast";
 
 const POPUP_SELECTORS = [
     '[data-slot="dialog-content"]',
@@ -104,6 +109,16 @@ export default function Board({
         return () => window.removeEventListener("keydown", handler);
     }, [state?.gameOver]);
 
+    // Client-side buffer for the active pending choice (ADR 0007). All four
+    // click sites read from this single source via PendingChoiceBufferContext.
+    // Hook must run unconditionally; passes through `undefined` choice while
+    // state is still loading.
+    const pendingChoiceBuffer = usePendingChoiceBufferState({
+        gameId,
+        playerId,
+        activeChoice: state?.pendingChoices?.[0],
+    });
+
     if (!state) {
         return (
             <div className="flex h-full items-center justify-center text-white">
@@ -178,66 +193,75 @@ export default function Board({
             }}
         >
             <SkipPhasePrefsContext value={skipPhasePrefs}>
-                <main className="flex h-full w-full flex-col relative">
-                    <AutoPassController solo={solo} />
-                    {orderedPlayers.map((player) => (
-                        <PlayerBoard key={player.id} player={player} />
-                    ))}
-                    <PhaseTracker />
-                    {stackItems.length > 0 && <GameStack stack={stackItems} />}
-                    <TargetArrowsOverlay stack={stackItems} />
-                    {pendingTarget && pendingTarget.playerId === viewerId && (
-                        <TargetSelectionBanner
-                            pendingTarget={pendingTarget}
-                            me={me}
-                            gameId={gameId}
-                            playerId={viewerId}
-                        />
-                    )}
-                    {pendingCast && pendingCast.playerId === viewerId && (
-                        <PaymentBanner
-                            kind="cast"
-                            pendingCast={pendingCast}
-                            me={me}
-                        />
-                    )}
-                    {pendingActivation &&
-                        pendingActivation.playerId === viewerId && (
+                <PendingChoiceBufferContext value={pendingChoiceBuffer}>
+                    <main className="flex h-full w-full flex-col relative">
+                        <AutoPassController solo={solo} />
+                        {orderedPlayers.map((player) => (
+                            <PlayerBoard key={player.id} player={player} />
+                        ))}
+                        <PhaseTracker />
+                        {stackItems.length > 0 && (
+                            <GameStack stack={stackItems} />
+                        )}
+                        <TargetArrowsOverlay stack={stackItems} />
+                        {pendingTarget &&
+                            pendingTarget.playerId === viewerId && (
+                                <TargetSelectionBanner
+                                    pendingTarget={pendingTarget}
+                                    me={me}
+                                    gameId={gameId}
+                                    playerId={viewerId}
+                                />
+                            )}
+                        {pendingCast && pendingCast.playerId === viewerId && (
                             <PaymentBanner
-                                kind="activation"
-                                pendingActivation={pendingActivation}
+                                kind="cast"
+                                pendingCast={pendingCast}
                                 me={me}
                             />
                         )}
-                    {pendingChoices && pendingChoices.length > 0 && (
-                        <PendingChoicePrompt
-                            choice={pendingChoices[0]}
+                        {pendingActivation &&
+                            pendingActivation.playerId === viewerId && (
+                                <PaymentBanner
+                                    kind="activation"
+                                    pendingActivation={pendingActivation}
+                                    me={me}
+                                />
+                            )}
+                        {pendingChoices && pendingChoices.length > 0 && (
+                            <PendingChoicePrompt
+                                choice={pendingChoices[0]}
+                                playerId={viewerId}
+                                gameId={gameId}
+                            />
+                        )}
+                        {mulligan && !mulligan.bottoming && (
+                            <MulliganPrompt
+                                gameId={gameId}
+                                viewerId={viewerId}
+                                mulligan={mulligan}
+                                allPlayers={allPlayers}
+                            />
+                        )}
+                        <ActionBar onOpenMenu={() => setPauseMenuOpen(true)} />
+                        {gameOver && (
+                            <GameOverDialog
+                                gameOver={gameOver}
+                                allPlayers={allPlayers}
+                            />
+                        )}
+                        <PauseMenuDialog
+                            open={pauseMenuOpen}
+                            onOpenChange={setPauseMenuOpen}
+                            gameId={gameId}
                             playerId={viewerId}
-                            gameId={gameId}
                         />
-                    )}
-                    {mulligan && !mulligan.bottoming && (
-                        <MulliganPrompt
-                            gameId={gameId}
-                            viewerId={viewerId}
-                            mulligan={mulligan}
-                            allPlayers={allPlayers}
+                        <ValidationToast
+                            message={pendingChoiceBuffer.lastError}
+                            onDismiss={pendingChoiceBuffer.dismissError}
                         />
-                    )}
-                    <ActionBar onOpenMenu={() => setPauseMenuOpen(true)} />
-                    {gameOver && (
-                        <GameOverDialog
-                            gameOver={gameOver}
-                            allPlayers={allPlayers}
-                        />
-                    )}
-                    <PauseMenuDialog
-                        open={pauseMenuOpen}
-                        onOpenChange={setPauseMenuOpen}
-                        gameId={gameId}
-                        playerId={viewerId}
-                    />
-                </main>
+                    </main>
+                </PendingChoiceBufferContext>
             </SkipPhasePrefsContext>
         </GameContext>
     );

@@ -4,6 +4,10 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { PendingChoice } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useDraggable } from "~/hooks/useDraggable";
+import {
+    isClientBufferedKind,
+    usePendingChoiceBuffer,
+} from "~/hooks/usePendingChoiceBuffer";
 import { isManaCostCovered, manaCostToString } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
 import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
@@ -17,16 +21,17 @@ function getCountMax(count: PendingChoice["count"]): number {
 }
 
 /** Banner shown at the top-center of the board while a mid-resolution
- *  player choice is active (CR 608.2). Displays the prompt, the progress
- *  (selected / count) for the chooser, or a waiting state for the opponent.
- *  Card selection itself happens inline on the battlefield / hand —
- *  `player-battlefield` and `selectable-card` detect the pending choice and
- *  route clicks to `selectResolutionChoice`. For `kind: "may-pay"` choices,
- *  the prompt renders Pay/Skip buttons inline that submit through
- *  `submitMayPay`. For `kind: "untap-pick"` choices (CR 502.1 cap-style
- *  restrictions like Winter Orb), the prompt renders a "Skip untap" / "Done"
- *  button when `min === 0` so the chooser can commit a partial pick or
- *  decline to untap; the button submits through `confirmUntapPick`. */
+ *  player choice is active (CR 608.2). Displays the prompt and, for the
+ *  chooser, the progress (selected / max) and an explicit Skip/Done button
+ *  for kinds that use the client-buffered submit model (ADR 0007). For the
+ *  opponent, only a static "Waiting for X" line is shown — selection
+ *  progress is private until submit.
+ *
+ *  For `may-pay` choices, the prompt renders Pay/Skip buttons that submit
+ *  through `submitMayPay`. For kinds not yet migrated to client-buffered
+ *  submit (`untap-pick`, `mulligan-bottom` until slices #83/#84 land), the
+ *  legacy per-click counter is shown with the existing `confirmUntapPick`
+ *  Skip/Done button where applicable. */
 export default function PendingChoicePrompt({
     choice,
     playerId,
@@ -40,12 +45,22 @@ export default function PendingChoicePrompt({
     const { offset, dragHandlers } = useDraggable();
     const submitMayPay = useMutation(api.game.submitMayPay);
     const confirmUntapPick = useMutation(api.game.confirmUntapPick);
+    const bufferCtx = usePendingChoiceBuffer();
     const isChooser = choice.playerId === playerId;
-    const selected = choice.selected.length;
     const min = getCountMin(choice.count);
     const max = getCountMax(choice.count);
-    const remaining = Math.max(0, max - selected);
     const isUntapPick = choice.kind === "untap-pick";
+    const isMayPay = choice.kind === "may-pay";
+    const isBuffered = isClientBufferedKind(choice.kind);
+
+    // Buffered chooser reads progress from the local buffer; legacy kinds
+    // read from `choice.selected`. Once all kinds migrate (slice #85) this
+    // branch collapses.
+    const selected = isBuffered
+        ? bufferCtx.buffer.length
+        : choice.selected.length;
+    const remaining = Math.max(0, max - selected);
+
     // Cap-style untap restrictions surface a "Skip"/"Done" button so the
     // ADR 0003 tactical zero-branch (CR 502.1, 701.39) is reachable in one
     // click — automatic commit only triggers once `selected.length === max`.
@@ -55,7 +70,6 @@ export default function PendingChoicePrompt({
         allPlayers.find((p) => p.id === choice.playerId)?.name ?? "opponent";
     const sourceLabel = pendingChoiceLabel(choice.kind);
 
-    const isMayPay = choice.kind === "may-pay";
     // Disable "Pay" until the chooser's mana pool covers the cost (CR 117.6).
     // The chooser may activate mana abilities while the may-pay window is open
     // (CR 117.3a) — `tapUntap` already allows this and the button will enable
@@ -69,6 +83,11 @@ export default function PendingChoicePrompt({
         isMayPay && choice.cost
             ? formatOracleText(manaCostToString(choice.cost))
             : null;
+
+    // Done/Skip rules (ADR 0007). Disabled until buffer reaches `min`;
+    // label switches to "Skip" only when min === 0 and buffer is empty.
+    const canSubmit = selected >= min && selected <= max;
+    const submitLabel = min === 0 && selected === 0 ? "Skip" : "Done";
 
     return (
         <div
@@ -136,6 +155,23 @@ export default function PendingChoicePrompt({
                                     {choice.cost ? "Skip" : "No"}
                                 </button>
                             </div>
+                        ) : isBuffered ? (
+                            <>
+                                <p className="text-zinc-500 text-xs">
+                                    {selected} / {max} selected
+                                    {min < max && remaining > 0
+                                        ? ` — click ${remaining === 1 ? "one more" : `up to ${remaining} more`}`
+                                        : ""}
+                                </p>
+                                <button
+                                    type="button"
+                                    disabled={!canSubmit || bufferCtx.isPending}
+                                    className="mt-1 px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                                    onClick={() => bufferCtx.submit()}
+                                >
+                                    {submitLabel}
+                                </button>
+                            </>
                         ) : (
                             <>
                                 <p className="text-zinc-500 text-xs">

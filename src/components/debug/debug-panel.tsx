@@ -1005,6 +1005,42 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Pending choice deselect — Library of Leng cleanup discard 2 (ADR 0007)",
+        cards: [
+            // 9-card hand at END_STEP: passing priority enters CLEANUP and
+            // enqueues a discard-hand pending choice with count 2. Exercises
+            // the client-buffered Skip/Done flow (ADR 0007) — click two
+            // cards, deselect one, pick a different one, click Done.
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 3,
+            },
+            {
+                name: "Giant Growth",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 2,
+            },
+            {
+                name: "Healing Salve",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 2,
+            },
+            {
+                name: "Dark Ritual",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 2,
+            },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+        ],
+        phase: "END_STEP",
+        landCount: 0,
+    },
+    {
         label: "Rock Hydra + Gauntlet — counters, replacement, mana bonus (W23)",
         cards: [
             { name: "Rock Hydra", owner: "me" as const },

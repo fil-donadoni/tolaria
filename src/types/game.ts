@@ -127,6 +127,7 @@ export type {
     PendingActivation,
     PendingCast,
     PendingChoice,
+    PendingChoiceKind,
     PendingTarget,
 } from "@convex/gre/state";
 
