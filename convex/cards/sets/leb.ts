@@ -1112,11 +1112,11 @@ export const obsianusGolemLeb: CardPrint = {
 //     setCode: "leb",
 // };
 
-// export const orcishOriflammeLeb: CardPrint = {
-//     printId: "f2752cf2-9a48-49a8-98ff-2e32a9121d78",
-//     definitionId: "911538ea-322c-4c40-a9c3-35e47fe60fce", // orcishOriflamme (stub)
-//     setCode: "leb",
-// };
+export const orcishOriflammeLeb: CardPrint = {
+    printId: "f2752cf2-9a48-49a8-98ff-2e32a9121d78",
+    definitionId: "911538ea-322c-4c40-a9c3-35e47fe60fce",
+    setCode: "leb",
+};
 
 // export const paralyzeLeb: CardPrint = {
 //     printId: "106d8401-f0e2-461e-b8ea-16d475db98da",
@@ -1286,11 +1286,11 @@ export const regrowthLeb: CardPrint = {
 //     setCode: "leb",
 // };
 
-// export const righteousnessLeb: CardPrint = {
-//     printId: "b847a2d1-5912-4f88-a68f-06790d0795dc",
-//     definitionId: "d0ba7b76-f3d0-47d0-8a35-0c08e67200fb", // righteousness (stub)
-//     setCode: "leb",
-// };
+export const righteousnessLeb: CardPrint = {
+    printId: "b847a2d1-5912-4f88-a68f-06790d0795dc",
+    definitionId: "d0ba7b76-f3d0-47d0-8a35-0c08e67200fb",
+    setCode: "leb",
+};
 
 export const rocOfKherRidgesLeb: CardPrint = {
     printId: "f1b9e3ae-c7e9-455f-abfe-220262719beb",

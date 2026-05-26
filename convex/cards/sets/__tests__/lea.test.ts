@@ -208,6 +208,8 @@ import {
     disruptingScepter,
     fog,
     forest,
+    orcishOriflamme,
+    righteousness,
     terror,
 } from "../lea";
 import {
@@ -14563,6 +14565,165 @@ describe("Living Artifact (Aura — vitality counters + upkeep life gain)", () =
         )!;
         expect(auraAfter.counters?.["vitality"]).toBe(1);
         expect(state.players[0].life).toBe(18);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// W14: Combat-aware static effects — Orcish Oriflamme, Righteousness
+// ---------------------------------------------------------------------------
+
+describe("Orcish Oriflamme (attacking creatures you control get +1/+0, CR 508.1)", () => {
+    function setup() {
+        const oriflamme = makeInstance(orcishOriflamme.id, {
+            id: "oriflamme",
+            controllerId: "p1",
+        });
+        const attacker = makeInstance(grizzlyBearsId(), {
+            id: "attacker",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const nonAttacker = makeInstance(grizzlyBearsId(), {
+            id: "bystander",
+            controllerId: "p1",
+        });
+        const oppAttacker = makeInstance(grizzlyBearsId(), {
+            id: "opp-attacker",
+            controllerId: "p2",
+            isAttacking: true,
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [oriflamme, attacker, nonAttacker],
+        });
+        const p2 = makePlayer("p2", {
+            battlefield: [oppAttacker],
+        });
+        return makeState({ players: [p1, p2] });
+    }
+
+    it("buffs attacking creatures you control +1/+0", () => {
+        const state = setup();
+        const attacker = state.players[0].battlefield.find(
+            (c) => c.id === "attacker"
+        )!;
+        expect(getEffectivePower(state, attacker)).toBe(3); // 2 base + 1
+        expect(getEffectiveToughness(state, attacker)).toBe(2); // unchanged
+    });
+
+    it("does NOT buff non-attacking creatures", () => {
+        const state = setup();
+        const bystander = state.players[0].battlefield.find(
+            (c) => c.id === "bystander"
+        )!;
+        expect(getEffectivePower(state, bystander)).toBe(2); // base only
+    });
+
+    it("does NOT buff opponent's attacking creatures", () => {
+        const state = setup();
+        const oppAttacker = state.players[1].battlefield.find(
+            (c) => c.id === "opp-attacker"
+        )!;
+        expect(getEffectivePower(state, oppAttacker)).toBe(2); // base only
+    });
+
+    it("buff disappears when isAttacking is cleared (END_OF_COMBAT)", () => {
+        const state = setup();
+        const attacker = state.players[0].battlefield.find(
+            (c) => c.id === "attacker"
+        )!;
+        expect(getEffectivePower(state, attacker)).toBe(3);
+        attacker.isAttacking = undefined;
+        expect(getEffectivePower(state, attacker)).toBe(2);
+    });
+
+    it("wire format: buff survives projectPublicState", () => {
+        const state = setup();
+        const projected = projectPublicState(state, 1, "p1");
+        const projAttacker = projected.players[0].battlefield.find(
+            (c) => c.id === "attacker"
+        )!;
+        expect(getEffectivePower(projected, projAttacker)).toBe(3);
+        expect(getEffectiveToughness(projected, projAttacker)).toBe(2);
+    });
+});
+
+describe("Righteousness (target blocking creature gets +7/+7, CR 509.1)", () => {
+    it("can only target blocking creatures (combatRoleFilter)", () => {
+        expect(righteousness.targetRequirement!.combatRoleFilter).toBe(
+            "blocking"
+        );
+    });
+
+    it("getLegalTargets rejects non-blocking creatures", () => {
+        const creature = makeInstance(grizzlyBearsId(), {
+            id: "bears",
+            controllerId: "p1",
+        });
+        const p1 = makePlayer("p1", { battlefield: [creature] });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        const targets = getLegalTargets(
+            state,
+            righteousness.targetRequirement!,
+            [],
+            "p1"
+        );
+        expect(targets).toHaveLength(0);
+    });
+
+    it("getLegalTargets accepts blocking creatures", () => {
+        const blocker = makeInstance(grizzlyBearsId(), {
+            id: "blocker",
+            controllerId: "p1",
+            isBlocking: true,
+        });
+        const p1 = makePlayer("p1", { battlefield: [blocker] });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        const targets = getLegalTargets(
+            state,
+            righteousness.targetRequirement!,
+            [],
+            "p1"
+        );
+        expect(targets).toHaveLength(1);
+        expect(targets[0].id).toBe("blocker");
+    });
+
+    it("resolve applies +7/+7 temporary buff", () => {
+        const blocker = makeInstance(grizzlyBearsId(), {
+            id: "blocker",
+            controllerId: "p2",
+            isBlocking: true,
+        });
+        const p1 = makePlayer("p1");
+        const p2 = makePlayer("p2", { battlefield: [blocker] });
+        const state = makeState({ players: [p1, p2] });
+        pushSpell(state, righteousness.id, "p1", [
+            { type: "permanent", id: "blocker" },
+        ]);
+        resolveTopOfStack(state);
+        expect(getEffectivePower(state, blocker)).toBe(9); // 2 + 7
+        expect(getEffectiveToughness(state, blocker)).toBe(9); // 2 + 7
+    });
+
+    it("wire format: +7/+7 buff survives projectPublicState", () => {
+        const blocker = makeInstance(grizzlyBearsId(), {
+            id: "blocker",
+            controllerId: "p2",
+            isBlocking: true,
+        });
+        const p1 = makePlayer("p1");
+        const p2 = makePlayer("p2", { battlefield: [blocker] });
+        const state = makeState({ players: [p1, p2] });
+        pushSpell(state, righteousness.id, "p1", [
+            { type: "permanent", id: "blocker" },
+        ]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const projBlocker = projected.players[1].battlefield.find(
+            (c) => c.id === "blocker"
+        )!;
+        expect(getEffectivePower(projected, projBlocker)).toBe(9);
+        expect(getEffectiveToughness(projected, projBlocker)).toBe(9);
     });
 });
 

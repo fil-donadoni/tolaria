@@ -363,6 +363,7 @@ export function getLegalTargets(
     );
     const colorFilter = requirement.colorFilter;
     const tappedFilter = requirement.tappedFilter;
+    const combatRoleFilter = requirement.combatRoleFilter;
     const powerFilter = requirement.powerFilter;
     const cmcFilter = resolveCmcFilter(requirement.cmcFilter, chosenX);
     const subtypeFilter = requirement.subtypeFilter
@@ -439,6 +440,12 @@ export function getLegalTargets(
                 // CR 701.20: tap-state filter for "target tapped/untapped ~".
                 if (tappedFilter === "tapped" && !card.isTapped) continue;
                 if (tappedFilter === "untapped" && card.isTapped) continue;
+                // CR 508.1 / 509.1: combat-role filter for "target attacking
+                // creature" or "target blocking creature".
+                if (combatRoleFilter === "attacking" && !card.isAttacking)
+                    continue;
+                if (combatRoleFilter === "blocking" && !card.isBlocking)
+                    continue;
                 // CR 613 layer 7c: power filter reads effective power so
                 // current buffs/debuffs are honored at target selection.
                 if (powerFilter) {
