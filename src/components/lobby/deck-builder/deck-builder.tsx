@@ -249,12 +249,12 @@ export default function DeckBuilder({
 
     return (
         <div
-            className="flex h-screen flex-col bg-surface-base text-text"
+            className="flex h-dvh flex-col bg-surface-base text-text"
             style={
                 {
-                    "--card-w": "min(8rem, 18vw, 9.5vh)",
-                    "--card-h": "calc(min(8rem, 18vw, 9.5vh) * 7 / 5)",
-                    "--card-w-sm": "calc(min(8rem, 18vw, 9.5vh) * 0.75)",
+                    "--card-w": "min(8rem, 18vw, 9.5dvh)",
+                    "--card-h": "calc(min(8rem, 18vw, 9.5dvh) * 7 / 5)",
+                    "--card-w-sm": "calc(min(8rem, 18vw, 9.5dvh) * 0.75)",
                 } as React.CSSProperties
             }
         >

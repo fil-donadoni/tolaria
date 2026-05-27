@@ -374,11 +374,19 @@ export function getLegalTargets(
         return targets;
     }
 
+    // CR 114: "spell-or-permanent" targets any permanent (not just
+    // damageable) + any spell on the stack.
+    const wantsSpellOrPermanent = reqTypes.includes("spell-or-permanent");
     // Check for permanent-targeting types (CardType values)
     const wantsAny = reqTypes.includes("any");
-    const wantsSpell = reqTypes.includes("spell");
+    const wantsSpell = reqTypes.includes("spell") || wantsSpellOrPermanent;
     const permanentTypes = reqTypes.filter(
-        (t) => t !== "player" && t !== "any" && t !== "spell" && t !== "card"
+        (t) =>
+            t !== "player" &&
+            t !== "any" &&
+            t !== "spell" &&
+            t !== "spell-or-permanent" &&
+            t !== "card"
     );
     const colorFilter = requirement.colorFilter;
     const tappedFilter = requirement.tappedFilter;
@@ -410,7 +418,7 @@ export function getLegalTargets(
     // CR 115.4: "any target" means any creature, planeswalker, player, or
     // battle — the four object types that can be damaged (CR 120.3).
     const battlefieldControllerFilter = requirement.controller ?? "any";
-    if (wantsAny || permanentTypes.length > 0) {
+    if (wantsAny || wantsSpellOrPermanent || permanentTypes.length > 0) {
         for (const player of state.players) {
             // CR 109.3 — `controller: "you" | "opponent"` filter restricts
             // legal battlefield targets to (the caster's) or (an opponent's)
@@ -436,7 +444,8 @@ export function getLegalTargets(
                 const matchesExplicit = permanentTypes.some((t) =>
                     card.types.includes(t as never)
                 );
-                if (!matchesAny && !matchesExplicit) continue;
+                if (!matchesAny && !wantsSpellOrPermanent && !matchesExplicit)
+                    continue;
                 // CR 205.3: subtype filter for "target Mountains"-style
                 // spells. At least one declared subtype must be present on
                 // the permanent (basic Mountain, dual lands like Plateau, ...).

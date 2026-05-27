@@ -797,13 +797,37 @@ export const personalIncarnation: CardDefinition = {
     ],
 };
 
-// export const purelace: CardDefinition = {
-//     id: "2facf462-55cd-4da4-997f-2cf4add75628",
-//     name: "Purelace",
-//     oracleText: "Target spell or permanent becomes white. (Mana symbols on that permanent remain unchanged.)",
-//     manaCost: { W: 1 },
-//     types: ["Instant"],
-// };
+// CR 305.7 / 613.1d layer 5 — lace cycle factory
+function makeLace(args: {
+    id: string;
+    name: string;
+    oracleText: string;
+    manaCost: ManaCost;
+    color: Color;
+}): CardDefinition {
+    return {
+        id: args.id,
+        name: args.name,
+        oracleText: args.oracleText,
+        manaCost: args.manaCost,
+        types: ["Instant"],
+        targetRequirement: { type: "spell-or-permanent", count: 1 },
+        resolve: (ctx: SpellContext) => {
+            const t = ctx.targets[0];
+            if (!t) return;
+            ctx.setColorOverride(t, [args.color]);
+        },
+    };
+}
+
+export const purelace: CardDefinition = makeLace({
+    id: "2facf462-55cd-4da4-997f-2cf4add75628",
+    name: "Purelace",
+    oracleText:
+        "Target spell or permanent becomes white. (Mana symbols on that permanent remain unchanged.)",
+    manaCost: { W: 1 },
+    color: "W",
+});
 
 // Color Ward cycle — {W} Enchant creature; enchanted creature has protection
 // from <color>. All five wards are structurally identical (white-costed
@@ -1959,13 +1983,14 @@ export const stealArtifact: CardDefinition = {
     ],
 };
 
-// export const thoughtlace: CardDefinition = {
-//     id: "23749375-1416-47a4-9251-52f41fe2fae9",
-//     name: "Thoughtlace",
-//     oracleText: "Target spell or permanent becomes blue. (Mana symbols on that permanent remain unchanged.)",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
+export const thoughtlace: CardDefinition = makeLace({
+    id: "23749375-1416-47a4-9251-52f41fe2fae9",
+    name: "Thoughtlace",
+    oracleText:
+        "Target spell or permanent becomes blue. (Mana symbols on that permanent remain unchanged.)",
+    manaCost: { U: 1 },
+    color: "U",
+});
 
 export const timeWalk: CardDefinition = {
     id: "e0139f60-d48e-46fb-9f5a-1e3d7558c834",
@@ -2327,13 +2352,14 @@ export const deathgrip: CardDefinition = {
     ],
 };
 
-// export const deathlace: CardDefinition = {
-//     id: "6ff1cefc-62cb-4525-b0c5-2b09603b4314",
-//     name: "Deathlace",
-//     oracleText: "Target spell or permanent becomes black. (Mana symbols on that permanent remain unchanged.)",
-//     manaCost: { B: 1 },
-//     types: ["Instant"],
-// };
+export const deathlace: CardDefinition = makeLace({
+    id: "6ff1cefc-62cb-4525-b0c5-2b09603b4314",
+    name: "Deathlace",
+    oracleText:
+        "Target spell or permanent becomes black. (Mana symbols on that permanent remain unchanged.)",
+    manaCost: { B: 1 },
+    color: "B",
+});
 
 // export const demonicAttorney: CardDefinition = {
 //     id: "fd891fc6-d9d6-494e-ae65-8bea8f44b575",
@@ -3502,13 +3528,14 @@ export const burrowing: CardDefinition = {
     ],
 };
 
-// export const chaoslace: CardDefinition = {
-//     id: "72ea2048-57bc-43d5-8987-33ca727f1a97",
-//     name: "Chaoslace",
-//     oracleText: "Target spell or permanent becomes red. (Its mana symbols remain unchanged.)",
-//     manaCost: { R: 1 },
-//     types: ["Instant"],
-// };
+export const chaoslace: CardDefinition = makeLace({
+    id: "72ea2048-57bc-43d5-8987-33ca727f1a97",
+    name: "Chaoslace",
+    oracleText:
+        "Target spell or permanent becomes red. (Its mana symbols remain unchanged.)",
+    manaCost: { R: 1 },
+    color: "R",
+});
 
 // export const disintegrate: CardDefinition = {
 //     id: "8712c49e-f171-4669-bed9-87575a37af11",
@@ -5069,13 +5096,14 @@ export const lifeforce: CardDefinition = {
     ],
 };
 
-// export const lifelace: CardDefinition = {
-//     id: "38cb601b-a35c-412e-b386-e77dad3daa54",
-//     name: "Lifelace",
-//     oracleText: "Target spell or permanent becomes green. (Mana symbols on that permanent remain unchanged.)",
-//     manaCost: { G: 1 },
-//     types: ["Instant"],
-// };
+export const lifelace: CardDefinition = makeLace({
+    id: "38cb601b-a35c-412e-b386-e77dad3daa54",
+    name: "Lifelace",
+    oracleText:
+        "Target spell or permanent becomes green. (Mana symbols on that permanent remain unchanged.)",
+    manaCost: { G: 1 },
+    color: "G",
+});
 
 export const livingArtifact: CardDefinition = {
     id: "c9e753a2-a7d0-4d37-ae65-b5a1b5039a6e",

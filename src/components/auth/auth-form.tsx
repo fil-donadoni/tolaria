@@ -1,7 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
+import { Swords } from "lucide-react";
+import {
+    Panel,
+    PanelHeader,
+    PanelBody,
+    PanelFooter,
+} from "~/components/ui/panel";
+import LobbyBackground from "~/components/lobby/lobby-background";
 
 type Flow = "signIn" | "signUp";
 
@@ -81,88 +87,106 @@ export function AuthForm() {
     };
 
     return (
-        <div className="flex min-h-svh items-center justify-center bg-background p-6">
-            <form
-                onSubmit={submit}
-                className="flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-sm"
-            >
-                <header className="space-y-1">
-                    <h1 className="text-xl font-semibold">
-                        {flow === "signIn" ? "Sign in" : "Create account"}
-                    </h1>
-                    <p className="text-sm text-muted-foreground">
-                        {flow === "signIn"
-                            ? "Welcome back to Tolaria."
-                            : "Pick a nickname — you can change it later."}
-                    </p>
-                </header>
-
-                <label className="flex flex-col gap-1.5 text-sm">
-                    <span className="font-medium">Email</span>
-                    <Input
-                        type="email"
-                        autoComplete="email"
-                        required
-                        value={email}
-                        onChange={(e) => setEmail(e.currentTarget.value)}
-                    />
-                </label>
-
-                <label className="flex flex-col gap-1.5 text-sm">
-                    <span className="font-medium">Password</span>
-                    <Input
-                        type="password"
-                        autoComplete={
+        <div className="relative flex min-h-svh items-center justify-center overflow-hidden bg-surface-base p-6">
+            <LobbyBackground />
+            <form onSubmit={submit} className="relative z-10 w-full max-w-sm">
+                <Panel tone="accent">
+                    <PanelHeader
+                        title={flow === "signIn" ? "Sign In" : "Create Account"}
+                        subtitle={
                             flow === "signIn"
-                                ? "current-password"
-                                : "new-password"
+                                ? "Welcome back to Tolaria."
+                                : "Pick a nickname — you can change it later."
                         }
-                        required
-                        value={password}
-                        onChange={(e) => setPassword(e.currentTarget.value)}
+                        icon={<Swords className="w-14 h-14 text-accent" />}
                     />
-                </label>
+                    <PanelBody>
+                        <label className="flex flex-col gap-1.5">
+                            <span className="text-label">Email</span>
+                            <input
+                                type="email"
+                                autoComplete="email"
+                                required
+                                value={email}
+                                onChange={(e) =>
+                                    setEmail(e.currentTarget.value)
+                                }
+                                className="input-field"
+                            />
+                        </label>
 
-                {flow === "signUp" && (
-                    <label className="flex flex-col gap-1.5 text-sm">
-                        <span className="font-medium">Nickname</span>
-                        <Input
-                            type="text"
-                            autoComplete="nickname"
-                            required
-                            maxLength={NICKNAME_MAX}
-                            value={nickname}
-                            onChange={(e) => setNickname(e.currentTarget.value)}
-                        />
-                    </label>
-                )}
+                        <label className="flex flex-col gap-1.5">
+                            <span className="text-label">Password</span>
+                            <input
+                                type="password"
+                                autoComplete={
+                                    flow === "signIn"
+                                        ? "current-password"
+                                        : "new-password"
+                                }
+                                required
+                                value={password}
+                                onChange={(e) =>
+                                    setPassword(e.currentTarget.value)
+                                }
+                                className="input-field"
+                            />
+                        </label>
 
-                {error && (
-                    <p className="text-sm text-destructive" role="alert">
-                        {error}
-                    </p>
-                )}
+                        {flow === "signUp" && (
+                            <label className="flex flex-col gap-1.5">
+                                <span className="text-label">Nickname</span>
+                                <input
+                                    type="text"
+                                    autoComplete="nickname"
+                                    required
+                                    maxLength={NICKNAME_MAX}
+                                    value={nickname}
+                                    onChange={(e) =>
+                                        setNickname(e.currentTarget.value)
+                                    }
+                                    className="input-field"
+                                />
+                            </label>
+                        )}
 
-                <Button type="submit" disabled={submitting}>
-                    {submitting
-                        ? "Working…"
-                        : flow === "signIn"
-                          ? "Sign in"
-                          : "Create account"}
-                </Button>
-
-                <button
-                    type="button"
-                    className="text-sm text-muted-foreground hover:text-foreground"
-                    onClick={() => {
-                        setError(null);
-                        setFlow(flow === "signIn" ? "signUp" : "signIn");
-                    }}
-                >
-                    {flow === "signIn"
-                        ? "No account? Sign up"
-                        : "Already have an account? Sign in"}
-                </button>
+                        {error && (
+                            <p
+                                className="text-sm text-danger-strong"
+                                role="alert"
+                            >
+                                {error}
+                            </p>
+                        )}
+                    </PanelBody>
+                    <PanelFooter className="flex-col items-stretch">
+                        <button
+                            type="submit"
+                            disabled={submitting}
+                            className={`btn-base w-full px-5 py-2.5 text-sm ${submitting ? "btn-disabled" : "btn-tone-primary"}`}
+                        >
+                            {submitting
+                                ? "Working…"
+                                : flow === "signIn"
+                                  ? "Sign In"
+                                  : "Create Account"}
+                        </button>
+                        <button
+                            type="button"
+                            className="text-sm text-text-muted hover:text-parchment transition-colors text-center"
+                            onClick={() => {
+                                setError(null);
+                                setFlow(
+                                    flow === "signIn" ? "signUp" : "signIn"
+                                );
+                            }}
+                        >
+                            {flow === "signIn"
+                                ? "No account? Sign up"
+                                : "Already have an account? Sign in"}
+                        </button>
+                    </PanelFooter>
+                </Panel>
             </form>
         </div>
     );

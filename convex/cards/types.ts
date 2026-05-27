@@ -42,16 +42,26 @@ export type CardSupertype =
 // --- Targeting ---
 
 export interface TargetRequirement {
-    /** Card type(s) to target, "player", "any", "spell" (stack target), or
-     *  "card" (any card type — only meaningful when `zone` selects a non-
-     *  battlefield zone such as "graveyard"). */
+    /** Card type(s) to target, "player", "any", "spell" (stack target),
+     *  "spell-or-permanent" (any spell on stack OR any permanent on battlefield,
+     *  CR 114 — used by lace instants), or "card" (any card type — only
+     *  meaningful when `zone` selects a non-battlefield zone such as
+     *  "graveyard"). */
     type:
         | CardType
         | "player"
         | "any"
         | "spell"
+        | "spell-or-permanent"
         | "card"
-        | (CardType | "player" | "any" | "spell" | "card")[];
+        | (
+              | CardType
+              | "player"
+              | "any"
+              | "spell"
+              | "spell-or-permanent"
+              | "card"
+          )[];
     /** Fixed N, or a range for spells that take a variable number of targets
      *  (CR 601.2c). `max` is open-ended when undefined — capped by legal
      *  target availability. Example: Fireball → { min: 1 }.
@@ -684,6 +694,10 @@ export interface SpellContext {
     /** Marks a target permanent as "must block all attackers if able" this
      *  turn (Blaze of Glory). Cleared at CLEANUP. */
     setMustBlockAll: (target: TargetSelection) => void;
+    /** Sets colorOverride on a target permanent or spell (CR 305.7, layer 5).
+     *  Replaces all color derivation — the target "becomes" the given colors.
+     *  Used by lace instants. No-op if target has left play / stack. */
+    setColorOverride: (target: TargetSelection, colors: Color[]) => void;
 
     // --- Mid-resolution choices (CR 608.2, 101.4) ---
 

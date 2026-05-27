@@ -18,7 +18,7 @@ type GameStackProps = {
 function wantsSpellTarget(targetType: string | string[] | undefined): boolean {
     if (!targetType) return false;
     const types = Array.isArray(targetType) ? targetType : [targetType];
-    return types.includes("spell");
+    return types.includes("spell") || types.includes("spell-or-permanent");
 }
 
 export default function GameStack({ stack }: GameStackProps) {

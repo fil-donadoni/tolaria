@@ -1,6 +1,7 @@
 import type {
     AnimateSpec,
     CardType,
+    Color,
     DurationSpec,
     GameEvent,
     ManaCost as CardManaCost,
@@ -298,6 +299,10 @@ export type CardInstanceState = {
     /** Transient flag: this creature must block every attacker it can this
      *  turn (Blaze of Glory). Cleared at CLEANUP. */
     mustBlockAllThisTurn?: boolean;
+    /** Layer 5 color override (CR 305.7, 613.1d). When set, getColors()
+     *  returns this array instead of mana-cost-derived + grantedColors.
+     *  Set by lace instants ("target spell or permanent becomes [color]"). */
+    colorOverride?: Color[];
 };
 
 /** A one-shot damage prevention effect (CR 615.1, 615.6). The next time the
@@ -1640,7 +1645,13 @@ function isLegalAuraHost(
     if (!req) return false;
     const types = Array.isArray(req.type) ? req.type : [req.type];
     for (const t of types) {
-        if (t === "player" || t === "any" || t === "spell" || t === "card")
+        if (
+            t === "player" ||
+            t === "any" ||
+            t === "spell" ||
+            t === "spell-or-permanent" ||
+            t === "card"
+        )
             continue;
         if (host.types.includes(t)) return true;
     }
@@ -2078,6 +2089,7 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.counters;
     delete card.temporaryPTMods;
     delete card.exileOnDeath;
+    delete card.colorOverride;
 }
 
 /** Reanimation helper: drops a card that has been removed from its source
@@ -2993,6 +3005,18 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             found.card.mustBlockAllThisTurn = true;
+        },
+
+        setColorOverride(target: TargetSelection, colors: Color[]): void {
+            if (target.type === "permanent") {
+                const found = findOnBattlefield(state, target.id);
+                if (!found) return;
+                found.card.colorOverride = colors;
+            } else if (target.type === "spell") {
+                const si = state.stack.find((s) => s.id === target.id);
+                if (!si) return;
+                si.colorOverride = colors;
+            }
         },
 
         // --- Mid-resolution choices (CR 608.2, 101.4) ---

@@ -35,6 +35,9 @@ function getStaticEffects(card: PermanentView): StaticEffect[] {
 /** Context passed to every static-effect predicate. Pure, state-free. */
 export const STATIC_EFFECT_CTX: StaticEffectContext = {
     getColors(card: PermanentView): Color[] {
+        // CR 613.1d layer 5: colorOverride replaces all other color derivation
+        const override = (card as { colorOverride?: Color[] }).colorOverride;
+        if (override) return override;
         const embedded = (card.card as { manaCost?: ManaCost }).manaCost;
         const cardId = (card.card as { id?: string }).id;
         const cost =

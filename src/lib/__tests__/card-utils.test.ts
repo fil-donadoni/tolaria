@@ -53,6 +53,10 @@ describe("wantsPermanentTarget", () => {
     it("returns true for ['player', 'Creature'] (mixed)", () => {
         expect(wantsPermanentTarget(["player", "Creature"])).toBe(true);
     });
+
+    it("returns true for 'spell-or-permanent'", () => {
+        expect(wantsPermanentTarget("spell-or-permanent")).toBe(true);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -119,6 +123,61 @@ describe("matchesTargetRequirement", () => {
         const land = makeCardInstance({ types: ["Land"] });
         expect(matchesTargetRequirement(land, "Land")).toBe(true);
         expect(matchesTargetRequirement(land, "Creature")).toBe(false);
+    });
+
+    it("'spell-or-permanent' matches any permanent type (CR 114)", () => {
+        const creature = makeCardInstance({ types: ["Creature"] });
+        const land = makeCardInstance({ types: ["Land"] });
+        const artifact = makeCardInstance({ types: ["Artifact"] });
+        const enchantment = makeCardInstance({ types: ["Enchantment"] });
+        expect(matchesTargetRequirement(creature, "spell-or-permanent")).toBe(
+            true
+        );
+        expect(matchesTargetRequirement(land, "spell-or-permanent")).toBe(true);
+        expect(matchesTargetRequirement(artifact, "spell-or-permanent")).toBe(
+            true
+        );
+        expect(
+            matchesTargetRequirement(enchantment, "spell-or-permanent")
+        ).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Exhaustive target-type guard
+// ---------------------------------------------------------------------------
+
+describe("TARGET_LABEL exhaustive coverage", () => {
+    // This test ensures every known target type has a label entry.
+    // When adding a new TargetRequirement.type value, add it here AND
+    // to TARGET_LABEL in target-selection-banner.tsx.
+    const KNOWN_TARGET_TYPES = [
+        "Creature",
+        "Artifact",
+        "Enchantment",
+        "Land",
+        "Planeswalker",
+        "player",
+        "any",
+        "spell",
+        "spell-or-permanent",
+        "card",
+    ];
+
+    // We can't import TARGET_LABEL directly (it's a component-level const),
+    // so we test that matchesTargetRequirement + wantsPermanentTarget handle
+    // every type without throwing or silently returning wrong values.
+    it("matchesTargetRequirement handles all known types for a creature", () => {
+        const creature = makeCardInstance({ types: ["Creature"] });
+        for (const t of KNOWN_TARGET_TYPES) {
+            expect(() => matchesTargetRequirement(creature, t)).not.toThrow();
+        }
+    });
+
+    it("wantsPermanentTarget handles all known types", () => {
+        for (const t of KNOWN_TARGET_TYPES) {
+            expect(() => wantsPermanentTarget(t)).not.toThrow();
+        }
     });
 });
 

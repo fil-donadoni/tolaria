@@ -1308,6 +1308,23 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        label: "Lace cycle (color-change layer 5, CR 305.7)",
+        cards: [
+            { name: "Purelace", owner: "me" as const, zone: "hand" },
+            { name: "Deathlace", owner: "me" as const, zone: "hand" },
+            {
+                name: "Llanowar Elves",
+                owner: "opp" as const,
+            },
+            { name: "Lightning Bolt", owner: "opp" as const, zone: "hand" },
+            { name: "Swamp", owner: "me" as const, count: 3 },
+            { name: "Mountain", owner: "opp" as const, count: 3 },
+            { name: "White Knight", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
 ];
 
 type DebugPanelProps = {

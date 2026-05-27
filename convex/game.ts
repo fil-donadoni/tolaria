@@ -1854,6 +1854,7 @@ export const selectTarget = mutation({
                     t !== "player" &&
                     t !== "any" &&
                     t !== "spell" &&
+                    t !== "spell-or-permanent" &&
                     t !== "card"
             );
             if (
@@ -1863,11 +1864,14 @@ export const selectTarget = mutation({
                 throw new Error("Card type mismatch for graveyard target");
             }
         } else if (args.targetType === "permanent") {
+            const wantsSpellOrPermanent =
+                reqTypes.includes("spell-or-permanent");
             const permanentTypes = reqTypes.filter(
                 (t) =>
                     t !== "player" &&
                     t !== "any" &&
                     t !== "spell" &&
+                    t !== "spell-or-permanent" &&
                     t !== "card"
             );
             // CR 115.4 / 120.3: "any target" only matches damageable permanents.
@@ -1883,7 +1887,8 @@ export const selectTarget = mutation({
                     const matchesExplicit = permanentTypes.some((t) =>
                         c.types.includes(t as never)
                     );
-                    if (matchesAny || matchesExplicit) matchedCard = c;
+                    if (matchesAny || wantsSpellOrPermanent || matchesExplicit)
+                        matchedCard = c;
                 }
             }
             if (!matchedCard) throw new Error("Invalid target");
@@ -1997,7 +2002,10 @@ export const selectTarget = mutation({
             if (!found) throw new Error("Invalid player target");
         } else {
             // "spell" target (CR 114.1): must match a stack item.
-            if (!reqTypes.includes("spell")) {
+            if (
+                !reqTypes.includes("spell") &&
+                !reqTypes.includes("spell-or-permanent")
+            ) {
                 throw new Error("This spell does not target a spell");
             }
             const spell = state.stack.find((s) => s.id === args.targetId);

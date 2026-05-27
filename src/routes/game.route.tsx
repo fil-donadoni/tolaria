@@ -40,7 +40,7 @@ export default function GameRoute() {
 
     if (game && game.status === "waiting") {
         return (
-            <div className="flex h-screen flex-col items-center justify-center gap-4 text-white">
+            <div className="flex h-dvh flex-col items-center justify-center gap-4 text-white">
                 <p>Waiting for opponent...</p>
                 <p className="font-mono text-sm text-white/50">
                     Game ID: {gameId}
@@ -57,7 +57,7 @@ export default function GameRoute() {
 
     if (game && (game.status === "playing" || game.status === "finished")) {
         return (
-            <div className="flex h-screen flex-col">
+            <div className="flex h-dvh flex-col">
                 <Board
                     gameId={gameId}
                     playerId={playerId}
@@ -82,7 +82,7 @@ export default function GameRoute() {
     }
 
     return (
-        <div className="flex h-screen items-center justify-center text-white">
+        <div className="flex h-dvh items-center justify-center text-white">
             Loading...
         </div>
     );

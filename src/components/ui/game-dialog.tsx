@@ -50,7 +50,7 @@ export default function GameDialog({
             <DialogContent
                 showCloseButton={false}
                 className={cn(
-                    "border-none bg-transparent shadow-none p-0 overflow-visible flex justify-center items-center",
+                    "border-none bg-transparent shadow-none ring-0 p-0 overflow-visible flex justify-center items-center",
                     sizeClasses[size],
                     className
                 )}

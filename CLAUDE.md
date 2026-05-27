@@ -196,7 +196,7 @@ workflow.
 2. **Verify rules** — `/mtg-rules-check` to get exact CR text and current implementation status
 3. **Plan** — Agree on scope: what to implement now, what to defer
 4. **Implement** — Write code, following CR and project patterns
-5. **Test** — Write tests referencing CR sections, run `bun run test`
+5. **Test** — Write tests at ALL layers: GRE unit tests, backend integration (game.ts mutations), frontend utils, AND wire format. Two pieces passing individually but failing together is a shipped bug. Every feature that crosses the GRE → game.ts → UI boundary MUST have at least one integration test exercising the full path. Run `bun run test`
 6. **Validate** — `bun run check:all` must pass with zero errors
 7. **Preset scenario** — For any new card or gameplay feature, add a dedicated entry to `PRESET_SCENARIOS` in `src/components/debug/debug-panel.tsx` so the user can load it one-click from the Debug panel and exercise the feature end-to-end. Choose cards/zones/phase/`landCount` that hit the golden path (and ideally a key edge case). Skip only for pure refactors with no user-visible behavior change.
 8. **UI verify** — Only when the user explicitly requests browser verification. Do NOT auto-test new cards or gameplay features in Chrome — preset scenarios + vitest + wire format tests are the default verification. The user will ask for a Chrome run when they want one.

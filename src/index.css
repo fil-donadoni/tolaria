@@ -224,7 +224,7 @@
 
 @layer base {
     :root {
-        --card-w: min(8rem, 10vw, 9.5vh);
+        --card-w: min(8rem, 10vw, 9.5dvh);
         --card-h: calc(var(--card-w) * 7 / 5);
         --card-w-sm: calc(var(--card-w) * 0.75);
     }

@@ -116,6 +116,9 @@ function compactCard(
     if (card.grantedColors && card.grantedColors.length > 0) {
         out.grantedColors = card.grantedColors;
     }
+    if (card.colorOverride && card.colorOverride.length > 0) {
+        out.colorOverride = card.colorOverride;
+    }
     if (card.exileOnDeath) out.exileOnDeath = true;
     if (card.mustAttackThisTurn) out.mustAttackThisTurn = true;
     if (card.canBlockAdditional !== undefined) {
@@ -228,6 +231,10 @@ function expandCard(
     if (compact.grantedColors) {
         result.grantedColors =
             compact.grantedColors as CardInstanceState["grantedColors"];
+    }
+    if (compact.colorOverride) {
+        result.colorOverride =
+            compact.colorOverride as CardInstanceState["colorOverride"];
     }
     if (compact.exileOnDeath) result.exileOnDeath = true;
     if (compact.mustAttackThisTurn) result.mustAttackThisTurn = true;

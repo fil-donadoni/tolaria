@@ -186,6 +186,8 @@ export function matchesTargetRequirement(
 ): boolean {
     const types = Array.isArray(targetType) ? targetType : [targetType];
     const cardTypes = card.types ?? [];
+    // "spell-or-permanent" matches ANY permanent on the battlefield
+    if (types.includes("spell-or-permanent")) return true;
     // CR 115.4 / 120.3: "any target" only matches damageable permanents
     // (creatures, planeswalkers, battles) — never lands, artifacts, enchantments.
     if (types.includes("any")) {

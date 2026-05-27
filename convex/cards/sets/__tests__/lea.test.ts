@@ -232,6 +232,11 @@ import {
     livingLands,
     kormusBell,
     cyclopeanTomb,
+    purelace,
+    chaoslace,
+    deathlace,
+    lifelace,
+    thoughtlace,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -17211,5 +17216,181 @@ describe("Cyclopean Tomb ({4} — mire counter + LTB)", () => {
             cyclopeanTomb.activatedAbilities![0].targetRequirement
                 ?.excludeSubtypes
         ).toEqual(["Swamp"]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Lace cycle — color-change layer 5 (CR 305.7, 613.1d)
+// ---------------------------------------------------------------------------
+
+describe("Lace cycle (CR 305.7 — target spell or permanent becomes [color])", () => {
+    const laces = [
+        { def: purelace, color: "W", name: "Purelace" },
+        { def: thoughtlace, color: "U", name: "Thoughtlace" },
+        { def: deathlace, color: "B", name: "Deathlace" },
+        { def: chaoslace, color: "R", name: "Chaoslace" },
+        { def: lifelace, color: "G", name: "Lifelace" },
+    ] as const;
+
+    for (const { def, color, name } of laces) {
+        describe(name, () => {
+            it("changes a permanent's color", () => {
+                const creature = makeInstance(savannahLions.id, {
+                    id: "lion",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                });
+                const p1 = makePlayer("p1", {
+                    manaPool: { W: 5, U: 5, B: 5, R: 5, G: 5, C: 0 },
+                });
+                const p2 = makePlayer("p2", {
+                    battlefield: [creature],
+                });
+                const state = makeState({ players: [p1, p2] });
+
+                const originalColors = STATIC_EFFECT_CTX.getColors(creature);
+                expect(originalColors).toContain("W");
+
+                pushSpell(state, def.id, "p1", [
+                    { type: "permanent", id: "lion" },
+                ]);
+                resolveTopOfStack(state);
+
+                const newColors = STATIC_EFFECT_CTX.getColors(creature);
+                expect(newColors).toEqual([color]);
+            });
+
+            it("changes a spell's color on the stack", () => {
+                const p1 = makePlayer("p1", {
+                    manaPool: { W: 5, U: 5, B: 5, R: 5, G: 5, C: 0 },
+                });
+                const p2 = makePlayer("p2");
+                const state = makeState({ players: [p1, p2] });
+
+                const targetSpell = pushSpell(state, lightningBolt.id, "p2", [
+                    { type: "player", id: "p1" },
+                ]);
+
+                pushSpell(state, def.id, "p1", [
+                    { type: "spell", id: targetSpell.id },
+                ]);
+                resolveTopOfStack(state);
+
+                const boltOnStack = state.stack.find(
+                    (s) => s.id === targetSpell.id
+                )!;
+                expect(boltOnStack.colorOverride).toEqual([color]);
+                expect(STATIC_EFFECT_CTX.getColors(boltOnStack)).toEqual([
+                    color,
+                ]);
+            });
+
+            it("color change persists — not cleared at end of turn", () => {
+                const creature = makeInstance(savannahLions.id, {
+                    id: "lion",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const p1 = makePlayer("p1", {
+                    battlefield: [creature],
+                    manaPool: { W: 5, U: 5, B: 5, R: 5, G: 5, C: 0 },
+                });
+                const state = makeState({ players: [p1, makePlayer("p2")] });
+
+                pushSpell(state, def.id, "p1", [
+                    { type: "permanent", id: "lion" },
+                ]);
+                resolveTopOfStack(state);
+
+                expect(creature.colorOverride).toEqual([color]);
+                expect(STATIC_EFFECT_CTX.getColors(creature)).toEqual([color]);
+            });
+        });
+    }
+
+    it("spell-or-permanent target type includes all permanent types + stack spells", () => {
+        const creature = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(forest.id, {
+            id: "forest1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [creature, land],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+
+        const targets = getLegalTargets(
+            state,
+            { type: "spell-or-permanent", count: 1 },
+            [],
+            "p1"
+        );
+
+        const ids = targets.map((t) => t.id);
+        expect(ids).toContain("lion");
+        expect(ids).toContain("forest1");
+        expect(ids).toContain(bolt.id);
+        const types = targets.map((t) => t.type);
+        expect(types).not.toContain("player");
+    });
+
+    it("protection interaction respects new color (CR 702.16b)", () => {
+        const proRedCreature = makeInstance(whiteKnight.id, {
+            id: "wk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const p1 = makePlayer("p1", {
+            manaPool: { W: 0, U: 0, B: 0, R: 5, G: 0, C: 0 },
+        });
+        const p2 = makePlayer("p2", {
+            battlefield: [proRedCreature],
+        });
+        const state = makeState({ players: [p1, p2] });
+
+        expect(getProtectedColors(proRedCreature).includes("B")).toBe(true);
+
+        pushSpell(state, deathlace.id, "p1", [{ type: "permanent", id: "wk" }]);
+        resolveTopOfStack(state);
+
+        expect(STATIC_EFFECT_CTX.getColors(proRedCreature)).toEqual(["B"]);
+    });
+
+    it("wire format: colorOverride survives projectPublicState", () => {
+        const creature = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [creature],
+            manaPool: { W: 5, U: 5, B: 5, R: 5, G: 5, C: 0 },
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        pushSpell(state, chaoslace.id, "p1", [
+            { type: "permanent", id: "lion" },
+        ]);
+        resolveTopOfStack(state);
+
+        expect(creature.colorOverride).toEqual(["R"]);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const projLion = projected.players[0].battlefield.find(
+            (c) => c.id === "lion"
+        )!;
+        expect(
+            (projLion as unknown as { colorOverride?: string[] }).colorOverride
+        ).toEqual(["R"]);
+        expect(STATIC_EFFECT_CTX.getColors(projLion)).toEqual(["R"]);
     });
 });

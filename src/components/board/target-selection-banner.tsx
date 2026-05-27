@@ -15,6 +15,7 @@ const TARGET_LABEL: Record<string, string> = {
     player: "a player",
     any: "any target",
     spell: "a spell on the stack",
+    "spell-or-permanent": "a spell or permanent",
     card: "a card",
 };
 

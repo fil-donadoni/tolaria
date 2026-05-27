@@ -169,7 +169,7 @@ function Lobby() {
         user === undefined
     ) {
         return (
-            <div className="flex h-screen items-center justify-center text-text">
+            <div className="flex h-dvh items-center justify-center text-text">
                 Loading...
             </div>
         );
@@ -195,7 +195,7 @@ function Lobby() {
     );
 
     return (
-        <div className="relative min-h-screen overflow-hidden bg-surface-base text-text">
+        <div className="relative min-h-dvh overflow-hidden bg-surface-base text-text">
             <LobbyBackground />
             <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
                 <DashboardTopBar />

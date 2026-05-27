@@ -57,6 +57,24 @@ const slimTarget = projected.players[i].battlefield.find(
 expect(getEffectiveToughness(projected, slimTarget)).toBe(expected);
 ```
 
+## End-to-end targeting test (mandatory for new target types)
+
+When a new `TargetRequirement.type` value is introduced (e.g. `"spell-or-permanent"`), the following sites MUST be tested — GRE unit tests alone are NOT sufficient:
+
+| Layer    | What to test                                                                       | File                                      |
+| -------- | ---------------------------------------------------------------------------------- | ----------------------------------------- |
+| GRE      | `getLegalTargets` returns correct targets for the new type                         | `convex/gre/__tests__/` or card test file |
+| Backend  | `selectTarget` mutation accepts the new type for both permanent and spell branches | `convex/game.ts` integration test         |
+| Frontend | `matchesTargetRequirement` marks battlefield cards as clickable                    | `src/lib/__tests__/card-utils.test.ts`    |
+| Frontend | `wantsSpellTarget` enables stack spell selection                                   | `src/components/board/` test              |
+| Frontend | `TARGET_LABEL` has an entry (no raw fallback string)                               | `src/components/board/` test              |
+
+**Rule: every feature that crosses the GRE → game.ts → UI boundary MUST have at least one integration test that exercises the full path. Two pieces passing individually but failing together is a shipped bug.**
+
+## Exhaustive target-type matching
+
+Code that switches on `TargetRequirement.type` values MUST use an exhaustive helper or explicitly list every member of the union. A raw `reqTypes.includes("spell")` that doesn't also handle `"spell-or-permanent"` is a bug. When adding a new type value, grep for every consumer and update all of them.
+
 ## Serialization requirement
 
 Every optional field on `GameState` must be added to `PERSISTED_OPTIONAL_KEYS` in `serialize.ts` (or `TRANSIENT_KEYS` if intentionally ephemeral). The schema drift guard test in `serialize.test.ts` fails when a GameState key is missing from both sets — this prevents silent field loss across DB writes.
