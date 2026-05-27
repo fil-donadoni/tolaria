@@ -90,6 +90,29 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "W25a: Mass forced-attack — Siren's Call + False Orders",
+        cards: [
+            {
+                name: "Siren's Call",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "False Orders",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Savannah Lions", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Wall of Swords", owner: "me" as const },
+            { name: "Island", owner: "opp" as const, count: 2 },
+            { name: "Mountain", owner: "opp" as const },
+            { name: "Plains", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "W24: Cost modifier + keyword removal — Gloom, Forcefield, Animate Wall, Earthbind",
         cards: [
             { name: "Gloom", owner: "me" as const },

@@ -257,8 +257,20 @@ function passesCastPhaseRestriction(
     if (!cardId) return true;
     const def = tryGetCardById(cardId);
     const restriction = def?.castPhaseRestriction;
-    if (!restriction || restriction.length === 0) return true;
-    return restriction.includes(state.phase);
+    if (
+        restriction &&
+        restriction.length > 0 &&
+        !restriction.includes(state.phase)
+    ) {
+        return false;
+    }
+    if (
+        def?.castTurnRestriction === "opponent" &&
+        state.activePlayerId === card.controllerId
+    ) {
+        return false;
+    }
+    return true;
 }
 
 /** True if the permanent/stack item has at least one of the given color in

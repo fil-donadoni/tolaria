@@ -852,6 +852,10 @@ export type GameState = {
      *  creature would deal combat damage to the shielded player, reduce to
      *  `maxDamage`. Consumed on first use; cleared at CLEANUP. */
     damageCapShields?: { playerId: string; maxDamage: number }[];
+    /** Player whose creatures must all attack this combat if able (CR 508.1d,
+     *  Siren's Call). Checked in `getRequiredAttackerIds` alongside the
+     *  per-creature `mustAttackThisTurn`. Cleared at CLEANUP. */
+    allCreaturesMustAttack?: string;
 };
 
 /** Player-level replacement preferences. Each entry is opt-in: undefined
@@ -3063,6 +3067,32 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             found.card.canBlockAdditional = value;
         },
 
+        setAllCreaturesMustAttack(playerId: string): void {
+            state.allCreaturesMustAttack = playerId;
+        },
+
+        removeFromCombat(target: TargetSelection): void {
+            if (target.type !== "permanent" || !state.combat) return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            const card = found.card;
+            if (card.isAttacking) {
+                card.isAttacking = false;
+                state.combat.attackerIds = state.combat.attackerIds.filter(
+                    (id) => id !== target.id
+                );
+            }
+            if (card.isBlocking) {
+                card.isBlocking = false;
+                // Remove from blocker assignments and check if any attacker
+                // becomes unblocked (sole blocker removed)
+                const ba = state.combat.blockerAssignments;
+                if (ba[target.id]) {
+                    delete ba[target.id];
+                }
+            }
+        },
+
         setMustBlockAll(target: TargetSelection): void {
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
@@ -3153,6 +3183,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             return bf
                 .filter((c) => matchesPermanentFilter(c, filter))
                 .map((c) => c.id);
+        },
+        hasSubtype(target: TargetSelection, subtype: string): boolean {
+            if (target.type !== "permanent") return false;
+            const found = findOnBattlefield(state, target.id);
+            return found?.card.subtypes.includes(subtype) ?? false;
         },
         getHandIds(playerId: string): string[] {
             return getPlayer(state, playerId).hand.map((c) => c.id);

@@ -1894,13 +1894,53 @@ export const seaSerpent: CardDefinition = {
     ],
 };
 
-// export const sirensCall: CardDefinition = {
-//     id: "d992b336-3b6e-43e1-8662-d85664349b44",
-//     name: "Siren's Call",
-//     oracleText: "Cast this spell only during an opponent's turn, before attackers are declared.\nCreatures the active player controls attack this turn if able.\nAt the beginning of the next end step, destroy all non-Wall creatures that player controls that didn't attack this turn. Ignore this effect for each creature the player didn't control continuously since the beginning of the turn.",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
+// Siren's Call — "Cast only during an opponent's turn, before attackers are
+// declared. Creatures the active player controls attack this turn if able.
+// At the beginning of the next end step, destroy all non-Wall creatures that
+// player controls that didn't attack this turn." (CR 508.1d mass forced
+// attack + delayed end-step destroy).
+export const sirensCall: CardDefinition = {
+    id: "d992b336-3b6e-43e1-8662-d85664349b44",
+    name: "Siren's Call",
+    oracleText:
+        "Cast this spell only during an opponent's turn, before attackers are declared.\nCreatures the active player controls attack this turn if able.\nAt the beginning of the next end step, destroy all non-Wall creatures that player controls that didn't attack this turn.",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    castTurnRestriction: "opponent",
+    castPhaseRestriction: ["UNTAP", "UPKEEP", "DRAW", "PRECOMBAT_MAIN"],
+    resolve: (ctx: SpellContext) => {
+        const activePlayerId = ctx.allPlayerIds.find(
+            (id) => id !== ctx.controller
+        );
+        if (!activePlayerId) return;
+        ctx.setAllCreaturesMustAttack(activePlayerId);
+        ctx.scheduleDelayedTrigger(
+            sirensCall.id,
+            "sirens-call-destroy",
+            "next-end-step",
+            { targetPlayerId: activePlayerId }
+        );
+    },
+    delayedTriggers: [
+        {
+            id: "sirens-call-destroy",
+            oracleText:
+                "Destroy all non-Wall creatures that didn't attack this turn.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                const pid = payload.targetPlayerId;
+                if (!pid) return;
+                const ids = ctx.getBattlefieldIds(pid, { types: "Creature" });
+                for (const id of ids) {
+                    const t = { type: "permanent" as const, id };
+                    if (ctx.hasSubtype(t, "Wall")) continue;
+                    if (ctx.hasAttackedThisTurn(t)) continue;
+                    ctx.destroy(t);
+                }
+            },
+        },
+    ],
+};
 
 // export const sleightOfMind: CardDefinition = {
 //     id: "d427790c-e322-446e-8d7d-a6b48ad41a42",
@@ -3768,13 +3808,29 @@ export const earthquake: CardDefinition = {
     },
 };
 
-// export const falseOrders: CardDefinition = {
-//     id: "7eb71ac4-796d-4011-9002-1129bc09c284",
-//     name: "False Orders",
-//     oracleText: "Cast this spell only during the declare blockers step.\nRemove target creature defending player controls from combat. Creatures it was blocking that had become blocked by only that creature this combat become unblocked. You may have it block an attacking creature of your choice.",
-//     manaCost: { R: 1 },
-//     types: ["Instant"],
-// };
+// False Orders — "Cast only during the declare blockers step. Remove target
+// creature defending player controls from combat." (CR 506.4 remove from
+// combat). The optional re-assignment as blocker is deferred (not modeled
+// in initial scope — the primary effect of removing from combat is complete).
+export const falseOrders: CardDefinition = {
+    id: "7eb71ac4-796d-4011-9002-1129bc09c284",
+    name: "False Orders",
+    oracleText:
+        "Cast this spell only during the declare blockers step.\nRemove target creature defending player controls from combat. Creatures it was blocking that had become blocked by only that creature this combat become unblocked.",
+    manaCost: { R: 1 },
+    types: ["Instant"],
+    castPhaseRestriction: ["DECLARE_BLOCKERS"],
+    targetRequirement: {
+        type: "Creature",
+        count: 1,
+        controller: "opponent",
+    },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (!target || target.type !== "permanent") return;
+        ctx.removeFromCombat(target);
+    },
+};
 
 export const fireElemental: CardDefinition = {
     id: "da237992-2919-4e37-8f56-2164095f59b5",
