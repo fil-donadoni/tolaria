@@ -90,6 +90,35 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "W24: Cost modifier + keyword removal — Gloom, Forcefield, Animate Wall, Earthbind",
+        cards: [
+            { name: "Gloom", owner: "me" as const },
+            { name: "Forcefield", owner: "me" as const },
+            {
+                name: "Animate Wall",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Earthbind",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Wall of Swords", owner: "me" as const },
+            { name: "Serra Angel", owner: "opp" as const },
+            {
+                name: "Savannah Lions",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "me" as const, count: 3 },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Warp Artifact — Aura on opponent's artifact (CR 303.4 cross-board attach)",
         cards: [
             // Warp Artifact in hand (cost {B}{B}) targeting an opponent-owned

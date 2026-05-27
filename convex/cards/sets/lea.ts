@@ -7,6 +7,7 @@ import type {
     PermanentFilter,
     PermanentView,
     SpellContext,
+    StaticEffectContext,
     TargetSelection,
     TriggeredAbility,
 } from "../types";
@@ -32,14 +33,26 @@ import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { untapRestriction } from "../abilities/static/untapRestriction";
 import { tokenPrintIdFor } from "../tokenPrintLookup";
 
-// export const animateWall: CardDefinition = {
-//     id: "d5c83259-9b90-47c2-b48e-c7d78519e792",
-//     name: "Animate Wall",
-//     oracleText: "Enchant Wall\nEnchanted Wall can attack as though it didn't have defender.",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Animate Wall — "Enchant Wall. Enchanted Wall can attack as though it didn't
+// have defender." (CR 702.3, 613.1a layer 6 keyword removal). Aura removes
+// defender from its host, allowing the Wall to be declared as an attacker.
+export const animateWall: CardDefinition = {
+    id: "d5c83259-9b90-47c2-b48e-c7d78519e792",
+    name: "Animate Wall",
+    oracleText:
+        "Enchant Wall\nEnchanted Wall can attack as though it didn't have defender.",
+    manaCost: { W: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1, subtypeFilter: "Wall" },
+    staticEffects: [
+        {
+            kind: "keyword-remove",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "defender",
+        },
+    ],
+};
 
 export const armageddon: CardDefinition = {
     id: "5b6ddce7-b9c5-431d-a0b0-46d4aa93cbcb",
@@ -2594,13 +2607,30 @@ export const frozenShade: CardDefinition = {
     ],
 };
 
-// export const gloom: CardDefinition = {
-//     id: "a8d10bc7-daeb-4c0d-9e4a-8eae8d11699f",
-//     name: "Gloom",
-//     oracleText: "White spells cost {3} more to cast.\nActivated abilities of white enchantments cost {3} more to activate.",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Enchantment"],
-// };
+// Gloom — "White spells cost {3} more to cast. Activated abilities of white
+// enchantments cost {3} more to activate." (CR 601.2f cost modification).
+export const gloom: CardDefinition = {
+    id: "a8d10bc7-daeb-4c0d-9e4a-8eae8d11699f",
+    name: "Gloom",
+    oracleText:
+        "White spells cost {3} more to cast.\nActivated abilities of white enchantments cost {3} more to activate.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "cost-modifier",
+            appliesToSpell: (card: PermanentView, ctx: StaticEffectContext) =>
+                ctx.getColors(card).includes("W"),
+            appliesToAbility: (
+                source: PermanentView,
+                ctx: StaticEffectContext
+            ) =>
+                ctx.getColors(source).includes("W") &&
+                source.types.includes("Enchantment"),
+            costIncrease: { X: 3 },
+        },
+    ],
+};
 
 // Howl from Beyond — "Target creature gets +X/+0 until end of turn." (CR 107.3
 // X cost, 611.1 temp P/T mod). Single-target pump scaled by paid X.
@@ -3683,14 +3713,42 @@ export const earthElemental: CardDefinition = {
     toughness: 5,
 };
 
-// export const earthbind: CardDefinition = {
-//     id: "a6d492b7-b0b3-420e-8d00-6dacb11de77e",
-//     name: "Earthbind",
-//     oracleText: "Enchant creature\nWhen this Aura enters, if enchanted creature has flying, this Aura deals 2 damage to that creature and this Aura gains \"Enchanted creature loses flying.\"",
-//     manaCost: { R: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Earthbind — "Enchant creature. Enchanted creature loses flying. When
+// Earthbind enters, if enchanted creature has flying, Earthbind deals 2
+// damage to that creature." (CR 613.1a keyword removal, layer 6). The
+// keyword-remove is always active; the ETB damage fires only if the host
+// originally had flying (checked via removedKeywords record).
+export const earthbind: CardDefinition = {
+    id: "a6d492b7-b0b3-420e-8d00-6dacb11de77e",
+    name: "Earthbind",
+    oracleText:
+        "Enchant creature\nEnchanted creature loses flying.\nWhen Earthbind enters, if enchanted creature has flying, Earthbind deals 2 damage to that creature.",
+    manaCost: { R: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "keyword-remove",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "flying",
+        },
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "earthbind-etb",
+            oracleText:
+                "When Earthbind enters, if enchanted creature has flying, Earthbind deals 2 damage to that creature.",
+            scope: "self",
+            resolve: (ctx) => {
+                const hostId = ctx.getAttachedToId();
+                if (!hostId) return;
+                if (!ctx.hasRemovedKeyword(hostId, "flying")) return;
+                ctx.dealDamage({ type: "permanent", id: hostId }, 2);
+            },
+        }),
+    ],
+};
 
 // CR 107.3: X chosen on cast. CR 120.3: damage respects flying at
 // resolution time (creatures losing flying mid-resolution aren't affected,
@@ -5992,13 +6050,30 @@ export const dingusEgg: CardDefinition = {
 //     types: ["Artifact"],
 // };
 
-// export const forcefield: CardDefinition = {
-//     id: "3f2004c1-8efe-407f-bf48-27b807422eea",
-//     name: "Forcefield",
-//     oracleText: "{1}: The next time an unblocked creature of your choice would deal combat damage to you this turn, prevent all but 1 of that damage.",
-//     manaCost: { X: 3 },
-//     types: ["Artifact"],
-// };
+// Forcefield — "{1}: The next time an unblocked creature of your choice would
+// deal combat damage to you this turn, prevent all but 1 of that damage."
+// (CR 615.1 damage prevention, one-shot cap shield). Activated ability adds a
+// damage-cap shield consumed at combat damage time.
+export const forcefield: CardDefinition = {
+    id: "3f2004c1-8efe-407f-bf48-27b807422eea",
+    name: "Forcefield",
+    oracleText:
+        "{1}: The next time an unblocked creature of your choice would deal combat damage to you this turn, prevent all but 1 of that damage.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "forcefield-activate",
+            oracleText:
+                "{1}: Prevent all but 1 combat damage from the next unblocked creature.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addDamageCapShield(ctx.controller, 1);
+            },
+        },
+    ],
+};
 
 export const gauntletOfMight: CardDefinition = {
     id: "da248001-ed75-4b68-9532-37d3cd5afc4c",

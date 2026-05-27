@@ -346,6 +346,12 @@ export interface SpellContext {
      *  the canonical `for (const pid of ctx.allPlayerIds)` pattern. Use this
      *  for "each player ~" spells (Timetwister, Wheel of Fortune). */
     forEachPlayer: (fn: (playerId: string) => void) => void;
+    /** Returns the `attachedTo` id of the trigger's source permanent (aura).
+     *  Undefined if the source is not on the battlefield or has no host. */
+    getAttachedToId: () => string | undefined;
+    /** True if the given permanent currently has a keyword removal record
+     *  for `keyword` (set by a keyword-remove static effect). */
+    hasRemovedKeyword: (permanentId: string, keyword: string) => boolean;
     // --- Primitives ---
     dealDamage: (target: TargetSelection, amount: number) => void;
     gainLife: (playerId: string, amount: number) => void;
@@ -674,6 +680,10 @@ export interface SpellContext {
     /** Prevents all combat damage for the remainder of this turn (CR 615,
      *  Fog). Cleared at CLEANUP. Non-combat damage is unaffected. */
     preventAllCombatDamage: () => void;
+    /** Adds a one-shot damage cap shield (Forcefield, CR 615). The next time
+     *  an unblocked creature deals combat damage to `playerId`, reduce to
+     *  `maxDamage`. Consumed on first use; cleared at CLEANUP. */
+    addDamageCapShield: (playerId: string, maxDamage: number) => void;
     /** Marks a creature so that if it would die this turn, it is exiled
      *  instead (CR 614.1a — Disintegrate). Also suppresses regeneration.
      *  Cleared at CLEANUP. No-op if target is not a creature on the
@@ -1185,6 +1195,31 @@ export interface StaticColorGrant {
     colors: Color[];
 }
 
+/** Cost-modification static effect (CR 601.2f). Scanned at cast-announcement
+ *  time; matching increases are added to the spell/ability base cost. */
+export interface StaticCostModifier {
+    kind: "cost-modifier";
+    appliesToSpell?: (card: PermanentView, ctx: StaticEffectContext) => boolean;
+    appliesToAbility?: (
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    costIncrease: ManaCost;
+}
+
+/** Keyword-removal static effect (CR 613.1a layer 6). Suppresses a keyword
+ *  on matching permanents. Tracked via `removedKeywords` on the target so
+ *  unapply can restore the original. */
+export interface StaticKeywordRemove {
+    kind: "keyword-remove";
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    keyword: string;
+}
+
 export type StaticEffect =
     | StaticPTBuff
     | StaticPTCDA
@@ -1199,7 +1234,9 @@ export type StaticEffect =
     | StaticAttackRestriction
     | StaticAttackRequirement
     | StaticBlockRequirement
-    | StaticHandSizeOverride;
+    | StaticHandSizeOverride
+    | StaticCostModifier
+    | StaticKeywordRemove;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
  *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted

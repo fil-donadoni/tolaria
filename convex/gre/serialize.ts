@@ -86,6 +86,9 @@ function compactCard(
     if (card.grantedActivatedAbilities?.length) {
         out.grantedActivatedAbilities = card.grantedActivatedAbilities;
     }
+    if (card.removedKeywords?.length) {
+        out.removedKeywords = card.removedKeywords;
+    }
     if (card.damagedBySources?.length) {
         out.damagedBySources = card.damagedBySources;
     }
@@ -192,6 +195,10 @@ function expandCard(
     if (compact.grantedActivatedAbilities) {
         result.grantedActivatedAbilities =
             compact.grantedActivatedAbilities as CardInstanceState["grantedActivatedAbilities"];
+    }
+    if (compact.removedKeywords) {
+        result.removedKeywords =
+            compact.removedKeywords as CardInstanceState["removedKeywords"];
     }
     if (compact.damagedBySources) {
         result.damagedBySources = compact.damagedBySources as string[];
@@ -491,6 +498,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "damageRedirections",
     "playerPreferences",
     "preventAllCombatDamageThisTurn",
+    "damageCapShields",
 ] as const;
 
 /** Optional GameState keys that are intentionally ephemeral — never

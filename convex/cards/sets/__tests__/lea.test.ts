@@ -237,6 +237,10 @@ import {
     deathlace,
     lifelace,
     thoughtlace,
+    animateWall,
+    earthbind,
+    gloom,
+    forcefield,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -252,6 +256,9 @@ import {
     applySourceStaticEffects,
     unapplySourceStaticEffects,
     applyExistingGrantsTo,
+    normalizeManaCost,
+    getCostModifiers,
+    applyCostIncrease,
     type CardInstanceState,
     type GameState,
 } from "../../../gre/state";
@@ -17392,5 +17399,379 @@ describe("Lace cycle (CR 305.7 — target spell or permanent becomes [color])", 
             (projLion as unknown as { colorOverride?: string[] }).colorOverride
         ).toEqual(["R"]);
         expect(STATIC_EFFECT_CTX.getColors(projLion)).toEqual(["R"]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// W24: Cost modification + keyword removal (CR 601.2f, 613.1a)
+// ---------------------------------------------------------------------------
+
+describe("Animate Wall (CR 702.3 — keyword-remove: defender)", () => {
+    it("enchanted Wall can attack (defender removed)", () => {
+        const wall = makeInstance(wallOfSwords.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(animateWall.id, {
+            id: "anim",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "wall",
+        });
+        const p1 = makePlayer("p1", { battlefield: [wall, aura] });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        applySourceStaticEffects(state, aura);
+
+        expect(wall.staticAbilities).not.toContain("defender");
+        expect(wall.removedKeywords).toEqual([
+            { keyword: "defender", sourceId: "anim" },
+        ]);
+        const result = validateAttackerEligibility(
+            wall,
+            state.players[1].battlefield
+        );
+        expect(result.eligible).toBe(true);
+    });
+
+    it("removing aura restores defender", () => {
+        const wall = makeInstance(wallOfSwords.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(animateWall.id, {
+            id: "anim",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "wall",
+        });
+        const p1 = makePlayer("p1", { battlefield: [wall, aura] });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        applySourceStaticEffects(state, aura);
+
+        expect(wall.staticAbilities).not.toContain("defender");
+
+        unapplySourceStaticEffects(state, aura);
+
+        expect(wall.staticAbilities).toContain("defender");
+        expect(wall.removedKeywords).toBeUndefined();
+    });
+});
+
+describe("Earthbind (CR 613.1a — keyword-remove: flying + ETB damage)", () => {
+    it("host loses flying continuously", () => {
+        const flier = makeInstance(serraAngel.id, {
+            id: "angel",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const aura = makeInstance(earthbind.id, {
+            id: "eb",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "angel",
+        });
+        const p1 = makePlayer("p1", { battlefield: [aura] });
+        const p2 = makePlayer("p2", { battlefield: [flier] });
+        const state = makeState({ players: [p1, p2] });
+        applySourceStaticEffects(state, aura);
+
+        expect(flier.staticAbilities).not.toContain("flying");
+        expect(flier.removedKeywords).toEqual([
+            { keyword: "flying", sourceId: "eb" },
+        ]);
+    });
+
+    it("deals 2 damage to flying host on ETB", () => {
+        const flier = makeInstance(serraAngel.id, {
+            id: "angel",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const aura = makeInstance(earthbind.id, {
+            id: "eb",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "angel",
+        });
+        const p1 = makePlayer("p1", { battlefield: [aura] });
+        const p2 = makePlayer("p2", { battlefield: [flier] });
+        const state = makeState({ players: [p1, p2] });
+        applySourceStaticEffects(state, aura);
+
+        // Emit the ETB event and collect triggers
+        emitPermanentEntered(state, aura);
+        processPendingActionTriggers(state);
+
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("earthbind-etb");
+
+        resolveTopOfStack(state);
+        expect(flier.damageMarked).toBe(2);
+    });
+
+    it("non-flying host takes no ETB damage", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const aura = makeInstance(earthbind.id, {
+            id: "eb",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "bear",
+        });
+        const p1 = makePlayer("p1", { battlefield: [aura] });
+        const p2 = makePlayer("p2", { battlefield: [bear] });
+        const state = makeState({ players: [p1, p2] });
+        applySourceStaticEffects(state, aura);
+
+        emitPermanentEntered(state, aura);
+        processPendingActionTriggers(state);
+
+        // Trigger fires but resolve is a no-op for non-flying hosts
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(bear.damageMarked).toBeUndefined();
+    });
+});
+
+describe("Gloom (CR 601.2f — cost-modifier: white spells + white enchantment abilities)", () => {
+    it("white spells cost {3} more", () => {
+        const gloomCard = makeInstance(gloom.id, {
+            id: "gloom1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const whiteSpell = makeInstance(savannahLions.id, {
+            id: "lions",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const p1 = makePlayer("p1", { battlefield: [gloomCard] });
+        const p2 = makePlayer("p2", { hand: [whiteSpell] });
+        const state = makeState({ players: [p1, p2] });
+
+        const increase = getCostModifiers(state, whiteSpell, "spell");
+        expect(increase).toEqual({ X: 3 });
+
+        const baseCost = normalizeManaCost(savannahLions.manaCost!);
+        applyCostIncrease(baseCost, increase);
+        // Savannah Lions = {W}, +3 generic = {W} + {3}
+        expect(baseCost).toEqual({ W: 1, X: 3 });
+    });
+
+    it("non-white spells unaffected", () => {
+        const gloomCard = makeInstance(gloom.id, {
+            id: "gloom1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const redSpell = makeInstance(lightningBolt.id, {
+            id: "bolt",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const p1 = makePlayer("p1", { battlefield: [gloomCard] });
+        const p2 = makePlayer("p2", { hand: [redSpell] });
+        const state = makeState({ players: [p1, p2] });
+
+        const increase = getCostModifiers(state, redSpell, "spell");
+        expect(increase).toEqual({});
+    });
+
+    it("white enchantment activations cost {3} more", () => {
+        const gloomCard = makeInstance(gloom.id, {
+            id: "gloom1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // COP White is a white enchantment with an activated ability
+        const copW = makeInstance(circleOfProtectionWhite.id, {
+            id: "cop",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const p1 = makePlayer("p1", { battlefield: [gloomCard] });
+        const p2 = makePlayer("p2", { battlefield: [copW] });
+        const state = makeState({ players: [p1, p2] });
+
+        const increase = getCostModifiers(state, copW, "ability");
+        expect(increase).toEqual({ X: 3 });
+    });
+
+    it("removal of gloom reverts cost increase", () => {
+        const gloomCard = makeInstance(gloom.id, {
+            id: "gloom1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const whiteSpell = makeInstance(savannahLions.id, {
+            id: "lions",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const p1 = makePlayer("p1", { battlefield: [gloomCard] });
+        const p2 = makePlayer("p2", { hand: [whiteSpell] });
+        const state = makeState({ players: [p1, p2] });
+
+        expect(getCostModifiers(state, whiteSpell, "spell")).toEqual({ X: 3 });
+
+        // Remove gloom from battlefield
+        state.players[0].battlefield = [];
+
+        expect(getCostModifiers(state, whiteSpell, "spell")).toEqual({});
+    });
+});
+
+describe("Forcefield (CR 615 — damage cap shield for unblocked creatures)", () => {
+    it("caps unblocked attacker combat damage to 1", async () => {
+        const attacker = makeInstance(serraAngel.id, {
+            id: "angel",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const ff = makeInstance(forcefield.id, {
+            id: "ff",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const p1 = makePlayer("p1", { battlefield: [attacker] });
+        const p2 = makePlayer("p2", { battlefield: [ff], life: 20 });
+        const state = makeState({
+            players: [p1, p2],
+            activePlayerId: "p1",
+            combat: {
+                attackerIds: ["angel"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
+        });
+
+        // Activate forcefield — add damage cap shield
+        state.damageCapShields = [{ playerId: "p2", maxDamage: 1 }];
+
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, {});
+
+        // Serra Angel has 4 power, but capped to 1
+        expect(p2.life).toBe(19);
+    });
+
+    it("shield is consumed after one use", async () => {
+        const att1 = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const att2 = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const p1 = makePlayer("p1", { battlefield: [att1, att2] });
+        const p2 = makePlayer("p2", { life: 20 });
+        const state = makeState({
+            players: [p1, p2],
+            activePlayerId: "p1",
+            combat: {
+                attackerIds: ["lion", "bear"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
+        });
+
+        state.damageCapShields = [{ playerId: "p2", maxDamage: 1 }];
+
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, {});
+
+        // First attacker capped to 1, second deals full damage
+        // Lion=2 capped to 1, Bear=2 full → 1+2=3 damage
+        expect(p2.life).toBe(17);
+        expect(state.damageCapShields).toBeUndefined();
+    });
+
+    it("blocked creatures not affected by shield", async () => {
+        const attacker = makeInstance(serraAngel.id, {
+            id: "angel",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const blocker = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const p1 = makePlayer("p1", { battlefield: [attacker] });
+        const p2 = makePlayer("p2", {
+            battlefield: [blocker],
+            life: 20,
+        });
+        const state = makeState({
+            players: [p1, p2],
+            activePlayerId: "p1",
+            combat: {
+                attackerIds: ["angel"],
+                confirmed: true,
+                blockerAssignments: { bear: ["angel"] },
+                blockersConfirmed: true,
+            },
+        });
+
+        state.damageCapShields = [{ playerId: "p2", maxDamage: 1 }];
+
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, { angel: { bear: 4 } });
+
+        // Shield not consumed — attacker was blocked
+        expect(p2.life).toBe(20);
+        expect(state.damageCapShields).toHaveLength(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Serialization round-trip: removedKeywords + damageCapShields
+// ---------------------------------------------------------------------------
+
+describe("Serialization: removedKeywords + damageCapShields", () => {
+    it("removedKeywords survives compact/expand round-trip", () => {
+        const wall = makeInstance(wallOfSwords.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        wall.removedKeywords = [{ keyword: "defender", sourceId: "anim" }];
+        const p1 = makePlayer("p1", { battlefield: [wall] });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        const compacted = compactState(state);
+        const restored = expandState(compacted);
+        const restoredWall = restored.players[0].battlefield[0];
+        expect(restoredWall.removedKeywords).toEqual([
+            { keyword: "defender", sourceId: "anim" },
+        ]);
+    });
+
+    it("damageCapShields survives compact/expand round-trip", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        state.damageCapShields = [{ playerId: "p2", maxDamage: 1 }];
+
+        const compacted = compactState(state);
+        const restored = expandState(compacted);
+        expect(restored.damageCapShields).toEqual([
+            { playerId: "p2", maxDamage: 1 },
+        ]);
     });
 });
