@@ -642,13 +642,42 @@ export const holyStrength: CardDefinition = {
     ],
 };
 
-// export const islandSanctuary: CardDefinition = {
-//     id: "c15e8a42-89de-42bc-8d5f-33426d207c3a",
-//     name: "Island Sanctuary",
-//     oracleText: "If you would draw a card during your draw step, instead you may skip that draw. If you do, until your next turn, you can't be attacked except by creatures with flying and/or islandwalk.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Enchantment"],
-// };
+// Island Sanctuary — "If you would draw a card during your draw step, instead
+// you may skip that draw. If you do, until your next turn, you can't be
+// attacked except by creatures with flying and/or islandwalk." (CR 614 draw
+// replacement). The `drawStepReplacement` flag suppresses the automatic draw;
+// a phaseTrigger at DRAW asks the player whether to skip or draw.
+export const islandSanctuary: CardDefinition = {
+    id: "c15e8a42-89de-42bc-8d5f-33426d207c3a",
+    name: "Island Sanctuary",
+    oracleText:
+        "If you would draw a card during your draw step, instead you may skip that draw. If you do, until your next turn, you can't be attacked except by creatures with flying and/or islandwalk.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Enchantment"],
+    drawStepReplacement: true,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "island-sanctuary-draw-choice",
+            oracleText:
+                "Skip your draw? If you do, you can't be attacked except by creatures with flying or islandwalk until your next turn.",
+            phase: "DRAW",
+            scope: "your",
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: "island-sanctuary-skip",
+                    prompt: "Skip your draw for Island Sanctuary protection? (Only flying/islandwalk creatures can attack you until your next turn.)",
+                });
+                if (accept === undefined) return;
+                if (accept) {
+                    ctx.setIslandSanctuaryProtection(ctx.controller);
+                } else {
+                    ctx.drawCards(ctx.controller, 1);
+                }
+            },
+        }),
+    ],
+};
 
 // Karma — "At the beginning of each player's upkeep, Karma deals damage to
 // that player equal to the number of Swamps they control." (CR 603.6a phase
@@ -1754,13 +1783,36 @@ export const powerLeak: CardDefinition = {
     ],
 };
 
-// export const powerSink: CardDefinition = {
-//     id: "1b342dd3-09b9-4108-bf12-a65d4cef4eb9",
-//     name: "Power Sink",
-//     oracleText: "Counter target spell unless its controller pays {X}. If that player doesn't, they tap all lands with mana abilities they control and lose all unspent mana.",
-//     manaCost: { X: "X", U: 1 },
-//     types: ["Instant"],
-// };
+// Power Sink — "Counter target spell unless its controller pays {X}. If that
+// player doesn't, they tap all lands with mana abilities they control and
+// lose all unspent mana." (CR 701.5a counter-unless-pay, CR 117.3a may-pay).
+export const powerSink: CardDefinition = {
+    id: "1b342dd3-09b9-4108-bf12-a65d4cef4eb9",
+    name: "Power Sink",
+    oracleText:
+        "Counter target spell unless its controller pays {X}. If that player doesn't, they tap all lands with mana abilities they control and lose all unspent mana.",
+    manaCost: { X: "X", U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (!target || target.type !== "spell") return;
+        const spellController = ctx.getController(target);
+        const x = ctx.getX();
+        const accept = ctx.requestMayPay({
+            playerId: spellController,
+            choiceId: "power-sink-pay",
+            cost: x > 0 ? { X: x } : undefined,
+            prompt: `Pay {${x}} to prevent your spell from being countered?`,
+        });
+        if (accept === undefined) return;
+        if (!accept) {
+            ctx.tapAllLands(spellController);
+            ctx.drainManaPool(spellController);
+            ctx.counter(target);
+        }
+    },
+};
 
 // Prodigal Sorcerer — "{T}: Prodigal Sorcerer deals 1 damage to any target."
 // (CR 605 activated ability, 120.1 damage). The original "Tim".

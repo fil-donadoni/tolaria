@@ -134,8 +134,8 @@ export default function CardPreview({
     const zoomRef = useRef<HTMLDivElement>(null);
 
     const longPress = useLongPress({});
-    const showOverlay =
-        longPress.phase === "longPressed" || longPress.phase === "locked";
+    const showOverlay = longPress.phase === "longPressed";
+    const sawTouchRef = useRef(false);
 
     const openZoom = useCallback(() => {
         setMeasured(false);
@@ -337,6 +337,7 @@ export default function CardPreview({
             className="w-full h-full"
             style={longPress.scaleStyle}
             onMouseEnter={() => {
+                if (sawTouchRef.current) return;
                 isHovered.current = true;
                 clearHoverTimeout();
                 hoverTimeoutRef.current = setTimeout(() => {
@@ -345,6 +346,7 @@ export default function CardPreview({
                 }, HOVER_DELAY_MS);
             }}
             onMouseLeave={() => {
+                if (sawTouchRef.current) return;
                 isHovered.current = false;
                 clearHoverTimeout();
                 setShowZoom(false);
@@ -352,12 +354,17 @@ export default function CardPreview({
             onMouseDown={handleMouseDown}
             onContextMenu={handleContextMenu}
             {...longPress.handlers}
+            onTouchStart={(e) => {
+                sawTouchRef.current = true;
+                longPress.handlers.onTouchStart(e);
+            }}
         >
             {children}
             {showOverlay &&
                 createPortal(
                     <div
                         className="fixed inset-0 z-100 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                        onTouchStart={(e) => e.stopPropagation()}
                         onTouchEnd={(e) => {
                             e.preventDefault();
                             dismissOverlay();
@@ -377,9 +384,12 @@ export default function CardPreview({
                                 {imageSrc ? (
                                     <img
                                         src={imageSrc}
-                                        className="w-full h-full block"
+                                        className="w-full h-full block select-none"
                                         alt={cardName}
-                                        style={{ objectFit: "cover" }}
+                                        style={{
+                                            objectFit: "cover",
+                                            WebkitTouchCallout: "none",
+                                        }}
                                     />
                                 ) : (
                                     <TokenPlaceholder
@@ -508,9 +518,12 @@ export default function CardPreview({
                                 <>
                                     <img
                                         src={imageSrc}
-                                        className="w-full h-full block"
+                                        className="w-full h-full block select-none"
                                         alt={cardName}
-                                        style={{ objectFit: "cover" }}
+                                        style={{
+                                            objectFit: "cover",
+                                            WebkitTouchCallout: "none",
+                                        }}
                                         onLoad={() => setZoomImgLoaded(true)}
                                         onError={() => setZoomImgLoaded(true)}
                                     />

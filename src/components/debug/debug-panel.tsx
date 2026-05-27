@@ -90,6 +90,30 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "W25b: Counter-unless-pay + draw-skip — Power Sink + Island Sanctuary",
+        cards: [
+            {
+                name: "Power Sink",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Island Sanctuary",
+                owner: "me" as const,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 3 },
+            { name: "Plains", owner: "me" as const },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "W25a: Mass forced-attack — Siren's Call + False Orders",
         cards: [
             {

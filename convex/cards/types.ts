@@ -680,6 +680,9 @@ export interface SpellContext {
     /** Prevents all combat damage for the remainder of this turn (CR 615,
      *  Fog). Cleared at CLEANUP. Non-combat damage is unaffected. */
     preventAllCombatDamage: () => void;
+    /** Sets Island Sanctuary protection: the given player can only be attacked
+     *  by creatures with flying or islandwalk until their next turn. */
+    setIslandSanctuaryProtection: (playerId: string) => void;
     /** Adds a one-shot damage cap shield (Forcefield, CR 615). The next time
      *  an unblocked creature deals combat damage to `playerId`, reduce to
      *  `maxDamage`. Consumed on first use; cleared at CLEANUP. */
@@ -1859,6 +1862,10 @@ export interface CardDefinition {
      *  list. Used by Berserk ("cast only before the combat damage step") —
      *  the instant-speed check still applies, this only narrows further. */
     castPhaseRestriction?: Phase[];
+    /** When true, the normal draw at draw step is suppressed if the controller
+     *  controls this permanent. A phaseTrigger at DRAW handles the choice
+     *  (skip or draw). Used by Island Sanctuary. */
+    drawStepReplacement?: boolean;
     /** Restricts cast timing to the opponent's turn only (Siren's Call). */
     castTurnRestriction?: "opponent";
     /** Extra land drops per turn granted to the controller while this permanent

@@ -241,6 +241,8 @@ import {
     earthbind,
     gloom,
     forcefield,
+    powerSink,
+    islandSanctuary,
     sirensCall,
     falseOrders,
 } from "../lea";
@@ -17777,6 +17779,17 @@ describe("Serialization: removedKeywords + damageCapShields", () => {
         ]);
     });
 
+    it("islandSanctuaryProtection survives compact/expand round-trip", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        state.islandSanctuaryProtection = "p1";
+
+        const compacted = compactState(state);
+        const restored = expandState(compacted);
+        expect(restored.islandSanctuaryProtection).toBe("p1");
+    });
+
     it("allCreaturesMustAttack survives compact/expand round-trip", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -17786,6 +17799,259 @@ describe("Serialization: removedKeywords + damageCapShields", () => {
         const compacted = compactState(state);
         const restored = expandState(compacted);
         expect(restored.allCreaturesMustAttack).toBe("p1");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// W25b: Counter-unless-pay + draw-skip (CR 701.5a, 614)
+// ---------------------------------------------------------------------------
+
+describe("Power Sink (CR 701.5a — counter unless controller pays {X})", () => {
+    function commitHead(state: GameState, picks: string[]) {
+        const queue = state.pendingChoices ?? [];
+        const head = queue[0];
+        const stackItem = state.stack.find((s) => s.id === head.stackItemId)!;
+        stackItem.collectedChoices = {
+            ...(stackItem.collectedChoices ?? {}),
+            [`${head.step}:${head.choiceId}`]: picks,
+        };
+        queue.shift();
+        state.pendingChoices = queue.length > 0 ? queue : undefined;
+    }
+
+    it("counters the spell if opponent declines to pay X", () => {
+        const p1 = makePlayer("p1", {
+            manaPool: { W: 0, U: 5, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const p2 = makePlayer("p2", {
+            manaPool: { W: 0, U: 0, B: 0, R: 3, G: 0, C: 0 },
+        });
+        const state = makeState({ players: [p1, p2] });
+
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        const sink = pushSpell(state, powerSink.id, "p1", [
+            { type: "spell", id: bolt.id },
+        ]);
+        sink.chosenX = 3;
+
+        resolveTopOfStack(state);
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.pendingChoices![0].kind).toBe("may-pay");
+
+        commitHead(state, ["no"]);
+        resolveTopOfStack(state);
+
+        expect(state.stack.find((s) => s.id === bolt.id)).toBeUndefined();
+    });
+
+    it("on decline, opponent's lands tapped and mana drained", () => {
+        const land = makeInstance(mountain.id, {
+            id: "mt",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const p1 = makePlayer("p1", {
+            manaPool: { W: 0, U: 5, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const p2 = makePlayer("p2", {
+            battlefield: [land],
+            manaPool: { W: 0, U: 0, B: 0, R: 3, G: 0, C: 0 },
+        });
+        const state = makeState({ players: [p1, p2] });
+
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        const sink = pushSpell(state, powerSink.id, "p1", [
+            { type: "spell", id: bolt.id },
+        ]);
+        sink.chosenX = 3;
+
+        resolveTopOfStack(state);
+        commitHead(state, ["no"]);
+        resolveTopOfStack(state);
+
+        expect(land.isTapped).toBe(true);
+        expect(p2.manaPool.R).toBe(0);
+    });
+
+    it("if opponent pays X, spell resolves normally", () => {
+        const p1 = makePlayer("p1", {
+            manaPool: { W: 0, U: 5, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const p2 = makePlayer("p2", {
+            manaPool: { W: 0, U: 0, B: 0, R: 5, G: 0, C: 0 },
+        });
+        const state = makeState({ players: [p1, p2] });
+
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        const sink = pushSpell(state, powerSink.id, "p1", [
+            { type: "spell", id: bolt.id },
+        ]);
+        sink.chosenX = 3;
+
+        resolveTopOfStack(state);
+        commitHead(state, ["yes"]);
+        resolveTopOfStack(state);
+
+        expect(state.stack.find((s) => s.id === bolt.id)).toBeDefined();
+    });
+});
+
+describe("Island Sanctuary (CR 614 — draw-skip replacement)", () => {
+    function commitHead(state: GameState, picks: string[]) {
+        const queue = state.pendingChoices ?? [];
+        const head = queue[0];
+        const stackItem = state.stack.find((s) => s.id === head.stackItemId)!;
+        stackItem.collectedChoices = {
+            ...(stackItem.collectedChoices ?? {}),
+            [`${head.step}:${head.choiceId}`]: picks,
+        };
+        queue.shift();
+        state.pendingChoices = queue.length > 0 ? queue : undefined;
+    }
+    it("drawStepReplacement suppresses automatic draw", () => {
+        const sanctuary = makeInstance(islandSanctuary.id, {
+            id: "sanc",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [sanctuary],
+            library: [
+                makeInstance(savannahLions.id, {
+                    id: "top-card",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }),
+            ],
+        });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            turn: 2,
+        });
+        const handBefore = p1.hand.length;
+
+        state.phase = "UPKEEP";
+        advancePhase(state);
+
+        // Draw step doesn't auto-draw when Island Sanctuary is present
+        expect(state.phase).toBe("DRAW");
+        expect(p1.hand.length).toBe(handBefore);
+    });
+
+    it("on skip, sets islandSanctuaryProtection", () => {
+        const sanctuary = makeInstance(islandSanctuary.id, {
+            id: "sanc",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const topCard = makeInstance(savannahLions.id, {
+            id: "top",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [sanctuary],
+            library: [topCard],
+        });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            turn: 2,
+            phase: "UPKEEP",
+        });
+
+        // Advance from UPKEEP → DRAW: triggers fire
+        advancePhase(state);
+        expect(state.phase).toBe("DRAW");
+        expect(state.stack).toHaveLength(1);
+
+        // Resolve the trigger → requestMayPay suspends
+        resolveTopOfStack(state);
+        expect(state.pendingChoices).toHaveLength(1);
+
+        commitHead(state, ["yes"]);
+        resolveTopOfStack(state);
+
+        expect(state.islandSanctuaryProtection).toBe("p1");
+        // Card NOT drawn
+        expect(p1.hand).toHaveLength(0);
+    });
+
+    it("on decline, draws a card normally", () => {
+        const sanctuary = makeInstance(islandSanctuary.id, {
+            id: "sanc",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const topCard = makeInstance(savannahLions.id, {
+            id: "top",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [sanctuary],
+            library: [topCard],
+        });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            turn: 2,
+            phase: "UPKEEP",
+        });
+
+        advancePhase(state);
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(state.pendingChoices).toHaveLength(1);
+
+        commitHead(state, ["no"]);
+        resolveTopOfStack(state);
+
+        expect(p1.hand).toHaveLength(1);
+        expect(state.islandSanctuaryProtection).toBeUndefined();
+    });
+
+    it("protection restricts non-flying non-islandwalk attackers", () => {
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const angel = makeInstance(serraAngel.id, {
+            id: "angel",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const p1 = makePlayer("p1");
+        const p2 = makePlayer("p2", { battlefield: [lion, angel] });
+        const state = makeState({
+            players: [p1, p2],
+            activePlayerId: "p2",
+        });
+        state.islandSanctuaryProtection = "p1";
+
+        // Non-flying: can't attack
+        const lionResult = validateAttackerEligibility(
+            lion,
+            p1.battlefield,
+            state
+        );
+        expect(lionResult.eligible).toBe(false);
+
+        // Flying: can attack
+        const angelResult = validateAttackerEligibility(
+            angel,
+            p1.battlefield,
+            state
+        );
+        expect(angelResult.eligible).toBe(true);
     });
 });
 

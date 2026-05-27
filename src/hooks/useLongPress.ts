@@ -2,10 +2,9 @@ import { useCallback, useRef, useState } from "react";
 
 export const LONG_PRESS_THRESHOLD_MS = 400;
 export const LONG_PRESS_CANCEL_PX = 10;
-export const PEEK_LOCK_THRESHOLD_MS = 1000;
 export const PRESS_SCALE = 1.05;
 
-export type LongPressPhase = "idle" | "pressing" | "longPressed" | "locked";
+export type LongPressPhase = "idle" | "pressing" | "longPressed";
 
 export type UseLongPressOptions = {
     onLongPress?: () => void;
@@ -39,17 +38,12 @@ export function useLongPress(
     const [phase, setPhase] = useState<LongPressPhase>("idle");
     const phaseRef = useRef<LongPressPhase>("idle");
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const startPos = useRef({ x: 0, y: 0 });
 
-    const clearTimers = useCallback(() => {
+    const clearTimer = useCallback(() => {
         if (timerRef.current !== null) {
             clearTimeout(timerRef.current);
             timerRef.current = null;
-        }
-        if (lockTimerRef.current !== null) {
-            clearTimeout(lockTimerRef.current);
-            lockTimerRef.current = null;
         }
     }, []);
 
@@ -59,35 +53,30 @@ export function useLongPress(
     }, []);
 
     const reset = useCallback(() => {
-        clearTimers();
+        clearTimer();
         setPhaseSync("idle");
-    }, [clearTimers, setPhaseSync]);
+    }, [clearTimer, setPhaseSync]);
 
     const onTouchStart = useCallback(
         (e: React.TouchEvent) => {
+            if (phaseRef.current === "longPressed") return;
             const touch = e.touches[0];
             startPos.current = { x: touch.clientX, y: touch.clientY };
             setPhaseSync("pressing");
-            clearTimers();
+            clearTimer();
 
             timerRef.current = setTimeout(() => {
                 timerRef.current = null;
                 setPhaseSync("longPressed");
                 onLongPress?.();
-
-                lockTimerRef.current = setTimeout(() => {
-                    lockTimerRef.current = null;
-                    setPhaseSync("locked");
-                }, PEEK_LOCK_THRESHOLD_MS);
             }, threshold);
         },
-        [onLongPress, threshold, clearTimers, setPhaseSync]
+        [onLongPress, threshold, clearTimer, setPhaseSync]
     );
 
     const onTouchMove = useCallback(
         (e: React.TouchEvent) => {
-            if (phaseRef.current === "idle" || phaseRef.current === "locked")
-                return;
+            if (phaseRef.current === "idle") return;
             const touch = e.touches[0];
             const dx = touch.clientX - startPos.current.x;
             const dy = touch.clientY - startPos.current.y;
@@ -102,26 +91,17 @@ export function useLongPress(
         (e: React.TouchEvent) => {
             const current = phaseRef.current;
             if (current === "pressing") {
-                // Quick tap — didn't reach threshold
-                clearTimers();
+                clearTimer();
                 setPhaseSync("idle");
                 onTap?.();
                 return;
             }
             if (current === "longPressed") {
-                // Peek: release before lock threshold → close
-                e.preventDefault();
-                reset();
-                return;
-            }
-            if (current === "locked") {
-                // Locked: overlay stays, touch end is a no-op
-                // Dismiss happens via backdrop tap (handled by dismiss())
                 e.preventDefault();
                 return;
             }
         },
-        [onTap, clearTimers, reset, setPhaseSync]
+        [onTap, clearTimer, setPhaseSync]
     );
 
     const onTouchCancel = useCallback(() => {

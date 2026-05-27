@@ -499,6 +499,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "playerPreferences",
     "preventAllCombatDamageThisTurn",
     "damageCapShields",
+    "islandSanctuaryProtection",
     "allCreaturesMustAttack",
 ] as const;
 

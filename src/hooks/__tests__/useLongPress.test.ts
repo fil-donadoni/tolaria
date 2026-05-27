@@ -3,7 +3,6 @@ import { renderHook, act } from "@testing-library/react";
 import {
     useLongPress,
     LONG_PRESS_THRESHOLD_MS,
-    PEEK_LOCK_THRESHOLD_MS,
     PRESS_SCALE,
 } from "../useLongPress";
 
@@ -139,10 +138,9 @@ describe("useLongPress", () => {
         });
     });
 
-    describe("peek (release <1s)", () => {
-        it("closes overlay on release before lock threshold", () => {
-            const onLongPress = vi.fn();
-            const { result } = renderHook(() => useLongPress({ onLongPress }));
+    describe("overlay stays on release", () => {
+        it("keeps overlay open after finger lifts", () => {
+            const { result } = renderHook(() => useLongPress());
 
             act(() =>
                 result.current.handlers.onTouchStart(makeTouch(100, 100))
@@ -152,13 +150,11 @@ describe("useLongPress", () => {
 
             const touchEnd = makeTouch(100, 100);
             act(() => result.current.handlers.onTouchEnd(touchEnd));
-            expect(result.current.phase).toBe("idle");
+            expect(result.current.phase).toBe("longPressed");
             expect(touchEnd.preventDefault).toHaveBeenCalled();
         });
-    });
 
-    describe("lock (hold >1s)", () => {
-        it("transitions to locked phase after peek threshold", () => {
+        it("dismiss() closes overlay", () => {
             const { result } = renderHook(() => useLongPress());
 
             act(() =>
@@ -166,42 +162,6 @@ describe("useLongPress", () => {
             );
             act(() => vi.advanceTimersByTime(LONG_PRESS_THRESHOLD_MS));
             expect(result.current.phase).toBe("longPressed");
-
-            act(() => vi.advanceTimersByTime(PEEK_LOCK_THRESHOLD_MS));
-            expect(result.current.phase).toBe("locked");
-        });
-
-        it("keeps overlay open on touch end in locked phase", () => {
-            const { result } = renderHook(() => useLongPress());
-
-            act(() =>
-                result.current.handlers.onTouchStart(makeTouch(100, 100))
-            );
-            act(() =>
-                vi.advanceTimersByTime(
-                    LONG_PRESS_THRESHOLD_MS + PEEK_LOCK_THRESHOLD_MS
-                )
-            );
-            expect(result.current.phase).toBe("locked");
-
-            const touchEnd = makeTouch(100, 100);
-            act(() => result.current.handlers.onTouchEnd(touchEnd));
-            expect(result.current.phase).toBe("locked");
-            expect(touchEnd.preventDefault).toHaveBeenCalled();
-        });
-
-        it("dismiss() closes from locked phase", () => {
-            const { result } = renderHook(() => useLongPress());
-
-            act(() =>
-                result.current.handlers.onTouchStart(makeTouch(100, 100))
-            );
-            act(() =>
-                vi.advanceTimersByTime(
-                    LONG_PRESS_THRESHOLD_MS + PEEK_LOCK_THRESHOLD_MS
-                )
-            );
-            expect(result.current.phase).toBe("locked");
 
             act(() => result.current.dismiss());
             expect(result.current.phase).toBe("idle");
