@@ -473,10 +473,7 @@ export default function CardPreview({
                                     </div>
                                 )}
                                 {colorDisplay && (
-                                    <div
-                                        className="border-t border-zinc-700 pt-2 text-sm font-semibold"
-                                        style={{ color: colorDisplay.solid }}
-                                    >
+                                    <div className="border-t border-zinc-700 pt-2 text-sm font-semibold text-[var(--color-accent-strong)]">
                                         Color: {colorDisplay.name}
                                     </div>
                                 )}
@@ -607,10 +604,7 @@ export default function CardPreview({
                                 </div>
                             )}
                             {colorDisplay && (
-                                <div
-                                    className="border-t border-zinc-700 pt-2 text-xs font-semibold"
-                                    style={{ color: colorDisplay.solid }}
-                                >
+                                <div className="border-t border-zinc-700 pt-2 text-xs font-semibold text-[var(--color-accent-strong)]">
                                     Color: {colorDisplay.name}
                                 </div>
                             )}

@@ -71,13 +71,21 @@ function CardImageImpl({ card }: CardImageProps) {
     );
 }
 
-// Memo on def id only — CardImage is invoked thousands of times per render and
-// repaints would re-trigger Chrome's compositor downsample. Override changes
-// (granted/lost abilities, P/T) reflect on the next zoom invocation rather
-// than mid-zoom; the cost of always re-rendering on parent reference churn is
-// not worth that edge case.
-const CardImage = memo(
-    CardImageImpl,
-    (prev, next) => getDefId(prev.card) === getDefId(next.card)
-);
+// Memo on def id + colorOverride — CardImage is invoked thousands of times per
+// render and repaints would re-trigger Chrome's compositor downsample. Most
+// override changes (granted/lost abilities, P/T) reflect on the next zoom
+// invocation rather than mid-zoom. colorOverride is included because the card
+// preview badge ("Color: Red") must appear immediately after a lace resolves.
+const CardImage = memo(CardImageImpl, (prev, next) => {
+    if (getDefId(prev.card) !== getDefId(next.card)) return false;
+    const prevOverride = isCardInstance(prev.card)
+        ? prev.card.colorOverride
+        : undefined;
+    const nextOverride = isCardInstance(next.card)
+        ? next.card.colorOverride
+        : undefined;
+    if (prevOverride === nextOverride) return true;
+    if (!prevOverride || !nextOverride) return false;
+    return prevOverride.join() === nextOverride.join();
+});
 export default CardImage;
