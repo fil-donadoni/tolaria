@@ -85,6 +85,22 @@ describe("projection ↔ frontend Player contract", () => {
         ).toBe(true);
     });
 
+    it("colorOverride survives projection to frontend CardInstance", () => {
+        const state = makeState();
+        state.players[0].battlefield = [
+            {
+                ...makeCard("laced"),
+                zone: "battlefield",
+                colorOverride: ["R"],
+            },
+        ];
+        const result = projectPublicState(state, 1, "p1");
+        const card = result.players[0].battlefield[0];
+        expect((card as { colorOverride?: string[] }).colorOverride).toEqual([
+            "R",
+        ]);
+    });
+
     it("FullPlayer[] is structurally assignable to frontend Player[]", () => {
         const result = projectFullState(makeState(), 1);
         const asFrontend: Player[] = result.players;
