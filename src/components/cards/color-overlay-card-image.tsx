@@ -1,0 +1,33 @@
+import type { CardInstance } from "~/types/game";
+import { getColorOverrideDisplay } from "~/lib/color-override";
+import CardImage from "./card-image";
+
+export default function ColorOverlayCardImage({
+    card,
+}: {
+    card: CardInstance;
+}) {
+    const colorDisplay = card.colorOverride?.length
+        ? getColorOverrideDisplay(card.colorOverride)
+        : null;
+
+    return (
+        <div className="relative">
+            <CardImage card={card} />
+            {colorDisplay && (
+                <div
+                    className="absolute inset-0 pointer-events-none rounded-[7%] z-[5]"
+                    style={{
+                        boxShadow: `inset 0 0 0 4px ${colorDisplay.inner}`,
+                        background: [
+                            `linear-gradient(180deg, ${colorDisplay.inner} 0%, transparent 22%)`,
+                            `linear-gradient(0deg, ${colorDisplay.inner} 0%, transparent 22%)`,
+                            `linear-gradient(90deg, ${colorDisplay.inner} 0%, transparent 18%)`,
+                            `linear-gradient(270deg, ${colorDisplay.inner} 0%, transparent 18%)`,
+                        ].join(", "),
+                    }}
+                />
+            )}
+        </div>
+    );
+}

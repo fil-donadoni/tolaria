@@ -12,7 +12,6 @@ import DeckDetailRoute from "./routes/deck-detail.route";
 import GameRoute from "./routes/game.route";
 import PrototypeButtonsRoute from "./routes/prototype-buttons.route";
 import PrototypeActionButtonsRoute from "./routes/prototype-action-buttons.route";
-import PrototypeColorOverrideRoute from "./routes/prototype-color-override.route";
 
 const rootRoute = createRootRoute({
     component: () => (
@@ -64,12 +63,6 @@ const prototypeActionButtonsRoute = createRoute({
     component: PrototypeActionButtonsRoute,
 });
 
-const prototypeColorOverrideRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/prototype/color-override",
-    component: PrototypeColorOverrideRoute,
-});
-
 const routeTree = rootRoute.addChildren([
     indexRoute,
     decksCreateRoute,
@@ -78,7 +71,6 @@ const routeTree = rootRoute.addChildren([
     gameRoute,
     prototypeButtonsRoute,
     prototypeActionButtonsRoute,
-    prototypeColorOverrideRoute,
 ]);
 
 const router = createRouter({ routeTree });

@@ -1,7 +1,6 @@
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { StackItem } from "~/types/game";
-import CardImage from "../cards/card-image";
 import {
     getAbilityOracleText,
     getTriggeredAbilityOracleText,
@@ -10,6 +9,7 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { useDraggable } from "~/hooks/useDraggable";
 import DragHandle from "./drag-handle";
 import StackAbilityTile from "./stack-ability-tile";
+import ColorOverlayCardImage from "../cards/color-overlay-card-image";
 
 type GameStackProps = {
     stack: StackItem[];
@@ -101,7 +101,7 @@ export default function GameStack({ stack }: GameStackProps) {
                                         kind={abilityKind}
                                     />
                                 ) : (
-                                    <CardImage card={item} />
+                                    <ColorOverlayCardImage card={item} />
                                 )}
                             </button>
                         );
