@@ -20,6 +20,7 @@ import { formatOracleText } from "~/lib/oracle-text";
 import { GameContext } from "~/hooks/useGameContext";
 import { useLongPress } from "~/hooks/useLongPress";
 import type { CardInstance } from "~/types/game";
+import { getColorOverrideDisplay } from "~/lib/color-override";
 
 const ZOOM_WIDTH = 128 * 2;
 const GAP = 8;
@@ -322,6 +323,10 @@ export default function CardPreview({
               ?.name ?? null)
         : null;
 
+    const colorDisplay = cardInstance?.colorOverride?.length
+        ? getColorOverrideDisplay(cardInstance.colorOverride)
+        : null;
+
     const dismissOverlay = useCallback(() => {
         longPress.dismiss();
     }, [longPress]);
@@ -467,6 +472,14 @@ export default function CardPreview({
                                         )}
                                     </div>
                                 )}
+                                {colorDisplay && (
+                                    <div
+                                        className="border-t border-zinc-700 pt-2 text-sm font-semibold"
+                                        style={{ color: colorDisplay.solid }}
+                                    >
+                                        Color: {colorDisplay.name}
+                                    </div>
+                                )}
                                 {ownerName && (
                                     <div className="text-zinc-400 border-t pt-2 text-sm italic">
                                         Owner: {ownerName}
@@ -591,6 +604,14 @@ export default function CardPreview({
                                             ({basePower}/{baseToughness})
                                         </span>
                                     )}
+                                </div>
+                            )}
+                            {colorDisplay && (
+                                <div
+                                    className="border-t border-zinc-700 pt-2 text-xs font-semibold"
+                                    style={{ color: colorDisplay.solid }}
+                                >
+                                    Color: {colorDisplay.name}
                                 </div>
                             )}
                             {ownerName && (
