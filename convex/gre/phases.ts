@@ -349,7 +349,19 @@ export function untapStep(state: GameState): void {
 /** Draw step: active player draws a card. Skipped on turn 1 (CR 103.8). */
 function drawStep(state: GameState): void {
     if (state.turn === 1) return;
+    if (hasDrawSkipReplacement(state, state.activePlayerId)) return;
     drawCard(getPlayer(state, state.activePlayerId));
+}
+
+function hasDrawSkipReplacement(state: GameState, playerId: string): boolean {
+    const player = getPlayer(state, playerId);
+    for (const card of player.battlefield) {
+        const cardId = (card.card as { id?: string }).id;
+        if (!cardId) continue;
+        const def = tryGetCardById(cardId);
+        if (def?.drawStepReplacement) return true;
+    }
+    return false;
 }
 
 /** Inverts blockerAssignments (blockerId→attackerIds[]) to attackerId→blockerId[]. */
@@ -1332,6 +1344,13 @@ function advanceTurn(state: GameState): void {
         for (const c of p.battlefield) {
             if (c.activationsThisTurn) c.activationsThisTurn = undefined;
         }
+    }
+    // Island Sanctuary: clear protection when the protected player's turn starts
+    if (
+        state.islandSanctuaryProtection &&
+        state.islandSanctuaryProtection === state.activePlayerId
+    ) {
+        state.islandSanctuaryProtection = undefined;
     }
 }
 

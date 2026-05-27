@@ -41,7 +41,8 @@ function collectAttackRestrictions(
  *  restrictions. */
 export function validateAttackerEligibility(
     card: CardInstanceState,
-    defenderBattlefield?: CardInstanceState[]
+    defenderBattlefield?: CardInstanceState[],
+    state?: GameState
 ): AttackerValidation {
     if (!card.types.includes("Creature")) {
         return { eligible: false, reason: "Only creatures can attack" };
@@ -60,6 +61,22 @@ export function validateAttackerEligibility(
         for (const r of collectAttackRestrictions(card)) {
             if (!r.predicate(card, defenderBattlefield)) {
                 return { eligible: false, reason: r.oracleText };
+            }
+        }
+    }
+    // Island Sanctuary: defender can only be attacked by flying/islandwalk
+    if (state?.islandSanctuaryProtection) {
+        const defenderId = state.players.find(
+            (p) => p.id !== card.controllerId
+        )?.id;
+        if (defenderId === state.islandSanctuaryProtection) {
+            const hasFlying = card.staticAbilities.includes("flying");
+            const hasIslandwalk = card.staticAbilities.includes("islandwalk");
+            if (!hasFlying && !hasIslandwalk) {
+                return {
+                    eligible: false,
+                    reason: "Island Sanctuary: can only be attacked by creatures with flying or islandwalk",
+                };
             }
         }
     }

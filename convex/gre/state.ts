@@ -852,6 +852,10 @@ export type GameState = {
      *  creature would deal combat damage to the shielded player, reduce to
      *  `maxDamage`. Consumed on first use; cleared at CLEANUP. */
     damageCapShields?: { playerId: string; maxDamage: number }[];
+    /** Player protected by Island Sanctuary's draw-skip: can only be attacked
+     *  by creatures with flying or islandwalk. Cleared at the start of that
+     *  player's next turn (via advanceTurn). */
+    islandSanctuaryProtection?: string;
 };
 
 /** Player-level replacement preferences. Each entry is opt-in: undefined
@@ -2547,6 +2551,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         },
         getController(target: TargetSelection): string {
             if (target.type === "player") return target.id;
+            if (target.type === "spell") {
+                const si = state.stack.find((s) => s.id === target.id);
+                if (si) return si.castById;
+            }
             return requirePermanent(target).controllerId;
         },
         getIsTapped(target: TargetSelection): boolean {
@@ -3025,6 +3033,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
 
         preventAllCombatDamage(): void {
             state.preventAllCombatDamageThisTurn = true;
+        },
+
+        setIslandSanctuaryProtection(playerId: string): void {
+            state.islandSanctuaryProtection = playerId;
         },
 
         addDamageCapShield(playerId: string, maxDamage: number): void {
