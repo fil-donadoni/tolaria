@@ -788,7 +788,7 @@ function firePhaseBeginTriggers(state: GameState): void {
  *  StackItems, and restart priority at the active player (CR 603.3, 603.7a).
  *  Controller-as-APNAP ordering isn't implemented — triggers fire in
  *  scheduling order. */
-function fireDelayedTriggers(
+export function fireDelayedTriggers(
     state: GameState,
     timing: DelayedTriggerInstance["timing"]
 ): void {
@@ -1255,6 +1255,9 @@ function tickAllDurations(state: GameState): void {
     if (state.damageCapShields) {
         state.damageCapShields = undefined;
     }
+    if (state.allCreaturesMustAttack) {
+        state.allCreaturesMustAttack = undefined;
+    }
 }
 
 /** Undoes the mutations applied by `animateAsCreature`, restoring the
@@ -1476,7 +1479,9 @@ export function drainAutoPasses(state: GameState): void {
             const activePlayer = getPlayer(state, state.activePlayerId);
             // CR 508.1d: fold in any eligible creature required to attack.
             for (const requiredId of getRequiredAttackerIds(
-                activePlayer.battlefield
+                activePlayer.battlefield,
+                undefined,
+                state.allCreaturesMustAttack
             )) {
                 if (!state.combat.attackerIds.includes(requiredId)) {
                     state.combat.attackerIds.push(requiredId);

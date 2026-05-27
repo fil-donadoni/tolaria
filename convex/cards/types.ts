@@ -697,6 +697,13 @@ export interface SpellContext {
      *  Cleared at CLEANUP. No-op if target is not a creature on the
      *  battlefield. Used by Nettling Imp. */
     setMustAttackThisTurn: (target: TargetSelection) => void;
+    /** Forces ALL creatures a player controls to attack this combat if able
+     *  (CR 508.1d, Siren's Call). Cleared at CLEANUP. */
+    setAllCreaturesMustAttack: (playerId: string) => void;
+    /** Removes a permanent from combat — clears isAttacking/isBlocking and
+     *  updates combat data structures (CR 506.4). If a sole blocker is
+     *  removed, the formerly-blocked attacker becomes unblocked. */
+    removeFromCombat: (target: TargetSelection) => void;
     /** Grants a target permanent the ability to block additional attackers
      *  this turn (CR 509.1a). `value` is the number of EXTRA attackers (999
      *  = "any number"). Cleared at CLEANUP. Used by Blaze of Glory. */
@@ -763,6 +770,9 @@ export interface SpellContext {
 
     /** Ids of permanents on `playerId`'s battlefield matching the filter. */
     getBattlefieldIds: (playerId: string, filter?: PermanentFilter) => string[];
+
+    /** True if the permanent has the given subtype (CR 205.3). */
+    hasSubtype: (target: TargetSelection, subtype: string) => boolean;
 
     /** Ids of cards in `playerId`'s hand. */
     getHandIds: (playerId: string) => string[];
@@ -1849,6 +1859,8 @@ export interface CardDefinition {
      *  list. Used by Berserk ("cast only before the combat damage step") —
      *  the instant-speed check still applies, this only narrows further. */
     castPhaseRestriction?: Phase[];
+    /** Restricts cast timing to the opponent's turn only (Siren's Call). */
+    castTurnRestriction?: "opponent";
     /** Extra land drops per turn granted to the controller while this permanent
      *  is on the battlefield (CR 305.2 — Fastbond). Added to LAND_DROPS_PER_TURN
      *  at land-play legality check time. Use 999 for unlimited. */
