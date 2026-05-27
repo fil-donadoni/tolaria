@@ -36,7 +36,7 @@ function FanLayout({
             className="overflow-x-auto px-2 py-6"
             style={
                 {
-                    "--pile-card-w": "clamp(9rem, 14vw, 13rem)",
+                    "--pile-card-w": "clamp(5.5rem, 14vw, 13rem)",
                 } as React.CSSProperties
             }
         >

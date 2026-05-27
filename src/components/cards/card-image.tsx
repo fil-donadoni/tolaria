@@ -48,7 +48,8 @@ function CardImageImpl({ card }: CardImageProps) {
                 {imageId ? (
                     <img
                         src={getImageUrl(imageId)}
-                        className="w-full h-full object-cover block"
+                        className="w-full h-full object-cover block select-none"
+                        style={{ WebkitTouchCallout: "none" }}
                         alt={name}
                         decoding="async"
                         draggable={false}

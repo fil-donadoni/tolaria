@@ -500,6 +500,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "preventAllCombatDamageThisTurn",
     "damageCapShields",
     "islandSanctuaryProtection",
+    "allCreaturesMustAttack",
 ] as const;
 
 /** Optional GameState keys that are intentionally ephemeral — never

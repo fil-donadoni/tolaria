@@ -2234,7 +2234,8 @@ export const confirmAttackers = mutation({
         ).battlefield;
         for (const requiredId of getRequiredAttackerIds(
             player.battlefield,
-            defenderBattlefield
+            defenderBattlefield,
+            state.allCreaturesMustAttack
         )) {
             if (!state.combat.attackerIds.includes(requiredId)) {
                 state.combat.attackerIds.push(requiredId);

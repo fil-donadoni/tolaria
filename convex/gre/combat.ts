@@ -191,8 +191,17 @@ export function validateBlockerEligibility(
 /** True if `card` carries an `attack-requirement` static effect
  *  (CR 508.1d) or has been forced to attack this turn by an external
  *  effect (Nettling Imp — `mustAttackThisTurn`). */
-function hasAttackRequirement(card: CardInstanceState): boolean {
+function hasAttackRequirement(
+    card: CardInstanceState,
+    massAttackPlayerId?: string
+): boolean {
     if (card.mustAttackThisTurn) return true;
+    if (
+        massAttackPlayerId &&
+        card.controllerId === massAttackPlayerId &&
+        card.types.includes("Creature")
+    )
+        return true;
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return false;
     const def = tryGetCardById(cardId);
@@ -208,19 +217,21 @@ function hasAttackRequirement(card: CardInstanceState): boolean {
  */
 export function mustAttack(
     card: CardInstanceState,
-    defenderBattlefield?: CardInstanceState[]
+    defenderBattlefield?: CardInstanceState[],
+    massAttackPlayerId?: string
 ): boolean {
-    if (!hasAttackRequirement(card)) return false;
+    if (!hasAttackRequirement(card, massAttackPlayerId)) return false;
     return validateAttackerEligibility(card, defenderBattlefield).eligible;
 }
 
 /** Ids of creatures on `battlefield` that are required to attack this combat. */
 export function getRequiredAttackerIds(
     battlefield: CardInstanceState[],
-    defenderBattlefield?: CardInstanceState[]
+    defenderBattlefield?: CardInstanceState[],
+    massAttackPlayerId?: string
 ): string[] {
     return battlefield
-        .filter((c) => mustAttack(c, defenderBattlefield))
+        .filter((c) => mustAttack(c, defenderBattlefield, massAttackPlayerId))
         .map((c) => c.id);
 }
 

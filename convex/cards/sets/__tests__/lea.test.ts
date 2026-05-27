@@ -243,6 +243,8 @@ import {
     forcefield,
     powerSink,
     islandSanctuary,
+    sirensCall,
+    falseOrders,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -17787,6 +17789,17 @@ describe("Serialization: removedKeywords + damageCapShields", () => {
         const restored = expandState(compacted);
         expect(restored.islandSanctuaryProtection).toBe("p1");
     });
+
+    it("allCreaturesMustAttack survives compact/expand round-trip", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        state.allCreaturesMustAttack = "p1";
+
+        const compacted = compactState(state);
+        const restored = expandState(compacted);
+        expect(restored.allCreaturesMustAttack).toBe("p1");
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -18039,5 +18052,212 @@ describe("Island Sanctuary (CR 614 — draw-skip replacement)", () => {
             state
         );
         expect(angelResult.eligible).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// W25a: Mass forced-attack + combat manipulation (CR 508.1d, 506.4)
+// ---------------------------------------------------------------------------
+
+describe("Siren's Call (CR 508.1d — all creatures must attack)", () => {
+    it("sets allCreaturesMustAttack on resolve", () => {
+        const p1 = makePlayer("p1", {
+            manaPool: { W: 0, U: 5, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const p2 = makePlayer("p2");
+        const state = makeState({
+            players: [p1, p2],
+            activePlayerId: "p2",
+        });
+
+        pushSpell(state, sirensCall.id, "p1");
+        resolveTopOfStack(state);
+
+        expect(state.allCreaturesMustAttack).toBe("p2");
+    });
+
+    it("mass flag makes getRequiredAttackerIds include all eligible creatures", () => {
+        const creature1 = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const creature2 = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [creature1, creature2],
+        });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+        });
+        state.allCreaturesMustAttack = "p1";
+
+        const required = getRequiredAttackerIds(
+            p1.battlefield,
+            undefined,
+            state.allCreaturesMustAttack
+        );
+        expect(required).toContain("lion");
+        expect(required).toContain("bear");
+    });
+
+    it("tapped creatures are not required (can't attack)", () => {
+        const tappedCreature = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [tappedCreature],
+        });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+        });
+        state.allCreaturesMustAttack = "p1";
+
+        const required = getRequiredAttackerIds(
+            p1.battlefield,
+            undefined,
+            state.allCreaturesMustAttack
+        );
+        expect(required).toHaveLength(0);
+    });
+
+    it("delayed trigger destroys non-Wall non-attackers at end step", async () => {
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const wall = makeInstance(wallOfSwords.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            hasAttackedThisTurn: true,
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [lion, wall, bear],
+        });
+        const p2 = makePlayer("p2", {
+            manaPool: { W: 0, U: 5, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = makeState({
+            players: [p1, p2],
+            activePlayerId: "p1",
+        });
+
+        // Schedule the delayed trigger via resolve
+        pushSpell(state, sirensCall.id, "p2");
+        resolveTopOfStack(state);
+
+        expect(state.delayedTriggers).toHaveLength(1);
+
+        // Fire the delayed trigger
+        const { fireDelayedTriggers } = await import("../../../gre/phases");
+        fireDelayedTriggers(state, "next-end-step");
+
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+
+        // Lion (didn't attack) → destroyed
+        // Wall → exempt (is a Wall)
+        // Bear (attacked) → survives
+        expect(p1.battlefield.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["wall", "bear"])
+        );
+        expect(p1.battlefield.find((c) => c.id === "lion")).toBeUndefined();
+    });
+});
+
+describe("False Orders (CR 506.4 — remove from combat)", () => {
+    it("removes a blocking creature from combat", () => {
+        const blocker = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const attacker = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [attacker],
+            manaPool: { W: 0, U: 0, B: 0, R: 5, G: 0, C: 0 },
+        });
+        const p2 = makePlayer("p2", { battlefield: [blocker] });
+        const state = makeState({
+            players: [p1, p2],
+            activePlayerId: "p1",
+            combat: {
+                attackerIds: ["lion"],
+                confirmed: true,
+                blockerAssignments: { bear: ["lion"] },
+                blockersConfirmed: true,
+            },
+        });
+
+        pushSpell(state, falseOrders.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+
+        expect(blocker.isBlocking).toBe(false);
+        expect(state.combat!.blockerAssignments["bear"]).toBeUndefined();
+    });
+
+    it("removing sole blocker leaves attacker unblocked", async () => {
+        const blocker = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const attacker = makeInstance(serraAngel.id, {
+            id: "angel",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [attacker],
+            manaPool: { W: 0, U: 0, B: 0, R: 5, G: 0, C: 0 },
+        });
+        const p2 = makePlayer("p2", {
+            battlefield: [blocker],
+            life: 20,
+        });
+        const state = makeState({
+            players: [p1, p2],
+            activePlayerId: "p1",
+            combat: {
+                attackerIds: ["angel"],
+                confirmed: true,
+                blockerAssignments: { bear: ["angel"] },
+                blockersConfirmed: true,
+            },
+        });
+
+        pushSpell(state, falseOrders.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+
+        // Angel is now unblocked — should deal damage to player
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, {});
+
+        expect(p2.life).toBe(16); // Serra Angel = 4 power
     });
 });

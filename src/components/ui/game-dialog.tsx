@@ -50,12 +50,12 @@ export default function GameDialog({
             <DialogContent
                 showCloseButton={false}
                 className={cn(
-                    "border-none bg-transparent shadow-none ring-0 p-0 overflow-visible flex justify-center items-center",
+                    "border-none bg-transparent shadow-none ring-0 p-0 overflow-hidden flex justify-center items-center",
                     sizeClasses[size],
                     className
                 )}
             >
-                <Panel tone="neutral">
+                <Panel tone="neutral" className="max-w-full overflow-hidden">
                     <div
                         className={cn(
                             "flex gap-4 sm:gap-6",
@@ -66,24 +66,26 @@ export default function GameDialog({
                     >
                         {icon && <SunburstIcon>{icon}</SunburstIcon>}
 
-                        <div className="flex-1 flex flex-col w-full min-w-0">
-                            <DialogTitle className="heading-panel">
+                        <div className="flex-1 flex flex-col w-full min-w-0 max-h-[80vh]">
+                            <DialogTitle className="heading-panel shrink-0">
                                 {title}
                             </DialogTitle>
 
                             {subtitle && (
-                                <p className="text-text-muted text-sm text-center mt-1">
+                                <p className="text-text-muted text-sm text-center mt-1 shrink-0">
                                     {subtitle}
                                 </p>
                             )}
 
-                            <div className="divider-gradient my-2" />
+                            <div className="divider-gradient my-2 shrink-0" />
 
                             <DialogDescription className="sr-only">
                                 {subtitle ?? title}
                             </DialogDescription>
 
-                            {children}
+                            <div className="overflow-auto min-h-0">
+                                {children}
+                            </div>
                         </div>
                     </div>
 
