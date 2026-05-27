@@ -32,6 +32,8 @@ import {
     resolveTopOfStack,
     normalizeManaCost,
     isManaCostCovered,
+    getCostModifiers,
+    applyCostIncrease,
     emitSpellCastEvent,
     emitPermanentTapped,
     emitPermanentEntered,
@@ -983,6 +985,12 @@ function finalizeTargetSelection(
                   chosenX: abilityChosenX,
               })
             : undefined;
+        if (manaCost) {
+            applyCostIncrease(
+                manaCost,
+                getCostModifiers(state, card, "ability")
+            );
+        }
 
         // Enter pendingActivation (deferred commit) if mana isn't covered.
         if (manaCost && !isManaCostCovered(player.manaPool, manaCost)) {
@@ -1052,6 +1060,7 @@ function finalizeTargetSelection(
     const manaCost = rawCost
         ? normalizeManaCost(rawCost, { chosenX, additionalGeneric })
         : {};
+    applyCostIncrease(manaCost, getCostModifiers(state, cardInHand, "spell"));
 
     if (
         Object.keys(manaCost).length === 0 ||
@@ -1268,6 +1277,10 @@ export const announceCast = mutation({
         const rawCost = getInstanceManaCost(cardInHand);
 
         const manaCost = rawCost ? normalizeManaCost(rawCost, { chosenX }) : {};
+        applyCostIncrease(
+            manaCost,
+            getCostModifiers(state, cardInHand, "spell")
+        );
 
         const additionalCostSpec = cardDef.additionalCosts;
         if (additionalCostSpec?.sacrificeFilter) {
@@ -3232,6 +3245,12 @@ export const activateAbility = mutation({
         const manaCost = ability.cost.mana
             ? normalizeManaCost(ability.cost.mana, { chosenX })
             : undefined;
+        if (manaCost) {
+            applyCostIncrease(
+                manaCost,
+                getCostModifiers(state, card, "ability")
+            );
+        }
 
         // If mana isn't covered, enter a pendingActivation payment phase that
         // mirrors pendingCast: the player taps lands, and auto-commit applies

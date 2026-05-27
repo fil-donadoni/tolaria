@@ -185,6 +185,10 @@ export type CardInstanceState = {
         abilityId: string;
         auraId: string;
     }[];
+    /** Keywords suppressed by a keyword-remove static effect (CR 613.1a
+     *  layer 6). Each entry records the removed keyword and the source that
+     *  removed it so `unapplySourceStaticEffects` can restore it. */
+    removedKeywords?: { keyword: string; sourceId: string }[];
     /** Damage marked on the creature this turn (CR 120.3). Accumulates across
      *  damage events; checked against effective toughness for lethal damage
      *  (CR 704.5g). Removed at CLEANUP (CR 514.2). */
@@ -844,6 +848,10 @@ export type GameState = {
     /** When true, all combat damage is prevented this turn (CR 615, Fog).
      *  Checked at the top of `applyAllCombatDamage`; cleared at CLEANUP. */
     preventAllCombatDamageThisTurn?: boolean;
+    /** One-shot damage-cap shields (Forcefield, CR 615). When an unblocked
+     *  creature would deal combat damage to the shielded player, reduce to
+     *  `maxDamage`. Consumed on first use; cleared at CLEANUP. */
+    damageCapShields?: { playerId: string; maxDamage: number }[];
 };
 
 /** Player-level replacement preferences. Each entry is opt-in: undefined
@@ -1410,6 +1418,21 @@ export function applySourceStaticEffects(
                     target.grantedSubtypes =
                         grants.length > 0 ? grants : undefined;
                     target.subtypes = [...effect.subtypes];
+                } else if (effect.kind === "keyword-remove") {
+                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                        continue;
+                    }
+                    const idx = target.staticAbilities.indexOf(effect.keyword);
+                    if (idx !== -1) {
+                        target.staticAbilities = [
+                            ...target.staticAbilities.slice(0, idx),
+                            ...target.staticAbilities.slice(idx + 1),
+                        ];
+                        target.removedKeywords = [
+                            ...(target.removedKeywords ?? []),
+                            { keyword: effect.keyword, sourceId: source.id },
+                        ];
+                    }
                 }
             }
         }
@@ -1500,6 +1523,21 @@ export function unapplySourceStaticEffects(
                     (g) => g.sourceId !== source.id
                 );
                 target.grantedColors = kept.length > 0 ? kept : undefined;
+            }
+            const removals = target.removedKeywords;
+            if (removals && removals.length > 0) {
+                const kept: typeof removals = [];
+                for (const r of removals) {
+                    if (r.sourceId !== source.id) {
+                        kept.push(r);
+                        continue;
+                    }
+                    target.staticAbilities = [
+                        ...target.staticAbilities,
+                        r.keyword,
+                    ];
+                }
+                target.removedKeywords = kept.length > 0 ? kept : undefined;
             }
         }
     }
@@ -2083,6 +2121,7 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.controlChanges;
     delete card.grantedStaticAbilities;
     delete card.grantedActivatedAbilities;
+    delete card.removedKeywords;
     delete card.animation;
     delete card.chosenMana;
     delete card.manaCommitted;
@@ -2184,6 +2223,23 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         sourceInstanceId: item.triggerSourceId ?? item.id,
         targets: item.targets ?? [],
         allPlayerIds: state.players.map((p) => p.id),
+
+        getAttachedToId(): string | undefined {
+            const src = findOnBattlefield(
+                state,
+                item.triggerSourceId ?? item.id
+            );
+            return src?.card.attachedTo;
+        },
+
+        hasRemovedKeyword(permanentId: string, keyword: string): boolean {
+            const found = findOnBattlefield(state, permanentId);
+            return (
+                found?.card.removedKeywords?.some(
+                    (r) => r.keyword === keyword
+                ) ?? false
+            );
+        },
 
         forEachPlayer(fn: (playerId: string) => void) {
             for (const p of state.players) fn(p.id);
@@ -2971,6 +3027,13 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             state.preventAllCombatDamageThisTurn = true;
         },
 
+        addDamageCapShield(playerId: string, maxDamage: number): void {
+            state.damageCapShields = [
+                ...(state.damageCapShields ?? []),
+                { playerId, maxDamage },
+            ];
+        },
+
         setExileOnDeath(target: TargetSelection): void {
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
@@ -3461,6 +3524,47 @@ export function normalizeManaCost(
         result.X = (result.X ?? 0) + extraGeneric;
     }
     return result;
+}
+
+/** Scan the battlefield for `cost-modifier` static effects that apply to
+ *  the given spell or ability source and return the accumulated cost increase
+ *  as a normalized mana cost record (CR 601.2f). */
+export function getCostModifiers(
+    state: GameState,
+    card: PermanentView,
+    kind: "spell" | "ability"
+): Record<string, number> {
+    const increase: Record<string, number> = {};
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            const cardId = (source.card as { id?: string }).id;
+            const def = cardId ? tryGetCardById(cardId) : null;
+            const effects = getEffectiveStaticEffects(def, source.chosenModeId);
+            for (const effect of effects) {
+                if (effect.kind !== "cost-modifier") continue;
+                const pred =
+                    kind === "spell"
+                        ? effect.appliesToSpell
+                        : effect.appliesToAbility;
+                if (!pred || !pred(card, STATIC_EFFECT_CTX)) continue;
+                const norm = normalizeManaCost(effect.costIncrease);
+                for (const [k, v] of Object.entries(norm)) {
+                    increase[k] = (increase[k] ?? 0) + v;
+                }
+            }
+        }
+    }
+    return increase;
+}
+
+/** Merge a cost-modifier increase into a base normalized cost (mutates). */
+export function applyCostIncrease(
+    baseCost: Record<string, number>,
+    increase: Record<string, number>
+): void {
+    for (const [k, v] of Object.entries(increase)) {
+        baseCost[k] = (baseCost[k] ?? 0) + v;
+    }
 }
 
 /** Returns true if manaPool fully covers the normalized cost. */

@@ -636,10 +636,28 @@ export function applyAllCombatDamage(
 
         if (blockers.length === 0) {
             if (attackerDeals && attackerPower > 0) {
+                // CR 615 — Forcefield: cap damage from unblocked creature
+                let damage = attackerPower;
+                const caps = state.damageCapShields;
+                if (caps && caps.length > 0) {
+                    const capIdx = caps.findIndex(
+                        (s) => s.playerId === defenderId
+                    );
+                    if (capIdx !== -1) {
+                        damage = Math.min(damage, caps[capIdx].maxDamage);
+                        state.damageCapShields = [
+                            ...caps.slice(0, capIdx),
+                            ...caps.slice(capIdx + 1),
+                        ];
+                        if (state.damageCapShields.length === 0) {
+                            state.damageCapShields = undefined;
+                        }
+                    }
+                }
                 applyOneCombatDamage(
                     attacker,
                     { type: "player", id: defenderId },
-                    attackerPower
+                    damage
                 );
             }
         } else {
@@ -1233,6 +1251,9 @@ function tickAllDurations(state: GameState): void {
     // turn. Cleared unconditionally so it doesn't persist across turns.
     if (state.preventAllCombatDamageThisTurn) {
         state.preventAllCombatDamageThisTurn = undefined;
+    }
+    if (state.damageCapShields) {
+        state.damageCapShields = undefined;
     }
 }
 
