@@ -19,6 +19,7 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { isCreature } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
+import { getColorOverrideDisplay } from "~/lib/color-override";
 
 export type CardVisualState = {
     interactive: boolean;
@@ -128,9 +129,29 @@ export default function BattlefieldCard({
         </div>
     ) : null;
 
+    const colorDisplay = card.colorOverride?.length
+        ? getColorOverrideDisplay(card.colorOverride)
+        : null;
+
+    const colorOverrideOverlay = colorDisplay ? (
+        <div
+            className="absolute inset-0 pointer-events-none rounded-[7%] z-[5]"
+            style={{
+                boxShadow: `inset 0 0 0 4px ${colorDisplay.inner}`,
+                background: [
+                    `linear-gradient(180deg, ${colorDisplay.inner} 0%, transparent 22%)`,
+                    `linear-gradient(0deg, ${colorDisplay.inner} 0%, transparent 22%)`,
+                    `linear-gradient(90deg, ${colorDisplay.inner} 0%, transparent 18%)`,
+                    `linear-gradient(270deg, ${colorDisplay.inner} 0%, transparent 18%)`,
+                ].join(", "),
+            }}
+        />
+    ) : null;
+
     const inner = (
         <div className={`relative ${vs.ringClass}`} style={innerStyle}>
             <CardImage card={card} />
+            {colorOverrideOverlay}
             {darkenOverlay}
             {badgeEl}
             {ptDamageStack}

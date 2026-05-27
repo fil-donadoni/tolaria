@@ -95,6 +95,8 @@ export interface CardInstance {
      *  Each entry adds to effective P/T at read time. */
     temporaryPTMods?: ReadonlyArray<{ power: number; toughness: number }>;
     legalActions?: CardAction[];
+    /** Layer 5 color override (CR 305.7, 613.1d). Set by lace instants. */
+    colorOverride?: string[];
 }
 
 export interface Combat {
