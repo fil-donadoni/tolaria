@@ -4,6 +4,8 @@ import type { StackItem } from "~/types/game";
 import {
     getAbilityOracleText,
     getTriggeredAbilityOracleText,
+    matchesSpellTypeFilter,
+    wantsSpellTarget,
 } from "~/lib/card-utils";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useDraggable } from "~/hooks/useDraggable";
@@ -14,12 +16,6 @@ import ColorOverlayCardImage from "../cards/color-overlay-card-image";
 type GameStackProps = {
     stack: StackItem[];
 };
-
-function wantsSpellTarget(targetType: string | string[] | undefined): boolean {
-    if (!targetType) return false;
-    const types = Array.isArray(targetType) ? targetType : [targetType];
-    return types.includes("spell") || types.includes("spell-or-permanent");
-}
 
 export default function GameStack({ stack }: GameStackProps) {
     const { gameId, playerId, pendingTarget } = useGameContext();
@@ -67,7 +63,12 @@ export default function GameStack({ stack }: GameStackProps) {
                                         item.triggeredAbilityId!
                                     )
                                   : null;
-                        const isTargetable = canTargetSpell;
+                        const isTargetable =
+                            canTargetSpell &&
+                            matchesSpellTypeFilter(
+                                item,
+                                pendingTarget?.spellTypeFilter
+                            );
 
                         return (
                             <button

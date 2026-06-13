@@ -417,6 +417,7 @@ function compactStackItem(item: StackItem): CompactCard {
         base.resolutionStep = item.resolutionStep;
     }
     if (item.collectedChoices) base.collectedChoices = item.collectedChoices;
+    if (item.isCopy) base.isCopy = item.isCopy;
     return base;
 }
 
@@ -465,6 +466,7 @@ function expandStackItem(compact: CompactCard): StackItem {
             string[]
         >;
     }
+    if (compact.isCopy) item.isCopy = compact.isCopy as boolean;
     return item;
 }
 

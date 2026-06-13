@@ -554,10 +554,26 @@ export function getLegalTargets(
     // CR 114.1: any spell or ability currently on the stack is a legal target.
     // (The casting spell itself isn't on the stack yet during target selection.)
     if (wantsSpell) {
+        const spellTypes = requirement.spellTypeFilter
+            ? Array.isArray(requirement.spellTypeFilter)
+                ? requirement.spellTypeFilter
+                : [requirement.spellTypeFilter]
+            : undefined;
         for (const item of state.stack) {
             if (colorFilter && !hasColor(item, colorFilter)) continue;
             if (mvFilter && !matchesMvFilter(mvFilter, mvOfStackItem(item))) {
                 continue;
+            }
+            // CR 114.1 + spellTypeFilter (Fork: "instant or sorcery spell"):
+            // an ability on the stack isn't a spell, and a spell must match
+            // the requested card type(s).
+            if (spellTypes) {
+                const isAbility =
+                    !!item.abilityId ||
+                    !!item.triggeredAbilityId ||
+                    !!item.delayedTriggerId;
+                if (isAbility) continue;
+                if (!spellTypes.some((t) => item.types.includes(t))) continue;
             }
             targets.push({ type: "spell", id: item.id });
         }
@@ -569,12 +585,19 @@ export function getLegalTargets(
 /** Colors of the source whose target-selection is in progress (CR 202.2).
  *  Used to enforce CR 702.16b at cast-time target validation. For spells the
  *  source is the hand card; for activated abilities it's the battlefield
- *  permanent. Returns an empty array if the source card can't be located. */
+ *  permanent; for a "copy-retarget" the source is the spell COPY on the stack
+ *  (CR 707.10 — its colorOverride, e.g. Fork's red, governs protection).
+ *  Returns an empty array if the source card can't be located. */
 export function getPendingTargetSourceColors(
     state: GameState,
     cardInstanceId: string,
-    kind: "cast" | "ability"
+    kind: "cast" | "ability" | "copy-retarget"
 ): Color[] {
+    if (kind === "copy-retarget") {
+        const si = state.stack.find((x) => x.id === cardInstanceId);
+        if (si) return STATIC_EFFECT_CTX.getColors(si);
+        return [];
+    }
     if (kind === "ability") {
         for (const p of state.players) {
             const c = p.battlefield.find((x) => x.id === cardInstanceId);

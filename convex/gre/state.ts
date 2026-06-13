@@ -440,6 +440,11 @@ export type StackItem = CardInstanceState & {
      *  `${step}:${choiceId}` (e.g. "0:p1"). Read by `requestChoice` at resume
      *  to return prior selections without re-enqueueing them. */
     collectedChoices?: Record<string, string[]>;
+    /** True iff this stack item is a COPY of a spell (CR 707.10, Fork). A
+     *  copy is not a real card: when it finishes resolving it ceases to exist
+     *  rather than moving to a graveyard (CR 707.10/112.5), and it can never
+     *  return to a hand/library. Set by `SpellContext.copyStackItem`. */
+    isCopy?: boolean;
 };
 
 /** A delayed triggered ability waiting to fire (CR 603.7a). Queued on
@@ -657,6 +662,10 @@ export type PendingTarget = {
      *  after resolving any `"X"` placeholders against the announced chosenX.
      *  Used by Spell Blast ("counter target spell with mana value X"). */
     mvFilter?: { min?: number; max?: number; equals?: number };
+    /** Restricts legal SPELL targets by card type (CR 114.1). Propagated from
+     *  TargetRequirement.spellTypeFilter. Used by Fork ("target instant or
+     *  sorcery spell"). Ignored for non-spell target types. */
+    spellTypeFilter?: CardType[];
     /** Zone the target lives in (CR 109.2). Default "battlefield" — set to
      *  "graveyard" for reanimation/recursion spells like Regrowth. Propagated
      *  from TargetRequirement.zone. */
@@ -676,8 +685,13 @@ export type PendingTarget = {
     chosenModeId?: string;
     /** Distinguishes a spell cast (default) from an activated ability that
      *  requires targets (CR 602.2b). When "ability", `abilityId` is set and
-     *  costs are paid at finalization instead of at announcement. */
-    kind?: "cast" | "ability";
+     *  costs are paid at finalization instead of at announcement. When
+     *  "copy-retarget", target selection re-points the targets of a spell
+     *  COPY already on the stack (CR 707.10b — Fork's "you may choose new
+     *  targets for the copy"); `cardInstanceId` holds the copy's stack id and
+     *  finalization writes the chosen targets onto that stack item instead of
+     *  casting anything. */
+    kind?: "cast" | "ability" | "copy-retarget";
     /** For `kind: "ability"` only — id of the activated ability template on
      *  the source card definition. */
     abilityId?: string;
@@ -1278,6 +1292,10 @@ function finalizeSpellResolution(
         // after this resolve completes.
         emitPermanentEntered(state, item);
     } else {
+        // CR 707.10 / 112.5 — a copy of an instant/sorcery spell is not a real
+        // card: once it finishes resolving it simply ceases to exist instead
+        // of being put into a graveyard.
+        if (item.isCopy) return;
         const owner = getPlayer(state, item.ownerId);
         item.zone = "graveyard";
         owner.graveyard.push(item);
@@ -3127,6 +3145,128 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 if (!si) return;
                 si.colorOverride = colors;
             }
+        },
+        copyStackItem(targetStackItemId, modifications): string | null {
+            const targetIdx = state.stack.findIndex(
+                (s) => s.id === targetStackItemId
+            );
+            if (targetIdx === -1) return null;
+            const original = state.stack[targetIdx];
+            // CR 707.10 — abilities aren't spells; this primitive copies only
+            // instant/sorcery SPELLS. Copies of permanent spells (which would
+            // create token permanents) are out of scope.
+            if (
+                original.abilityId ||
+                original.triggeredAbilityId ||
+                original.delayedTriggerId
+            ) {
+                return null;
+            }
+            if (
+                !original.types.includes("Instant") &&
+                !original.types.includes("Sorcery")
+            ) {
+                return null;
+            }
+            const copy: StackItem = structuredClone(original);
+            copy.id = allocInstanceId(state);
+            copy.isCopy = true;
+            // CR 707.10b — the copy is controlled by the controller of the
+            // effect that created it (e.g. Fork's controller), not by the
+            // original spell's controller.
+            copy.castById = item.castById;
+            copy.controllerId = item.controllerId;
+            copy.ownerId = item.controllerId;
+            if (modifications?.colorOverride) {
+                copy.colorOverride = modifications.colorOverride;
+            }
+            // Insert the copy directly above the original so it resolves
+            // first. `item` (the copying spell) is the current top of the
+            // stack and is popped immediately after this resolve completes;
+            // inserting just below it leaves the copy as the new top.
+            const selfIdx = state.stack.findIndex((s) => s.id === item.id);
+            const insertAt = selfIdx === -1 ? state.stack.length : selfIdx;
+            state.stack.splice(insertAt, 0, copy);
+            return copy.id;
+        },
+        requestCopyRetarget(copyStackItemId): void {
+            const copy = state.stack.find((s) => s.id === copyStackItemId);
+            if (!copy) return;
+            const cardId = (copy.card as { id?: string }).id;
+            const def = cardId ? tryGetCardById(cardId) : undefined;
+            // A copy of a modal spell retargets within its chosen mode
+            // (CR 700.2); otherwise use the card-level requirement.
+            const req =
+                (copy.chosenModeId
+                    ? def?.modes?.find((m) => m.id === copy.chosenModeId)
+                          ?.targetRequirement
+                    : undefined) ?? def?.targetRequirement;
+            if (!req) return; // copied spell targets nothing — keep as-is
+            // CR 107.3 — resolve an "X" target count against the copy's X.
+            const rawCount = req.count;
+            const count =
+                rawCount === "X" ? Math.max(0, copy.chosenX ?? 0) : rawCount;
+            const minNeeded = typeof count === "number" ? count : count.min;
+            if (minNeeded <= 0) return; // no targets to choose
+            const subtypeFilter = req.subtypeFilter
+                ? Array.isArray(req.subtypeFilter)
+                    ? req.subtypeFilter
+                    : [req.subtypeFilter]
+                : undefined;
+            const excludeSubtypes = req.excludeSubtypes
+                ? Array.isArray(req.excludeSubtypes)
+                    ? req.excludeSubtypes
+                    : [req.excludeSubtypes]
+                : undefined;
+            // Inline mvFilter "X" resolution (mirrors rules.resolveMvFilter;
+            // duplicated to avoid a state ↔ rules import cycle).
+            const resolveMv = (
+                v: number | "X" | undefined
+            ): number | undefined =>
+                v === undefined
+                    ? undefined
+                    : v === "X"
+                      ? (copy.chosenX ?? 0)
+                      : v;
+            const mvFilter = req.mvFilter
+                ? {
+                      ...(req.mvFilter.min !== undefined
+                          ? { min: resolveMv(req.mvFilter.min)! }
+                          : {}),
+                      ...(req.mvFilter.max !== undefined
+                          ? { max: resolveMv(req.mvFilter.max)! }
+                          : {}),
+                      ...(req.mvFilter.equals !== undefined
+                          ? { equals: resolveMv(req.mvFilter.equals)! }
+                          : {}),
+                  }
+                : undefined;
+            // CR 707.10b — the copy's controller may choose new targets.
+            state.pendingTarget = {
+                playerId: item.castById,
+                cardInstanceId: copy.id,
+                targetType: req.type,
+                count,
+                selected: [],
+                kind: "copy-retarget",
+                ...(req.colorFilter ? { colorFilter: req.colorFilter } : {}),
+                ...(req.zone ? { zone: req.zone } : {}),
+                ...(req.controller ? { controller: req.controller } : {}),
+                ...(subtypeFilter ? { subtypeFilter } : {}),
+                ...(req.powerFilter ? { powerFilter: req.powerFilter } : {}),
+                ...(req.toughnessFilter
+                    ? { toughnessFilter: req.toughnessFilter }
+                    : {}),
+                ...(excludeSubtypes ? { excludeSubtypes } : {}),
+                ...(mvFilter ? { mvFilter } : {}),
+                ...(req.spellTypeFilter
+                    ? {
+                          spellTypeFilter: Array.isArray(req.spellTypeFilter)
+                              ? req.spellTypeFilter
+                              : [req.spellTypeFilter],
+                      }
+                    : {}),
+            };
         },
 
         // --- Mid-resolution choices (CR 608.2, 101.4) ---
