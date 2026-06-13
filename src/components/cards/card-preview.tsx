@@ -134,7 +134,10 @@ export default function CardPreview({
     const zoomRef = useRef<HTMLDivElement>(null);
 
     const longPress = useLongPress({});
-    const showOverlay = longPress.phase === "longPressed";
+    // Preview is visible during the peek window and once locked; only `idle`
+    // and `pressing` keep it hidden (ADR 0009 peek/lock).
+    const showOverlay =
+        longPress.phase === "longPressed" || longPress.phase === "locked";
     const sawTouchRef = useRef(false);
 
     const openZoom = useCallback(() => {
