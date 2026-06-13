@@ -114,12 +114,36 @@ export function collectTriggers(
             const abilities = def?.triggeredAbilities;
             if (!abilities || abilities.length === 0) continue;
             for (const ability of abilities) {
+                // Battlefield-zone abilities only here; graveyard-zone
+                // abilities (zone: "graveyard") are scanned separately below.
+                if (ability.zone) continue;
                 for (const event of events) {
                     if (event.type !== ability.event) continue;
                     if (!ability.matches(event, permanent, state)) continue;
                     out.push(
                         buildTriggerItem(state, permanent, ability.id, event)
                     );
+                }
+            }
+        }
+    }
+
+    // CR 603.6e — abilities that function while the source is in the
+    // graveyard (Nether Shadow's upkeep self-reanimation). Scanned only for
+    // abilities explicitly opted in via `zone: "graveyard"`. The trigger's
+    // `matches`/`interveningIf` inspects card position via `TriggerStateView`.
+    for (const player of ordered) {
+        for (const card of player.graveyard) {
+            const cardId = (card.card as { id?: string }).id;
+            if (!cardId) continue;
+            const abilities = tryGetCardById(cardId)?.triggeredAbilities;
+            if (!abilities || abilities.length === 0) continue;
+            for (const ability of abilities) {
+                if (ability.zone !== "graveyard") continue;
+                for (const event of events) {
+                    if (event.type !== ability.event) continue;
+                    if (!ability.matches(event, card, state)) continue;
+                    out.push(buildTriggerItem(state, card, ability.id, event));
                 }
             }
         }

@@ -245,6 +245,9 @@ import {
     islandSanctuary,
     sirensCall,
     falseOrders,
+    sunglassesOfUrza,
+    netherShadow,
+    kudzu,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -263,9 +266,13 @@ import {
     normalizeManaCost,
     getCostModifiers,
     applyCostIncrease,
+    payManaCost,
+    isManaCostCovered,
+    getManaSubstitutions,
     type CardInstanceState,
     type GameState,
 } from "../../../gre/state";
+import { collectTriggers } from "../../../gre/triggers";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -18259,5 +18266,264 @@ describe("False Orders (CR 506.4 — remove from combat)", () => {
         applyAllCombatDamage(state, {});
 
         expect(p2.life).toBe(16); // Serra Angel = 4 power
+    });
+});
+
+// ---------------------------------------------------------------------------
+// W26 — mana substitution, graveyard trigger, aura retarget
+// ---------------------------------------------------------------------------
+
+describe("Sunglasses of Urza (spend white as though red, CR 609.4b)", () => {
+    function stateWithSunglasses(): GameState {
+        const sun = makeInstance(sunglassesOfUrza.id, { controllerId: "p1" });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sun] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("declares the mana-substitution static effect", () => {
+        expect(sunglassesOfUrza.staticEffects).toEqual([
+            { kind: "mana-substitution", from: "W", to: "R" },
+        ]);
+    });
+
+    it("getManaSubstitutions surfaces the rule only for the controller", () => {
+        const state = stateWithSunglasses();
+        expect(getManaSubstitutions(state, "p1")).toEqual([
+            { from: "W", to: "R" },
+        ]);
+        expect(getManaSubstitutions(state, "p2")).toEqual([]);
+    });
+
+    it("white mana pays a red cost while Sunglasses is in play", () => {
+        const state = stateWithSunglasses();
+        const subs = getManaSubstitutions(state, "p1");
+        const pool = { W: 1, U: 0, B: 0, R: 0, G: 0, C: 0 };
+        expect(isManaCostCovered(pool, { R: 1 }, subs)).toBe(true);
+        payManaCost(pool, { R: 1 }, subs);
+        expect(pool.W).toBe(0);
+        expect(pool.R).toBe(0);
+    });
+
+    it("mixed cost: white covers its own pip and substitutes for red", () => {
+        const state = stateWithSunglasses();
+        const subs = getManaSubstitutions(state, "p1");
+        const pool = { W: 2, U: 0, B: 0, R: 0, G: 0, C: 0 };
+        expect(isManaCostCovered(pool, { W: 1, R: 1 }, subs)).toBe(true);
+        payManaCost(pool, { W: 1, R: 1 }, subs);
+        expect(pool.W).toBe(0);
+    });
+
+    it("removing Sunglasses reverts the substitution (white can't pay red)", () => {
+        // No Sunglasses on the battlefield → no substitution rule derived.
+        const state = makeState();
+        const subs = getManaSubstitutions(state, "p1");
+        expect(subs).toEqual([]);
+        const pool = { W: 1, U: 0, B: 0, R: 0, G: 0, C: 0 };
+        expect(isManaCostCovered(pool, { R: 1 }, subs)).toBe(false);
+    });
+
+    it("substitution doesn't manufacture extra mana (1 W can't pay RR)", () => {
+        const state = stateWithSunglasses();
+        const subs = getManaSubstitutions(state, "p1");
+        const pool = { W: 1, U: 0, B: 0, R: 0, G: 0, C: 0 };
+        expect(isManaCostCovered(pool, { R: 2 }, subs)).toBe(false);
+    });
+});
+
+describe("Nether Shadow (graveyard upkeep self-reanimation, CR 603.6e)", () => {
+    // A non-triggering vanilla creature used to stack creature cards above
+    // Nether Shadow in the graveyard.
+    const FILLER_CREATURE_ID = "b93c5869-7777-44bb-967a-e9439b25ced4"; // Ironroot Treefolk
+
+    function makeFiller(): CardInstanceState {
+        return makeInstance(FILLER_CREATURE_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+    }
+
+    function gyState(fillerCount: number): GameState {
+        const shadow = makeInstance(netherShadow.id, {
+            id: "shadow",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const fillers = Array.from({ length: fillerCount }, makeFiller);
+        // Index 0 = bottom; fillers sit ABOVE the shadow (higher index).
+        return makeState({
+            activePlayerId: "p1",
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { graveyard: [shadow, ...fillers] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    const upkeep = {
+        type: "PHASE_BEGIN" as const,
+        phase: "UPKEEP" as const,
+        activePlayerId: "p1",
+    };
+
+    it("has haste and a graveyard-zone upkeep trigger", () => {
+        expect(netherShadow.staticAbilities).toContain("haste");
+        const trig = netherShadow.triggeredAbilities?.[0];
+        expect(trig?.event).toBe("PHASE_BEGIN");
+        expect(trig?.zone).toBe("graveyard");
+    });
+
+    it("triggers on its owner's upkeep with 3+ creatures above it", () => {
+        const state = gyState(3);
+        const triggers = collectTriggers(state, [upkeep]);
+        expect(triggers).toHaveLength(1);
+        expect(triggers[0].triggeredAbilityId).toBe("nether-shadow-reanimate");
+    });
+
+    it("does NOT trigger with fewer than 3 creatures above it", () => {
+        const state = gyState(2);
+        expect(collectTriggers(state, [upkeep])).toHaveLength(0);
+    });
+
+    it("does NOT trigger on the opponent's upkeep", () => {
+        const state = gyState(3);
+        const oppUpkeep = { ...upkeep, activePlayerId: "p2" };
+        expect(collectTriggers(state, [oppUpkeep])).toHaveLength(0);
+    });
+
+    it("reanimates from the graveyard when the player accepts", () => {
+        const state = gyState(3);
+        const triggers = collectTriggers(state, [upkeep]);
+        state.stack.push(...triggers);
+
+        // First resolve suspends on the optional "you may" choice.
+        expect(resolveTopOfStack(state)).toBeNull();
+        const pending = state.pendingChoices![0];
+        expect(pending.kind).toBe("may-pay");
+        const item = state.stack[state.stack.length - 1];
+        const key = `${pending.step}:${pending.choiceId}`;
+        item.collectedChoices = { [key]: ["yes"] };
+        state.pendingChoices = undefined;
+
+        resolveTopOfStack(state);
+        const p1 = state.players[0];
+        const reanimated = p1.battlefield.find((c) => c.id === "shadow");
+        expect(reanimated).toBeDefined();
+        expect(reanimated!.staticAbilities).toContain("haste");
+        expect(p1.graveyard.some((c) => c.id === "shadow")).toBe(false);
+    });
+
+    it("stays in the graveyard when the player declines", () => {
+        const state = gyState(3);
+        state.stack.push(...collectTriggers(state, [upkeep]));
+        resolveTopOfStack(state);
+        const item = state.stack[state.stack.length - 1];
+        const pending = state.pendingChoices![0];
+        item.collectedChoices = {
+            [`${pending.step}:${pending.choiceId}`]: ["no"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+        const p1 = state.players[0];
+        expect(p1.graveyard.some((c) => c.id === "shadow")).toBe(true);
+        expect(p1.battlefield.some((c) => c.id === "shadow")).toBe(false);
+    });
+});
+
+describe("Kudzu (destroy tapped host, retarget aura, CR 701.20a/704.5n)", () => {
+    function setup(extraLand: boolean): {
+        state: GameState;
+        kudzuId: string;
+    } {
+        const host = makeInstance(badlands.id, {
+            id: "hostland",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const aura = makeInstance(kudzu.id, {
+            id: "kudzu1",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "hostland",
+        });
+        const battlefield = [host, aura];
+        if (extraLand) {
+            battlefield.push(
+                makeInstance(bayou.id, {
+                    id: "otherland",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                })
+            );
+        }
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield }), makePlayer("p2")],
+        });
+        return { state, kudzuId: "kudzu1" };
+    }
+
+    it("declares an enchant-land aura with a becomes-tapped trigger", () => {
+        expect(kudzu.subtypes).toContain("Aura");
+        expect(kudzu.targetRequirement).toEqual({ type: "Land", count: 1 });
+        expect(kudzu.triggeredAbilities?.[0]?.id).toBe("kudzu-tapped");
+    });
+
+    it("destroys the host then moves the aura to a chosen land", () => {
+        const { state } = setup(true);
+        const host = state.players[0].battlefield[0];
+        emitPermanentTapped(state, host, false);
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(1);
+
+        // 1) destroy host + suspend on the "may attach" question.
+        expect(resolveTopOfStack(state)).toBeNull();
+        const p1 = state.players[0];
+        expect(p1.graveyard.some((c) => c.id === "hostland")).toBe(true);
+        expect(p1.battlefield.some((c) => c.id === "kudzu1")).toBe(true);
+        const item = state.stack[state.stack.length - 1];
+        const may = state.pendingChoices![0];
+        expect(may.kind).toBe("may-pay");
+        item.collectedChoices = {
+            [`${may.step}:${may.choiceId}`]: ["yes"],
+        };
+        state.pendingChoices = undefined;
+
+        // 2) accept → suspend on the land choice.
+        expect(resolveTopOfStack(state)).toBeNull();
+        const pick = state.pendingChoices![0];
+        expect(pick.kind).toBe("choose-permanents");
+        item.collectedChoices = {
+            ...item.collectedChoices,
+            [`${pick.step}:${pick.choiceId}`]: ["otherland"],
+        };
+        state.pendingChoices = undefined;
+
+        // 3) reattach.
+        resolveTopOfStack(state);
+        const aura = p1.battlefield.find((c) => c.id === "kudzu1");
+        expect(aura?.attachedTo).toBe("otherland");
+    });
+
+    it("goes to the graveyard when no other land is available", () => {
+        const { state } = setup(false);
+        const host = state.players[0].battlefield[0];
+        emitPermanentTapped(state, host, false);
+        processPendingActionTriggers(state);
+
+        // Host destroyed, no land to attach → resolve completes with the aura
+        // orphaned; SBA 704.5n sweeps it to the graveyard.
+        resolveTopOfStack(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        checkStateBasedActions(state);
+        const p1 = state.players[0];
+        expect(p1.graveyard.some((c) => c.id === "kudzu1")).toBe(true);
+        expect(p1.battlefield.some((c) => c.id === "kudzu1")).toBe(false);
     });
 });

@@ -1075,10 +1075,15 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             // invocation, item removed, TRIGGER_FIZZLED queued so downstream
             // triggers can react and the event log records the fizzle.
             if (ability.interveningIf && top.triggerSourceId) {
-                const sourceCard =
-                    findOnBattlefield(state, top.triggerSourceId)?.card ?? top;
+                // CR 603.10 LKI: locate the source wherever it lives. On the
+                // battlefield `sourceCard.id` is the real instance id; off it
+                // (graveyard-zone triggers like Nether Shadow) we fall back to
+                // the stack item, whose `id` was reallocated — so pin the
+                // identity to `triggerSourceId` instead.
+                const located = findOnBattlefield(state, top.triggerSourceId);
+                const sourceCard = located?.card ?? top;
                 const selfView: PermanentView = {
-                    id: sourceCard.id,
+                    id: located ? sourceCard.id : top.triggerSourceId,
                     controllerId: sourceCard.controllerId,
                     ownerId: sourceCard.ownerId,
                     types: sourceCard.types,
@@ -3244,6 +3249,21 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const found = findOnBattlefield(state, sourceInstanceId);
             return found?.card.attachedTo;
         },
+        // CR 303.4 / 701.3d: move an aura from its current host to a new one
+        // without it leaving the battlefield. Revert the aura's grants from
+        // the old host, repoint `attachedTo`, then re-apply to the new host so
+        // keyword/control/P-T effects follow the aura (CR 611.2). Returns false
+        // if the aura or new host is not on the battlefield (caller leaves the
+        // aura where it is — SBA 704.5n will sweep an orphan to the graveyard).
+        reattachAura(auraInstanceId: string, newHostId: string): boolean {
+            const aura = findOnBattlefield(state, auraInstanceId);
+            const newHost = findOnBattlefield(state, newHostId);
+            if (!aura || !newHost) return false;
+            unapplySourceStaticEffects(state, aura.card);
+            aura.card.attachedTo = newHostId;
+            applySourceStaticEffects(state, aura.card);
+            return true;
+        },
         // CR 701.20a: tap all lands controlled by playerId. Used by Mana Short
         // and Drain Power.
         tapAllLands(playerId: string): void {
@@ -3441,16 +3461,40 @@ export function payRemoveCounterCost(
     card.counters = Object.keys(next).length > 0 ? next : undefined;
 }
 
-/** Deducts mana cost from pool. Colored first, then generic (greedy: highest pool first). */
+/** Active "spend X as though Y" mana-substitution rules for one player.
+ *  `from`-color mana may be spent to satisfy `to`-color requirements. */
+export type ManaSubstitution = { from: string; to: string };
+
+/** Deducts mana cost from pool. Colored first, then generic (greedy: highest
+ *  pool first). When `substitutions` are supplied (CR 609.4b), a colored
+ *  requirement the exact color can't fully cover is topped up from
+ *  substitutable colors before the generic phase. Mirrors the coverage logic
+ *  in `isManaCostCovered`, so payment only runs after coverage is confirmed. */
 export function payManaCost(
     manaPool: Record<string, number>,
-    cost: ManaCost
+    cost: ManaCost,
+    substitutions: ManaSubstitution[] = []
 ): void {
-    // Pay colored/colorless costs
+    // Pay colored/colorless costs from their exact color, clamping at the
+    // available amount so substitution can cover any shortfall (CR 609.4b).
+    const deficits: Record<string, number> = {};
     for (const color of MANA_COLORS) {
         const required = (cost[color] as number | undefined) ?? 0;
-        if (required > 0) {
-            manaPool[color] = (manaPool[color] ?? 0) - required;
+        if (required <= 0) continue;
+        const paid = Math.min(manaPool[color] ?? 0, required);
+        manaPool[color] = (manaPool[color] ?? 0) - paid;
+        if (paid < required) deficits[color] = required - paid;
+    }
+
+    // Cover remaining colored deficits from substitutable colors.
+    for (const [color, deficitAmount] of Object.entries(deficits)) {
+        let need = deficitAmount;
+        for (const sub of substitutions) {
+            if (need <= 0) break;
+            if (sub.to !== color) continue;
+            const take = Math.min(manaPool[sub.from] ?? 0, need);
+            manaPool[sub.from] = (manaPool[sub.from] ?? 0) - take;
+            need -= take;
         }
     }
 
@@ -3604,6 +3648,30 @@ export function getCostModifiers(
     return increase;
 }
 
+/** Scan the battlefield for `mana-substitution` static effects whose source
+ *  is controlled by `playerId` and return the active "spend `from` as though
+ *  `to`" rules (CR 609.4b). Derived fresh per payment so the substitution
+ *  vanishes the moment the source leaves play (Sunglasses of Urza). */
+export function getManaSubstitutions(
+    state: GameState,
+    playerId: string
+): ManaSubstitution[] {
+    const out: ManaSubstitution[] = [];
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            if (source.controllerId !== playerId) continue;
+            const cardId = (source.card as { id?: string }).id;
+            const def = cardId ? tryGetCardById(cardId) : null;
+            const effects = getEffectiveStaticEffects(def, source.chosenModeId);
+            for (const effect of effects) {
+                if (effect.kind !== "mana-substitution") continue;
+                out.push({ from: effect.from, to: effect.to });
+            }
+        }
+    }
+    return out;
+}
+
 /** Merge a cost-modifier increase into a base normalized cost (mutates). */
 export function applyCostIncrease(
     baseCost: Record<string, number>,
@@ -3614,19 +3682,32 @@ export function applyCostIncrease(
     }
 }
 
-/** Returns true if manaPool fully covers the normalized cost. */
+/** Returns true if manaPool fully covers the normalized cost. With
+ *  `substitutions` (CR 609.4b), a colored requirement may be paid partly or
+ *  wholly with a substitutable color once its exact color is exhausted. */
 export function isManaCostCovered(
     manaPool: Record<string, number>,
-    cost: Record<string, number>
+    cost: Record<string, number>,
+    substitutions: ManaSubstitution[] = []
 ): boolean {
     const pool = { ...manaPool };
 
-    // Check colored/colorless
+    // Check colored/colorless — exact color first, then substitutable colors.
     for (const color of MANA_COLORS) {
-        const required = cost[color] ?? 0;
+        let required = cost[color] ?? 0;
+        if (required <= 0) continue;
+        const direct = Math.min(pool[color] ?? 0, required);
+        pool[color] = (pool[color] ?? 0) - direct;
+        required -= direct;
         if (required > 0) {
-            if ((pool[color] ?? 0) < required) return false;
-            pool[color] = (pool[color] ?? 0) - required;
+            for (const sub of substitutions) {
+                if (required <= 0) break;
+                if (sub.to !== color) continue;
+                const take = Math.min(pool[sub.from] ?? 0, required);
+                pool[sub.from] = (pool[sub.from] ?? 0) - take;
+                required -= take;
+            }
+            if (required > 0) return false;
         }
     }
 

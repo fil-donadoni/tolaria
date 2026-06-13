@@ -10,6 +10,7 @@ import type {
     StaticEffectContext,
     TargetSelection,
     TriggeredAbility,
+    TriggerStateView,
 } from "../types";
 import {
     AURA_AFFECTS_HOST,
@@ -2966,16 +2967,69 @@ export const mindTwist: CardDefinition = {
     },
 };
 
-// export const netherShadow: CardDefinition = {
-//     id: "f13ad58a-6f9b-420a-bac1-40929f5e616a",
-//     name: "Nether Shadow",
-//     oracleText: "Haste\nAt the beginning of your upkeep, if this card is in your graveyard with three or more creature cards above it, you may put this card onto the battlefield.",
-//     manaCost: { B: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Spirit"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Nether Shadow — "Haste. At the beginning of your upkeep, if this card is in
+// your graveyard with three or more creature cards above it, you may put this
+// card onto the battlefield." (CR 603.6e graveyard-zone trigger, 603.4d
+// intervening-if, 603.10.) The trigger opts into `collectTriggers`' graveyard
+// scan via `zone: "graveyard"`; the intervening-if counts creature cards
+// stacked above Nether Shadow in its owner's graveyard (index 0 = bottom,
+// last = top, so "above" = higher index).
+function creatureCardsAboveInGraveyard(
+    state: TriggerStateView | undefined,
+    self: PermanentView
+): number {
+    const graveyard = state?.players.find(
+        (p) => p.id === self.ownerId
+    )?.graveyard;
+    if (!graveyard) return 0;
+    const idx = graveyard.findIndex((c) => c.id === self.id);
+    if (idx === -1) return 0;
+    let count = 0;
+    for (let i = idx + 1; i < graveyard.length; i++) {
+        if (graveyard[i].types.includes("Creature")) count++;
+    }
+    return count;
+}
+
+export const netherShadow: CardDefinition = {
+    id: "f13ad58a-6f9b-420a-bac1-40929f5e616a",
+    name: "Nether Shadow",
+    oracleText:
+        "Haste\nAt the beginning of your upkeep, if this card is in your graveyard with three or more creature cards above it, you may put this card onto the battlefield.",
+    manaCost: { B: 2 },
+    types: ["Creature"],
+    subtypes: ["Spirit"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["haste"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "nether-shadow-reanimate",
+            oracleText:
+                "At the beginning of your upkeep, if this card is in your graveyard with three or more creature cards above it, you may put this card onto the battlefield.",
+            phase: "UPKEEP",
+            scope: "your",
+            zone: "graveyard",
+            interveningIf: (_event, self, state) =>
+                creatureCardsAboveInGraveyard(state, self) >= 3,
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: `nether-shadow-${ctx.sourceInstanceId}`,
+                    prompt: "Return Nether Shadow to the battlefield?",
+                });
+                if (accept === undefined) return;
+                if (accept) {
+                    ctx.returnToBattlefield(
+                        ctx.controller,
+                        ctx.sourceInstanceId,
+                        "graveyard"
+                    );
+                }
+            },
+        }),
+    ],
+};
 
 // Nettling Imp — "{T}: Target non-Wall creature the active player controls
 // attacks this combat if able. If it doesn't, destroy it at the beginning of
@@ -5199,14 +5253,63 @@ export const ironrootTreefolk: CardDefinition = {
     toughness: 5,
 };
 
-// export const kudzu: CardDefinition = {
-//     id: "b2b72dcd-9ea1-4729-baae-ecd262fdff67",
-//     name: "Kudzu",
-//     oracleText: "Enchant land\nWhen enchanted land becomes tapped, destroy it. That land's controller may attach this Aura to a land of their choice.",
-//     manaCost: { X: 1, G: 2 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Kudzu — "Enchant land. When enchanted land becomes tapped, destroy it. That
+// land's controller may attach this Aura to a land of their choice." (CR
+// 701.20a becomes-tapped trigger, 701.3d attach, 704.5n orphan-aura SBA.)
+//
+// Resolution ordering note: the host is destroyed first, then the controller
+// is asked (CR 117.3a "may") and chooses a new land (CR 608.2 mid-resolution
+// choice). `ctx.destroy` is idempotent, so the replay-from-top that follows
+// each choice suspension re-runs it harmlessly. Destroying before the choice
+// keeps the dead host out of the candidate set without needing an exclusion
+// filter. If the controller has no other land — or declines — Kudzu is left
+// orphaned and SBA 704.5n moves it to the graveyard.
+export const kudzu: CardDefinition = {
+    id: "b2b72dcd-9ea1-4729-baae-ecd262fdff67",
+    name: "Kudzu",
+    oracleText:
+        "Enchant land\nWhen enchanted land becomes tapped, destroy it. That land's controller may attach this Aura to a land of their choice.",
+    manaCost: { X: 1, G: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1 },
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "kudzu-tapped",
+            oracleText:
+                "When enchanted land becomes tapped, destroy it. That land's controller may attach this Aura to a land of their choice.",
+            scope: "any",
+            condition: (event, self) =>
+                !!self.attachedTo && event.permanentId === self.attachedTo,
+            resolve: (ctx, _event, tapped) => {
+                ctx.destroy({ type: "permanent", id: tapped.id });
+                const hostController = tapped.controllerId;
+                const lands = ctx.getBattlefieldIds(hostController, {
+                    types: "Land",
+                });
+                if (lands.length === 0) return;
+                const accept = ctx.requestMayPay({
+                    playerId: hostController,
+                    choiceId: `kudzu-may-${ctx.sourceInstanceId}`,
+                    prompt: "Attach Kudzu to a land you control?",
+                });
+                if (accept === undefined) return;
+                if (!accept) return;
+                const picks = ctx.requestChoice({
+                    playerId: hostController,
+                    choiceId: `kudzu-reattach-${ctx.sourceInstanceId}`,
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    filter: { types: "Land" },
+                    count: 1,
+                    prompt: "Choose a land to attach Kudzu to.",
+                });
+                if (picks === undefined) return;
+                ctx.reattachAura(ctx.sourceInstanceId, picks[0]);
+            },
+        }),
+    ],
+};
 
 // Ley Druid — "{T}: Untap target land." (CR 605 activated ability, 701.20a
 // untap). Stack-using ability (not a mana ability per CR 605.1a — produces no
@@ -6856,13 +6959,19 @@ export const soulNet: CardDefinition = {
     ],
 };
 
-// export const sunglassesOfUrza: CardDefinition = {
-//     id: "c0d433a4-76c0-4f27-836d-4c0c13a511fb",
-//     name: "Sunglasses of Urza",
-//     oracleText: "You may spend white mana as though it were red mana.",
-//     manaCost: { X: 3 },
-//     types: ["Artifact"],
-// };
+// Sunglasses of Urza — "You may spend white mana as though it were red mana."
+// (CR 609.4b mana substitution.) Declared as a `mana-substitution` static
+// effect; `getManaSubstitutions` scans the controller's battlefield live at
+// payment time, so removing the artifact reverts the substitution with no
+// per-player persisted state.
+export const sunglassesOfUrza: CardDefinition = {
+    id: "c0d433a4-76c0-4f27-836d-4c0c13a511fb",
+    name: "Sunglasses of Urza",
+    oracleText: "You may spend white mana as though it were red mana.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    staticEffects: [{ kind: "mana-substitution", from: "W", to: "R" }],
+};
 
 // The Hive — "{5}, {T}: Create a 1/1 colorless Insect artifact creature
 // token with flying named Wasp." (CR 111 / 707.1 token creation, 702.9

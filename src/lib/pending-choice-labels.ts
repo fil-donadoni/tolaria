@@ -17,6 +17,7 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "discard-hand": "Discard",
     "reorder-library": "Reorder",
     "reveal-hand": "Reveal",
+    "choose-permanents": "Choose",
     // yes-no family
     "may-pay": "Optional",
     // order family

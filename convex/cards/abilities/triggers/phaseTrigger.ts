@@ -38,6 +38,10 @@ export interface PhaseTriggerArgs {
     oracleText: string;
     /** Which step's PHASE_BEGIN to listen for (CR 500.1). */
     phase: Phase;
+    /** Zone the source must be in to be scanned (CR 603.6e). Defaults to the
+     *  battlefield; set `"graveyard"` for upkeep triggers that fire while the
+     *  card sits in the graveyard (Nether Shadow). */
+    zone?: "graveyard";
     /** Whose step counts — drives both the trigger filter and the
      *  `scopedPlayerId` passed to `resolve`. See `TriggerScope`. */
     scope: TriggerScope;
@@ -82,6 +86,7 @@ export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
         id: args.id,
         oracleText: args.oracleText,
         event: "PHASE_BEGIN",
+        ...(args.zone ? { zone: args.zone } : {}),
         matches: (event, self, state) => {
             if (event.type !== "PHASE_BEGIN") return false;
             if (event.phase !== args.phase) return false;

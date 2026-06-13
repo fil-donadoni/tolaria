@@ -47,6 +47,60 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        label: "W26: Mana substitution — Sunglasses of Urza (W pays R, CR 609.4b)",
+        cards: [
+            // Sunglasses lets white mana pay red costs. Tap the Plains for {W},
+            // then cast Lightning Bolt ({R}) — the white mana covers the red
+            // pip. Remove Sunglasses and the substitution is gone.
+            { name: "Sunglasses of Urza", owner: "me" as const },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "W26: Graveyard self-reanimate — Nether Shadow (3+ creatures above, CR 603.6e)",
+        cards: [
+            // Nether Shadow sits at the bottom of the graveyard with three
+            // creature cards stacked above it. Pass to your next upkeep: the
+            // graveyard trigger offers to return it (it has haste).
+            {
+                name: "Nether Shadow",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+                count: 3,
+            },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        label: "W26: Aura retarget — Kudzu (tap host → destroy + reattach, CR 701.20a)",
+        cards: [
+            // Cast Kudzu on one Forest, then tap that Forest: Kudzu destroys it
+            // and you choose the other Forest to move the Aura onto. With only
+            // one land left, declining (or no target) sends Kudzu to the yard.
+            { name: "Kudzu", owner: "me" as const, zone: "hand" as const },
+            { name: "Forest", owner: "me" as const, count: 3 },
+            { name: "Mountain", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "Regeneration ({G}: regenerate enchanted creature, CR 701.15a)",
         cards: [
             // Regeneration in hand, attach to my Grizzly Bears, then have
