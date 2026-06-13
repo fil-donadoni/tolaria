@@ -65,44 +65,26 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
     const selectedAttackerIds = combat?.attackerIds ?? [];
     const blockerCount = Object.keys(combat?.blockerAssignments ?? {}).length;
 
-    const blockersPerAttacker = useMemo(() => {
-        const map: Record<string, string[]> = {};
-        if (!combat) return map;
-        for (const [blockerId, attackerIds] of Object.entries(
-            combat.blockerAssignments
-        )) {
-            for (const attackerId of attackerIds) {
-                if (!map[attackerId]) map[attackerId] = [];
-                map[attackerId].push(blockerId);
-            }
-        }
-        return map;
-    }, [combat]);
-
+    // Every multi-target source THIS player is responsible for (CR 702.21j-k
+    // can split authority between attacker and defender) must have its full
+    // power assigned before the player can confirm.
     const allDamageAssigned = useMemo(() => {
         if (!isAssigningDamage || !combat) return false;
-        const attackingPlayer = allPlayers.find((p) => p.id === activePlayerId);
-        if (!attackingPlayer) return false;
-        for (const attackerId of combat.attackerIds) {
-            if ((blockersPerAttacker[attackerId]?.length ?? 0) < 2) continue;
-            const attacker = attackingPlayer.battlefield.find(
-                (c) => c.id === attackerId
-            );
-            if (!attacker) continue;
-            const power = Math.max(0, attacker.power ?? 0);
+        const assigners = combat.damageAssignerIds ?? {};
+        for (const [sourceId, assignerId] of Object.entries(assigners)) {
+            if (assignerId !== playerId) continue;
+            const source = allPlayers
+                .flatMap((p) => p.battlefield)
+                .find((c) => c.id === sourceId);
+            if (!source) continue;
+            const power = Math.max(0, source.power ?? 0);
             const total = Object.values(
-                combat.damageAssignments?.[attackerId] ?? {}
+                combat.damageAssignments?.[sourceId] ?? {}
             ).reduce((s, n) => s + n, 0);
             if (total !== power) return false;
         }
         return true;
-    }, [
-        isAssigningDamage,
-        combat,
-        blockersPerAttacker,
-        allPlayers,
-        activePlayerId,
-    ]);
+    }, [isAssigningDamage, combat, allPlayers, playerId]);
 
     const handlePass = useCallback(async () => {
         if (isBusy || !hasPriority || isAutoPass) return;

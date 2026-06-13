@@ -200,16 +200,21 @@ export const balance: CardDefinition = {
     ],
 };
 
-// export const benalishHero: CardDefinition = {
-//     id: "11600105-56c6-4073-a4a6-8469030b39c9",
-//     name: "Benalish Hero",
-//     oracleText: "Banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-//     manaCost: { W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Soldier"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Benalish Hero — vanilla 1/1 with banding (CR 702.21). The keyword lives in
+// staticAbilities[]; the combat engine reads it to expand band-blocking and
+// shift combat-damage assignment authority (CR 702.21j-k).
+export const benalishHero: CardDefinition = {
+    id: "11600105-56c6-4073-a4a6-8469030b39c9",
+    name: "Benalish Hero",
+    oracleText:
+        "Banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
+    manaCost: { W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Soldier"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["banding"],
+};
 
 export const blackWard: CardDefinition = makeColorWard({
     id: "15967a39-303f-457d-bcde-51837c8d63e1",
@@ -729,16 +734,21 @@ export const lance: CardDefinition = {
     ],
 };
 
-// export const mesaPegasus: CardDefinition = {
-//     id: "eaac88da-d19e-4771-944c-3709963d04e7",
-//     name: "Mesa Pegasus",
-//     oracleText: "Flying; banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Pegasus"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Mesa Pegasus — 1/1 with flying + banding. Both keywords coexist in
+// staticAbilities[]; flying governs evasion (CR 702.9) and banding governs
+// combat-damage assignment (CR 702.21).
+export const mesaPegasus: CardDefinition = {
+    id: "eaac88da-d19e-4771-944c-3709963d04e7",
+    name: "Mesa Pegasus",
+    oracleText:
+        "Flying; banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
+    manaCost: { X: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Pegasus"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flying", "banding"],
+};
 
 // Northern Paladin — "{W}{W}, {T}: Destroy target black creature." (CR 701.7
 // destroy, 202.2 color filter on target).
@@ -5678,16 +5688,19 @@ export const thicketBasilisk: CardDefinition = {
     delayedTriggers: [combatKillDelayed("basilisk-combat-kill-destroy")],
 };
 
-// export const timberWolves: CardDefinition = {
-//     id: "bc2570a4-eef9-430d-b6c2-cd51d29b9d01",
-//     name: "Timber Wolves",
-//     oracleText: "Banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-//     manaCost: { G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Wolf"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Timber Wolves — vanilla 1/1 Wolf with banding (CR 702.21).
+export const timberWolves: CardDefinition = {
+    id: "bc2570a4-eef9-430d-b6c2-cd51d29b9d01",
+    name: "Timber Wolves",
+    oracleText:
+        "Banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Wolf"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["banding"],
+};
 
 export const tranquility: CardDefinition = {
     id: "774cc5a6-3a69-4812-add4-eb5eb6389238",
@@ -6359,13 +6372,34 @@ export const glassesOfUrza: CardDefinition = {
     ],
 };
 
-// export const helmOfChatzuk: CardDefinition = {
-//     id: "3792c6ef-c4e6-4923-9a51-7d28fbc5c393",
-//     name: "Helm of Chatzuk",
-//     oracleText: "{1}, {T}: Target creature gains banding until end of turn. (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding a player controls are blocking or being blocked by a creature, that player divides that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-// };
+// Helm of Chatzuk — "{1}, {T}: Target creature gains banding until end of
+// turn." Temporary keyword grant (CR 611.1b) via grantStaticAbility with an
+// end-of-turn duration, mirroring Jump (flying).
+export const helmOfChatzuk: CardDefinition = {
+    id: "3792c6ef-c4e6-4923-9a51-7d28fbc5c393",
+    name: "Helm of Chatzuk",
+    oracleText: "{1}, {T}: Target creature gains banding until end of turn.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "helm-of-chatzuk-grant-banding",
+            oracleText:
+                "{1}, {T}: Target creature gains banding until end of turn.",
+            cost: { mana: { X: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.grantStaticAbility(target, "banding", {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
 
 // Howling Mine — "At the beginning of each player's draw step, if this
 // artifact is untapped, that player draws an additional card."

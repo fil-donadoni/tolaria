@@ -30,6 +30,11 @@ import { getEffectivePower, getEffectiveToughness } from "./layers";
 import { isProtectedFromSource } from "./protection";
 import { collectTriggers } from "./triggers";
 import { hasAnyLegalBlock, getRequiredAttackerIds } from "./combat";
+import {
+    getEffectiveBlockGraph,
+    getDamageAssignerId,
+    type BlockGraph,
+} from "./banding";
 
 /** Ordered sequence of all phases/steps in a turn. */
 const PHASE_ORDER: Phase[] = [
@@ -364,19 +369,11 @@ function hasDrawSkipReplacement(state: GameState, playerId: string): boolean {
     return false;
 }
 
-/** Inverts blockerAssignments (blockerId→attackerIds[]) to attackerId→blockerId[]. */
+/** attackerId → blocker ids, band-expanded (CR 702.21e): a blocker assigned to
+ *  any band member blocks every member. Reduces to a plain inversion of
+ *  blockerAssignments when no bands are declared. */
 function getBlockersPerAttacker(state: GameState): Record<string, string[]> {
-    const result: Record<string, string[]> = {};
-    if (!state.combat) return result;
-    for (const [blockerId, attackerIds] of Object.entries(
-        state.combat.blockerAssignments
-    )) {
-        for (const attackerId of attackerIds) {
-            if (!result[attackerId]) result[attackerId] = [];
-            result[attackerId].push(blockerId);
-        }
-    }
-    return result;
+    return getEffectiveBlockGraph(state).blockersByAttacker;
 }
 
 function getCardPower(state: GameState, card: CardInstanceState): number {
@@ -387,22 +384,45 @@ function getCardToughness(state: GameState, card: CardInstanceState): number {
     return getEffectiveToughness(state, card);
 }
 
-/** Returns true if any attacker dealing damage in this step has 2+ blockers. */
-function combatDamageNeedsManual(state: GameState, kind: DamageKind): boolean {
-    if (!state.combat) return false;
-    const activePlayer = getPlayer(state, state.activePlayerId);
-    const blockersPerAttacker = getBlockersPerAttacker(state);
+/** Looks up a creature on either battlefield by instance id. */
+function findCreature(
+    state: GameState,
+    id: string
+): CardInstanceState | undefined {
+    for (const player of state.players) {
+        const found = player.battlefield.find((c) => c.id === id);
+        if (found) return found;
+    }
+    return undefined;
+}
+
+/** A combat-damage source needs a manual assignment choice when it deals
+ *  damage this step and has 2+ targets to split among (CR 510.1c/d). For an
+ *  attacker that means 2+ blockers; for a blocker (only possible under banding)
+ *  that means it blocks 2+ band members. Returns the set of such source ids. */
+function getManualAssignmentSourceIds(
+    state: GameState,
+    kind: DamageKind,
+    graph: BlockGraph
+): string[] {
+    const ids: string[] = [];
+    const dealsAndHasPower = (c: CardInstanceState | undefined): boolean =>
+        !!c && dealsDamageIn(c, kind) && getCardPower(state, c) > 0;
     for (const [attackerId, blockerIds] of Object.entries(
-        blockersPerAttacker
+        graph.blockersByAttacker
     )) {
         if (blockerIds.length < 2) continue;
-        const attacker = activePlayer.battlefield.find(
-            (c) => c.id === attackerId
-        );
-        if (!attacker) continue;
-        if (dealsDamageIn(attacker, kind)) return true;
+        if (dealsAndHasPower(findCreature(state, attackerId)))
+            ids.push(attackerId);
     }
-    return false;
+    for (const [blockerId, attackerIds] of Object.entries(
+        graph.attackersByBlocker
+    )) {
+        if (attackerIds.length < 2) continue;
+        if (dealsAndHasPower(findCreature(state, blockerId)))
+            ids.push(blockerId);
+    }
+    return ids;
 }
 
 /** Build auto damage assignments for attackers with 0 or 1 blocker. */
@@ -526,6 +546,22 @@ function buildDefaultDamageAssignments(
             result[attackerId] = assignment;
         }
     }
+
+    // Blocker sources with 2+ targets exist only under banding (CR 702.21e): a
+    // blocker blocking a band. Seed all of its power onto the first band member
+    // — the assigning player (the attacker, CR 702.21k) redivides in the modal.
+    const { attackersByBlocker } = getEffectiveBlockGraph(state);
+    for (const [blockerId, attackerIds] of Object.entries(attackersByBlocker)) {
+        if (attackerIds.length < 2) continue;
+        const blocker = findCreature(state, blockerId);
+        if (!blocker || !dealsDamageIn(blocker, kind)) continue;
+        const power = getCardPower(state, blocker);
+        const assignment: Record<string, number> = {};
+        attackerIds.forEach((id, i) => {
+            assignment[id] = i === 0 ? power : 0;
+        });
+        result[blockerId] = assignment;
+    }
     return result;
 }
 
@@ -550,7 +586,10 @@ export function applyAllCombatDamage(
     const activePlayer = getPlayer(state, state.activePlayerId);
     const defenderId = getOpponentId(state, state.activePlayerId);
     const defender = getPlayer(state, defenderId);
-    const blockersPerAttacker = getBlockersPerAttacker(state);
+    // Band-expanded block graph (CR 702.21e): a blocker assigned to one band
+    // member blocks the whole band, and every member is blocked.
+    const { blockersByAttacker, attackersByBlocker } =
+        getEffectiveBlockGraph(state);
 
     // Track damage received: cardId → total damage
     const damageReceived: Record<string, number> = {};
@@ -636,18 +675,21 @@ export function applyAllCombatDamage(
         }
     }
 
+    // --- Attacker damage (CR 510). Unblocked attackers hit the defender;
+    // blocked attackers (including band members blocked only by association)
+    // deal per their assignment among blockers / the defender on trample. ---
     for (const attackerId of state.combat.attackerIds) {
         const attacker = activePlayer.battlefield.find(
             (c) => c.id === attackerId
         );
         if (!attacker) continue; // removed before damage (e.g. killed by instant)
+        if (!dealsDamageIn(attacker, kind)) continue;
 
-        const blockers = blockersPerAttacker[attackerId] ?? [];
+        const blockers = blockersByAttacker[attackerId] ?? [];
         const attackerPower = getCardPower(state, attacker);
-        const attackerDeals = dealsDamageIn(attacker, kind);
 
         if (blockers.length === 0) {
-            if (attackerDeals && attackerPower > 0) {
+            if (attackerPower > 0) {
                 // CR 615 — Forcefield: cap damage from unblocked creature
                 let damage = attackerPower;
                 const caps = state.damageCapShields;
@@ -673,38 +715,50 @@ export function applyAllCombatDamage(
                 );
             }
         } else {
-            if (attackerDeals) {
-                const assignments = damageAssignments[attackerId] ?? {};
-                for (const [targetId, damage] of Object.entries(assignments)) {
-                    if (damage <= 0) continue;
-                    if (targetId === defenderId) {
-                        applyOneCombatDamage(
-                            attacker,
-                            { type: "player", id: defenderId },
-                            damage
-                        );
-                    } else {
-                        applyOneCombatDamage(
-                            attacker,
-                            { type: "permanent", id: targetId },
-                            damage
-                        );
-                    }
-                }
-            }
-
-            for (const blockerId of blockers) {
-                const blocker = defender.battlefield.find(
-                    (c) => c.id === blockerId
+            const assignments = damageAssignments[attackerId] ?? {};
+            for (const [targetId, damage] of Object.entries(assignments)) {
+                if (damage <= 0) continue;
+                applyOneCombatDamage(
+                    attacker,
+                    targetId === defenderId
+                        ? { type: "player", id: defenderId }
+                        : { type: "permanent", id: targetId },
+                    damage
                 );
-                if (!blocker) continue;
-                if (!dealsDamageIn(blocker, kind)) continue;
-                const blockerPower = getCardPower(state, blocker);
-                if (blockerPower <= 0) continue;
+            }
+        }
+    }
+
+    // --- Blocker damage (CR 510). Each blocker deals once. A blocker blocking
+    // a single creature deals its full power to it; a blocker blocking a band
+    // (CR 702.21e) splits its power among the members per the assignment the
+    // attacking player chose (CR 702.21k). ---
+    for (const [blockerId, blockedAttackerIds] of Object.entries(
+        attackersByBlocker
+    )) {
+        const blocker = defender.battlefield.find((c) => c.id === blockerId);
+        if (!blocker) continue;
+        if (!dealsDamageIn(blocker, kind)) continue;
+        const blockerPower = getCardPower(state, blocker);
+        if (blockerPower <= 0) continue;
+
+        if (blockedAttackerIds.length <= 1) {
+            const targetId = blockedAttackerIds[0];
+            if (targetId) {
                 applyOneCombatDamage(
                     blocker,
-                    { type: "permanent", id: attackerId },
+                    { type: "permanent", id: targetId },
                     blockerPower
+                );
+            }
+        } else {
+            const assignments = damageAssignments[blockerId] ?? {};
+            for (const [targetId, damage] of Object.entries(assignments)) {
+                if (damage <= 0) continue;
+                applyOneCombatDamage(
+                    blocker,
+                    { type: "permanent", id: targetId },
+                    damage
                 );
             }
         }
@@ -912,14 +966,41 @@ function performPhaseEntry(state: GameState): void {
                     state.phase === "FIRST_STRIKE_DAMAGE"
                         ? "first-strike"
                         : "regular";
-                const needsManual = combatDamageNeedsManual(state, kind);
-                if (needsManual) {
-                    // Pre-fill default assignments and wait for active player
+                const graph = getEffectiveBlockGraph(state);
+                const manualSources = getManualAssignmentSourceIds(
+                    state,
+                    kind,
+                    graph
+                );
+                if (manualSources.length > 0) {
+                    // Pre-fill default assignments and wait for the assigners.
                     state.combat.damageAssignments =
                         buildDefaultDamageAssignments(state, kind);
                     state.combat.damageConfirmed = false;
+                    // CR 702.21j-k: compute who assigns each multi-target
+                    // source. Normally the source's controller; banding shifts
+                    // it to the controller of the banding creature(s) opposite.
+                    const assignerIds: Record<string, string> = {};
+                    for (const sourceId of manualSources) {
+                        const source = findCreature(state, sourceId);
+                        if (!source) continue;
+                        const targets =
+                            graph.blockersByAttacker[sourceId] ??
+                            graph.attackersByBlocker[sourceId] ??
+                            [];
+                        assignerIds[sourceId] = getDamageAssignerId(
+                            state,
+                            source,
+                            targets
+                        );
+                    }
+                    state.combat.damageAssignerIds = assignerIds;
+                    state.combat.damageAssignmentConfirmedBy = [];
                 } else {
-                    // All auto: apply immediately
+                    // All auto: apply immediately. Clear any per-source assigner
+                    // state left from a prior (first-strike) damage step.
+                    state.combat.damageAssignerIds = undefined;
+                    state.combat.damageAssignmentConfirmedBy = undefined;
                     applyAllCombatDamage(
                         state,
                         buildAutoDamageAssignments(state, kind),

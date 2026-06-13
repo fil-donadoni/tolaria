@@ -267,3 +267,75 @@ describe("computeSoloViewerId", () => {
         ).toBe("p2");
     });
 });
+
+describe("damage-assignment authority (CR 702.21j-k)", () => {
+    const bandedDamageCombat: Combat = {
+        attackerIds: ["hero", "bear"],
+        confirmed: true,
+        blockerAssignments: { blk: ["hero"] },
+        blockersConfirmed: true,
+        bands: [{ bandId: "b1", memberIds: ["hero", "bear"] }],
+        damageConfirmed: false,
+        // Banding hands the blocker's damage assignment to the attacker (p1).
+        damageAssignerIds: { blk: "p1" },
+        damageAssignmentConfirmedBy: [],
+    };
+
+    it("no player has priority while a damage step is open", () => {
+        expect(
+            computeHasPriority(
+                makePriorityCtx({
+                    phase: "COMBAT_DAMAGE",
+                    playerId: "p1",
+                    priorityPlayerId: "p1",
+                    combat: bandedDamageCombat,
+                })
+            )
+        ).toBe(false);
+    });
+
+    it("solo viewer steers to the outstanding assigner (defender)", () => {
+        const combat: Combat = {
+            attackerIds: ["atk"],
+            confirmed: true,
+            blockerAssignments: { guard: ["atk"], decoy: ["atk"] },
+            blockersConfirmed: true,
+            damageConfirmed: false,
+            damageAssignerIds: { atk: "p2" },
+            damageAssignmentConfirmedBy: [],
+        };
+        expect(
+            computeSoloViewerId(
+                makeSoloCtx({
+                    phase: "COMBAT_DAMAGE",
+                    activePlayerId: "p1",
+                    priorityPlayerId: "p1",
+                    combat,
+                })
+            )
+        ).toBe("p2");
+    });
+
+    it("solo viewer ignores an assigner who already confirmed", () => {
+        const combat: Combat = {
+            attackerIds: ["atk"],
+            confirmed: true,
+            blockerAssignments: { guard: ["atk"], decoy: ["atk"] },
+            blockersConfirmed: true,
+            damageConfirmed: false,
+            damageAssignerIds: { atk: "p2" },
+            damageAssignmentConfirmedBy: ["p2"],
+        };
+        // p2 done → falls back to priority player.
+        expect(
+            computeSoloViewerId(
+                makeSoloCtx({
+                    phase: "COMBAT_DAMAGE",
+                    activePlayerId: "p1",
+                    priorityPlayerId: "p1",
+                    combat,
+                })
+            )
+        ).toBe("p1");
+    });
+});
