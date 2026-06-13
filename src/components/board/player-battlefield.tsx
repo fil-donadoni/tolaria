@@ -23,8 +23,10 @@ import {
     isTapLockedBySummoningSickness,
 } from "~/lib/card-utils";
 import { COMBAT_GROUP_RING, COMBAT_GROUP_BG } from "~/lib/combat-colors";
+import { outstandingDamageAssigner } from "~/lib/priority";
 import BattlefieldCard, { type CardVisualState } from "./battlefield-card";
 import DamageAssignmentPanel from "./damage-assignment-panel";
+import BandFormationPanel from "./band-formation-panel";
 import ManaChoicePicker from "./mana-choice-picker";
 import ValidationToast from "./validation-toast";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
@@ -150,12 +152,21 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         !!combat.pendingBlockerId &&
         playerId !== activePlayerId;
 
+    // CR 702.21j-k: the player who assigns may be the defender, so gate on the
+    // outstanding assigner rather than always the active player.
     const isAssigningDamage =
         (phase === "COMBAT_DAMAGE" || phase === "FIRST_STRIKE_DAMAGE") &&
         !!combat &&
         combat.damageConfirmed === false &&
         isMe &&
-        playerId === activePlayerId;
+        playerId ===
+            outstandingDamageAssigner({
+                playerId,
+                activePlayerId,
+                priorityPlayerId: activePlayerId,
+                phase,
+                combat,
+            });
 
     // --- Combat derived state ---
 
@@ -174,20 +185,6 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
             if (attackersWithBlockers.has(attackerId)) {
                 map[attackerId] = colorIdx % COMBAT_GROUP_RING.length;
                 colorIdx++;
-            }
-        }
-        return map;
-    }, [combat]);
-
-    const blockersPerAttacker = useMemo(() => {
-        const map: Record<string, string[]> = {};
-        if (!combat) return map;
-        for (const [blockerId, attackerIds] of Object.entries(
-            combat.blockerAssignments
-        )) {
-            for (const attackerId of attackerIds) {
-                if (!map[attackerId]) map[attackerId] = [];
-                map[attackerId].push(blockerId);
             }
         }
         return map;
@@ -878,8 +875,6 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         return groupByName(cards).map(renderGroup);
     }
 
-    const opponent = allPlayers.find((p) => p.id !== activePlayerId);
-
     return (
         <div
             className={`flex-1 min-h-0 w-full px-4 py-2 flex flex-col gap-2 relative ${isMe ? "" : "flex-col-reverse"}`}
@@ -896,16 +891,27 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 </div>
             </div>
 
+            {isSelectingAttackers && combat && (
+                <BandFormationPanel
+                    combat={combat}
+                    attackers={player.battlefield.filter((c) =>
+                        combat.attackerIds.includes(c.id)
+                    )}
+                    gameId={gameId}
+                    playerId={playerId}
+                />
+            )}
+
             {isAssigningDamage && (
                 <DamageAssignmentPanel
                     combat={combat!}
-                    player={player}
-                    opponentBattlefield={opponent?.battlefield ?? []}
-                    blockersPerAttacker={blockersPerAttacker}
-                    combatGroupColors={combatGroupColors}
+                    allPlayers={allPlayers}
                     gameId={gameId}
                     playerId={playerId}
-                    defenderId={opponent?.id ?? ""}
+                    defenderId={
+                        allPlayers.find((p) => p.id !== activePlayerId)?.id ??
+                        ""
+                    }
                 />
             )}
 

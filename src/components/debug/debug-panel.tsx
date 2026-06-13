@@ -47,6 +47,26 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        label: "W28: Banding — Benalish Hero + bear band, redistribute damage (CR 702.21)",
+        cards: [
+            // Move to combat and attack. Use the band panel to group Benalish
+            // Hero (banding) with the Grizzly Bears: the band is blocked as a
+            // group, and because a banding creature is involved YOU divide the
+            // blocker's combat damage among the band members (CR 702.21k) —
+            // pile it on the 1/1 Hero to save the bear. Helm of Chatzuk can
+            // grant banding to another attacker ({1}, {T}). The opposing
+            // 3/3 is the blocker.
+            { name: "Benalish Hero", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Mesa Pegasus", owner: "me" as const },
+            { name: "Helm of Chatzuk", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, count: 1 },
+            { name: "Hill Giant", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "W27: Copy spell — Fork (copy instant/sorcery, copy is red, CR 707.10)",
         cards: [
             // Cast Lightning Bolt at the opponent, then in response cast Fork

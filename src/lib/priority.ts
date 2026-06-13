@@ -42,13 +42,37 @@ export function isSelectingBlockers(ctx: HasPriorityCtx): boolean {
     );
 }
 
-export function isAssigningDamage(ctx: HasPriorityCtx): boolean {
+/** The next player still owing a damage-assignment choice this step (CR
+ *  702.21j-k can hand authority to the defending player). Mirrors
+ *  `outstandingDamageAssigner` in convex/gre/banding.ts. Falls back to the
+ *  active player when no per-source authority map is present (legacy /
+ *  non-banding combat). */
+export function outstandingDamageAssigner(ctx: HasPriorityCtx): string {
+    const combat = ctx.combat;
+    if (!combat) return ctx.activePlayerId;
+    const assigners = combat.damageAssignerIds;
+    if (!assigners) return ctx.activePlayerId;
+    const confirmed = new Set(combat.damageAssignmentConfirmedBy ?? []);
+    for (const playerId of Object.values(assigners)) {
+        if (!confirmed.has(playerId)) return playerId;
+    }
+    return ctx.activePlayerId;
+}
+
+/** True while a combat-damage step is awaiting manual assignment. No player
+ *  receives priority until damage is applied. */
+export function isDamageStepOpen(ctx: HasPriorityCtx): boolean {
     return (
         (ctx.phase === "COMBAT_DAMAGE" ||
             ctx.phase === "FIRST_STRIKE_DAMAGE") &&
         !!ctx.combat &&
-        ctx.combat.damageConfirmed === false &&
-        ctx.playerId === ctx.activePlayerId
+        ctx.combat.damageConfirmed === false
+    );
+}
+
+export function isAssigningDamage(ctx: HasPriorityCtx): boolean {
+    return (
+        isDamageStepOpen(ctx) && ctx.playerId === outstandingDamageAssigner(ctx)
     );
 }
 
@@ -74,7 +98,7 @@ export function computeHasPriority(ctx: HasPriorityCtx): boolean {
         !ctx.pendingTarget &&
         !isSelectingAttackers(ctx) &&
         !isSelectingBlockers(ctx) &&
-        !isAssigningDamage(ctx) &&
+        !isDamageStepOpen(ctx) &&
         !isWaitingOnOpponent(ctx)
     );
 }
@@ -117,6 +141,25 @@ export function computeSoloViewerId(ctx: SoloViewerCtx): string {
     ) {
         const defender = ctx.playerIds.find((id) => id !== ctx.activePlayerId);
         if (defender) return defender;
+    }
+
+    // CR 702.21j-k: when banding hands damage-assignment authority to the
+    // defending player, steer the solo viewer to whoever still owes a choice.
+    if (
+        (ctx.phase === "COMBAT_DAMAGE" ||
+            ctx.phase === "FIRST_STRIKE_DAMAGE") &&
+        ctx.combat &&
+        ctx.combat.damageConfirmed === false
+    ) {
+        const assigners = ctx.combat.damageAssignerIds;
+        if (assigners) {
+            const confirmed = new Set(
+                ctx.combat.damageAssignmentConfirmedBy ?? []
+            );
+            for (const playerId of Object.values(assigners)) {
+                if (!confirmed.has(playerId)) return playerId;
+            }
+        }
     }
 
     return ctx.priorityPlayerId;

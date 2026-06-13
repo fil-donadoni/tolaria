@@ -769,10 +769,28 @@ export type GameState = {
         /** Blocker currently being assigned by the defending player (visible to both clients). */
         pendingBlockerId?: string;
         blockersConfirmed: boolean;
-        /** attackerId → { blockerId/defenderId: damage } for damage distribution. */
+        /** sourceId → { targetId/defenderId: damage } for damage distribution.
+         *  A source is any combat-damage dealer: an attacker (targets are its
+         *  blockers / the defender on trample) or a blocker (targets are the
+         *  band members it is blocking). Banding (CR 702.21) is the only thing
+         *  that produces blocker sources with 2+ targets. */
         damageAssignments?: Record<string, Record<string, number>>;
         /** false = waiting for manual assignment, undefined = auto-applied or not yet at damage step. */
         damageConfirmed?: boolean;
+        /** Attacking bands declared this combat (CR 702.21e). A band is a
+         *  group of attacking creatures (1+ with banding, at most 1 without)
+         *  that attacks as a unit and is blocked as a group. */
+        bands?: { bandId: string; memberIds: string[] }[];
+        /** sourceId → playerId responsible for assigning that source's combat
+         *  damage this step. Normally the source's controller; banding
+         *  (CR 702.21j-k) shifts authority to the controller of the banding
+         *  creature(s) among the source's combat opponents. Only populated for
+         *  sources that need a manual choice (2+ targets). */
+        damageAssignerIds?: Record<string, string>;
+        /** Player IDs that have confirmed their portion of the damage-
+         *  assignment step. Combat damage applies once every distinct assigner
+         *  in `damageAssignerIds` has confirmed. */
+        damageAssignmentConfirmedBy?: string[];
     };
     /** Monotonic counter advanced by each grantAbility() call. Used to
      *  generate deterministic `grant-N` ids for GrantedAbilityInstance so

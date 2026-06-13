@@ -249,6 +249,10 @@ import {
     netherShadow,
     kudzu,
     fork,
+    benalishHero,
+    mesaPegasus,
+    timberWolves,
+    helmOfChatzuk,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -313,6 +317,13 @@ import {
     emitBlockersConfirmedEvents,
 } from "../../../gre/phases";
 import { tryGetCardById } from "../../index";
+import {
+    getEffectiveBlockGraph,
+    getDamageAssignerId,
+    isLegalBandComposition,
+    outstandingDamageAssigner,
+    hasBanding,
+} from "../../../gre/banding";
 import { compactState, expandState } from "../../../gre/serialize";
 import type { CardDefinition, CardType } from "../../types";
 import {
@@ -18689,5 +18700,383 @@ describe("Fork (copy target instant or sorcery spell, CR 707.10)", () => {
         const copy = round.stack.find((s) => s.isCopy);
         expect(copy).toBeDefined();
         expect(copy!.colorOverride).toEqual(["R"]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Banding (CR 702.21) — W28: benalishHero, mesaPegasus, timberWolves,
+// helmOfChatzuk. Covers keyword recognition, band-composition legality,
+// block-as-group, and the two damage-assignment authority shifts (702.21j-k).
+// ---------------------------------------------------------------------------
+
+describe("Banding keyword recognition (CR 702.21)", () => {
+    it("Benalish Hero, Timber Wolves are 1/1 vanilla with banding", () => {
+        expect(benalishHero.staticAbilities).toContain("banding");
+        expect(benalishHero.power).toBe(1);
+        expect(benalishHero.toughness).toBe(1);
+        expect(timberWolves.staticAbilities).toContain("banding");
+    });
+
+    it("Mesa Pegasus has both flying and banding", () => {
+        expect(mesaPegasus.staticAbilities).toContain("flying");
+        expect(mesaPegasus.staticAbilities).toContain("banding");
+    });
+
+    it("Mesa Pegasus flying still gates blocking (CR 702.9b)", () => {
+        const peg = makeInstance(mesaPegasus.id, {
+            id: "peg",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const ground = makeInstance(grizzlyBearsId(), {
+            id: "ground",
+            controllerId: "p2",
+        });
+        const flyer = makeInstance(mesaPegasus.id, {
+            id: "flyer",
+            controllerId: "p2",
+        });
+        expect(validateBlockerEligibility(peg, ground, [ground]).eligible).toBe(
+            false
+        );
+        // A flyer can block a flyer.
+        expect(validateBlockerEligibility(peg, flyer, [flyer]).eligible).toBe(
+            true
+        );
+    });
+});
+
+describe("Band composition legality (CR 702.21e)", () => {
+    const banding = () => makeInstance(benalishHero.id);
+    const plain = () => makeInstance(grizzlyBearsId());
+
+    it("accepts 1+ banding plus at most one without", () => {
+        expect(isLegalBandComposition([banding(), plain()])).toBe(true);
+        expect(isLegalBandComposition([banding(), banding()])).toBe(true);
+        expect(isLegalBandComposition([banding(), banding(), plain()])).toBe(
+            true
+        );
+    });
+
+    it("rejects bands with no banding creature", () => {
+        expect(isLegalBandComposition([plain(), plain()])).toBe(false);
+    });
+
+    it("rejects more than one creature without banding", () => {
+        expect(isLegalBandComposition([banding(), plain(), plain()])).toBe(
+            false
+        );
+    });
+
+    it("rejects a band of fewer than two creatures", () => {
+        expect(isLegalBandComposition([banding()])).toBe(false);
+    });
+});
+
+describe("Band blocked as a group (CR 702.21e)", () => {
+    function bandState(blockTarget: string) {
+        const hero = makeInstance(benalishHero.id, {
+            id: "hero",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const bear = makeInstance(grizzlyBearsId(), {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        // 0/5 wall: deals no combat damage, just absorbs the band.
+        const wall = makeInstance(grizzlyBearsId(), {
+            id: "wall",
+            controllerId: "p2",
+            ownerId: "p2",
+            power: 0,
+            toughness: 5,
+            isBlocking: true,
+        });
+        return makeState({
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [hero, bear] }),
+                makePlayer("p2", { battlefield: [wall], life: 20 }),
+            ],
+            combat: {
+                attackerIds: ["hero", "bear"],
+                confirmed: true,
+                blockerAssignments: { wall: [blockTarget] },
+                blockersConfirmed: true,
+                bands: [{ bandId: "b1", memberIds: ["hero", "bear"] }],
+            },
+        });
+    }
+
+    it("expands a single block to every band member", () => {
+        const graph = getEffectiveBlockGraph(bandState("hero"));
+        expect(graph.blockersByAttacker["hero"]).toEqual(["wall"]);
+        expect(graph.blockersByAttacker["bear"]).toEqual(["wall"]);
+        expect(new Set(graph.attackersByBlocker["wall"])).toEqual(
+            new Set(["hero", "bear"])
+        );
+    });
+
+    it("a band member with no own blocker deals no damage to the player", async () => {
+        const state = bandState("hero");
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        // hero and bear both deal into the wall (band-as-group); neither hits p2.
+        applyAllCombatDamage(state, {
+            hero: { wall: 1 },
+            bear: { wall: 2 },
+        });
+        // Without banding, bear (2/2, unblocked) would have dealt 2 to p2.
+        expect(state.players[1].life).toBe(20);
+        // Wall (0/5) took 3, survives.
+        expect(state.players[1].battlefield[0].damageMarked).toBe(3);
+    });
+});
+
+describe("Banding damage authority — defender assigns (CR 702.21j)", () => {
+    function setup() {
+        const atk = makeInstance(grizzlyBearsId(), {
+            id: "atk",
+            controllerId: "p1",
+            ownerId: "p1",
+            power: 2,
+            toughness: 2,
+            isAttacking: true,
+        });
+        const guard = makeInstance(benalishHero.id, {
+            id: "guard",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const decoy = makeInstance(grizzlyBearsId(), {
+            id: "decoy",
+            controllerId: "p2",
+            ownerId: "p2",
+            power: 1,
+            toughness: 1,
+            isBlocking: true,
+        });
+        return makeState({
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [atk] }),
+                makePlayer("p2", { battlefield: [guard, decoy] }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: { guard: ["atk"], decoy: ["atk"] },
+                blockersConfirmed: true,
+            },
+        });
+    }
+
+    it("hands assignment of the blocked attacker's damage to the defender", () => {
+        const state = setup();
+        const atk = state.players[0].battlefield[0];
+        const graph = getEffectiveBlockGraph(state);
+        expect(
+            getDamageAssignerId(state, atk, graph.blockersByAttacker["atk"])
+        ).toBe("p2");
+    });
+
+    it("the defender can pile the attacker's damage onto one blocker", async () => {
+        const state = setup();
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        // Defender assigns the attacker's 2 damage to the decoy, sparing the
+        // banding guard. Both blockers still deal 1 each back to the attacker.
+        applyAllCombatDamage(state, { atk: { decoy: 2 } });
+        const p2 = state.players[1];
+        // guard (banding) survives; decoy is dead.
+        expect(p2.battlefield.find((c) => c.id === "guard")).toBeDefined();
+        expect(p2.battlefield.find((c) => c.id === "decoy")).toBeUndefined();
+        // attacker (2/2) took 1 + 1 and dies.
+        expect(state.players[0].battlefield).toHaveLength(0);
+    });
+});
+
+describe("Banding damage authority — attacker assigns blocker damage to band members (CR 702.21k)", () => {
+    function setup() {
+        const hero = makeInstance(benalishHero.id, {
+            id: "hero",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const bear = makeInstance(grizzlyBearsId(), {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            power: 2,
+            toughness: 2,
+            isAttacking: true,
+        });
+        const blocker = makeInstance(grizzlyBearsId(), {
+            id: "blk",
+            controllerId: "p2",
+            ownerId: "p2",
+            power: 3,
+            toughness: 3,
+            isBlocking: true,
+        });
+        return makeState({
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [hero, bear] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+            combat: {
+                attackerIds: ["hero", "bear"],
+                confirmed: true,
+                blockerAssignments: { blk: ["hero"] },
+                blockersConfirmed: true,
+                bands: [{ bandId: "b1", memberIds: ["hero", "bear"] }],
+            },
+        });
+    }
+
+    it("hands assignment of the blocker's damage to the attacking player", () => {
+        const state = setup();
+        const blk = state.players[1].battlefield[0];
+        const graph = getEffectiveBlockGraph(state);
+        expect(
+            getDamageAssignerId(state, blk, graph.attackersByBlocker["blk"])
+        ).toBe("p1");
+    });
+
+    it("the attacker can pile the blocker's damage onto the expendable banding creature", async () => {
+        const state = setup();
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        // Attacker assigns the blocker's 3 damage entirely to the 1/1 hero,
+        // sparing the 2/2 bear. The band deals 1 + 2 = 3 back, killing blk.
+        applyAllCombatDamage(state, {
+            hero: { blk: 1 },
+            bear: { blk: 2 },
+            blk: { hero: 3, bear: 0 },
+        });
+        const p1 = state.players[0];
+        expect(p1.battlefield.find((c) => c.id === "hero")).toBeUndefined();
+        expect(p1.battlefield.find((c) => c.id === "bear")).toBeDefined();
+        // blocker (3/3) took 3 and dies.
+        expect(state.players[1].battlefield).toHaveLength(0);
+    });
+});
+
+describe("Helm of Chatzuk (CR 611.1b temporary keyword grant)", () => {
+    it("grants banding to the target creature until end of turn", () => {
+        const helm = makeInstance(helmOfChatzuk.id, { id: "helm" });
+        const lion = makeInstance(grizzlyBearsId(), {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [helm, lion] })],
+        });
+        state.stack.push({
+            ...helm,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "helm-of-chatzuk-grant-banding",
+            targets: [{ type: "permanent", id: "lion" }],
+        });
+        resolveTopOfStack(state);
+        const lionAfter = state.players[0].battlefield.find(
+            (c) => c.id === "lion"
+        )!;
+        expect(hasBanding(lionAfter)).toBe(true);
+    });
+});
+
+describe("Banding wire format + serialization (W28)", () => {
+    function bandedCombatState() {
+        const hero = makeInstance(benalishHero.id, {
+            id: "hero",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const bear = makeInstance(grizzlyBearsId(), {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const blk = makeInstance(grizzlyBearsId(), {
+            id: "blk",
+            controllerId: "p2",
+            ownerId: "p2",
+            power: 3,
+            toughness: 3,
+            isBlocking: true,
+        });
+        return makeState({
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [hero, bear] }),
+                makePlayer("p2", { battlefield: [blk] }),
+            ],
+            combat: {
+                attackerIds: ["hero", "bear"],
+                confirmed: true,
+                blockerAssignments: { blk: ["hero"] },
+                blockersConfirmed: true,
+                bands: [{ bandId: "b1", memberIds: ["hero", "bear"] }],
+                damageConfirmed: false,
+                damageAssignerIds: { blk: "p1" },
+                damageAssignmentConfirmedBy: [],
+            },
+        });
+    }
+
+    it("banding keyword and band grouping survive projectPublicState", () => {
+        const state = bandedCombatState();
+        const projected = projectPublicState(state, 1, "p1");
+        const projectedHero = projected.players[0].battlefield.find(
+            (c) => c.id === "hero"
+        )!;
+        expect(projectedHero.staticAbilities).toContain("banding");
+        expect(projected.combat?.bands).toEqual([
+            { bandId: "b1", memberIds: ["hero", "bear"] },
+        ]);
+        // Block-as-group still resolves on the projected combat.
+        const graph = getEffectiveBlockGraph(projected as never);
+        expect(new Set(graph.attackersByBlocker["blk"])).toEqual(
+            new Set(["hero", "bear"])
+        );
+    });
+
+    it("bands and damage-authority fields round-trip through serialize", () => {
+        const state = bandedCombatState();
+        const restored = expandState(compactState(state));
+        expect(restored.combat?.bands).toEqual([
+            { bandId: "b1", memberIds: ["hero", "bear"] },
+        ]);
+        expect(restored.combat?.damageAssignerIds).toEqual({ blk: "p1" });
+        expect(restored.combat?.damageAssignmentConfirmedBy).toEqual([]);
+    });
+});
+
+describe("Banding damage-assignment handshake (CR 702.21j-k, confirmDamage)", () => {
+    it("waits for every distinct assigner before applying damage", () => {
+        // Mixed authority: defender (p2) assigns one attacker, attacker (p1)
+        // assigns a blocker. Both must confirm.
+        const combat = {
+            damageAssignerIds: { atk: "p2", blk: "p1" },
+            damageAssignmentConfirmedBy: [] as string[],
+        };
+        expect(outstandingDamageAssigner(combat)).toBe("p2");
+        combat.damageAssignmentConfirmedBy = ["p2"];
+        expect(outstandingDamageAssigner(combat)).toBe("p1");
+        combat.damageAssignmentConfirmedBy = ["p2", "p1"];
+        expect(outstandingDamageAssigner(combat)).toBeUndefined();
+    });
+
+    it("returns undefined when there is no authority map", () => {
+        expect(outstandingDamageAssigner({})).toBeUndefined();
     });
 });

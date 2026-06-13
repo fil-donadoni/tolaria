@@ -107,6 +107,12 @@ export interface Combat {
     blockersConfirmed: boolean;
     damageAssignments?: Record<string, Record<string, number>>;
     damageConfirmed?: boolean;
+    /** Attacking bands declared this combat (CR 702.21e). */
+    bands?: { bandId: string; memberIds: string[] }[];
+    /** sourceId → playerId responsible for assigning that source's damage. */
+    damageAssignerIds?: Record<string, string>;
+    /** Players that have confirmed their portion of damage assignment. */
+    damageAssignmentConfirmedBy?: string[];
 }
 
 // Zone re-exported from @convex/gre/types above

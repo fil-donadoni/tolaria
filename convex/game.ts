@@ -88,6 +88,12 @@ import {
     getRequiredBlockerAssignments,
     getMaxBlockTargets,
 } from "./gre/combat";
+import {
+    hasBanding,
+    getEffectiveBlockGraph,
+    outstandingDamageAssigner,
+    isLegalBandComposition,
+} from "./gre/banding";
 import { checkStateBasedActions } from "./gre/sba";
 import { applyPendingChoiceSubmit } from "./gre/pendingChoiceSubmit";
 
@@ -2273,6 +2279,30 @@ export const toggleAttacker = mutation({
                 );
             }
             state.combat.attackerIds.splice(idx, 1);
+            // CR 702.21e: a deselected attacker leaves any band it was in.
+            // Drop the now-stale member and discard bands that fall below a
+            // legal size (need 2+ members, 1+ with banding).
+            if (state.combat.bands) {
+                state.combat.bands = state.combat.bands
+                    .map((b) => ({
+                        ...b,
+                        memberIds: b.memberIds.filter(
+                            (id) => id !== args.cardInstanceId
+                        ),
+                    }))
+                    .filter((b) => {
+                        if (b.memberIds.length < 2) return false;
+                        const members = b.memberIds
+                            .map((id) =>
+                                player.battlefield.find((c) => c.id === id)
+                            )
+                            .filter((c): c is NonNullable<typeof c> => !!c);
+                        return members.some(hasBanding);
+                    });
+                if (state.combat.bands.length === 0) {
+                    state.combat.bands = undefined;
+                }
+            }
         } else {
             // Select — must be eligible
             const validation = validateAttackerEligibility(
@@ -2284,6 +2314,119 @@ export const toggleAttacker = mutation({
             }
             state.combat.attackerIds.push(args.cardInstanceId);
         }
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** Group selected attackers into a band (CR 702.21e). A band must hold 2+
+ *  attackers, at least one with banding and at most one without, and no
+ *  attacker may belong to more than one band. */
+export const createBand = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        memberIds: v.array(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+
+        if (state.phase !== "DECLARE_ATTACKERS") {
+            throw new Error("Not in DECLARE_ATTACKERS phase");
+        }
+        if (args.playerId !== state.activePlayerId) {
+            throw new Error("Only the active player can form bands");
+        }
+        if (!state.combat || state.combat.confirmed) {
+            throw new Error("Attacker selection is not open");
+        }
+        if (args.memberIds.length < 2) {
+            throw new Error("A band needs at least two creatures");
+        }
+        if (new Set(args.memberIds).size !== args.memberIds.length) {
+            throw new Error("A band cannot list the same creature twice");
+        }
+
+        const player = getPlayer(state, args.playerId);
+        const members = args.memberIds.map((id) => {
+            if (!state.combat!.attackerIds.includes(id)) {
+                throw new Error("All band members must be declared attackers");
+            }
+            const card = player.battlefield.find((c) => c.id === id);
+            if (!card) throw new Error("Band member not on battlefield");
+            return card;
+        });
+
+        // CR 702.21e: 1+ creature with banding, at most 1 without.
+        if (!isLegalBandComposition(members)) {
+            throw new Error(
+                "A band needs a creature with banding and at most one creature without"
+            );
+        }
+
+        // No member may already belong to another band.
+        const existing = state.combat.bands ?? [];
+        for (const b of existing) {
+            if (b.memberIds.some((id) => args.memberIds.includes(id))) {
+                throw new Error("A creature can only be in one band");
+            }
+        }
+
+        const bandId = `band-${[...args.memberIds].sort().join(":")}`;
+        state.combat.bands = [
+            ...existing,
+            { bandId, memberIds: [...args.memberIds] },
+        ];
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** Disband a previously declared band (CR 702.21e — band declaration is part
+ *  of the still-open attacker declaration and can be revised). */
+export const removeBand = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        bandId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+
+        if (state.phase !== "DECLARE_ATTACKERS") {
+            throw new Error("Not in DECLARE_ATTACKERS phase");
+        }
+        if (args.playerId !== state.activePlayerId) {
+            throw new Error("Only the active player can form bands");
+        }
+        if (!state.combat || state.combat.confirmed) {
+            throw new Error("Attacker selection is not open");
+        }
+
+        state.combat.bands = (state.combat.bands ?? []).filter(
+            (b) => b.bandId !== args.bandId
+        );
+        if (state.combat.bands.length === 0) state.combat.bands = undefined;
 
         await saveGameState(
             ctx,
@@ -2574,6 +2717,8 @@ export const setDamageAssignment = mutation({
     args: {
         gameId: v.id("games"),
         playerId: v.string(),
+        // Combat-damage source: an attacker or, under banding, a blocker.
+        // `attackerId` kept as the field name for wire compatibility.
         attackerId: v.string(),
         assignments: v.any(),
     },
@@ -2590,36 +2735,59 @@ export const setDamageAssignment = mutation({
         ) {
             throw new Error("Not in a combat damage step");
         }
-        if (args.playerId !== state.activePlayerId) {
-            throw new Error("Only the active player assigns combat damage");
-        }
         if (!state.combat || state.combat.damageConfirmed !== false) {
             throw new Error("Damage assignment is not open");
         }
 
-        const assignments = args.assignments as Record<string, number>;
-
-        // Validate: attacker exists and total equals power
-        const player = getPlayer(state, args.playerId);
-        const attacker = player.battlefield.find(
-            (c) => c.id === args.attackerId
-        );
-        if (!attacker) throw new Error("Attacker not on battlefield");
-
-        const power = Math.max(0, attacker.power ?? 0);
-        const total = Object.values(assignments).reduce((sum, n) => sum + n, 0);
-        if (total > power) {
+        const sourceId = args.attackerId;
+        // CR 702.21j-k: the assigner is recorded per source. Without banding
+        // this is always the active player (the attacker's controller).
+        const assignerId = state.combat.damageAssignerIds?.[sourceId];
+        if (!assignerId) {
+            throw new Error(`${sourceId} has no damage to assign`);
+        }
+        if (args.playerId !== assignerId) {
             throw new Error(
-                `Damage total (${total}) exceeds attacker power (${power})`
+                "Only the player who controls the banding creature assigns this damage"
             );
         }
 
-        const hasTrample = attacker.staticAbilities.includes("trample");
-        const defenderId = getOpponentId(state, args.playerId);
+        const assignments = args.assignments as Record<string, number>;
 
-        // Validate: all targets are valid blockers of this attacker (or defender if trample)
+        // Locate the source on either battlefield.
+        let source: CardInstanceState | undefined;
+        for (const p of state.players) {
+            const f = p.battlefield.find((c) => c.id === sourceId);
+            if (f) {
+                source = f;
+                break;
+            }
+        }
+        if (!source) throw new Error("Damage source not on battlefield");
+
+        const power = Math.max(0, source.power ?? 0);
+        const total = Object.values(assignments).reduce((sum, n) => sum + n, 0);
+        if (total > power) {
+            throw new Error(
+                `Damage total (${total}) exceeds source power (${power})`
+            );
+        }
+
+        const hasTrample = source.staticAbilities.includes("trample");
+        const activePlayerId = state.activePlayerId;
+        const defenderId = getOpponentId(state, activePlayerId);
+        const graph = getEffectiveBlockGraph(state);
+        const isAttacker = state.combat.attackerIds.includes(sourceId);
+        // Legal targets: an attacker hits its blockers (or the defender with
+        // trample); a blocker hits the band members it is blocking.
+        const legalTargets = new Set(
+            isAttacker
+                ? (graph.blockersByAttacker[sourceId] ?? [])
+                : (graph.attackersByBlocker[sourceId] ?? [])
+        );
+
         for (const targetId of Object.keys(assignments)) {
-            if (targetId === defenderId) {
+            if (isAttacker && targetId === defenderId) {
                 if (!hasTrample) {
                     throw new Error(
                         "Only creatures with trample can assign damage to the defending player"
@@ -2627,19 +2795,17 @@ export const setDamageAssignment = mutation({
                 }
                 continue;
             }
-            if (
-                !state.combat.blockerAssignments[targetId]?.includes(
-                    args.attackerId
-                )
-            ) {
-                throw new Error(`${targetId} is not blocking this attacker`);
+            if (!legalTargets.has(targetId)) {
+                throw new Error(
+                    `${targetId} is not a legal damage target for ${sourceId}`
+                );
             }
         }
 
         if (!state.combat.damageAssignments) {
             state.combat.damageAssignments = {};
         }
-        state.combat.damageAssignments[args.attackerId] = assignments;
+        state.combat.damageAssignments[sourceId] = assignments;
 
         await saveGameState(
             ctx,
@@ -2651,7 +2817,9 @@ export const setDamageAssignment = mutation({
     },
 });
 
-/** Confirm damage assignments and apply all combat damage. */
+/** Confirm one assigner's portion of combat damage. Damage applies once every
+ *  distinct assigner has confirmed (CR 702.21j-k can split authority between
+ *  the attacking and defending players). */
 export const confirmDamage = mutation({
     args: {
         gameId: v.id("games"),
@@ -2670,17 +2838,41 @@ export const confirmDamage = mutation({
         ) {
             throw new Error("Not in a combat damage step");
         }
-        if (args.playerId !== state.activePlayerId) {
-            throw new Error("Only the active player confirms damage");
-        }
         if (!state.combat || state.combat.damageConfirmed !== false) {
             throw new Error("Damage assignment is not open");
+        }
+
+        const assignerIds = state.combat.damageAssignerIds ?? {};
+        const distinctAssigners = new Set(Object.values(assignerIds));
+        if (!distinctAssigners.has(args.playerId)) {
+            throw new Error("You have no combat damage to assign");
+        }
+
+        const confirmedBy = new Set(
+            state.combat.damageAssignmentConfirmedBy ?? []
+        );
+        confirmedBy.add(args.playerId);
+        state.combat.damageAssignmentConfirmedBy = [...confirmedBy];
+
+        // Wait for every distinct assigner before applying damage.
+        const remaining = outstandingDamageAssigner(state.combat);
+        if (remaining) {
+            await saveGameState(
+                ctx,
+                args.gameId,
+                gameState.seq + 1,
+                state,
+                gameState
+            );
+            return;
         }
 
         const kind =
             state.phase === "FIRST_STRIKE_DAMAGE" ? "first-strike" : "regular";
         applyAllCombatDamage(state, state.combat.damageAssignments ?? {}, kind);
         state.combat.damageConfirmed = true;
+        state.combat.damageAssignerIds = undefined;
+        state.combat.damageAssignmentConfirmedBy = undefined;
 
         // Check SBA after combat damage (CR 704.5)
         checkStateBasedActions(state);

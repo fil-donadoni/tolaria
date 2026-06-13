@@ -129,6 +129,12 @@ A **Creature** declared as blocking an **Attacker** during DECLARE_BLOCKERS.
 **Combat Damage**:
 Damage dealt by **Creatures** during COMBAT_DAMAGE (or FIRST_STRIKE_DAMAGE for first strikers).
 
+**Band**:
+A group of attacking **Creatures** (1+ with banding, at most 1 without) declared via banding (CR 702.21e). A band attacks and is blocked as a unit — blocking any member blocks them all. Tracked in `combat.bands`.
+
+**Damage Assignment Authority**:
+Who chooses how a combat-damage **Source** splits its damage among its targets. Normally the source's controller; **Band**ing flips it to the controller of the banding creature(s) opposite (CR 702.21j-k). Tracked per source in `combat.damageAssignerIds`, with a multi-party confirm handshake (`damageAssignmentConfirmedBy`).
+
 ### Mana
 
 **Mana Cost**:
