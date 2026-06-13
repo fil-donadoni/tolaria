@@ -804,6 +804,14 @@ export interface SpellContext {
      *  (e.g. Regeneration's "{G}: Regenerate enchanted creature."). */
     getAttachedTo: (sourceInstanceId: string) => string | undefined;
 
+    /** Moves an Aura from its current host to `newHostId` without it leaving
+     *  the battlefield (CR 303.4 / 701.3d — "attach"). Unapplies the aura's
+     *  static grants from the old host and re-applies them to the new one.
+     *  Returns false if the aura or the new host isn't on the battlefield.
+     *  Used by Kudzu ("That land's controller may attach this Aura to a land
+     *  of their choice."). */
+    reattachAura: (auraInstanceId: string, newHostId: string) => boolean;
+
     /** Taps all lands controlled by `playerId` (CR 701.20a). Used by Mana
      *  Short and Drain Power. No-op for lands already tapped. */
     tapAllLands: (playerId: string) => void;
@@ -1233,6 +1241,18 @@ export interface StaticKeywordRemove {
     keyword: string;
 }
 
+/** Mana-substitution static effect (CR 609.4b — "spend mana as though it
+ *  were mana of another color/type"). While the source is on the battlefield,
+ *  its controller may pay a cost requiring `to`-color mana with `from`-color
+ *  mana. Derived live at payment time (auto-reverts when the source leaves),
+ *  so it carries no per-player persisted state. Used by Sunglasses of Urza
+ *  ("You may spend white mana as though it were red mana."). */
+export interface StaticManaSubstitution {
+    kind: "mana-substitution";
+    from: Color;
+    to: Color;
+}
+
 export type StaticEffect =
     | StaticPTBuff
     | StaticPTCDA
@@ -1249,6 +1269,7 @@ export type StaticEffect =
     | StaticBlockRequirement
     | StaticHandSizeOverride
     | StaticCostModifier
+    | StaticManaSubstitution
     | StaticKeywordRemove;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
@@ -1523,6 +1544,15 @@ export interface TriggerStateView {
         }>;
         hand: { readonly length: number };
         landsPlayedThisTurn?: number;
+        /** Graveyard contents in stack order (index 0 = bottom, last = top).
+         *  Exposed so graveyard-zone triggers can inspect card position —
+         *  Nether Shadow needs "three or more creature cards above it"
+         *  (CR 603.6e). Only the fields cards may rely on are surfaced. */
+        graveyard?: ReadonlyArray<{
+            id: string;
+            ownerId: string;
+            types: ReadonlyArray<string>;
+        }>;
     }>;
     activePlayerId?: string;
 }
@@ -1533,6 +1563,12 @@ export interface TriggeredAbility {
     oracleText: string;
     /** Which event kind can fire this ability. Used to index-filter before matches(). */
     event: GameEventType;
+    /** Zone the source must be in for this ability to be scanned (CR 603.6e —
+     *  abilities that function while the card is in a zone other than the
+     *  battlefield). Defaults to the battlefield when omitted. `"graveyard"`
+     *  opts the card into `collectTriggers`' graveyard scan path (Nether
+     *  Shadow's upkeep self-reanimation). */
+    zone?: "graveyard";
     /** True if `event` triggers this ability on the permanent carrying it.
      *  `state` is supplied for state triggers (CR 603.8) that need to inspect
      *  persistent game conditions. */

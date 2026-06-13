@@ -32,6 +32,7 @@ import {
     resolveTopOfStack,
     normalizeManaCost,
     isManaCostCovered,
+    getManaSubstitutions,
     getCostModifiers,
     applyCostIncrease,
     emitSpellCastEvent,
@@ -338,7 +339,14 @@ function tryAutoCommitPendingActivation(
     if (!pa || pa.playerId !== playerId) return null;
 
     const player = getPlayer(state, playerId);
-    if (!isManaCostCovered(player.manaPool, pa.manaCost)) return null;
+    if (
+        !isManaCostCovered(
+            player.manaPool,
+            pa.manaCost,
+            getManaSubstitutions(state, player.id)
+        )
+    )
+        return null;
 
     const card = player.battlefield.find((c) => c.id === pa.cardInstanceId);
     if (!card) {
@@ -349,7 +357,11 @@ function tryAutoCommitPendingActivation(
         return null;
     }
 
-    payManaCost(player.manaPool, pa.manaCost);
+    payManaCost(
+        player.manaPool,
+        pa.manaCost,
+        getManaSubstitutions(state, player.id)
+    );
     commitLandsForCost(player, pa.manaCost);
 
     // Deferred non-mana costs (CR 602.1) — applied now so cancellation leaves
@@ -412,7 +424,13 @@ function tryAutoCommitPendingCast(
         return null;
     }
     const player = getPlayer(state, playerId);
-    if (!isManaCostCovered(player.manaPool, state.pendingCast.manaCost)) {
+    if (
+        !isManaCostCovered(
+            player.manaPool,
+            state.pendingCast.manaCost,
+            getManaSubstitutions(state, player.id)
+        )
+    ) {
         return null;
     }
     // CR 117.9 / 601.2f: commit is blocked until the additional cost has
@@ -422,7 +440,11 @@ function tryAutoCommitPendingCast(
         return null;
     }
 
-    payManaCost(player.manaPool, state.pendingCast.manaCost);
+    payManaCost(
+        player.manaPool,
+        state.pendingCast.manaCost,
+        getManaSubstitutions(state, player.id)
+    );
     commitLandsForCost(player, state.pendingCast.manaCost);
 
     // Sacrifice the picked permanent (CR 117.9) and snapshot its mana value
@@ -993,7 +1015,14 @@ function finalizeTargetSelection(
         }
 
         // Enter pendingActivation (deferred commit) if mana isn't covered.
-        if (manaCost && !isManaCostCovered(player.manaPool, manaCost)) {
+        if (
+            manaCost &&
+            !isManaCostCovered(
+                player.manaPool,
+                manaCost,
+                getManaSubstitutions(state, player.id)
+            )
+        ) {
             state.pendingActivation = {
                 playerId,
                 cardInstanceId: card.id,
@@ -1018,7 +1047,11 @@ function finalizeTargetSelection(
         // Commit immediately.
         if (ability.cost.tap) card.isTapped = true;
         if (manaCost) {
-            payManaCost(player.manaPool, manaCost);
+            payManaCost(
+                player.manaPool,
+                manaCost,
+                getManaSubstitutions(state, player.id)
+            );
             commitLandsForCost(player, manaCost);
         }
         if (ability.cost.removeCounter) {
@@ -1064,10 +1097,18 @@ function finalizeTargetSelection(
 
     if (
         Object.keys(manaCost).length === 0 ||
-        isManaCostCovered(player.manaPool, manaCost)
+        isManaCostCovered(
+            player.manaPool,
+            manaCost,
+            getManaSubstitutions(state, player.id)
+        )
     ) {
         if (Object.keys(manaCost).length > 0) {
-            payManaCost(player.manaPool, manaCost);
+            payManaCost(
+                player.manaPool,
+                manaCost,
+                getManaSubstitutions(state, player.id)
+            );
             commitLandsForCost(player, manaCost);
         }
         const card = removeFromZone(player, cardInstanceId, "hand");
@@ -1325,7 +1366,11 @@ export const announceCast = mutation({
         // If cost is zero or pool already covers it, commit immediately
         if (
             Object.keys(manaCost).length === 0 ||
-            isManaCostCovered(player.manaPool, manaCost)
+            isManaCostCovered(
+                player.manaPool,
+                manaCost,
+                getManaSubstitutions(state, player.id)
+            )
         ) {
             if (Object.keys(manaCost).length > 0) {
                 payManaCost(player.manaPool, manaCost);
@@ -2763,12 +2808,22 @@ export const submitMayPay = mutation({
         if (args.accept && head.cost) {
             const player = getPlayer(state, args.playerId);
             const normalized = normalizeManaCost(head.cost);
-            if (!isManaCostCovered(player.manaPool, normalized)) {
+            if (
+                !isManaCostCovered(
+                    player.manaPool,
+                    normalized,
+                    getManaSubstitutions(state, player.id)
+                )
+            ) {
                 throw new Error(
                     "Cannot pay the cost from your current mana pool"
                 );
             }
-            payManaCost(player.manaPool, normalized);
+            payManaCost(
+                player.manaPool,
+                normalized,
+                getManaSubstitutions(state, player.id)
+            );
             commitLandsForCost(player, normalized);
         }
 
@@ -3257,7 +3312,14 @@ export const activateAbility = mutation({
         // mirrors pendingCast: the player taps lands, and auto-commit applies
         // the deferred tap/sacrifice and pushes the ability on the stack.
         // Tap/sacrifice are DEFERRED so cancel leaves the source untouched.
-        if (manaCost && !isManaCostCovered(player.manaPool, manaCost)) {
+        if (
+            manaCost &&
+            !isManaCostCovered(
+                player.manaPool,
+                manaCost,
+                getManaSubstitutions(state, player.id)
+            )
+        ) {
             const pending: PendingActivation = {
                 playerId: args.playerId,
                 cardInstanceId: card.id,
@@ -3285,7 +3347,11 @@ export const activateAbility = mutation({
             card.isTapped = true;
         }
         if (manaCost) {
-            payManaCost(player.manaPool, manaCost);
+            payManaCost(
+                player.manaPool,
+                manaCost,
+                getManaSubstitutions(state, player.id)
+            );
             commitLandsForCost(player, manaCost);
         }
         if (ability.cost.removeCounter) {
@@ -3585,10 +3651,20 @@ export const activatePlayerAbility = mutation({
 
         if (ability.cost.mana) {
             const manaCost = normalizeManaCost(ability.cost.mana);
-            if (!isManaCostCovered(player.manaPool, manaCost)) {
+            if (
+                !isManaCostCovered(
+                    player.manaPool,
+                    manaCost,
+                    getManaSubstitutions(state, player.id)
+                )
+            ) {
                 throw new Error("Not enough mana");
             }
-            payManaCost(player.manaPool, manaCost);
+            payManaCost(
+                player.manaPool,
+                manaCost,
+                getManaSubstitutions(state, player.id)
+            );
             commitLandsForCost(player, manaCost);
         }
 

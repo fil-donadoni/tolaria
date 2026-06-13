@@ -101,6 +101,8 @@ describe("isClientBufferedKind", () => {
         expect(isClientBufferedKind("discard-hand")).toBe(true);
         expect(isClientBufferedKind("untap-pick")).toBe(true);
         expect(isClientBufferedKind("mulligan-bottom")).toBe(true);
+        // W26 — Kudzu's aura-retarget land choice.
+        expect(isClientBufferedKind("choose-permanents")).toBe(true);
     });
 
     it("returns false for kinds not yet migrated", () => {
