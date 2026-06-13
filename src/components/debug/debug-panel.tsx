@@ -47,6 +47,38 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        label: "W29: Copy permanent — Clone / Copy Artifact / Vesuvan + Gaea's Liege (CR 707)",
+        cards: [
+            // Cast Clone ({3}{U}) and choose to enter as a copy of the Serra
+            // Angel — the copy gains flying + vigilance and is 4/4. Copy
+            // Artifact ({1}{U}) copies the Helm of Chatzuk and stays an
+            // enchantment too. Vesuvan Doppelganger ({3}{U}{U}) copies a
+            // creature but stays blue and re-copies each upkeep. Gaea's Liege
+            // is on the battlefield: its P/T equals the Forests you control
+            // (3 here), and its {T} turns the Mountain into a Forest, bumping
+            // it to 4/4. Five Islands cover the blue spells.
+            { name: "Clone", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Copy Artifact",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Vesuvan Doppelganger",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Gaea's Liege", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 3 },
+            { name: "Mountain", owner: "me" as const, count: 1 },
+            { name: "Island", owner: "me" as const, count: 5 },
+            { name: "Serra Angel", owner: "opp" as const },
+            { name: "Helm of Chatzuk", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "W28: Banding — Benalish Hero + bear band, redistribute damage (CR 702.21)",
         cards: [
             // Move to combat and attack. Use the band panel to group Benalish

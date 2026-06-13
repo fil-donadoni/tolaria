@@ -163,6 +163,7 @@ describe("game_state serialize round-trip", () => {
         lion.exileOnDeath = true;
         lion.mustAttackThisTurn = true;
         lion.colorOverride = ["R"];
+        lion.copiedFrom = "printed-clone-id";
 
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
@@ -195,6 +196,7 @@ describe("game_state serialize round-trip", () => {
         expect(got.exileOnDeath).toBe(true);
         expect(got.mustAttackThisTurn).toBe(true);
         expect(got.colorOverride).toEqual(["R"]);
+        expect(got.copiedFrom).toBe("printed-clone-id");
     });
 
     it("compact form is materially smaller than raw JSON", () => {

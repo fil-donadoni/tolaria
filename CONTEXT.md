@@ -118,6 +118,13 @@ A specific **Permanent**, **Player**, or **Spell** chosen during **Casting** tha
 A **Stack Item** created by copying another spell on the **Stack** (CR 707.10, e.g. Fork). It is not a real card: it carries `isCopy`, inherits the original's resolve/targets/X, may be given a different color via `colorOverride`, and ceases to exist after resolving instead of going to a **Graveyard**. The copy's controller _may_ choose new targets for it (a **Copy-Retarget** target selection).
 _Avoid_: Token spell, duplicate
 
+**Permanent Copy**:
+A **Permanent** that has become a copy of another (CR 707.2, e.g. Clone, Copy Artifact, Vesuvan Doppelganger). The engine overwrites the copy's `card.id` with the copied object's definition id so every characteristic reader (abilities, colors, P/T, types) observes the copy; the printed identity is kept in `copiedFrom` and restored when the copy leaves the battlefield (`revertCopy`). Copy effects copy printed/copiable values only — never counters, damage, tap state, auras, or control. Exceptions (CR 707.9d) are expressed as options: a kept color via `colorOverride`, added types via `additionalTypes`, and a retained ability via a `retainedThroughCopy`-flagged trigger.
+_Avoid_: clone-as-token, transform
+
+**Copy Choice (allControllers)**:
+A mid-resolution `choose-permanents` **Pending Choice** whose candidates span **every** player's battlefield (CR 707 "a copy of any creature/artifact on the battlefield"), flagged `allControllers`. Applied as the copy enters via `SpellContext.becomeCopyOf` in a resolve step.
+
 ### Combat
 
 **Attacker**:

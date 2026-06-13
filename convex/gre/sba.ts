@@ -1,6 +1,7 @@
 import type { CardInstanceState, GameState } from "./state";
 import { getOpponentId, removePermanentTo } from "./state";
 import { isAura } from "./constants";
+import { getEffectiveToughness } from "./layers";
 import { isProtectedFromSource } from "./protection";
 import { applyLoseGameReplacements } from "./replacements";
 import { applyStateTriggers } from "./triggers";
@@ -162,7 +163,37 @@ export function checkTokenExistenceSBA(state: GameState): boolean {
     return removed;
 }
 
-/** Runs every SBA once. Currently: aura attachments (CR 704.5m), game-over
+/** CR 704.5f — a creature with toughness 0 or less is put into its owner's
+ *  graveyard. This is a direct zone change, not a "destroy", so regeneration
+ *  and indestructible do not apply (CR 704.5f vs 704.5g). Reads effective
+ *  toughness (layer 7c) so a creature reduced to 0 by a -X/-X effect or a
+ *  copy that entered as a 0/0 (Clone with no target) is swept. Loops until
+ *  stable because one death can drop another creature's toughness (e.g. a
+ *  Forest-counting Gaea's Liege losing its last Forest). */
+export function checkZeroToughnessSBA(state: GameState): boolean {
+    let removedAny = false;
+    for (;;) {
+        let removed = false;
+        for (const player of state.players) {
+            const victim = player.battlefield.find(
+                (c) =>
+                    c.types.includes("Creature") &&
+                    getEffectiveToughness(state, c) <= 0
+            );
+            if (victim) {
+                removePermanentTo(state, victim.id, "graveyard");
+                removed = true;
+                removedAny = true;
+                break; // battlefield arrays mutated — restart the scan
+            }
+        }
+        if (!removed) break;
+    }
+    return removedAny;
+}
+
+/** Runs every SBA once. Currently: aura attachments (CR 704.5m), zero
+ *  toughness (CR 704.5f), token existence (CR 704.5d), game-over
  *  (CR 704.5a/b). Expand as more SBAs come online (706.5c/d/e for legend
  *  rule, +1/-1 counter cancellation, etc.).
  *
@@ -172,6 +203,7 @@ export function checkTokenExistenceSBA(state: GameState): boolean {
  *  fold the state-trigger scan into this entry point. */
 export function checkStateBasedActions(state: GameState): void {
     checkAuraAttachmentSBA(state);
+    checkZeroToughnessSBA(state);
     checkTokenExistenceSBA(state);
     checkGameOverSBA(state);
     if (state.gameOver) return;

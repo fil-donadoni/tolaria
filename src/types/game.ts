@@ -97,6 +97,10 @@ export interface CardInstance {
     legalActions?: CardAction[];
     /** Layer 5 color override (CR 305.7, 613.1d). Set by lace instants. */
     colorOverride?: string[];
+    /** Copy effect anchor (CR 707.2). When set, this permanent is a copy and
+     *  `card.id` carries the copied object's def id; `copiedFrom` holds the
+     *  printed identity restored when the copy leaves the battlefield. */
+    copiedFrom?: string;
 }
 
 export interface Combat {
