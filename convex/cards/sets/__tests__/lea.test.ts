@@ -248,6 +248,7 @@ import {
     sunglassesOfUrza,
     netherShadow,
     kudzu,
+    fork,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -271,6 +272,7 @@ import {
     getManaSubstitutions,
     type CardInstanceState,
     type GameState,
+    type StackItem,
 } from "../../../gre/state";
 import { collectTriggers } from "../../../gre/triggers";
 import {
@@ -18525,5 +18527,167 @@ describe("Kudzu (destroy tapped host, retarget aura, CR 701.20a/704.5n)", () => 
         const p1 = state.players[0];
         expect(p1.graveyard.some((c) => c.id === "kudzu1")).toBe(true);
         expect(p1.battlefield.some((c) => c.id === "kudzu1")).toBe(false);
+    });
+});
+
+describe("Fork (copy target instant or sorcery spell, CR 707.10)", () => {
+    type Targets = NonNullable<StackItem["targets"]>;
+
+    // Mirrors finalizeTargetSelection's "copy-retarget" branch in
+    // convex/game.ts: writes the chosen targets onto the spell copy and
+    // clears the prompt. Kept as a pure helper so the test needs no Convex
+    // context (same convention as activation-flow.test.ts).
+    function applyCopyRetarget(state: GameState, newTargets: Targets): void {
+        const pt = state.pendingTarget!;
+        const copy = state.stack.find((s) => s.id === pt.cardInstanceId);
+        if (copy) copy.targets = newTargets;
+        state.pendingTarget = undefined;
+    }
+
+    it("copies an instant spell on the stack (CR 707.10)", () => {
+        const state = makeState();
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        pushSpell(state, fork.id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state); // Fork resolves
+
+        // The original + the copy remain; the copy sits on top of the
+        // original (resolves first). Fork itself has left the stack.
+        expect(state.stack).toHaveLength(2);
+        expect(state.stack[0].id).toBe(bolt.id);
+        const copy = state.stack[state.stack.length - 1];
+        expect(copy.isCopy).toBe(true);
+        expect((copy.card as { id: string }).id).toBe(lightningBolt.id);
+        expect(copy.id).not.toBe(bolt.id);
+        // The copy inherits the original's targets (CR 707.10b default).
+        expect(copy.targets).toEqual([{ type: "player", id: "p1" }]);
+    });
+
+    it("copies a sorcery spell on the stack", () => {
+        const state = makeState();
+        const sr = pushSpell(state, stoneRain.id, "p1", []);
+        pushSpell(state, fork.id, "p1", [{ type: "spell", id: sr.id }]);
+        resolveTopOfStack(state);
+
+        const copy = state.stack[state.stack.length - 1];
+        expect(copy.isCopy).toBe(true);
+        expect((copy.card as { id: string }).id).toBe(stoneRain.id);
+    });
+
+    it("copy is red regardless of the original spell's color (CR 707.10c)", () => {
+        // Power Sink is blue; Fork's copy must be red.
+        const state = makeState();
+        const ps = pushSpell(state, powerSink.id, "p2", []);
+        pushSpell(state, fork.id, "p1", [{ type: "spell", id: ps.id }]);
+        resolveTopOfStack(state);
+
+        const copy = state.stack[state.stack.length - 1];
+        expect(copy.colorOverride).toEqual(["R"]);
+        expect(STATIC_EFFECT_CTX.getColors(copy)).toEqual(["R"]);
+        // sanity: the original Power Sink stays blue
+        expect(STATIC_EFFECT_CTX.getColors(state.stack[0])).toContain("U");
+    });
+
+    it("caster may choose new targets for the copy (CR 707.10b)", () => {
+        const state = makeState();
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" }, // original targets p1
+        ]);
+        pushSpell(state, fork.id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state); // Fork resolves → copy + retarget prompt
+
+        const pt = state.pendingTarget!;
+        expect(pt.kind).toBe("copy-retarget");
+        expect(pt.playerId).toBe("p1"); // Fork's controller chooses
+        expect(pt.targetType).toBe("any"); // Lightning Bolt's requirement
+        const copy = state.stack.find((s) => s.id === pt.cardInstanceId)!;
+        expect(copy.isCopy).toBe(true);
+
+        // Re-point the copy at p2, then resolve it.
+        applyCopyRetarget(state, [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+
+        expect(state.players[1].life).toBe(17); // p2 took the copy's 3
+        expect(state.players[0].life).toBe(20); // p1 untouched
+        // The copy ceased to exist — it never entered a graveyard (only Fork
+        // itself, a real card, is in its caster's graveyard).
+        const allGraveyard = [
+            ...state.players[0].graveyard,
+            ...state.players[1].graveyard,
+        ];
+        expect(allGraveyard.some((c) => c.id === copy.id)).toBe(false);
+        expect(
+            state.players[0].graveyard.map((c) => (c.card as { id: string }).id)
+        ).toEqual([fork.id]);
+    });
+
+    it("copy resolves with the original targets if no re-selection (CR 707.10b)", () => {
+        const state = makeState();
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        const bolt = state.stack[0];
+        pushSpell(state, fork.id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state);
+
+        // Decline the retarget: clear the prompt, keep inherited targets.
+        expect(state.pendingTarget?.kind).toBe("copy-retarget");
+        state.pendingTarget = undefined;
+        resolveTopOfStack(state); // copy resolves at the original target p1
+
+        expect(state.players[0].life).toBe(17);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("cannot copy a permanent (non-instant/sorcery) spell (CR 707.10)", () => {
+        const state = makeState();
+        const bear = pushSpell(state, grizzlyBears.id, "p2", []);
+
+        // A creature spell is not a legal Fork target.
+        const legal = getLegalTargets(state, fork.targetRequirement!);
+        expect(legal.some((t) => t.type === "spell" && t.id === bear.id)).toBe(
+            false
+        );
+
+        // Even if forced, copyStackItem refuses it: no copy, no prompt.
+        pushSpell(state, fork.id, "p1", [{ type: "spell", id: bear.id }]);
+        resolveTopOfStack(state); // Fork resolves to graveyard, no copy
+        expect(state.pendingTarget).toBeUndefined();
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].id).toBe(bear.id);
+    });
+
+    it("wire format: copy's red color + isCopy survive projectPublicState", () => {
+        const state = makeState();
+        const ps = pushSpell(state, powerSink.id, "p2", []);
+        pushSpell(state, fork.id, "p1", [{ type: "spell", id: ps.id }]);
+        resolveTopOfStack(state);
+        const copyId = state.stack[state.stack.length - 1].id;
+
+        // GRE: the copy is red.
+        const greCopy = state.stack.find((s) => s.id === copyId)!;
+        expect(STATIC_EFFECT_CTX.getColors(greCopy)).toEqual(["R"]);
+        expect(greCopy.isCopy).toBe(true);
+
+        // Wire: the same survives the projection that crosses the network.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimCopy = projected.stack.find((s) => s.id === copyId)!;
+        expect(slimCopy.colorOverride).toEqual(["R"]);
+        expect((slimCopy as { isCopy?: boolean }).isCopy).toBe(true);
+        expect(STATIC_EFFECT_CTX.getColors(slimCopy as never)).toEqual(["R"]);
+    });
+
+    it("isCopy survives the DB serialize round-trip", () => {
+        const state = makeState();
+        const ps = pushSpell(state, powerSink.id, "p2", []);
+        pushSpell(state, fork.id, "p1", [{ type: "spell", id: ps.id }]);
+        resolveTopOfStack(state);
+        state.pendingTarget = undefined; // stable stack for serialization
+
+        const round = expandState(compactState(state));
+        const copy = round.stack.find((s) => s.isCopy);
+        expect(copy).toBeDefined();
+        expect(copy!.colorOverride).toEqual(["R"]);
     });
 });

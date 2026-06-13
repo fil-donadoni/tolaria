@@ -134,6 +134,13 @@ export interface TargetRequirement {
      *  creature you control with toughness less than Stone Giant's power").
      *  Ignored for player / spell targets. */
     toughnessFilter?: { min?: number; max?: number };
+    /** Restricts legal SPELL targets (`type: "spell"`) by the spell's card
+     *  type (CR 114.1). Only stack items that are actual spells (not
+     *  activated/triggered abilities) and whose `types` include at least one
+     *  of these are legal. Used by Fork ("target instant or sorcery spell")
+     *  and other type-restricted spell-targeting effects. Single string is
+     *  shorthand for one type. Ignored for non-spell target types. */
+    spellTypeFilter?: CardType | CardType[];
 }
 
 export interface TargetSelection {
@@ -718,6 +725,28 @@ export interface SpellContext {
      *  Replaces all color derivation — the target "becomes" the given colors.
      *  Used by lace instants. No-op if target has left play / stack. */
     setColorOverride: (target: TargetSelection, colors: Color[]) => void;
+    /** Copies a spell on the stack (CR 707.10, Fork). Clones the target stack
+     *  item, inserts the copy directly above the original (so the copy
+     *  resolves first), and returns the copy's new stack id — or `null` if the
+     *  target is gone, isn't on the stack, or isn't an instant/sorcery spell
+     *  (copies of permanent spells / abilities are out of scope). The copy
+     *  inherits the original's resolve, targets, and chosen X, is controlled by
+     *  the controller of THIS resolving spell, and ceases to exist after
+     *  resolving instead of going to a graveyard (CR 707.10/112.5).
+     *  `modifications.colorOverride` sets the copy's colors (CR 707.10c —
+     *  Fork's "except that the copy is red"). */
+    copyStackItem: (
+        targetStackItemId: string,
+        modifications?: { colorOverride?: Color[] }
+    ) => string | null;
+    /** Offers this spell's controller the chance to choose new targets for a
+     *  copy created by `copyStackItem` (CR 707.10b — Fork's "you may choose
+     *  new targets for the copy"). Enters a `copy-retarget` target-selection
+     *  phase when the copied spell has a `targetRequirement` that needs at
+     *  least one target; otherwise a no-op. Declining the selection
+     *  (`cancelTarget`) keeps the copy's inherited targets. No-op if the copy
+     *  is no longer on the stack. */
+    requestCopyRetarget: (copyStackItemId: string) => void;
 
     // --- Mid-resolution choices (CR 608.2, 101.4) ---
 

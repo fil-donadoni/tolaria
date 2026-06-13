@@ -963,6 +963,20 @@ function finalizeTargetSelection(
     const abilityId = pt.abilityId;
     state.pendingTarget = undefined;
 
+    // Copy-retarget branch (CR 707.10b — Fork's "you may choose new targets
+    // for the copy"). The targets are written onto the spell COPY already on
+    // the stack; nothing is cast and no cost is paid. After the choice, the
+    // resolving spell (Fork) has finished, so a fresh priority round begins
+    // with the active player and the copy on top of the stack.
+    if (kind === "copy-retarget") {
+        const copy = state.stack.find((s) => s.id === cardInstanceId);
+        if (copy) copy.targets = targets;
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+        drainAutoPasses(state);
+        return;
+    }
+
     const player = getPlayer(state, playerId);
 
     // Activated-ability targeting branch (CR 602.2b). Targets were chosen
@@ -1300,6 +1314,15 @@ export const announceCast = mutation({
                     : {}),
                 ...(excludeSubtypes ? { excludeSubtypes } : {}),
                 ...(resolvedMvFilter ? { mvFilter: resolvedMvFilter } : {}),
+                ...(activeTargetRequirement.spellTypeFilter
+                    ? {
+                          spellTypeFilter: Array.isArray(
+                              activeTargetRequirement.spellTypeFilter
+                          )
+                              ? activeTargetRequirement.spellTypeFilter
+                              : [activeTargetRequirement.spellTypeFilter],
+                      }
+                    : {}),
             };
 
             await saveGameState(
@@ -2068,6 +2091,23 @@ export const selectTarget = mutation({
             }
             const spell = state.stack.find((s) => s.id === args.targetId);
             if (!spell) throw new Error("Invalid spell target");
+            // CR 114.1 + spellTypeFilter (Fork: "instant or sorcery spell"):
+            // abilities aren't spells, and a spell must match the requested
+            // card type(s).
+            if (pt.spellTypeFilter && pt.spellTypeFilter.length > 0) {
+                const isAbility =
+                    !!spell.abilityId ||
+                    !!spell.triggeredAbilityId ||
+                    !!spell.delayedTriggerId;
+                if (
+                    isAbility ||
+                    !pt.spellTypeFilter.some((t) => spell.types.includes(t))
+                ) {
+                    throw new Error(
+                        "Target is not a spell of the required type"
+                    );
+                }
+            }
             if (pt.colorFilter && !hasColor(spell, pt.colorFilter as Color)) {
                 throw new Error(`Target must be ${pt.colorFilter}`);
             }
@@ -2169,7 +2209,16 @@ export const cancelTarget = mutation({
             throw new Error("Not your pending target selection");
         }
 
+        // CR 707.10b — declining a copy-retarget is not aborting a cast: the
+        // copy stays on the stack with its inherited targets and a fresh
+        // priority round begins (the copying spell has already resolved).
+        const wasCopyRetarget = state.pendingTarget.kind === "copy-retarget";
         state.pendingTarget = undefined;
+        if (wasCopyRetarget) {
+            state.priorityPlayerId = state.activePlayerId;
+            state.passCount = 0;
+            drainAutoPasses(state);
+        }
 
         await saveGameState(
             ctx,
@@ -2711,6 +2760,11 @@ export const passPriority = mutation({
                 // other priority-driven mutations prevents any action other
                 // than submitResolutionChoice.
                 state.priorityPlayerId = state.pendingChoices![0].playerId;
+            } else if (state.pendingTarget) {
+                // Resolution requested a copy-retarget (CR 707.10b, Fork).
+                // Hand priority to the chooser; only target-selection
+                // mutations are legal until they choose or decline.
+                state.priorityPlayerId = state.pendingTarget.playerId;
             } else {
                 state.priorityPlayerId = state.activePlayerId;
                 state.passCount = 0;
@@ -2846,6 +2900,9 @@ export const submitMayPay = mutation({
             resolveTopOfStack(state);
             if ((state.pendingChoices?.length ?? 0) > 0) {
                 state.priorityPlayerId = state.pendingChoices![0].playerId;
+            } else if (state.pendingTarget) {
+                // Resolution requested a copy-retarget (CR 707.10b).
+                state.priorityPlayerId = state.pendingTarget.playerId;
             } else {
                 state.priorityPlayerId = state.activePlayerId;
                 state.passCount = 0;

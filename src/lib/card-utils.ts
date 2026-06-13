@@ -196,6 +196,34 @@ export function matchesTargetRequirement(
     return types.some((t) => cardTypes.includes(t as never));
 }
 
+/** True if the target requirement can target a spell on the stack (CR 114.1):
+ *  the `"spell"` or `"spell-or-permanent"` types. */
+export function wantsSpellTarget(
+    targetType: string | string[] | undefined
+): boolean {
+    if (!targetType) return false;
+    const types = Array.isArray(targetType) ? targetType : [targetType];
+    return types.includes("spell") || types.includes("spell-or-permanent");
+}
+
+/** True if a stack item is a legal spell target under an optional
+ *  `spellTypeFilter` (CR 114.1, Fork's "instant or sorcery spell"): an
+ *  activated/triggered ability isn't a spell, and a spell must match one of
+ *  the requested card types. With no filter, any stack item qualifies. */
+export function matchesSpellTypeFilter(
+    item: {
+        types?: string[];
+        abilityId?: string;
+        triggeredAbilityId?: string;
+    },
+    spellTypeFilter: string[] | undefined
+): boolean {
+    if (!spellTypeFilter || spellTypeFilter.length === 0) return true;
+    if (item.abilityId || item.triggeredAbilityId) return false;
+    const types = item.types ?? [];
+    return spellTypeFilter.some((t) => types.includes(t));
+}
+
 /** Returns stack-using activated abilities the player can currently announce.
  *  Only the non-mana availability is checked (source not already tapped when
  *  the ability has {T}); mana is deferred to a `pendingActivation` payment

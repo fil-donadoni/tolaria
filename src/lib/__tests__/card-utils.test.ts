@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
     wantsPermanentTarget,
     matchesTargetRequirement,
+    matchesSpellTypeFilter,
+    wantsSpellTarget,
     getStackAbilities,
     getAbilityOracleText,
 } from "../card-utils";
@@ -286,5 +288,64 @@ describe("getAbilityOracleText", () => {
             "mox-emerald-mana"
         );
         expect(text).toBe("{T}: Add {G}.");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// wantsSpellTarget / matchesSpellTypeFilter (Fork — CR 114.1, 707.10)
+// ---------------------------------------------------------------------------
+
+describe("wantsSpellTarget", () => {
+    it("is true for 'spell' and 'spell-or-permanent'", () => {
+        expect(wantsSpellTarget("spell")).toBe(true);
+        expect(wantsSpellTarget("spell-or-permanent")).toBe(true);
+        expect(wantsSpellTarget(["any", "spell"])).toBe(true);
+    });
+
+    it("is false for non-spell requirements and undefined", () => {
+        expect(wantsSpellTarget("Creature")).toBe(false);
+        expect(wantsSpellTarget("player")).toBe(false);
+        expect(wantsSpellTarget(undefined)).toBe(false);
+    });
+});
+
+describe("matchesSpellTypeFilter", () => {
+    const filter = ["Instant", "Sorcery"];
+
+    it("matches an instant/sorcery spell when the filter is set", () => {
+        expect(matchesSpellTypeFilter({ types: ["Instant"] }, filter)).toBe(
+            true
+        );
+        expect(matchesSpellTypeFilter({ types: ["Sorcery"] }, filter)).toBe(
+            true
+        );
+    });
+
+    it("rejects a permanent (e.g. creature) spell under the filter", () => {
+        expect(matchesSpellTypeFilter({ types: ["Creature"] }, filter)).toBe(
+            false
+        );
+    });
+
+    it("rejects stack abilities (not spells)", () => {
+        expect(
+            matchesSpellTypeFilter(
+                { types: ["Creature"], abilityId: "tim-zap" },
+                filter
+            )
+        ).toBe(false);
+        expect(
+            matchesSpellTypeFilter(
+                { types: ["Enchantment"], triggeredAbilityId: "upkeep" },
+                filter
+            )
+        ).toBe(false);
+    });
+
+    it("matches anything when no filter is set", () => {
+        expect(matchesSpellTypeFilter({ types: ["Creature"] }, undefined)).toBe(
+            true
+        );
+        expect(matchesSpellTypeFilter({ types: ["Instant"] }, [])).toBe(true);
     });
 });

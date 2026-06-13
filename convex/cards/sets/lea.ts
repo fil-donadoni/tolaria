@@ -4007,13 +4007,32 @@ export const flashfires: CardDefinition = {
     },
 };
 
-// export const fork: CardDefinition = {
-//     id: "e6b43916-fe2d-417a-a550-d7c795023297",
-//     name: "Fork",
-//     oracleText: "Copy target instant or sorcery spell, except that the copy is red. You may choose new targets for the copy.",
-//     manaCost: { R: 2 },
-//     types: ["Instant"],
-// };
+// Fork — "Copy target instant or sorcery spell, except that the copy is red.
+// You may choose new targets for the copy." (CR 707.10 copying a spell,
+// 707.10b new targets, 707.10c color-change to red). The copy is put on the
+// stack above the original and resolves first; it ceases to exist afterward.
+export const fork: CardDefinition = {
+    id: "e6b43916-fe2d-417a-a550-d7c795023297",
+    name: "Fork",
+    oracleText:
+        "Copy target instant or sorcery spell, except that the copy is red. You may choose new targets for the copy.",
+    manaCost: { R: 2 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: "spell",
+        count: 1,
+        spellTypeFilter: ["Instant", "Sorcery"],
+    },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (!target || target.type !== "spell") return;
+        // CR 707.10c — the copy is red regardless of the original's color.
+        const copyId = ctx.copyStackItem(target.id, { colorOverride: ["R"] });
+        // copyStackItem returns null for illegal targets (e.g. a permanent
+        // spell or an item that left the stack); nothing to retarget then.
+        if (copyId) ctx.requestCopyRetarget(copyId);
+    },
+};
 
 // Goblin Balloon Brigade — "{R}: Goblin Balloon Brigade gains flying until
 // end of turn." (CR 702.9 flying, 611.1b temporary keyword grant). The grant

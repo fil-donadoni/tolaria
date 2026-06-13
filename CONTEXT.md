@@ -114,6 +114,10 @@ _Avoid_: Execute, trigger, fire
 **Target**:
 A specific **Permanent**, **Player**, or **Spell** chosen during **Casting** that the effect will apply to.
 
+**Spell Copy**:
+A **Stack Item** created by copying another spell on the **Stack** (CR 707.10, e.g. Fork). It is not a real card: it carries `isCopy`, inherits the original's resolve/targets/X, may be given a different color via `colorOverride`, and ceases to exist after resolving instead of going to a **Graveyard**. The copy's controller _may_ choose new targets for it (a **Copy-Retarget** target selection).
+_Avoid_: Token spell, duplicate
+
 ### Combat
 
 **Attacker**:
@@ -159,6 +163,26 @@ _Avoid_: View, snapshot, DTO
 **Solo Mode**:
 A single-user game where one human controls both **Players**. The UI auto-switches the viewer to whoever has **Priority**. Removes the need for two browser tabs during development and play.
 _Avoid_: Single player, practice mode
+
+**vs-AI Game**:
+A single-user game where one seat is controlled by the **AI Opponent** instead of the human. Structurally a **Solo Mode** game in which one seat's moves are chosen by the **Bot** rather than clicked by the user. Authority stays server-side: the **Bot**'s move is submitted and validated like any human move (see ADR 0001).
+_Avoid_: AI mode, bot match, practice mode
+
+**AI Opponent / Bot**:
+The non-human **Player** in a **vs-AI Game**. Chooses legal moves by searching possible game continuations, not by scripted per-card rules.
+_Avoid_: CPU, computer player, enemy
+
+**Brain**:
+The component that computes the **Bot**'s next move. Distinct from authority: the **Brain** only _proposes_ a move; the **GRE** still validates and applies it. Runs client-side, off the authoritative path.
+_Avoid_: AI engine, solver
+
+**Determinization**:
+Guessing a concrete possible world for the hidden information (the opponent's **Hand** and the order of the **Library**) so the **Brain** can reason about an otherwise-hidden position as if it were fully known.
+_Avoid_: Sampling, guessing, simulation
+
+**Difficulty**:
+How much thinking the **Bot** is allowed before moving. A stronger **Bot** is the same **Brain** given a larger search budget, not different logic.
+_Avoid_: Level, skill setting
 
 **Compact State**:
 The serialized form of **GameState** stored in Convex. Strips defaults, coalesces against **Card Definitions**, and compresses **Library** entries to `[instanceId, cardId]` tuples.

@@ -47,6 +47,26 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        label: "W27: Copy spell — Fork (copy instant/sorcery, copy is red, CR 707.10)",
+        cards: [
+            // Cast Lightning Bolt at the opponent, then in response cast Fork
+            // ({R}{R}) targeting it. The copy is red and you may choose new
+            // targets (e.g. redirect to a creature). Three Mountains cover
+            // Bolt ({R}) + Fork ({R}{R}). A Grizzly Bears gives the copy an
+            // alternative target to redirect onto.
+            { name: "Fork", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 3 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "W26: Mana substitution — Sunglasses of Urza (W pays R, CR 609.4b)",
         cards: [
             // Sunglasses lets white mana pay red costs. Tap the Plains for {W},
