@@ -533,9 +533,12 @@ export const getPublicState = query({
         const state = gameState.state as GameState;
         // In solo mode, the single user controls both players: the viewer follows
         // whoever currently has priority so the UI shows that player's hand and
-        // legal actions automatically.
+        // legal actions automatically. A vs-AI game is structurally solo but the
+        // two seats are distinct viewpoints — the human stays pinned to their
+        // seat and the bot driver queries as its own seat (ADR 0001) — so it
+        // uses the requested playerId, not the priority holder.
         const viewerId =
-            game?.solo === true
+            game?.solo === true && game?.vsAi !== true
                 ? (state.priorityPlayerId ?? state.activePlayerId)
                 : args.playerId;
         return projectPublicState(

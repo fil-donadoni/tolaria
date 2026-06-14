@@ -1,81 +1,178 @@
-// Translates a BotAction into the EXISTING game mutation that realises it
-// (ADR 0001, issue #109). No new Convex move surface: the bot submits the same
-// mutations a human would, validated server-side identically.
+// Translates a bot Move into the EXISTING granular game mutations that realise
+// it (ADR 0001, issue #110). No new Convex move surface: the bot drives the
+// same mutation sequence a human's clicks would, validated server-side
+// identically (CR 720 — the server stays authoritative; an illegal Move is
+// rejected here, not applied).
+//
+// Each Move kind maps to a fixed, ordered call sequence:
+//   play-land        → playCard
+//   cast-spell       → announceCast → selectTarget* [→ confirmTargets] → tapForPayment*
+//   activate-ability → activateAbility → selectTarget* [→ confirmTargets] → tapForActivationPayment*
+//   declare-attackers→ toggleAttacker* → confirmAttackers
+//   declare-blockers → (selectBlocker → assignBlockerTarget)* → confirmBlockers
+//   mulligan         → declareMulligan
+//   pass             → passPriority
+//
+// Mana payment is explicit (the engine never auto-taps): the Move carries a
+// `tapPlan` computed by `planManaPayment`, and tapForPayment auto-commits the
+// spell once the pool covers the cost — so an empty tapPlan means the cost was
+// already covered by floating mana and no tap is fired.
 
 import type { Id } from "@convex/_generated/dataModel";
-import type { BotAction } from "./brain";
+import type { Move } from "@convex/gre";
 
-/** The mutation a BotAction maps to. `null` for `none` (no action owed). */
-export function mutationForBotAction(
-    action: BotAction
-):
-    | "declareMulligan"
-    | "confirmAttackers"
-    | "confirmBlockers"
-    | "passPriority"
-    | null {
-    switch (action.kind) {
-        case "keep":
-            return "declareMulligan";
-        case "declare-attackers":
-            return "confirmAttackers";
-        case "declare-blockers":
-            return "confirmBlockers";
-        case "pass":
-            return "passPriority";
-        case "none":
-            return null;
-    }
-}
+type GP = { gameId: Id<"games">; playerId: string };
 
-/** The concrete mutation callables the executor needs. Each accepts the
- *  standard `{ gameId, playerId }` (declareMulligan also a decision). */
-export type BotMutations = {
-    declareMulligan: (a: {
-        gameId: Id<"games">;
-        playerId: string;
-        decision: "keep" | "mull";
-    }) => Promise<unknown>;
-    confirmAttackers: (a: {
-        gameId: Id<"games">;
-        playerId: string;
-    }) => Promise<unknown>;
-    confirmBlockers: (a: {
-        gameId: Id<"games">;
-        playerId: string;
-    }) => Promise<unknown>;
-    passPriority: (a: {
-        gameId: Id<"games">;
-        playerId: string;
-    }) => Promise<unknown>;
+/** The granular mutation callables the executor drives. These are the exact
+ *  public mutations in `convex/game.ts` — the bot uses no private surface. */
+export type MoveMutations = {
+    playCard: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
+    announceCast: (
+        a: GP & {
+            cardInstanceId: string;
+            chosenX?: number;
+            chosenModeId?: string;
+        }
+    ) => Promise<unknown>;
+    selectTarget: (
+        a: GP & {
+            targetType: "permanent" | "player" | "spell" | "graveyard-card";
+            targetId: string;
+            targetPlayerId?: string;
+        }
+    ) => Promise<unknown>;
+    confirmTargets: (a: GP) => Promise<unknown>;
+    tapForPayment: (
+        a: GP & { cardInstanceId: string; manaChoiceIndex?: number }
+    ) => Promise<unknown>;
+    activateAbility: (
+        a: GP & { cardInstanceId: string; abilityId: string; chosenX?: number }
+    ) => Promise<unknown>;
+    tapForActivationPayment: (
+        a: GP & { cardInstanceId: string; manaChoiceIndex?: number }
+    ) => Promise<unknown>;
+    toggleAttacker: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
+    confirmAttackers: (a: GP) => Promise<unknown>;
+    selectBlocker: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
+    assignBlockerTarget: (a: GP & { attackerId: string }) => Promise<unknown>;
+    confirmBlockers: (a: GP) => Promise<unknown>;
+    declareMulligan: (
+        a: GP & { decision: "keep" | "mull" }
+    ) => Promise<unknown>;
+    passPriority: (a: GP) => Promise<unknown>;
 };
 
-/** Fire the mutation for `action` on behalf of the bot seat. Resolves to false
- *  when there is nothing to do. Server validation rejects stale/illegal
- *  submissions; callers should swallow those (the next state change re-drives). */
-export async function executeBotAction(
-    action: BotAction,
-    deps: { gameId: Id<"games">; botId: string; mutations: BotMutations }
-): Promise<boolean> {
-    const { gameId, botId, mutations } = deps;
-    switch (action.kind) {
-        case "keep":
-            await mutations.declareMulligan({
-                gameId,
-                playerId: botId,
-                decision: "keep",
-            });
-            return true;
-        case "declare-attackers":
-            await mutations.confirmAttackers({ gameId, playerId: botId });
-            return true;
-        case "declare-blockers":
-            await mutations.confirmBlockers({ gameId, playerId: botId });
-            return true;
+export type MoveExecContext = {
+    gameId: Id<"games">;
+    botId: string;
+    mutations: MoveMutations;
+};
+
+/** Replay `move` through the existing mutations on the bot's seat. Sub-mutations
+ *  are awaited in order; a server rejection propagates so the driver can retry
+ *  the window on the next state change. */
+export async function executeMove(
+    move: Move,
+    ctx: MoveExecContext
+): Promise<void> {
+    const { gameId, botId, mutations } = ctx;
+    const base: GP = { gameId, playerId: botId };
+
+    switch (move.kind) {
         case "pass":
-            await mutations.passPriority({ gameId, playerId: botId });
-            return true;
-        case "none":
-            return false;
+            await mutations.passPriority(base);
+            return;
+
+        case "mulligan":
+            await mutations.declareMulligan({
+                ...base,
+                decision: move.decision,
+            });
+            return;
+
+        case "play-land":
+            await mutations.playCard({
+                ...base,
+                cardInstanceId: move.cardInstanceId,
+            });
+            return;
+
+        case "cast-spell": {
+            await mutations.announceCast({
+                ...base,
+                cardInstanceId: move.cardInstanceId,
+                chosenX: move.chosenX,
+                chosenModeId: move.chosenModeId,
+            });
+            for (const t of move.targets) {
+                await mutations.selectTarget({
+                    ...base,
+                    targetType: t.type,
+                    targetId: t.id,
+                    targetPlayerId: t.playerId,
+                });
+            }
+            if (move.confirmTargets && move.targets.length > 0) {
+                await mutations.confirmTargets(base);
+            }
+            for (const tap of move.tapPlan) {
+                await mutations.tapForPayment({
+                    ...base,
+                    cardInstanceId: tap.cardInstanceId,
+                    manaChoiceIndex: tap.manaChoiceIndex,
+                });
+            }
+            return;
+        }
+
+        case "activate-ability": {
+            await mutations.activateAbility({
+                ...base,
+                cardInstanceId: move.cardInstanceId,
+                abilityId: move.abilityId,
+                chosenX: move.chosenX,
+            });
+            for (const t of move.targets) {
+                await mutations.selectTarget({
+                    ...base,
+                    targetType: t.type,
+                    targetId: t.id,
+                    targetPlayerId: t.playerId,
+                });
+            }
+            if (move.confirmTargets && move.targets.length > 0) {
+                await mutations.confirmTargets(base);
+            }
+            for (const tap of move.tapPlan) {
+                await mutations.tapForActivationPayment({
+                    ...base,
+                    cardInstanceId: tap.cardInstanceId,
+                    manaChoiceIndex: tap.manaChoiceIndex,
+                });
+            }
+            return;
+        }
+
+        case "declare-attackers": {
+            // Each id starts undeclared, so toggle adds it. Forced attackers not
+            // in the set are auto-included by confirmAttackers (CR 508.1d).
+            for (const id of move.attackerIds) {
+                await mutations.toggleAttacker({ ...base, cardInstanceId: id });
+            }
+            await mutations.confirmAttackers(base);
+            return;
+        }
+
+        case "declare-blockers": {
+            for (const { blockerId, attackerId } of move.assignments) {
+                await mutations.selectBlocker({
+                    ...base,
+                    cardInstanceId: blockerId,
+                });
+                await mutations.assignBlockerTarget({ ...base, attackerId });
+            }
+            await mutations.confirmBlockers(base);
+            return;
+        }
     }
 }
