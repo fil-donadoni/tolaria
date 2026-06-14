@@ -62,6 +62,7 @@ export default function GameRoute() {
                     gameId={gameId}
                     playerId={playerId}
                     solo={game.solo === true}
+                    vsAi={game.vsAi === true}
                     showAllCards={showAllCards}
                     debugAllActions={debugAllActions}
                 />

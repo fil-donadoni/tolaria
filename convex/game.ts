@@ -662,6 +662,9 @@ export const createSoloGame = mutation({
         name: v.string(),
         deck: deckValidator,
         deck2: v.optional(deckValidator),
+        /** When true the second seat is driven by the AI brain (ADR 0001).
+         *  Still structurally a solo game — no new game mode or move surface. */
+        vsAi: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const user = await getCurrentUser(ctx);
@@ -688,6 +691,7 @@ export const createSoloGame = mutation({
             status: "playing",
             players: allPlayers,
             solo: true,
+            vsAi: args.vsAi === true ? true : undefined,
             createdAt: now,
             updatedAt: now,
         });

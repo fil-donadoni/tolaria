@@ -80,6 +80,10 @@ export default defineSchema({
         /** Solo (single-user) game: both players belong to the same user. The client
          * auto-switches its viewer to the player who currently has priority. */
         solo: v.optional(v.boolean()),
+        /** vs-AI game (ADR 0001): structurally a solo game where the SECOND seat
+         * (`${userId}-p2`) is driven by the client-side AI brain rather than by
+         * the human. The viewer stays pinned to the human's seat. */
+        vsAi: v.optional(v.boolean()),
         createdAt: v.number(),
         updatedAt: v.number(),
     }).index("by_status", ["status"]),

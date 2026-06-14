@@ -1630,6 +1630,22 @@ export default function DebugPanel({
         onSwitchGame(newId, p1Id);
     };
 
+    const handleNewVsAi = async () => {
+        // One-click vs-AI game reusing the current first player's deck (ADR 0001,
+        // issue #109). The human plays the `-p1` seat; the bot drives `-p2`.
+        const sourceDeck = game?.players[0]?.deck;
+        if (!sourceDeck) return;
+        if (!user) return;
+        const p1Id = `${user._id}-p1`;
+        const newId = await createSoloGame({
+            name: `${user.nickname} vs AI`,
+            deck: sourceDeck,
+            vsAi: true,
+        });
+        storeSession(newId, p1Id);
+        onSwitchGame(newId, p1Id);
+    };
+
     return (
         <div
             ref={panelRef}
@@ -1665,7 +1681,14 @@ export default function DebugPanel({
                                 Reset Game
                             </DebugButton>
                             <DebugButton onClick={handleNewSolo}>
-                                {game?.solo ? "Restart Solo" : "New Solo Game"}
+                                {game?.solo && !game?.vsAi
+                                    ? "Restart Solo"
+                                    : "New Solo Game"}
+                            </DebugButton>
+                            <DebugButton onClick={handleNewVsAi}>
+                                {game?.vsAi
+                                    ? "Restart vs AI"
+                                    : "New vs-AI Game"}
                             </DebugButton>
                             <DebugButton
                                 onClick={() => {
