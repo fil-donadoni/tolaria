@@ -426,7 +426,7 @@ function getManualAssignmentSourceIds(
 }
 
 /** Build auto damage assignments for attackers with 0 or 1 blocker. */
-function buildAutoDamageAssignments(
+export function buildAutoDamageAssignments(
     state: GameState,
     kind: DamageKind
 ): Record<string, Record<string, number>> {

@@ -1,22 +1,13 @@
-// The AI Bot's Brain — the pure decision function (ADR 0001, issue #109).
+// The AI Bot's Brain gate — the pure "does the bot owe an action?" check
+// (ADR 0001, issues #109–#111).
 //
-// This is the end-to-end spine's "intelligence": the dumbest possible bot, one
-// that takes the NULL action in every window it owns. It keeps its opening
-// hand, declares no attackers, declares no blockers, and passes priority — so a
-// full game can be played to completion against it. Later slices replace the
-// body with real search (greedy → ISMCTS) while this signature and the
-// surrounding driver/executor stay put.
-//
-// PURE and Worker-free: the Worker (`brain.worker.ts`) is a thin shell that
-// calls this; all tests exercise this function directly with no browser.
-//
-// Issue #110 grows the bot from pass-only to random-legal: the Worker
-// enumerates the full legal move set (`enumerateMoves`) from the bot's own
-// projected view and `selectMove` picks one uniformly at random. `BotView` /
-// `decideBotAction` remain as the cheap main-thread gate that decides whether
-// the bot owes any action at all before paying for a Worker round-trip.
-
-import type { Move } from "@convex/gre";
+// `BotView` / `decideBotAction` are the cheap main-thread GATE: a constant-time
+// look at the current window that decides whether the bot owes any action at all
+// before paying for a Worker round-trip. The actual move CHOICE lives in the GRE
+// (`greedySelectMove` — issue #111: enumerate → apply each move one ply →
+// evaluate → argmax), which the Worker (`brain.worker.ts`) runs off the UI
+// thread. Both layers are pure and tested without a browser; this file is the
+// gate only.
 
 /** The minimal slice of game state the bot needs to decide. Built on the
  *  driving client from the full state (the bot's hand is visible to the human's
@@ -91,13 +82,4 @@ export function decideBotAction(view: BotView): BotAction {
     if (view.priorityPlayerId === view.botId) return { kind: "pass" };
 
     return NONE;
-}
-
-/** Pick one move uniformly at random from the enumerated legal set. `rand` must
- *  be in [0, 1) (e.g. `Math.random()`); kept as a parameter so the choice is a
- *  pure, testable function. Returns null for an empty set (bot owes nothing). */
-export function selectMove(moves: Move[], rand: number): Move | null {
-    if (moves.length === 0) return null;
-    const index = Math.min(moves.length - 1, Math.floor(rand * moves.length));
-    return moves[index];
 }

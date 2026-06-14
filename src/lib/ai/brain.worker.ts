@@ -2,16 +2,15 @@
 //
 // The thinking runs off the UI thread so the app stays interactive while the
 // bot decides. This shell holds NO judgement of its own: it receives the bot's
-// projected view, enumerates the legal moves with the real GRE, and returns one
-// chosen uniformly at random. The enumeration (`enumerateMoves`) and the
-// selection (`selectMove`) are both pure and tested without a Worker; only the
+// projected view and runs the real GRE greedy selection (`greedySelectMove` —
+// enumerate → apply each move one ply → evaluate → argmax), returning the best
+// move. The selection is pure and tested without a Worker; only the tie-break
 // random draw happens here.
 
 /// <reference lib="webworker" />
 import type { PublicGameState } from "@convex/gameProjections";
 import type { Move } from "@convex/gre";
-import { enumerateMoves } from "@convex/gre";
-import { selectMove } from "./brain";
+import { greedySelectMove } from "@convex/gre";
 import { projectedToGameState } from "./state-adapter";
 
 export type BrainRequest = {
@@ -23,8 +22,11 @@ export type BrainResponse = { id: number; move: Move | null };
 
 self.onmessage = (e: MessageEvent<BrainRequest>) => {
     const { id, state, botId } = e.data;
-    const moves = enumerateMoves(projectedToGameState(state), botId);
-    const move = selectMove(moves, Math.random());
+    const move = greedySelectMove(
+        projectedToGameState(state),
+        botId,
+        Math.random()
+    );
     const response: BrainResponse = { id, move };
     (self as DedicatedWorkerGlobalScope).postMessage(response);
 };

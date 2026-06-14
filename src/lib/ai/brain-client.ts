@@ -7,13 +7,12 @@
 // `brain.ts`.
 //
 // In a non-Worker environment (SSR, tests), `consultBrain` falls back to running
-// the same enumeration + random selection inline — so the driver never
-// hard-depends on the Worker being available.
+// the same greedy selection inline — so the driver never hard-depends on the
+// Worker being available.
 
 import type { PublicGameState } from "@convex/gameProjections";
 import type { Move } from "@convex/gre";
-import { enumerateMoves } from "@convex/gre";
-import { selectMove } from "./brain";
+import { greedySelectMove } from "@convex/gre";
 import { projectedToGameState } from "./state-adapter";
 import type { BrainRequest, BrainResponse } from "./brain.worker";
 
@@ -54,8 +53,12 @@ export function consultBrain(
 ): Promise<Move | null> {
     const w = getWorker();
     if (!w) {
-        const moves = enumerateMoves(projectedToGameState(state), botId);
-        return Promise.resolve(selectMove(moves, Math.random()));
+        const move = greedySelectMove(
+            projectedToGameState(state),
+            botId,
+            Math.random()
+        );
+        return Promise.resolve(move);
     }
 
     const id = nextId++;
