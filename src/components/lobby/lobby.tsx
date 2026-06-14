@@ -106,6 +106,22 @@ function Lobby() {
         }
     };
 
+    const handleCreateVsAi = async () => {
+        if (isBusy || !selectedDeck || !user) return;
+        setIsBusy(true);
+        try {
+            const id = await createSoloGame({
+                name: `${user.nickname} vs AI`,
+                deck: deckPayload(selectedDeck),
+                vsAi: true,
+            });
+            storeSession(id, `${user._id}-p1`);
+            void navigate({ to: "/game" });
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
     const handleJoin = async (targetGameId: Id<"games">) => {
         if (isBusy || !selectedDeck || !user) return;
         setIsBusy(true);
@@ -204,6 +220,7 @@ function Lobby() {
                     selectedDeck={selectedDeck}
                     openGames={openGames}
                     onCreateSolo={handleCreateSolo}
+                    onCreateVsAi={handleCreateVsAi}
                     onCreateMultiplayer={handleCreate}
                     onJoin={handleJoin}
                     onChangeDeck={handleChangeDeck}

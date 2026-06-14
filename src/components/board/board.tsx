@@ -3,6 +3,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { Player } from "~/types/game";
+import type { BotView } from "~/lib/ai/brain";
 import { GameContext } from "~/hooks/useGameContext";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import {
@@ -28,6 +29,7 @@ import PaymentBanner from "./payment-banner";
 import PendingChoicePrompt from "./pending-choice-prompt";
 import MulliganPrompt from "./mulligan-prompt";
 import ValidationToast from "./validation-toast";
+import VsAiDriver from "./vs-ai-driver";
 
 const POPUP_SELECTORS = [
     '[data-slot="dialog-content"]',
@@ -40,6 +42,9 @@ type BoardProps = {
     playerId: string;
     /** Solo (single-user) game: viewer auto-follows the priority player. */
     solo: boolean;
+    /** vs-AI game (ADR 0001): the second seat is driven by the bot and the
+     *  viewer stays pinned to the human's seat. */
+    vsAi: boolean;
     showAllCards: boolean;
     debugAllActions: boolean;
 };
@@ -48,6 +53,7 @@ export default function Board({
     gameId,
     playerId,
     solo,
+    vsAi,
     showAllCards,
     debugAllActions,
 }: BoardProps) {
@@ -149,19 +155,43 @@ export default function Board({
 
     // In solo mode the single user controls both players: the viewer follows
     // whoever currently has priority (or whoever owns the next pending action).
-    const viewerId = solo
-        ? computeSoloViewerId({
-              activePlayerId,
-              priorityPlayerId,
+    // In a vs-AI game the bot drives its own seat, so the viewer stays pinned to
+    // the human's seat (ADR 0001) — never auto-following to the bot.
+    const viewerId =
+        solo && !vsAi
+            ? computeSoloViewerId({
+                  activePlayerId,
+                  priorityPlayerId,
+                  phase,
+                  combat,
+                  pendingCast,
+                  pendingActivation,
+                  pendingTarget,
+                  pendingChoices,
+                  playerIds: allPlayers.map((p) => p.id),
+              })
+            : playerId;
+
+    // vs-AI: the bot is the seat the human does not control. Build the decision
+    // view the driver feeds to the Brain (only the current window matters for
+    // the pass-only bot).
+    const botId = vsAi
+        ? (allPlayers.find((p) => p.id !== playerId)?.id ?? null)
+        : null;
+    const botView: BotView | null = botId
+        ? {
+              botId,
               phase,
-              combat,
-              pendingCast,
-              pendingActivation,
-              pendingTarget,
-              pendingChoices,
-              playerIds: allPlayers.map((p) => p.id),
-          })
-        : playerId;
+              priorityPlayerId,
+              activePlayerId,
+              hasCombat: combat !== undefined,
+              attackersConfirmed: combat?.confirmed === true,
+              blockersConfirmed: combat?.blockersConfirmed === true,
+              mulliganDeclaringId: mulligan?.declaringPlayerId,
+              mulliganBottoming: mulligan?.bottoming === true,
+              gameOver: gameOver !== undefined,
+          }
+        : null;
 
     // Opponent on top, local player on bottom
     const opponent = allPlayers.find((p) => p.id !== viewerId);
@@ -196,6 +226,7 @@ export default function Board({
                 <PendingChoiceBufferContext value={pendingChoiceBuffer}>
                     <main className="flex h-full w-full flex-col relative">
                         <AutoPassController solo={solo} />
+                        {vsAi && <VsAiDriver gameId={gameId} view={botView} />}
                         {orderedPlayers.map((player) => (
                             <PlayerBoard key={player.id} player={player} />
                         ))}

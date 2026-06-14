@@ -9,6 +9,7 @@ interface DashboardPlayBoxProps {
     selectedDeck: LobbyDeck | null;
     openGames: Array<Doc<"games">> | undefined;
     onCreateSolo: () => void;
+    onCreateVsAi: () => void;
     onCreateMultiplayer: () => void;
     onJoin: (gameId: Id<"games">) => void;
     onChangeDeck: () => void;
@@ -19,6 +20,7 @@ export default function DashboardPlayBox({
     selectedDeck,
     openGames,
     onCreateSolo,
+    onCreateVsAi,
     onCreateMultiplayer,
     onJoin,
     onChangeDeck,
@@ -63,12 +65,18 @@ export default function DashboardPlayBox({
                     </p>
                 )}
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <ActionButton
+                        onClick={onCreateVsAi}
+                        disabled={!canPlay}
+                        label="Play vs AI"
+                        tone="primary"
+                    />
                     <ActionButton
                         onClick={onCreateSolo}
                         disabled={!canPlay}
                         label="Solo Game"
-                        tone="primary"
+                        tone="secondary"
                     />
                     <ActionButton
                         onClick={onCreateMultiplayer}
