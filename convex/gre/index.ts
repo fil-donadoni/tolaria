@@ -42,3 +42,12 @@ export type { Move, ManaTap } from "./moves";
 export { evaluate, WIN_SCORE } from "./evaluate";
 export { applyMoveForSearch } from "./applyMove";
 export { greedySelectMove } from "./greedy";
+
+// ISMCTS + determinization — the searching Bot (issue #112). `search` replaces
+// greedy selection: it re-determinizes hidden zones each iteration, descends a
+// single information-set tree by UCB1, and runs truncated `evaluate`-scored
+// rollouts. Reuses the real GRE for move application (no second simulator).
+export { determinize } from "./determinize";
+export { search, DEFAULT_BUDGET } from "./search";
+export type { SearchBudget } from "./search";
+export { makeRng } from "./rng";

@@ -4,10 +4,10 @@
 // `BotView` / `decideBotAction` are the cheap main-thread GATE: a constant-time
 // look at the current window that decides whether the bot owes any action at all
 // before paying for a Worker round-trip. The actual move CHOICE lives in the GRE
-// (`greedySelectMove` — issue #111: enumerate → apply each move one ply →
-// evaluate → argmax), which the Worker (`brain.worker.ts`) runs off the UI
-// thread. Both layers are pure and tested without a browser; this file is the
-// gate only.
+// (`search` — issue #112: ISMCTS over a determinized tree, scored by `evaluate`;
+// it supersedes the greedy 1-ply selector of #111), which the Worker
+// (`brain.worker.ts`) runs off the UI thread. Both layers are pure and tested
+// without a browser; this file is the gate only.
 
 /** The minimal slice of game state the bot needs to decide. Built on the
  *  driving client from the full state (the bot's hand is visible to the human's
