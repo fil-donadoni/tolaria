@@ -20,6 +20,19 @@ export function freshSeed(): number {
     return (Math.random() * 0x100000000) | 0;
 }
 
+/** A self-contained seeded float stream in [0, 1), independent of any
+ *  GameState. Used by the AI search (issue #112): ISMCTS must be reproducible
+ *  given a seed without perturbing the game's own `rngSeed`/`rngCounter`. Each
+ *  returned closure owns its counter, so two streams from the same seed produce
+ *  the same sequence. */
+export function makeRng(seed: number): () => number {
+    let counter = 0;
+    return () => {
+        counter = (counter + 1) | 0;
+        return sample(seed, counter);
+    };
+}
+
 /** Advance the PRNG on `state` and return a float in [0, 1). */
 export function nextRandom(state: GameState): number {
     state.rngCounter = (state.rngCounter + 1) | 0;

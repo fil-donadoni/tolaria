@@ -7,12 +7,12 @@
 // `brain.ts`.
 //
 // In a non-Worker environment (SSR, tests), `consultBrain` falls back to running
-// the same greedy selection inline — so the driver never hard-depends on the
+// the same ISMCTS search inline — so the driver never hard-depends on the
 // Worker being available.
 
 import type { PublicGameState } from "@convex/gameProjections";
 import type { Move } from "@convex/gre";
-import { greedySelectMove } from "@convex/gre";
+import { search, DEFAULT_BUDGET } from "@convex/gre";
 import { projectedToGameState } from "./state-adapter";
 import type { BrainRequest, BrainResponse } from "./brain.worker";
 
@@ -53,10 +53,12 @@ export function consultBrain(
 ): Promise<Move | null> {
     const w = getWorker();
     if (!w) {
-        const move = greedySelectMove(
+        const seed = (Math.random() * 0x100000000) | 0;
+        const move = search(
             projectedToGameState(state),
             botId,
-            Math.random()
+            DEFAULT_BUDGET,
+            seed
         );
         return Promise.resolve(move);
     }
