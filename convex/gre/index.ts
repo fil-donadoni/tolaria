@@ -29,3 +29,9 @@ export { nextRandom, randomInt, seededShuffle } from "./rng";
 
 // Phase advancement — used by truncated rollouts to step the game forward.
 export { advancePhase } from "./phases";
+
+// Legal macro-move enumeration + mana tap planning (issue #110). The bot
+// enumerates candidate moves from its own (projected) view and the executor
+// replays the chosen one through existing mutations.
+export { enumerateMoves, planManaPayment, MAX_COMBINATIONS } from "./moves";
+export type { Move, ManaTap } from "./moves";

@@ -1,18 +1,23 @@
-// Client-side handle to the Brain Web Worker (ADR 0001, issue #109).
+// Client-side handle to the Brain Web Worker (ADR 0001, issues #109/#110).
 //
-// Lazily spawns a single module Worker and exposes `consultBrain(view)`, which
-// resolves with the bot's decision. A request-id map matches each reply to its
-// caller so concurrent consults never cross. The Worker is a thin shell; the
-// decision logic lives in `brain.ts`.
+// Lazily spawns a single module Worker and exposes `consultBrain(state, botId)`,
+// which resolves with the bot's chosen Move (or null when it owes nothing). A
+// request-id map matches each reply to its caller so concurrent consults never
+// cross. The Worker is a thin shell; enumeration + selection live in the GRE and
+// `brain.ts`.
 //
 // In a non-Worker environment (SSR, tests), `consultBrain` falls back to running
-// the pure decision function inline — so the spine never hard-depends on the
-// Worker being available.
+// the same enumeration + random selection inline — so the driver never
+// hard-depends on the Worker being available.
 
-import { decideBotAction, type BotAction, type BotView } from "./brain";
+import type { PublicGameState } from "@convex/gameProjections";
+import type { Move } from "@convex/gre";
+import { enumerateMoves } from "@convex/gre";
+import { selectMove } from "./brain";
+import { projectedToGameState } from "./state-adapter";
 import type { BrainRequest, BrainResponse } from "./brain.worker";
 
-type Pending = (action: BotAction) => void;
+type Pending = (move: Move | null) => void;
 
 let worker: Worker | null = null;
 let nextId = 1;
@@ -28,28 +33,34 @@ function getWorker(): Worker | null {
         const resolve = pending.get(e.data.id);
         if (resolve) {
             pending.delete(e.data.id);
-            resolve(e.data.action);
+            resolve(e.data.move);
         }
     };
     worker.onerror = () => {
-        // On a worker error, fail all in-flight consults to a safe "none" so the
+        // On a worker error, fail all in-flight consults to a safe null so the
         // driver never hangs; the next state change re-consults.
         for (const [id, resolve] of pending) {
             pending.delete(id);
-            resolve({ kind: "none" });
+            resolve(null);
         }
     };
     return worker;
 }
 
-/** Ask the Brain to decide the bot's action for `view`. */
-export function consultBrain(view: BotView): Promise<BotAction> {
+/** Ask the Brain to choose a move for `botId` from its projected `state`. */
+export function consultBrain(
+    state: PublicGameState,
+    botId: string
+): Promise<Move | null> {
     const w = getWorker();
-    if (!w) return Promise.resolve(decideBotAction(view));
+    if (!w) {
+        const moves = enumerateMoves(projectedToGameState(state), botId);
+        return Promise.resolve(selectMove(moves, Math.random()));
+    }
 
     const id = nextId++;
-    const request: BrainRequest = { id, view };
-    return new Promise<BotAction>((resolve) => {
+    const request: BrainRequest = { id, state, botId };
+    return new Promise<Move | null>((resolve) => {
         pending.set(id, resolve);
         w.postMessage(request);
     });

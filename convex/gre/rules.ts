@@ -145,41 +145,58 @@ function hasEnoughLegalTargets(
     return legalTargets.length >= required;
 }
 
-/** Returns the colors a permanent could potentially produce when tapped for
- *  mana. Considers basic land subtypes (CR 305.6), fixed mana abilities, and
- *  mana-choice abilities (e.g. dual lands, Talisman). Empty set means the
- *  card has no mana ability the engine knows about. */
-function getProducibleColors(card: CardInstanceState): Set<Color> {
-    const colors = new Set<Color>();
+/** Maps each color a permanent can produce when tapped to the
+ *  `manaChoiceIndex` the payment mutations expect, or `undefined` when the
+ *  source produces that color with no choice (basic land / fixed output).
+ *  Considers basic land subtypes (CR 305.6), fixed mana abilities, and
+ *  mana-choice abilities (e.g. dual lands, Talisman). Empty map means the card
+ *  has no mana ability the engine knows about. When a color is reachable both
+ *  intrinsically and via a choice, the choice-free form (undefined) wins so
+ *  callers tap without supplying an index. */
+export function getProducibleManaOptions(
+    card: CardInstanceState
+): Map<Color, number | undefined> {
+    const options = new Map<Color, number | undefined>();
 
     // CR 305.6: basic land subtypes grant intrinsic mana abilities.
     for (const subtype of card.subtypes) {
         const c = LAND_SUBTYPE_MANA[subtype];
-        if (c) colors.add(c);
+        if (c) options.set(c, undefined);
     }
 
     const cardId = (card.card as { id?: string }).id;
-    if (!cardId) return colors;
+    if (!cardId) return options;
     const def = tryGetCardById(cardId);
-    if (!def?.activatedAbilities) return colors;
+    if (!def?.activatedAbilities) return options;
 
     for (const ability of def.activatedAbilities) {
         if (ability.useStack) continue;
         if (!ability.cost.tap) continue;
         if (ability.manaProduced) {
             for (const c of MANA_COLORS) {
-                if ((ability.manaProduced[c] ?? 0) > 0) colors.add(c);
-            }
-        }
-        if (ability.manaChoices) {
-            for (const choice of ability.manaChoices) {
-                for (const c of MANA_COLORS) {
-                    if ((choice[c] ?? 0) > 0) colors.add(c);
+                if ((ability.manaProduced[c] ?? 0) > 0 && !options.has(c)) {
+                    options.set(c, undefined);
                 }
             }
         }
+        if (ability.manaChoices) {
+            ability.manaChoices.forEach((choice, index) => {
+                for (const c of MANA_COLORS) {
+                    // Don't overwrite a choice-free producer with an index.
+                    if ((choice[c] ?? 0) > 0 && !options.has(c)) {
+                        options.set(c, index);
+                    }
+                }
+            });
+        }
     }
-    return colors;
+    return options;
+}
+
+/** Returns the colors a permanent could potentially produce when tapped for
+ *  mana. Thin wrapper over {@link getProducibleManaOptions}. */
+function getProducibleColors(card: CardInstanceState): Set<Color> {
+    return new Set(getProducibleManaOptions(card).keys());
 }
 
 /** True if the player has enough mana — already in the pool plus what could

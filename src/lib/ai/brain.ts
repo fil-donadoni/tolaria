@@ -9,6 +9,14 @@
 //
 // PURE and Worker-free: the Worker (`brain.worker.ts`) is a thin shell that
 // calls this; all tests exercise this function directly with no browser.
+//
+// Issue #110 grows the bot from pass-only to random-legal: the Worker
+// enumerates the full legal move set (`enumerateMoves`) from the bot's own
+// projected view and `selectMove` picks one uniformly at random. `BotView` /
+// `decideBotAction` remain as the cheap main-thread gate that decides whether
+// the bot owes any action at all before paying for a Worker round-trip.
+
+import type { Move } from "@convex/gre";
 
 /** The minimal slice of game state the bot needs to decide. Built on the
  *  driving client from the full state (the bot's hand is visible to the human's
@@ -83,4 +91,13 @@ export function decideBotAction(view: BotView): BotAction {
     if (view.priorityPlayerId === view.botId) return { kind: "pass" };
 
     return NONE;
+}
+
+/** Pick one move uniformly at random from the enumerated legal set. `rand` must
+ *  be in [0, 1) (e.g. `Math.random()`); kept as a parameter so the choice is a
+ *  pure, testable function. Returns null for an empty set (bot owes nothing). */
+export function selectMove(moves: Move[], rand: number): Move | null {
+    if (moves.length === 0) return null;
+    const index = Math.min(moves.length - 1, Math.floor(rand * moves.length));
+    return moves[index];
 }

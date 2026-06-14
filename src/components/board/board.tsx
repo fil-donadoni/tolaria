@@ -3,7 +3,6 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { Player } from "~/types/game";
-import type { BotView } from "~/lib/ai/brain";
 import { GameContext } from "~/hooks/useGameContext";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import {
@@ -172,25 +171,11 @@ export default function Board({
               })
             : playerId;
 
-    // vs-AI: the bot is the seat the human does not control. Build the decision
-    // view the driver feeds to the Brain (only the current window matters for
-    // the pass-only bot).
+    // vs-AI: the bot is the seat the human does not control. The driver queries
+    // the bot's own viewpoint and enumerates its moves (ADR 0001) — it only
+    // needs the seat id from here.
     const botId = vsAi
         ? (allPlayers.find((p) => p.id !== playerId)?.id ?? null)
-        : null;
-    const botView: BotView | null = botId
-        ? {
-              botId,
-              phase,
-              priorityPlayerId,
-              activePlayerId,
-              hasCombat: combat !== undefined,
-              attackersConfirmed: combat?.confirmed === true,
-              blockersConfirmed: combat?.blockersConfirmed === true,
-              mulliganDeclaringId: mulligan?.declaringPlayerId,
-              mulliganBottoming: mulligan?.bottoming === true,
-              gameOver: gameOver !== undefined,
-          }
         : null;
 
     // Opponent on top, local player on bottom
@@ -226,7 +211,7 @@ export default function Board({
                 <PendingChoiceBufferContext value={pendingChoiceBuffer}>
                     <main className="flex h-full w-full flex-col relative">
                         <AutoPassController solo={solo} />
-                        {vsAi && <VsAiDriver gameId={gameId} view={botView} />}
+                        {vsAi && <VsAiDriver gameId={gameId} botId={botId} />}
                         {orderedPlayers.map((player) => (
                             <PlayerBoard key={player.id} player={player} />
                         ))}

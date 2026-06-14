@@ -1,83 +1,172 @@
-// Bot executor (ADR 0001, issue #109): every BotAction fires the correct
-// EXISTING mutation, on the bot seat, with the right args. This is the
-// GRE→game.ts contract for the bot — catches wrong-mutation / wrong-seat bugs.
+// Bot executor (ADR 0001, issue #110): every Move kind fires the correct
+// EXISTING mutation sequence, on the bot seat, with the right args. This is the
+// client side of the GRE→game.ts contract — it catches wrong-mutation,
+// wrong-seat, and wrong-order bugs before they reach the server.
 import { describe, expect, it, vi } from "vitest";
 import type { Id } from "@convex/_generated/dataModel";
-import { executeBotAction, type BotMutations } from "../executor";
+import type { Move } from "@convex/gre";
+import { executeMove, type MoveMutations } from "../executor";
 
 const GAME = "game1" as Id<"games">;
 const BOT = "u1-p2";
+const GP = { gameId: GAME, playerId: BOT };
 
 function fakeMutations() {
-    return {
-        declareMulligan: vi.fn().mockResolvedValue(null),
+    const m: Record<keyof MoveMutations, ReturnType<typeof vi.fn>> = {
+        playCard: vi.fn().mockResolvedValue(null),
+        announceCast: vi.fn().mockResolvedValue(null),
+        selectTarget: vi.fn().mockResolvedValue(null),
+        confirmTargets: vi.fn().mockResolvedValue(null),
+        tapForPayment: vi.fn().mockResolvedValue(null),
+        activateAbility: vi.fn().mockResolvedValue(null),
+        tapForActivationPayment: vi.fn().mockResolvedValue(null),
+        toggleAttacker: vi.fn().mockResolvedValue(null),
         confirmAttackers: vi.fn().mockResolvedValue(null),
+        selectBlocker: vi.fn().mockResolvedValue(null),
+        assignBlockerTarget: vi.fn().mockResolvedValue(null),
         confirmBlockers: vi.fn().mockResolvedValue(null),
+        declareMulligan: vi.fn().mockResolvedValue(null),
         passPriority: vi.fn().mockResolvedValue(null),
-    } satisfies BotMutations;
+    };
+    return m as unknown as MoveMutations &
+        Record<keyof MoveMutations, ReturnType<typeof vi.fn>>;
 }
 
-describe("executeBotAction (issue #109)", () => {
-    it("keep → declareMulligan(keep) on the bot seat", async () => {
-        const m = fakeMutations();
-        const fired = await executeBotAction(
-            { kind: "keep" },
-            { gameId: GAME, botId: BOT, mutations: m }
-        );
-        expect(fired).toBe(true);
+function run(move: Move) {
+    const m = fakeMutations();
+    return executeMove(move, { gameId: GAME, botId: BOT, mutations: m }).then(
+        () => m
+    );
+}
+
+describe("executeMove (issue #110)", () => {
+    it("pass → passPriority on the bot seat", async () => {
+        const m = await run({ kind: "pass" });
+        expect(m.passPriority).toHaveBeenCalledWith(GP);
+    });
+
+    it("mulligan → declareMulligan with the decision", async () => {
+        const m = await run({ kind: "mulligan", decision: "keep" });
         expect(m.declareMulligan).toHaveBeenCalledWith({
-            gameId: GAME,
-            playerId: BOT,
+            ...GP,
             decision: "keep",
         });
     });
 
-    it("declare-attackers → confirmAttackers on the bot seat", async () => {
-        const m = fakeMutations();
-        await executeBotAction(
-            { kind: "declare-attackers" },
-            { gameId: GAME, botId: BOT, mutations: m }
-        );
-        expect(m.confirmAttackers).toHaveBeenCalledWith({
-            gameId: GAME,
-            playerId: BOT,
+    it("play-land → playCard with the card id", async () => {
+        const m = await run({ kind: "play-land", cardInstanceId: "land1" });
+        expect(m.playCard).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "land1",
         });
     });
 
-    it("declare-blockers → confirmBlockers on the bot seat", async () => {
-        const m = fakeMutations();
-        await executeBotAction(
-            { kind: "declare-blockers" },
-            { gameId: GAME, botId: BOT, mutations: m }
-        );
-        expect(m.confirmBlockers).toHaveBeenCalledWith({
-            gameId: GAME,
-            playerId: BOT,
+    it("cast-spell → announce, select each target, then tap each land in order", async () => {
+        const m = await run({
+            kind: "cast-spell",
+            cardInstanceId: "bolt",
+            chosenX: undefined,
+            chosenModeId: undefined,
+            confirmTargets: false,
+            targets: [{ type: "player", id: "u1-p1" }],
+            tapPlan: [{ cardInstanceId: "mtn", manaChoiceIndex: undefined }],
+        });
+        expect(m.announceCast).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "bolt",
+            chosenX: undefined,
+            chosenModeId: undefined,
+        });
+        expect(m.selectTarget).toHaveBeenCalledWith({
+            ...GP,
+            targetType: "player",
+            targetId: "u1-p1",
+            targetPlayerId: undefined,
+        });
+        expect(m.tapForPayment).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "mtn",
+            manaChoiceIndex: undefined,
+        });
+        // No confirmTargets for fixed-N selections.
+        expect(m.confirmTargets).not.toHaveBeenCalled();
+    });
+
+    it("cast-spell → confirmTargets only for variable-count targets", async () => {
+        const m = await run({
+            kind: "cast-spell",
+            cardInstanceId: "fireball",
+            confirmTargets: true,
+            targets: [{ type: "player", id: "u1-p1" }],
+            tapPlan: [],
+        });
+        expect(m.confirmTargets).toHaveBeenCalledWith(GP);
+    });
+
+    it("activate-ability → activate, then fund via tapForActivationPayment", async () => {
+        const m = await run({
+            kind: "activate-ability",
+            cardInstanceId: "src",
+            abilityId: "ping",
+            chosenX: undefined,
+            confirmTargets: false,
+            targets: [{ type: "permanent", id: "creat" }],
+            tapPlan: [{ cardInstanceId: "isl" }],
+        });
+        expect(m.activateAbility).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "src",
+            abilityId: "ping",
+            chosenX: undefined,
+        });
+        expect(m.selectTarget).toHaveBeenCalledWith({
+            ...GP,
+            targetType: "permanent",
+            targetId: "creat",
+            targetPlayerId: undefined,
+        });
+        expect(m.tapForActivationPayment).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "isl",
+            manaChoiceIndex: undefined,
         });
     });
 
-    it("pass → passPriority on the bot seat", async () => {
-        const m = fakeMutations();
-        await executeBotAction(
-            { kind: "pass" },
-            { gameId: GAME, botId: BOT, mutations: m }
-        );
-        expect(m.passPriority).toHaveBeenCalledWith({
-            gameId: GAME,
-            playerId: BOT,
+    it("declare-attackers → toggle each then confirm", async () => {
+        const m = await run({
+            kind: "declare-attackers",
+            attackerIds: ["a1", "a2"],
         });
+        expect(m.toggleAttacker).toHaveBeenNthCalledWith(1, {
+            ...GP,
+            cardInstanceId: "a1",
+        });
+        expect(m.toggleAttacker).toHaveBeenNthCalledWith(2, {
+            ...GP,
+            cardInstanceId: "a2",
+        });
+        expect(m.confirmAttackers).toHaveBeenCalledWith(GP);
     });
 
-    it("none → no mutation fired", async () => {
-        const m = fakeMutations();
-        const fired = await executeBotAction(
-            { kind: "none" },
-            { gameId: GAME, botId: BOT, mutations: m }
-        );
-        expect(fired).toBe(false);
-        expect(m.declareMulligan).not.toHaveBeenCalled();
-        expect(m.confirmAttackers).not.toHaveBeenCalled();
-        expect(m.confirmBlockers).not.toHaveBeenCalled();
-        expect(m.passPriority).not.toHaveBeenCalled();
+    it("declare-attackers with empty set → just confirm (no attack)", async () => {
+        const m = await run({ kind: "declare-attackers", attackerIds: [] });
+        expect(m.toggleAttacker).not.toHaveBeenCalled();
+        expect(m.confirmAttackers).toHaveBeenCalledWith(GP);
+    });
+
+    it("declare-blockers → select+assign each, then confirm", async () => {
+        const m = await run({
+            kind: "declare-blockers",
+            assignments: [{ blockerId: "b1", attackerId: "a1" }],
+        });
+        expect(m.selectBlocker).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "b1",
+        });
+        expect(m.assignBlockerTarget).toHaveBeenCalledWith({
+            ...GP,
+            attackerId: "a1",
+        });
+        expect(m.confirmBlockers).toHaveBeenCalledWith(GP);
     });
 });
