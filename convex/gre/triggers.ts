@@ -14,6 +14,7 @@ import type { GameEvent, StateCheckEvent } from "../cards/types";
 import { tryGetCardById } from "../cards";
 import type { CardInstanceState, GameState, StackItem } from "./state";
 import { getPlayer, allocInstanceId } from "./state";
+import { effectiveTriggeredAbilities } from "./copy";
 
 /** Builds a StackItem representing a triggered ability on the stack. */
 function buildTriggerItem(
@@ -110,9 +111,10 @@ export function collectTriggers(
         for (const permanent of sources) {
             const cardId = (permanent.card as { id?: string }).id;
             if (!cardId) continue;
-            const def = tryGetCardById(cardId);
-            const abilities = def?.triggeredAbilities;
-            if (!abilities || abilities.length === 0) continue;
+            // CR 707.9d — includes abilities retained through a copy effect
+            // (Vesuvan Doppelganger's upkeep re-copy).
+            const abilities = effectiveTriggeredAbilities(permanent);
+            if (abilities.length === 0) continue;
             for (const ability of abilities) {
                 // Battlefield-zone abilities only here; graveyard-zone
                 // abilities (zone: "graveyard") are scanned separately below.
@@ -183,9 +185,8 @@ export function collectStateTriggers(state: GameState): StackItem[] {
         for (const permanent of player.battlefield) {
             const cardId = (permanent.card as { id?: string }).id;
             if (!cardId) continue;
-            const def = tryGetCardById(cardId);
-            const abilities = def?.triggeredAbilities;
-            if (!abilities || abilities.length === 0) continue;
+            const abilities = effectiveTriggeredAbilities(permanent);
+            if (abilities.length === 0) continue;
             for (const ability of abilities) {
                 if (ability.event !== "STATE_CHECK") continue;
                 if (stateTriggerAlreadyOnStack(state, permanent.id, ability.id))

@@ -79,10 +79,13 @@ export function applyPendingChoiceSubmit(
 
     // --- Zone-level validation: verify every id exists in the declared zone ---
     if (head.zone === "battlefield") {
+        // CR 707 — `allControllers` choices (Clone / Copy Artifact) draw from
+        // every player's battlefield, not just one owner's.
+        const pool: CardInstanceState[] = head.allControllers
+            ? state.players.flatMap((p) => p.battlefield)
+            : zoneOwner.battlefield;
         for (const id of args.cardInstanceIds) {
-            const card = zoneOwner.battlefield.find(
-                (c: CardInstanceState) => c.id === id
-            );
+            const card = pool.find((c: CardInstanceState) => c.id === id);
             if (!card) throw new Error("Card not on battlefield");
             if (head.filter && !matchesPermanentFilter(card, head.filter)) {
                 throw new Error("Card does not match the required filter");

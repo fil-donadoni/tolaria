@@ -331,6 +331,20 @@ export interface TokenSpec {
     imagePrintId?: string;
 }
 
+// --- Copy effects (CR 706, 707) ---
+
+/** Options for a copy effect applied via `SpellContext.becomeCopyOf`. */
+export interface CopyEffectOptions {
+    /** When false, the copy keeps its own color rather than the copied
+     *  object's (Vesuvan Doppelganger, CR 707.9d). Defaults to true. */
+    copyColor?: boolean;
+    /** Colors to retain when `copyColor` is false (the recipient's own). */
+    ownColors?: Color[];
+    /** Types added on top of the copied object's types (Copy Artifact —
+     *  "except it's an enchantment in addition to its other types"). */
+    additionalTypes?: CardType[];
+}
+
 // --- Spell resolution context ---
 
 export interface SpellContext {
@@ -359,6 +373,12 @@ export interface SpellContext {
     /** True if the given permanent currently has a keyword removal record
      *  for `keyword` (set by a keyword-remove static effect). */
     hasRemovedKeyword: (permanentId: string, keyword: string) => boolean;
+    /** Applies a copy effect (CR 707.2) to the permanent currently resolving
+     *  — the spell entering the battlefield (Clone ETB choice) or the trigger
+     *  source (Vesuvan upkeep re-copy). The recipient becomes a copy of the
+     *  permanent identified by `sourceCreatureId`. No-op if the copy target
+     *  has left the battlefield. */
+    becomeCopyOf: (sourceCreatureId: string, opts?: CopyEffectOptions) => void;
     // --- Primitives ---
     dealDamage: (target: TargetSelection, amount: number) => void;
     gainLife: (playerId: string, amount: number) => void;
@@ -763,13 +783,18 @@ export interface SpellContext {
         kind: ZonePickKind;
         zone: "battlefield" | "hand" | "library";
         filter?: PermanentFilter;
-        count: number;
+        count: number | { min: number; max: number };
         prompt: string;
         /** Owner of the zone being picked from. Defaults to `playerId` (the
          *  chooser picks from their own zone). Set when the chooser picks
          *  items from another player's zone (e.g. Demonic Hordes: opponent
          *  picks a Land from controller's battlefield). */
         zoneOwnerId?: string;
+        /** When true, candidates are drawn from EVERY player's battlefield,
+         *  not just one owner's (CR 707 — "a copy of any creature on the
+         *  battlefield", Clone / Copy Artifact). Only meaningful for
+         *  `zone: "battlefield"`. */
+        allControllers?: boolean;
     }) => string[] | undefined;
 
     /** Requests an optional yes/no decision with an optional mana cost
@@ -1620,6 +1645,11 @@ export interface TriggeredAbility {
     ) => boolean;
     /** Effect run when the trigger resolves from the stack. */
     resolve: (ctx: SpellContext, event: GameEvent) => void;
+    /** Retained when this permanent becomes a copy of another (CR 707.9d —
+     *  "except it has this ability"). Vesuvan Doppelganger's upkeep re-copy
+     *  trigger sets this so it keeps functioning after the copy overwrites the
+     *  presented characteristics. Ignored for non-copies. */
+    retainedThroughCopy?: boolean;
 }
 
 // --- Replacement effects (CR 614) ---

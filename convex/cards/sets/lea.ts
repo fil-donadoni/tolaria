@@ -8,6 +8,7 @@ import type {
     PermanentView,
     SpellContext,
     StaticEffectContext,
+    StaticEffectStateView,
     TargetSelection,
     TriggeredAbility,
     TriggerStateView,
@@ -1305,16 +1306,53 @@ export const braingeyser: CardDefinition = {
     },
 };
 
-// export const clone: CardDefinition = {
-//     id: "f00d33dd-4eb2-4446-9813-1923d8e2d2f3",
-//     name: "Clone",
-//     oracleText: "You may have this creature enter as a copy of any creature on the battlefield.",
-//     manaCost: { X: 3, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Shapeshifter"],
-//     power: 0,
-//     toughness: 0,
-// };
+// Clone — "You may have Clone enter the battlefield as a copy of any creature
+// on the battlefield." (CR 707.2 copy effect, 614.12 as-enters replacement.)
+// The copy choice runs in a resolve step while Clone is still on the stack;
+// `becomeCopyOf` overwrites its copiable characteristics before it enters.
+// Declining (or no creatures present) leaves it a 0/0 that dies to SBA
+// (CR 704.5f).
+export const clone: CardDefinition = {
+    id: "f00d33dd-4eb2-4446-9813-1923d8e2d2f3",
+    name: "Clone",
+    oracleText:
+        "You may have Clone enter the battlefield as a copy of any creature on the battlefield.",
+    manaCost: { X: 3, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Shapeshifter"],
+    power: 0,
+    toughness: 0,
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            let candidates = 0;
+            for (const pid of ctx.allPlayerIds) {
+                candidates += ctx.getBattlefieldIds(pid, {
+                    types: "Creature",
+                }).length;
+            }
+            if (candidates === 0) return; // enters as a 0/0
+            const accept = ctx.requestMayPay({
+                playerId: ctx.controller,
+                choiceId: "clone-may-copy",
+                prompt: "Have Clone enter as a copy of a creature?",
+            });
+            if (accept === undefined) return; // suspended
+            if (!accept) return;
+            const picks = ctx.requestChoice({
+                playerId: ctx.controller,
+                choiceId: "clone-copy-target",
+                kind: "choose-permanents",
+                zone: "battlefield",
+                allControllers: true,
+                filter: { types: "Creature" },
+                count: 1,
+                prompt: "Choose a creature for Clone to copy.",
+            });
+            if (picks === undefined) return; // suspended
+            if (picks.length === 1) ctx.becomeCopyOf(picks[0]);
+        },
+    ],
+};
 
 // Control Magic — "Enchant creature. You control enchanted creature."
 // (CR 303.4 aura attachment, 611.2 continuous static ability, 613.1b layer 2
@@ -1335,13 +1373,53 @@ export const controlMagic: CardDefinition = {
     ],
 };
 
-// export const copyArtifact: CardDefinition = {
-//     id: "fd5ed955-1193-4e6a-a3e2-f54c1f9bf063",
-//     name: "Copy Artifact",
-//     oracleText: "You may have this enchantment enter as a copy of any artifact on the battlefield, except it's an enchantment in addition to its other types.",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Enchantment"],
-// };
+// Copy Artifact — "You may have Copy Artifact enter the battlefield as a copy
+// of any artifact on the battlefield, except it's an enchantment in addition
+// to its other types." (CR 707.2 copy effect with a type-adding exception,
+// CR 707.9d.) The copy keeps the Enchantment type via `additionalTypes`.
+// Declining (or no artifacts present) leaves it a do-nothing enchantment.
+export const copyArtifact: CardDefinition = {
+    id: "fd5ed955-1193-4e6a-a3e2-f54c1f9bf063",
+    name: "Copy Artifact",
+    oracleText:
+        "You may have Copy Artifact enter the battlefield as a copy of any artifact on the battlefield, except it's an enchantment in addition to its other types.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Enchantment"],
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            let candidates = 0;
+            for (const pid of ctx.allPlayerIds) {
+                candidates += ctx.getBattlefieldIds(pid, {
+                    types: "Artifact",
+                }).length;
+            }
+            if (candidates === 0) return;
+            const accept = ctx.requestMayPay({
+                playerId: ctx.controller,
+                choiceId: "copy-artifact-may-copy",
+                prompt: "Have Copy Artifact enter as a copy of an artifact?",
+            });
+            if (accept === undefined) return;
+            if (!accept) return;
+            const picks = ctx.requestChoice({
+                playerId: ctx.controller,
+                choiceId: "copy-artifact-target",
+                kind: "choose-permanents",
+                zone: "battlefield",
+                allControllers: true,
+                filter: { types: "Artifact" },
+                count: 1,
+                prompt: "Choose an artifact for Copy Artifact to copy.",
+            });
+            if (picks === undefined) return;
+            if (picks.length === 1) {
+                ctx.becomeCopyOf(picks[0], {
+                    additionalTypes: ["Enchantment"],
+                });
+            }
+        },
+    ],
+};
 
 // Counterspell — "Counter target spell." (CR 701.5a)
 export const counterspell: CardDefinition = {
@@ -2174,16 +2252,106 @@ export const unsummon: CardDefinition = {
     },
 };
 
-// export const vesuvanDoppelganger: CardDefinition = {
-//     id: "768f3a05-bd06-4a23-b9f2-94f6e618fd9f",
-//     name: "Vesuvan Doppelganger",
-//     oracleText: "You may have this creature enter as a copy of any creature on the battlefield, except it doesn't copy that creature's color and it has \"At the beginning of your upkeep, you may have this creature become a copy of target creature, except it doesn't copy that creature's color and it has this ability.\"",
-//     manaCost: { X: 3, U: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Shapeshifter"],
-//     power: 0,
-//     toughness: 0,
-// };
+// Vesuvan Doppelganger — enters as a copy of any creature, "except it doesn't
+// copy that creature's color and it has [an upkeep re-copy ability]" (CR
+// 707.2, 707.9d). The colour exception keeps it blue via a layer-5 colour
+// override; the retained ability is flagged `retainedThroughCopy` so the
+// trigger keeps functioning after the copy overwrites the presented
+// characteristics (see `gre/copy.ts`). The upkeep ability re-applies the copy
+// with the same two exceptions.
+const VESUVAN_OWN_COLORS: Color[] = ["U"];
+
+export const vesuvanDoppelganger: CardDefinition = {
+    id: "768f3a05-bd06-4a23-b9f2-94f6e618fd9f",
+    name: "Vesuvan Doppelganger",
+    oracleText:
+        "You may have Vesuvan Doppelganger enter the battlefield as a copy of any creature on the battlefield, except it doesn't copy that creature's color and it has \"At the beginning of your upkeep, you may have this creature become a copy of target creature, except it doesn't copy that creature's color and it has this ability.\"",
+    manaCost: { X: 3, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Shapeshifter"],
+    power: 0,
+    toughness: 0,
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            let candidates = 0;
+            for (const pid of ctx.allPlayerIds) {
+                candidates += ctx.getBattlefieldIds(pid, {
+                    types: "Creature",
+                }).length;
+            }
+            if (candidates === 0) return;
+            const accept = ctx.requestMayPay({
+                playerId: ctx.controller,
+                choiceId: "vesuvan-may-copy",
+                prompt: "Have Vesuvan Doppelganger enter as a copy of a creature?",
+            });
+            if (accept === undefined) return;
+            if (!accept) return;
+            const picks = ctx.requestChoice({
+                playerId: ctx.controller,
+                choiceId: "vesuvan-copy-target",
+                kind: "choose-permanents",
+                zone: "battlefield",
+                allControllers: true,
+                filter: { types: "Creature" },
+                count: 1,
+                prompt: "Choose a creature for Vesuvan Doppelganger to copy.",
+            });
+            if (picks === undefined) return;
+            if (picks.length === 1) {
+                ctx.becomeCopyOf(picks[0], {
+                    copyColor: false,
+                    ownColors: VESUVAN_OWN_COLORS,
+                });
+            }
+        },
+    ],
+    triggeredAbilities: [
+        {
+            ...phaseTrigger({
+                id: "vesuvan-doppelganger-recopy",
+                oracleText:
+                    "At the beginning of your upkeep, you may have Vesuvan Doppelganger become a copy of target creature, except it doesn't copy that creature's color and it has this ability.",
+                phase: "UPKEEP",
+                scope: "your",
+                resolve: (ctx) => {
+                    let candidates = 0;
+                    for (const pid of ctx.allPlayerIds) {
+                        candidates += ctx.getBattlefieldIds(pid, {
+                            types: "Creature",
+                        }).length;
+                    }
+                    if (candidates === 0) return;
+                    const accept = ctx.requestMayPay({
+                        playerId: ctx.controller,
+                        choiceId: `vesuvan-recopy-may-${ctx.sourceInstanceId}`,
+                        prompt: "Have Vesuvan Doppelganger become a copy of another creature?",
+                    });
+                    if (accept === undefined) return;
+                    if (!accept) return;
+                    const picks = ctx.requestChoice({
+                        playerId: ctx.controller,
+                        choiceId: `vesuvan-recopy-${ctx.sourceInstanceId}`,
+                        kind: "choose-permanents",
+                        zone: "battlefield",
+                        allControllers: true,
+                        filter: { types: "Creature" },
+                        count: 1,
+                        prompt: "Choose a creature for Vesuvan Doppelganger to copy.",
+                    });
+                    if (picks === undefined) return;
+                    if (picks.length === 1) {
+                        ctx.becomeCopyOf(picks[0], {
+                            copyColor: false,
+                            ownColors: VESUVAN_OWN_COLORS,
+                        });
+                    }
+                },
+            }),
+            retainedThroughCopy: true,
+        },
+    ],
+};
 
 // Volcanic Eruption — "Destroy X target Mountains. Volcanic Eruption deals
 // damage to each creature and each player equal to the number of Mountains
@@ -5153,14 +5321,95 @@ export const fungusaur: CardDefinition = {
     ],
 };
 
-// export const gaeasLiege: CardDefinition = {
-//     id: "e2b15221-c8b0-4861-9f8b-8a65834ad499",
-//     name: "Gaea's Liege",
-//     oracleText: "As long as Gaea's Liege isn't attacking, its power and toughness are each equal to the number of Forests you control. As long as Gaea's Liege is attacking, its power and toughness are each equal to the number of Forests defending player controls.\n{T}: Target land becomes a Forest until this creature leaves the battlefield.",
-//     manaCost: { X: 3, G: 3 },
-//     types: ["Creature"],
-//     subtypes: ["Avatar"],
-// };
+// Gaea's Liege — "As long as Gaea's Liege isn't attacking, its power and
+// toughness are each equal to the number of Forests you control. As long as
+// Gaea's Liege is attacking, its power and toughness are each equal to the
+// number of Forests defending player controls.\n{T}: Target land becomes a
+// Forest until this creature leaves the battlefield."
+// P/T via a layer 7c characteristic-defining ability (CR 604.3, 613.4c) that
+// reads `isAttacking` (W14) to switch which player's Forests are counted.
+// The {T} ability marks the target land with a `gaea-forest` counter; a
+// counter-driven subtype-set (CR 305.7, layer 4) turns it into a Forest while
+// Gaea's Liege is on the battlefield — when Gaea's Liege leaves,
+// `unapplySourceStaticEffects` reverts the land (CR 611.2), satisfying "until
+// this creature leaves the battlefield".
+const countForestsControlledBy = (
+    controllerId: string,
+    state: StaticEffectStateView
+): number => {
+    let n = 0;
+    for (const player of state.players) {
+        for (const p of player.battlefield) {
+            if (
+                p.controllerId === controllerId &&
+                p.subtypes.includes("Forest")
+            ) {
+                n++;
+            }
+        }
+    }
+    return n;
+};
+
+export const gaeasLiege: CardDefinition = {
+    id: "e2b15221-c8b0-4861-9f8b-8a65834ad499",
+    name: "Gaea's Liege",
+    oracleText:
+        "As long as Gaea's Liege isn't attacking, its power and toughness are each equal to the number of Forests you control. As long as Gaea's Liege is attacking, its power and toughness are each equal to the number of Forests defending player controls.\n{T}: Target land becomes a Forest until this creature leaves the battlefield.",
+    manaCost: { X: 3, G: 3 },
+    types: ["Creature"],
+    subtypes: ["Avatar"],
+    power: 0,
+    toughness: 0,
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: EFFECT_AFFECTS_SELF,
+            compute: (source, state) => {
+                let n: number;
+                if (source.isAttacking) {
+                    // CR 509.1 — in a 2-player game the defending player is the
+                    // attacker's sole opponent. The static-effect state view
+                    // exposes no player ids, so derive the opponent's id from
+                    // any permanent it controls; if it controls none it has no
+                    // Forests either, so the count is 0.
+                    const defenderId = state.players
+                        .flatMap((pl) => pl.battlefield)
+                        .find(
+                            (c) => c.controllerId !== source.controllerId
+                        )?.controllerId;
+                    n = defenderId
+                        ? countForestsControlledBy(defenderId, state)
+                        : 0;
+                } else {
+                    n = countForestsControlledBy(source.controllerId, state);
+                }
+                return { power: n, toughness: n };
+            },
+        },
+        {
+            kind: "subtype-set",
+            applies: (target) => (target.counters?.["gaea-forest"] ?? 0) > 0,
+            subtypes: ["Forest"],
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "gaeas-liege-make-forest",
+            oracleText:
+                "{T}: Target land becomes a Forest until this creature leaves the battlefield.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Land", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") {
+                    ctx.addCounter(t, "gaea-forest", 1);
+                }
+            },
+        },
+    ],
+};
 
 export const giantGrowth: CardDefinition = {
     id: "367dbefe-3366-408e-9fcf-7dc00f8cc201",

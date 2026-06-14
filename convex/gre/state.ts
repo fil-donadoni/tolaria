@@ -44,6 +44,12 @@ import {
 } from "./replacements";
 import { collectTriggers } from "./triggers";
 import { getColorsFromCost } from "../cards/colors";
+import {
+    applyCopy,
+    findTriggeredAbility,
+    revertCopy,
+    type CopyOptions,
+} from "./copy";
 
 /** Stored form of a temporary-effect duration. Mirrors `DurationSpec` but
  *  with the symbolic `player` field resolved to a concrete `playerId` at
@@ -307,6 +313,15 @@ export type CardInstanceState = {
      *  returns this array instead of mana-cost-derived + grantedColors.
      *  Set by lace instants ("target spell or permanent becomes [color]"). */
     colorOverride?: Color[];
+    /** Copy effect anchor (CR 707.2, 706). When this permanent is a copy of
+     *  another (Clone, Copy Artifact, Vesuvan Doppelganger), `card.id` is
+     *  overwritten with the copied object's definition id so every
+     *  characteristic reader (abilities, colors, P/T, types) observes the
+     *  copy automatically. `copiedFrom` holds this instance's ORIGINAL printed
+     *  definition id — the value `card.id` is restored to when the copy leaves
+     *  the battlefield (`revertCopy`). Its presence marks the instance as an
+     *  active copy and survives Vesuvan's upkeep re-copy unchanged. */
+    copiedFrom?: string;
 };
 
 /** A one-shot damage prevention effect (CR 615.1, 615.6). The next time the
@@ -596,6 +611,11 @@ export type PendingChoice = {
     /** Optional battlefield filter (card types / subtypes / keywords). Ignored
      *  for hand choices. */
     filter?: PermanentFilter;
+    /** When true, the choosable set spans EVERY player's battlefield rather
+     *  than a single owner's (CR 707 — Clone / Copy Artifact "a copy of any
+     *  creature/artifact on the battlefield"). Only meaningful for
+     *  `zone: "battlefield"`; the UI routes clicks to all battlefields. */
+    allControllers?: boolean;
     /** Number of items to pick. Two shapes:
      *  - `number` (fixed N) — the chooser must select exactly N.
      *  - `{ min, max }` (range) — tactical zero-branch (ADR 0003 cap-style:
@@ -1098,9 +1118,10 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     // Triggered ability resolution (CR 603.3). Source permanent stays on
     // battlefield; the trigger vanishes after resolve.
     if (top.triggeredAbilityId && cardDef && top.triggerEvent) {
-        const ability = cardDef.triggeredAbilities?.find(
-            (a) => a.id === top.triggeredAbilityId
-        );
+        // CR 707.9d — a trigger retained through a copy effect (Vesuvan
+        // Doppelganger's upkeep re-copy) lives on the printed definition, not
+        // the presented copy; `findTriggeredAbility` unions both.
+        const ability = findTriggeredAbility(top, top.triggeredAbilityId);
         if (ability) {
             // CR 603.4d — intervening-if re-evaluation at resolution. If the
             // predicate is now false, the trigger fizzles: no `resolve`
@@ -2018,6 +2039,11 @@ export function removePermanentTo(
         : 0;
     creature.zone = toZone;
     creature.attachedTo = undefined;
+    // CR 707.2 — a copy effect lasts only while the object is on the
+    // battlefield. Restore the printed identity now (after LKI snapshots, so
+    // death triggers still read the copied P/T) so the card re-casts and
+    // exists in other zones as its true printed self.
+    revertCopy(creature);
     if (toZone === "hand" || toZone === "library") {
         resetBattlefieldTransientState(creature);
     }
@@ -2288,6 +2314,20 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     (r) => r.keyword === keyword
                 ) ?? false
             );
+        },
+
+        becomeCopyOf(sourceCreatureId: string, opts?: CopyOptions): void {
+            // CR 707.2 — apply a copy effect to the resolving permanent. The
+            // recipient is the source of this resolution: for an ETB copy
+            // choice (Clone, resolveSteps) it is the spell still on the stack
+            // about to enter; for a triggered re-copy (Vesuvan upkeep) it is
+            // the source permanent on the battlefield.
+            const source = findOnBattlefield(state, sourceCreatureId)?.card;
+            if (!source) return;
+            const recipient =
+                findOnBattlefield(state, item.triggerSourceId ?? item.id)
+                    ?.card ?? item;
+            applyCopy(recipient, source, opts);
         },
 
         forEachPlayer(fn: (playerId: string) => void) {
@@ -3307,6 +3347,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             };
             if (req.filter) entry.filter = req.filter;
             if (req.zoneOwnerId) entry.zoneOwnerId = req.zoneOwnerId;
+            if (req.allControllers) entry.allControllers = true;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },

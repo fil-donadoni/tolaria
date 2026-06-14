@@ -1,0 +1,108 @@
+// Copy effects (CR 706, 707). A copy acquires the "copiable values" of the
+// copied object — its printed characteristics as modified by other copy
+// effects and copy-changing effects, NOT its counters, damage, tap state,
+// attached auras/equipment, control changes, or other continuous effects
+// (CR 707.2). Tolaria models this by overwriting the copy instance's
+// `card.id` with the copied object's definition id, so that every
+// characteristic reader in the engine (ability scans via `getCardById`,
+// colors via mana cost, P/T base, types) observes the copied object for free.
+// The instance's directly-read fields (`types`, `subtypes`, `power`,
+// `toughness`, `staticAbilities`) are overwritten to match. The original
+// printed definition id is preserved in `copiedFrom` so the copy can be
+// reverted when it leaves the battlefield.
+
+import { getCardById, tryGetCardById } from "../cards";
+import type { CopyEffectOptions, TriggeredAbility } from "../cards/types";
+import type { CardInstanceState } from "./state";
+
+/** Re-exported alias so engine call sites import copy-option typing from the
+ *  copy module alongside the functions that consume it. */
+export type CopyOptions = CopyEffectOptions;
+
+/** Reads the definition id a card instance currently presents. For a copy
+ *  this is already the copied object's id (we overwrite `card.id`); for a
+ *  normal permanent it is its own printed id. Use as the source of copiable
+ *  values so Clone-of-Clone chains resolve to the deepest copied identity
+ *  (CR 707.2 — copiable values are values as modified by other copy effects). */
+export function presentedDefId(card: CardInstanceState): string {
+    return (card.card as { id?: string }).id ?? "";
+}
+
+/** Applies a copy effect to `recipient`, making it a copy of `source`
+ *  (CR 707.2). Overwrites the copiable characteristics; preserves the
+ *  recipient's printed identity in `copiedFrom` (idempotent across Vesuvan
+ *  re-copy so the anchor always points at the true printed card). */
+export function applyCopy(
+    recipient: CardInstanceState,
+    source: CardInstanceState,
+    opts: CopyOptions = {}
+): void {
+    const copyColor = opts.copyColor ?? true;
+    const sourceDefId = presentedDefId(source);
+    const def = getCardById(sourceDefId);
+
+    // Preserve the recipient's original printed id the first time it becomes
+    // a copy; keep it stable across subsequent re-copies (Vesuvan).
+    const printedId = recipient.copiedFrom ?? presentedDefId(recipient);
+    recipient.copiedFrom = printedId;
+    recipient.card = { ...(recipient.card as object), id: sourceDefId };
+
+    recipient.types = [...def.types, ...(opts.additionalTypes ?? [])];
+    recipient.subtypes = [...(def.subtypes ?? [])];
+    recipient.power = def.power;
+    recipient.toughness = def.toughness;
+    recipient.staticAbilities = [...(def.staticAbilities ?? [])];
+
+    if (!copyColor) {
+        // CR 707.9d "except it doesn't copy that creature's color": keep the
+        // recipient's own colors via a layer-5 override.
+        recipient.colorOverride = [...(opts.ownColors ?? [])];
+    }
+}
+
+/** Reverts a copy when it leaves the battlefield (CR 707.2 — the copy effect
+ *  lasts only while the object is on the battlefield). Restores the printed
+ *  definition id and base characteristics; clears the copy anchor and any
+ *  color override the copy installed. No-op for non-copies. */
+export function revertCopy(card: CardInstanceState): void {
+    if (!card.copiedFrom) return;
+    const printedId = card.copiedFrom;
+    const def = tryGetCardById(printedId);
+    card.card = { ...(card.card as object), id: printedId };
+    if (def) {
+        card.types = [...def.types];
+        card.subtypes = [...(def.subtypes ?? [])];
+        card.power = def.power;
+        card.toughness = def.toughness;
+        card.staticAbilities = [...(def.staticAbilities ?? [])];
+    }
+    delete card.copiedFrom;
+    delete card.colorOverride;
+}
+
+/** Triggered abilities that function for `card` while on the battlefield,
+ *  including those retained through a copy effect (CR 707.9d — "except it
+ *  has this ability", e.g. Vesuvan Doppelganger's upkeep re-copy). The copied
+ *  object's printed triggers come from the presented def; the recipient's own
+ *  printed triggers flagged `retainedThroughCopy` are unioned on top. */
+export function effectiveTriggeredAbilities(
+    card: CardInstanceState
+): TriggeredAbility[] {
+    const presented = tryGetCardById(presentedDefId(card));
+    const base = presented?.triggeredAbilities ?? [];
+    if (!card.copiedFrom) return [...base];
+    const printed = tryGetCardById(card.copiedFrom);
+    const retained =
+        printed?.triggeredAbilities?.filter((a) => a.retainedThroughCopy) ?? [];
+    return [...base, ...retained];
+}
+
+/** Resolves a single triggered ability by id for `card`, honoring abilities
+ *  retained through a copy effect. Used at resolution time where the trigger
+ *  stack item carries the source's overwritten `card.id` and `copiedFrom`. */
+export function findTriggeredAbility(
+    card: CardInstanceState,
+    abilityId: string
+): TriggeredAbility | undefined {
+    return effectiveTriggeredAbilities(card).find((a) => a.id === abilityId);
+}

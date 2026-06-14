@@ -253,6 +253,10 @@ import {
     mesaPegasus,
     timberWolves,
     helmOfChatzuk,
+    clone,
+    copyArtifact,
+    vesuvanDoppelganger,
+    gaeasLiege,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -279,6 +283,7 @@ import {
     type StackItem,
 } from "../../../gre/state";
 import { collectTriggers } from "../../../gre/triggers";
+import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -19078,5 +19083,426 @@ describe("Banding damage-assignment handshake (CR 702.21j-k, confirmDamage)", ()
 
     it("returns undefined when there is no authority map", () => {
         expect(outstandingDamageAssigner({})).toBeUndefined();
+    });
+});
+
+// ===========================================================================
+// W29: Copy permanent framework + Gaea's Liege (CR 706, 707)
+// ===========================================================================
+
+const SERRA = serraAngel.id;
+const BEARS = grizzlyBears.id;
+
+/** Drives a suspended resolve-step copy choice (may-pay → choose-permanents)
+ *  by writing collectedChoices directly, mirroring the engine's resume path.
+ *  `recipientItem` is the stack item carrying the resolve. */
+function driveCopyChoice(
+    state: GameState,
+    recipientItem: StackItem,
+    targetInstanceId: string
+): void {
+    // step: optional "may have it become a copy"
+    expect(resolveTopOfStack(state)).toBeNull();
+    let head = state.pendingChoices![0];
+    expect(head.kind).toBe("may-pay");
+    recipientItem.collectedChoices = {
+        ...(recipientItem.collectedChoices ?? {}),
+        [`${head.step}:${head.choiceId}`]: ["yes"],
+    };
+    state.pendingChoices = undefined;
+    // step: choose the creature/artifact to copy
+    expect(resolveTopOfStack(state)).toBeNull();
+    head = state.pendingChoices![0];
+    expect(head.kind).toBe("choose-permanents");
+    expect(head.allControllers).toBe(true);
+    recipientItem.collectedChoices = {
+        ...(recipientItem.collectedChoices ?? {}),
+        [`${head.step}:${head.choiceId}`]: [targetInstanceId],
+    };
+    state.pendingChoices = undefined;
+    resolveTopOfStack(state);
+}
+
+describe("Clone (enter as a copy of any creature, CR 707.2)", () => {
+    function cloneState() {
+        const serra = makeInstance(SERRA, {
+            id: "serra",
+            controllerId: "p2",
+            ownerId: "p2",
+            counters: { "+1/+1": 1 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [serra] }),
+            ],
+        });
+        const item = pushSpell(state, clone.id, "p1");
+        item.id = "clone1";
+        return { state, item };
+    }
+
+    it("enters as a copy with the creature's abilities, types and P/T", () => {
+        const { state, item } = cloneState();
+        driveCopyChoice(state, item, "serra");
+        const copy = state.players[0].battlefield.find(
+            (c) => c.id === "clone1"
+        );
+        expect(copy).toBeDefined();
+        expect((copy!.card as { id: string }).id).toBe(SERRA);
+        expect(copy!.types).toEqual(["Creature"]);
+        expect(copy!.subtypes).toEqual(["Angel"]);
+        expect(copy!.staticAbilities).toEqual(["flying", "vigilance"]);
+        expect(getEffectivePower(state, copy!)).toBe(4);
+        expect(getEffectiveToughness(state, copy!)).toBe(4);
+        expect(copy!.copiedFrom).toBe(clone.id);
+    });
+
+    it("does NOT copy counters, damage or tap state (CR 707.2)", () => {
+        const { state, item } = cloneState();
+        driveCopyChoice(state, item, "serra");
+        const copy = state.players[0].battlefield.find(
+            (c) => c.id === "clone1"
+        )!;
+        expect(copy.counters ?? {}).toEqual({});
+        expect(copy.damageMarked ?? 0).toBe(0);
+        expect(copy.isTapped).toBe(false);
+        // The original keeps its +1/+1 counter (5/5); the copy is a clean 4/4.
+        const serra = state.players[1].battlefield.find(
+            (c) => c.id === "serra"
+        )!;
+        expect(getEffectivePower(state, serra)).toBe(5);
+    });
+
+    it("enters as a 0/0 and dies to SBA when no creature is copied", () => {
+        const state = makeState();
+        const item = pushSpell(state, clone.id, "p1");
+        item.id = "clone1";
+        // No creatures on the battlefield → the step copies nothing, no suspend.
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        const copy = state.players[0].battlefield.find(
+            (c) => c.id === "clone1"
+        );
+        expect(copy).toBeDefined();
+        expect(getEffectiveToughness(state, copy!)).toBe(0);
+        checkStateBasedActions(state);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "clone1")
+        ).toBe(false);
+        expect(state.players[0].graveyard.some((c) => c.id === "clone1")).toBe(
+            true
+        );
+    });
+
+    it("accepts a copy target from the opponent's battlefield via the submit path", () => {
+        const { state, item } = cloneState();
+        // step 1: may-pay yes
+        expect(resolveTopOfStack(state)).toBeNull();
+        let head = state.pendingChoices![0];
+        item.collectedChoices = {
+            [`${head.step}:${head.choiceId}`]: ["yes"],
+        };
+        state.pendingChoices = undefined;
+        // step 2: cross-battlefield choose-permanents — serra is on p2's side.
+        expect(resolveTopOfStack(state)).toBeNull();
+        head = state.pendingChoices![0];
+        expect(head.allControllers).toBe(true);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: item.id,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["serra"],
+        });
+        const copy = state.players[0].battlefield.find(
+            (c) => c.id === "clone1"
+        )!;
+        expect((copy.card as { id: string }).id).toBe(SERRA);
+    });
+
+    it("survives the wire projection as the copied creature", () => {
+        const { state, item } = cloneState();
+        driveCopyChoice(state, item, "serra");
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "clone1"
+        )!;
+        expect((slim.card as { id: string }).id).toBe(SERRA);
+        expect(slim.copiedFrom).toBe(clone.id);
+        expect(getEffectivePower(projected, slim)).toBe(4);
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+
+    it("reverts to its printed self when it leaves the battlefield (CR 707.2)", () => {
+        const { state, item } = cloneState();
+        driveCopyChoice(state, item, "serra");
+        removePermanentTo(state, "clone1", "hand");
+        const inHand = state.players[0].hand.find((c) => c.id === "clone1")!;
+        expect((inHand.card as { id: string }).id).toBe(clone.id);
+        expect(inHand.copiedFrom).toBeUndefined();
+        expect(inHand.subtypes).toEqual(["Shapeshifter"]);
+        expect(inHand.staticAbilities).toEqual([]);
+    });
+});
+
+describe("Copy Artifact (copy artifact + keep Enchantment, CR 707.9d)", () => {
+    it("enters as a copy of an artifact and stays an enchantment too", () => {
+        const helm = makeInstance(helmOfChatzuk.id, {
+            id: "helm",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [helm] }),
+            ],
+        });
+        const item = pushSpell(state, copyArtifact.id, "p1");
+        item.id = "copy1";
+        // may-pay yes
+        expect(resolveTopOfStack(state)).toBeNull();
+        let head = state.pendingChoices![0];
+        item.collectedChoices = {
+            [`${head.step}:${head.choiceId}`]: ["yes"],
+        };
+        state.pendingChoices = undefined;
+        // choose-permanents (artifacts only)
+        expect(resolveTopOfStack(state)).toBeNull();
+        head = state.pendingChoices![0];
+        expect(head.filter?.types).toBe("Artifact");
+        item.collectedChoices = {
+            ...item.collectedChoices,
+            [`${head.step}:${head.choiceId}`]: ["helm"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+
+        const copy = state.players[0].battlefield.find(
+            (c) => c.id === "copy1"
+        )!;
+        expect((copy.card as { id: string }).id).toBe(helmOfChatzuk.id);
+        expect(copy.types).toContain("Artifact");
+        expect(copy.types).toContain("Enchantment");
+        expect(copy.copiedFrom).toBe(copyArtifact.id);
+    });
+});
+
+describe("Vesuvan Doppelganger (copy w/ colour + ability exceptions, CR 707.9d)", () => {
+    const UPKEEP_P1 = {
+        type: "PHASE_BEGIN" as const,
+        phase: "UPKEEP" as const,
+        activePlayerId: "p1",
+    };
+
+    function vesuvanCopyOf(targetDefId: string, targetInstId: string) {
+        const tgt = makeInstance(targetDefId, {
+            id: targetInstId,
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [tgt] }),
+            ],
+        });
+        const item = pushSpell(state, vesuvanDoppelganger.id, "p1");
+        item.id = "vd1";
+        driveCopyChoice(state, item, targetInstId);
+        return state;
+    }
+
+    it("copies the creature but keeps its own blue colour and the re-copy ability", () => {
+        const state = vesuvanCopyOf(SERRA, "serra");
+        const vd = state.players[0].battlefield.find((c) => c.id === "vd1")!;
+        expect((vd.card as { id: string }).id).toBe(SERRA);
+        expect(getEffectivePower(state, vd)).toBe(4);
+        expect(vd.staticAbilities).toContain("flying");
+        // Colour exception (CR 707.9d): blue, not Serra Angel's white.
+        expect(vd.colorOverride).toEqual(["U"]);
+        expect(STATIC_EFFECT_CTX.getColors(vd)).toEqual(["U"]);
+        // Retained ability: the upkeep re-copy still triggers.
+        const trigs = collectTriggers(state, [UPKEEP_P1]);
+        expect(
+            trigs.some(
+                (t) => t.triggeredAbilityId === "vesuvan-doppelganger-recopy"
+            )
+        ).toBe(true);
+    });
+
+    it("upkeep re-copy switches to a new target, still blue, still retains the ability", () => {
+        const state = vesuvanCopyOf(SERRA, "serra");
+        const bears = makeInstance(BEARS, {
+            id: "bears",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(bears);
+
+        state.stack.push(...collectTriggers(state, [UPKEEP_P1]));
+        const trigItem = state.stack[state.stack.length - 1];
+        // may-pay yes
+        expect(resolveTopOfStack(state)).toBeNull();
+        let head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        trigItem.collectedChoices = {
+            [`${head.step}:${head.choiceId}`]: ["yes"],
+        };
+        state.pendingChoices = undefined;
+        // choose-permanents → Grizzly Bears
+        expect(resolveTopOfStack(state)).toBeNull();
+        head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-permanents");
+        trigItem.collectedChoices = {
+            ...trigItem.collectedChoices,
+            [`${head.step}:${head.choiceId}`]: ["bears"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+
+        const vd = state.players[0].battlefield.find((c) => c.id === "vd1")!;
+        expect((vd.card as { id: string }).id).toBe(BEARS);
+        expect(getEffectivePower(state, vd)).toBe(2);
+        expect(getEffectiveToughness(state, vd)).toBe(2);
+        expect(vd.colorOverride).toEqual(["U"]);
+        // Re-copy ability is retained yet again.
+        expect(
+            collectTriggers(state, [UPKEEP_P1]).some(
+                (t) => t.triggeredAbilityId === "vesuvan-doppelganger-recopy"
+            )
+        ).toBe(true);
+    });
+});
+
+describe("Gaea's Liege (Forest-count P/T + {T} land→Forest)", () => {
+    function forestInst(id: string, controllerId: string) {
+        return makeInstance(forest.id, {
+            id,
+            controllerId,
+            ownerId: controllerId,
+        });
+    }
+
+    it("power/toughness equal the Forests you control when not attacking", () => {
+        const liege = makeInstance(gaeasLiege.id, {
+            id: "liege",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        liege,
+                        forestInst("f1", "p1"),
+                        forestInst("f2", "p1"),
+                    ],
+                }),
+                makePlayer("p2", { battlefield: [forestInst("f3", "p2")] }),
+            ],
+        });
+        expect(getEffectivePower(state, liege)).toBe(2);
+        expect(getEffectiveToughness(state, liege)).toBe(2);
+    });
+
+    it("counts the defending player's Forests while attacking", () => {
+        const liege = makeInstance(gaeasLiege.id, {
+            id: "liege",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [liege, forestInst("f1", "p1")],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        forestInst("f2", "p2"),
+                        forestInst("f3", "p2"),
+                        forestInst("f4", "p2"),
+                    ],
+                }),
+            ],
+        });
+        // Defending player (p2) controls 3 Forests.
+        expect(getEffectivePower(state, liege)).toBe(3);
+        expect(getEffectiveToughness(state, liege)).toBe(3);
+    });
+
+    it("survives the wire projection (pt-cda)", () => {
+        const liege = makeInstance(gaeasLiege.id, {
+            id: "liege",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        liege,
+                        forestInst("f1", "p1"),
+                        forestInst("f2", "p1"),
+                        forestInst("f3", "p1"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, liege)).toBe(3);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "liege"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+
+    it("{T} ability turns a target land into a Forest until Gaea's Liege leaves", () => {
+        const liege = makeInstance(gaeasLiege.id, {
+            id: "liege",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const mtn = makeInstance(mountain.id, {
+            id: "mtn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [liege, mtn] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Activate {T}: target the Mountain.
+        state.stack.push({
+            ...liege,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "gaeas-liege-make-forest",
+            targets: [{ type: "permanent", id: "mtn" }],
+        });
+        resolveTopOfStack(state);
+        expect(mtn.counters?.["gaea-forest"]).toBe(1);
+
+        // The counter-driven subtype-set turns it into a Forest.
+        applySourceStaticEffects(state, liege);
+        expect(mtn.subtypes).toEqual(["Forest"]);
+
+        // When Gaea's Liege leaves, the land reverts (CR 611.2).
+        removePermanentTo(state, "liege", "graveyard");
+        expect(mtn.subtypes).toEqual(["Mountain"]);
+    });
+
+    it("declares a {T} land-target activated ability", () => {
+        expect(gaeasLiege.activatedAbilities).toHaveLength(1);
+        expect(gaeasLiege.activatedAbilities![0].cost).toEqual({ tap: true });
+        expect(gaeasLiege.activatedAbilities![0].targetRequirement).toEqual({
+            type: "Land",
+            count: 1,
+        });
     });
 });

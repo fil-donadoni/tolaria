@@ -115,10 +115,15 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     const choiceZoneOwnerId = activeChoice
         ? (activeChoice.zoneOwnerId ?? activeChoice.playerId)
         : undefined;
+    // `allControllers` choices (CR 707 — Clone / Copy Artifact "any creature /
+    // artifact on the battlefield") let the chooser pick from EVERY player's
+    // battlefield, so every battlefield is interactive; the per-card filter
+    // below still restricts which cards are clickable.
     const isSelectingChoice =
         isViewerChoosing &&
-        choiceZoneOwnerId === player.id &&
-        activeChoice!.zone === "battlefield";
+        activeChoice!.zone === "battlefield" &&
+        (activeChoice!.allControllers === true ||
+            choiceZoneOwnerId === player.id);
 
     // Additional-cost picker (CR 117.9 / 601.2f). Active when this player's
     // pendingCast is waiting for them to pick a permanent on their own
