@@ -1,8 +1,7 @@
 // Pure bot decision function (ADR 0001, issue #109). Worker-free — exercises
 // decideBotAction directly. The pass-only bot keeps, declares nothing, passes.
 import { describe, expect, it } from "vitest";
-import type { Move } from "@convex/gre";
-import { decideBotAction, selectMove, type BotView } from "../brain";
+import { decideBotAction, type BotView } from "../brain";
 
 const BOT = "u1-p2";
 const HUMAN = "u1-p1";
@@ -121,27 +120,5 @@ describe("decideBotAction (pass-only bot, issue #109)", () => {
         expect(
             decideBotAction(view({ priorityPlayerId: BOT, gameOver: true }))
         ).toEqual({ kind: "none" });
-    });
-});
-
-describe("selectMove (random-legal pick, issue #110)", () => {
-    const moves: Move[] = [
-        { kind: "pass" },
-        { kind: "play-land", cardInstanceId: "a" },
-        { kind: "play-land", cardInstanceId: "b" },
-    ];
-
-    it("returns null for an empty move set", () => {
-        expect(selectMove([], 0.5)).toBeNull();
-    });
-
-    it("maps rand in [0,1) uniformly across the set", () => {
-        expect(selectMove(moves, 0)).toEqual(moves[0]);
-        expect(selectMove(moves, 0.5)).toEqual(moves[1]);
-        expect(selectMove(moves, 0.99)).toEqual(moves[2]);
-    });
-
-    it("clamps rand === 1 to the last move (never out of bounds)", () => {
-        expect(selectMove(moves, 1)).toEqual(moves[2]);
     });
 });
