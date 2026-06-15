@@ -80,6 +80,14 @@ A card type that produces **Mana**. Played (not cast) — does not use the **Sta
 **Token**:
 A **Permanent** not represented by a physical card. Created by effects. Ceases to exist when it leaves the **Battlefield**.
 
+**Face-Down Permanent**:
+A **Permanent** on the **Battlefield** whose identity is hidden from players other than its **Controller** (CR 708). Presented to everyone as a 2/2 colorless nameless **Creature** with no abilities; the real card underneath is known only to the **Controller** until it is **Turned Face Up**. The one exception to the otherwise-public **Battlefield** (Illusionary Mask).
+_Avoid_: Morph, hidden card, masked creature
+
+**Turn Face Up**:
+The event that reveals a **Face-Down Permanent**'s true identity, after which it is a normal **Permanent** with its real characteristics. For Illusionary Mask this happens automatically (as a replacement) the moment the creature would deal or be dealt damage or become tapped — never by paying a cost.
+_Avoid_: Flip, unmorph, reveal
+
 ### Abilities
 
 **Activated Ability**:
@@ -100,6 +108,14 @@ _Avoid_: Tap for mana
 
 **Keyword**:
 A shorthand for a defined ability (flying, haste, first strike, etc.). Stored as `staticAbilities[]` on a **Card Instance**.
+
+**Text Change**:
+A continuous effect that rewrites a word in a card's text — a basic land type (Magical Hack) or a color word (Sleight of Mind) — lasting indefinitely until the object changes **Zone** (CR 612). Because the engine has no runtime text, a text change is modelled as a **Word Substitution** applied to structured data, not to prose.
+_Avoid_: Text edit, rename
+
+**Word Substitution**:
+The mechanism implementing a **Text Change**: a `{ kind, from, to }` entry carried on a **Card Instance** (`textChanges`) that the engine applies at read time to every structured field carrying that word (land subtype, landwalk keyword, `protection from <color>`, color-based **Target** requirements). The set of word-bearing fields is enforced so a new consumer cannot be silently missed.
+_Avoid_: Find-and-replace, text rewrite
 
 ### Spells & Stack
 
@@ -142,6 +158,10 @@ A group of attacking **Creatures** (1+ with banding, at most 1 without) declared
 **Damage Assignment Authority**:
 Who chooses how a combat-damage **Source** splits its damage among its targets. Normally the source's controller; **Band**ing flips it to the controller of the banding creature(s) opposite (CR 702.21j-k). Tracked per source in `combat.damageAssignerIds`, with a multi-party confirm handshake (`damageAssignmentConfirmedBy`).
 
+**Pile (Left/Right)**:
+A combat-scoped grouping created by Raging River (CR 509 variant): the defender divides their non-flying **Creatures** into a "left" and a "right" pile, and each **Attacker** is labelled left or right. A labelled attacker can be blocked only by **Blockers** with flying or in the matching pile. Modelled as a `partition` **Pending Choice** plus a transient block-restriction on **GameState**, not as a card-level rule.
+_Avoid_: Group, side, lane
+
 ### Mana
 
 **Mana Cost**:
@@ -170,7 +190,7 @@ The server-side rules processor. Validates moves, applies effects, emits events.
 _Avoid_: Backend, server logic, game loop
 
 **Projection**:
-The transformation of a fat **GameState** into a client-safe view. Strips hidden information (opponent's **Hand** → null array, **Library** → count only). Two variants: public (for gameplay) and full (for debug).
+The transformation of a fat **GameState** into a client-safe view. Strips hidden information (opponent's **Hand** → null array, **Library** → count only). Two variants: public (for gameplay) and full (for debug). The **Battlefield** is otherwise public, with one exception: a **Face-Down Permanent**'s identity is shown only to its **Controller** (see ADR 0013).
 _Avoid_: View, snapshot, DTO
 
 **Solo Mode**:

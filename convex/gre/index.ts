@@ -51,3 +51,8 @@ export { determinize } from "./determinize";
 export { search, DEFAULT_BUDGET } from "./search";
 export type { SearchBudget } from "./search";
 export { makeRng } from "./rng";
+
+// Pre-search responsiveness gate (issue #113). `shouldThink` decides whether a
+// priority window is worth a full search; on a false the driver passes
+// immediately through the existing auto-pass path so routine passes never stall.
+export { shouldThink } from "./shouldThink";

@@ -116,8 +116,9 @@ function moveKey(move: Move): string {
 /** The player who owes a decision in `state`, or null when none does (game
  *  over, or a mid-resolution continuation this move model doesn't enumerate).
  *  Mirrors `enumerateMoves`' gating so the returned id always yields a non-empty
- *  move list at an actionable window. */
-function decidingPlayer(state: GameState): string | null {
+ *  move list at an actionable window. Exported so the pre-search gate
+ *  (`shouldThink`, issue #113) reuses the EXACT same window definition. */
+export function decidingPlayer(state: GameState): string | null {
     if (state.gameOver) return null;
 
     if (state.phase === "MULLIGAN") {
