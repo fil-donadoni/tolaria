@@ -3,6 +3,8 @@
 // hidden library contents are dropped, everything else is preserved.
 import { describe, expect, it } from "vitest";
 import type { PublicGameState } from "@convex/gameProjections";
+import { tryGetCardById } from "@convex/cards";
+import { enumerateMoves, PLACEHOLDER_CARD_ID } from "@convex/gre";
 import { projectedToGameState } from "../state-adapter";
 
 const POOL = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
@@ -66,9 +68,55 @@ describe("projectedToGameState (issue #110)", () => {
         expect(human.hand).toHaveLength(0);
     });
 
-    it("reduces hidden libraries to an empty array", () => {
+    it("rebuilds each library to its wire count with placeholders (issue #136)", () => {
         const gs = projectedToGameState(projected());
-        for (const p of gs.players) expect(p.library).toEqual([]);
+        const bot = gs.players.find((p) => p.id === "bot")!;
+        const human = gs.players.find((p) => p.id === "human")!;
+        expect(bot.library).toHaveLength(12);
+        expect(human.library).toHaveLength(9);
+        for (const p of gs.players) {
+            for (const c of p.library) {
+                expect(c.zone).toBe("library");
+                expect(c.ownerId).toBe(p.id);
+                // Opaque: the id resolves to no CardDefinition.
+                expect(
+                    (c.card as { id: string }).id === PLACEHOLDER_CARD_ID
+                ).toBe(true);
+                expect(
+                    tryGetCardById((c.card as { id: string }).id)
+                ).toBeNull();
+            }
+        }
+    });
+
+    it("keeps an empty wire count as an empty library (deck-out preserved)", () => {
+        const p = projected();
+        p.players[0].library = { count: 0 };
+        const gs = projectedToGameState(p);
+        expect(gs.players.find((x) => x.id === "bot")!.library).toHaveLength(0);
+    });
+
+    it("never surfaces a placeholder in hand as a legal move (issue #136)", () => {
+        const p = projected();
+        // Drop the synthetic 'x' card; leave only an opaque placeholder in hand,
+        // as a simulated draw would after pulling one from the library.
+        p.players[0].hand = [
+            {
+                id: "drawn-placeholder",
+                card: { id: PLACEHOLDER_CARD_ID },
+                zone: "hand",
+                ownerId: "bot",
+                controllerId: "bot",
+                types: [],
+                subtypes: [],
+                staticAbilities: [],
+                isTapped: false,
+            } as never,
+        ];
+        const gs = projectedToGameState(p);
+        const moves = enumerateMoves(gs, "bot");
+        // Only "pass" — no play-land / cast-spell referencing the placeholder.
+        expect(moves).toEqual([{ kind: "pass" }]);
     });
 
     it("preserves top-level decision fields", () => {

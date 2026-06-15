@@ -2,6 +2,14 @@ import type { Color, ManaCost } from "../cards/types";
 import { getCardById } from "../cards";
 import type { CardInstanceState } from "./state";
 
+/** Sentinel card id for opaque library placeholders the vs-AI Bot's search
+ *  world is rehydrated with (issue #136). The wire projects a library as a
+ *  count only; the adapter rebuilds it with placeholder instances carrying this
+ *  id so simulated draws have cards to take without tripping the deck-out SBA.
+ *  The id resolves to no `CardDefinition` and `getLegalActions` suppresses all
+ *  actions on it, so a drawn placeholder never surfaces as a legal move. */
+export const PLACEHOLDER_CARD_ID = "placeholder:hidden-library";
+
 /** Intrinsic mana abilities for basic land subtypes (CR 305.6). */
 export const LAND_SUBTYPE_MANA: Record<string, Color> = {
     Plains: "W",

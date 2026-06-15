@@ -65,6 +65,11 @@ export type { PositionBreakdown, EvalTerms } from "./evaluate";
 // immediately through the existing auto-pass path so routine passes never stall.
 export { shouldThink } from "./shouldThink";
 
+// Opaque library-placeholder sentinel (issue #136). The client adapter rebuilds
+// hidden libraries with instances carrying this id so the search can simulate
+// draws without phantom deck-outs; the engine treats it as a no-action card.
+export { PLACEHOLDER_CARD_ID } from "./constants";
+
 // Difficulty presets (issue #114). One knob: each difficulty is just a
 // `SearchBudget` for the same `search` — no separate bot logic. The lobby picks
 // one and the client driver threads it through to the search.

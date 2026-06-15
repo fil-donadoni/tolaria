@@ -7,6 +7,7 @@ import {
     LAND_DROPS_PER_TURN,
     LAND_SUBTYPE_MANA,
     MANA_COLORS,
+    PLACEHOLDER_CARD_ID,
     isTapLockedBySummoningSickness,
     manaValue,
 } from "./constants";
@@ -75,6 +76,15 @@ export function getLegalActions(
 
     // CR 117.1: a player can only take actions while they have priority.
     if (state.priorityPlayerId !== player.id) {
+        return actions;
+    }
+
+    // Opaque placeholders (hidden-library cards rehydrated for the vs-AI search,
+    // issue #136) can never be played or cast — surfacing one as a legal move
+    // would let ISMCTS act on a card it has no knowledge of. The sentinel id is
+    // checked explicitly (not "unregistered id") so legacy test fixtures that
+    // inline card metadata under an unregistered id keep their actions.
+    if ((card.card as { id?: string }).id === PLACEHOLDER_CARD_ID) {
         return actions;
     }
 
