@@ -202,10 +202,54 @@ export function getProducibleManaOptions(
     return options;
 }
 
-/** Returns the colors a permanent could potentially produce when tapped for
- *  mana. Thin wrapper over {@link getProducibleManaOptions}. */
-function getProducibleColors(card: CardInstanceState): Set<Color> {
-    return new Set(getProducibleManaOptions(card).keys());
+/** Returns one entry per INDIVIDUAL mana a permanent could produce from a
+ *  single tap, each entry being the set of colors that mana could be. A source
+ *  that taps for multiple mana (Sol Ring → {C}{C}) yields multiple entries, so
+ *  affordability counts the real quantity, not one-per-source.
+ *
+ *  A tap is a single shared cost, so only ONE mana ability can be used per
+ *  activation — we take the ability producing the most mana (ties: first) and
+ *  never sum across competing abilities. Falls back to the CR 305.6 basic-land
+ *  subtype path (one mana of the subtype's color) when no activated mana
+ *  ability applies. A choice ability (dual land / Talisman) is one mana whose
+ *  color set is the union of its options. */
+function getProducibleManaUnits(card: CardInstanceState): Set<Color>[] {
+    const cardId = (card.card as { id?: string }).id;
+    const def = cardId ? tryGetCardById(cardId) : undefined;
+
+    let best: Set<Color>[] = [];
+    for (const ability of def?.activatedAbilities ?? []) {
+        if (ability.useStack) continue;
+        if (!ability.cost.tap) continue;
+
+        const units: Set<Color>[] = [];
+        if (ability.manaProduced) {
+            for (const c of MANA_COLORS) {
+                const amount = ability.manaProduced[c] ?? 0;
+                for (let i = 0; i < amount; i++)
+                    units.push(new Set<Color>([c]));
+            }
+        }
+        if (ability.manaChoices) {
+            const colors = new Set<Color>();
+            for (const choice of ability.manaChoices) {
+                for (const c of MANA_COLORS) {
+                    if ((choice[c] ?? 0) > 0) colors.add(c);
+                }
+            }
+            if (colors.size > 0) units.push(colors);
+        }
+        if (units.length > best.length) best = units;
+    }
+    if (best.length > 0) return best;
+
+    // CR 305.6: basic land subtypes grant an intrinsic one-mana ability.
+    const subtypeColors = new Set<Color>();
+    for (const subtype of card.subtypes) {
+        const c = LAND_SUBTYPE_MANA[subtype];
+        if (c) subtypeColors.add(c);
+    }
+    return subtypeColors.size > 0 ? [subtypeColors] : [];
 }
 
 /** True if the player has enough mana — already in the pool plus what could
@@ -240,9 +284,9 @@ function canPotentiallyPayCost(
         if (perm.isTapped) continue;
         // CR 302.1 — creature with summoning sickness can't pay {T}.
         if (isTapLockedBySummoningSickness(perm)) continue;
-        const colors = getProducibleColors(perm);
-        if (colors.size === 0) continue;
-        sources.push(colors);
+        // One entry per mana the source taps for: a {C}{C} source (Sol Ring)
+        // contributes two, not one (issue #132).
+        for (const unit of getProducibleManaUnits(perm)) sources.push(unit);
     }
 
     if (sources.length < totalRequired) return false;

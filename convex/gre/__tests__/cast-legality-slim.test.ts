@@ -14,9 +14,14 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 import {
+    ankhOfMishra,
     elvishArchers,
+    forest,
     lightningBolt,
+    plains,
     savannahLions,
+    serraAngel,
+    solRing,
 } from "../../cards/sets/lea";
 import type { GameState, PlayerState, StackItem } from "../state";
 
@@ -119,5 +124,89 @@ describe("cast legality on slim card shape", () => {
 
         const actions = getLegalActions(state, p1, bolt);
         expect(actions).toContain("cast");
+    });
+});
+
+// issue #132: the affordability precheck counted each untapped source as one
+// mana, so a {C}{C} source (Sol Ring) was treated as a single mana and spells
+// it could pay for showed no Cast action until it was tapped manually.
+describe("cast affordability with multi-mana sources (issue #132)", () => {
+    function onBattlefield(defId: string, id: string) {
+        return makeInstance(defId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+        });
+    }
+
+    it("Sol Ring alone ({C}{C}) pays a {2} spell — counts as two mana", () => {
+        const ankh = makeInstance(ankhOfMishra.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            hand: [ankh],
+            battlefield: [onBattlefield(solRing.id, "ring")],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, ankh)).toContain("cast");
+    });
+
+    it("repro: 2 Plains + Forest + untapped Sol Ring casts Serra Angel ({3}{W}{W})", () => {
+        const angel = makeInstance(serraAngel.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            hand: [angel],
+            battlefield: [
+                onBattlefield(plains.id, "pl1"),
+                onBattlefield(plains.id, "pl2"),
+                onBattlefield(forest.id, "fo1"),
+                onBattlefield(solRing.id, "ring"),
+            ],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, angel)).toContain("cast");
+    });
+
+    it("no false positive: 2 Plains + Sol Ring (4 mana) cannot cast Serra Angel (5)", () => {
+        const angel = makeInstance(serraAngel.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            hand: [angel],
+            battlefield: [
+                onBattlefield(plains.id, "pl1"),
+                onBattlefield(plains.id, "pl2"),
+                onBattlefield(solRing.id, "ring"),
+            ],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, angel)).not.toContain("cast");
+    });
+
+    it("colored pips respected: Sol Ring's colorless cannot pay a {R} spell", () => {
+        const bolt = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            hand: [bolt],
+            battlefield: [onBattlefield(solRing.id, "ring")],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, bolt)).not.toContain("cast");
     });
 });
