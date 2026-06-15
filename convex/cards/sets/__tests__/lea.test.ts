@@ -268,6 +268,8 @@ import {
     regenerateOrDestroy,
     removePermanentTo,
     resolveTopOfStack,
+    runDamageReplacement,
+    tapPermanent,
     emitSpellCastEvent,
     emitPermanentTapped,
     emitPermanentEntered,
@@ -329,6 +331,8 @@ import {
     emitAttackersDeclaredEvents,
 } from "../../../gre/phases";
 import { tryGetCardById, FACE_DOWN_CARD_ID } from "../../index";
+import { turnFaceDown, turnFaceUp } from "../../../gre/faceDown";
+import { applyTapReplacements } from "../../../gre/replacements";
 import {
     getEffectiveBlockGraph,
     getDamageAssignerId,
@@ -20184,5 +20188,195 @@ describe("Illusionary Mask (masked-cast: {X} -> face-down 2/2, CR 708.2, #123)",
         expect(illusionaryMask.activatedAbilities?.[0].cost.mana).toEqual({
             X: "X",
         });
+    });
+});
+
+describe("Illusionary Mask — face-down turn-up (CR 708.9, ADR 0013, #124)", () => {
+    // Build a face-down permanent on the battlefield from a real card id. Hill
+    // Giant (3/3) is the workhorse: its real P/T differs from the face-down
+    // 2/2, so turn-up is observable.
+    function faceDownPerm(
+        realId: string,
+        instId: string,
+        controllerId = "p1"
+    ): CardInstanceState {
+        const inst = makeInstance(realId, {
+            id: instId,
+            controllerId,
+            ownerId: controllerId,
+            zone: "battlefield",
+        });
+        turnFaceDown(inst);
+        return inst;
+    }
+
+    it("turnFaceUp restores the real card characteristics and clears the markers", () => {
+        const fd = faceDownPerm(hillGiant.id, "fd");
+        expect(fd.faceDown).toBe(true);
+        expect((fd.card as { id: string }).id).toBe(FACE_DOWN_CARD_ID);
+        turnFaceUp(fd);
+        expect(fd.faceDown).toBeUndefined();
+        expect(fd.faceDownOf).toBeUndefined();
+        expect((fd.card as { id: string }).id).toBe(hillGiant.id);
+        expect(fd.power).toBe(3);
+        expect(fd.toughness).toBe(3);
+    });
+
+    it("turns face up when it would be dealt damage; damage applies to the real toughness", () => {
+        const fd = faceDownPerm(hillGiant.id, "fd"); // real 3/3, presents 2/2
+        const src = makeInstance(grizzlyBears.id, {
+            id: "src",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [fd] }),
+                makePlayer("p2", { battlefield: [src] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "src",
+            "p2",
+            { type: "permanent", id: "fd" },
+            2,
+            false
+        );
+        const perm = state.players[0].battlefield.find((c) => c.id === "fd")!;
+        expect(perm.faceDown).toBeUndefined();
+        expect((perm.card as { id: string }).id).toBe(hillGiant.id);
+        expect(perm.toughness).toBe(3);
+        // 2 damage is sublethal to the real 3/3 — it would have killed the 2/2.
+        perm.damageMarked = (perm.damageMarked ?? 0) + (res?.amount ?? 0);
+        checkStateBasedActions(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "fd")
+        ).toBeDefined();
+    });
+
+    it("turns face up when it would deal combat damage; deals its real power", async () => {
+        const fd = faceDownPerm(hillGiant.id, "fd"); // real power 3
+        fd.isAttacking = true;
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [fd] }),
+                makePlayer("p2"),
+            ],
+            combat: {
+                attackerIds: ["fd"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
+        });
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, {}, "regular");
+        // 20 - 3 (real power), not 18 (the face-down 2/2's power).
+        expect(state.players[1].life).toBe(17);
+        const perm = state.players[0].battlefield.find((c) => c.id === "fd")!;
+        expect(perm.faceDown).toBeUndefined();
+        expect((perm.card as { id: string }).id).toBe(hillGiant.id);
+    });
+
+    it("turns face up when it would become tapped, then becomes tapped", () => {
+        const fd = faceDownPerm(hillGiant.id, "fd");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [fd] }),
+                makePlayer("p2"),
+            ],
+        });
+        tapPermanent(state, fd);
+        expect(fd.isTapped).toBe(true);
+        expect(fd.faceDown).toBeUndefined();
+        expect((fd.card as { id: string }).id).toBe(hillGiant.id);
+    });
+
+    it("tap replacement-event kind: applyTapReplacements turns a face-down permanent up without cancelling the tap", () => {
+        const fd = faceDownPerm(hillGiant.id, "fd");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [fd] }),
+                makePlayer("p2"),
+            ],
+        });
+        const ev = applyTapReplacements(state, {
+            kind: "tap",
+            cardInstanceId: "fd",
+        });
+        expect(ev).not.toBeNull(); // tap proceeds against the now-real creature
+        expect(fd.faceDown).toBeUndefined();
+        expect((fd.card as { id: string }).id).toBe(hillGiant.id);
+    });
+
+    it("wire format: opponent sees the real card after turn-up (was hidden before)", () => {
+        const fd = faceDownPerm(hillGiant.id, "fd");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [fd] }),
+                makePlayer("p2"),
+            ],
+        });
+        const oppBefore = projectPublicState(state, 1, "p2")
+            .players.find((p) => p.id === "p1")!
+            .battlefield.find((c) => c.id === "fd")!;
+        expect((oppBefore.card as { id: string }).id).toBe(FACE_DOWN_CARD_ID);
+
+        tapPermanent(state, fd);
+
+        const oppAfter = projectPublicState(state, 1, "p2")
+            .players.find((p) => p.id === "p1")!
+            .battlefield.find((c) => c.id === "fd")!;
+        expect((oppAfter.card as { id: string }).id).toBe(hillGiant.id);
+    });
+
+    it("end-to-end: cast a creature face down via the Mask, then a tap turns it up", () => {
+        const mask = makeInstance(illusionaryMask.id, {
+            id: "mask",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mask], hand: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...makeInstance(illusionaryMask.id, {
+                id: "mask-act",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            zone: "stack",
+            castById: "p1",
+            abilityId: "illusionary-mask-cast",
+            chosenX: 2,
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["bear"],
+        });
+        resolveTopOfStack(state); // resolve the face-down creature spell
+        const fd = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(fd.faceDown).toBe(true);
+
+        tapPermanent(state, fd);
+        expect(fd.faceDown).toBeUndefined();
+        expect((fd.card as { id: string }).id).toBe(grizzlyBears.id);
     });
 });

@@ -49,6 +49,7 @@ import {
     emitPermanentEntered,
     processPendingActionTriggers,
     getOpponentId,
+    tapPermanent,
 } from "./state";
 import { checkStateBasedActions } from "./sba";
 import {
@@ -399,7 +400,8 @@ function applyMoveInSearch(
                 atk.isAttacking = true;
                 atk.hasAttackedThisTurn = true;
                 if (!atk.staticAbilities.includes("vigilance")) {
-                    atk.isTapped = true;
+                    // CR 708.9 / ADR 0013 — face-down attacker turns up on tap.
+                    tapPermanent(state, atk);
                 }
             }
             // CR 508 — active player gets priority after attackers are declared.

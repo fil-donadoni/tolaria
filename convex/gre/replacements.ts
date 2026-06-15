@@ -30,9 +30,11 @@ import type {
     ReplacementEvent,
     ReplacementEventKind,
     ReplacementStateView,
+    TapReplacementEvent,
 } from "../cards/types";
 import { tryGetCardById } from "../cards";
 import { getColorsFromCost } from "../cards/colors";
+import { turnFaceUp } from "./faceDown";
 import type {
     CardInstanceState,
     DamageRedirection,
@@ -191,6 +193,13 @@ function buildApplyCtx(
             if (source.counters[type] === 0) delete source.counters[type];
             return removed;
         },
+        turnSelfFaceUp: () => {
+            turnFaceUp(source);
+            return {
+                power: source.power ?? 0,
+                toughness: source.toughness ?? 0,
+            };
+        },
         state: buildStateView(state),
         self: buildPermanentView(source),
     };
@@ -234,6 +243,18 @@ export function applyDamageReplacements(
 ): DamageReplacementEvent | null {
     const result = applyReplacementsLoop(state, "damage", event);
     return result === null ? null : (result as DamageReplacementEvent);
+}
+
+/** Runs CR 614 tap replacements (face-down turn-up, ADR 0013). Returns the
+ *  (possibly rewritten) event, or null if a replacement cancels the tap. The
+ *  face-down turn-up effect never cancels — it turns the creature up and lets
+ *  the tap proceed against its real self. */
+export function applyTapReplacements(
+    state: GameState,
+    event: TapReplacementEvent
+): TapReplacementEvent | null {
+    const result = applyReplacementsLoop(state, "tap", event);
+    return result === null ? null : (result as TapReplacementEvent);
 }
 
 /** Applies transient one-shot damage shields stored in

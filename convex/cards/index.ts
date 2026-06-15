@@ -97,6 +97,63 @@ registry.set(FACE_DOWN_CARD_ID, {
     types: ["Creature"],
     power: 2,
     toughness: 2,
+    // CR 708.9 / ADR 0013 — turn-up replacements. These ride the sentinel def
+    // so EVERY face-down permanent inherits them automatically (the engine
+    // collects replacement effects from a permanent's presented card def, which
+    // for a face-down permanent is this sentinel). The moment a face-down
+    // creature would deal damage, be dealt damage, or become tapped, it is
+    // turned face up first and the original event proceeds against its real
+    // self. Turn-up clears the face-down marker, so each effect fires at most
+    // once (on the next event the permanent presents its real def, not this
+    // one). Implemented in #124.
+    replacementEffects: [
+        {
+            // Would DEAL damage → turn up, then deal damage with real power.
+            id: "face-down-turnup-deal-damage",
+            oracleText:
+                "If this creature would deal damage, turn it face up, then it deals that damage.",
+            eventKind: "damage",
+            appliesTo: (event, self) =>
+                event.kind === "damage" && event.sourceInstanceId === self.id,
+            replace: (event, ctx) => {
+                const { power } = ctx.turnSelfFaceUp();
+                if (event.kind !== "damage") return { kind: "modified", event };
+                return {
+                    kind: "modified",
+                    event: { ...event, amount: power },
+                };
+            },
+        },
+        {
+            // Would BE DEALT damage → turn up, then damage applies vs real
+            // toughness (lethal is checked against effective toughness later).
+            id: "face-down-turnup-be-dealt-damage",
+            oracleText:
+                "If this creature would be dealt damage, turn it face up, then the damage is dealt.",
+            eventKind: "damage",
+            appliesTo: (event, self) =>
+                event.kind === "damage" &&
+                event.target.type === "permanent" &&
+                event.target.id === self.id,
+            replace: (event, ctx) => {
+                ctx.turnSelfFaceUp();
+                return { kind: "modified", event };
+            },
+        },
+        {
+            // Would become TAPPED → turn up, then it becomes tapped.
+            id: "face-down-turnup-tap",
+            oracleText:
+                "If this creature would become tapped, turn it face up, then it becomes tapped.",
+            eventKind: "tap",
+            appliesTo: (event, self) =>
+                event.kind === "tap" && event.cardInstanceId === self.id,
+            replace: (event, ctx) => {
+                ctx.turnSelfFaceUp();
+                return { kind: "modified", event };
+            },
+        },
+    ],
 });
 
 /** Lazy synthesis of a token CardDefinition from a content-derived id

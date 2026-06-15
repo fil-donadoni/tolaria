@@ -34,6 +34,7 @@ import {
     emitPermanentEntered,
     processPendingActionTriggers,
     getOpponentId,
+    tapPermanent,
 } from "./state";
 import { checkStateBasedActions } from "./sba";
 import { applyAllCombatDamage, buildAutoDamageAssignments } from "./phases";
@@ -219,7 +220,8 @@ export function applyMoveForSearch(
                 if (!atk) continue;
                 atk.isAttacking = true;
                 if (!atk.staticAbilities.includes("vigilance")) {
-                    atk.isTapped = true;
+                    // CR 708.9 / ADR 0013 — face-down attacker turns up on tap.
+                    tapPermanent(next, atk);
                 }
             }
             // Defender chooses blocks during DECLARE_BLOCKERS; set the phase so

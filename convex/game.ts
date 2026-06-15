@@ -41,6 +41,7 @@ import {
     discardPermanentTappedEvent,
     processPendingActionTriggers,
     allocInstanceId,
+    tapPermanent,
 } from "./gre/state";
 import type { Color, ManaCost, SpellMode } from "./cards/types";
 import {
@@ -2493,7 +2494,9 @@ export const confirmAttackers = mutation({
             const card = player.battlefield.find((c) => c.id === attackerId);
             if (card) {
                 if (!card.staticAbilities.includes("vigilance")) {
-                    card.isTapped = true;
+                    // CR 708.9 / ADR 0013 — a face-down attacker turns up as it
+                    // taps to attack.
+                    tapPermanent(state, card);
                 }
                 card.isAttacking = true;
                 card.hasAttackedThisTurn = true;

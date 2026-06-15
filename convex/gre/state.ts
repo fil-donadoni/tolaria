@@ -42,6 +42,7 @@ import {
     applyDamageReplacements,
     applyDiscardReplacements,
     applyLifeChangeReplacements,
+    applyTapReplacements,
     applyTransientDamageRedirections,
     describeDamageSource,
 } from "./replacements";
@@ -1961,6 +1962,22 @@ export function runDamageReplacement(
     return { target: transient.target, amount: transient.amount };
 }
 
+/** Replacement-aware tap (CR 701.20a, 614). Runs the tap replacement loop
+ *  before setting `isTapped` so a face-down permanent that would become tapped
+ *  is turned face up first (CR 708.9, ADR 0013), then taps as its real self.
+ *  No-op if the permanent is already tapped or a replacement cancels the tap.
+ *  Every creature-tap site that a face-down permanent can hit (explicit tap
+ *  effects, attacker declaration) routes through this. */
+export function tapPermanent(state: GameState, card: CardInstanceState): void {
+    if (card.isTapped) return;
+    const ev = applyTapReplacements(state, {
+        kind: "tap",
+        cardInstanceId: card.id,
+    });
+    if (ev === null) return;
+    card.isTapped = true;
+}
+
 /** Replacement-aware destroy (CR 614.5, 701.15a). If the permanent has at
  *  least one regeneration shield, consume one and apply the regen rider:
  *  remove all marked damage, tap it, and remove it from combat (CR 506.4).
@@ -2753,7 +2770,8 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 throw new Error("Cannot tap a player");
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            found.card.isTapped = true;
+            // CR 708.9 / ADR 0013 — turn a face-down target up before tapping.
+            tapPermanent(state, found.card);
         },
         // CR 701.20b: to untap a permanent is to rotate it back to upright.
         // Already-untapped permanents are unaffected. Silently no-ops if the
