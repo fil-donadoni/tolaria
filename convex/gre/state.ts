@@ -303,6 +303,11 @@ export type CardInstanceState = {
      *  effect fires. Used by `unapplySourceStaticEffects` to restore the
      *  printed value when the last grant is removed. */
     printedSubtypes?: string[];
+    /** Transient combat pile label (Raging River, CR 509.2 variant —
+     *  ADR 0012). Set when a divider assigns this creature to the "left" or
+     *  "right" pile; consumed by `validateBlockerEligibility` against the
+     *  attacker's `combatBlockRestrictions` entry. Cleared at end of combat. */
+    pileLabel?: string;
     /** Temporary multi-block grant (CR 509.1a). When set, this creature can
      *  block up to 1 + canBlockAdditional attackers. 999 = "any number".
      *  Cleared at CLEANUP. Static multi-block (Two-Headed Giant) is read from
@@ -885,6 +890,17 @@ export type GameState = {
      *  Each shield is consumed by a matching damage event. The unconsumed
      *  remainder is purged when `duration` expires. */
     damageRedirections?: DamageRedirection[];
+    /** Combat-scoped block restrictions not sourced from a card definition
+     *  (Raging River pile combat — ADR 0012). Each entry restricts one
+     *  attacker: it can be blocked only by flying creatures or creatures whose
+     *  `pileLabel` equals `allowedPileLabel`. Consumed generically by
+     *  `validateBlockerEligibility`; set up at the trigger's resolution, lives
+     *  one combat, and is cleared at end of combat. Persisted so a mid-combat
+     *  save (declare-blockers priority) keeps the pile rules. */
+    combatBlockRestrictions?: {
+        attackerId: string;
+        allowedPileLabel: string;
+    }[];
     /** Per-player preferences that drive "may"-style replacement opt-ins.
      *  Persisted in state so the choice is replay-stable and toggleable
      *  through a mutation rather than requiring mid-event suspension.
@@ -3245,6 +3261,25 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 instance = state.stack.find((s) => s.id === target.id);
             }
             return instance ? landTypesPresent(instance) : [];
+        },
+
+        setPileLabel(cardInstanceId: string, label: string): void {
+            const found = findOnBattlefield(state, cardInstanceId);
+            if (!found) return;
+            found.card.pileLabel = label;
+        },
+
+        addCombatBlockRestriction(
+            attackerId: string,
+            allowedPileLabel: string
+        ): void {
+            const existing = (state.combatBlockRestrictions ?? []).filter(
+                (r) => r.attackerId !== attackerId
+            );
+            state.combatBlockRestrictions = [
+                ...existing,
+                { attackerId, allowedPileLabel },
+            ];
         },
         copyStackItem(targetStackItemId, modifications): string | null {
             const targetIdx = state.stack.findIndex(

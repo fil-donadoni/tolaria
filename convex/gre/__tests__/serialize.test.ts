@@ -166,6 +166,7 @@ describe("game_state serialize round-trip", () => {
         lion.textChanges = [
             { kind: "land-type", from: "Forest", to: "Island" },
         ];
+        lion.pileLabel = "left";
         lion.copiedFrom = "printed-clone-id";
 
         const expanded = expandState(compactState(state));
@@ -202,7 +203,20 @@ describe("game_state serialize round-trip", () => {
         expect(got.textChanges).toEqual([
             { kind: "land-type", from: "Forest", to: "Island" },
         ]);
+        expect(got.pileLabel).toBe("left");
         expect(got.copiedFrom).toBe("printed-clone-id");
+    });
+
+    it("preserves combatBlockRestrictions across the round trip", () => {
+        const state = freshState();
+        state.combatBlockRestrictions = [
+            { attackerId: "atkA", allowedPileLabel: "left" },
+            { attackerId: "atkB", allowedPileLabel: "right" },
+        ];
+        const expanded = expandState(compactState(state));
+        expect(expanded.combatBlockRestrictions).toEqual(
+            state.combatBlockRestrictions
+        );
     });
 
     it("compact form is materially smaller than raw JSON", () => {
@@ -358,6 +372,9 @@ describe("schema drift guard", () => {
         ];
         state.playerPreferences = { p1: { libraryOfLengRouting: "graveyard" } };
         state.preventAllCombatDamageThisTurn = true;
+        state.combatBlockRestrictions = [
+            { attackerId: "atkA", allowedPileLabel: "left" },
+        ];
 
         const stateKeys = new Set(Object.keys(state));
         const missing = [...stateKeys].filter((k) => !allKnown.has(k));

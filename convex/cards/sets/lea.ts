@@ -4601,13 +4601,92 @@ export const powerSurge: CardDefinition = {
     ],
 };
 
-// export const ragingRiver: CardDefinition = {
-//     id: "61e4f56d-1f4f-49f2-8534-0d09196a3327",
-//     name: "Raging River",
-//     oracleText: "Whenever one or more creatures you control attack, each defending player divides all creatures without flying they control into a \"left\" pile and a \"right\" pile. Then, for each attacking creature you control, choose \"left\" or \"right.\" That creature can't be blocked this combat except by creatures with flying and creatures in a pile with the chosen label.",
-//     manaCost: { R: 2 },
-//     types: ["Enchantment"],
-// };
+// Raging River — pile combat (CR 509.2 variant, ADR 0012). When the
+// controller's creatures attack, the defender divides their non-flying
+// creatures into a "left" and "right" pile, then the attacker labels each
+// attacker "left" or "right"; a labelled attacker can be blocked only by
+// flying creatures or creatures in the matching pile. Modelled as two
+// sequential `partition` choices (selected set = "left", complement =
+// "right"): the defender's non-flying creatures, then the attackers. Each
+// attacker's chosen label becomes a transient combatBlockRestriction consumed
+// generically by the block validator. Single defending player, matching the
+// rest of combat.
+export const ragingRiver: CardDefinition = {
+    id: "61e4f56d-1f4f-49f2-8534-0d09196a3327",
+    name: "Raging River",
+    oracleText:
+        'Whenever one or more creatures you control attack, each defending player divides all creatures without flying they control into a "left" pile and a "right" pile. Then, for each attacking creature you control, choose "left" or "right." That creature can\'t be blocked this combat except by creatures with flying and creatures in a pile with the chosen label.',
+    manaCost: { R: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        {
+            id: "raging-river-piles",
+            oracleText:
+                'Whenever one or more creatures you control attack, each defending player divides all creatures without flying they control into a "left" pile and a "right" pile. Then, for each attacking creature you control, choose "left" or "right."',
+            event: "ATTACKERS_DECLARED",
+            matches: (event, self) => {
+                if (event.type !== "ATTACKERS_DECLARED") return false;
+                return (
+                    event.attackingPlayerId === self.controllerId &&
+                    event.attackerIds.length > 0
+                );
+            },
+            resolve: (ctx, event) => {
+                if (event.type !== "ATTACKERS_DECLARED") return;
+                const defenderId = ctx.allPlayerIds.find(
+                    (p) => p !== ctx.controller
+                );
+                if (!defenderId) return;
+
+                // 1) Defender divides their non-flying creatures into piles
+                //    (selected = "left", the rest = "right"). Flying creatures
+                //    are not divided — they can block any pile anyway.
+                const nonFlying = ctx.getBattlefieldIds(defenderId, {
+                    types: "Creature",
+                    excludeAbility: "flying",
+                });
+                if (nonFlying.length > 0) {
+                    const leftPile = ctx.requestChoice({
+                        playerId: defenderId,
+                        choiceId: "partition-defenders",
+                        kind: "partition",
+                        zone: "battlefield",
+                        zoneOwnerId: defenderId,
+                        filter: { types: "Creature", excludeAbility: "flying" },
+                        count: { min: 0, max: nonFlying.length },
+                        prompt: 'Divide your non-flying creatures: select the "left" pile (the rest go "right").',
+                    });
+                    if (leftPile === undefined) return; // suspended
+                    for (const id of nonFlying) {
+                        ctx.setPileLabel(
+                            id,
+                            leftPile.includes(id) ? "left" : "right"
+                        );
+                    }
+                }
+
+                // 2) Attacker labels each attacking creature "left"/"right".
+                const leftAttackers = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: "label-attackers",
+                    kind: "partition",
+                    zone: "battlefield",
+                    zoneOwnerId: ctx.controller,
+                    filter: { types: "Creature", isAttacking: true },
+                    count: { min: 0, max: event.attackerIds.length },
+                    prompt: 'Label your attackers: select the "left" attackers (the rest are "right").',
+                });
+                if (leftAttackers === undefined) return; // suspended
+                for (const attackerId of event.attackerIds) {
+                    ctx.addCombatBlockRestriction(
+                        attackerId,
+                        leftAttackers.includes(attackerId) ? "left" : "right"
+                    );
+                }
+            },
+        },
+    ],
+};
 
 export const redElementalBlast: CardDefinition = makeElementalBlast({
     id: "776ad9be-3309-4f1d-9f27-6219d9477662",

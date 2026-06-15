@@ -177,7 +177,26 @@ export function validateBlockerEligibility(
         }
     }
 
-    // Pass 3 — protection (CR 702.16f).
+    // Pass 3 — combat-scoped block restrictions not sourced from a card
+    // (Raging River pile combat, ADR 0012). A restricted attacker can be
+    // blocked only by flying creatures or creatures in the matching pile.
+    const pileRestriction = state?.combatBlockRestrictions?.find(
+        (r) => r.attackerId === attacker.id
+    );
+    if (pileRestriction) {
+        const blockerFlies = blocker.staticAbilities.includes("flying");
+        if (
+            !blockerFlies &&
+            blocker.pileLabel !== pileRestriction.allowedPileLabel
+        ) {
+            return {
+                eligible: false,
+                reason: `Attacker can be blocked only by flying creatures or creatures in the "${pileRestriction.allowedPileLabel}" pile`,
+            };
+        }
+    }
+
+    // Pass 4 — protection (CR 702.16f).
     if (isProtectedFromSource(attacker, blocker)) {
         return {
             eligible: false,

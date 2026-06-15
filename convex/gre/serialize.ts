@@ -134,6 +134,7 @@ function compactCard(
         out.canBlockAdditional = card.canBlockAdditional;
     }
     if (card.mustBlockAllThisTurn) out.mustBlockAllThisTurn = true;
+    if (card.pileLabel) out.pileLabel = card.pileLabel;
     return out;
 }
 
@@ -260,6 +261,7 @@ function expandCard(
         result.canBlockAdditional = compact.canBlockAdditional as number;
     }
     if (compact.mustBlockAllThisTurn) result.mustBlockAllThisTurn = true;
+    if (compact.pileLabel) result.pileLabel = compact.pileLabel as string;
     return result;
 }
 
@@ -509,6 +511,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "pendingCleanupDiscard",
     "damageDealtToPlayerThisTurn",
     "damageRedirections",
+    "combatBlockRestrictions",
     "playerPreferences",
     "preventAllCombatDamageThisTurn",
     "damageCapShields",

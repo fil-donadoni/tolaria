@@ -66,6 +66,10 @@ export interface PermanentFilter {
      *  source; "you" — same controller as the source; "opponents" — different
      *  controller; "any" / undefined — no constraint. */
     controllerRelation?: "self" | "you" | "opponents" | "any";
+    /** Only match permanents that are currently attacking (CR 508). Used by
+     *  combat-scoped choice pickers (Raging River's per-attacker labelling).
+     *  Omitted = no constraint. */
+    isAttacking?: boolean;
 }
 
 // --- SpellFilter (applied to SpellCastEvent) ---
@@ -138,6 +142,7 @@ export interface MatchablePermanent {
     colors?: ReadonlyArray<Color>;
     power?: number;
     toughness?: number;
+    isAttacking?: boolean;
 }
 
 /** Structurally-typed view of a `SpellCastEvent` for `matchesSpellFilter`. */
@@ -208,6 +213,10 @@ export function matchesPermanentFilter(
     if (filter.isToken !== undefined) {
         const cardIsToken = card.isToken === true;
         if (filter.isToken !== cardIsToken) return false;
+    }
+    if (filter.isAttacking !== undefined) {
+        const cardIsAttacking = card.isAttacking === true;
+        if (filter.isAttacking !== cardIsAttacking) return false;
     }
     if (
         filter.excludeInstanceIds !== undefined &&

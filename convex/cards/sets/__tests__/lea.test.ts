@@ -153,6 +153,7 @@ import {
     plains,
     serraAngel,
     psionicBlast,
+    ragingRiver,
     regeneration,
     regrowth,
     royalAssassin,
@@ -323,6 +324,7 @@ import {
     finalizeCleanup,
     finalizeCleanupDiscard,
     emitBlockersConfirmedEvents,
+    emitAttackersDeclaredEvents,
 } from "../../../gre/phases";
 import { tryGetCardById } from "../../index";
 import {
@@ -19840,5 +19842,187 @@ describe("Magical Hack (text-changing effect — CR 612, layer 3)", () => {
             { kind: "land-type", from: "Forest", to: "Island" },
         ]);
         expect(getBasicLandMana(after)).toBe("U");
+    });
+});
+
+describe("Raging River (pile combat — CR 509.2 variant, ADR 0012)", () => {
+    // Submits the current head pending choice with the given picks (the "left"
+    // pile / "left" attackers); applyPendingChoiceSubmit auto-resumes the
+    // trigger's resolution.
+    function submitHead(state: GameState, picks: string[]) {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: picks,
+        });
+    }
+
+    function setup() {
+        const river = makeInstance(ragingRiver.id, {
+            id: "river",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const atkA = makeInstance(savannahLions.id, {
+            id: "atkA",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const atkB = makeInstance(savannahLions.id, {
+            id: "atkB",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const flyer = makeInstance(savannahLions.id, {
+            id: "flyer",
+            controllerId: "p2",
+            ownerId: "p2",
+            staticAbilities: ["flying"],
+        });
+        const g1 = makeInstance(savannahLions.id, {
+            id: "g1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const g2 = makeInstance(savannahLions.id, {
+            id: "g2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [river, atkA, atkB] }),
+                makePlayer("p2", { battlefield: [flyer, g1, g2] }),
+            ],
+            activePlayerId: "p1",
+            phase: "DECLARE_ATTACKERS",
+        });
+        state.combat = {
+            attackerIds: ["atkA", "atkB"],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+        return { state, atkA, atkB, flyer, g1, g2 };
+    }
+
+    it("is a {R}{R} Enchantment with an ATTACKERS_DECLARED trigger", () => {
+        expect(ragingRiver.manaCost).toEqual({ R: 2 });
+        expect(ragingRiver.types).toEqual(["Enchantment"]);
+        expect(ragingRiver.triggeredAbilities?.[0].event).toBe(
+            "ATTACKERS_DECLARED"
+        );
+    });
+
+    it("fires on attack, partitions defenders, labels attackers, sets restrictions", () => {
+        const { state } = setup();
+
+        emitAttackersDeclaredEvents(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("raging-river-piles");
+
+        // Resolve the trigger → defender partition choice for p2.
+        resolveTopOfStack(state);
+        expect(state.pendingChoices?.[0].kind).toBe("partition");
+        expect(state.pendingChoices?.[0].playerId).toBe("p2");
+
+        // p2 puts g1 in the left pile (g2 → right). Flyer is not offered.
+        submitHead(state, ["g1"]);
+
+        // Attacker labelling choice for p1.
+        expect(state.pendingChoices?.[0].kind).toBe("partition");
+        expect(state.pendingChoices?.[0].playerId).toBe("p1");
+
+        // p1 labels atkA "left" (atkB → right).
+        submitHead(state, ["atkA"]);
+
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.combatBlockRestrictions).toEqual([
+            { attackerId: "atkA", allowedPileLabel: "left" },
+            { attackerId: "atkB", allowedPileLabel: "right" },
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "g1")!.pileLabel
+        ).toBe("left");
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "g2")!.pileLabel
+        ).toBe("right");
+    });
+
+    it("enforces pile rules in block validation; flying ignores piles", () => {
+        const { state, atkA, atkB, flyer, g1, g2 } = setup();
+        emitAttackersDeclaredEvents(state);
+        resolveTopOfStack(state);
+        submitHead(state, ["g1"]); // g1 left, g2 right
+        submitHead(state, ["atkA"]); // atkA left, atkB right
+
+        const field = [flyer, g1, g2];
+        // atkA is "left": only g1 (left) or the flyer may block it.
+        expect(
+            validateBlockerEligibility(atkA, g1, field, state).eligible
+        ).toBe(true);
+        expect(
+            validateBlockerEligibility(atkA, g2, field, state).eligible
+        ).toBe(false);
+        expect(
+            validateBlockerEligibility(atkA, flyer, field, state).eligible
+        ).toBe(true);
+        // atkB is "right": only g2 (right) or the flyer may block it.
+        expect(
+            validateBlockerEligibility(atkB, g2, field, state).eligible
+        ).toBe(true);
+        expect(
+            validateBlockerEligibility(atkB, g1, field, state).eligible
+        ).toBe(false);
+    });
+
+    it("does not fire when the attacking player isn't the controller", () => {
+        const { state } = setup();
+        // Opponent (p2) is now the attacker; Raging River belongs to p1.
+        state.activePlayerId = "p2";
+        state.combat!.attackerIds = ["g1"];
+        emitAttackersDeclaredEvents(state);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("clears pile labels and restrictions at end of combat (CR 511.3)", () => {
+        const { state, g1 } = setup();
+        emitAttackersDeclaredEvents(state);
+        resolveTopOfStack(state);
+        submitHead(state, ["g1"]);
+        submitHead(state, ["atkA"]);
+        expect(state.combatBlockRestrictions).toHaveLength(2);
+
+        // Advance COMBAT_DAMAGE → END_OF_COMBAT runs the cleanup.
+        state.phase = "COMBAT_DAMAGE";
+        state.combat!.blockersConfirmed = true;
+        advancePhase(state);
+        expect(state.phase).toBe("END_OF_COMBAT");
+        expect(state.combatBlockRestrictions).toBeUndefined();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === g1.id)!.pileLabel
+        ).toBeUndefined();
+    });
+
+    it("survives a serialize round-trip mid-combat", () => {
+        const { state } = setup();
+        emitAttackersDeclaredEvents(state);
+        resolveTopOfStack(state);
+        submitHead(state, ["g1"]);
+        submitHead(state, ["atkA"]);
+
+        const restored = expandState(compactState(state));
+        expect(restored.combatBlockRestrictions).toEqual(
+            state.combatBlockRestrictions
+        );
+        expect(
+            restored.players[1].battlefield.find((c) => c.id === "g1")!
+                .pileLabel
+        ).toBe("left");
     });
 });
