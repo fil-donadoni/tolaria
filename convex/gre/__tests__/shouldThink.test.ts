@@ -2,10 +2,10 @@
 // on trivial passes (so the bot passes immediately, no search) and true on the
 // windows worth deliberating: own main phase, combat declarations, and relevant
 // instant responses with a non-empty stack. Pure — no mutation. See
-// `convex/gre/should-think.ts`.
+// `convex/gre/shouldThink.ts`.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
-import { shouldThink } from "../should-think";
+import { shouldThink } from "../shouldThink";
 import {
     makeInstance,
     makePlayer,
