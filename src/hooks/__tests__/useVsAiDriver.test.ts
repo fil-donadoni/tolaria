@@ -7,6 +7,10 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { Id } from "@convex/_generated/dataModel";
+import { getCardByName } from "@convex/cards";
+import { makeInstance } from "@convex/cards/__tests__/setup";
+
+const MOUNTAIN = getCardByName("Mountain").id;
 
 const calls: { ref: unknown; args: unknown }[] = [];
 let currentState: unknown = undefined;
@@ -140,5 +144,43 @@ describe("useVsAiDriver (issue #110)", () => {
         renderHook(() => useVsAiDriver(GAME, null));
         await vi.runAllTimersAsync();
         expect(calls).toHaveLength(0);
+    });
+
+    // Issue #113: a trivial priority pass skips the Worker + think beat and fires
+    // passPriority IMMEDIATELY (no timer), so routine passes never stall.
+    it("passes immediately, before any think beat, on a trivial window", () => {
+        currentState = botState({ priorityPlayerId: BOT });
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        // No timer advanced: the pass must already have fired synchronously.
+        expect(calls).toHaveLength(1);
+        expect(calls[0].ref).toBe("passPriority");
+    });
+
+    // Issue #113: a worthwhile window (a play available in the bot's main phase)
+    // does NOT short-circuit — it waits for the think beat, then drives a move.
+    it("defers to the search on a worthwhile window (no immediate pass)", async () => {
+        currentState = botState({
+            priorityPlayerId: BOT,
+            players: [
+                {
+                    ...player(BOT),
+                    hand: [
+                        makeInstance(MOUNTAIN, {
+                            controllerId: BOT,
+                            ownerId: BOT,
+                            id: "land1",
+                            zone: "hand",
+                        }),
+                    ],
+                },
+                player(HUMAN),
+            ],
+        });
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        // Nothing fired synchronously: this window is searched, not insta-passed.
+        expect(calls).toHaveLength(0);
+        await vi.runAllTimersAsync();
+        // After the think beat the bot acts (the search picks a real move).
+        expect(calls.length).toBeGreaterThan(0);
     });
 });
