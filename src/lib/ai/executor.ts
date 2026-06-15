@@ -11,6 +11,7 @@
 //   declare-attackers→ toggleAttacker* → confirmAttackers
 //   declare-blockers → (selectBlocker → assignBlockerTarget)* → confirmBlockers
 //   mulligan         → declareMulligan
+//   mulligan-bottom  → submitResolutionChoice (kind "mulligan-bottom")
 //   pass             → passPriority
 //
 // Mana payment is explicit (the engine never auto-taps): the Move carries a
@@ -59,6 +60,14 @@ export type MoveMutations = {
     declareMulligan: (
         a: GP & { decision: "keep" | "mull" }
     ) => Promise<unknown>;
+    submitResolutionChoice: (
+        a: GP & {
+            stackItemId: string;
+            step: number;
+            choiceId: string;
+            cardInstanceIds: string[];
+        }
+    ) => Promise<unknown>;
     passPriority: (a: GP) => Promise<unknown>;
 };
 
@@ -87,6 +96,16 @@ export async function executeMove(
             await mutations.declareMulligan({
                 ...base,
                 decision: move.decision,
+            });
+            return;
+
+        case "mulligan-bottom":
+            await mutations.submitResolutionChoice({
+                ...base,
+                stackItemId: move.stackItemId,
+                step: move.step,
+                choiceId: move.choiceId,
+                cardInstanceIds: move.cardInstanceIds,
             });
             return;
 

@@ -149,8 +149,10 @@ export function applyMoveForSearch(
     switch (move.kind) {
         case "pass":
         case "mulligan":
+        case "mulligan-bottom":
             // No board change worth modelling for a 1-ply leaf: passing keeps
-            // the position; a mulligan decision's value is not material here.
+            // the position; a mulligan decision / bottoming pick's value is not
+            // material here.
             return next;
 
         case "play-land": {
