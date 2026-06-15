@@ -26,11 +26,20 @@
 // dependent; tests use the iteration budget.
 //
 // Adversarial backup: `evaluate` is scored once at the leaf from the bot's
-// perspective and squashed to a reward in [0, 1]. Each tree edge stores the
-// reward from the perspective of the player who MOVED on it (bot keeps `r`, the
-// opponent keeps `1 − r`), so UCB1's "maximize" rule makes every node act in
+// perspective and mapped to a reward in [0, 1] (`reward`). Each tree edge stores
+// the reward from the perspective of the player who MOVED on it (bot keeps `r`,
+// the opponent keeps `1 − r`), so UCB1's "maximize" rule makes every node act in
 // its own mover's interest — the opponent minimizes the bot's eval, as a real
 // adversary would.
+//
+// Material survives a decided position (issue #138): the reward is BANDED so a
+// won/lost outcome dominates ordering while the surviving material still
+// discriminates within the band, and each edge ALSO accumulates the raw,
+// saturation-proof `materialMargin`. Final root selection (`selectRootMove`)
+// picks the most-visited move but, among candidates UCB1 left within a few
+// percent of each other in visits and equal in win-probability, prefers the one
+// that keeps the most material — so a free chump attack never ties "no attacks"
+// on rollout noise.
 
 import type { CardInstanceState, GameState, StackItem } from "./state";
 import {
@@ -54,6 +63,7 @@ import { enumerateMoves, type Move } from "./moves";
 import {
     evaluate,
     evaluateBreakdown,
+    materialMargin,
     WIN_SCORE,
     type PositionBreakdown,
 } from "./evaluate";
@@ -86,10 +96,30 @@ const MAX_TREE_DEPTH = 40;
 /** Chance the rollout policy plays a uniform-random move instead of the
  *  immediate-best one — keeps playouts from collapsing to a single line. */
 const ROLLOUT_EPSILON = 0.25;
-/** Logistic scale mapping an `evaluate` margin to a [0, 1] reward. */
-const REWARD_SCALE = 40;
 /** A terminal `evaluate` magnitude dominates every material term. */
 const TERMINAL = WIN_SCORE / 2;
+/** Width of the reward band reserved, at each terminal extreme, for the
+ *  surviving material margin (issue #138). A won position always outranks every
+ *  non-won one and a lost one ranks below all, but WITHIN the band the material
+ *  still discriminates: a win that threw a creature away for nothing scores
+ *  below a win that kept it, so a free chump attack never ties "no attacks". A
+ *  flat `return 1` for every win erased that signal. */
+const TERMINAL_BAND = 0.25;
+/** Material margin (in `evaluate` units) that fills a half-band. Kept LINEAR up
+ *  to this cap — not `tanh` — so a single creature's worth of material (~5–8)
+ *  shifts the reward by a fixed, decision-relevant amount regardless of how far
+ *  ahead the bot already is. `tanh` saturates near a decided position and was
+ *  the root cause: the creature delta vanished into the flat tail. */
+const MATERIAL_FULL = 24;
+
+/** Map a material margin to [-1, 1], linear (constant slope) until it saturates
+ *  at ±`MATERIAL_FULL`. Linear is deliberate: the discriminating quantity is a
+ *  fixed material delta, which must move the reward by the same amount whether
+ *  the absolute margin is small or large. */
+function materialSignal(margin: number): number {
+    const x = margin / MATERIAL_FULL;
+    return x < -1 ? -1 : x > 1 ? 1 : x;
+}
 
 type Edge = {
     move: Move;
@@ -98,6 +128,11 @@ type Edge = {
     node: Node;
     visits: number;
     totalReward: number;
+    /** Sum of leaf material margins (mover perspective), accumulated alongside
+     *  `totalReward` (issue #138). Saturation-proof, so it breaks ties between
+     *  candidates whose win/loss outcome is identical but whose surviving
+     *  material differs. */
+    totalMargin: number;
     /** Times this move was AVAILABLE during selection (ISMCTS availability). */
     avail: number;
 };
@@ -158,12 +193,28 @@ export function decidingPlayer(state: GameState): string | null {
     return state.priorityPlayerId;
 }
 
-/** Map an `evaluate` score (bot perspective) to a reward in [0, 1]. */
+/** Map an `evaluate` score (bot perspective) to a reward in [0, 1].
+ *
+ *  Three monotone bands keep the win/loss OUTCOME dominant while never erasing
+ *  material (issue #138):
+ *    * won   → [1 − BAND, 1], higher with more surviving material;
+ *    * lost  → [0, BAND];
+ *    * open  → (BAND, 1 − BAND), material-driven.
+ *  The material map is linear (see `materialSignal`), so losing a creature for
+ *  nothing costs the same slice of reward whether the bot is even or far ahead —
+ *  the suicidal-attack signal no longer saturates away. */
 function reward(state: GameState, botId: string): number {
     const v = evaluate(state, botId);
-    if (v >= TERMINAL) return 1;
-    if (v <= -TERMINAL) return 0;
-    return 0.5 + 0.5 * Math.tanh(v / REWARD_SCALE);
+    if (v >= TERMINAL) {
+        const material = 0.5 + 0.5 * materialSignal(v - WIN_SCORE);
+        return 1 - TERMINAL_BAND + TERMINAL_BAND * material;
+    }
+    if (v <= -TERMINAL) {
+        const material = 0.5 + 0.5 * materialSignal(v + WIN_SCORE);
+        return TERMINAL_BAND * material;
+    }
+    const material = 0.5 + 0.5 * materialSignal(v);
+    return TERMINAL_BAND + (1 - 2 * TERMINAL_BAND) * material;
 }
 
 // ---------------------------------------------------------------------------
@@ -390,8 +441,23 @@ function applyMoveInSearch(
 /** Play `state` forward to a stable leaf with a cheap policy, then score it.
  *  Policy: with probability `ROLLOUT_EPSILON` a uniform-random legal move,
  *  otherwise the move with the best immediate reward for its mover (a 1-ply
+/** A scored leaf: the bounded `reward` (drives UCB1) plus the saturation-proof
+ *  material `margin` (breaks outcome-equal ties), both from the bot's view. */
+type Leaf = { reward: number; margin: number };
+
+/** Score a stable leaf from the bot's perspective. */
+function scoreLeaf(state: GameState, botId: string): Leaf {
+    return {
+        reward: reward(state, botId),
+        margin: materialMargin(state, botId),
+    };
+}
+
+/** Play `state` forward to a stable leaf with a cheap policy, then score it.
+ *  Policy: with probability `ROLLOUT_EPSILON` a uniform-random legal move,
+ *  otherwise the move with the best immediate reward for its mover (a 1-ply
  *  greedy step). Bounded by `ROLLOUT_DEPTH`. Mutates `state` (caller owns it). */
-function rollout(state: GameState, botId: string, rng: () => number): number {
+function rollout(state: GameState, botId: string, rng: () => number): Leaf {
     for (let d = 0; d < ROLLOUT_DEPTH; d++) {
         if (state.gameOver) break;
         const pid = decidingPlayer(state);
@@ -407,7 +473,7 @@ function rollout(state: GameState, botId: string, rng: () => number): number {
         }
         applyMoveInSearch(state, pid, chosen);
     }
-    return reward(state, botId);
+    return scoreLeaf(state, botId);
 }
 
 /** The move maximizing the mover's immediate reward (1-ply lookahead), with an
@@ -477,6 +543,7 @@ function iterate(
                 node: newNode(),
                 visits: 0,
                 totalReward: 0,
+                totalMargin: 0,
                 avail: 1,
             };
             node.children.set(pick.key, edge);
@@ -503,15 +570,18 @@ function iterate(
     }
 
     // Reached a terminal/at-depth leaf without expanding: score it as-is.
-    backpropagate(path, reward(world, botId), botId);
+    backpropagate(path, scoreLeaf(world, botId), botId);
 }
 
-/** Propagate a bot-perspective reward along the visited edges, each edge storing
- *  it from ITS mover's perspective (bot keeps `r`, opponent keeps `1 − r`). */
-function backpropagate(path: Edge[], rBot: number, botId: string): void {
+/** Propagate a bot-perspective leaf along the visited edges, each edge storing
+ *  it from ITS mover's perspective (bot keeps `r` / `margin`, opponent keeps the
+ *  complement `1 − r` / `−margin`). */
+function backpropagate(path: Edge[], leaf: Leaf, botId: string): void {
     for (const edge of path) {
+        const forMover = edge.mover === botId;
         edge.visits += 1;
-        edge.totalReward += edge.mover === botId ? rBot : 1 - rBot;
+        edge.totalReward += forMover ? leaf.reward : 1 - leaf.reward;
+        edge.totalMargin += forMover ? leaf.margin : -leaf.margin;
     }
 }
 
@@ -529,6 +599,11 @@ export type CandidateTrace = {
     visits: number;
     /** Mean stored reward in [0, 1], from the bot's perspective. */
     meanReward: number;
+    /** Mean accumulated material margin (bot perspective), the saturation-proof
+     *  tie-break (issue #138). Negative/low here next to a near-equal
+     *  `meanReward` is the signature of a move that throws material away for no
+     *  change in outcome — e.g. a suicidal chump attack. */
+    meanMargin: number;
     /** ISMCTS availability count. */
     avail: number;
     /** Breakdown of the position this move leads to once its spell/ability has
@@ -591,6 +666,7 @@ function buildTrace(
             move: edge.move,
             visits: edge.visits,
             meanReward: edge.visits > 0 ? edge.totalReward / edge.visits : 0,
+            meanMargin: edge.visits > 0 ? edge.totalMargin / edge.visits : 0,
             avail: edge.avail,
             eval: evaluateBreakdown(probe, botId),
         });
@@ -604,6 +680,51 @@ function buildTrace(
         iterations,
         candidates,
     };
+}
+
+/** Fraction of the top visit count within which two root moves count as
+ *  "equally explored" (issue #138). UCB1's exploration term keeps near-equal
+ *  candidates within a few percent of each other in visits, so the single
+ *  most-visited move is effectively decided by rollout noise — which let a
+ *  suicidal chump attack tie "no attacks". Among candidates this close in
+ *  visits, the robust pick is the higher mean reward, where the (now
+ *  non-saturating) material signal lives. Reduces to plain most-visited when one
+ *  move is clearly dominant (the lethal/response cases keep their pick). */
+const VISIT_TOL = 0.15;
+/** Two root moves count as the same OUTCOME when their mean rewards are within
+ *  this band — they win/lose/stall about as often. Sits below the reward
+ *  reserved per material point so a genuine win-probability difference still
+ *  wins, while outcome-equal candidates fall through to the material tie-break. */
+const OUTCOME_EPS = 0.05;
+
+/** Robust root selection (issue #138). UCB1 keeps near-equal candidates within a
+ *  few percent of each other in visits, so picking the single most-visited move
+ *  is decided by rollout noise. Instead: among moves within `VISIT_TOL` of the
+ *  top visit count, keep those whose mean reward is within `OUTCOME_EPS` of the
+ *  best (the outcome-equal set), then choose the one with the most surviving
+ *  material (`totalMargin`). Outcome dominates; material — which never saturates
+ *  — breaks the tie a free chump attack would otherwise win on noise. */
+function selectRootMove(root: Node, moves: Move[]): Move {
+    const pool = [...root.children.values()].filter((e) => e.visits > 0);
+    if (pool.length === 0) return moves[0];
+
+    const maxVisits = pool.reduce((m, e) => Math.max(m, e.visits), 0);
+    const explored = pool.filter(
+        (e) => e.visits >= maxVisits * (1 - VISIT_TOL)
+    );
+
+    const mean = (e: Edge) => e.totalReward / e.visits;
+    const meanMargin = (e: Edge) => e.totalMargin / e.visits;
+    const bestMean = explored.reduce((m, e) => Math.max(m, mean(e)), -Infinity);
+    const contenders = explored.filter(
+        (e) => mean(e) >= bestMean - OUTCOME_EPS
+    );
+
+    let best = contenders[0];
+    for (const edge of contenders) {
+        if (meanMargin(edge) > meanMargin(best)) best = edge;
+    }
+    return best.move;
 }
 
 // ---------------------------------------------------------------------------
@@ -647,20 +768,7 @@ export function searchWithTrace(
         if (timeMs !== undefined && now() - start >= timeMs) break;
     }
 
-    // Robust child: the most-visited root move, tie-broken by mean reward.
-    let bestEdge: Edge | null = null;
-    for (const edge of root.children.values()) {
-        if (
-            bestEdge === null ||
-            edge.visits > bestEdge.visits ||
-            (edge.visits === bestEdge.visits &&
-                edge.totalReward / edge.visits >
-                    bestEdge.totalReward / bestEdge.visits)
-        ) {
-            bestEdge = edge;
-        }
-    }
-    const move = bestEdge ? bestEdge.move : moves[0];
+    const move = selectRootMove(root, moves);
     return { move, trace: buildTrace(root, state, playerId, i, move) };
 }
 

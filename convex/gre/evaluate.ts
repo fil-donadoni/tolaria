@@ -147,6 +147,19 @@ export function evaluate(state: GameState, playerId: string): number {
     return margin;
 }
 
+/** Pure material margin from `playerId`'s view: sum(self terms) − sum(opp
+ *  terms), with NO terminal win/loss offset. Unlike `evaluate`, this never
+ *  saturates — a creature's worth of material is the same delta whether the
+ *  position is even or decided. The ISMCTS search (issue #138) accumulates it
+ *  per edge to break ties between candidates whose win/loss outcome is identical
+ *  but whose surviving material differs (e.g. a free chump attack vs passing). */
+export function materialMargin(state: GameState, playerId: string): number {
+    const me = state.players.find((p) => p.id === playerId);
+    const opp = state.players.find((p) => p.id !== playerId);
+    if (!me || !opp) return 0;
+    return playerScore(state, me) - playerScore(state, opp);
+}
+
 /** `playerId`'s view of a position, decomposed into per-player, per-term
  *  contributions plus the final `evaluate` value. Pure read used only by the
  *  DecisionTrace debug view — it never feeds the search itself. `margin` is the
