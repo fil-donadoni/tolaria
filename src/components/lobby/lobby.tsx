@@ -12,9 +12,12 @@ import {
     type LobbyDeck,
 } from "~/lib/deckTypes";
 import {
+    clearAiDeckId,
     clearDeckPresetId,
+    getStoredAiDeckId,
     getStoredDeckPresetId,
     getStoredDifficulty,
+    storeAiDeckId,
     storeDeckPresetId,
     storeDifficulty,
     storeSession,
@@ -37,6 +40,9 @@ function Lobby() {
     const [deleteTarget, setDeleteTarget] = useState<LobbyDeck | null>(null);
     const [difficulty, setDifficulty] = useState<Difficulty>(() =>
         getStoredDifficulty()
+    );
+    const [aiDeckId, setAiDeckId] = useState<string | null>(() =>
+        getStoredAiDeckId()
     );
     const [isBusy, setIsBusy] = useState(false);
     const userDecks = useUserDecks();
@@ -69,6 +75,13 @@ function Lobby() {
     const selectedDeck = useMemo(
         () => allDecks.find((d) => d.presetId === storedPresetId) ?? null,
         [allDecks, storedPresetId]
+    );
+
+    // null aiDeckId → mirror the human's deck. A stale id (deleted deck) also
+    // resolves to null here and silently falls back to mirror at create time.
+    const selectedAiDeck = useMemo(
+        () => allDecks.find((d) => d.presetId === aiDeckId) ?? null,
+        [allDecks, aiDeckId]
     );
 
     useEffect(() => {
@@ -119,6 +132,7 @@ function Lobby() {
             const id = await createSoloGame({
                 name: `${user.nickname} vs AI`,
                 deck: deckPayload(selectedDeck),
+                deck2: selectedAiDeck ? deckPayload(selectedAiDeck) : undefined,
                 vsAi: true,
             });
             storeSession(id, `${user._id}-p1`);
@@ -160,6 +174,12 @@ function Lobby() {
     const handleDifficultyChange = (next: Difficulty) => {
         setDifficulty(next);
         storeDifficulty(next);
+    };
+
+    const handleAiDeckChange = (next: string | null) => {
+        setAiDeckId(next);
+        if (next === null) clearAiDeckId();
+        else storeAiDeckId(next);
     };
 
     const handleEditDeck = (presetId: string) => {
@@ -232,6 +252,9 @@ function Lobby() {
                     openGames={openGames}
                     difficulty={difficulty}
                     onDifficultyChange={handleDifficultyChange}
+                    decks={allDecks}
+                    aiDeckId={aiDeckId}
+                    onAiDeckChange={handleAiDeckChange}
                     onCreateSolo={handleCreateSolo}
                     onCreateVsAi={handleCreateVsAi}
                     onCreateMultiplayer={handleCreate}

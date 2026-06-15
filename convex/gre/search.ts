@@ -51,7 +51,13 @@ import {
 } from "./phases";
 import { cloneGameState } from "./clone";
 import { enumerateMoves, type Move } from "./moves";
-import { evaluate, WIN_SCORE } from "./evaluate";
+import {
+    evaluate,
+    evaluateBreakdown,
+    WIN_SCORE,
+    type PositionBreakdown,
+} from "./evaluate";
+import { describeMove } from "./describeMove";
 import { determinize } from "./determinize";
 import { makeRng } from "./rng";
 
@@ -510,25 +516,121 @@ function backpropagate(path: Edge[], rBot: number, botId: string): void {
 }
 
 // ---------------------------------------------------------------------------
+// DecisionTrace (debug-only by-product of a search)
+// ---------------------------------------------------------------------------
+
+/** One root move the search weighed, with its tree statistics and the position
+ *  it leads to. CLIENT-SIDE DEBUG ONLY — never affects the chosen move. */
+export type CandidateTrace = {
+    /** Human-readable move label (see `describeMove`). */
+    label: string;
+    move: Move;
+    /** Times this root move was visited (the selection criterion). */
+    visits: number;
+    /** Mean stored reward in [0, 1], from the bot's perspective. */
+    meanReward: number;
+    /** ISMCTS availability count. */
+    avail: number;
+    /** Breakdown of the position this move leads to once its spell/ability has
+     *  resolved, from the bot's perspective. The diagnostic field: two target
+     *  choices whose `hand`/`power` terms are identical reveal an effect the
+     *  search never simulated. */
+    eval: PositionBreakdown;
+};
+
+/** What the Brain considered for a single decision. A read-only by-product of
+ *  one `search`; building it neither consumes the search RNG nor changes the
+ *  chosen move. Stays on the client (worker → main thread), never persisted. */
+export type DecisionTrace = {
+    botId: string;
+    /** Label of the move the search ultimately chose. */
+    chosen: string;
+    /** Iterations actually spent. */
+    iterations: number;
+    /** Every root candidate weighed, most-visited first. */
+    candidates: CandidateTrace[];
+};
+
+/** Resolve `state`'s stack to a stable point so a one-shot eval breakdown
+ *  reflects the position AFTER the bot's spell/ability resolves (not the instant
+ *  it hits the stack). Bounded; stops if a mid-resolution choice would need
+ *  input the trace can't supply. Mutates `state` (caller owns the clone). */
+function settleStackForBreakdown(state: GameState): void {
+    let guard = 0;
+    while (state.stack.length > 0 && guard++ < 16) {
+        if (
+            state.pendingTarget ||
+            state.pendingCast ||
+            state.pendingActivation ||
+            (state.pendingChoices?.length ?? 0) > 0
+        ) {
+            break;
+        }
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+    }
+}
+
+/** Build the DecisionTrace from the grown tree. Each candidate's eval breakdown
+ *  re-applies the root move on a fresh clone of `rootState` and settles the
+ *  stack — O(root children) clones, once, after the search has finished. */
+function buildTrace(
+    root: Node,
+    rootState: GameState,
+    botId: string,
+    iterations: number,
+    chosen: Move
+): DecisionTrace {
+    const candidates: CandidateTrace[] = [];
+    for (const edge of root.children.values()) {
+        const probe = cloneGameState(rootState);
+        applyMoveInSearch(probe, botId, edge.move);
+        settleStackForBreakdown(probe);
+        candidates.push({
+            label: describeMove(edge.move, rootState),
+            move: edge.move,
+            visits: edge.visits,
+            meanReward: edge.visits > 0 ? edge.totalReward / edge.visits : 0,
+            avail: edge.avail,
+            eval: evaluateBreakdown(probe, botId),
+        });
+    }
+    candidates.sort(
+        (a, b) => b.visits - a.visits || b.meanReward - a.meanReward
+    );
+    return {
+        botId,
+        chosen: describeMove(chosen, rootState),
+        iterations,
+        candidates,
+    };
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
-/** Choose a move for `playerId` by ISMCTS. Deterministic given `seed` and an
- *  iteration budget. Returns null when the player owes no action. */
-export function search(
+/** Choose a move for `playerId` by ISMCTS, and surface a DecisionTrace of what
+ *  was weighed. Deterministic given `seed` and an iteration budget — the trace
+ *  is built only after the move is chosen, so it never perturbs selection. The
+ *  trace is null when there was no real decision to explain (no action owed, or
+ *  a single forced move). */
+export function searchWithTrace(
     state: GameState,
     playerId: string,
     budget: SearchBudget,
     seed: number
-): Move | null {
+): { move: Move | null; trace: DecisionTrace | null } {
     const decider = decidingPlayer(state);
-    if (decider !== playerId) return null;
+    if (decider !== playerId) return { move: null, trace: null };
 
     const moves = enumerateMoves(state, playerId);
-    if (moves.length === 0) return null;
+    if (moves.length === 0) return { move: null, trace: null };
     // No real decision (e.g. a forced mulligan window) — return immediately
-    // without paying for search.
-    if (moves.length === 1 || state.phase === "MULLIGAN") return moves[0];
+    // without paying for search (and with no trace to explain).
+    if (moves.length === 1 || state.phase === "MULLIGAN") {
+        return { move: moves[0], trace: null };
+    }
 
     const rng = makeRng(seed);
     const root = newNode();
@@ -558,5 +660,19 @@ export function search(
             bestEdge = edge;
         }
     }
-    return bestEdge ? bestEdge.move : moves[0];
+    const move = bestEdge ? bestEdge.move : moves[0];
+    return { move, trace: buildTrace(root, state, playerId, i, move) };
+}
+
+/** Choose a move for `playerId` by ISMCTS. Deterministic given `seed` and an
+ *  iteration budget. Returns null when the player owes no action. Thin wrapper
+ *  over `searchWithTrace` (it discards the trace) so non-debug callers and the
+ *  existing tests keep the same `Move | null` contract. */
+export function search(
+    state: GameState,
+    playerId: string,
+    budget: SearchBudget,
+    seed: number
+): Move | null {
+    return searchWithTrace(state, playerId, budget, seed).move;
 }

@@ -5053,8 +5053,10 @@ export const berserk: CardDefinition = {
         // combat-damage assignment time.
         ctx.grantStaticAbility(target, "trample", { phase: "end-of-turn" });
         // CR 107.3 — X is the creature's power as the spell resolves.
+        // CR 611.1 / 514.2 — "+X/+0 until end of turn" is a temporary buff
+        // that must expire at cleanup, NOT a permanent base-stat mutation.
         const power = ctx.getPower(target);
-        ctx.modifyPower(target, power);
+        ctx.addTemporaryPTBuff(target, power, 0, { phase: "end-of-turn" });
         // CR 603.7a — destroy fires at the next end step. Payload holds the
         // creature id so the resolver can look it up after the scheduling
         // spell has left the stack.

@@ -4,6 +4,7 @@ import { DEFAULT_DIFFICULTY, type Difficulty } from "@convex/gre";
 const GAME_KEY = "tolaria:gameId";
 const PLAYER_KEY = "tolaria:playerId";
 const DECK_KEY = "tolaria:selectedDeckId";
+const AI_DECK_KEY = "tolaria:aiDeckId";
 const DIFFICULTY_KEY = "tolaria:aiDifficulty";
 
 export function getStoredSession() {
@@ -32,6 +33,21 @@ export function storeDeckPresetId(presetId: string) {
 
 export function clearDeckPresetId() {
     localStorage.removeItem(DECK_KEY);
+}
+
+/** Deck the AI opponent plays in a vs-AI game. When unset the bot mirrors the
+ *  human's deck (the engine default — `createSoloGame` falls back to `deck`).
+ *  Persisted so the next game keeps the last opponent choice. */
+export function getStoredAiDeckId(): string | null {
+    return localStorage.getItem(AI_DECK_KEY);
+}
+
+export function storeAiDeckId(presetId: string) {
+    localStorage.setItem(AI_DECK_KEY, presetId);
+}
+
+export function clearAiDeckId() {
+    localStorage.removeItem(AI_DECK_KEY);
 }
 
 /** vs-AI difficulty (issue #114). Persisted so the next game defaults to the

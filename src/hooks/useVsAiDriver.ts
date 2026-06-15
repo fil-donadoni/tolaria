@@ -24,6 +24,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { PublicGameState } from "@convex/gameProjections";
 import { shouldThink, budgetFor } from "@convex/gre";
 import { consultBrain } from "~/lib/ai/brain-client";
+import { setLatestAiTrace } from "~/lib/ai/trace-store";
 import { decideBotAction, type BotView } from "~/lib/ai/brain";
 import { executeMove, type MoveMutations } from "~/lib/ai/executor";
 import { projectedToGameState } from "~/lib/ai/state-adapter";
@@ -136,11 +137,13 @@ export function useVsAiDriver(
             // client-side brain thinks.
             const budget = budgetFor(getStoredDifficulty());
             void consultBrain(botState, botId, budget)
-                .then((move) =>
-                    move
+                .then(({ move, trace }) => {
+                    // Surface the reasoning to the Debug panel (client-only).
+                    setLatestAiTrace(trace);
+                    return move
                         ? executeMove(move, { gameId, botId, mutations })
-                        : undefined
-                )
+                        : undefined;
+                })
                 .catch(() => {
                     // Stale/illegal submissions are rejected server-side; the
                     // next state change re-drives. Allow a retry of this state.

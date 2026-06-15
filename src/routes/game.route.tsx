@@ -5,6 +5,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import Board from "~/components/board/board";
 import DebugPanel from "~/components/debug/debug-panel";
+import AiDecisionTraceBox from "~/components/debug/ai-decision-trace-box";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { clearSession, getStoredSession } from "~/lib/session";
 
@@ -77,6 +78,9 @@ export default function GameRoute() {
                         }
                         onSwitchGame={handleSwitchGame}
                     />
+                )}
+                {import.meta.env.DEV && game.vsAi === true && (
+                    <AiDecisionTraceBox />
                 )}
             </div>
         );
