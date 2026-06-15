@@ -5656,11 +5656,25 @@ describe("Berserk ({G} — trample + X/+0, delayed destroy if attacked, CR 117.1
         pushSpell(state, berserk.id, "p1", [{ type: "permanent", id: "bear" }]);
         resolveTopOfStack(state);
         expect(bear.staticAbilities).toContain("trample");
-        // 2 + 2 = 4 (via modifyPower; effective reading agrees)
-        expect(bear.power).toBe(4);
+        // +X/+0 is a temporary buff (CR 611.1): base power unchanged, effective
+        // doubles (2 + 2 = 4).
+        expect(bear.power).toBe(2);
         expect(bear.toughness).toBe(2);
         expect(getEffectivePower(state, bear)).toBe(4);
         expect(getEffectiveToughness(state, bear)).toBe(2);
+    });
+
+    it("the +X/+0 buff expires at cleanup (CR 514.2)", () => {
+        const { state, bear } = setupWithAttacker();
+        pushSpell(state, berserk.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        expect(getEffectivePower(state, bear)).toBe(4);
+
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+
+        expect(getEffectivePower(state, bear)).toBe(2);
+        expect(bear.temporaryPTMods).toBeUndefined();
     });
 
     it("schedules a next-end-step delayed trigger tied to the target id", () => {
@@ -5796,7 +5810,9 @@ describe("Berserk ({G} — trample + X/+0, delayed destroy if attacked, CR 117.1
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === "bear"
         )!;
-        expect(slim.power).toBe(4);
+        // Base power is unchanged (2); the +2/+0 rides in temporaryPTMods,
+        // which the projection carries so effective power reads 4.
+        expect(slim.power).toBe(2);
         expect(slim.staticAbilities).toContain("trample");
         expect(getEffectivePower(projected, slim)).toBe(4);
         // Opponent's viewer sees the same data (no hidden info on battlefield).
@@ -5804,7 +5820,8 @@ describe("Berserk ({G} — trample + X/+0, delayed destroy if attacked, CR 117.1
         const slimOpp = oppView.players[0].battlefield.find(
             (c) => c.id === "bear"
         )!;
-        expect(slimOpp.power).toBe(4);
+        expect(slimOpp.power).toBe(2);
+        expect(getEffectivePower(oppView, slimOpp)).toBe(4);
         expect(slimOpp.staticAbilities).toContain("trample");
         // Preserve the reference to `bear` so TS doesn't flag the variable.
         expect(bear.id).toBe("bear");
