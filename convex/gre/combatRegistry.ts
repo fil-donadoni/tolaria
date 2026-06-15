@@ -13,6 +13,7 @@
 import type { CardInstanceState } from "./state";
 import { LANDWALK_KEYWORDS } from "./constants";
 import { hasColor } from "./rules";
+import { applySubstitution } from "./textChanges";
 
 // ---------------------------------------------------------------------------
 // Rule types
@@ -73,8 +74,12 @@ const LANDWALK_RULES: EvasionRule[] = Object.entries(LANDWALK_KEYWORDS).map(
             _blocker: CardInstanceState,
             defenderBattlefield: CardInstanceState[]
         ) =>
+            // CR 612: read the text-change-rewritten subtypes so a land whose
+            // type was changed (Magical Hack) is matched by the new word.
             !defenderBattlefield.some(
-                (c) => c.types.includes("Land") && c.subtypes.includes(subtype)
+                (c) =>
+                    c.types.includes("Land") &&
+                    applySubstitution(c).subtypes.includes(subtype)
             ),
         reason: `Attacker can't be blocked while defender controls a ${subtype}`,
     })
@@ -149,8 +154,11 @@ export function evaluateBlockerKeywords(
     blocker: CardInstanceState,
     defenderBattlefield: CardInstanceState[]
 ): BlockerKeywordResult {
+    // CR 612: a text change can rewrite the attacker's landwalk keyword
+    // (forestwalk → islandwalk), so match against the rewritten abilities.
+    const attackerAbilities = applySubstitution(attacker).staticAbilities;
     for (const rule of EVASION_RULES) {
-        if (!attacker.staticAbilities.includes(rule.keyword)) continue;
+        if (!attackerAbilities.includes(rule.keyword)) continue;
         if (!rule.canBlock(attacker, blocker, defenderBattlefield)) {
             return { eligible: false, reason: rule.reason };
         }

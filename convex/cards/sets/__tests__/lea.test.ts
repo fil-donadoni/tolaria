@@ -45,6 +45,7 @@ import {
     lance,
     leyDruid,
     lordOfAtlantis,
+    magicalHack,
     merfolkOfThePearlTrident,
     mindTwist,
     monssGoblinRaiders,
@@ -19615,5 +19616,229 @@ describe("Gaea's Liege (Forest-count P/T + {T} land→Forest)", () => {
             type: "Land",
             count: 1,
         });
+    });
+});
+
+describe("Magical Hack (text-changing effect — CR 612, layer 3)", () => {
+    // Casts Magical Hack on `target`, choosing replacement type `toMode`
+    // (a mode id like "island"). Returns the resolved state.
+    function castMagicalHack(
+        state: GameState,
+        targetId: string,
+        targetType: "permanent" | "spell",
+        toMode: string
+    ): void {
+        const spell = pushSpell(state, magicalHack.id, "p1", [
+            { type: targetType, id: targetId },
+        ]);
+        spell.chosenModeId = toMode;
+        resolveTopOfStack(state);
+    }
+
+    it("is a {U} Instant targeting a spell or permanent, with five modes", () => {
+        expect(magicalHack.manaCost).toEqual({ U: 1 });
+        expect(magicalHack.types).toEqual(["Instant"]);
+        expect(magicalHack.targetRequirement).toEqual({
+            type: "spell-or-permanent",
+            count: 1,
+        });
+        expect(magicalHack.modes?.map((m) => m.id)).toEqual([
+            "plains",
+            "island",
+            "swamp",
+            "mountain",
+            "forest",
+        ]);
+    });
+
+    it("changes a basic land's type so it taps for the new color (CR 305.6)", () => {
+        const forestInst = makeInstance(forest.id, {
+            id: "f1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const p1 = makePlayer("p1");
+        const p2 = makePlayer("p2", { battlefield: [forestInst] });
+        const state = makeState({ players: [p1, p2] });
+
+        expect(getBasicLandMana(forestInst)).toBe("G");
+
+        castMagicalHack(state, "f1", "permanent", "island");
+
+        const after = state.players[1].battlefield.find((c) => c.id === "f1")!;
+        expect(after.textChanges).toEqual([
+            { kind: "land-type", from: "Forest", to: "Island" },
+        ]);
+        expect(getBasicLandMana(after)).toBe("U");
+    });
+
+    it("re-asserts the new mana color after projectPublicState (wire format)", () => {
+        const forestInst = makeInstance(forest.id, {
+            id: "f1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [forestInst] }),
+            ],
+        });
+        castMagicalHack(state, "f1", "permanent", "island");
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "f1"
+        )!;
+        expect(getBasicLandMana(slim as CardInstanceState)).toBe("U");
+    });
+
+    it("rewrites a landwalk keyword so blocking follows the new word (CR 702.13b)", () => {
+        // Shanodin Dryads (forestwalk) attacking; defender controls an Island.
+        const dryads = makeInstance(shanodinDryads.id, {
+            id: "d1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bears = makeInstance(savannahLions.id, {
+            id: "b1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const islandInst = makeInstance(island.id, {
+            id: "i1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [dryads] }),
+                makePlayer("p2", { battlefield: [bears, islandInst] }),
+            ],
+        });
+
+        // Before: forestwalk + defender has no Forest → blockable.
+        expect(
+            validateBlockerEligibility(dryads, bears, [bears, islandInst])
+                .eligible
+        ).toBe(true);
+
+        castMagicalHack(state, "d1", "permanent", "island");
+
+        const d = state.players[0].battlefield.find((c) => c.id === "d1")!;
+        expect(d.textChanges).toEqual([
+            { kind: "land-type", from: "Forest", to: "Island" },
+        ]);
+
+        // After: islandwalk + defender controls an Island → unblockable.
+        expect(
+            validateBlockerEligibility(d, bears, [bears, islandInst]).eligible
+        ).toBe(false);
+
+        // Same conclusion survives the projection (wire format).
+        const projected = projectPublicState(state, 1, "p1");
+        const slimD = projected.players[0].battlefield.find(
+            (c) => c.id === "d1"
+        )! as CardInstanceState;
+        const slimBears = projected.players[1].battlefield.find(
+            (c) => c.id === "b1"
+        )! as CardInstanceState;
+        const slimIsland = projected.players[1].battlefield.find(
+            (c) => c.id === "i1"
+        )! as CardInstanceState;
+        expect(
+            validateBlockerEligibility(slimD, slimBears, [
+                slimBears,
+                slimIsland,
+            ]).eligible
+        ).toBe(false);
+    });
+
+    it("ends when the object changes zones (CR 612.7)", () => {
+        const forestInst = makeInstance(forest.id, {
+            id: "f1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [forestInst] }),
+            ],
+        });
+        castMagicalHack(state, "f1", "permanent", "island");
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "f1")!.textChanges
+        ).toHaveLength(1);
+
+        // CR 612.7 / 400.7 — leaving the battlefield clears the change as the
+        // object becomes new (engine resets transient instance state on a
+        // hand/library move, mirroring colorOverride).
+        removePermanentTo(state, "f1", "hand");
+        const bounced = state.players[1].hand.find((c) => c.id === "f1")!;
+        expect(bounced.textChanges).toBeUndefined();
+        expect(getBasicLandMana(bounced)).toBe("G");
+    });
+
+    it("chains multiple changes in timestamp order (CR 612.6)", () => {
+        const forestInst = makeInstance(forest.id, {
+            id: "f1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [forestInst] }),
+            ],
+        });
+        castMagicalHack(state, "f1", "permanent", "island"); // Forest → Island
+        castMagicalHack(state, "f1", "permanent", "mountain"); // Island → Mountain
+
+        const after = state.players[1].battlefield.find((c) => c.id === "f1")!;
+        expect(after.textChanges).toEqual([
+            { kind: "land-type", from: "Forest", to: "Island" },
+            { kind: "land-type", from: "Island", to: "Mountain" },
+        ]);
+        expect(getBasicLandMana(after)).toBe("R");
+    });
+
+    it("applies to a spell on the stack (spell-or-permanent target branch)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        // A creature spell with forestwalk on the stack (Shanodin Dryads).
+        const creatureSpell = pushSpell(state, shanodinDryads.id, "p2");
+        // Magical Hack targets it; resolves above it (LIFO push order).
+        castMagicalHack(state, creatureSpell.id, "spell", "island");
+
+        const onStack = state.stack.find((s) => s.id === creatureSpell.id)!;
+        expect(onStack.textChanges).toEqual([
+            { kind: "land-type", from: "Forest", to: "Island" },
+        ]);
+    });
+
+    it("survives a serialize round-trip (persisted optional field)", () => {
+        const forestInst = makeInstance(forest.id, {
+            id: "f1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [forestInst] }),
+            ],
+        });
+        castMagicalHack(state, "f1", "permanent", "island");
+
+        const restored = expandState(compactState(state));
+        const after = restored.players[1].battlefield.find(
+            (c) => c.id === "f1"
+        )!;
+        expect(after.textChanges).toEqual([
+            { kind: "land-type", from: "Forest", to: "Island" },
+        ]);
+        expect(getBasicLandMana(after)).toBe("U");
     });
 });

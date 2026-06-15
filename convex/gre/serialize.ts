@@ -122,6 +122,9 @@ function compactCard(
     if (card.colorOverride && card.colorOverride.length > 0) {
         out.colorOverride = card.colorOverride;
     }
+    if (card.textChanges && card.textChanges.length > 0) {
+        out.textChanges = card.textChanges;
+    }
     // CR 707.2 copy anchor — `card.id` already carries the copied def id; this
     // preserves the printed identity to restore on leave (`revertCopy`).
     if (card.copiedFrom) out.copiedFrom = card.copiedFrom;
@@ -245,6 +248,10 @@ function expandCard(
     if (compact.colorOverride) {
         result.colorOverride =
             compact.colorOverride as CardInstanceState["colorOverride"];
+    }
+    if (compact.textChanges) {
+        result.textChanges =
+            compact.textChanges as CardInstanceState["textChanges"];
     }
     if (compact.copiedFrom) result.copiedFrom = compact.copiedFrom as string;
     if (compact.exileOnDeath) result.exileOnDeath = true;

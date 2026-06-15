@@ -47,6 +47,30 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Text-changing effect (CR 612, layer 3). Cast Magical Hack ({U}) and
+        // pick a basic land type: on your Forest, change it to Island and it
+        // taps for {U} instead of {G}; on Shanodin Dryads (forestwalk), change
+        // Forest → Island and its evasion now keys off the opponent's Island
+        // (move to combat and attack — the Dryads become unblockable). The
+        // change lasts indefinitely and ends if the object changes zones.
+        label: "Magical Hack: text-change a land type (Forest → Island mana + landwalk)",
+        cards: [
+            {
+                name: "Magical Hack",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 2,
+            },
+            { name: "Shanodin Dryads", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 1 },
+            { name: "Island", owner: "me" as const, count: 4 },
+            { name: "Island", owner: "opp" as const, count: 1 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // AI debug: the bot ("opp" = p2) holds Braingeyser (target player draws
         // X) and Giant Growth (target ANY creature +3/+3) with the mana to cast
         // them, plus a creature on each side. Pass your turn → on the bot's turn
