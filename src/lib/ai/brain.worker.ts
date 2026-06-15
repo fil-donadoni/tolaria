@@ -9,7 +9,7 @@
 
 /// <reference lib="webworker" />
 import type { PublicGameState } from "@convex/gameProjections";
-import type { Move } from "@convex/gre";
+import type { Move, SearchBudget } from "@convex/gre";
 import { search, DEFAULT_BUDGET } from "@convex/gre";
 import { projectedToGameState } from "./state-adapter";
 
@@ -17,16 +17,19 @@ export type BrainRequest = {
     id: number;
     state: PublicGameState;
     botId: string;
+    /** Difficulty-scaled search budget (issue #114). Plain numbers only, so it
+     *  survives the structured-clone `postMessage` hop. Omitted → default. */
+    budget?: SearchBudget;
 };
 export type BrainResponse = { id: number; move: Move | null };
 
 self.onmessage = (e: MessageEvent<BrainRequest>) => {
-    const { id, state, botId } = e.data;
+    const { id, state, botId, budget } = e.data;
     const seed = (Math.random() * 0x100000000) | 0;
     const move = search(
         projectedToGameState(state),
         botId,
-        DEFAULT_BUDGET,
+        budget ?? DEFAULT_BUDGET,
         seed
     );
     const response: BrainResponse = { id, move };

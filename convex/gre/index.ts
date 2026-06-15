@@ -56,3 +56,14 @@ export { makeRng } from "./rng";
 // priority window is worth a full search; on a false the driver passes
 // immediately through the existing auto-pass path so routine passes never stall.
 export { shouldThink } from "./shouldThink";
+
+// Difficulty presets (issue #114). One knob: each difficulty is just a
+// `SearchBudget` for the same `search` — no separate bot logic. The lobby picks
+// one and the client driver threads it through to the search.
+export {
+    DIFFICULTIES,
+    DIFFICULTY_BUDGETS,
+    DEFAULT_DIFFICULTY,
+    budgetFor,
+} from "./difficulty";
+export type { Difficulty } from "./difficulty";

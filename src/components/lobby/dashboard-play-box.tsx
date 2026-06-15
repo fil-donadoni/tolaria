@@ -1,13 +1,17 @@
 import type { Doc, Id } from "@convex/_generated/dataModel";
+import type { Difficulty } from "@convex/gre";
 import type { LobbyDeck } from "~/lib/deckTypes";
 import { cn } from "~/lib/utils";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import ActionButton from "~/components/board/action-button";
 import ManaSymbol from "../cards/mana-symbol";
+import DifficultySelector from "./difficulty-selector";
 
 interface DashboardPlayBoxProps {
     selectedDeck: LobbyDeck | null;
     openGames: Array<Doc<"games">> | undefined;
+    difficulty: Difficulty;
+    onDifficultyChange: (difficulty: Difficulty) => void;
     onCreateSolo: () => void;
     onCreateVsAi: () => void;
     onCreateMultiplayer: () => void;
@@ -19,6 +23,8 @@ interface DashboardPlayBoxProps {
 export default function DashboardPlayBox({
     selectedDeck,
     openGames,
+    difficulty,
+    onDifficultyChange,
     onCreateSolo,
     onCreateVsAi,
     onCreateMultiplayer,
@@ -64,6 +70,14 @@ export default function DashboardPlayBox({
                         Select a deck to start playing.
                     </p>
                 )}
+
+                <div className="mb-3 flex justify-start">
+                    <DifficultySelector
+                        value={difficulty}
+                        onChange={onDifficultyChange}
+                        disabled={busy}
+                    />
+                </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <ActionButton

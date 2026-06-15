@@ -14,9 +14,12 @@ import {
 import {
     clearDeckPresetId,
     getStoredDeckPresetId,
+    getStoredDifficulty,
     storeDeckPresetId,
+    storeDifficulty,
     storeSession,
 } from "~/lib/session";
+import type { Difficulty } from "@convex/gre";
 import { Panel } from "~/components/ui/panel";
 import GameDialog from "~/components/ui/game-dialog";
 import ActionButton from "~/components/board/action-button";
@@ -32,6 +35,9 @@ function Lobby() {
         getStoredDeckPresetId()
     );
     const [deleteTarget, setDeleteTarget] = useState<LobbyDeck | null>(null);
+    const [difficulty, setDifficulty] = useState<Difficulty>(() =>
+        getStoredDifficulty()
+    );
     const [isBusy, setIsBusy] = useState(false);
     const userDecks = useUserDecks();
     const { remove: removeUserDeck } = useUserDeckMutations();
@@ -151,6 +157,11 @@ function Lobby() {
         clearDeckPresetId();
     };
 
+    const handleDifficultyChange = (next: Difficulty) => {
+        setDifficulty(next);
+        storeDifficulty(next);
+    };
+
     const handleEditDeck = (presetId: string) => {
         void navigate({
             to: "/decks/$slug/edit",
@@ -219,6 +230,8 @@ function Lobby() {
                 <DashboardPlayBox
                     selectedDeck={selectedDeck}
                     openGames={openGames}
+                    difficulty={difficulty}
+                    onDifficultyChange={handleDifficultyChange}
                     onCreateSolo={handleCreateSolo}
                     onCreateVsAi={handleCreateVsAi}
                     onCreateMultiplayer={handleCreate}
