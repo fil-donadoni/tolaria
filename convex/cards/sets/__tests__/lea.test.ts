@@ -31,6 +31,7 @@ import {
     feedback,
     flight,
     frozenShade,
+    giantGrowth,
     goblinBalloonBrigade,
     goblinKing,
     graniteGargoyle,
@@ -318,6 +319,7 @@ import {
     computeHardSkipFilters,
     effectiveMaxHandSize,
     effectivePermanentView,
+    finalizeCleanup,
     finalizeCleanupDiscard,
     emitBlockersConfirmedEvents,
 } from "../../../gre/phases";
@@ -5468,6 +5470,98 @@ describe("Circle of Protection: color filter on target selection", () => {
             count: 1,
             colorFilter: "G",
         });
+    });
+});
+
+describe("Giant Growth (+3/+3 until end of turn, CR 611.1 / 514.2)", () => {
+    function setupElf(phase = "PRECOMBAT_MAIN") {
+        const elf = makeInstance(llanowarElves.id, {
+            id: "elf",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [elf] }),
+                makePlayer("p2"),
+            ],
+            phase: phase as GameState["phase"],
+        });
+        return { state, elf };
+    }
+
+    it("boosts the target to 4/4 without mutating its base P/T", () => {
+        const { state, elf } = setupElf();
+        pushSpell(state, giantGrowth.id, "p1", [
+            { type: "permanent", id: "elf" },
+        ]);
+        resolveTopOfStack(state);
+        // Temporary buff (CR 611.1): base stays 1/1, effective is 4/4.
+        expect(elf.power).toBe(1);
+        expect(elf.toughness).toBe(1);
+        expect(getEffectivePower(state, elf)).toBe(4);
+        expect(getEffectiveToughness(state, elf)).toBe(4);
+    });
+
+    it("reverts to 1/1 at the cleanup step (CR 514.2)", () => {
+        const { state, elf } = setupElf();
+        pushSpell(state, giantGrowth.id, "p1", [
+            { type: "permanent", id: "elf" },
+        ]);
+        resolveTopOfStack(state);
+        expect(getEffectivePower(state, elf)).toBe(4);
+
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+
+        expect(getEffectivePower(state, elf)).toBe(1);
+        expect(getEffectiveToughness(state, elf)).toBe(1);
+        expect(elf.temporaryPTMods).toBeUndefined();
+    });
+
+    it("stacks two casts to +6/+6 that both expire together at cleanup", () => {
+        const { state, elf } = setupElf();
+        for (let i = 0; i < 2; i++) {
+            pushSpell(state, giantGrowth.id, "p1", [
+                { type: "permanent", id: "elf" },
+            ]);
+            resolveTopOfStack(state);
+        }
+        expect(getEffectivePower(state, elf)).toBe(7);
+        expect(getEffectiveToughness(state, elf)).toBe(7);
+
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(getEffectivePower(state, elf)).toBe(1);
+        expect(getEffectiveToughness(state, elf)).toBe(1);
+    });
+
+    it("buff survives intervening phases within the turn (only cleanup ends it)", () => {
+        const { state, elf } = setupElf();
+        pushSpell(state, giantGrowth.id, "p1", [
+            { type: "permanent", id: "elf" },
+        ]);
+        resolveTopOfStack(state);
+        // Walk forward to the end step; the buff must still be present.
+        state.phase = "POSTCOMBAT_MAIN";
+        advancePhase(state);
+        expect(state.phase).toBe("END_STEP");
+        expect(getEffectivePower(state, elf)).toBe(4);
+    });
+
+    it("wire format: boost is visible during the turn (regression guard)", () => {
+        const { state } = setupElf();
+        pushSpell(state, giantGrowth.id, "p1", [
+            { type: "permanent", id: "elf" },
+        ]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slimElf = projected.players[0].battlefield.find(
+            (c) => c.id === "elf"
+        )!;
+        expect(getEffectivePower(projected, slimElf)).toBe(4);
+        expect(getEffectiveToughness(projected, slimElf)).toBe(4);
     });
 });
 

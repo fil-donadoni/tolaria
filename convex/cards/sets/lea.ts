@@ -5418,9 +5418,12 @@ export const giantGrowth: CardDefinition = {
     manaCost: { G: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
+    // CR 611.1 / 514.2: "+3/+3 until end of turn" is a temporary P/T buff that
+    // must expire at the cleanup step — NOT a permanent base-stat mutation.
+    // `addTemporaryPTBuff` records it in `temporaryPTMods` with an end-of-turn
+    // duration, which the cleanup duration tick purges.
     resolve: (ctx: SpellContext) => {
-        ctx.modifyPower(ctx.targets[0], 3);
-        ctx.modifyToughness(ctx.targets[0], 3);
+        ctx.addTemporaryPTBuff(ctx.targets[0], 3, 3, { phase: "end-of-turn" });
     },
 };
 

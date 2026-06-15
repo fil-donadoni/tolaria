@@ -659,6 +659,7 @@ import { lightningBolt } from "../../cards/sets/lea";
 import { giantGrowth } from "../../cards/sets/lea";
 import { ancestralRecall } from "../../cards/sets/lea";
 import { drawCard } from "../state";
+import { getEffectivePower, getEffectiveToughness } from "../layers";
 
 describe("spell resolution: Lightning Bolt", () => {
     function makeBoltOnStack(
@@ -782,8 +783,12 @@ describe("spell resolution: Giant Growth + Lightning Bolt interaction", () => {
             (c) => c.id === "elf1"
         );
         expect(elf).toBeDefined();
-        expect(elf!.power).toBe(4);
-        expect(elf!.toughness).toBe(4);
+        // +3/+3 is a temporary buff (CR 611.1), so base P/T is unchanged and
+        // the boost shows through effective P/T.
+        expect(elf!.power).toBe(1);
+        expect(elf!.toughness).toBe(1);
+        expect(getEffectivePower(state, elf!)).toBe(4);
+        expect(getEffectiveToughness(state, elf!)).toBe(4);
 
         // Step 2: Lightning Bolt resolves on the elf (3 damage)
         const bolt = makeStackItem(

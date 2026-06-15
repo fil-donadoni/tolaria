@@ -347,12 +347,13 @@ describe("Castle + Giant Growth", () => {
         state.stack.push(growth);
         resolveTopOfStack(state);
 
-        // Giant Growth mutates base to 4/4. Castle still adds +0/+2 at read time → 4/6.
+        // Giant Growth is a temporary +3/+3 buff (base P/T unchanged). Castle
+        // adds +0/+2 at read time → effective 4/6.
         const elfAfter = getPlayer(state, "p1").battlefield.find(
             (c) => c.id === "elf"
         );
-        expect(elfAfter?.power).toBe(4);
-        expect(elfAfter?.toughness).toBe(4);
+        expect(elfAfter?.power).toBe(1);
+        expect(elfAfter?.toughness).toBe(1);
         expect(getEffectivePower(state, elfAfter!)).toBe(4);
         expect(getEffectiveToughness(state, elfAfter!)).toBe(6);
     });
