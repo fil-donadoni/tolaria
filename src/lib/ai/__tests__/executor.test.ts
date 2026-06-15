@@ -26,6 +26,7 @@ function fakeMutations() {
         assignBlockerTarget: vi.fn().mockResolvedValue(null),
         confirmBlockers: vi.fn().mockResolvedValue(null),
         declareMulligan: vi.fn().mockResolvedValue(null),
+        submitResolutionChoice: vi.fn().mockResolvedValue(null),
         passPriority: vi.fn().mockResolvedValue(null),
     };
     return m as unknown as MoveMutations &
@@ -50,6 +51,31 @@ describe("executeMove (issue #110)", () => {
         expect(m.declareMulligan).toHaveBeenCalledWith({
             ...GP,
             decision: "keep",
+        });
+    });
+
+    it("mulligan (mull) → declareMulligan with decision mull", async () => {
+        const m = await run({ kind: "mulligan", decision: "mull" });
+        expect(m.declareMulligan).toHaveBeenCalledWith({
+            ...GP,
+            decision: "mull",
+        });
+    });
+
+    it("mulligan-bottom → submitResolutionChoice with the choice identity", async () => {
+        const m = await run({
+            kind: "mulligan-bottom",
+            stackItemId: "mulligan",
+            step: 0,
+            choiceId: "mulligan-bottom-u1-p2",
+            cardInstanceIds: ["c1", "c2"],
+        });
+        expect(m.submitResolutionChoice).toHaveBeenCalledWith({
+            ...GP,
+            stackItemId: "mulligan",
+            step: 0,
+            choiceId: "mulligan-bottom-u1-p2",
+            cardInstanceIds: ["c1", "c2"],
         });
     });
 

@@ -44,6 +44,16 @@ export type ManaTap = { cardInstanceId: string; manaChoiceIndex?: number };
 export type Move =
     | { kind: "pass" }
     | { kind: "mulligan"; decision: "keep" | "mull" }
+    | {
+          /** Post-mulligan bottoming submission (CR 103.5). Realised through the
+           *  existing `submitResolutionChoice` mutation (kind "mulligan-bottom");
+           *  the choice identity is read from the active pending choice. */
+          kind: "mulligan-bottom";
+          stackItemId: string;
+          step: number;
+          choiceId: string;
+          cardInstanceIds: string[];
+      }
     | { kind: "play-land"; cardInstanceId: string }
     | {
           kind: "cast-spell";

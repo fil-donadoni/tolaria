@@ -11,6 +11,7 @@ import { getCardByName } from "@convex/cards";
 import { makeInstance } from "@convex/cards/__tests__/setup";
 
 const MOUNTAIN = getCardByName("Mountain").id;
+const BEARS = getCardByName("Grizzly Bears").id;
 
 const calls: { ref: unknown; args: unknown }[] = [];
 let currentState: unknown = undefined;
@@ -34,6 +35,7 @@ vi.mock("@convex/_generated/api", () => ({
             assignBlockerTarget: "assignBlockerTarget",
             confirmBlockers: "confirmBlockers",
             declareMulligan: "declareMulligan",
+            submitResolutionChoice: "submitResolutionChoice",
             passPriority: "passPriority",
         },
     },
@@ -116,9 +118,21 @@ describe("useVsAiDriver (issue #110)", () => {
         expect(calls).toHaveLength(0);
     });
 
-    it("declares a mulligan decision during the bot's mulligan window", async () => {
+    it("keeps a reasonable opening hand during the bot's mulligan window", async () => {
+        // The keep/mull decision is the cheap gate heuristic (issue #145), not
+        // the Worker search: a hand with >=1 land and >=1 spell is kept.
+        const botSeat = player(BOT);
+        botSeat.hand = [
+            makeInstance(MOUNTAIN, {
+                id: "m1",
+                controllerId: BOT,
+                zone: "hand",
+            }),
+            makeInstance(BEARS, { id: "b1", controllerId: BOT, zone: "hand" }),
+        ] as never;
         currentState = botState({
             phase: "MULLIGAN",
+            players: [botSeat, player(HUMAN)],
             mulligan: {
                 mulligansTaken: [0, 0],
                 declarations: [null, null],
@@ -135,7 +149,39 @@ describe("useVsAiDriver (issue #110)", () => {
         expect(calls[0].args).toEqual({
             gameId: GAME,
             playerId: BOT,
-            decision: "keep", // Math.random → 0 picks the first move (keep)
+            decision: "keep",
+        });
+    });
+
+    it("mulligans a zero-land opening hand", async () => {
+        const botSeat = player(BOT);
+        botSeat.hand = Array.from({ length: 7 }, (_, i) =>
+            makeInstance(BEARS, {
+                id: `b${i}`,
+                controllerId: BOT,
+                zone: "hand",
+            })
+        ) as never;
+        currentState = botState({
+            phase: "MULLIGAN",
+            players: [botSeat, player(HUMAN)],
+            mulligan: {
+                mulligansTaken: [0, 0],
+                declarations: [null, null],
+                locked: [false, false],
+                declaringPlayerId: BOT,
+                bottoming: false,
+            },
+        });
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await vi.runAllTimersAsync();
+
+        expect(calls).toHaveLength(1);
+        expect(calls[0].ref).toBe("declareMulligan");
+        expect(calls[0].args).toEqual({
+            gameId: GAME,
+            playerId: BOT,
+            decision: "mull",
         });
     });
 

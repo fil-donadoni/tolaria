@@ -76,6 +76,10 @@ export function describeMove(move: Move, state: GameState): string {
             return "pass";
         case "mulligan":
             return move.decision === "keep" ? "keep hand" : "mulligan";
+        case "mulligan-bottom":
+            return `bottom ${move.cardInstanceIds.length} card${
+                move.cardInstanceIds.length === 1 ? "" : "s"
+            }`;
         case "play-land":
             return `play ${instanceName(state, move.cardInstanceId)}`;
         case "cast-spell": {
