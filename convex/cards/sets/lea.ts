@@ -2090,13 +2090,50 @@ export const sirensCall: CardDefinition = {
     ],
 };
 
-// export const sleightOfMind: CardDefinition = {
-//     id: "d427790c-e322-446e-8d7d-a6b48ad41a42",
-//     name: "Sleight of Mind",
-//     oracleText: "Change the text of target spell or permanent by replacing all instances of one color word with another. (For example, you may change \"target black spell\" to \"target blue spell.\" This effect lasts indefinitely.)",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
+// Sleight of Mind — "Change the text of target spell or permanent by replacing
+// all instances of one color word with another." (CR 612 text-changing effect,
+// layer 3.) The color-word sibling of Magical Hack: the modal picker selects
+// the replacement ("to") color word; the replaced ("from") word is derived from
+// — and validated against — the color words the target actually references (its
+// "protection from <color>" strings plus the colors its color-targeted
+// requirements filter on, via ctx.getColorWordsPresent), per CR 612 ("replace
+// all instances of one color word [that appears]"). The change rides the target
+// instance, lasting indefinitely and ending on a zone change (CR 612.6/612.7).
+// It changes color *words in the text*, never the object's own color (CR 612.1).
+const COLOR_WORD_LIST = ["white", "blue", "black", "red", "green"] as const;
+
+function capitalize(word: string): string {
+    return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+function sleightOfMindMode(toWord: string): SpellMode {
+    return {
+        id: toWord,
+        label: capitalize(toWord),
+        oracleText: `Replace a color word with ${toWord}.`,
+        resolve: (ctx: SpellContext) => {
+            const target = ctx.targets[0];
+            if (!target) return;
+            const present = ctx.getColorWordsPresent(target);
+            // Prefer a from-word that actually differs from the choice; fall
+            // back to the only word present (a no-op same-word pick).
+            const from = present.find((w) => w !== toWord) ?? present[0];
+            if (!from) return; // target references no color word — no-op
+            ctx.addTextChange(target, { kind: "color-word", from, to: toWord });
+        },
+    };
+}
+
+export const sleightOfMind: CardDefinition = {
+    id: "d427790c-e322-446e-8d7d-a6b48ad41a42",
+    name: "Sleight of Mind",
+    oracleText:
+        'Change the text of target spell or permanent by replacing all instances of one color word with another. (For example, you may change "target black spell" to "target blue spell." This effect lasts indefinitely.)',
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell-or-permanent", count: 1 },
+    modes: COLOR_WORD_LIST.map(sleightOfMindMode),
+};
 
 // Spell Blast — "Counter target spell with mana value X." (CR 107.3 X cost,
 // CR 202.3 mana value, CR 701.5a counter.) Target selection uses the new

@@ -35,6 +35,7 @@ import {
     validateBlockerEligibility,
 } from "./combat";
 import { getInstanceManaCost, tryGetCardById } from "../cards";
+import { substituteColorFilter } from "./textChanges";
 
 /** One land tap the executor must perform to fund a cast/activation. */
 export type ManaTap = { cardInstanceId: string; manaChoiceIndex?: number };
@@ -286,9 +287,25 @@ function enumerateTargetTuples(
     chosenX: number | undefined
 ): TargetSelection[][] {
     if (!req) return [[]];
+    // CR 612.6 — a color-targeted requirement follows the source's active
+    // color-word changes (Sleight of Mind on a Circle of Protection retargets
+    // its "<color> source of your choice" to the new color).
+    const effReq =
+        req.colorFilter !== undefined
+            ? {
+                  ...req,
+                  colorFilter: substituteColorFilter(card, req.colorFilter),
+              }
+            : req;
     const sourceColors = STATIC_EFFECT_CTX.getColors(card);
-    const legal = getLegalTargets(state, req, sourceColors, player.id, chosenX);
-    const { min, max } = targetCount(req, chosenX);
+    const legal = getLegalTargets(
+        state,
+        effReq,
+        sourceColors,
+        player.id,
+        chosenX
+    );
+    const { min, max } = targetCount(effReq, chosenX);
     if (max === 0) return [[]];
 
     const tuples: TargetSelection[][] = [];

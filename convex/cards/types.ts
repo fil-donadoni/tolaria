@@ -772,6 +772,13 @@ export interface SpellContext {
      *  for a land-type text change ("replace all instances of one basic land
      *  type"). Empty if the target references none. */
     getLandTypesPresent: (target: TargetSelection) => string[];
+    /** The color words currently referenced in a target's text — the color
+     *  words inside its ability strings ("protection from white") plus the
+     *  colors its color-targeted requirements filter on (a Circle of
+     *  Protection's "<color> source of your choice"), read through any active
+     *  text changes (CR 612.6). These are the legal `from` choices for a
+     *  color-word text change. Empty if the target references no color word. */
+    getColorWordsPresent: (target: TargetSelection) => string[];
     /** Sets a transient combat pile label on a battlefield creature (Raging
      *  River, CR 509.2). Cleared at end of combat. No-op if the id isn't on
      *  the battlefield. */

@@ -36,7 +36,7 @@ import {
     getEffectiveToughness,
 } from "./layers";
 import { isProtectedFromSource } from "./protection";
-import { landTypesPresent } from "./textChanges";
+import { colorWordsPresent, landTypesPresent } from "./textChanges";
 import { randomInt, seededShuffle } from "./rng";
 import {
     applyDamageReplacements,
@@ -3298,6 +3298,34 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 instance = state.stack.find((s) => s.id === target.id);
             }
             return instance ? landTypesPresent(instance) : [];
+        },
+
+        getColorWordsPresent(target: TargetSelection): string[] {
+            let instance: CardInstanceState | undefined;
+            if (target.type === "permanent") {
+                instance = findOnBattlefield(state, target.id)?.card;
+            } else if (target.type === "spell") {
+                instance = state.stack.find((s) => s.id === target.id);
+            }
+            if (!instance) return [];
+            // Color words live in two places: stringly-typed staticAbilities
+            // (read inside colorWordsPresent) and the structured colorFilter on
+            // the object's color-targeted requirements (its card-level / modal
+            // spell requirement and any activated-ability requirements — e.g. a
+            // Circle of Protection's "<color> source of your choice").
+            const cardId = (instance.card as { id?: string }).id;
+            const def = cardId ? tryGetCardById(cardId) : undefined;
+            const extraColorCodes: Color[] = [];
+            const collect = (req: TargetRequirement | undefined): void => {
+                if (req?.colorFilter) extraColorCodes.push(req.colorFilter);
+            };
+            collect(def?.targetRequirement);
+            for (const mode of def?.modes ?? [])
+                collect(mode.targetRequirement);
+            for (const ability of def?.activatedAbilities ?? []) {
+                collect(ability.targetRequirement);
+            }
+            return colorWordsPresent(instance, extraColorCodes);
         },
 
         setPileLabel(cardInstanceId: string, label: string): void {
