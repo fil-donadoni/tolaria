@@ -130,7 +130,7 @@ Cards are defined as **data**, not imperative code. Three complexity levels:
 
 1. **Pure data** — Vanilla creatures and basic lands (stats only)
 2. **Declarative behavior** — Triggered/activated/static abilities using structured templates
-3. **Imperative behavior** — Replacement effects, layer system (out of initial scope)
+3. **Imperative behavior** — Layer system (out of initial scope). Replacement effects have shipped.
 
 Key types in `convex/cards/types.ts`: `CardDefinition`, `ActivatedAbility`, `ManaCost`, `SpellContext`, `TargetRequirement`, `TargetSelection`.
 
@@ -216,7 +216,6 @@ When implementing a new MTG rule or card ability, always cross-reference the use
 ## Out of Scope (initial)
 
 - Layer system for static effects (Anthem, Humility)
-- Replacement effects ("instead" effects)
 - Complex choice triggered abilities
 - Simultaneous trigger APNAP ordering
 - Full card catalog — starting with a controlled limited set
