@@ -59,6 +59,7 @@ import {
 } from "./gre/layers";
 import { projectFullState, projectPublicState } from "./gameProjections";
 import { compactState, expandState } from "./gre/serialize";
+import { turnFaceDown } from "./gre/faceDown";
 import {
     advancePhase,
     drainAutoPasses,
@@ -4111,6 +4112,10 @@ export const debugSetupScenario = mutation({
                 count: v.optional(v.number()),
                 /** Marked damage (CR 120.3) on a battlefield creature. */
                 damageMarked: v.optional(v.number()),
+                /** Place this card face down (CR 708.2, ADR 0013): a 2/2
+                 *  colourless vanilla creature whose real identity is hidden
+                 *  from the opponent. Battlefield only. */
+                faceDown: v.optional(v.boolean()),
             })
         ),
         phase: v.optional(v.string()),
@@ -4184,6 +4189,9 @@ export const debugSetupScenario = mutation({
                     if (entry.damageMarked && entry.damageMarked > 0) {
                         (instance as CardInstanceState).damageMarked =
                             entry.damageMarked;
+                    }
+                    if (entry.faceDown) {
+                        turnFaceDown(instance as CardInstanceState);
                     }
                     player.battlefield.push(instance);
                 }

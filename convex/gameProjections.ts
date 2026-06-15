@@ -99,6 +99,29 @@ function slimCard<
     return { ...instance, card: { id } };
 }
 
+/** Projects one battlefield permanent for a given viewer. The battlefield is
+ *  public EXCEPT for the identity of a face-down permanent (CR 708.2,
+ *  ADR 0013): its controller's view restores the real definition id
+ *  (`faceDownOf`); every other viewer keeps the face-down sentinel id and the
+ *  real id is stripped so it never crosses the wire. All other characteristics
+ *  (the vanilla 2/2) are already identical for both viewers, so nothing else
+ *  is hidden. */
+function projectBattlefieldCard(
+    card: CardInstanceState,
+    viewerId: string
+): SlimCardInstance {
+    if (!card.faceDown) return slimCard(card);
+    if (viewerId === card.controllerId && card.faceDownOf) {
+        // The controller knows what they cast — expose the real id.
+        return slimCard({ ...card, card: { id: card.faceDownOf } });
+    }
+    // Opponents/spectators: hide the true identity entirely. slimCard returns
+    // a fresh object, so deleting the leaked id doesn't mutate live state.
+    const slimmed = slimCard(card);
+    delete (slimmed as { faceDownOf?: string }).faceDownOf;
+    return slimmed;
+}
+
 /** Hydrate a granted ability instance with its template data for the wire. */
 function hydrateGrantedAbility(
     instance: GrantedAbilityInstance
@@ -184,7 +207,9 @@ export function projectPublicState(
             ...player,
             graveyard: player.graveyard.map(slimCard),
             exile: player.exile.map(slimCard),
-            battlefield: player.battlefield.map(slimCard),
+            battlefield: player.battlefield.map((c) =>
+                projectBattlefieldCard(c, viewerId)
+            ),
             library: { count: player.library.length },
             librarySearch,
             libraryPeek,

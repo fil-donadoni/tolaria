@@ -39,6 +39,9 @@ type PresetScenario = {
         count?: number;
         /** Marked damage (CR 120.3) on a battlefield creature. */
         damageMarked?: number;
+        /** Place face down (CR 708.2): a 2/2 colourless vanilla creature whose
+         *  real identity is hidden from the opponent. Battlefield only. */
+        faceDown?: boolean;
     }[];
     phase: string;
     landCount: number;
@@ -46,6 +49,22 @@ type PresetScenario = {
 };
 
 const PRESET_SCENARIOS: PresetScenario[] = [
+    {
+        // Face-down permanents (CR 708.2, ADR 0013). Each side has a creature
+        // placed face down: it reads as a 2/2 colourless nameless vanilla
+        // creature. You see your own face-down card's true identity; the
+        // opponent's face-down creature shows only the generic 2/2 placeholder.
+        // (No cast path or turn-up yet — those are separate slices.)
+        label: "Face-down permanents: hidden-identity 2/2 (CR 708.2)",
+        cards: [
+            { name: "Shivan Dragon", owner: "me" as const, faceDown: true },
+            { name: "Serra Angel", owner: "opp" as const, faceDown: true },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
     {
         // Pile combat (CR 509.2 variant, ADR 0012). Raging River is on your
         // battlefield with two attackers. Move to combat and attack with both:

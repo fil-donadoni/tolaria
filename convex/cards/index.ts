@@ -82,6 +82,23 @@ export const registerTokenDefinition = (def: CardDefinition): void => {
     registry.set(def.id, def);
 };
 
+/** Sentinel definition id for a face-down permanent (CR 708.2): a 2/2
+ *  colourless nameless vanilla creature with no abilities. A face-down
+ *  instance's `card.id` is swapped to this id (the real id is retained in
+ *  `CardInstanceState.faceDownOf` for the turn-up), so every def-derived
+ *  characteristic reader — colours, abilities, static effects — sees the
+ *  vanilla 2/2 automatically. Registered in the lookup map only, NOT a set
+ *  export, so it never enters the card pool or the catalogue guard tests. */
+export const FACE_DOWN_CARD_ID = "face-down:2-2-vanilla";
+registry.set(FACE_DOWN_CARD_ID, {
+    id: FACE_DOWN_CARD_ID,
+    name: "Face-down creature",
+    manaCost: {},
+    types: ["Creature"],
+    power: 2,
+    toughness: 2,
+});
+
 /** Lazy synthesis of a token CardDefinition from a content-derived id
  *  (e.g. `token:Wasp|Artifact,Creature|Insect||1|1||flying`). Server-side
  *  registrations from `createToken` cover the canonical case, but the
