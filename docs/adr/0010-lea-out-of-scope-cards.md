@@ -70,6 +70,12 @@ modern game; Tolaria models neither the zone nor the pre-game removal.
 
 - The six definitions stay commented in `lea.ts`, each prefixed with
   `// Out of scope — see ADR 0010`.
+- **The same six exclusions apply identically to Beta (LEB) and every later
+  reprint set.** A reprint of an out-of-scope card has no `CardDefinition` to
+  point at, so its `CardPrint` stays commented in `leb.ts` (and beyond) with
+  the same `// Out of scope — see ADR 0010` back-reference. Beta mirrors
+  Alpha's scope; re-including a card means uncommenting it in every set it
+  appears in.
 - The LEA completion target is **284 of 290** registered (280 already done +
   the four planned in ADRs 0011–0013), with six permanent exclusions.
 - Dead duplicate stubs (superseded comment blocks for Terror, Disintegrate,

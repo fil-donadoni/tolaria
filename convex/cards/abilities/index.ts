@@ -8,6 +8,7 @@ import type {
     CardDefinition,
     Color,
     ManaCost,
+    SpellContext,
 } from "../types";
 
 /** Builds a `{T}: Add <mana>` mana ability (CR 605.1a, 605.3a — useStack false).
@@ -86,6 +87,49 @@ export function makeDualLand(args: {
                 },
                 useStack: false,
                 manaChoices: [{ [c1]: 1 }, { [c2]: 1 }],
+            },
+        ],
+    };
+}
+
+/** Builds a "Circle of Protection: <color>" enchantment (CR 615 prevention).
+ *  `{1}: The next time a <color> source of your choice would deal damage to
+ *  you this turn, prevent that damage.` Drives the LEA cycle (White/Blue/
+ *  Black/Green/Red) and the Beta-original Circle of Protection: Black. The
+ *  `colorFilter` restricts targets to sources of `color`; the resolve schedules
+ *  a one-shot end-of-turn damage prevention against the chosen source. */
+export function makeCircleOfProtection(args: {
+    id: string;
+    name: string;
+    oracleText?: string;
+    color: Color;
+    colorWord: string;
+}): CardDefinition {
+    return {
+        id: args.id,
+        name: args.name,
+        oracleText: args.oracleText,
+        manaCost: { X: 1, W: 1 },
+        types: ["Enchantment"],
+        activatedAbilities: [
+            {
+                id: "cop-prevent",
+                oracleText: `{1}: The next time a ${args.colorWord.toLowerCase()} source of your choice would deal damage to you this turn, prevent that damage.`,
+                cost: { mana: { X: 1 } },
+                useStack: true,
+                targetRequirement: {
+                    type: ["any", "spell"],
+                    count: 1,
+                    colorFilter: args.color,
+                },
+                resolve: (ctx: SpellContext) => {
+                    const [target] = ctx.targets;
+                    if (!target) return;
+                    if (target.type === "player") return; // no color
+                    ctx.preventNextDamageFromSource(target.id, ctx.controller, {
+                        phase: "end-of-turn",
+                    });
+                },
             },
         ],
     };

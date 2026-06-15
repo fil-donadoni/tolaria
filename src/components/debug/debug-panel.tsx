@@ -50,6 +50,22 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Beta-original cards (ADR 0014): cards first printed in LEB with no
+        // Alpha counterpart. Volcanic Island is the tenth ABUR dual ({T}: add
+        // {U} or {R}); Circle of Protection: Black is the missing CoP. Tap a
+        // Volcanic Island for {U}/{R}, then activate CoP: Black ({1}) targeting
+        // the opponent's black Hypnotic Specter to prevent its damage to you.
+        label: "Beta-original: Volcanic Island + Circle of Protection: Black",
+        cards: [
+            { name: "Volcanic Island", owner: "me" as const, count: 2 },
+            { name: "Circle of Protection: Black", owner: "me" as const },
+            { name: "Hypnotic Specter", owner: "opp" as const },
+            { name: "Swamp", owner: "opp" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Face-down permanents (CR 708.2, ADR 0013). Each side has a creature
         // placed face down: it reads as a 2/2 colourless nameless vanilla
         // creature. You see your own face-down card's true identity; the

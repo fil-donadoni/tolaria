@@ -240,12 +240,28 @@ A mutable runtime representation of a specific copy of a card in a **Game**. Car
 _Avoid_: Card copy, card object, card state
 
 **Card ID**:
-The Scryfall UUID identifying a **Card Definition**. Maps to card art and oracle text. Immutable, shared across all games.
+The Scryfall UUID identifying a **Card Definition** (its mechanics). Immutable, shared across all games. Edition-specific art is selected by **Print ID**, not the **Card ID** — though for a card with a single printing the two coincide.
 _Avoid_: Definition ID, Scryfall ID
 
 **Instance ID**:
 A unique identifier for a **Card Instance** within a single **Game**. Used as React keys, target references, and attachment pointers. Assigned at game creation.
 _Avoid_: Card UUID, runtime ID
+
+**Card Print**:
+A per-edition record (`CardPrint`) mapping a **Print ID** to the **Card ID** of an existing **Card Definition**, plus a set code. It carries no mechanics — it exists so a **Reprint** can supply edition-specific art while reusing the original definition. The registry resolves both the **Card ID** and every **Print ID** to the same **Card Definition**.
+_Avoid_: Edition, variant, version
+
+**Print ID**:
+The Scryfall UUID of one specific printing of a card. Distinct from the **Card ID** (which keys the mechanics). A **Card Instance** stores the **Print ID** so the chosen edition's art renders while behaviour comes from the shared **Card Definition**.
+_Avoid_: Edition ID, art ID
+
+**Reprint**:
+A card appearing in a later **Set** whose mechanics already exist as a **Card Definition** in an earlier set. Modelled as a **Card Print** only — never a duplicated definition. A **Set** file contains a mix of new **Card Definitions** (cards first implemented in that set) and **Card Prints** (reprints of cards already implemented).
+_Avoid_: Duplicate, copy (overloaded — see **Spell Copy**)
+
+**Set**:
+A published card collection, identified by a set code (e.g. `lea` = Alpha, `leb` = Beta). One source file per set. A card may be **out of scope** for the engine (declared in an ADR); such a card stays commented in every set it appears in, so "set complete" means "complete minus the named exclusions".
+_Avoid_: Edition, expansion (use the set code)
 
 **SpellContext**:
 The API surface available to a **Card Definition**'s `resolve()` function. Provides composable primitives (moveZone, drawCards, damage, gainLife, etc.) that the resolver calls to apply effects.

@@ -21,6 +21,7 @@ import {
 } from "../types";
 import {
     knightStaticAbilities,
+    makeCircleOfProtection,
     makeDualLand,
     makeTapForMana,
 } from "../abilities";
@@ -311,44 +312,9 @@ export const castle: CardDefinition = {
 
 // Circle of Protection — "{1}: The next time a source of your choice of
 // [color] would deal damage to you this turn, prevent that damage." The
-// four CoPs share identical behavior modulo the color filter (CR 615.1,
-// 615.6). We build them from one factory to keep the colored choice local.
-function makeCircleOfProtection(args: {
-    id: string;
-    name: string;
-    oracleText?: string;
-    color: "U" | "G" | "R" | "W";
-    colorWord: string;
-}): CardDefinition {
-    return {
-        id: args.id,
-        name: args.name,
-        oracleText: args.oracleText,
-        manaCost: { X: 1, W: 1 },
-        types: ["Enchantment"],
-        activatedAbilities: [
-            {
-                id: "cop-prevent",
-                oracleText: `{1}: The next time a ${args.colorWord.toLowerCase()} source of your choice would deal damage to you this turn, prevent that damage.`,
-                cost: { mana: { X: 1 } },
-                useStack: true,
-                targetRequirement: {
-                    type: ["any", "spell"],
-                    count: 1,
-                    colorFilter: args.color,
-                },
-                resolve: (ctx: SpellContext) => {
-                    const [target] = ctx.targets;
-                    if (!target) return;
-                    if (target.type === "player") return; // no color
-                    ctx.preventNextDamageFromSource(target.id, ctx.controller, {
-                        phase: "end-of-turn",
-                    });
-                },
-            },
-        ],
-    };
-}
+// CoPs share identical behavior modulo the color filter (CR 615.1, 615.6),
+// built from the shared `makeCircleOfProtection` factory (also used by the
+// Beta-original Circle of Protection: Black in leb.ts).
 
 export const circleOfProtectionBlue: CardDefinition = makeCircleOfProtection({
     id: "848b1a7f-e8ba-40b5-92b7-af1e963a0319",
