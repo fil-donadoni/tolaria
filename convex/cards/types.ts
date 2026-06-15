@@ -834,6 +834,11 @@ export interface SpellContext {
          *  battlefield", Clone / Copy Artifact). Only meaningful for
          *  `zone: "battlefield"`. */
         allControllers?: boolean;
+        /** Precomputed allow-list: the chooser may pick only these instance
+         *  ids. Use when eligibility isn't a `PermanentFilter` (e.g. a
+         *  mana-value bound). Validated server-side at submit; the frontend
+         *  gates clickability on it. */
+        candidateIds?: string[];
     }) => string[] | undefined;
 
     /** Requests an optional yes/no decision with an optional mana cost
@@ -933,6 +938,23 @@ export interface SpellContext {
      *  on acknowledgement, `undefined` while suspended waiting for the
      *  controller to dismiss. */
     revealHand: (targetPlayerId: string) => string[] | undefined;
+
+    /** Characteristics of every card in `playerId`'s hand, read from the card
+     *  registry (CR 108.1). Used to compute eligibility for effects that
+     *  inspect hand cards (Illusionary Mask: "a creature card whose mana cost
+     *  could be paid by the {X} spent"). `manaValue` folds X to 0 (CR 202.3b).
+     *  Empty for an empty hand. */
+    getHandCards: (
+        playerId: string
+    ) => Array<{ id: string; types: CardType[]; manaValue: number }>;
+
+    /** Casts a card from the caster's hand face down as a 2/2 colourless
+     *  creature spell paying no mana cost (CR 708.2 / 707; Illusionary Mask).
+     *  The card is moved hand → stack, turned face down (its real id retained
+     *  in `faceDownOf` for the turn-up), and pushed on top of the stack — it
+     *  resolves next into a face-down permanent. No-op if the id isn't in the
+     *  caster's hand. */
+    castFaceDown: (cardInstanceId: string) => void;
 }
 
 /** Delayed triggered ability template (CR 603.7a). Declared on the

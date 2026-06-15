@@ -141,6 +141,8 @@ import {
     earthquake,
     elvishArchers,
     grizzlyBears,
+    hillGiant,
+    illusionaryMask,
     hurricane,
     howlingMine,
     hypnoticSpecter,
@@ -326,7 +328,7 @@ import {
     emitBlockersConfirmedEvents,
     emitAttackersDeclaredEvents,
 } from "../../../gre/phases";
-import { tryGetCardById } from "../../index";
+import { tryGetCardById, FACE_DOWN_CARD_ID } from "../../index";
 import {
     getEffectiveBlockGraph,
     getDamageAssignerId,
@@ -20024,5 +20026,163 @@ describe("Raging River (pile combat — CR 509.2 variant, ADR 0012)", () => {
             restored.players[1].battlefield.find((c) => c.id === "g1")!
                 .pileLabel
         ).toBe("left");
+    });
+});
+
+describe("Illusionary Mask (masked-cast: {X} -> face-down 2/2, CR 708.2, #123)", () => {
+    // Grizzly Bears = {1}{G} (mana value 2); Hill Giant = {3}{R} (mana value 4).
+    function setup(handCards: CardInstanceState[]) {
+        const mask = makeInstance(illusionaryMask.id, {
+            id: "mask",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mask], hand: handCards }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state };
+    }
+
+    function bears(id: string): CardInstanceState {
+        return makeInstance(grizzlyBears.id, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+    }
+
+    function giant(id: string): CardInstanceState {
+        return makeInstance(hillGiant.id, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+    }
+
+    // Activate the masked-cast ability with `chosenX` colourless mana spent.
+    function activate(state: GameState, chosenX: number) {
+        state.stack.push({
+            ...makeInstance(illusionaryMask.id, {
+                id: "mask-act",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            zone: "stack",
+            castById: "p1",
+            abilityId: "illusionary-mask-cast",
+            chosenX,
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    function submitPick(state: GameState, picks: string[]) {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: picks,
+        });
+    }
+
+    it("offers only creatures whose mana value <= the {X} spent", () => {
+        const { state } = setup([bears("bear"), giant("giant")]);
+        activate(state, 2);
+        expect(state.pendingChoices).toHaveLength(1);
+        const head = state.pendingChoices![0];
+        expect(head).toMatchObject({
+            playerId: "p1",
+            zone: "hand",
+            kind: "choose-hand-card",
+        });
+        // Bears (mv 2) eligible, Hill Giant (mv 4) is not.
+        expect(head.candidateIds).toEqual(["bear"]);
+    });
+
+    it("full flow: activate -> choose -> cast -> resolve into a face-down 2/2 permanent", () => {
+        const { state } = setup([bears("bear")]);
+        activate(state, 2);
+        // Chosen card leaves the hand and is cast face down.
+        submitPick(state, ["bear"]);
+        expect(state.players[0].hand.map((c) => c.id)).not.toContain("bear");
+        // The face-down creature spell is on the stack (resolves next).
+        expect(state.stack).toHaveLength(1);
+        const spell = state.stack[0];
+        expect(spell.faceDown).toBe(true);
+        expect((spell.card as { id: string }).id).toBe(FACE_DOWN_CARD_ID);
+        // Resolve it into a permanent.
+        resolveTopOfStack(state);
+        const perm = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(perm).toBeDefined();
+        expect(perm.faceDown).toBe(true);
+        expect(perm.faceDownOf).toBe(grizzlyBears.id);
+        expect((perm.card as { id: string }).id).toBe(FACE_DOWN_CARD_ID);
+        expect(perm.power).toBe(2);
+        expect(perm.toughness).toBe(2);
+    });
+
+    it("a non-eligible creature cannot be chosen (server rejects)", () => {
+        const { state } = setup([bears("bear"), giant("giant")]);
+        activate(state, 2);
+        expect(() => submitPick(state, ["giant"])).toThrow(
+            "Card is not an eligible choice"
+        );
+        // Hill Giant stays in hand; nothing cast.
+        expect(state.players[0].hand.map((c) => c.id)).toContain("giant");
+    });
+
+    it("no prompt when no creature is eligible (X too low); ability resolves as a no-op", () => {
+        const { state } = setup([giant("giant")]);
+        activate(state, 2);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("giant");
+    });
+
+    it("declining the choice (you may) casts nothing", () => {
+        const { state } = setup([bears("bear")]);
+        activate(state, 2);
+        submitPick(state, []);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("bear");
+    });
+
+    it("wire format: opponent sees a face-down 2/2, controller sees the real card", () => {
+        const { state } = setup([bears("bear")]);
+        activate(state, 2);
+        submitPick(state, ["bear"]);
+        resolveTopOfStack(state);
+
+        // Opponent (p2) projection hides the identity.
+        const oppView = projectPublicState(state, 1, "p2");
+        const oppPerm = oppView.players
+            .find((p) => p.id === "p1")!
+            .battlefield.find((c) => c.id === "bear")!;
+        expect((oppPerm.card as { id: string }).id).toBe(FACE_DOWN_CARD_ID);
+        expect(oppPerm.faceDownOf).toBeUndefined();
+
+        // Controller (p1) projection reveals the real card to its caster.
+        const ownView = projectPublicState(state, 1, "p1");
+        const ownPerm = ownView.players
+            .find((p) => p.id === "p1")!
+            .battlefield.find((c) => c.id === "bear")!;
+        expect(ownPerm.faceDownOf).toBe(grizzlyBears.id);
+    });
+
+    it("definition snapshot: registered with the masked-cast activated ability", () => {
+        expect(illusionaryMask.types).toContain("Artifact");
+        expect(illusionaryMask.activatedAbilities?.[0].id).toBe(
+            "illusionary-mask-cast"
+        );
+        expect(illusionaryMask.activatedAbilities?.[0].cost.mana).toEqual({
+            X: "X",
+        });
     });
 });

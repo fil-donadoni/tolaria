@@ -66,6 +66,31 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Illusionary Mask masked-cast (CR 708.2, ADR 0013, #123). Activate
+        // the Mask, spend {X} colourless, and choose an eligible creature from
+        // hand (mana value ≤ X) to cast it face down as a 2/2. Only eligible
+        // creatures are clickable: with 2 Mountains, X=2 makes Grizzly Bears
+        // (mv 2) eligible but not Shivan Dragon (mv 6). The chosen creature
+        // resolves into a face-down permanent the opponent sees as a 2/2.
+        label: "Illusionary Mask: cast a creature face down ({X} → 2/2)",
+        cards: [
+            { name: "Illusionary Mask", owner: "me" as const },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Shivan Dragon",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Pile combat (CR 509.2 variant, ADR 0012). Raging River is on your
         // battlefield with two attackers. Move to combat and attack with both:
         // the trigger asks the opponent to divide their non-flying creatures

@@ -17,6 +17,7 @@ import type {
     TriggerFizzledEvent,
 } from "../cards/types";
 import { registerTokenDefinition, tryGetCardById } from "../cards";
+import { turnFaceDown } from "./faceDown";
 import { getResolveFn } from "../cards/effectRegistry";
 import { matchesPermanentFilter } from "../cards/filters";
 import type { Phase, Zone } from "./types";
@@ -656,6 +657,13 @@ export type PendingChoice = {
     /** For `kind: "may-pay"`, the mana cost paid on accept (CR 117.3a /
      *  118.4). Undefined for cost-less yes/no choices ("may draw a card"). */
     cost?: ManaCost;
+    /** Precomputed allow-list of choosable instance ids — the chooser may
+     *  pick only from these (in addition to the zone-membership check). Used
+     *  when eligibility can't be expressed as a `PermanentFilter` (e.g.
+     *  Illusionary Mask's "creature whose cost could be paid by the {X}
+     *  spent" — a mana-value bound, not a type/keyword filter). Undefined =
+     *  no extra restriction. The frontend reads it to gate clickability. */
+    candidateIds?: string[];
 };
 
 /** Reads the upper bound out of a `PendingChoice.count`, regardless of
@@ -3436,6 +3444,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (req.filter) entry.filter = req.filter;
             if (req.zoneOwnerId) entry.zoneOwnerId = req.zoneOwnerId;
             if (req.allControllers) entry.allControllers = true;
+            if (req.candidateIds) entry.candidateIds = req.candidateIds;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },
@@ -3608,6 +3617,43 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 zoneOwnerId: targetPlayerId,
                 prompt: `Look at ${getPlayer(state, targetPlayerId).name}'s hand.`,
             });
+        },
+        getHandCards(
+            playerId: string
+        ): Array<{ id: string; types: CardType[]; manaValue: number }> {
+            return getPlayer(state, playerId).hand.map((c) => {
+                const cardId = (c.card as { id?: string }).id;
+                const def = cardId ? tryGetCardById(cardId) : undefined;
+                return {
+                    id: c.id,
+                    types: def?.types ?? c.types,
+                    manaValue: manaValue(def?.manaCost),
+                };
+            });
+        },
+        // CR 708.2 / 707 — Illusionary Mask. Move the chosen card hand → stack,
+        // turn it face down (real id retained in `faceDownOf`), and push it as
+        // a creature spell paying no mana cost. It resolves next into a
+        // face-down 2/2 permanent via the normal creature-spell path.
+        castFaceDown(cardInstanceId: string): void {
+            const player = getPlayer(state, item.castById);
+            const inHand = player.hand.some((c) => c.id === cardInstanceId);
+            if (!inHand) return;
+            const card = removeFromZone(player, cardInstanceId, "hand");
+            turnFaceDown(card);
+            const stackItem: StackItem = {
+                ...card,
+                zone: "stack",
+                castById: item.castById,
+            };
+            // The currently-resolving item (`item`) is on top of the stack and
+            // is popped by `resolveTopOfStack` once its resolve returns. Insert
+            // the new spell directly BELOW it so it becomes the new top after
+            // the pop — i.e. it resolves next (CR 608.2f). Mirrors
+            // `copyStackItem`'s insert-below-the-resolver discipline.
+            const idx = state.stack.findIndex((s) => s.id === item.id);
+            if (idx === -1) state.stack.push(stackItem);
+            else state.stack.splice(idx, 0, stackItem);
         },
     };
     return ctx;

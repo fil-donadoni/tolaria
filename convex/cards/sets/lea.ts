@@ -6813,13 +6813,64 @@ export const icyManipulator: CardDefinition = {
     ],
 };
 
-// export const illusionaryMask: CardDefinition = {
-//     id: "62ef2f37-b8ad-47ad-89ca-d6abcb7ff21b",
-//     name: "Illusionary Mask",
-//     oracleText: "{X}: You may choose a creature card in your hand whose mana cost could be paid by some amount of, or all of, the mana you spent on {X}. If you do, you may cast that card face down as a 2/2 creature spell without paying its mana cost. If the creature that spell becomes as it resolves has not been turned face up and would assign or deal damage, be dealt damage, or become tapped, instead it's turned face up and assigns or deals damage, is dealt damage, or becomes tapped. Activate only as a sorcery.",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
+// Illusionary Mask — masked-cast path (ADR 0013, #123). The activated
+// ability spends {X}, lets the controller pick an eligible creature card from
+// hand, and casts it face down as a 2/2 creature spell paying no mana cost
+// (CR 708.2). It resolves into a face-down permanent (built in #122).
+//
+// Eligibility simplification: the card reads "creature card whose mana cost
+// could be paid by some amount of, or all of, the mana you spent on {X}". The
+// {X} is colourless/generic mana; a strict colour-pip match would make nearly
+// no creature eligible, defeating the card's intent. We approximate with the
+// standard digital reading — mana value <= X (CR 202.3b: X counts as 0 in the
+// candidate's printed cost).
+//
+// "Activate only as a sorcery" is approximated by a main-phase + own-turn
+// restriction; the empty-stack requirement is not enforced (minor).
+//
+// Turn-up (the "would deal/be dealt damage or become tapped -> turn face up"
+// clause) is out of scope for this slice and lands in #124.
+export const illusionaryMask: CardDefinition = {
+    id: "62ef2f37-b8ad-47ad-89ca-d6abcb7ff21b",
+    name: "Illusionary Mask",
+    oracleText:
+        "{X}: You may choose a creature card in your hand whose mana cost could be paid by some amount of, or all of, the mana you spent on {X}. If you do, you may cast that card face down as a 2/2 creature spell without paying its mana cost. If the creature that spell becomes as it resolves has not been turned face up and would assign or deal damage, be dealt damage, or become tapped, instead it's turned face up and assigns or deals damage, is dealt damage, or becomes tapped. Activate only as a sorcery.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "illusionary-mask-cast",
+            oracleText:
+                "{X}: You may choose a creature card in your hand whose mana cost could be paid by some amount of, or all of, the mana you spent on {X}. If you do, you may cast that card face down as a 2/2 creature spell without paying its mana cost. Activate only as a sorcery.",
+            cost: { mana: { X: "X" } },
+            useStack: true,
+            controllerTurnOnly: true,
+            activationPhaseRestriction: ["PRECOMBAT_MAIN", "POSTCOMBAT_MAIN"],
+            resolve: (ctx: SpellContext) => {
+                const x = ctx.getX();
+                const eligible = ctx
+                    .getHandCards(ctx.caster)
+                    .filter(
+                        (c) => c.types.includes("Creature") && c.manaValue <= x
+                    )
+                    .map((c) => c.id);
+                if (eligible.length === 0) return;
+                const picks = ctx.requestChoice({
+                    playerId: ctx.caster,
+                    choiceId: "illusionary-mask-pick",
+                    kind: "choose-hand-card",
+                    zone: "hand",
+                    count: { min: 0, max: 1 },
+                    candidateIds: eligible,
+                    prompt: "Illusionary Mask: choose a creature to cast face down, or skip.",
+                });
+                if (picks === undefined) return; // suspended — resume later
+                if (picks.length === 0) return; // declined ("you may")
+                ctx.castFaceDown(picks[0]);
+            },
+        },
+    ],
+};
 
 export const ironStar: CardDefinition = makeColorSphere({
     id: "5786de12-cade-43c2-a6b0-0c5b294b9d0e",

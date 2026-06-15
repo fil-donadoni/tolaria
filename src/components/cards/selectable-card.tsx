@@ -9,6 +9,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { isSelectableHandChoiceCard } from "~/lib/hand-choice";
 import { getCardById } from "@convex/cards";
 import ActionSheet, {
     type ActionSheetItem,
@@ -44,11 +45,11 @@ export default function SelectableCard({
     // Mid-resolution hand pick (CR 608.2, ADR 0007). Clicks toggle the
     // local buffer; submit fires atomically via the Done button.
     const activeChoice = pendingChoices?.[0];
-    const isHandChoice =
-        !!activeChoice &&
-        activeChoice.playerId === playerId &&
-        activeChoice.zone === "hand" &&
-        cardInstance.ownerId === playerId;
+    const isHandChoice = isSelectableHandChoiceCard(
+        activeChoice,
+        cardInstance,
+        playerId
+    );
     const isChoiceSelected =
         isHandChoice && bufferCtx.buffer.includes(cardInstance.id);
     const onChoiceClick = () => {
