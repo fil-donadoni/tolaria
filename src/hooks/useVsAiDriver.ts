@@ -22,11 +22,12 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PublicGameState } from "@convex/gameProjections";
-import { shouldThink } from "@convex/gre";
+import { shouldThink, budgetFor } from "@convex/gre";
 import { consultBrain } from "~/lib/ai/brain-client";
 import { decideBotAction, type BotView } from "~/lib/ai/brain";
 import { executeMove, type MoveMutations } from "~/lib/ai/executor";
 import { projectedToGameState } from "~/lib/ai/state-adapter";
+import { getStoredDifficulty } from "~/lib/session";
 
 /** A small visible "thinking" beat before the bot acts, so the game does not
  *  feel like it is skipping the opponent's turn instantly. */
@@ -129,7 +130,12 @@ export function useVsAiDriver(
             inFlight.current = true;
             lastSignature.current = signature;
             setThinking(true);
-            void consultBrain(botState, botId)
+            // Difficulty-scaled search budget (issue #114): the player's chosen
+            // preset (persisted in localStorage) maps to the search budget. The
+            // server move path is untouched — this only tunes how hard the
+            // client-side brain thinks.
+            const budget = budgetFor(getStoredDifficulty());
+            void consultBrain(botState, botId, budget)
                 .then((move) =>
                     move
                         ? executeMove(move, { gameId, botId, mutations })

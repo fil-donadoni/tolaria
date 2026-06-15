@@ -11,7 +11,7 @@
 // Worker being available.
 
 import type { PublicGameState } from "@convex/gameProjections";
-import type { Move } from "@convex/gre";
+import type { Move, SearchBudget } from "@convex/gre";
 import { search, DEFAULT_BUDGET } from "@convex/gre";
 import { projectedToGameState } from "./state-adapter";
 import type { BrainRequest, BrainResponse } from "./brain.worker";
@@ -46,25 +46,23 @@ function getWorker(): Worker | null {
     return worker;
 }
 
-/** Ask the Brain to choose a move for `botId` from its projected `state`. */
+/** Ask the Brain to choose a move for `botId` from its projected `state`. The
+ *  optional `budget` scales the search by the chosen difficulty (issue #114);
+ *  omitted, it falls back to the default preset. */
 export function consultBrain(
     state: PublicGameState,
-    botId: string
+    botId: string,
+    budget: SearchBudget = DEFAULT_BUDGET
 ): Promise<Move | null> {
     const w = getWorker();
     if (!w) {
         const seed = (Math.random() * 0x100000000) | 0;
-        const move = search(
-            projectedToGameState(state),
-            botId,
-            DEFAULT_BUDGET,
-            seed
-        );
+        const move = search(projectedToGameState(state), botId, budget, seed);
         return Promise.resolve(move);
     }
 
     const id = nextId++;
-    const request: BrainRequest = { id, state, botId };
+    const request: BrainRequest = { id, state, botId, budget };
     return new Promise<Move | null>((resolve) => {
         pending.set(id, resolve);
         w.postMessage(request);
