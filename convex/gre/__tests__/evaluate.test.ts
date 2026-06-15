@@ -4,7 +4,7 @@
 // be iterated). See `convex/gre/evaluate.ts`.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
-import { evaluate, WIN_SCORE } from "../evaluate";
+import { evaluate, materialMargin, WIN_SCORE } from "../evaluate";
 import {
     makeInstance,
     makePlayer,
@@ -130,6 +130,49 @@ describe("evaluate (issue #111)", () => {
         });
         expect(evaluate(untapped, "p1")).toBeGreaterThan(
             evaluate(tapped, "p1")
+        );
+    });
+
+    it("developing a land scores strictly higher than holding it in hand (issue #149)", () => {
+        // Same land, all else equal: in hand vs in play. A land drop must be a
+        // strictly positive evaluation delta or the bot ties play-land with pass
+        // and stalls its own mana. Asserted for both the leaf heuristic
+        // (`evaluate`) and the ISMCTS tie-break margin (`materialMargin`).
+        const landInHand = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(MOUNTAIN, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "m1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const landInPlay = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(MOUNTAIN, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "m1",
+                            isTapped: false,
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(evaluate(landInPlay, "p1")).toBeGreaterThan(
+            evaluate(landInHand, "p1")
+        );
+        expect(materialMargin(landInPlay, "p1")).toBeGreaterThan(
+            materialMargin(landInHand, "p1")
         );
     });
 

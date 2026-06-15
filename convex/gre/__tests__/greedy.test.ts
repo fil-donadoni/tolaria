@@ -168,6 +168,61 @@ describe("greedySelectMove — cast a relevant spell (issue #111)", () => {
     });
 });
 
+describe("greedySelectMove — develop a land (issue #149)", () => {
+    // A main phase where the bot (p1) has priority, an unused land drop, and a
+    // Mountain in hand. `extraBattlefield` simulates a later turn with lands
+    // already in play.
+    function mainPhaseWithLandInHand(
+        extraBattlefield: ReturnType<typeof makeInstance>[] = []
+    ) {
+        const landInHand = makeInstance(MOUNTAIN, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "mtn",
+            zone: "hand",
+        });
+        return makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [landInHand],
+                    battlefield: extraBattlefield,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("plays a land on turn 1 instead of passing (empty battlefield)", () => {
+        const move = greedySelectMove(mainPhaseWithLandInHand(), "p1");
+        expect(move?.kind).toBe("play-land");
+        if (move?.kind !== "play-land") throw new Error("kind");
+        expect(move.cardInstanceId).toBe("mtn");
+    });
+
+    it("plays a land on a later turn when the drop is still available", () => {
+        // Two untapped Mountains already in play; the land drop is unused.
+        const inPlay = [
+            makeInstance(MOUNTAIN, {
+                controllerId: "p1",
+                ownerId: "p1",
+                id: "m1",
+            }),
+            makeInstance(MOUNTAIN, {
+                controllerId: "p1",
+                ownerId: "p1",
+                id: "m2",
+            }),
+        ];
+        const move = greedySelectMove(mainPhaseWithLandInHand(inPlay), "p1");
+        expect(move?.kind).toBe("play-land");
+        if (move?.kind !== "play-land") throw new Error("kind");
+        expect(move.cardInstanceId).toBe("mtn");
+    });
+});
+
 describe("applyMoveForSearch — sandbox is pure (issue #111)", () => {
     it("does not mutate the input state", () => {
         const land = makeInstance(MOUNTAIN, {

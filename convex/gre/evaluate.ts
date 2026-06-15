@@ -33,7 +33,16 @@ const W_TOUGHNESS = 1;
 const W_EVASION_POWER = 1; // extra per power point on an evasive creature
 const W_HAND = 2;
 const W_PERMANENT = 1;
-const W_MANA = 1; // per untapped mana source (available mana proxy)
+// Per untapped mana source (available mana proxy). Weighted so that DEVELOPING
+// a land is strictly positive: a land drop is −W_HAND (leaves hand) +W_PERMANENT
+// (enters battlefield) +W_MANA (adds an untapped source). With W_MANA = 2 that
+// delta is +1 (issue #149) — a land in play (W_PERMANENT + W_MANA = 3) outvalues
+// the same land sitting in hand (W_HAND = 2), so both the greedy 1-ply selection
+// and the ISMCTS tie-break (materialMargin) prefer the drop over passing. At
+// W_MANA = 1 the delta was 0 and the bot tied play-land with pass, stalling its
+// own mana. Monotonicity ("more mana raises the score") is preserved, only
+// strengthened.
+const W_MANA = 2;
 
 /** Keywords that make a creature's combat damage hard to stop. A creature with
  *  any of these is treated as a more valuable clock (CR 509.1b evasion). */
