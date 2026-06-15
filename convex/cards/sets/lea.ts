@@ -7362,9 +7362,10 @@ export const woodenSphere: CardDefinition = makeColorSphere({
 // --- Dual lands (LEA) ---
 // Two basic land types for rules interactions (Armageddon, landwalk, etc.).
 // The two mana abilities are modelled as a single choice ability so the
-// frontend picker works the same as Birds of Paradise. Known limitation:
-// `tapForPayment` auto-picks the first color — pre-tap with the picker to
-// choose the other color.
+// frontend picker works the same as Birds of Paradise. `tapForPayment`
+// requires a `manaChoiceIndex` for these; the bot's `planManaPayment` derives
+// it from `getProducibleManaOptions`, which resolves the choice ability ahead
+// of the intrinsic basic-land-subtype path so the index is never dropped.
 
 export const badlands: CardDefinition = makeDualLand({
     id: "717f6d10-9144-4ade-9ac6-a481cc66b875",

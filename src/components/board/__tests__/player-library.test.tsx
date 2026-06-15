@@ -11,7 +11,14 @@ import PlayerLibrary from "../player-library";
 // Capture the props that CardsPile receives so we can assert shape.
 const cardsPileSpy = vi.fn();
 vi.mock("../cards-pile", () => ({
-    default: (props: { cards: CardInstance[]; isFaceDown?: boolean }) => {
+    default: (props: {
+        cards: CardInstance[];
+        isFaceDown?: boolean;
+        layout?: "fan" | "grid";
+        forceOpen?: boolean;
+        selectedIds?: string[];
+        onCardClick?: (card: { id: string }) => void;
+    }) => {
         cardsPileSpy(props);
         return <div data-testid="cards-pile" data-count={props.cards.length} />;
     },
@@ -62,7 +69,16 @@ const noopBuffer: PendingChoiceBuffer = {
     dismissError: () => {},
 };
 
-function renderWithContext(ui: React.ReactElement, playerId = "me") {
+function renderWithContext(
+    ui: React.ReactElement,
+    playerId = "me",
+    extra: {
+        pendingChoices?: NonNullable<
+            React.ContextType<typeof GameContext>
+        >["pendingChoices"];
+        buffer?: PendingChoiceBuffer;
+    } = {}
+) {
     const value = {
         gameId: "game-id" as never,
         playerId,
@@ -74,10 +90,11 @@ function renderWithContext(ui: React.ReactElement, playerId = "me") {
         allPlayers: [],
         showAllCards: false,
         debugAllActions: false,
+        pendingChoices: extra.pendingChoices,
     } as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>
-            <PendingChoiceBufferContext value={noopBuffer}>
+            <PendingChoiceBufferContext value={extra.buffer ?? noopBuffer}>
                 {ui}
             </PendingChoiceBufferContext>
         </GameContext>
@@ -111,5 +128,51 @@ describe("PlayerLibrary", () => {
         renderWithContext(<PlayerLibrary player={player} />);
         const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
         expect(pileProps.cards).toHaveLength(0);
+    });
+
+    it("exposes the search-library picker as a face-up grid with per-card selection", () => {
+        // Regression: the fan layout overlapped library cards 50%, merging
+        // every amber ring into one strip and leaving no card selectable.
+        // While a `search-library` choice is active for the viewer, the picker
+        // must be a non-overlapping grid, face-up, with buffered ids surfaced
+        // as `selectedIds` and clicks routed to the buffer's toggle.
+        cardsPileSpy.mockClear();
+        const search = [makeCard("s1"), makeCard("s2"), makeCard("s3")];
+        const player = makePlayer({ count: 3 }, {
+            librarySearch: search,
+        } as Partial<Player>);
+        const toggle = vi.fn();
+        const buffer: PendingChoiceBuffer = {
+            ...noopBuffer,
+            buffer: ["s2"],
+            toggle,
+        };
+        renderWithContext(<PlayerLibrary player={player} />, "me", {
+            pendingChoices: [
+                {
+                    stackItemId: "stk",
+                    step: 0,
+                    choiceId: "me",
+                    playerId: "me",
+                    kind: "search-library",
+                    zone: "library",
+                    count: 1,
+                    prompt: "Search your library for a card.",
+                },
+            ],
+            buffer,
+        });
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        expect(pileProps.cards).toHaveLength(3);
+        expect(pileProps.isFaceDown).toBe(false);
+        expect(pileProps.layout).toBe("grid");
+        expect(pileProps.forceOpen).toBe(true);
+        expect(pileProps.selectedIds).toEqual(["s2"]);
+        // Confirm control is hosted inside the (modal) dialog, not the
+        // board-level prompt the dialog would otherwise cover.
+        expect(pileProps.footer).toBeTruthy();
+        // count=1 is already at max: picking a different card replaces it.
+        pileProps.onCardClick({ id: "s1" });
+        expect(toggle).toHaveBeenCalledWith("s1");
     });
 });

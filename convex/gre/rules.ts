@@ -158,38 +158,47 @@ export function getProducibleManaOptions(
 ): Map<Color, number | undefined> {
     const options = new Map<Color, number | undefined>();
 
-    // CR 305.6: basic land subtypes grant intrinsic mana abilities.
-    for (const subtype of card.subtypes) {
-        const c = LAND_SUBTYPE_MANA[subtype];
-        if (c) options.set(c, undefined);
-    }
-
+    // Activated mana abilities take precedence over intrinsic basic-land
+    // subtypes: `tapForPayment` keys off `getActivatedManaAbility`, so a card
+    // with a `manaChoices` ability (e.g. a dual land that also carries both
+    // basic land types for rules interactions) is always paid via that ability
+    // and therefore REQUIRES a `manaChoiceIndex`. Claiming its colors from the
+    // subtype path first (with `undefined`) would desync the planner from the
+    // handler and trip "Must choose a mana color". So resolve abilities first
+    // and let the CR 305.6 subtype path only fill colors no ability covers.
     const cardId = (card.card as { id?: string }).id;
-    if (!cardId) return options;
-    const def = tryGetCardById(cardId);
-    if (!def?.activatedAbilities) return options;
-
-    for (const ability of def.activatedAbilities) {
-        if (ability.useStack) continue;
-        if (!ability.cost.tap) continue;
-        if (ability.manaProduced) {
-            for (const c of MANA_COLORS) {
-                if ((ability.manaProduced[c] ?? 0) > 0 && !options.has(c)) {
-                    options.set(c, undefined);
-                }
-            }
-        }
-        if (ability.manaChoices) {
-            ability.manaChoices.forEach((choice, index) => {
+    const def = cardId ? tryGetCardById(cardId) : undefined;
+    if (def?.activatedAbilities) {
+        for (const ability of def.activatedAbilities) {
+            if (ability.useStack) continue;
+            if (!ability.cost.tap) continue;
+            if (ability.manaProduced) {
                 for (const c of MANA_COLORS) {
-                    // Don't overwrite a choice-free producer with an index.
-                    if ((choice[c] ?? 0) > 0 && !options.has(c)) {
-                        options.set(c, index);
+                    if ((ability.manaProduced[c] ?? 0) > 0 && !options.has(c)) {
+                        options.set(c, undefined);
                     }
                 }
-            });
+            }
+            if (ability.manaChoices) {
+                ability.manaChoices.forEach((choice, index) => {
+                    for (const c of MANA_COLORS) {
+                        // Don't overwrite a choice-free producer with an index.
+                        if ((choice[c] ?? 0) > 0 && !options.has(c)) {
+                            options.set(c, index);
+                        }
+                    }
+                });
+            }
         }
     }
+
+    // CR 305.6: basic land subtypes grant intrinsic mana abilities. Only adds
+    // colors not already produced by an explicit activated ability above.
+    for (const subtype of card.subtypes) {
+        const c = LAND_SUBTYPE_MANA[subtype];
+        if (c && !options.has(c)) options.set(c, undefined);
+    }
+
     return options;
 }
 

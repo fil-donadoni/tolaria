@@ -1127,6 +1127,26 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Demonic Tutor — search your library, pick a card (CR 701.19)",
+        cards: [
+            // Cast Demonic Tutor ({1}{B}). It requests a `search-library`
+            // choice (count=1): your library is exposed face-up in a grid so
+            // each card is individually selectable. Click one (emerald ring),
+            // press Done, and it goes to hand before the library shuffles.
+            {
+                name: "Demonic Tutor",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        // ~30-card library so the search grid shows many cards at once — the
+        // exact case the old fan layout collapsed into one unselectable strip.
+        libraryCount: 30,
+    },
+    {
         label: "Lord of the Pit — upkeep sacrifice-or-7dmg (CR 603.6a)",
         cards: [
             {

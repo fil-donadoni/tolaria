@@ -10,6 +10,7 @@ import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import CardsPile from "./cards-pile";
+import LibrarySearchConfirm from "./library-search-confirm";
 
 function libraryPlaceholders(count: number, playerId: string): CardInstance[] {
     return Array.from({ length: count }, (_, i) => ({
@@ -54,8 +55,35 @@ export default function PlayerLibrary({ player }: { player: Player }) {
     const handleDraw = () => draw({ gameId, playerId });
     const handleMill = () => millCard({ gameId, playerId });
     const handleExile = () => exile({ gameId, playerId });
+
+    // Selection bounds for the active search (CR 701.19 puts a single card in
+    // hand, but the primitive supports a range). Cap the buffer at `max` so the
+    // chooser can't over-select: clicking a fresh card at the cap replaces the
+    // oldest pick (clear+toggle for the count=1 case), and a click on an
+    // already-picked card always deselects it.
+    const searchCount = isLibrarySearchTarget ? head!.count : 1;
+    const searchMin =
+        typeof searchCount === "number" ? searchCount : searchCount.min;
+    const searchMax =
+        typeof searchCount === "number" ? searchCount : searchCount.max;
+
     const onCardClick = isLibrarySearchTarget
-        ? (card: { id: string }) => bufferCtx.toggle(card.id)
+        ? (card: { id: string }) => {
+              if (bufferCtx.buffer.includes(card.id)) {
+                  bufferCtx.toggle(card.id);
+                  return;
+              }
+              if (bufferCtx.buffer.length >= searchMax) {
+                  if (searchMax === 1) {
+                      // Replace the current pick: clear then add in one event;
+                      // React applies the functional updates in order.
+                      bufferCtx.clear();
+                      bufferCtx.toggle(card.id);
+                  }
+                  return;
+              }
+              bufferCtx.toggle(card.id);
+          }
         : undefined;
 
     const pile = (
@@ -66,6 +94,18 @@ export default function PlayerLibrary({ player }: { player: Player }) {
             title={isLibrarySearchTarget ? "Search your library" : "Library"}
             onCardClick={onCardClick}
             forceOpen={isLibrarySearchTarget}
+            // A full library has ~40-50 cards: the fan's 50% overlap merges
+            // every amber selection ring into one solid strip and leaves only
+            // thin slivers clickable. Lay search results out in a grid so each
+            // card is fully visible and individually selectable, and surface
+            // the buffered picks with a per-card ring.
+            layout={isLibrarySearchTarget ? "grid" : "fan"}
+            selectedIds={isLibrarySearchTarget ? bufferCtx.buffer : undefined}
+            footer={
+                isLibrarySearchTarget ? (
+                    <LibrarySearchConfirm min={searchMin} max={searchMax} />
+                ) : undefined
+            }
         />
     );
 
