@@ -135,6 +135,8 @@ function compactCard(
     }
     if (card.mustBlockAllThisTurn) out.mustBlockAllThisTurn = true;
     if (card.pileLabel) out.pileLabel = card.pileLabel;
+    if (card.faceDown) out.faceDown = true;
+    if (card.faceDownOf) out.faceDownOf = card.faceDownOf;
     return out;
 }
 
@@ -262,6 +264,8 @@ function expandCard(
     }
     if (compact.mustBlockAllThisTurn) result.mustBlockAllThisTurn = true;
     if (compact.pileLabel) result.pileLabel = compact.pileLabel as string;
+    if (compact.faceDown) result.faceDown = true;
+    if (compact.faceDownOf) result.faceDownOf = compact.faceDownOf as string;
     return result;
 }
 

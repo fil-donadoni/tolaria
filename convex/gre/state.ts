@@ -303,6 +303,17 @@ export type CardInstanceState = {
      *  effect fires. Used by `unapplySourceStaticEffects` to restore the
      *  printed value when the last grant is removed. */
     printedSubtypes?: string[];
+    /** Face-down marker (CR 708.2 — Illusionary Mask, ADR 0013). While set,
+     *  this permanent is a 2/2 colourless nameless vanilla creature with no
+     *  abilities: `card.id` is swapped to the face-down sentinel and the
+     *  stored characteristic fields are set to the vanilla 2/2, so every
+     *  reader observes the override. The real definition id is retained in
+     *  `faceDownOf` for the turn-up and for the controller's own view. */
+    faceDown?: boolean;
+    /** The true definition id of a face-down permanent (ADR 0013). Hidden
+     *  from non-controllers by `projectPublicState`; the controller's view
+     *  restores `card.id` to this value. Restored on turn-up. */
+    faceDownOf?: string;
     /** Transient combat pile label (Raging River, CR 509.2 variant —
      *  ADR 0012). Set when a divider assigns this creature to the "left" or
      *  "right" pile; consumed by `validateBlockerEligibility` against the
