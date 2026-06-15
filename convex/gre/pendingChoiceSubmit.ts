@@ -96,6 +96,11 @@ export function applyPendingChoiceSubmit(
             if (!zoneOwner.hand.find((c: CardInstanceState) => c.id === id)) {
                 throw new Error("Card not in hand");
             }
+            // Precomputed eligibility allow-list (Illusionary Mask): a pick
+            // outside it is illegal even though it's in the chooser's hand.
+            if (head.candidateIds && !head.candidateIds.includes(id)) {
+                throw new Error("Card is not an eligible choice");
+            }
         }
     } else if (head.zone === "library") {
         for (const id of args.cardInstanceIds) {
