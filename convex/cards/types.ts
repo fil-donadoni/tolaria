@@ -11,6 +11,22 @@ export type Color = "W" | "U" | "B" | "R" | "G" | "C";
 
 export const colors: Color[] = ["W", "U", "B", "R", "G", "C"];
 
+/** A single text-changing substitution (CR 612, layer 3). Replaces every
+ *  instance of the word `from` with `to` inside an object's structured text.
+ *  `kind` classifies the word family so the right read-time parser surface is
+ *  rewritten:
+ *  - `"land-type"` — a basic land subtype (Magical Hack): rewrites land
+ *    subtype → intrinsic mana and the landwalk keyword that references it.
+ *  - `"color-word"` — a color word (Sleight of Mind): rewrites color words in
+ *    ability text (protection from, color-targeted requirements, …).
+ *  Carried on `CardInstanceState.textChanges`; applied by
+ *  `gre/textChanges.ts::applySubstitution`. */
+export type TextChange = {
+    kind: "land-type" | "color-word";
+    from: string;
+    to: string;
+};
+
 export type ManaCost = {
     X?: number | string;
     W?: number;
@@ -745,6 +761,17 @@ export interface SpellContext {
      *  Replaces all color derivation — the target "becomes" the given colors.
      *  Used by lace instants. No-op if target has left play / stack. */
     setColorOverride: (target: TargetSelection, colors: Color[]) => void;
+    /** Adds a text-changing effect (CR 612, layer 3) to a target permanent or
+     *  spell. The change rides the target instance, so it lasts indefinitely
+     *  and ends on a zone change (CR 612.6/612.7). Used by Magical Hack /
+     *  Sleight of Mind. No-op if the target has left play / the stack. */
+    addTextChange: (target: TargetSelection, change: TextChange) => void;
+    /** The basic land types currently referenced by a target — its land
+     *  subtypes plus the types its landwalk keywords reference, read through
+     *  any active text changes (CR 612.6). These are the legal `from` choices
+     *  for a land-type text change ("replace all instances of one basic land
+     *  type"). Empty if the target references none. */
+    getLandTypesPresent: (target: TargetSelection) => string[];
     /** Copies a spell on the stack (CR 707.10, Fork). Clones the target stack
      *  item, inserts the copy directly above the original (so the copy
      *  resolves first), and returns the copy's new stack id — or `null` if the

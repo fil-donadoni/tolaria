@@ -1,6 +1,7 @@
 import type { Color, ManaCost } from "../cards/types";
 import { getCardById } from "../cards";
 import type { CardInstanceState } from "./state";
+import { applySubstitution } from "./textChanges";
 
 /** Sentinel card id for opaque library placeholders the vs-AI Bot's search
  *  world is rehydrated with (issue #136). The wire projects a library as a
@@ -77,9 +78,12 @@ export function manaValue(cost?: ManaCost): number {
     return total;
 }
 
-/** Returns the mana color a land produces via basic land subtype, or null. */
+/** Returns the mana color a land produces via basic land subtype, or null.
+ *  Reads the text-change-rewritten subtypes (CR 612 / CR 305.6) so a land
+ *  whose type was changed (Magical Hack) taps for the new color. */
 export function getBasicLandMana(card: CardInstanceState): Color | null {
-    for (const subtype of card.subtypes) {
+    const { subtypes } = applySubstitution(card);
+    for (const subtype of subtypes) {
         const color = LAND_SUBTYPE_MANA[subtype];
         if (color) return color;
     }

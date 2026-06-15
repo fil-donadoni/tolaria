@@ -163,6 +163,9 @@ describe("game_state serialize round-trip", () => {
         lion.exileOnDeath = true;
         lion.mustAttackThisTurn = true;
         lion.colorOverride = ["R"];
+        lion.textChanges = [
+            { kind: "land-type", from: "Forest", to: "Island" },
+        ];
         lion.copiedFrom = "printed-clone-id";
 
         const expanded = expandState(compactState(state));
@@ -196,6 +199,9 @@ describe("game_state serialize round-trip", () => {
         expect(got.exileOnDeath).toBe(true);
         expect(got.mustAttackThisTurn).toBe(true);
         expect(got.colorOverride).toEqual(["R"]);
+        expect(got.textChanges).toEqual([
+            { kind: "land-type", from: "Forest", to: "Island" },
+        ]);
         expect(got.copiedFrom).toBe("printed-clone-id");
     });
 

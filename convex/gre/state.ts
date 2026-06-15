@@ -12,6 +12,7 @@ import type {
     StaticEffect,
     TargetRequirement,
     TargetSelection,
+    TextChange,
     TokenSpec,
     TriggerFizzledEvent,
 } from "../cards/types";
@@ -34,6 +35,7 @@ import {
     getEffectiveToughness,
 } from "./layers";
 import { isProtectedFromSource } from "./protection";
+import { landTypesPresent } from "./textChanges";
 import { randomInt, seededShuffle } from "./rng";
 import {
     applyDamageReplacements,
@@ -313,6 +315,15 @@ export type CardInstanceState = {
      *  returns this array instead of mana-cost-derived + grantedColors.
      *  Set by lace instants ("target spell or permanent becomes [color]"). */
     colorOverride?: Color[];
+    /** Text-changing effects (CR 612, layer 3). Each entry replaces every
+     *  instance of one word with another inside this object's structured text.
+     *  Applied at read time by `applySubstitution` (gre/textChanges.ts) at the
+     *  word-bearing parser chokepoints (land subtype → mana/landwalk, color
+     *  words). Absent on essentially every instance — readers fast-path when
+     *  undefined. Carried on the instance so the effect ends on a zone change
+     *  for free (CR 612.7 — a new object). Set by Magical Hack / Sleight of
+     *  Mind. Entries apply in array (timestamp) order. */
+    textChanges?: TextChange[];
     /** Copy effect anchor (CR 707.2, 706). When this permanent is a copy of
      *  another (Clone, Copy Artifact, Vesuvan Doppelganger), `card.id` is
      *  overwritten with the copied object's definition id so every
@@ -2204,6 +2215,9 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.temporaryPTMods;
     delete card.exileOnDeath;
     delete card.colorOverride;
+    // CR 612.7 — a text-changing effect ends when the object changes zones
+    // (it becomes a new object). Same lifecycle as colorOverride above.
+    delete card.textChanges;
 }
 
 /** Reanimation helper: drops a card that has been removed from its source
@@ -3203,6 +3217,34 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 if (!si) return;
                 si.colorOverride = colors;
             }
+        },
+
+        addTextChange(target: TargetSelection, change: TextChange): void {
+            // CR 612: the change rides the target instance, so it lasts
+            // indefinitely and ends on a zone change (CR 612.7). Appended so
+            // multiple changes stack in timestamp order (CR 612.6).
+            if (target.type === "permanent") {
+                const found = findOnBattlefield(state, target.id);
+                if (!found) return;
+                found.card.textChanges = [
+                    ...(found.card.textChanges ?? []),
+                    change,
+                ];
+            } else if (target.type === "spell") {
+                const si = state.stack.find((s) => s.id === target.id);
+                if (!si) return;
+                si.textChanges = [...(si.textChanges ?? []), change];
+            }
+        },
+
+        getLandTypesPresent(target: TargetSelection): string[] {
+            let instance: CardInstanceState | undefined;
+            if (target.type === "permanent") {
+                instance = findOnBattlefield(state, target.id)?.card;
+            } else if (target.type === "spell") {
+                instance = state.stack.find((s) => s.id === target.id);
+            }
+            return instance ? landTypesPresent(instance) : [];
         },
         copyStackItem(targetStackItemId, modifications): string | null {
             const targetIdx = state.stack.findIndex(

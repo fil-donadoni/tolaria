@@ -7,6 +7,7 @@ import type {
     PermanentFilter,
     PermanentView,
     SpellContext,
+    SpellMode,
     StaticEffectContext,
     StaticEffectStateView,
     TargetSelection,
@@ -1615,13 +1616,53 @@ export const lordOfAtlantis: CardDefinition = {
     ],
 };
 
-// export const magicalHack: CardDefinition = {
-//     id: "2bd4202c-0477-45aa-82fd-83c85d6d4bef",
-//     name: "Magical Hack",
-//     oracleText: "Change the text of target spell or permanent by replacing all instances of one basic land type with another. (For example, you may change \"swampwalk\" to \"plainswalk.\" This effect lasts indefinitely.)",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
+// Magical Hack — "Change the text of target spell or permanent by replacing
+// all instances of one basic land type with another." (CR 612 text-changing
+// effect, layer 3.) The modal picker selects the replacement ("to") basic land
+// type; the replaced ("from") type is derived from — and so validated against —
+// the land types the target actually references (its land subtypes plus the
+// types its landwalk keywords name, via ctx.getLandTypesPresent), per CR 612
+// ("replace all instances of one basic land type [that appears]"). The change
+// rides the target instance, lasting indefinitely and ending on a zone change
+// (CR 612.6/612.7). For Alpha targets at most one basic land type is present,
+// so the from-type is unambiguous; a target referencing several is a documented
+// gap (ADR 0011) — the first that differs from the chosen type is used.
+const BASIC_LAND_TYPES = [
+    "Plains",
+    "Island",
+    "Swamp",
+    "Mountain",
+    "Forest",
+] as const;
+
+function magicalHackMode(toType: string): SpellMode {
+    return {
+        id: toType.toLowerCase(),
+        label: toType,
+        oracleText: `Replace a basic land type with ${toType}.`,
+        resolve: (ctx: SpellContext) => {
+            const target = ctx.targets[0];
+            if (!target) return;
+            const present = ctx.getLandTypesPresent(target);
+            // Prefer a from-type that actually differs from the choice; fall
+            // back to the only type present (a no-op same-type pick).
+            const from = present.find((t) => t !== toType) ?? present[0];
+            if (!from) return; // target references no basic land type — no-op
+            ctx.addTextChange(target, { kind: "land-type", from, to: toType });
+        },
+    };
+}
+
+export const magicalHack: CardDefinition = {
+    id: "2bd4202c-0477-45aa-82fd-83c85d6d4bef",
+    name: "Magical Hack",
+    oracleText:
+        'Change the text of target spell or permanent by replacing all instances of one basic land type with another. (For example, you may change "swampwalk" to "plainswalk." This effect lasts indefinitely.)',
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell-or-permanent", count: 1 },
+    modes: BASIC_LAND_TYPES.map(magicalHackMode),
+};
 
 export const mahamotiDjinn: CardDefinition = {
     id: "36204ddd-ddf7-4b44-ae3c-b4a5a41ac9cb",
