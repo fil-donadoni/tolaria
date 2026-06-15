@@ -1217,6 +1217,39 @@ describe("drainAutoPasses", () => {
         expect(state.priorityPlayerId).toBe("p1");
     });
 
+    // Pass Turn during attacker declaration: the active player auto-passes
+    // while still owing the declare-attackers turn-based action. drainAutoPasses
+    // must auto-confirm the current selection (tap + mark attacking) and then
+    // fast-forward past combat — this is what the "Pass Turn" button (Enter)
+    // relies on while isSelectingAttackers.
+    it("auto-confirms the current attacker selection when the active player auto-passes", () => {
+        const state = makeGameState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+            autoPassPlayers: ["p1"],
+            combat: {
+                attackerIds: ["c1"],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        p1.battlefield.push(
+            makeCard({ id: "c1", types: ["Creature"], power: 2, toughness: 2 })
+        );
+
+        drainAutoPasses(state);
+
+        const c1 = p1.battlefield.find((c) => c.id === "c1")!;
+        expect(c1.isAttacking).toBe(true);
+        expect(c1.isTapped).toBe(true);
+        // Selection committed, so combat is confirmed before fast-forwarding.
+        expect(state.combat?.confirmed).toBe(true);
+    });
+
     // -----------------------------------------------------------------------
     // singleShotAutoPass — one-shot skip for the caster after a spell hits
     // the stack (CR 117). Default behavior unless player holds Ctrl on cast.

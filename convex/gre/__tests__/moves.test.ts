@@ -20,6 +20,7 @@ const MOUNTAIN = getCardByName("Mountain").id;
 const BEARS = getCardByName("Grizzly Bears").id; // 1G 2/2
 const BOLT = getCardByName("Lightning Bolt").id; // R, target any
 const FIREBALL = getCardByName("Fireball").id; // XR, target any (min 1)
+const BAYOU = getCardByName("Bayou").id; // dual: {T}: Add {B} or {G}
 
 function land(cardId: string, controllerId: string): CardInstanceState {
     return makeInstance(cardId, { controllerId, ownerId: controllerId });
@@ -210,6 +211,24 @@ describe("planManaPayment (issue #110)", () => {
         });
         const p = makePlayer("p1", { battlefield: [tapped] });
         expect(planManaPayment(p, { G: 1 })).toBeNull();
+    });
+
+    // Regression: a dual land (Bayou) carries both basic land subtypes
+    // (Swamp, Forest) AND a manaChoices ability. `tapForPayment` pays it via
+    // the choice ability and requires a `manaChoiceIndex`; the plan must
+    // supply one. Before the fix the intrinsic-subtype path claimed B/G with
+    // no index, so the plan emitted a choice-less tap and the mutation threw
+    // "Must choose a mana color".
+    it("emits a manaChoiceIndex for dual-land choice sources", () => {
+        const p = makePlayer("p1", { battlefield: [land(BAYOU, "p1")] });
+
+        const planB = planManaPayment(p, { B: 1 });
+        expect(planB).toHaveLength(1);
+        expect(planB![0].manaChoiceIndex).toBeTypeOf("number");
+
+        const planG = planManaPayment(p, { G: 1 });
+        expect(planG).toHaveLength(1);
+        expect(planG![0].manaChoiceIndex).toBeTypeOf("number");
     });
 });
 

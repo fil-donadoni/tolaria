@@ -18,18 +18,36 @@ type CardsPileProps = {
     layout?: "fan" | "grid";
     onCardClick?: (card: CardInstance) => void;
     forceOpen?: boolean;
+    /** Instance ids currently selected by the chooser. Selected cards get a
+     *  distinct ring so multi-pick selections (e.g. a `search-library`
+     *  choice) show per-card feedback instead of all-amber. */
+    selectedIds?: string[];
+    /** Rendered inside the expanded dialog below the cards. Used by the
+     *  `search-library` picker to host its confirm button: the dialog opens
+     *  as a modal (`forceOpen`) and would otherwise cover the board-level
+     *  PendingChoicePrompt, leaving the chooser no reachable way to commit. */
+    footer?: React.ReactNode;
 };
+
+/** Ring class for a selectable card: emerald once picked, amber otherwise. */
+function selectionRing(isSelected: boolean): string {
+    return isSelected
+        ? "ring-2 ring-emerald-400 hover:ring-emerald-300"
+        : "ring-2 ring-amber-400 hover:ring-amber-300";
+}
 
 function FanLayout({
     cards,
     isFaceDown,
     onCardClick,
     onClose,
+    selectedIds,
 }: {
     cards: CardInstance[];
     isFaceDown: boolean;
     onCardClick?: (card: CardInstance) => void;
     onClose: () => void;
+    selectedIds?: string[];
 }) {
     return (
         <div
@@ -54,6 +72,8 @@ function FanLayout({
                         <CardImage card={cardInstance} />
                     );
                     const clickable = !isFaceDown && !!onCardClick;
+                    const isSelected =
+                        selectedIds?.includes(cardInstance.id) ?? false;
                     return (
                         <div
                             key={cardInstance.id}
@@ -72,7 +92,7 @@ function FanLayout({
                                         onCardClick(cardInstance);
                                         onClose();
                                     }}
-                                    className="w-full h-full bg-transparent border-0 p-0 cursor-pointer ring-2 ring-amber-400 hover:ring-amber-300 rounded"
+                                    className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer rounded ${selectionRing(isSelected)}`}
                                 >
                                     {inner}
                                 </button>
@@ -92,11 +112,13 @@ function GridLayout({
     isFaceDown,
     onCardClick,
     onClose,
+    selectedIds,
 }: {
     cards: CardInstance[];
     isFaceDown: boolean;
     onCardClick?: (card: CardInstance) => void;
     onClose: () => void;
+    selectedIds?: string[];
 }) {
     return (
         <div className="flex flex-wrap gap-2 justify-center py-4 px-2">
@@ -107,6 +129,8 @@ function GridLayout({
                     <CardImage card={cardInstance} />
                 );
                 const clickable = !isFaceDown && !!onCardClick;
+                const isSelected =
+                    selectedIds?.includes(cardInstance.id) ?? false;
                 return (
                     <div
                         key={cardInstance.id}
@@ -119,7 +143,7 @@ function GridLayout({
                                     onCardClick(cardInstance);
                                     onClose();
                                 }}
-                                className="w-full h-full bg-transparent border-0 p-0 cursor-pointer ring-2 ring-amber-400 hover:ring-amber-300 rounded"
+                                className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer rounded ${selectionRing(isSelected)}`}
                             >
                                 {inner}
                             </button>
@@ -141,6 +165,8 @@ export default function CardsPile({
     layout = "fan",
     onCardClick,
     forceOpen = false,
+    selectedIds,
+    footer,
 }: CardsPileProps) {
     const [internalOpen, setInternalOpen] = useState(false);
     const isOpen = forceOpen || internalOpen;
@@ -209,6 +235,7 @@ export default function CardsPile({
                         isFaceDown={isFaceDown}
                         onCardClick={onCardClick}
                         onClose={() => setIsOpen(false)}
+                        selectedIds={selectedIds}
                     />
                 ) : (
                     <GridLayout
@@ -216,7 +243,13 @@ export default function CardsPile({
                         isFaceDown={isFaceDown}
                         onCardClick={onCardClick}
                         onClose={() => setIsOpen(false)}
+                        selectedIds={selectedIds}
                     />
+                )}
+                {footer && (
+                    <div className="sticky bottom-0 mt-2 flex justify-center border-t border-zinc-700/50 bg-[#0c0d12]/95 pt-3 pb-1">
+                        {footer}
+                    </div>
                 )}
             </GameDialog>
         </>

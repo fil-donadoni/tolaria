@@ -91,20 +91,39 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         setIsBusy(true);
         try {
             await passPriority({ gameId, playerId });
+        } catch {
+            // Benign race: priority may have moved (opponent/AI acted, auto-pass
+            // fired) between render and this click, so the server rejects with
+            // "You don't have priority". Ignore — it's not an actionable error.
         } finally {
             setIsBusy(false);
         }
     }, [isBusy, hasPriority, isAutoPass, passPriority, gameId, playerId]);
 
     const handleEndTurn = useCallback(async () => {
-        if (isBusy || !hasPriority || isAutoPass) return;
+        // Pass Turn is also valid while declaring attackers: `endTurn` reads
+        // priority as the active player there and `drainAutoPasses` auto-confirms
+        // the current attacker selection before fast-forwarding to end of turn.
+        if (isBusy || isAutoPass) return;
+        if (!hasPriority && !isSelectingAttackers) return;
         setIsBusy(true);
         try {
             await endTurn({ gameId, playerId });
+        } catch {
+            // Benign race: priority may have moved between render and click;
+            // the server rejects with "You don't have priority". Ignore.
         } finally {
             setIsBusy(false);
         }
-    }, [isBusy, hasPriority, isAutoPass, endTurn, gameId, playerId]);
+    }, [
+        isBusy,
+        hasPriority,
+        isSelectingAttackers,
+        isAutoPass,
+        endTurn,
+        gameId,
+        playerId,
+    ]);
 
     const handleCancelAutoPass = useCallback(async () => {
         if (isBusy || !isAutoPass) return;
@@ -228,6 +247,16 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 }
                 tone="primary"
                 shortcut="space"
+                disabled={isBusy}
+            />
+        );
+        buttons.push(
+            <ActionButton
+                key="pass-turn-attackers"
+                onClick={handleEndTurn}
+                label="Pass Turn"
+                tone="destructive"
+                shortcut="enter"
                 disabled={isBusy}
             />
         );
