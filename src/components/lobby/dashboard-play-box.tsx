@@ -6,12 +6,18 @@ import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import ActionButton from "~/components/board/action-button";
 import ManaSymbol from "../cards/mana-symbol";
 import DifficultySelector from "./difficulty-selector";
+import AiDeckSelector from "./ai-deck-selector";
 
 interface DashboardPlayBoxProps {
     selectedDeck: LobbyDeck | null;
     openGames: Array<Doc<"games">> | undefined;
     difficulty: Difficulty;
     onDifficultyChange: (difficulty: Difficulty) => void;
+    /** All decks selectable as the AI opponent's deck (user + preset). */
+    decks: LobbyDeck[];
+    /** Selected AI opponent deck presetId, or null to mirror the player. */
+    aiDeckId: string | null;
+    onAiDeckChange: (presetId: string | null) => void;
     onCreateSolo: () => void;
     onCreateVsAi: () => void;
     onCreateMultiplayer: () => void;
@@ -25,6 +31,9 @@ export default function DashboardPlayBox({
     openGames,
     difficulty,
     onDifficultyChange,
+    decks,
+    aiDeckId,
+    onAiDeckChange,
     onCreateSolo,
     onCreateVsAi,
     onCreateMultiplayer,
@@ -71,10 +80,16 @@ export default function DashboardPlayBox({
                     </p>
                 )}
 
-                <div className="mb-3 flex justify-start">
+                <div className="mb-3 flex flex-wrap items-end justify-start gap-4">
                     <DifficultySelector
                         value={difficulty}
                         onChange={onDifficultyChange}
+                        disabled={busy}
+                    />
+                    <AiDeckSelector
+                        decks={decks}
+                        value={aiDeckId}
+                        onChange={onAiDeckChange}
                         disabled={busy}
                     />
                 </div>

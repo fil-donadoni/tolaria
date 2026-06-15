@@ -47,6 +47,38 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // AI debug: the bot ("opp" = p2) holds Braingeyser (target player draws
+        // X) and Giant Growth (target ANY creature +3/+3) with the mana to cast
+        // them, plus a creature on each side. Pass your turn → on the bot's turn
+        // it decides; watch the floating "AI trace" box (left) to see which
+        // targets it weighs and the per-term eval. The diagnostic: if "→ your
+        // creature" and "→ its creature" show the same power terms, or
+        // Braingeyser → you vs → itself show the same hand terms, the effect was
+        // not simulated.
+        label: "AI debug: bot holds Braingeyser + Giant Growth (watch AI trace box on bot's turn)",
+        cards: [
+            {
+                name: "Braingeyser",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Giant Growth",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "opp" as const, count: 4 },
+            { name: "Forest", owner: "opp" as const, count: 1 },
+            // Two DIFFERENT creatures so the Giant Growth target labels are
+            // distinguishable in the trace ("→ Grizzly Bears" = bot's own,
+            // "→ Hill Giant" = yours, the tempting wrong target).
+            { name: "Grizzly Bears", owner: "opp" as const }, // bot's own creature
+            { name: "Hill Giant", owner: "me" as const }, // your creature (tempting wrong target)
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "W29: Copy permanent — Clone / Copy Artifact / Vesuvan + Gaea's Liege (CR 707)",
         cards: [
             // Cast Clone ({3}{U}) and choose to enter as a copy of the Serra

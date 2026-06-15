@@ -11,12 +11,16 @@
 // Worker being available.
 
 import type { PublicGameState } from "@convex/gameProjections";
-import type { Move, SearchBudget } from "@convex/gre";
-import { search, DEFAULT_BUDGET } from "@convex/gre";
+import type { Move, SearchBudget, DecisionTrace } from "@convex/gre";
+import { searchWithTrace, DEFAULT_BUDGET } from "@convex/gre";
 import { projectedToGameState } from "./state-adapter";
 import type { BrainRequest, BrainResponse } from "./brain.worker";
 
-type Pending = (move: Move | null) => void;
+/** The Brain's reply: the chosen move plus the read-only DecisionTrace of what
+ *  it weighed (null when there was no real decision to explain). */
+export type BrainResult = { move: Move | null; trace: DecisionTrace | null };
+
+type Pending = (result: BrainResult) => void;
 
 let worker: Worker | null = null;
 let nextId = 1;
@@ -32,7 +36,7 @@ function getWorker(): Worker | null {
         const resolve = pending.get(e.data.id);
         if (resolve) {
             pending.delete(e.data.id);
-            resolve(e.data.move);
+            resolve({ move: e.data.move, trace: e.data.trace });
         }
     };
     worker.onerror = () => {
@@ -40,7 +44,7 @@ function getWorker(): Worker | null {
         // driver never hangs; the next state change re-consults.
         for (const [id, resolve] of pending) {
             pending.delete(id);
-            resolve(null);
+            resolve({ move: null, trace: null });
         }
     };
     return worker;
@@ -53,17 +57,22 @@ export function consultBrain(
     state: PublicGameState,
     botId: string,
     budget: SearchBudget = DEFAULT_BUDGET
-): Promise<Move | null> {
+): Promise<BrainResult> {
     const w = getWorker();
     if (!w) {
         const seed = (Math.random() * 0x100000000) | 0;
-        const move = search(projectedToGameState(state), botId, budget, seed);
-        return Promise.resolve(move);
+        const { move, trace } = searchWithTrace(
+            projectedToGameState(state),
+            botId,
+            budget,
+            seed
+        );
+        return Promise.resolve({ move, trace });
     }
 
     const id = nextId++;
     const request: BrainRequest = { id, state, botId, budget };
-    return new Promise<Move | null>((resolve) => {
+    return new Promise<BrainResult>((resolve) => {
         pending.set(id, resolve);
         w.postMessage(request);
     });

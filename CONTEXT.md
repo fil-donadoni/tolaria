@@ -217,6 +217,14 @@ _Avoid_: Sampling, guessing, simulation
 How much thinking the **Bot** is allowed before moving. A stronger **Bot** is the same **Brain** given a larger search budget, not different logic.
 _Avoid_: Level, skill setting
 
+**DecisionTrace**:
+A read-only record of what the **Brain** considered for a single move: every candidate move it weighed at the current position, how much each was explored and how good it judged each to be, plus the breakdown of the position **Evaluation** behind those judgements. Produced as a by-product of one search and surfaced for debugging — it never affects the chosen move and never leaves the client.
+_Avoid_: Log, debug dump, reasoning log
+
+**Evaluation**:
+The **Brain**'s numeric judgement of how good a position is for a given **Player**, summed from weighted terms (life, cards in **Hand**, creature power, board presence, available **Mana**). A higher number is better for that player; the **Brain** prefers moves leading to positions it evaluates highly.
+_Avoid_: Score, heuristic, fitness
+
 **Compact State**:
 The serialized form of **GameState** stored in Convex. Strips defaults, coalesces against **Card Definitions**, and compresses **Library** entries to `[instanceId, cardId]` tuples.
 _Avoid_: Blob, serialized state, stored state

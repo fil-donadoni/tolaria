@@ -9,8 +9,8 @@
 
 /// <reference lib="webworker" />
 import type { PublicGameState } from "@convex/gameProjections";
-import type { Move, SearchBudget } from "@convex/gre";
-import { search, DEFAULT_BUDGET } from "@convex/gre";
+import type { Move, SearchBudget, DecisionTrace } from "@convex/gre";
+import { searchWithTrace, DEFAULT_BUDGET } from "@convex/gre";
 import { projectedToGameState } from "./state-adapter";
 
 export type BrainRequest = {
@@ -21,17 +21,28 @@ export type BrainRequest = {
      *  survives the structured-clone `postMessage` hop. Omitted → default. */
     budget?: SearchBudget;
 };
-export type BrainResponse = { id: number; move: Move | null };
+export type BrainResponse = {
+    id: number;
+    move: Move | null;
+    /** What the Brain weighed for this move — surfaced in the Debug panel and
+     *  also logged below. Null when there was no real decision. Plain data, so
+     *  it survives the structured-clone `postMessage` hop. */
+    trace: DecisionTrace | null;
+};
 
 self.onmessage = (e: MessageEvent<BrainRequest>) => {
     const { id, state, botId, budget } = e.data;
     const seed = (Math.random() * 0x100000000) | 0;
-    const move = search(
+    const { move, trace } = searchWithTrace(
         projectedToGameState(state),
         botId,
         budget ?? DEFAULT_BUDGET,
         seed
     );
-    const response: BrainResponse = { id, move };
+    // Free console.log: readable from DevTools (select the worker context, or
+    // it surfaces in the main console). The structured trace also goes to the
+    // Debug panel via the response below.
+    if (trace) console.log("[AI] decision", trace);
+    const response: BrainResponse = { id, move, trace };
     (self as DedicatedWorkerGlobalScope).postMessage(response);
 };

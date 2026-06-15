@@ -48,9 +48,17 @@ export { greedySelectMove } from "./greedy";
 // single information-set tree by UCB1, and runs truncated `evaluate`-scored
 // rollouts. Reuses the real GRE for move application (no second simulator).
 export { determinize } from "./determinize";
-export { search, DEFAULT_BUDGET } from "./search";
-export type { SearchBudget } from "./search";
+export { search, searchWithTrace, DEFAULT_BUDGET } from "./search";
+export type { SearchBudget, DecisionTrace, CandidateTrace } from "./search";
 export { makeRng } from "./rng";
+
+// DecisionTrace debug view (AI reasoning logging). `searchWithTrace` returns,
+// alongside the chosen move, a read-only record of every candidate the Brain
+// weighed (visits / mean reward / per-term eval breakdown) so dumb moves like
+// "cast Braingeyser on the human" can be diagnosed. Client-side only.
+export { describeMove } from "./describeMove";
+export { evaluateBreakdown } from "./evaluate";
+export type { PositionBreakdown, EvalTerms } from "./evaluate";
 
 // Pre-search responsiveness gate (issue #113). `shouldThink` decides whether a
 // priority window is worth a full search; on a false the driver passes

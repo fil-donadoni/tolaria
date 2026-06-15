@@ -51,19 +51,44 @@ function isEvasive(card: CardInstanceState): boolean {
     return EVASION_KEYWORDS.some((k) => card.staticAbilities.includes(k));
 }
 
-/** Material score of one player's resources, from their own perspective. */
-function playerScore(state: GameState, player: PlayerState): number {
-    let score = player.life * W_LIFE;
-    score += player.hand.length * W_HAND;
+/** One player's material score split into its weighted contributions. Each
+ *  field is the term's contribution to the score (count × weight), so the terms
+ *  sum to the player's `playerScore`. Surfaced by `evaluateBreakdown` for the
+ *  DecisionTrace debug view (issue: AI reasoning logging) — seeing the per-term
+ *  decomposition is what distinguishes "the draw/pump was not simulated" (the
+ *  term is unchanged across target choices) from a genuine evaluation. */
+export type EvalTerms = {
+    life: number;
+    hand: number;
+    power: number;
+    toughness: number;
+    evasion: number;
+    permanents: number;
+    mana: number;
+};
+
+/** The weighted contributions of one player's resources, from their own
+ *  perspective. `sumTerms` of this equals the legacy `playerScore`. */
+function playerTerms(state: GameState, player: PlayerState): EvalTerms {
+    const terms: EvalTerms = {
+        life: player.life * W_LIFE,
+        hand: player.hand.length * W_HAND,
+        power: 0,
+        toughness: 0,
+        evasion: 0,
+        permanents: 0,
+        mana: 0,
+    };
 
     let availableMana = 0;
     for (const perm of player.battlefield) {
-        score += W_PERMANENT;
+        terms.permanents += W_PERMANENT;
         if (isCreature(perm)) {
             const power = Math.max(0, getEffectivePower(state, perm));
             const toughness = Math.max(0, getEffectiveToughness(state, perm));
-            score += power * W_POWER + toughness * W_TOUGHNESS;
-            if (isEvasive(perm)) score += power * W_EVASION_POWER;
+            terms.power += power * W_POWER;
+            terms.toughness += toughness * W_TOUGHNESS;
+            if (isEvasive(perm)) terms.evasion += power * W_EVASION_POWER;
         }
         // Available mana: an untapped source that can still produce mana this
         // turn. Lands and other mana permanents both count.
@@ -75,8 +100,25 @@ function playerScore(state: GameState, player: PlayerState): number {
     for (const c of ["W", "U", "B", "R", "G", "C"] as const) {
         availableMana += player.manaPool[c] ?? 0;
     }
-    score += availableMana * W_MANA;
-    return score;
+    terms.mana = availableMana * W_MANA;
+    return terms;
+}
+
+function sumTerms(t: EvalTerms): number {
+    return (
+        t.life +
+        t.hand +
+        t.power +
+        t.toughness +
+        t.evasion +
+        t.permanents +
+        t.mana
+    );
+}
+
+/** Material score of one player's resources, from their own perspective. */
+function playerScore(state: GameState, player: PlayerState): number {
+    return sumTerms(playerTerms(state, player));
 }
 
 /** Score `state` from `playerId`'s perspective. Higher = better for the player.
@@ -103,4 +145,46 @@ export function evaluate(state: GameState, playerId: string): number {
     if (meLost && !oppLost) return -WIN_SCORE + margin;
 
     return margin;
+}
+
+/** `playerId`'s view of a position, decomposed into per-player, per-term
+ *  contributions plus the final `evaluate` value. Pure read used only by the
+ *  DecisionTrace debug view — it never feeds the search itself. `margin` is the
+ *  pre-terminal material difference (sum(self) − sum(opp)); `total` is the full
+ *  `evaluate(state, playerId)` (terminal offsets included), so the two differ
+ *  exactly when the position is terminal. */
+export type PositionBreakdown = {
+    self: EvalTerms;
+    opp: EvalTerms;
+    margin: number;
+    total: number;
+};
+
+export function evaluateBreakdown(
+    state: GameState,
+    playerId: string
+): PositionBreakdown {
+    const me = state.players.find((p) => p.id === playerId);
+    const opp = state.players.find((p) => p.id !== playerId);
+    const empty: EvalTerms = {
+        life: 0,
+        hand: 0,
+        power: 0,
+        toughness: 0,
+        evasion: 0,
+        permanents: 0,
+        mana: 0,
+    };
+    if (!me || !opp) {
+        return { self: empty, opp: empty, margin: 0, total: 0 };
+    }
+    const self = playerTerms(state, me);
+    const oppTerms = playerTerms(state, opp);
+    const margin = sumTerms(self) - sumTerms(oppTerms);
+    return {
+        self,
+        opp: oppTerms,
+        margin,
+        total: evaluate(state, playerId),
+    };
 }
