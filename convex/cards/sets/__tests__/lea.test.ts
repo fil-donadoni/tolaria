@@ -46,6 +46,7 @@ import {
     leyDruid,
     lordOfAtlantis,
     magicalHack,
+    sleightOfMind,
     merfolkOfThePearlTrident,
     mindTwist,
     monssGoblinRaiders,
@@ -310,6 +311,7 @@ import {
     parseProtectionFromColor,
 } from "../../../gre/rules";
 import { projectPublicState } from "../../../gameProjections";
+import { substituteColorFilter } from "../../../gre/textChanges";
 import { checkStateBasedActions } from "../../../gre/sba";
 import {
     validateAttackerEligibility,
@@ -19848,6 +19850,256 @@ describe("Magical Hack (text-changing effect — CR 612, layer 3)", () => {
             { kind: "land-type", from: "Forest", to: "Island" },
         ]);
         expect(getBasicLandMana(after)).toBe("U");
+    });
+});
+
+describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
+    // Casts Sleight of Mind on `target`, choosing replacement color word
+    // `toMode` (a mode id like "blue"). Resolves immediately.
+    function castSleight(
+        state: GameState,
+        targetId: string,
+        targetType: "permanent" | "spell",
+        toMode: string
+    ): void {
+        const spell = pushSpell(state, sleightOfMind.id, "p1", [
+            { type: targetType, id: targetId },
+        ]);
+        spell.chosenModeId = toMode;
+        resolveTopOfStack(state);
+    }
+
+    it("is a {U} Instant targeting a spell or permanent, with five color modes", () => {
+        expect(sleightOfMind.manaCost).toEqual({ U: 1 });
+        expect(sleightOfMind.types).toEqual(["Instant"]);
+        expect(sleightOfMind.targetRequirement).toEqual({
+            type: "spell-or-permanent",
+            count: 1,
+        });
+        expect(sleightOfMind.modes?.map((m) => m.id)).toEqual([
+            "white",
+            "blue",
+            "black",
+            "red",
+            "green",
+        ]);
+    });
+
+    it("changes a protection color word so protection follows the new color (CR 702.16)", () => {
+        // Black Knight has "protection from white".
+        const knight = makeInstance(blackKnight.id, {
+            id: "bk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [knight] }),
+            ],
+        });
+        expect(getProtectedColors(state.players[1].battlefield[0])).toEqual([
+            "W",
+        ]);
+
+        castSleight(state, "bk", "permanent", "blue");
+
+        const after = state.players[1].battlefield.find((c) => c.id === "bk")!;
+        expect(after.textChanges).toEqual([
+            { kind: "color-word", from: "white", to: "blue" },
+        ]);
+        expect(getProtectedColors(after)).toEqual(["U"]);
+    });
+
+    it("re-asserts the new protection color after projectPublicState (wire format)", () => {
+        const knight = makeInstance(blackKnight.id, {
+            id: "bk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [knight] }),
+            ],
+        });
+        castSleight(state, "bk", "permanent", "blue");
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bk"
+        )! as CardInstanceState;
+        expect(getProtectedColors(slim)).toEqual(["U"]);
+    });
+
+    it("retargets a Circle of Protection's color filter to the new color (CR 615)", () => {
+        const cop = makeInstance(circleOfProtectionWhite.id, {
+            id: "cop",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const whiteSrc = makeInstance(savannahLions.id, {
+            id: "w",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const redSrc = makeInstance(monssGoblinRaiders.id, {
+            id: "r",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cop] }),
+                makePlayer("p2", { battlefield: [whiteSrc, redSrc] }),
+            ],
+        });
+        const baseReq =
+            circleOfProtectionWhite.activatedAbilities![0].targetRequirement!;
+
+        // Before: the "white source of your choice" filter sees the white
+        // creature, not the red one.
+        const legalBefore = getLegalTargets(
+            state,
+            { ...baseReq, colorFilter: "W" },
+            [],
+            "p1"
+        );
+        expect(legalBefore.some((t) => t.id === "w")).toBe(true);
+        expect(legalBefore.some((t) => t.id === "r")).toBe(false);
+
+        castSleight(state, "cop", "permanent", "red");
+        const copAfter = state.players[0].battlefield.find(
+            (c) => c.id === "cop"
+        )!;
+        expect(copAfter.textChanges).toEqual([
+            { kind: "color-word", from: "white", to: "red" },
+        ]);
+
+        // After: the substituted filter targets the red source, not the white.
+        const effColor = substituteColorFilter(copAfter, baseReq.colorFilter!);
+        expect(effColor).toBe("R");
+        const legalAfter = getLegalTargets(
+            state,
+            { ...baseReq, colorFilter: effColor },
+            [],
+            "p1"
+        );
+        expect(legalAfter.some((t) => t.id === "r")).toBe(true);
+        expect(legalAfter.some((t) => t.id === "w")).toBe(false);
+
+        // The substituted filter survives the projection (wire format).
+        const projected = projectPublicState(state, 0, "p1");
+        const slimCop = projected.players[0].battlefield.find(
+            (c) => c.id === "cop"
+        )! as CardInstanceState;
+        expect(substituteColorFilter(slimCop, baseReq.colorFilter!)).toBe("R");
+    });
+
+    it("does not change the object's own color (CR 612.1)", () => {
+        const knight = makeInstance(blackKnight.id, {
+            id: "bk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [knight] }),
+            ],
+        });
+        const before = STATIC_EFFECT_CTX.getColors(
+            state.players[1].battlefield[0]
+        );
+        castSleight(state, "bk", "permanent", "blue");
+        const after = state.players[1].battlefield.find((c) => c.id === "bk")!;
+        // Black Knight stays black; only its protection *word* changed.
+        expect(STATIC_EFFECT_CTX.getColors(after)).toEqual(before);
+        expect(before).toEqual(["B"]);
+    });
+
+    it("ends when the object changes zones (CR 612.7)", () => {
+        const knight = makeInstance(blackKnight.id, {
+            id: "bk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [knight] }),
+            ],
+        });
+        castSleight(state, "bk", "permanent", "blue");
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bk")!.textChanges
+        ).toHaveLength(1);
+
+        removePermanentTo(state, "bk", "hand");
+        const bounced = state.players[1].hand.find((c) => c.id === "bk")!;
+        expect(bounced.textChanges).toBeUndefined();
+        expect(getProtectedColors(bounced)).toEqual(["W"]);
+    });
+
+    it("chains multiple color-word changes in timestamp order (CR 612.6)", () => {
+        const knight = makeInstance(blackKnight.id, {
+            id: "bk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [knight] }),
+            ],
+        });
+        castSleight(state, "bk", "permanent", "blue"); // white → blue
+        castSleight(state, "bk", "permanent", "red"); // blue → red
+
+        const after = state.players[1].battlefield.find((c) => c.id === "bk")!;
+        expect(after.textChanges).toEqual([
+            { kind: "color-word", from: "white", to: "blue" },
+            { kind: "color-word", from: "blue", to: "red" },
+        ]);
+        expect(getProtectedColors(after)).toEqual(["R"]);
+    });
+
+    it("applies to a spell on the stack (spell-or-permanent branch)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        // A creature spell with "protection from white" on the stack.
+        const knightSpell = pushSpell(state, blackKnight.id, "p2");
+        castSleight(state, knightSpell.id, "spell", "blue");
+
+        const onStack = state.stack.find((s) => s.id === knightSpell.id)!;
+        expect(onStack.textChanges).toEqual([
+            { kind: "color-word", from: "white", to: "blue" },
+        ]);
+    });
+
+    it("survives a serialize round-trip (persisted optional field)", () => {
+        const knight = makeInstance(blackKnight.id, {
+            id: "bk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [knight] }),
+            ],
+        });
+        castSleight(state, "bk", "permanent", "blue");
+
+        const restored = expandState(compactState(state));
+        const after = restored.players[1].battlefield.find(
+            (c) => c.id === "bk"
+        )!;
+        expect(after.textChanges).toEqual([
+            { kind: "color-word", from: "white", to: "blue" },
+        ]);
+        expect(getProtectedColors(after)).toEqual(["U"]);
     });
 });
 

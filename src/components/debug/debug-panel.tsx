@@ -168,6 +168,31 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Color-word text change (CR 612, layer 3). Cast Sleight of Mind ({U})
+        // and pick a color: on Black Knight (protection from white), change
+        // white → blue and Savannah Lions can no longer be blocked/targeted as
+        // before — protection now keys off blue. On Circle of Protection: White,
+        // change white → red and its "{1}: prevent a white source" ability now
+        // targets red sources instead. The change lasts indefinitely and ends
+        // if the object changes zones. It never changes the object's own color.
+        label: "Sleight of Mind: text-change a color word (protection-from + Circle of Protection)",
+        cards: [
+            {
+                name: "Sleight of Mind",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 2,
+            },
+            { name: "Black Knight", owner: "opp" as const },
+            { name: "Circle of Protection: White", owner: "me" as const },
+            { name: "Savannah Lions", owner: "me" as const },
+            { name: "Mons's Goblin Raiders", owner: "opp" as const },
+            { name: "Island", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // AI debug: the bot ("opp" = p2) holds Braingeyser (target player draws
         // X) and Giant Growth (target ANY creature +3/+3) with the mana to cast
         // them, plus a creature on each side. Pass your turn → on the bot's turn

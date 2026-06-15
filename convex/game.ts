@@ -61,6 +61,7 @@ import {
 import { projectFullState, projectPublicState } from "./gameProjections";
 import { compactState, expandState } from "./gre/serialize";
 import { turnFaceDown } from "./gre/faceDown";
+import { substituteColorFilter } from "./gre/textChanges";
 import {
     advancePhase,
     drainAutoPasses,
@@ -3408,9 +3409,23 @@ export const activateAbility = mutation({
         // costs. Mana availability is deferred to finalizeTargetSelection
         // (which enters pendingActivation when the pool doesn't cover the
         // cost — mirrors the spell announceCast flow).
-        const effectiveTargetReq = ability.getTargetRequirement
+        const baseTargetReq = ability.getTargetRequirement
             ? ability.getTargetRequirement(card, state)
             : ability.targetRequirement;
+        // CR 612.6 — a color-targeted ability follows its source's active
+        // color-word changes (Sleight of Mind on a Circle of Protection
+        // retargets its "<color> source of your choice"). The substituted
+        // filter flows into both getLegalTargets and the stored pendingTarget.
+        const effectiveTargetReq =
+            baseTargetReq && baseTargetReq.colorFilter !== undefined
+                ? {
+                      ...baseTargetReq,
+                      colorFilter: substituteColorFilter(
+                          card,
+                          baseTargetReq.colorFilter
+                      ),
+                  }
+                : baseTargetReq;
         if (effectiveTargetReq) {
             if (state.pendingTarget) {
                 throw new Error("Target selection is in progress");

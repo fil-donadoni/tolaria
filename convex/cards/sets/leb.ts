@@ -1442,14 +1442,11 @@ export const sirensCallLeb: CardPrint = {
     setCode: "leb",
 };
 
-// Blocked on #125 — color-word text changes (CR 612) are a no-op stub today
-// (see gre/textChanges.ts). The LEA sleightOfMind def + this print land
-// together when #125 closes.
-// export const sleightOfMindLeb: CardPrint = {
-//     printId: "fb4da609-6c08-4a18-b7d9-fb2f9b11bab2",
-//     definitionId: "d427790c-e322-446e-8d7d-a6b48ad41a42", // sleightOfMind (stub)
-//     setCode: "leb",
-// };
+export const sleightOfMindLeb: CardPrint = {
+    printId: "fb4da609-6c08-4a18-b7d9-fb2f9b11bab2",
+    definitionId: "d427790c-e322-446e-8d7d-a6b48ad41a42", // sleightOfMind
+    setCode: "leb",
+};
 
 export const smokeLeb: CardPrint = {
     printId: "7eb0cb82-d930-43c3-a6d6-f947018d45d6",

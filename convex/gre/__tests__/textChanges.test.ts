@@ -12,7 +12,12 @@
 // — adding a new `TextChange["kind"]` breaks the build.
 
 import { describe, it, expect } from "vitest";
-import { applySubstitution, landTypesPresent } from "../textChanges";
+import {
+    applySubstitution,
+    colorWordsPresent,
+    landTypesPresent,
+    substituteColorFilter,
+} from "../textChanges";
 import { LANDWALK_KEYWORDS } from "../constants";
 import { getAllCards } from "../../cards";
 import { parseProtectionFromColor } from "../protection";
@@ -57,6 +62,132 @@ describe("applySubstitution (CR 612.6)", () => {
         });
         expect(out.subtypes).toEqual(["Forest"]);
         expect(out.staticAbilities).toEqual(["forestwalk"]);
+    });
+
+    it("rewrites a color word inside a protection-from string", () => {
+        const out = applySubstitution({
+            subtypes: [],
+            staticAbilities: ["protection from white", "first strike"],
+            textChanges: [{ kind: "color-word", from: "white", to: "blue" }],
+        });
+        expect(out.staticAbilities).toEqual([
+            "protection from blue",
+            "first strike",
+        ]);
+    });
+
+    it("leaves abilities untouched when the color word is absent (zero-copy)", () => {
+        const inst = {
+            subtypes: [],
+            staticAbilities: ["protection from black"],
+            textChanges: [
+                { kind: "color-word" as const, from: "white", to: "blue" },
+            ],
+        };
+        const out = applySubstitution(inst);
+        expect(out.staticAbilities).toBe(inst.staticAbilities);
+    });
+
+    it("treats a land-type change as inert for color words", () => {
+        const out = applySubstitution({
+            subtypes: ["Forest"],
+            staticAbilities: ["protection from green"],
+            textChanges: [{ kind: "land-type", from: "Forest", to: "Island" }],
+        });
+        expect(out.staticAbilities).toEqual(["protection from green"]);
+    });
+});
+
+describe("substituteColorFilter (CR 202.2 under text change)", () => {
+    it("passes a color through when no changes are present", () => {
+        expect(substituteColorFilter({}, "W")).toBe("W");
+    });
+
+    it("remaps a color filter through a matching color-word change", () => {
+        expect(
+            substituteColorFilter(
+                {
+                    textChanges: [
+                        { kind: "color-word", from: "white", to: "red" },
+                    ],
+                },
+                "W"
+            )
+        ).toBe("R");
+    });
+
+    it("chains color-word changes in timestamp order", () => {
+        expect(
+            substituteColorFilter(
+                {
+                    textChanges: [
+                        { kind: "color-word", from: "white", to: "blue" },
+                        { kind: "color-word", from: "blue", to: "green" },
+                    ],
+                },
+                "W"
+            )
+        ).toBe("G");
+    });
+
+    it("leaves colorless and non-matching colors unchanged", () => {
+        const changes = {
+            textChanges: [
+                { kind: "color-word" as const, from: "white", to: "red" },
+            ],
+        };
+        expect(substituteColorFilter(changes, "C")).toBe("C");
+        expect(substituteColorFilter(changes, "U")).toBe("U");
+    });
+});
+
+describe("colorWordsPresent (legal `from` derivation)", () => {
+    it("reads color words from protection-from strings", () => {
+        expect(
+            colorWordsPresent({
+                subtypes: [],
+                staticAbilities: ["protection from white", "first strike"],
+            })
+        ).toEqual(["white"]);
+    });
+
+    it("reads color words from structured color filters", () => {
+        expect(
+            colorWordsPresent(
+                { subtypes: [], staticAbilities: [] },
+                ["U"] // a "blue source of your choice" filter
+            )
+        ).toEqual(["blue"]);
+    });
+
+    it("reads through an active color-word change (CR 612.6)", () => {
+        expect(
+            colorWordsPresent(
+                {
+                    subtypes: [],
+                    staticAbilities: [],
+                    textChanges: [
+                        { kind: "color-word", from: "white", to: "red" },
+                    ],
+                },
+                ["W"]
+            )
+        ).toEqual(["red"]);
+    });
+
+    it("dedups a word shared by a string and a filter", () => {
+        expect(
+            colorWordsPresent(
+                { subtypes: [], staticAbilities: ["protection from blue"] },
+                ["U"]
+            )
+        ).toEqual(["blue"]);
+    });
+
+    it("returns empty for an object referencing no color word", () => {
+        expect(
+            colorWordsPresent({ subtypes: ["Forest"], staticAbilities: [] })
+        ).toEqual([]);
     });
 
     it("applies chained changes in timestamp order", () => {

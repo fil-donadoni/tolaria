@@ -16,6 +16,7 @@
 import type { CardInstanceState } from "./state";
 import type { Color } from "../cards/types";
 import { STATIC_EFFECT_CTX } from "./layers";
+import { applySubstitution } from "./textChanges";
 
 const PROTECTION_FROM_COLOR_REGEX =
     /^protection from (white|blue|black|red|green)$/;
@@ -35,12 +36,23 @@ export function parseProtectionFromColor(ability: string): Color | null {
 }
 
 /** Colors this card has protection from (CR 702.16). Parsed from its
- *  `staticAbilities[]`. Duplicates collapse (CR 702.16m). */
-export function getProtectedColors(card: {
-    staticAbilities: string[];
-}): Color[] {
+ *  `staticAbilities[]`, read through any active color-word text changes
+ *  (CR 612.6 — Sleight of Mind turns "protection from white" into "protection
+ *  from blue"). Duplicates collapse (CR 702.16m). */
+export function getProtectedColors(
+    card: Pick<CardInstanceState, "staticAbilities"> &
+        Partial<Pick<CardInstanceState, "subtypes" | "textChanges">>
+): Color[] {
+    // Fast path: no text changes → parse the raw abilities (zero-copy).
+    const abilities = card.textChanges?.length
+        ? applySubstitution({
+              subtypes: card.subtypes ?? [],
+              staticAbilities: card.staticAbilities,
+              textChanges: card.textChanges,
+          }).staticAbilities
+        : card.staticAbilities;
     const result: Color[] = [];
-    for (const ability of card.staticAbilities) {
+    for (const ability of abilities) {
         const color = parseProtectionFromColor(ability);
         if (color && !result.includes(color)) result.push(color);
     }
@@ -50,7 +62,8 @@ export function getProtectedColors(card: {
 /** True if `target` has protection from any color in `sourceColors`
  *  (CR 702.16b/e/f). */
 export function isProtectedFromColors(
-    target: { staticAbilities: string[] },
+    target: Pick<CardInstanceState, "staticAbilities"> &
+        Partial<Pick<CardInstanceState, "subtypes" | "textChanges">>,
     sourceColors: readonly Color[]
 ): boolean {
     if (sourceColors.length === 0) return false;
