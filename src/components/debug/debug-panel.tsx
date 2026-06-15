@@ -47,6 +47,27 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Pile combat (CR 509.2 variant, ADR 0012). Raging River is on your
+        // battlefield with two attackers. Move to combat and attack with both:
+        // the trigger asks the opponent to divide their non-flying creatures
+        // into a "left" and "right" pile (select the left pile), then asks you
+        // to label your attackers (select the "left" attackers). A labelled
+        // attacker can then be blocked only by flying creatures or creatures in
+        // the matching pile.
+        label: "Raging River: left/right pile combat (divide → label → block restriction)",
+        cards: [
+            { name: "Raging River", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Hill Giant", owner: "me" as const },
+            { name: "Mesa Pegasus", owner: "opp" as const }, // flying — blocks any pile
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Hill Giant", owner: "opp" as const },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Text-changing effect (CR 612, layer 3). Cast Magical Hack ({U}) and
         // pick a basic land type: on your Forest, change it to Island and it
         // taps for {U} instead of {G}; on Shanodin Dryads (forestwalk), change

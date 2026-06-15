@@ -64,6 +64,7 @@ import {
     drainAutoPasses,
     applyAllCombatDamage,
     emitBlockersConfirmedEvents,
+    emitAttackersDeclaredEvents,
 } from "./gre/phases";
 import { freshSeed, seededShuffle } from "./gre/rng";
 import {
@@ -2501,6 +2502,8 @@ export const confirmAttackers = mutation({
         state.combat.confirmed = true;
         state.combat.blockerAssignments = {};
         state.combat.blockersConfirmed = false;
+        // ADR 0012 — fire "when creatures attack" triggers (Raging River).
+        emitAttackersDeclaredEvents(state);
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
         drainAutoPasses(state);

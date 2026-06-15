@@ -934,6 +934,27 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
     }
 }
 
+/** Emits a single ATTACKERS_DECLARED event (CR 508.1) once the active player
+ *  confirms attackers, and pushes any resulting triggers (Raging River). One
+ *  event carries every attacker so a "whenever one or more creatures you
+ *  control attack" ability fires exactly once. */
+export function emitAttackersDeclaredEvents(state: GameState): void {
+    if (!state.combat || state.combat.attackerIds.length === 0) return;
+    const event: GameEvent = {
+        type: "ATTACKERS_DECLARED",
+        attackingPlayerId: state.activePlayerId,
+        attackerIds: [...state.combat.attackerIds],
+    };
+    const triggers = collectTriggers(state, [event]);
+    for (const t of triggers) {
+        state.stack.push(t);
+    }
+    if (triggers.length > 0) {
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+    }
+}
+
 /** Perform automatic entry actions for the current phase. */
 function performPhaseEntry(state: GameState): void {
     switch (state.phase) {
@@ -1019,12 +1040,17 @@ function performPhaseEntry(state: GameState): void {
                 const defender = getPlayer(state, defenderId);
                 for (const card of activePlayer.battlefield) {
                     card.isAttacking = undefined;
+                    card.pileLabel = undefined;
                 }
                 for (const card of defender.battlefield) {
                     card.isBlocking = undefined;
+                    card.pileLabel = undefined;
                 }
                 state.combat = undefined;
             }
+            // ADR 0012 — combat-scoped pile block restrictions (Raging River)
+            // end with the combat.
+            state.combatBlockRestrictions = undefined;
             // CR 511.3 — "until end of combat" effects end here.
             tickAllDurations(state);
             break;
@@ -1602,6 +1628,7 @@ export function drainAutoPasses(state: GameState): void {
             state.combat.confirmed = true;
             state.combat.blockerAssignments = {};
             state.combat.blockersConfirmed = false;
+            emitAttackersDeclaredEvents(state);
         }
 
         // Auto-confirm blockers when defending player auto-passes

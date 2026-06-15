@@ -772,6 +772,18 @@ export interface SpellContext {
      *  for a land-type text change ("replace all instances of one basic land
      *  type"). Empty if the target references none. */
     getLandTypesPresent: (target: TargetSelection) => string[];
+    /** Sets a transient combat pile label on a battlefield creature (Raging
+     *  River, CR 509.2). Cleared at end of combat. No-op if the id isn't on
+     *  the battlefield. */
+    setPileLabel: (cardInstanceId: string, label: string) => void;
+    /** Adds a combat-scoped block restriction (Raging River, ADR 0012): the
+     *  attacker can be blocked only by flying creatures or creatures whose
+     *  pile label matches `allowedPileLabel`. Replaces any existing entry for
+     *  the same attacker. Cleared at end of combat. */
+    addCombatBlockRestriction: (
+        attackerId: string,
+        allowedPileLabel: string
+    ) => void;
     /** Copies a spell on the stack (CR 707.10, Fork). Clones the target stack
      *  item, inserts the copy directly above the original (so the copy
      *  resolves first), and returns the copy's new stack id — or `null` if the
@@ -1397,6 +1409,7 @@ export type GameEventType =
     | "PERMANENT_TAPPED"
     | "STATE_CHECK"
     | "TRIGGER_FIZZLED"
+    | "ATTACKERS_DECLARED"
     | "BLOCKERS_CONFIRMED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
@@ -1581,6 +1594,18 @@ export interface TriggerFizzledEvent {
  *  defending player confirms blockers (CR 509.1). Used by "blocks or becomes
  *  blocked by" triggers (Cockatrice, Thicket Basilisk). One event per pair
  *  lets the trigger match on its own involvement. */
+/** Emitted once when the active player confirms their attacking creatures
+ *  (CR 508.1). Drives "whenever one or more creatures you control attack"
+ *  triggers (Raging River). Single event per declaration, carrying every
+ *  attacker — not one per attacker — so the trigger fires once. */
+export interface AttackersDeclaredEvent {
+    type: "ATTACKERS_DECLARED";
+    /** Controller of the attacking creatures (CR 508.1). */
+    attackingPlayerId: string;
+    /** Instance ids of the creatures declared as attackers this combat. */
+    attackerIds: ReadonlyArray<string>;
+}
+
 export interface BlockersConfirmedEvent {
     type: "BLOCKERS_CONFIRMED";
     attackerId: string;
@@ -1603,6 +1628,7 @@ export type GameEvent =
     | PermanentTappedEvent
     | StateCheckEvent
     | TriggerFizzledEvent
+    | AttackersDeclaredEvent
     | BlockersConfirmedEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
