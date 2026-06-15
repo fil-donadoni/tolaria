@@ -2555,6 +2555,7 @@ export const bogWraith: CardDefinition = {
     staticAbilities: ["swampwalk"],
 };
 
+// Out of scope — see ADR 0010
 // export const contractFromBelow: CardDefinition = {
 //     id: "9853b0ce-4763-4877-9741-f9145a3659c6",
 //     name: "Contract from Below",
@@ -2601,6 +2602,7 @@ export const darkRitual: CardDefinition = {
     },
 };
 
+// Out of scope — see ADR 0010
 // export const darkpact: CardDefinition = {
 //     id: "e78db688-93a2-47f5-9aa5-9158a72cd973",
 //     name: "Darkpact",
@@ -2645,6 +2647,7 @@ export const deathlace: CardDefinition = makeLace({
     color: "B",
 });
 
+// Out of scope — see ADR 0010
 // export const demonicAttorney: CardDefinition = {
 //     id: "fd891fc6-d9d6-494e-ae65-8bea8f44b575",
 //     name: "Demonic Attorney",
@@ -3670,14 +3673,6 @@ export const sinkhole: CardDefinition = {
     effect: "destroy-target",
 };
 
-// export const terror: CardDefinition = {
-//     id: "21004958-2c7e-4a55-bc80-411c4d780106",
-//     name: "Terror",
-//     oracleText: "Destroy target nonartifact, nonblack creature. It can't be regenerated.",
-//     manaCost: { X: 1, B: 1 },
-//     types: ["Instant"],
-// };
-
 // Unholy Strength — "Enchanted creature gets +2/+1." Mirror of Holy Strength.
 export const unholyStrength: CardDefinition = {
     id: "90563f90-0127-4164-b43b-f0321dc63a1d",
@@ -3802,6 +3797,7 @@ export const willOTheWisp: CardDefinition = {
     ],
 };
 
+// Out of scope — see ADR 0010
 // export const wordOfCommand: CardDefinition = {
 //     id: "96c21429-98d3-416b-be00-6aa9c4c5a006",
 //     name: "Word of Command",
@@ -3890,14 +3886,6 @@ export const chaoslace: CardDefinition = makeLace({
     manaCost: { R: 1 },
     color: "R",
 });
-
-// export const disintegrate: CardDefinition = {
-//     id: "8712c49e-f171-4669-bed9-87575a37af11",
-//     name: "Disintegrate",
-//     oracleText: "Disintegrate deals X damage to any target. If it's a creature, it can't be regenerated this turn, and if it would die this turn, exile it instead.",
-//     manaCost: { X: "X", R: 1 },
-//     types: ["Sorcery"],
-// };
 
 // Dragon Whelp — "Flying. {R}: Dragon Whelp gets +1/+0 until end of turn.
 // If this ability has been activated four or more times this turn, sacrifice
@@ -5112,6 +5100,7 @@ export const birdsOfParadise: CardDefinition = {
     ],
 };
 
+// Out of scope — see ADR 0010
 // export const camouflage: CardDefinition = {
 //     id: "3838c2a3-7fab-4976-9c1b-2891aee24e52",
 //     name: "Camouflage",
@@ -5250,14 +5239,6 @@ export const elvishArchers: CardDefinition = {
 //     oracleText: "You may play any number of lands on each of your turns.\nWhenever you play a land, if it wasn't the first land you played this turn, this enchantment deals 1 damage to you.",
 //     manaCost: { G: 1 },
 //     types: ["Enchantment"],
-// };
-
-// export const fog: CardDefinition = {
-//     id: "cfba606d-bb55-43ba-aa0c-299649958788",
-//     name: "Fog",
-//     oracleText: "Prevent all combat damage that would be dealt this turn.",
-//     manaCost: { G: 1 },
-//     types: ["Instant"],
 // };
 
 // Force of Nature — "Trample. At the beginning of your upkeep, this
@@ -6280,6 +6261,7 @@ export const celestialPrism: CardDefinition = {
     ],
 };
 
+// Out of scope — see ADR 0010
 // export const chaosOrb: CardDefinition = {
 //     id: "92274971-7c4a-4326-b0fe-75e2d124f718",
 //     name: "Chaos Orb",
