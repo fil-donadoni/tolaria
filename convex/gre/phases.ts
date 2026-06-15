@@ -22,6 +22,7 @@ import {
     regenerateOrDestroy,
     resolveTopOfStack,
     runDamageReplacement,
+    tapPermanent,
     tickDuration,
 } from "./state";
 import { tryGetCardById } from "../cards";
@@ -1619,7 +1620,9 @@ export function drainAutoPasses(state: GameState): void {
                 );
                 if (card) {
                     if (!card.staticAbilities.includes("vigilance")) {
-                        card.isTapped = true;
+                        // CR 708.9 / ADR 0013 — face-down attacker turns up as
+                        // it taps to attack.
+                        tapPermanent(state, card);
                     }
                     card.isAttacking = true;
                     card.hasAttackedThisTurn = true;

@@ -11,7 +11,7 @@
  * turn-up (#124) and for the controller's own projected view.
  */
 
-import { FACE_DOWN_CARD_ID } from "../cards";
+import { FACE_DOWN_CARD_ID, tryGetCardById } from "../cards";
 import type { CardInstanceState } from "./state";
 
 /** Turns a permanent face down in place (CR 708.2). No-op if already face
@@ -26,4 +26,24 @@ export function turnFaceDown(card: CardInstanceState): void {
     card.power = 2;
     card.toughness = 2;
     card.staticAbilities = [];
+}
+
+/** Turns a face-down permanent face up in place (CR 708.9, ADR 0013) — the
+ *  inverse of {@link turnFaceDown}. Restores the real card id from `faceDownOf`
+ *  and re-reads the real characteristics from the registry, then clears the
+ *  face-down markers so the permanent reads (and projects) as its true self to
+ *  both players. No-op if the card isn't face down or its real id is missing
+ *  from the registry. */
+export function turnFaceUp(card: CardInstanceState): void {
+    if (!card.faceDown || !card.faceDownOf) return;
+    const def = tryGetCardById(card.faceDownOf);
+    if (!def) return;
+    card.card = { id: def.id };
+    card.types = def.types;
+    card.subtypes = def.subtypes ?? [];
+    card.power = def.power;
+    card.toughness = def.toughness;
+    card.staticAbilities = def.staticAbilities ?? [];
+    delete card.faceDown;
+    delete card.faceDownOf;
 }

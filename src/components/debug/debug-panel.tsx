@@ -91,6 +91,22 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Face-down turn-up (CR 708.9, ADR 0013, #124). Your face-down creature
+        // is really a Hill Giant (3/3) but reads as a 2/2. The moment it would
+        // deal/be dealt damage or become tapped it turns face up and acts as
+        // the real 3/3. Move to combat and attack: it taps to attack → turns
+        // up → deals 3 (not 2). Or tap it with Icy Manipulator to reveal it.
+        label: "Face-down turn-up: attack/tap reveals the real creature (#124)",
+        cards: [
+            { name: "Hill Giant", owner: "me" as const, faceDown: true },
+            { name: "Icy Manipulator", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Pile combat (CR 509.2 variant, ADR 0012). Raging River is on your
         // battlefield with two attackers. Move to combat and attack with both:
         // the trigger asks the opponent to divide their non-flying creatures

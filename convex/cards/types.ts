@@ -1748,7 +1748,8 @@ export type ReplacementEventKind =
     | "lifegain"
     | "lifeloss"
     | "discard"
-    | "lose-game";
+    | "lose-game"
+    | "tap";
 
 /** Damage event subject to CR 614 redirection / prevention. */
 export interface DamageReplacementEvent {
@@ -1805,11 +1806,21 @@ export interface LoseGameReplacementEvent {
     reason: "life-zero";
 }
 
+/** Tap event: a permanent about to become tapped (CR 701.20a). Face-down
+ *  permanents intercept this to turn face up first (CR 708, ADR 0013). The
+ *  replacement does not cancel the tap — it turns the creature up and lets it
+ *  become tapped as its real self. */
+export interface TapReplacementEvent {
+    kind: "tap";
+    cardInstanceId: string;
+}
+
 export type ReplacementEvent =
     | DamageReplacementEvent
     | LifeChangeReplacementEvent
     | DiscardReplacementEvent
-    | LoseGameReplacementEvent;
+    | LoseGameReplacementEvent
+    | TapReplacementEvent;
 
 /** Side-effect mutators handed to a `ReplacementEffect.replace` body. Lets
  *  the effect issue follow-up actions ("draw N cards instead", "sacrifice
@@ -1846,6 +1857,13 @@ export interface ReplacementApplyContext {
      *  Returns the number actually removed (clamped to availability). Used by
      *  Rock Hydra's damage→counter-removal replacement (CR 614.1a). */
     removeCounter: (type: string, count: number) => number;
+    /** Turns the source permanent face up (CR 708.9, ADR 0013): clears the
+     *  face-down marker, restores the real card's characteristics, and reveals
+     *  it to both players. Returns the now-revealed creature's real power and
+     *  toughness so a turn-up-on-damage replacement can deal/apply with the
+     *  true values. No-op (returns the current P/T) if the source isn't face
+     *  down. */
+    turnSelfFaceUp: () => { power: number; toughness: number };
     /** Read-only inspector for state used by `appliesTo` predicates and by
      *  `replace` bodies that need to inspect the source's environment. */
     state: ReplacementStateView;
