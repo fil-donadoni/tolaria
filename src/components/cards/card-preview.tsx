@@ -9,11 +9,10 @@ import {
 import CardImageLoader from "./card-image-loader";
 import TokenPlaceholder from "./token-placeholder";
 import {
-    capitalizeKeyword,
     formatTypeLine,
     getDisplayAbilities,
     manaCostToString,
-    type AbilityDisplayState,
+    resolvePreviewAbilities,
 } from "~/lib/card-utils";
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { formatOracleText } from "~/lib/oracle-text";
@@ -21,6 +20,7 @@ import { GameContext } from "~/hooks/useGameContext";
 import { useLongPress } from "~/hooks/useLongPress";
 import type { CardInstance } from "~/types/game";
 import { getColorOverrideDisplay } from "~/lib/color-override";
+import CardPreviewAbilities from "./card-preview-abilities";
 
 const ZOOM_WIDTH = 128 * 2;
 const GAP = 8;
@@ -70,45 +70,6 @@ function clampZoomPosition(
     }
 
     return { top, left };
-}
-
-const KEYWORD_STATE_CLASS: Record<AbilityDisplayState, string> = {
-    native: "text-zinc-100",
-    granted: "text-emerald-400",
-    lost: "text-zinc-400 line-through opacity-70",
-};
-
-function KeywordRow({
-    name,
-    state,
-}: {
-    name: string;
-    state: AbilityDisplayState;
-}) {
-    const prefix = state === "granted" ? "[+] " : "";
-    return (
-        <div className={KEYWORD_STATE_CLASS[state]}>
-            {prefix}
-            {capitalizeKeyword(name)}
-        </div>
-    );
-}
-
-function AbilityRow({
-    text,
-    state,
-}: {
-    text: string;
-    state: "native" | "granted";
-}) {
-    const cls = state === "granted" ? "text-emerald-400" : "text-zinc-100";
-    const prefix = state === "granted" ? "[+] " : "";
-    return (
-        <div className={cls}>
-            {prefix}
-            {formatOracleText(text)}
-        </div>
-    );
 }
 
 type CardPreviewProps = {
@@ -302,14 +263,14 @@ export default function CardPreview({
     const hasPT =
         isCreatureCard &&
         (effPower !== undefined || effToughness !== undefined);
-    // When Oracle text is shown (spells + auras + ability-less permanents)
-    // the printed text already covers everything; suppress the structured
-    // ability render to avoid duplicating activated / triggered lines.
+    // When Oracle text is shown it covers native abilities; only runtime-grant
+    // deltas (granted/lost keywords, granted activated abilities) need to be
+    // surfaced alongside it (#156). When it isn't, render the full set.
+    const bodyAbilities = resolvePreviewAbilities(abilities, showOracleText);
     const hasBody =
-        !showOracleText &&
-        (abilities.keywords.length > 0 ||
-            abilities.activated.length > 0 ||
-            abilities.triggered.length > 0);
+        bodyAbilities.keywords.length > 0 ||
+        bodyAbilities.activated.length > 0 ||
+        bodyAbilities.triggered.length > 0;
     const displayName = def?.name ?? cardName;
     // Tokens (CR 111) without a printed art id render an in-app placeholder
     // in the zoom panel — Scryfall has no entry for synthesized `token:` ids
@@ -437,35 +398,9 @@ export default function CardPreview({
                                     </div>
                                 )}
                                 {hasBody && (
-                                    <div className="border-t border-zinc-700 pt-2 space-y-1.5">
-                                        {abilities.keywords.length > 0 && (
-                                            <div className="space-y-0.5">
-                                                {abilities.keywords.map(
-                                                    (k, i) => (
-                                                        <KeywordRow
-                                                            key={`kw-${i}-${k.name}`}
-                                                            name={k.name}
-                                                            state={k.state}
-                                                        />
-                                                    )
-                                                )}
-                                            </div>
-                                        )}
-                                        {abilities.activated.map((a, i) => (
-                                            <AbilityRow
-                                                key={`act-${i}-${a.id}`}
-                                                text={a.oracleText}
-                                                state={a.state}
-                                            />
-                                        ))}
-                                        {abilities.triggered.map((t, i) => (
-                                            <AbilityRow
-                                                key={`tr-${i}-${t.id}`}
-                                                text={t.oracleText}
-                                                state="native"
-                                            />
-                                        ))}
-                                    </div>
+                                    <CardPreviewAbilities
+                                        abilities={bodyAbilities}
+                                    />
                                 )}
                                 {hasPT && (
                                     <div className="text-right font-semibold text-base border-t border-zinc-700 pt-2 flex justify-end items-baseline gap-2">
@@ -573,33 +508,9 @@ export default function CardPreview({
                                 </div>
                             )}
                             {hasBody && (
-                                <div className="border-t border-zinc-700 pt-2 space-y-1.5">
-                                    {abilities.keywords.length > 0 && (
-                                        <div className="space-y-0.5">
-                                            {abilities.keywords.map((k, i) => (
-                                                <KeywordRow
-                                                    key={`kw-${i}-${k.name}`}
-                                                    name={k.name}
-                                                    state={k.state}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                    {abilities.activated.map((a, i) => (
-                                        <AbilityRow
-                                            key={`act-${i}-${a.id}`}
-                                            text={a.oracleText}
-                                            state={a.state}
-                                        />
-                                    ))}
-                                    {abilities.triggered.map((t, i) => (
-                                        <AbilityRow
-                                            key={`tr-${i}-${t.id}`}
-                                            text={t.oracleText}
-                                            state="native"
-                                        />
-                                    ))}
-                                </div>
+                                <CardPreviewAbilities
+                                    abilities={bodyAbilities}
+                                />
                             )}
                             {hasPT && (
                                 <div className="text-right font-semibold text-sm border-t border-zinc-700 pt-2 flex justify-end items-baseline gap-2">

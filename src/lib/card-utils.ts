@@ -418,6 +418,28 @@ export function getDisplayAbilities(
     return { keywords, activated, triggered };
 }
 
+/** The abilities the card preview should render below the type line.
+ *
+ *  When printed Oracle text is shown, it already covers the card's NATIVE
+ *  abilities, so re-printing the structured view would duplicate them. But
+ *  printed text is fixed — it can't reflect runtime grants that live on the
+ *  instance: a granted keyword (e.g. landwalk), a granted activated ability,
+ *  or a keyword LOST at runtime. Those deltas are surfaced even alongside
+ *  Oracle text so they appear while the effect is active and disappear when it
+ *  ends (#156). When Oracle text is not shown, the full structured set
+ *  renders. */
+export function resolvePreviewAbilities(
+    abilities: DisplayAbilities,
+    showOracleText: boolean
+): DisplayAbilities {
+    if (!showOracleText) return abilities;
+    return {
+        keywords: abilities.keywords.filter((k) => k.state !== "native"),
+        activated: abilities.activated.filter((a) => a.state === "granted"),
+        triggered: [],
+    };
+}
+
 /** Display strings for internal `staticAbilities` markers — keywords whose
  *  identifier is a slug rather than the printed Oracle keyword. Real MTG
  *  evergreen keywords (flying, trample, first strike, …) are not listed
