@@ -24,6 +24,19 @@ type UseLeaderLinesOptions = {
     containerRef?: RefObject<HTMLElement | null>;
 };
 
+/**
+ * Window event that forces every active leader-line to recompute its
+ * endpoints. Dispatch it whenever an arrow anchor moves without a resize or
+ * scroll (e.g. a draggable panel translated via CSS transform).
+ */
+export const LEADER_LINES_REPOSITION_EVENT = "leaderlines:reposition";
+
+/** Convenience dispatcher for {@link LEADER_LINES_REPOSITION_EVENT}. */
+export function repositionLeaderLines(): void {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new Event(LEADER_LINES_REPOSITION_EVENT));
+}
+
 let LeaderLineCtorPromise: Promise<LeaderLineCtor> | null = null;
 
 function loadLeaderLine(): Promise<LeaderLineCtor> {
@@ -118,6 +131,10 @@ export function useLeaderLines(
         };
         window.addEventListener("resize", reposition);
         document.addEventListener("scroll", reposition, true);
+        // A draggable anchor that moves via CSS transform changes neither
+        // window size nor element size, so resize/scroll/ResizeObserver never
+        // fire. Movable panels dispatch this event to drive live repositioning.
+        window.addEventListener(LEADER_LINES_REPOSITION_EVENT, reposition);
         let ro: ResizeObserver | undefined;
         const el = options.containerRef?.current;
         if (el && typeof ResizeObserver !== "undefined") {
@@ -127,6 +144,10 @@ export function useLeaderLines(
         return () => {
             window.removeEventListener("resize", reposition);
             document.removeEventListener("scroll", reposition, true);
+            window.removeEventListener(
+                LEADER_LINES_REPOSITION_EVENT,
+                reposition
+            );
             ro?.disconnect();
         };
     }, [options.containerRef]);
