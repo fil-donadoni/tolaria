@@ -78,9 +78,11 @@ describe("evaluateBreakdown (DecisionTrace)", () => {
             ],
         });
         const b = evaluateBreakdown(state, "p1");
-        // Forge-scale weights (ADR 0018): W_LIFE = 8, W_HAND = 15 (flat).
+        // Forge-scale weights (ADR 0018): W_LIFE = 8; the hand term now sums each
+        // card's latent `cardValue` (issue #195) instead of a flat constant.
+        // Lightning Bolt is a non-creature MV 1 → NONCREATURE_BASE 8 + 1×10 = 18.
         expect(b.self.life).toBe(10 * 8); // W_LIFE
-        expect(b.self.hand).toBe(2 * 15); // W_HAND
+        expect(b.self.hand).toBe(2 * 18); // 2 × cardValue(Lightning Bolt)
     });
 
     it("is symmetric: opponent's terms equal their own self-view", () => {

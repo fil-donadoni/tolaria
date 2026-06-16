@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
 import {
+    cardValue,
     evaluate,
     evaluateCreature,
     materialMargin,
@@ -321,5 +322,93 @@ describe("evaluateCreature — Forge scale & keyword vocabulary (ADR 0018)", () 
             ],
         });
         expect(Math.abs(materialMargin(wide, "p1"))).toBeLessThan(WIN_SCORE);
+    });
+});
+
+// Latent `cardValue` primitive + hand term (ADR 0018, issue #195). Ordering
+// asserts only.
+describe("cardValue — latent worth + aiValue override (ADR 0018)", () => {
+    const state = makeState();
+    const inHand = (cardId: string, extra = {}) =>
+        makeInstance(cardId, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "h",
+            zone: "hand",
+            ...extra,
+        });
+
+    it("a creature outranks a basic land (a bomb is not pitched for a land)", () => {
+        expect(cardValue(state, inHand(BEARS))).toBeGreaterThan(
+            cardValue(state, inHand(MOUNTAIN))
+        );
+    });
+
+    it("a bigger creature is worth more latent than a smaller one", () => {
+        expect(cardValue(state, inHand(GIANT))).toBeGreaterThan(
+            cardValue(state, inHand(BEARS))
+        );
+    });
+
+    it("latent creature worth is a discount of its realized board worth", () => {
+        // A creature in hand still has to be cast and survive, so its latent
+        // worth is below the realized `evaluateCreature` — which keeps deploying
+        // it a strictly positive move.
+        const onBoard = makeInstance(GIANT, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "b",
+        });
+        const boardState = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [onBoard] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(cardValue(state, inHand(GIANT))).toBeLessThan(
+            evaluateCreature(boardState, onBoard)
+        );
+    });
+
+    it("aiValue on the card overrides the derived value verbatim", () => {
+        // Embedded override (the registry path is the production source; fixtures
+        // may inline it). A duct-taped 1 beats nothing, a 9999 bomb beats a land.
+        const dud = inHand(GIANT, { card: { id: GIANT, aiValue: 1 } });
+        const bomb = inHand(MOUNTAIN, {
+            card: { id: MOUNTAIN, aiValue: 9999 },
+        });
+        expect(cardValue(state, dud)).toBe(1);
+        expect(cardValue(state, bomb)).toBe(9999);
+        // Override flips the natural order: the "bomb land" now outranks a real
+        // creature, the "dud giant" falls below a basic land.
+        expect(cardValue(state, bomb)).toBeGreaterThan(
+            cardValue(state, inHand(GIANT))
+        );
+        expect(cardValue(state, dud)).toBeLessThan(
+            cardValue(state, inHand(MOUNTAIN))
+        );
+    });
+
+    it("the hand term sums cardValue: a hand of bombs out-scores a hand of lands", () => {
+        const bombs = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [inHand(GIANT), makeInstance(GIANT, { id: "h2" })],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const lands = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        inHand(MOUNTAIN),
+                        makeInstance(MOUNTAIN, { id: "h2" }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(evaluate(bombs, "p1")).toBeGreaterThan(evaluate(lands, "p1"));
     });
 });

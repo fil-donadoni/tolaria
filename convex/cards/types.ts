@@ -1967,6 +1967,15 @@ export interface CardDefinition {
     power?: number;
     toughness?: number;
     loyalty?: number;
+    /** AI valuation override (ADR 0018, the Forge `SVar:AI*` analog). When set,
+     *  the shared `cardValue` primitive returns this Forge-scale worth verbatim
+     *  instead of deriving one from the card's characteristics — the escape
+     *  hatch for the bombs and duds the heuristic misjudges. Latent worth only
+     *  (the bot's hand/library/graveyard valuation and resolution-choice
+     *  ordering); the realized battlefield eval is unaffected. Optional and rare:
+     *  derivation scales to the full catalog, this annotates just the
+     *  exceptions. */
+    aiValue?: number;
     /** Printed Oracle text (read-only, display/reference only). Mirrors the
      *  card's printed rules text from Scryfall. The engine does NOT parse this
      *  string — behavior comes from `resolve`/`activatedAbilities`/etc.
