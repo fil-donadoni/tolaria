@@ -8,6 +8,7 @@ import type {
 } from "./types";
 import * as lea from "./sets/lea";
 import * as leb from "./sets/leb";
+import * as arn from "./sets/arn";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -36,6 +37,7 @@ function isCardDefinition(value: unknown): value is CardDefinition {
 const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "lea", exports: lea },
     { code: "leb", exports: leb },
+    { code: "arn", exports: arn },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>

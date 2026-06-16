@@ -70,6 +70,10 @@ export interface PermanentFilter {
      *  combat-scoped choice pickers (Raging River's per-attacker labelling).
      *  Omitted = no constraint. */
     isAttacking?: boolean;
+    /** Only match permanents that are currently blocking (CR 509). Mirror of
+     *  `isAttacking`; used by combat pump effects scoped to blockers (Piety).
+     *  Omitted = no constraint. */
+    isBlocking?: boolean;
 }
 
 // --- SpellFilter (applied to SpellCastEvent) ---
@@ -143,6 +147,7 @@ export interface MatchablePermanent {
     power?: number;
     toughness?: number;
     isAttacking?: boolean;
+    isBlocking?: boolean;
 }
 
 /** Structurally-typed view of a `SpellCastEvent` for `matchesSpellFilter`. */
@@ -217,6 +222,10 @@ export function matchesPermanentFilter(
     if (filter.isAttacking !== undefined) {
         const cardIsAttacking = card.isAttacking === true;
         if (filter.isAttacking !== cardIsAttacking) return false;
+    }
+    if (filter.isBlocking !== undefined) {
+        const cardIsBlocking = card.isBlocking === true;
+        if (filter.isBlocking !== cardIsBlocking) return false;
     }
     if (
         filter.excludeInstanceIds !== undefined &&

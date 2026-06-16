@@ -43,7 +43,7 @@ export type { Move, ManaTap } from "./moves";
 // Position heuristic + greedy 1-ply selection (issue #111). The bot scores each
 // enumerated move one ply ahead and plays the best; `evaluate` is the leaf
 // estimate that ISMCTS rollouts (issue #112) will reuse.
-export { evaluate, WIN_SCORE } from "./evaluate";
+export { evaluate, WIN_SCORE, cardValueById } from "./evaluate";
 export { applyMoveForSearch } from "./applyMove";
 export { greedySelectMove } from "./greedy";
 
