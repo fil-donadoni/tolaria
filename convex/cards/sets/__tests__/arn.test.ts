@@ -40,8 +40,24 @@ import {
     piety,
     sandstorm,
     desertTwister,
+    oasis,
+    aliFromCairo,
+    ebonyHorse,
+    eyeForAnEye,
+    pyramids,
 } from "../arn";
-import { grizzlyBears, plains, mountain, forest, island } from "../lea";
+import {
+    grizzlyBears,
+    plains,
+    mountain,
+    forest,
+    island,
+    prodigalSorcerer,
+    psionicBlast,
+    stoneRain,
+} from "../lea";
+import { applyAllCombatDamage } from "../../../gre/phases";
+import { applyDamageReplacements } from "../../../gre/replacements";
 import {
     makeInstance,
     makePlayer,
@@ -892,5 +908,289 @@ describe("Brass Man (does-not-untap + pay {1} to untap on upkeep)", () => {
         expect(
             state.players[0].battlefield.find((c) => c.id === "brass")!.isTapped
         ).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Batch 3 (#175) — prevention / replacement / destroy-replacement / reflect
+// ---------------------------------------------------------------------------
+
+describe("Oasis ({T}: prevent next 1 damage to target creature, CR 615.1)", () => {
+    it("prevents the next 1 damage dealt to the target creature", () => {
+        const oasisLand = makeInstance(oasis.id, { id: "oasis" });
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const tim = makeInstance(prodigalSorcerer.id, { id: "tim" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [oasisLand, bear, tim] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, oasisLand, "oasis-prevent", [
+            { type: "permanent", id: "bear" },
+        ]);
+        // Tim zaps the shielded bear for 1 — fully prevented.
+        resolveActivated(state, tim, "prodigal-sorcerer-zap", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const survivor = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(survivor.damageMarked ?? 0).toBe(0);
+    });
+});
+
+describe("Ali from Cairo (clamp life >= 1, CR 614)", () => {
+    it("keeps life >= 1 against otherwise-lethal damage", () => {
+        const ali = makeInstance(aliFromCairo.id, { id: "ali" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 3, battlefield: [ali] }),
+                makePlayer("p2"),
+            ],
+        });
+        // p2 casts a 4-damage burn at p1 (life 3) — would be lethal.
+        pushSpell(state, psionicBlast.id, "p2", [{ type: "player", id: "p1" }]);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(1);
+    });
+
+    it("is repeatable across multiple damage events", () => {
+        const ali = makeInstance(aliFromCairo.id, { id: "ali" });
+        const tim = makeInstance(prodigalSorcerer.id, {
+            id: "tim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const tim2 = makeInstance(prodigalSorcerer.id, {
+            id: "tim2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 1, battlefield: [ali] }),
+                makePlayer("p2", { battlefield: [tim, tim2] }),
+            ],
+        });
+        resolveActivated(state, tim, "prodigal-sorcerer-zap", [
+            { type: "player", id: "p1" },
+        ]);
+        expect(state.players[0].life).toBe(1);
+        resolveActivated(state, tim2, "prodigal-sorcerer-zap", [
+            { type: "player", id: "p1" },
+        ]);
+        expect(state.players[0].life).toBe(1);
+    });
+
+    it("the replacement fires through the public projection (wire format)", () => {
+        const ali = makeInstance(aliFromCairo.id, { id: "ali" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 3, battlefield: [ali] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        // The projection strips card.card to { id }; the replacement is looked
+        // up from the registry by that id, so it must still fire (wire format).
+        const ev = applyDamageReplacements(projected as unknown as GameState, {
+            kind: "damage",
+            sourceInstanceId: "x",
+            sourceControllerId: "p2",
+            sourceColors: [],
+            sourceTypes: [],
+            sourceStaticAbilities: [],
+            target: { type: "player", id: "p1" },
+            amount: 9,
+            isCombat: false,
+        });
+        // Clamped so the resulting life total would be exactly 1 (3 - 2).
+        expect(ev?.amount).toBe(2);
+    });
+});
+
+describe("Ebony Horse ({2},{T}: untap attacker + prevent its combat damage both ways, CR 615)", () => {
+    it("untaps the target and records the immunity shield", () => {
+        const horse = makeInstance(ebonyHorse.id, { id: "horse" });
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "atk",
+            isAttacking: true,
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [horse, attacker] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, horse, "ebony-horse-untap", [
+            { type: "permanent", id: "atk" },
+        ]);
+        const a = state.players[0].battlefield.find((c) => c.id === "atk")!;
+        expect(a.isTapped).toBe(false);
+        expect(
+            state.combatDamageImmunity?.some((s) => s.instanceId === "atk")
+        ).toBe(true);
+    });
+
+    it("prevents all combat damage to and by the shielded creature", () => {
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "atk",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const blocker = makeInstance(grizzlyBears.id, {
+            id: "blk",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: { blk: ["atk"] },
+                blockersConfirmed: true,
+            },
+            combatDamageImmunity: [
+                { instanceId: "atk", duration: { phase: "end-of-turn" } },
+            ],
+        });
+        applyAllCombatDamage(state, { atk: { blk: 2 } });
+        const a = state.players[0].battlefield.find((c) => c.id === "atk");
+        const b = state.players[1].battlefield.find((c) => c.id === "blk");
+        // Neither dealt damage to the other — both survive unmarked.
+        expect(a?.damageMarked ?? 0).toBe(0);
+        expect(b?.damageMarked ?? 0).toBe(0);
+        expect(state.players[0].battlefield).toHaveLength(1);
+        expect(state.players[1].battlefield).toHaveLength(1);
+    });
+});
+
+describe("Eye for an Eye (reflect damage to source's controller, CR 614)", () => {
+    it("reflects the chosen source's damage to its controller without reducing yours", () => {
+        const tim = makeInstance(prodigalSorcerer.id, {
+            id: "tim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { life: 20, battlefield: [tim] }),
+            ],
+        });
+        pushSpell(state, eyeForAnEye.id, "p1", [
+            { type: "permanent", id: "tim" },
+        ]);
+        resolveTopOfStack(state);
+        resolveActivated(state, tim, "prodigal-sorcerer-zap", [
+            { type: "player", id: "p1" },
+        ]);
+        expect(state.players[0].life).toBe(19); // damage to you unchanged
+        expect(state.players[1].life).toBe(19); // reflected to source's controller
+    });
+
+    it("is one-shot — a second hit from the source is not reflected", () => {
+        const tim = makeInstance(prodigalSorcerer.id, {
+            id: "tim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const tim2 = makeInstance(prodigalSorcerer.id, {
+            id: "tim2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { life: 20, battlefield: [tim, tim2] }),
+            ],
+        });
+        pushSpell(state, eyeForAnEye.id, "p1", [
+            { type: "permanent", id: "tim" },
+        ]);
+        resolveTopOfStack(state);
+        resolveActivated(state, tim, "prodigal-sorcerer-zap", [
+            { type: "player", id: "p1" },
+        ]);
+        // Second zap from the same source: shield consumed, no reflect.
+        resolveActivated(state, tim2, "prodigal-sorcerer-zap", [
+            { type: "player", id: "p1" },
+        ]);
+        expect(state.players[0].life).toBe(18); // took both hits
+        expect(state.players[1].life).toBe(19); // reflected only once
+    });
+});
+
+describe("Pyramids (modal destroy-aura / save land, CR 614 + ADR 0020)", () => {
+    it("mode 1 destroys a target Aura", () => {
+        const pyr = makeInstance(pyramids.id, { id: "pyr" });
+        const land = makeInstance(forest.id, { id: "land" });
+        const aura = makeInstance(fishliverOil.id, {
+            id: "aura",
+            attachedTo: "land",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pyr, land, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, pyr, "pyramids-destroy-aura", [
+            { type: "permanent", id: "aura" },
+        ]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "aura")
+        ).toBeUndefined();
+        expect(state.players[0].graveyard.some((c) => c.id === "aura")).toBe(
+            true
+        );
+    });
+
+    it("mode 2 saves the target land from the next destruction this turn", () => {
+        const pyr = makeInstance(pyramids.id, { id: "pyr" });
+        const land = makeInstance(mountain.id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pyr] }),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        resolveActivated(state, pyr, "pyramids-save-land", [
+            { type: "permanent", id: "land" },
+        ]);
+        // Stone Rain would destroy the land — the shield replaces it.
+        pushSpell(state, stoneRain.id, "p1", [
+            { type: "permanent", id: "land" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "land")
+        ).toBeDefined();
+        // Survives through the public projection (wire format).
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[1].battlefield.find((c) => c.id === "land")
+        ).toBeDefined();
+        // Shield consumed — a second Stone Rain destroys it.
+        pushSpell(state, stoneRain.id, "p1", [
+            { type: "permanent", id: "land" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "land")
+        ).toBeUndefined();
     });
 });
