@@ -30,6 +30,7 @@ import DashboardTopBar from "./dashboard-top-bar";
 import DashboardPlayBox from "./dashboard-play-box";
 import DeckList from "./deck-list";
 import LobbyBackground from "./lobby-background";
+import ActiveGameNotice from "./active-game-notice";
 
 function Lobby() {
     const navigate = useNavigate();
@@ -45,6 +46,7 @@ function Lobby() {
         getStoredAiDeckId()
     );
     const [isBusy, setIsBusy] = useState(false);
+    const [actionError, setActionError] = useState<string | null>(null);
     const userDecks = useUserDecks();
     const { remove: removeUserDeck } = useUserDeckMutations();
 
@@ -55,6 +57,12 @@ function Lobby() {
     const joinGame = useMutation(api.game.joinGame);
     const openGames = useQuery(
         api.game.listOpenGames,
+        pageVisible ? {} : "skip"
+    );
+    // #155: a user holds at most one active game. When one exists the lobby
+    // surfaces it (resume / leave) instead of attempting a rejected creation.
+    const activeGame = useQuery(
+        api.game.myActiveGame,
         pageVisible ? {} : "skip"
     );
 
@@ -95,67 +103,71 @@ function Lobby() {
         }
     }, [presetDecks, userDecks, storedPresetId, selectedDeck]);
 
-    const handleCreate = async () => {
+    // Runs a create/join mutation, then enters the game. Centralises the busy
+    // guard and surfaces a rejection (e.g. #155 single-active-game guard) as
+    // clear feedback instead of an uncaught error.
+    const enterGame = async (
+        run: (ctx: {
+            user: NonNullable<typeof user>;
+            deck: LobbyDeck;
+        }) => Promise<{ gameId: Id<"games">; playerId: string }>
+    ) => {
         if (isBusy || !selectedDeck || !user) return;
         setIsBusy(true);
+        setActionError(null);
         try {
+            const { gameId, playerId } = await run({
+                user,
+                deck: selectedDeck,
+            });
+            storeSession(gameId, playerId);
+            void navigate({ to: "/game" });
+        } catch (err) {
+            setActionError(
+                err instanceof Error ? err.message : "Failed to start game."
+            );
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    const handleCreate = () =>
+        enterGame(async ({ user, deck }) => {
             const id = await createGame({
                 name: `${user.nickname}'s game`,
-                deck: deckPayload(selectedDeck),
+                deck: deckPayload(deck),
             });
-            storeSession(id, user._id);
-            void navigate({ to: "/game" });
-        } finally {
-            setIsBusy(false);
-        }
-    };
+            return { gameId: id, playerId: user._id };
+        });
 
-    const handleCreateSolo = async () => {
-        if (isBusy || !selectedDeck || !user) return;
-        setIsBusy(true);
-        try {
+    const handleCreateSolo = () =>
+        enterGame(async ({ user, deck }) => {
             const id = await createSoloGame({
                 name: `${user.nickname}'s solo game`,
-                deck: deckPayload(selectedDeck),
+                deck: deckPayload(deck),
             });
-            storeSession(id, `${user._id}-p1`);
-            void navigate({ to: "/game" });
-        } finally {
-            setIsBusy(false);
-        }
-    };
+            return { gameId: id, playerId: `${user._id}-p1` };
+        });
 
-    const handleCreateVsAi = async () => {
-        if (isBusy || !selectedDeck || !user) return;
-        setIsBusy(true);
-        try {
+    const handleCreateVsAi = () =>
+        enterGame(async ({ user, deck }) => {
             const id = await createSoloGame({
                 name: `${user.nickname} vs AI`,
-                deck: deckPayload(selectedDeck),
+                deck: deckPayload(deck),
                 deck2: selectedAiDeck ? deckPayload(selectedAiDeck) : undefined,
                 vsAi: true,
             });
-            storeSession(id, `${user._id}-p1`);
-            void navigate({ to: "/game" });
-        } finally {
-            setIsBusy(false);
-        }
-    };
+            return { gameId: id, playerId: `${user._id}-p1` };
+        });
 
-    const handleJoin = async (targetGameId: Id<"games">) => {
-        if (isBusy || !selectedDeck || !user) return;
-        setIsBusy(true);
-        try {
+    const handleJoin = (targetGameId: Id<"games">) =>
+        enterGame(async ({ user, deck }) => {
             await joinGame({
                 gameId: targetGameId,
-                deck: deckPayload(selectedDeck),
+                deck: deckPayload(deck),
             });
-            storeSession(targetGameId, user._id);
-            void navigate({ to: "/game" });
-        } finally {
-            setIsBusy(false);
-        }
-    };
+            return { gameId: targetGameId, playerId: user._id };
+        });
 
     const handleFocusDeck = (presetId: string) => {
         void navigate({ to: "/decks/$slug", params: { slug: presetId } });
@@ -246,6 +258,19 @@ function Lobby() {
             <LobbyBackground />
             <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
                 <DashboardTopBar />
+
+                {activeGame && user && (
+                    <ActiveGameNotice
+                        activeGame={activeGame}
+                        userId={user._id}
+                    />
+                )}
+
+                {actionError && (
+                    <div className="rounded-sm border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger">
+                        {actionError}
+                    </div>
+                )}
 
                 <DashboardPlayBox
                     selectedDeck={selectedDeck}

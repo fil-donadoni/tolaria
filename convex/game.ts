@@ -100,8 +100,13 @@ import {
 } from "./gre/banding";
 import { checkStateBasedActions } from "./gre/sba";
 import { applyPendingChoiceSubmit } from "./gre/pendingChoiceSubmit";
+import { findActiveGameForUser, gameBelongsToUser } from "./gameLifecycle";
 
 export const STARTING_HAND_SIZE = 7;
+
+/** Thrown by create/join when the user already occupies an active game (#155). */
+const ACTIVE_GAME_MESSAGE =
+    "You already have an active game. Finish or leave it before starting another.";
 
 type DeckInput = {
     id: string;
@@ -638,6 +643,11 @@ export const createGame = mutation({
     },
     handler: async (ctx, args) => {
         const user = await getCurrentUser(ctx);
+        // #155: at most one active game per user. Guard runs server-side so it
+        // holds against double-click / two-tab races (Convex OCC retries the
+        // loser, which then sees the new game and is rejected here).
+        if (await findActiveGameForUser(ctx, user._id))
+            throw new Error(ACTIVE_GAME_MESSAGE);
         const now = Date.now();
 
         const player: PlayerInput = {
@@ -675,6 +685,9 @@ export const createSoloGame = mutation({
     },
     handler: async (ctx, args) => {
         const user = await getCurrentUser(ctx);
+        // #155: one active game per user (see createGame).
+        if (await findActiveGameForUser(ctx, user._id))
+            throw new Error(ACTIVE_GAME_MESSAGE);
         const deck2 = args.deck2 ?? args.deck;
 
         const player1: PlayerInput = {
@@ -750,6 +763,10 @@ export const joinGame = mutation({
     },
     handler: async (ctx, args) => {
         const user = await getCurrentUser(ctx);
+        // #155: reject joining when the user already occupies another active
+        // game (their own waiting room or an in-progress game).
+        if (await findActiveGameForUser(ctx, user._id))
+            throw new Error(ACTIVE_GAME_MESSAGE);
         const game = await ctx.db.get(args.gameId);
         if (!game) throw new Error("Game not found");
         if (game.status !== "waiting") throw new Error("Game is not open");
@@ -807,6 +824,48 @@ export const joinGame = mutation({
         initialState.priorityPlayerId = initialState.mulligan.declaringPlayerId;
 
         await saveGameState(ctx, args.gameId, 0, initialState, null);
+    },
+});
+
+/** #155: the caller's current active (waiting/playing) game, or null. The
+ *  lobby uses this to surface an existing game instead of letting the user
+ *  attempt a (rejected) second creation. */
+export const myActiveGame = query({
+    handler: async (ctx) => {
+        const userId = await auth.getUserId(ctx);
+        if (!userId) return null;
+        const game = await findActiveGameForUser(ctx, userId);
+        if (!game) return null;
+        return {
+            gameId: game._id,
+            name: game.name,
+            status: game.status,
+            solo: game.solo === true,
+            vsAi: game.vsAi === true,
+        };
+    },
+});
+
+/** #155: abandon a *waiting* game the user created but no opponent joined,
+ *  freeing them to start another. A game in progress must be conceded
+ *  instead (`concede`) — leaving it outright would strand the opponent. */
+export const leaveGame = mutation({
+    args: { gameId: v.id("games") },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const game = await ctx.db.get(args.gameId);
+        if (!game) return; // already gone — nothing to free
+        if (!gameBelongsToUser(game, user._id))
+            throw new Error("You are not part of this game");
+        if (game.status !== "waiting")
+            throw new Error("Cannot leave a game in progress; concede instead");
+        // Delete any state snapshots first, then the orphan waiting room.
+        const states = await ctx.db
+            .query("game_states")
+            .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+            .collect();
+        for (const s of states) await ctx.db.delete(s._id);
+        await ctx.db.delete(args.gameId);
     },
 });
 
