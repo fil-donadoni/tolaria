@@ -277,10 +277,19 @@ function compactLibrary(library: CardInstanceState[]): LibraryEntry[] {
 }
 
 function expandLibrary(
-    library: LibraryEntry[],
+    library: (LibraryEntry | CompactCard)[],
     ownerId: string
 ): CardInstanceState[] {
-    return library.map(([id, cardId]) => {
+    return library.map((entry) => {
+        // Backward-compat: rows written before the tuple format (≈5 weeks ago)
+        // stored library cards as full compact-card objects like hand/graveyard.
+        if (!Array.isArray(entry)) {
+            return expandCard(entry as CompactCard, {
+                ownerId,
+                zone: "library",
+            });
+        }
+        const [id, cardId] = entry as LibraryEntry;
         const def = tryGetCardById(cardId);
         const card: CardInstanceState = {
             id,

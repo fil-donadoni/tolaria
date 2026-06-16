@@ -686,6 +686,25 @@ describe("backward compatibility", () => {
             );
         }
     });
+
+    it("expands a pre-tuple library where entries are compact-card objects", () => {
+        const state = freshState();
+        const compact = compactState(state) as Record<string, unknown>;
+        const players = compact.players as Array<Record<string, unknown>>;
+        const lib = players[0].library as Array<[string, string]>;
+        const [id, cardId] = lib[0];
+        // Simulate old format: library entry stored as an object, not a tuple.
+        players[0].library = [
+            { id, card: { id: cardId } },
+            ...lib.slice(1),
+        ] as unknown[];
+        const expanded = expandState(compact);
+        const first = expanded.players[0].library[0];
+        expect(first.id).toBe(id);
+        expect(first.card.id).toBe(cardId);
+        expect(first.zone).toBe("library");
+        expect(first.ownerId).toBe(expanded.players[0].id);
+    });
 });
 
 describe("blob size regression guard", () => {
