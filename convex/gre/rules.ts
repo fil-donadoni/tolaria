@@ -579,6 +579,17 @@ export function getLegalTargets(
                     continue;
                 if (combatRoleFilter === "blocking" && !card.isBlocking)
                     continue;
+                // CR 702: keyword filter for "target creature with flying"
+                // (Island of Wak-Wak).
+                if (
+                    requirement.requireAbility &&
+                    !card.staticAbilities.includes(requirement.requireAbility)
+                ) {
+                    continue;
+                }
+                // "target creature other than ~" — exclude specific instances
+                // (Sorceress Queen injects its own id via getTargetRequirement).
+                if (requirement.excludeInstanceIds?.includes(card.id)) continue;
                 // CR 613 layer 7c: power filter reads effective power so
                 // current buffs/debuffs are honored at target selection.
                 if (powerFilter) {
