@@ -34,6 +34,7 @@ import { hasAnyLegalBlock, getRequiredAttackerIds } from "./combat";
 import {
     getEffectiveBlockGraph,
     getDamageAssignerId,
+    recordBlockedAttackers,
     type BlockGraph,
 } from "./banding";
 
@@ -686,10 +687,23 @@ export function applyAllCombatDamage(
         if (!attacker) continue; // removed before damage (e.g. killed by instant)
         if (!dealsDamageIn(attacker, kind)) continue;
 
-        const blockers = blockersByAttacker[attackerId] ?? [];
+        // Only blockers still on the battlefield deal/absorb damage. A dead
+        // blocker can linger in `blockerAssignments` (removal doesn't prune it)
+        // — count just the live ones for the blocked-vs-trample-through branch.
+        const liveBlockers = (blockersByAttacker[attackerId] ?? []).filter(
+            (id) => findCreature(state, id) !== undefined
+        );
         const attackerPower = getCardPower(state, attacker);
+        // CR 509.1h — "blocked" is combat state, not the live blocker count: an
+        // attacker is blocked if it has a blocker now OR it became blocked this
+        // combat (recorded at declare-blockers and survives losing every
+        // blocker). Only a never-blocked attacker hits the defender freely.
+        const becameBlocked =
+            state.combat.blockedAttackerIds?.includes(attackerId) ?? false;
+        const isBlocked = liveBlockers.length > 0 || becameBlocked;
+        const hasTrample = attacker.staticAbilities.includes("trample");
 
-        if (blockers.length === 0) {
+        if (!isBlocked) {
             if (attackerPower > 0) {
                 // CR 615 — Forcefield: cap damage from unblocked creature
                 let damage = attackerPower;
@@ -713,6 +727,19 @@ export function applyAllCombatDamage(
                     attacker,
                     { type: "player", id: defenderId },
                     damage
+                );
+            }
+        } else if (liveBlockers.length === 0) {
+            // CR 510.1c — a blocked creature that lost all its blockers deals
+            // no combat damage to the defender unless it has trample, in which
+            // case (no blocker left to absorb lethal) it tramples its full
+            // power through. Forcefield only caps UNblocked creatures, so it
+            // does not apply here.
+            if (hasTrample && attackerPower > 0) {
+                applyOneCombatDamage(
+                    attacker,
+                    { type: "player", id: defenderId },
+                    attackerPower
                 );
             }
         } else {
@@ -976,6 +1003,7 @@ function performPhaseEntry(state: GameState): void {
         case "DECLARE_BLOCKERS": {
             if (state.combat) {
                 state.combat.blockerAssignments = {};
+                state.combat.blockedAttackerIds = undefined;
                 state.combat.pendingBlockerId = undefined;
                 state.combat.blockersConfirmed = false;
             }
@@ -1546,6 +1574,7 @@ export function advancePhase(state: GameState): Phase[] {
         !defenderHasAnyLegalBlock(state);
     if (skipUnblockableCombat && state.combat) {
         state.combat.blockersConfirmed = true;
+        recordBlockedAttackers(state);
     }
 
     // CR 510.5: skip the first-strike damage step when no combatant has
@@ -1671,6 +1700,7 @@ export function drainAutoPasses(state: GameState): void {
             }
             state.combat.pendingBlockerId = undefined;
             state.combat.blockersConfirmed = true;
+            recordBlockedAttackers(state);
             emitBlockersConfirmedEvents(state);
         }
 

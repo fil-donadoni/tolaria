@@ -62,13 +62,7 @@ describe("evaluateBreakdown (DecisionTrace)", () => {
         });
         const b = evaluateBreakdown(state, "p1");
         const sum = (t: typeof b.self) =>
-            t.life +
-            t.hand +
-            t.power +
-            t.toughness +
-            t.evasion +
-            t.permanents +
-            t.mana;
+            t.life + t.hand + t.creatures + t.permanents + t.mana;
         expect(sum(b.self) - sum(b.opp)).toBe(b.margin);
         expect(b.total).toBe(evaluate(state, "p1"));
     });
@@ -84,8 +78,11 @@ describe("evaluateBreakdown (DecisionTrace)", () => {
             ],
         });
         const b = evaluateBreakdown(state, "p1");
-        expect(b.self.life).toBe(10 * 3); // W_LIFE
-        expect(b.self.hand).toBe(2 * 2); // W_HAND
+        // Forge-scale weights (ADR 0018): W_LIFE = 8; the hand term now sums each
+        // card's latent `cardValue` (issue #195) instead of a flat constant.
+        // Lightning Bolt is a non-creature MV 1 → NONCREATURE_BASE 8 + 1×10 = 18.
+        expect(b.self.life).toBe(10 * 8); // W_LIFE
+        expect(b.self.hand).toBe(2 * 18); // 2 × cardValue(Lightning Bolt)
     });
 
     it("is symmetric: opponent's terms equal their own self-view", () => {

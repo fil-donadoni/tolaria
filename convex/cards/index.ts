@@ -254,6 +254,20 @@ export function getInstanceManaCost(instance: {
     return id ? (tryGetCardById(id)?.manaCost ?? undefined) : undefined;
 }
 
+/** Reads the AI valuation override off a `CardInstanceState`-shaped object
+ *  (ADR 0018). Production stores only `{id}` in `instance.card` and relies on
+ *  the registry's `aiValue`; legacy test fixtures may inline it on the same
+ *  field. Tries embedded first so fixtures keep working, then falls back to the
+ *  registry. Returns undefined when the card has no override. */
+export function getInstanceAiValue(instance: {
+    card: Record<string, unknown>;
+}): number | undefined {
+    const embedded = (instance.card as { aiValue?: number }).aiValue;
+    if (embedded !== undefined) return embedded;
+    const id = (instance.card as { id?: string }).id;
+    return id ? (tryGetCardById(id)?.aiValue ?? undefined) : undefined;
+}
+
 /** All registered `CardDefinition`s in load order. Reprints are not included
  *  — each `CardPrint` resolves to the same definition, so callers iterating
  *  cards-as-data (deck builder index, card catalog) should consume this and

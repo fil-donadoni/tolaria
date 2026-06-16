@@ -3,7 +3,7 @@
 // Renders what the Brain weighed for its most recent thought — every candidate
 // move with its visit count, mean reward and the per-term `evaluate` breakdown
 // of the position it leads to. The diagnostic: when two target choices show the
-// SAME hand/power terms, the spell's effect was never simulated (e.g. casting
+// SAME hand/creature terms, the spell's effect was never simulated (e.g. casting
 // Braingeyser on the human, or Giant Growth on the player's creature). Reads the
 // client-only trace store; shows nothing until the bot has thought once.
 
@@ -14,9 +14,7 @@ import { useLatestAiTrace } from "~/hooks/useLatestAiTrace";
 const TERM_LABELS: [keyof EvalTerms, string][] = [
     ["life", "L"],
     ["hand", "H"],
-    ["power", "P"],
-    ["toughness", "T"],
-    ["evasion", "E"],
+    ["creatures", "C"],
     ["permanents", "Pm"],
     ["mana", "M"],
 ];

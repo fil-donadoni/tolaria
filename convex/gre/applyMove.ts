@@ -38,6 +38,7 @@ import {
 } from "./state";
 import { checkStateBasedActions } from "./sba";
 import { applyAllCombatDamage, buildAutoDamageAssignments } from "./phases";
+import { recordBlockedAttackers } from "./banding";
 import { cloneGameState } from "./clone";
 import { enumerateMoves, type Move } from "./moves";
 import { evaluate } from "./evaluate";
@@ -122,6 +123,7 @@ function applyBlockAssignments(
     }
     state.combat.blockerAssignments = byBlocker;
     state.combat.blockersConfirmed = true;
+    recordBlockedAttackers(state);
 }
 
 function findCreature(

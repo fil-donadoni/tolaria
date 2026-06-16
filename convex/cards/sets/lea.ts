@@ -4144,7 +4144,22 @@ export const falseOrders: CardDefinition = {
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (!target || target.type !== "permanent") return;
+        // CR 509.1h — capture the attackers this blocker is SOLELY responsible
+        // for blocking before it leaves combat. Removing a blocker no longer
+        // auto-unblocks (blocked is combat state, not blocker count), so the
+        // oracle's "become unblocked" clause must be applied explicitly: only
+        // attackers left with no other blocker are unblocked; an attacker still
+        // blocked by another creature stays blocked.
+        const blockersByAttacker = ctx.getBlockersByAttacker();
+        const soleBlocked = Object.keys(blockersByAttacker).filter(
+            (attackerId) =>
+                blockersByAttacker[attackerId].length === 1 &&
+                blockersByAttacker[attackerId][0] === target.id
+        );
         ctx.removeFromCombat(target);
+        for (const attackerId of soleBlocked) {
+            ctx.becomeUnblocked(attackerId);
+        }
     },
 };
 

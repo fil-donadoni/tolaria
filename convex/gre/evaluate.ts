@@ -1,77 +1,155 @@
-// Position heuristic for the vs-AI Bot (ADR 0001, issue #111).
+// Position heuristic for the vs-AI Bot (ADR 0001, issue #111, ADR 0018).
 //
 // `evaluate(state, playerId)` scores a GameState from `playerId`'s point of
 // view: higher is better for that player. It is the leaf estimate the greedy
-// 1-ply selection (issue #111) and, later, the truncated ISMCTS rollouts
-// (issue #112) use to compare candidate continuations. The exact weights are a
-// first, deliberately-simple version expected to be iterated once the bot is
-// playable — the contract that must hold is the ORDERING, not the magnitudes:
+// 1-ply selection (issue #111) and the truncated ISMCTS rollouts (issue #112)
+// use to compare candidate continuations. Tests assert the ORDERING, not the
+// magnitudes (the weights are expected to be re-tuned). The contract:
 //
 //   * a won position outranks any non-won position, a lost one ranks below all;
-//   * more life, more board (summed power/toughness), more cards in hand and in
-//     play, and more available mana each raise the score, all else equal;
-//   * evasive attackers (flying/unblockable/fear/shadow/…) are worth more power
-//     than ground creatures because their damage is harder to stop.
+//   * more life, more board, more cards in hand and in play, and more available
+//     mana each raise the score, all else equal;
+//   * a richer creature (more power/toughness, higher mana value, evasion and
+//     combat-relevant keywords) is worth more than a vanilla of the same size;
+//   * a defender (can't attack) is worth less than an equivalent attacker.
+//
+// Forge-scale magnitudes (ADR 0018). The whole eval is on Forge's ~100-base
+// scale: a creature is worth in the hundreds, life and material commensurate.
+// This is the numeric headroom that later slices use to make a wasted card a
+// decisive loss and to distinguish a bomb from a vanilla. `WIN_SCORE` still
+// dominates every reachable material margin.
 //
 // PURE: no Math.random, no mutation, no ctx. Reads effective P/T through the
 // layer system so static buffs (counters, anthems) are reflected.
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
-import { isCreature, isLand, hasManaAbility } from "./constants";
+import { isCreature, isLand, hasManaAbility, manaValue } from "./constants";
+import { getInstanceManaCost, getInstanceAiValue } from "../cards";
 
-/** A won position. Large enough to dominate every material term so the bot
- *  always prefers lethal, and finite so two winning lines stay comparable by
- *  their material margin. */
+/** A won position. Large enough to dominate every reachable material margin so
+ *  the bot always prefers lethal, and finite so two winning lines stay
+ *  comparable by their material margin. Forge-scale material tops out in the
+ *  low tens of thousands even on a wide board, far below this. */
 export const WIN_SCORE = 1_000_000;
 
-// Material weights. Tuned only for ordering (see file header); life is the
-// scarcest resource near death, so it outweighs a point of power/toughness.
-const W_LIFE = 3;
-const W_POWER = 2;
-const W_TOUGHNESS = 1;
-const W_EVASION_POWER = 1; // extra per power point on an evasive creature
-const W_HAND = 2;
-const W_PERMANENT = 1;
-// Per untapped mana source (available mana proxy). Weighted so that DEVELOPING
-// a land is strictly positive: a land drop is −W_HAND (leaves hand) +W_PERMANENT
-// (enters battlefield) +W_MANA (adds an untapped source). With W_MANA = 2 that
-// delta is +1 (issue #149) — a land in play (W_PERMANENT + W_MANA = 3) outvalues
-// the same land sitting in hand (W_HAND = 2), so both the greedy 1-ply selection
-// and the ISMCTS tie-break (materialMargin) prefer the drop over passing. At
-// W_MANA = 1 the delta was 0 and the bot tied play-land with pass, stalling its
-// own mana. Monotonicity ("more mana raises the score") is preserved, only
-// strengthened.
-const W_MANA = 2;
+// --- Forge-scale material weights (ADR 0018) -------------------------------
+// Tuned for ordering (see file header). On the ~100-base scale a 2/2 vanilla is
+// worth ~170, so life, hand and mana are scaled to stay commensurate.
+const W_LIFE = 8; // per life point (20 life ≈ one creature)
+const W_PERMANENT = 5; // board-presence bonus for every permanent in play
+// Per untapped mana source (available-mana proxy). Weighted so DEVELOPING a land
+// stays strictly positive (issue #149): a land drop is −cardValue(land) (leaves
+// hand) +W_PERMANENT (enters battlefield, not a creature so no creature value)
+// +W_MANA (adds an untapped source). A basic land's latent `cardValue` is
+// NONCREATURE_BASE (8, MV 0), so the delta is −8 +5 +12 = +9 > 0 — the greedy
+// 1-ply selection and the ISMCTS tie-break both prefer the drop over passing.
+const W_MANA = 12;
 
-/** Keywords that make a creature's combat damage hard to stop. A creature with
- *  any of these is treated as a more valuable clock (CR 509.1b evasion). */
-const EVASION_KEYWORDS = [
-    "flying",
-    "unblockable",
-    "fear",
-    "shadow",
-    "horsemanship",
-    "intimidate",
-    "skulk",
-] as const;
+// --- Latent `cardValue` primitive (ADR 0018, issue #195) -------------------
+// The worth of a specific card while it is NOT in play (hand / library /
+// graveyard), used for the Hand term and (slice 4) the resolution-choice path.
+// Creatures reuse the Forge `evaluateCreature` body, discounted because a card
+// in hand still has to be cast (and survive) to realize its board value; non-
+// creatures get `base + MV × k`. An `aiValue` override on the CardDefinition
+// replaces the derived value verbatim. A card is scored as latent OR realized,
+// never both (battlefield permanents keep their realized eval), so the
+// issue-#138 material tie-break stays intact.
+const LATENT_DISCOUNT = 0.85; // latent creature worth = discounted realized
+const NONCREATURE_BASE = 8; // base latent worth of a non-creature card (MV 0)
+const W_NC_MV = 10; // per mana value, non-creature latent worth
 
-function isEvasive(card: CardInstanceState): boolean {
-    return EVASION_KEYWORDS.some((k) => card.staticAbilities.includes(k));
+// --- Forge `evaluateCreature` port (ADR 0018) ------------------------------
+// Realized worth of a creature on the battlefield: a base, power- and
+// toughness-weighted body, a mana-value term, plus keyword bonuses. Forge
+// magnitudes (a vanilla 2/2 ≈ 170). Power-scales evasion / combat amplifiers
+// (their value grows with the damage they push through), flat for binary
+// keywords, negative for defender.
+const CREATURE_BASE = 100;
+const W_CR_POWER = 15;
+const W_CR_TOUGHNESS = 14;
+const W_CR_MV = 5;
+
+/** Keyword → realized-value bonus, as a function of the creature's (floored)
+ *  effective power. Structured as a table so an unimplemented keyword is
+ *  zero-cost to add: drop in one entry. Restricted to the implemented keyword
+ *  vocabulary (CR 702). Evasion and combat amplifiers are power-scaled; binary
+ *  keywords are flat; `defender` is a penalty (the creature can't attack, so its
+ *  power pushes no damage). Both `"first strike"` (the canonical engine spelling,
+ *  see phases.ts) and the hyphenated form are accepted. */
+const KEYWORD_BONUS: Record<string, (power: number) => number> = {
+    // Evasion — harder-to-block damage scales with power (CR 509.1b).
+    flying: (p) => 10 * p,
+    fear: (p) => 8 * p,
+    unblockable: (p) => 12 * p,
+    intimidate: (p) => 8 * p,
+    skulk: (p) => 6 * p,
+    horsemanship: (p) => 10 * p,
+    shadow: (p) => 10 * p,
+    // Combat amplifiers — value grows with power.
+    trample: (p) => 5 * p,
+    "first strike": (p) => 5 + 4 * p,
+    "first-strike": (p) => 5 + 4 * p,
+    // Binary keywords — flat.
+    vigilance: () => 8,
+    reach: () => 5,
+    indestructible: () => 30,
+    haste: () => 10,
+    banding: () => 5,
+    // Defender — can't attack: its power is dead weight (CR 702.3a).
+    defender: () => -30,
+};
+
+/** Realized Forge-scale value of a creature in play. Reads effective P/T (layer
+ *  system) and mana value (registry / embedded cost). Floored at 0 power/
+ *  toughness so a shrunk creature never goes negative through the body term. */
+export function evaluateCreature(
+    state: GameState,
+    card: CardInstanceState
+): number {
+    const power = Math.max(0, getEffectivePower(state, card));
+    const toughness = Math.max(0, getEffectiveToughness(state, card));
+    const mv = manaValue(getInstanceManaCost(card));
+
+    let value =
+        CREATURE_BASE +
+        power * W_CR_POWER +
+        toughness * W_CR_TOUGHNESS +
+        mv * W_CR_MV;
+
+    for (const keyword of card.staticAbilities) {
+        const bonus = KEYWORD_BONUS[keyword];
+        if (bonus) value += bonus(power);
+    }
+    return value;
+}
+
+/** Latent Forge-scale worth of a card NOT in play (hand / library / graveyard),
+ *  per ADR 0018. Pure. An `aiValue` override on the CardDefinition wins outright
+ *  (the Forge `SVar` analog); otherwise a creature is its discounted realized
+ *  `evaluateCreature` (a card in hand must still be cast and survive), and a
+ *  non-creature is `NONCREATURE_BASE + MV × W_NC_MV`. A basic land therefore
+ *  scores `NONCREATURE_BASE` (MV 0) — below its realized in-play worth, so
+ *  developing it stays strictly positive (issue #149). */
+export function cardValue(state: GameState, card: CardInstanceState): number {
+    const override = getInstanceAiValue(card);
+    if (override !== undefined) return override;
+    if (isCreature(card))
+        return LATENT_DISCOUNT * evaluateCreature(state, card);
+    return NONCREATURE_BASE + manaValue(getInstanceManaCost(card)) * W_NC_MV;
 }
 
 /** One player's material score split into its weighted contributions. Each
- *  field is the term's contribution to the score (count × weight), so the terms
- *  sum to the player's `playerScore`. Surfaced by `evaluateBreakdown` for the
- *  DecisionTrace debug view (issue: AI reasoning logging) — seeing the per-term
- *  decomposition is what distinguishes "the draw/pump was not simulated" (the
- *  term is unchanged across target choices) from a genuine evaluation. */
+ *  field is the term's contribution to the score, so the terms sum to the
+ *  player's `playerScore`. Surfaced by `evaluateBreakdown` for the DecisionTrace
+ *  debug view — seeing the per-term decomposition is what distinguishes "the
+ *  draw/pump was not simulated" (the term is unchanged across choices) from a
+ *  genuine evaluation. `creatures` is the summed Forge `evaluateCreature` of all
+ *  creatures in play; `permanents` is the flat board-presence bonus. */
 export type EvalTerms = {
     life: number;
     hand: number;
-    power: number;
-    toughness: number;
-    evasion: number;
+    creatures: number;
     permanents: number;
     mana: number;
 };
@@ -81,10 +159,11 @@ export type EvalTerms = {
 function playerTerms(state: GameState, player: PlayerState): EvalTerms {
     const terms: EvalTerms = {
         life: player.life * W_LIFE,
-        hand: player.hand.length * W_HAND,
-        power: 0,
-        toughness: 0,
-        evasion: 0,
+        // Latent worth of the hand (ADR 0018): each card's `cardValue`, replacing
+        // the old flat per-card constant. A bomb in hand now outweighs a spare
+        // land, and pitching a good card for no effect is a decisive loss.
+        hand: player.hand.reduce((sum, c) => sum + cardValue(state, c), 0),
+        creatures: 0,
         permanents: 0,
         mana: 0,
     };
@@ -93,11 +172,7 @@ function playerTerms(state: GameState, player: PlayerState): EvalTerms {
     for (const perm of player.battlefield) {
         terms.permanents += W_PERMANENT;
         if (isCreature(perm)) {
-            const power = Math.max(0, getEffectivePower(state, perm));
-            const toughness = Math.max(0, getEffectiveToughness(state, perm));
-            terms.power += power * W_POWER;
-            terms.toughness += toughness * W_TOUGHNESS;
-            if (isEvasive(perm)) terms.evasion += power * W_EVASION_POWER;
+            terms.creatures += evaluateCreature(state, perm);
         }
         // Available mana: an untapped source that can still produce mana this
         // turn. Lands and other mana permanents both count.
@@ -114,15 +189,7 @@ function playerTerms(state: GameState, player: PlayerState): EvalTerms {
 }
 
 function sumTerms(t: EvalTerms): number {
-    return (
-        t.life +
-        t.hand +
-        t.power +
-        t.toughness +
-        t.evasion +
-        t.permanents +
-        t.mana
-    );
+    return t.life + t.hand + t.creatures + t.permanents + t.mana;
 }
 
 /** Material score of one player's resources, from their own perspective. */
@@ -191,9 +258,7 @@ export function evaluateBreakdown(
     const empty: EvalTerms = {
         life: 0,
         hand: 0,
-        power: 0,
-        toughness: 0,
-        evasion: 0,
+        creatures: 0,
         permanents: 0,
         mana: 0,
     };
