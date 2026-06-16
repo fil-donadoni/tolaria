@@ -35,7 +35,7 @@ import {
     getInstanceAiValue,
     tryGetCardById,
 } from "../cards";
-import { dangerClock } from "./dangerClock";
+import { dangerClock, predictCombatOutcome } from "./dangerClock";
 
 /** A won position. Large enough to dominate every reachable material margin so
  *  the bot always prefers lethal, and finite so two winning lines stay
@@ -296,10 +296,55 @@ export function evaluate(state: GameState, playerId: string): number {
     if (oppLost && !meLost) return WIN_SCORE + margin;
     if (meLost && !oppLost) return -WIN_SCORE + margin;
 
-    // Open position: add the Danger Clock race term (ADR 0018). Kept OUT of
-    // `materialMargin` so the issue-#138 saturation-proof tie-break stays pure
-    // material; the clock shapes only the leaf `evaluate` the reward band reads.
-    return margin + dangerClock(state, playerId);
+    // Open position: add the Danger Clock race term (ADR 0018) and, on a
+    // declare-attackers leaf, the expected combat exchange (ADR 0020 §3). Both
+    // are kept OUT of `materialMargin` so the issue-#138 saturation-proof
+    // tie-break stays pure material; they shape only the leaf `evaluate` the
+    // reward band reads.
+    return (
+        margin +
+        dangerClock(state, playerId) +
+        declaredCombatDelta(state, me.id)
+    );
+}
+
+/** The expected material + life swing of a combat ALREADY DECLARED but not yet
+ *  resolved, from `viewerId`'s perspective (ADR 0020 §3). A `declare-attackers`
+ *  leaf is otherwise scored on the PRE-damage snapshot, so every attack set
+ *  evaluates identically and the choice falls to the noisy rollout. Folding the
+ *  predicted exchange in lets the leaf tell a profitable attack from a creature
+ *  walking into death. Zero when no combat is pending blocks. */
+function declaredCombatDelta(state: GameState, viewerId: string): number {
+    const combat = state.combat;
+    if (
+        !combat ||
+        !combat.confirmed ||
+        combat.blockersConfirmed ||
+        combat.attackerIds.length === 0
+    ) {
+        return 0;
+    }
+    // Only the active player declares attackers (CR 508.1).
+    const attackerId = state.activePlayerId;
+    const defender = state.players.find((p) => p.id !== attackerId);
+    if (!defender) return 0;
+
+    const outcome = predictCombatOutcome(state, attackerId, defender.id);
+    const value = (ids: string[], owner: PlayerState) =>
+        ids.reduce((sum, id) => {
+            const c = owner.battlefield.find((x) => x.id === id);
+            return c ? sum + evaluateCreature(state, c) : sum;
+        }, 0);
+
+    const attacker = state.players.find((p) => p.id === attackerId)!;
+    // Attacker's view: it loses its dead attackers, gains the dead blockers'
+    // worth (the defender's loss), and the face damage removes opponent life.
+    const attackerDelta =
+        value(outcome.deadBlockerIds, defender) -
+        value(outcome.deadAttackerIds, attacker) +
+        outcome.faceDamage * W_LIFE;
+
+    return viewerId === attackerId ? attackerDelta : -attackerDelta;
 }
 
 /** Pure material margin from `playerId`'s view: sum(self terms) − sum(opp
