@@ -151,10 +151,12 @@ export function applyMoveForSearch(
         case "mulligan":
         case "mulligan-bottom":
         case "resolution-choice":
+        case "may-pay":
             // No board change worth modelling for a 1-ply leaf: passing keeps
-            // the position; a mulligan / resolution-choice pick's value is not
-            // material here (these are brain-resolved and never reach the search
-            // anyway — `enumerateMoves` returns [] while a choice is pending).
+            // the position; a mulligan / resolution-choice / may-pay pick's
+            // value is not material here (these are brain-resolved and never
+            // reach the search anyway — `enumerateMoves` returns [] while a
+            // choice is pending).
             return next;
 
         case "play-land": {

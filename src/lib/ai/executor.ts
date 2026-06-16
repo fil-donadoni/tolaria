@@ -13,6 +13,7 @@
 //   mulligan         → declareMulligan
 //   mulligan-bottom  → submitResolutionChoice (kind "mulligan-bottom")
 //   resolution-choice→ submitResolutionChoice (any zone-pick kind, ADR 0016)
+//   may-pay          → submitMayPay (yes-no family, ADR 0016)
 //   pass             → passPriority
 //
 // Mana payment is explicit (the engine never auto-taps): the Move carries a
@@ -69,6 +70,7 @@ export type MoveMutations = {
             cardInstanceIds: string[];
         }
     ) => Promise<unknown>;
+    submitMayPay: (a: GP & { accept: boolean }) => Promise<unknown>;
     passPriority: (a: GP) => Promise<unknown>;
 };
 
@@ -111,6 +113,12 @@ export async function executeMove(
                 choiceId: move.choiceId,
                 cardInstanceIds: move.cardInstanceIds,
             });
+            return;
+
+        case "may-pay":
+            // Yes/no family (CR 117.3a / 118.4) — a SEPARATE entry point from
+            // submitResolutionChoice (ADR 0016).
+            await mutations.submitMayPay({ ...base, accept: move.accept });
             return;
 
         case "play-land":

@@ -66,6 +66,7 @@ export function useVsAiDriver(
         confirmBlockers: useMutation(api.game.confirmBlockers),
         declareMulligan: useMutation(api.game.declareMulligan),
         submitResolutionChoice: useMutation(api.game.submitResolutionChoice),
+        submitMayPay: useMutation(api.game.submitMayPay),
         passPriority: useMutation(api.game.passPriority),
     };
 
@@ -99,7 +100,8 @@ export function useVsAiDriver(
             action.kind === "keep" ||
             action.kind === "mull" ||
             action.kind === "mulligan-bottom" ||
-            action.kind === "resolution-choice"
+            action.kind === "resolution-choice" ||
+            action.kind === "may-pay"
         ) {
             if (inFlight.current) return;
             const move = botActionToMove(action, botState, botId);

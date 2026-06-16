@@ -27,6 +27,7 @@ function fakeMutations() {
         confirmBlockers: vi.fn().mockResolvedValue(null),
         declareMulligan: vi.fn().mockResolvedValue(null),
         submitResolutionChoice: vi.fn().mockResolvedValue(null),
+        submitMayPay: vi.fn().mockResolvedValue(null),
         passPriority: vi.fn().mockResolvedValue(null),
     };
     return m as unknown as MoveMutations &
@@ -77,6 +78,30 @@ describe("executeMove (issue #110)", () => {
             choiceId: "mulligan-bottom-u1-p2",
             cardInstanceIds: ["c1", "c2"],
         });
+    });
+
+    it("resolution-choice → submitResolutionChoice with the choice identity", async () => {
+        const m = await run({
+            kind: "resolution-choice",
+            stackItemId: "tutor",
+            step: 0,
+            choiceId: "u1-p2",
+            cardInstanceIds: ["fetched"],
+        });
+        expect(m.submitResolutionChoice).toHaveBeenCalledWith({
+            ...GP,
+            stackItemId: "tutor",
+            step: 0,
+            choiceId: "u1-p2",
+            cardInstanceIds: ["fetched"],
+        });
+    });
+
+    it("may-pay → submitMayPay with the boolean (separate entry point)", async () => {
+        const m = await run({ kind: "may-pay", accept: true });
+        expect(m.submitMayPay).toHaveBeenCalledWith({ ...GP, accept: true });
+        // Never routes through the resolution-choice path.
+        expect(m.submitResolutionChoice).not.toHaveBeenCalled();
     });
 
     it("play-land → playCard with the card id", async () => {

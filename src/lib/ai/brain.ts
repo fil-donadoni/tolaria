@@ -91,6 +91,7 @@ export type OwedChoice = {
  *   - `mull`              → `declareMulligan({ decision: "mull" })`
  *   - `mulligan-bottom`   → `submitResolutionChoice` (kind "mulligan-bottom")
  *   - `resolution-choice` → `submitResolutionChoice` (any zone-pick kind, ADR 0016)
+ *   - `may-pay`           → `submitMayPay` (yes-no family, ADR 0016)
  *   - `declare-attackers` → `confirmAttackers` (empty selection = no attack)
  *   - `declare-blockers`  → `confirmBlockers` (empty selection = no block)
  *   - `pass`              → `passPriority`
@@ -100,6 +101,7 @@ export type BotAction =
     | { kind: "mull" }
     | { kind: "mulligan-bottom"; cardInstanceIds: string[] }
     | { kind: "resolution-choice"; cardInstanceIds: string[] }
+    | { kind: "may-pay"; accept: boolean }
     | { kind: "declare-attackers" }
     | { kind: "declare-blockers" }
     | { kind: "pass" }
@@ -194,9 +196,18 @@ export function chooseResolution(choice: OwedChoice): string[] {
             return ordered.slice(0, choice.min).map((c) => c.id);
         }
 
-        // Not yet implemented — #164 routes `may-pay` through `submitMayPay`;
-        // #165 fills the remaining zone-pick + modal kinds. Each throws so the
-        // gap is loud, never a silent freeze.
+        // `may-pay` is a yes/no answer (not a card pick) routed through
+        // `submitMayPay`; `decideBotAction` handles it before reaching here, and
+        // `mulligan-bottom` has its own pre-game branch. Reaching either via
+        // `chooseResolution` is a programming error.
+        case "may-pay":
+        case "mulligan-bottom":
+            throw new Error(
+                `chooseResolution: "${kind}" is not resolved here (use the dedicated path)`
+            );
+
+        // Not yet implemented — #165 fills the remaining zone-pick + modal
+        // kinds. Each throws so the gap is loud, never a silent freeze.
         case "keep-permanents":
         case "sacrifice-permanents":
         case "keep-hand":
@@ -208,8 +219,6 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "choose-permanents":
         case "partition":
         case "choose-hand-card":
-        case "may-pay":
-        case "mulligan-bottom":
             throw new Error(
                 `chooseResolution: default policy not yet implemented for "${kind}"`
             );
@@ -250,9 +259,16 @@ export function decideBotAction(view: BotView): BotAction {
     // priority pass — otherwise the bot would `pass` into a server no-op and
     // hang the game.
     if (view.owedChoice) {
+        const choice = view.owedChoice;
+        if (choice.kind === "may-pay") {
+            // Yes/no family: accept only when the cost is trivially affordable
+            // from the bot's mana pool, else decline (ADR 0016 minimal policy —
+            // smart "should I pay?" is deferred). Both answers are legal.
+            return { kind: "may-pay", accept: choice.affordable === true };
+        }
         return {
             kind: "resolution-choice",
-            cardInstanceIds: chooseResolution(view.owedChoice),
+            cardInstanceIds: chooseResolution(choice),
         };
     }
 

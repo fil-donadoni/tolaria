@@ -8,6 +8,11 @@ import {
     getPlayer,
     matchesPermanentFilter,
     resolveTopOfStack,
+    normalizeManaCost,
+    isManaCostCovered,
+    getManaSubstitutions,
+    payManaCost,
+    commitLandsForCost,
     type CardInstanceState,
     type GameState,
 } from "./state";
@@ -18,6 +23,7 @@ import {
     finalizeCleanupDiscard,
     finalizeUntapPick,
 } from "./phases";
+import { checkStateBasedActions } from "./sba";
 import { applyMulliganBottomChoice } from "./mulligan";
 
 export type SubmitChoiceArgs = {
@@ -27,6 +33,76 @@ export type SubmitChoiceArgs = {
     choiceId: string;
     cardInstanceIds: string[];
 };
+
+export type SubmitMayPayArgs = {
+    playerId: string;
+    accept: boolean;
+};
+
+/** Validates and applies a yes/no `may-pay` submission (CR 117.3a / 118.4)
+ *  against the current head pending choice. Mutates `state` in place. On accept
+ *  with a cost, the cost is paid from the player's mana pool (lands must already
+ *  have been tapped via `tapForPayment`); throws if the pool can't cover it.
+ *  Throws on identity mismatch or a non-`may-pay` head. Extracted from the
+ *  `submitMayPay` mutation so the mutation and the bot's resolution path
+ *  (ADR 0016) drive the SAME primitive. */
+export function applyMayPaySubmit(
+    state: GameState,
+    args: SubmitMayPayArgs
+): void {
+    const queue = state.pendingChoices ?? [];
+    if (queue.length === 0) throw new Error("No pending choice");
+    const head = queue[0];
+    if (head.kind !== "may-pay") {
+        throw new Error("Pending choice is not a may-pay");
+    }
+    if (head.playerId !== args.playerId) {
+        throw new Error("Not your pending choice");
+    }
+
+    if (args.accept && head.cost) {
+        const player = getPlayer(state, args.playerId);
+        const normalized = normalizeManaCost(head.cost);
+        const subs = getManaSubstitutions(state, player.id);
+        if (!isManaCostCovered(player.manaPool, normalized, subs)) {
+            throw new Error("Cannot pay the cost from your current mana pool");
+        }
+        payManaCost(player.manaPool, normalized, subs);
+        commitLandsForCost(player, normalized);
+    }
+
+    const answer = [args.accept ? "yes" : "no"];
+
+    // Commit into the stack item's collectedChoices so the resolve step
+    // re-invocation reads the answer back via requestMayPay.
+    const stackItem = state.stack.find((s) => s.id === head.stackItemId);
+    if (!stackItem) throw new Error("Stack item not found");
+    const key = `${head.step}:${head.choiceId}`;
+    stackItem.collectedChoices = {
+        ...(stackItem.collectedChoices ?? {}),
+        [key]: answer,
+    };
+
+    queue.shift();
+    state.pendingChoices = queue.length > 0 ? queue : undefined;
+
+    if ((state.pendingChoices?.length ?? 0) === 0) {
+        resolveTopOfStack(state);
+        if ((state.pendingChoices?.length ?? 0) > 0) {
+            state.priorityPlayerId = state.pendingChoices![0].playerId;
+        } else if (state.pendingTarget) {
+            // Resolution requested a copy-retarget (CR 707.10b, Fork).
+            state.priorityPlayerId = state.pendingTarget.playerId;
+        } else {
+            state.priorityPlayerId = state.activePlayerId;
+            state.passCount = 0;
+            drainAutoPasses(state);
+        }
+        checkStateBasedActions(state);
+    } else {
+        state.priorityPlayerId = state.pendingChoices![0].playerId;
+    }
+}
 
 /** Validates and applies a client-buffered submission against the current
  *  head pending choice. Mutates `state` in place. Throws on validation
