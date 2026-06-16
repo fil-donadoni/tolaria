@@ -481,6 +481,18 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).combat).toEqual(state.combat);
     });
 
+    it("combat.blockedAttackerIds (CR 509.1h, issue #172)", () => {
+        const state = freshState();
+        state.combat = {
+            attackerIds: ["a1", "a2"],
+            confirmed: true,
+            blockerAssignments: { b1: ["a1"] },
+            blockedAttackerIds: ["a1"],
+            blockersConfirmed: true,
+        };
+        expect(roundTrip(state).combat?.blockedAttackerIds).toEqual(["a1"]);
+    });
+
     it("nextGrantSeq", () => {
         const state = freshState();
         state.nextGrantSeq = 5;

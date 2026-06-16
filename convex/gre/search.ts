@@ -60,6 +60,7 @@ import {
     buildAutoDamageAssignments,
 } from "./phases";
 import { cloneGameState } from "./clone";
+import { recordBlockedAttackers } from "./banding";
 import { enumerateMoves, type Move } from "./moves";
 import {
     evaluate,
@@ -441,6 +442,7 @@ function applyMoveInSearch(
                 state.combat.blockerAssignments = byBlocker;
                 state.combat.pendingBlockerId = undefined;
                 state.combat.blockersConfirmed = true;
+                recordBlockedAttackers(state);
                 emitBlockersConfirmedEvents(state);
             }
             // CR 509.2 — active player gets priority after blockers are declared;

@@ -18392,6 +18392,10 @@ describe("False Orders (CR 506.4 — remove from combat)", () => {
                 attackerIds: ["angel"],
                 confirmed: true,
                 blockerAssignments: { bear: ["angel"] },
+                // Real play records the angel as blocked at declare-blockers.
+                // Removing its sole blocker must explicitly un-block it now that
+                // "blocked" is combat state, not the live blocker count (#172).
+                blockedAttackerIds: ["angel"],
                 blockersConfirmed: true,
             },
         });
@@ -18401,11 +18405,69 @@ describe("False Orders (CR 506.4 — remove from combat)", () => {
         ]);
         resolveTopOfStack(state);
 
+        // Angel was solely blocked by the bear → it is now unblocked.
+        expect(state.combat!.blockedAttackerIds).not.toContain("angel");
+
         // Angel is now unblocked — should deal damage to player
         const { applyAllCombatDamage } = await import("../../../gre/phases");
         applyAllCombatDamage(state, {});
 
         expect(p2.life).toBe(16); // Serra Angel = 4 power
+    });
+
+    it("removing one of two blockers leaves the attacker blocked (deals no damage to the defender)", async () => {
+        const bear1 = makeInstance(grizzlyBears.id, {
+            id: "bear1",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const bear2 = makeInstance(grizzlyBears.id, {
+            id: "bear2",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const attacker = makeInstance(serraAngel.id, {
+            id: "angel",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [attacker],
+            manaPool: { W: 0, U: 0, B: 0, R: 5, G: 0, C: 0 },
+        });
+        const p2 = makePlayer("p2", {
+            battlefield: [bear1, bear2],
+            life: 20,
+        });
+        const state = makeState({
+            players: [p1, p2],
+            activePlayerId: "p1",
+            combat: {
+                attackerIds: ["angel"],
+                confirmed: true,
+                blockerAssignments: { bear1: ["angel"], bear2: ["angel"] },
+                blockedAttackerIds: ["angel"],
+                blockersConfirmed: true,
+            },
+        });
+
+        pushSpell(state, falseOrders.id, "p1", [
+            { type: "permanent", id: "bear1" },
+        ]);
+        resolveTopOfStack(state);
+
+        // bear2 still blocks the angel — it stays blocked.
+        expect(state.combat!.blockedAttackerIds).toContain("angel");
+        expect(state.combat!.blockerAssignments["bear1"]).toBeUndefined();
+
+        const { applyAllCombatDamage } = await import("../../../gre/phases");
+        applyAllCombatDamage(state, { angel: { bear2: 4 } });
+
+        // Defender takes nothing — the attacker is still blocked.
+        expect(p2.life).toBe(20);
     });
 });
 

@@ -50,6 +50,32 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Blocked is combat state, not blocker count (#172, CR 509.1h/510.1c).
+        // You control a War Mammoth (3/3 trample) and Grizzly Bears (2/2, no
+        // trample); the opponent has two Grizzly Bears to block with. Attack
+        // with both, let each be blocked, then Lightning Bolt both blockers
+        // BEFORE the damage step. The attackers stay blocked even though their
+        // blockers are gone: the War Mammoth tramples its full 3 through to the
+        // opponent, but the vanilla Grizzly Bears deals NO damage to the player
+        // (a blocked creature with no blocker left and no trample). Two Bolts
+        // and two Mountains are provided.
+        label: "Blocked stays blocked: trample tramples, vanilla deals 0 (#172)",
+        cards: [
+            { name: "War Mammoth", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 2,
+            },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "opp" as const, count: 2 },
+        ],
+        phase: "DECLARE_ATTACKERS",
+        landCount: 0,
+    },
+    {
         // Beta-original cards (ADR 0014): cards first printed in LEB with no
         // Alpha counterpart. Volcanic Island is the tenth ABUR dual ({T}: add
         // {U} or {R}); Circle of Protection: Black is the missing CoP. Tap a
