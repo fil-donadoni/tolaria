@@ -37,6 +37,8 @@ const DEMONIC_TUTOR = getCardByName("Demonic Tutor").id;
 const FOREST = getCardByName("Forest").id; // a land (low material)
 const BEARS = getCardByName("Grizzly Bears").id; // a creature (higher material)
 const IVORY_CUP = getCardByName("Ivory Cup").id; // "you may pay {1}: gain 1 life"
+const CLONE = getCardByName("Clone").id; // may-pay → choose-permanents (Creature)
+const NATURAL_SELECTION = getCardByName("Natural Selection").id; // reorder-library
 
 /** Fake mutation surface routing `submitResolutionChoice` / `submitMayPay`
  *  through the SAME engine primitives the real `game.ts` mutations call. Every
@@ -258,5 +260,101 @@ describe("bot resolution-choice full path — may-pay (ADR 0016, #164)", () => {
         expect(state.pendingChoices).toBeUndefined();
         const bot = state.players.find((p) => p.id === BOT)!;
         expect(bot.life).toBe(20);
+    });
+});
+
+/** Drive the bot through every choice it is owed until the queue drains or it
+ *  owes nothing actionable. Returns the ordered list of action kinds taken — a
+ *  chain of choices (e.g. Clone's may-pay → choose-permanents) must complete
+ *  without freezing (ADR 0016 user story 4). */
+async function driveBotToStable(state: GameState, max = 12): Promise<string[]> {
+    const kinds: string[] = [];
+    for (let i = 0; i < max; i++) {
+        const projected = projectPublicState(state, i + 1, BOT);
+        const action = decideBotAction(buildBotView(projected, BOT));
+        if (action.kind === "none" || action.kind === "pass") break;
+        const move = botActionToMove(action, projected, BOT);
+        if (!move) break;
+        kinds.push(action.kind);
+        await executeMove(move, {
+            gameId: "g" as never,
+            botId: BOT,
+            mutations: engineMutations(state),
+        });
+        if (!state.pendingChoices) break;
+    }
+    return kinds;
+}
+
+describe("bot resolution-choice full path — remaining kinds (ADR 0016, #165)", () => {
+    it("choose-permanents: resolves a chain (may-pay → pick a creature) without freezing", async () => {
+        // A creature exists for Clone to copy, so the engine offers the
+        // cost-less "enter as a copy?" may-pay, then a choose-permanents pick.
+        const victim = makeInstance(BEARS, {
+            id: "victim",
+            controllerId: HUMAN,
+            ownerId: HUMAN,
+            zone: "battlefield",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            players: [
+                makePlayer(HUMAN, { battlefield: [victim] }),
+                makePlayer(BOT),
+            ],
+        });
+        pushSpell(state, CLONE, BOT);
+        resolveTopOfStack(state);
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+
+        const kinds = await driveBotToStable(state);
+
+        // The chain completed: accepted the cost-less may-pay, then made a legal
+        // choose-permanents pick — and the queue drained (no freeze).
+        expect(kinds).toEqual(["may-pay", "resolution-choice"]);
+        expect(state.pendingChoices).toBeUndefined();
+        // Clone became a copy of the only legal creature candidate (2/2 Bears).
+        const clone = state.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id !== "victim" && c.types.includes("Creature"));
+        expect(clone?.power).toBe(2);
+        expect(clone?.toughness).toBe(2);
+    });
+
+    it("reorder-library: keeps the current order and the resolution completes", async () => {
+        const lib = [0, 1, 2, 3].map((i) =>
+            makeInstance(FOREST, {
+                id: `ns-lib-${i}`,
+                controllerId: BOT,
+                ownerId: BOT,
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            players: [makePlayer(HUMAN), makePlayer(BOT, { library: lib })],
+        });
+        // Natural Selection: controller reorders the target player's top 3.
+        pushSpell(state, NATURAL_SELECTION, BOT, [{ type: "player", id: BOT }]);
+        resolveTopOfStack(state);
+        expect(state.pendingChoices?.[0]?.kind).toBe("reorder-library");
+
+        // The default keeps the current top-3 order (CR 401.4).
+        const projected = projectPublicState(state, 1, BOT);
+        const view = buildBotView(projected, BOT);
+        expect(view.owedChoice).toMatchObject({ kind: "reorder-library" });
+        expect(decideBotAction(view)).toEqual({
+            kind: "resolution-choice",
+            cardInstanceIds: ["ns-lib-0", "ns-lib-1", "ns-lib-2"],
+        });
+
+        // Drive to stable (reorder, then the cost-less "shuffle?" may-pay) — the
+        // reorder submission is accepted and the game advances (no freeze).
+        const kinds = await driveBotToStable(state);
+        expect(kinds[0]).toBe("resolution-choice");
+        expect(state.pendingChoices).toBeUndefined();
     });
 });

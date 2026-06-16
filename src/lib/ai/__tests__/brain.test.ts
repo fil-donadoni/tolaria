@@ -6,6 +6,7 @@ import {
     decideBotAction,
     MULLIGAN_FLOOR,
     type BotView,
+    type ChoiceCandidate,
     type OwedChoice,
 } from "../brain";
 
@@ -256,10 +257,88 @@ describe("chooseResolution default policy (ADR 0016, issue #162)", () => {
         expect(chooseResolution(owed({ min: 0, max: 1 }))).toEqual([]);
     });
 
-    it("throws loudly for a not-yet-implemented kind (gap stays visible)", () => {
-        expect(() => chooseResolution(owed({ kind: "discard-hand" }))).toThrow(
-            /not yet implemented/
+    it("throws for the dedicated-path kinds (may-pay / mulligan-bottom)", () => {
+        expect(() => chooseResolution(owed({ kind: "may-pay" }))).toThrow(
+            /not resolved here/
         );
+        expect(() =>
+            chooseResolution(owed({ kind: "mulligan-bottom" }))
+        ).toThrow(/not resolved here/);
+    });
+});
+
+describe("chooseResolution remaining zone-pick policies (ADR 0016, issue #165)", () => {
+    const cards: ChoiceCandidate[] = [
+        { id: "land1", isLand: true },
+        { id: "spell1", isLand: false },
+        { id: "spell2", isLand: false },
+        { id: "land2", isLand: true },
+    ];
+    const owed = (over: Partial<OwedChoice>): OwedChoice => ({
+        kind: "choose-permanents",
+        min: 1,
+        max: 1,
+        candidates: cards,
+        ...over,
+    });
+
+    it("keep-permanents / keep-hand keep the best `min` (non-lands first)", () => {
+        for (const kind of ["keep-permanents", "keep-hand"] as const) {
+            expect(chooseResolution(owed({ kind, min: 2, max: 2 }))).toEqual([
+                "spell1",
+                "spell2",
+            ]);
+        }
+    });
+
+    it("sacrifice-permanents / discard-hand shed the worst `min` (lands first)", () => {
+        for (const kind of ["sacrifice-permanents", "discard-hand"] as const) {
+            expect(chooseResolution(owed({ kind, min: 2, max: 2 }))).toEqual([
+                "land1",
+                "land2",
+            ]);
+        }
+    });
+
+    it("neutral picks take exactly `min` candidates in zone order", () => {
+        // pick-source: count 1 → first candidate.
+        expect(chooseResolution(owed({ kind: "pick-source" }))).toEqual([
+            "land1",
+        ]);
+        // choose-permanents (Clone): count 1 → first candidate.
+        expect(chooseResolution(owed({ kind: "choose-permanents" }))).toEqual([
+            "land1",
+        ]);
+    });
+
+    it("range kinds with min 0 resolve to a legal empty submission", () => {
+        for (const kind of [
+            "untap-pick",
+            "partition",
+            "choose-hand-card",
+        ] as const) {
+            expect(chooseResolution(owed({ kind, min: 0, max: 3 }))).toEqual(
+                []
+            );
+        }
+    });
+
+    it("reveal-hand acknowledges with an empty submission (count 0)", () => {
+        expect(
+            chooseResolution(owed({ kind: "reveal-hand", min: 0, max: 0 }))
+        ).toEqual([]);
+    });
+
+    it("reorder-library keeps the current order (all peeked cards)", () => {
+        expect(
+            chooseResolution(
+                owed({
+                    kind: "reorder-library",
+                    min: 4,
+                    max: 4,
+                })
+            )
+        ).toEqual(["land1", "spell1", "spell2", "land2"]);
     });
 });
 

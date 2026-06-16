@@ -19,6 +19,7 @@ import {
     normalizeManaCost,
     isManaCostCovered,
 } from "@convex/gre";
+import { matchesPermanentFilter } from "@convex/cards/filters";
 import type { BotAction, BotView, ChoiceCandidate, OwedChoice } from "./brain";
 
 /** Land detection on a projected hand card. The slim instance keeps the
@@ -39,8 +40,10 @@ function toCandidate(card: SlimCardInstance): ChoiceCandidate {
  *  (`librarySearch` for search, `libraryPeek` for reorder, `revealedHand` for
  *  reveal, the bot's own visible hand/battlefield otherwise — see
  *  `projectPublicState`). Returns [] for choices that pick from no zone
- *  (`may-pay`). Battlefield `filter` narrowing is deferred to issue #165; the
- *  `candidateIds` allow-list is applied here since it's a cheap id check. */
+ *  (`may-pay`). Applies the battlefield `filter` and the `candidateIds`
+ *  allow-list with the SAME `matchesPermanentFilter` the server uses in
+ *  `applyPendingChoiceSubmit`, so the candidate set never over-includes an id
+ *  the server would reject (which would freeze the game on submit). */
 function readChoiceZone(
     state: PublicGameState,
     head: PendingChoice,
@@ -71,6 +74,12 @@ function readChoiceZone(
             cards = head.allControllers
                 ? state.players.flatMap((p) => p.battlefield)
                 : owner.battlefield;
+            // CR-style permanent filter (types / subtypes / excludeInstanceIds /
+            // …) — the slim projected card is structurally a MatchablePermanent.
+            if (head.filter) {
+                const filter = head.filter;
+                cards = cards.filter((c) => matchesPermanentFilter(c, filter));
+            }
             break;
         default:
             return [];
