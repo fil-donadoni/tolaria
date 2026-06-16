@@ -67,6 +67,15 @@ export type Move =
           choiceId: string;
           cardInstanceIds: string[];
       }
+    | {
+          /** Yes/no answer to a `may-pay` pending choice (CR 117.3a / 118.4),
+           *  realised through the existing `submitMayPay` mutation — a separate
+           *  executor entry point from `submitResolutionChoice` (ADR 0016). The
+           *  choice identity is read from the active pending choice; only the
+           *  boolean travels on the Move. */
+          kind: "may-pay";
+          accept: boolean;
+      }
     | { kind: "play-land"; cardInstanceId: string }
     | {
           kind: "cast-spell";

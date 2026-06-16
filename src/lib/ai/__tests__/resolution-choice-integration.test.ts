@@ -19,10 +19,14 @@ import {
     pushSpell,
 } from "@convex/cards/__tests__/setup";
 import { resolveTopOfStack, type GameState } from "@convex/gre/state";
-import { applyPendingChoiceSubmit } from "@convex/gre/pendingChoiceSubmit";
+import {
+    applyPendingChoiceSubmit,
+    applyMayPaySubmit,
+} from "@convex/gre/pendingChoiceSubmit";
 import { enumerateMoves } from "@convex/gre";
 import { decidingPlayer } from "@convex/gre/search";
 import { projectPublicState } from "@convex/gameProjections";
+import type { CardType } from "@convex/cards/types";
 import { decideBotAction } from "../brain";
 import { buildBotView, botActionToMove } from "../bot-view";
 import { executeMove, type MoveMutations } from "../executor";
@@ -32,10 +36,11 @@ const BOT = "u1-p2";
 const DEMONIC_TUTOR = getCardByName("Demonic Tutor").id;
 const FOREST = getCardByName("Forest").id; // a land (low material)
 const BEARS = getCardByName("Grizzly Bears").id; // a creature (higher material)
+const IVORY_CUP = getCardByName("Ivory Cup").id; // "you may pay {1}: gain 1 life"
 
-/** Fake mutation surface routing `submitResolutionChoice` through the SAME
- *  engine primitive the real `game.ts` mutation calls. Every other mutation is
- *  unexpected in this flow and throws. */
+/** Fake mutation surface routing `submitResolutionChoice` / `submitMayPay`
+ *  through the SAME engine primitives the real `game.ts` mutations call. Every
+ *  other mutation is unexpected in this flow and throws. */
 function engineMutations(state: GameState): MoveMutations {
     const reject = () => {
         throw new Error("unexpected mutation in resolution-choice flow");
@@ -56,6 +61,9 @@ function engineMutations(state: GameState): MoveMutations {
         declareMulligan: reject,
         submitResolutionChoice: async (args) => {
             applyPendingChoiceSubmit(state, args);
+        },
+        submitMayPay: async ({ playerId, accept }) => {
+            applyMayPaySubmit(state, { playerId, accept });
         },
         passPriority: reject,
     };
@@ -143,5 +151,112 @@ describe("bot resolution-choice full path — search-library (ADR 0016, #162)", 
         const bot = state.players.find((p) => p.id === BOT)!;
         expect(bot.hand.map((c) => c.id)).toEqual(["bot-lib-bears"]);
         expect(bot.library.map((c) => c.id)).toEqual(["bot-lib-land"]);
+    });
+});
+
+/** A state where the bot's Ivory Cup trigger ("you may pay {1}: gain 1 life")
+ *  has resolved far enough to enqueue its `may-pay` choice for the bot. The bot
+ *  starts with `floatingMana` colorless mana in its pool. */
+function makeMayPayState(floatingMana: number): GameState {
+    const cup = makeInstance(IVORY_CUP, {
+        id: "cup",
+        controllerId: BOT,
+        ownerId: BOT,
+    });
+    const state = makeState({
+        activePlayerId: BOT,
+        priorityPlayerId: BOT,
+        players: [
+            makePlayer(HUMAN),
+            makePlayer(BOT, {
+                battlefield: [cup],
+                life: 20,
+                manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: floatingMana },
+            }),
+        ],
+    });
+    // Push Ivory Cup's trigger onto the stack with the shape collectTriggers
+    // builds (mirrors the lea Ivory Cup test).
+    state.stack.push({
+        ...cup,
+        id: "trig-ivory",
+        castById: BOT,
+        zone: "stack" as const,
+        triggeredAbilityId: "ivory-cup-life",
+        triggerEvent: {
+            type: "SPELL_CAST" as const,
+            casterId: HUMAN,
+            spellInstanceId: "spell-x",
+            spellCardId: "spell-x-def",
+            spellTypes: ["Instant"] as CardType[],
+            spellSubtypes: [],
+            spellColors: ["W" as const],
+        },
+        targets: [],
+    });
+    // First resolve suspends on the may-pay (requestMayPay enqueues it).
+    resolveTopOfStack(state);
+    return state;
+}
+
+describe("bot resolution-choice full path — may-pay (ADR 0016, #164)", () => {
+    it("enqueues a may-pay choice that the GRE search cannot resolve", () => {
+        const state = makeMayPayState(1);
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        expect(enumerateMoves(state, BOT)).toEqual([]);
+        expect(decidingPlayer(state)).toBeNull();
+    });
+
+    it("accepts when the cost is affordable from the pool — pays {1}, gains life, queue drains", async () => {
+        const state = makeMayPayState(1); // {C} in pool covers the {1} cost
+
+        const projected = projectPublicState(state, 1, BOT);
+        const view = buildBotView(projected, BOT);
+        expect(view.owedChoice).toMatchObject({ kind: "may-pay" });
+        expect(view.owedChoice?.affordable).toBe(true);
+
+        const action = decideBotAction(view);
+        expect(action).toEqual({ kind: "may-pay", accept: true });
+
+        const move = botActionToMove(action, projected, BOT);
+        expect(move).toEqual({ kind: "may-pay", accept: true });
+        if (!move) throw new Error("unreachable");
+
+        await executeMove(move, {
+            gameId: "g" as never,
+            botId: BOT,
+            mutations: engineMutations(state),
+        });
+
+        // Game advanced (no freeze): queue drained, the cost was paid from the
+        // pool, and the optional effect resolved (gain 1 life, CR 117.3a).
+        expect(state.pendingChoices).toBeUndefined();
+        const bot = state.players.find((p) => p.id === BOT)!;
+        expect(bot.manaPool.C).toBe(0);
+        expect(bot.life).toBe(21);
+    });
+
+    it("declines when the cost is not affordable — submits a legal `no`, queue drains", async () => {
+        const state = makeMayPayState(0); // empty pool → cannot pay → decline
+
+        const projected = projectPublicState(state, 1, BOT);
+        const view = buildBotView(projected, BOT);
+        expect(view.owedChoice?.affordable).toBe(false);
+
+        const action = decideBotAction(view);
+        expect(action).toEqual({ kind: "may-pay", accept: false });
+
+        const move = botActionToMove(action, projected, BOT);
+        if (!move) throw new Error("unreachable");
+        await executeMove(move, {
+            gameId: "g" as never,
+            botId: BOT,
+            mutations: engineMutations(state),
+        });
+
+        // Declining is legal and advances the game: queue drains, no life gained.
+        expect(state.pendingChoices).toBeUndefined();
+        const bot = state.players.find((p) => p.id === BOT)!;
+        expect(bot.life).toBe(20);
     });
 });

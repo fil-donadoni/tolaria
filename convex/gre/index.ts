@@ -22,6 +22,7 @@ export type {
     PendingChoiceKind,
 } from "./state";
 export { getPendingChoiceMin, getPendingChoiceMax } from "./state";
+export { normalizeManaCost, isManaCostCovered } from "./state";
 export type { Phase, Zone } from "./types";
 
 // Structural-sharing clone for search (issue #108).

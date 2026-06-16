@@ -13,7 +13,12 @@ import type {
     SlimCardInstance,
 } from "@convex/gameProjections";
 import type { Move, PendingChoice } from "@convex/gre";
-import { getPendingChoiceMin, getPendingChoiceMax } from "@convex/gre";
+import {
+    getPendingChoiceMin,
+    getPendingChoiceMax,
+    normalizeManaCost,
+    isManaCostCovered,
+} from "@convex/gre";
 import type { BotAction, BotView, ChoiceCandidate, OwedChoice } from "./brain";
 
 /** Land detection on a projected hand card. The slim instance keeps the
@@ -78,6 +83,23 @@ function readChoiceZone(
     return cards;
 }
 
+/** Whether the bot can pay a `may-pay` cost from its CURRENT mana pool — the
+ *  intentionally minimal "trivially affordable" test (ADR 0016). A cost-less
+ *  may-pay is always affordable. `submitMayPay` pays from the pool only (lands
+ *  must already be tapped) and throws if it can't cover, so this conservative
+ *  check guarantees an accepted submission is never rejected back into a freeze;
+ *  it ignores mana substitutions, which only make the server MORE permissive. */
+function mayPayIsAffordable(
+    state: PublicGameState,
+    head: PendingChoice,
+    botId: string
+): boolean {
+    if (!head.cost) return true;
+    const bot = state.players.find((p) => p.id === botId);
+    if (!bot) return false;
+    return isManaCostCovered(bot.manaPool, normalizeManaCost(head.cost));
+}
+
 /** Project the active bot-owed `PendingChoice` into the {@link OwedChoice} the
  *  default policy reasons about. Skips `mulligan-bottom` (handled by the
  *  pre-game mulligan branch) and choices owed to another player. */
@@ -94,6 +116,10 @@ function buildOwedChoice(
         min: getPendingChoiceMin(head.count),
         max: getPendingChoiceMax(head.count),
         candidates: readChoiceZone(state, head, botId).map(toCandidate),
+        affordable:
+            head.kind === "may-pay"
+                ? mayPayIsAffordable(state, head, botId)
+                : undefined,
     };
 }
 
@@ -190,6 +216,15 @@ export function botActionToMove(
             choiceId: head.choiceId,
             cardInstanceIds: action.cardInstanceIds,
         };
+    }
+    if (action.kind === "may-pay") {
+        // Routes through `submitMayPay`, not `submitResolutionChoice`. The
+        // boolean is all the executor needs; the server reads the head choice.
+        const head = state.pendingChoices?.[0];
+        if (!head || head.kind !== "may-pay" || head.playerId !== botId) {
+            return null;
+        }
+        return { kind: "may-pay", accept: action.accept };
     }
     return null;
 }

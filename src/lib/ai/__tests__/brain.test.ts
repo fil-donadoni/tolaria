@@ -283,4 +283,26 @@ describe("decideBotAction resolves an owed mid-resolution choice (ADR 0016)", ()
             cardInstanceIds: ["fetch-me"],
         });
     });
+
+    it("accepts an affordable may-pay and declines an unaffordable one (ADR 0016)", () => {
+        const mayPay = (affordable: boolean) =>
+            view({
+                priorityPlayerId: BOT,
+                owedChoice: {
+                    kind: "may-pay",
+                    min: 1,
+                    max: 1,
+                    candidates: [],
+                    affordable,
+                },
+            });
+        expect(decideBotAction(mayPay(true))).toEqual({
+            kind: "may-pay",
+            accept: true,
+        });
+        expect(decideBotAction(mayPay(false))).toEqual({
+            kind: "may-pay",
+            accept: false,
+        });
+    });
 });

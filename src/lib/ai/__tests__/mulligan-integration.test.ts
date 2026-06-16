@@ -56,6 +56,7 @@ function engineMutations(state: GameState): MoveMutations {
         submitResolutionChoice: async ({ cardInstanceIds }) => {
             applyMulliganBottomChoice(state, cardInstanceIds);
         },
+        submitMayPay: reject,
         passPriority: reject,
     };
 }

@@ -100,7 +100,10 @@ import {
     isLegalBandComposition,
 } from "./gre/banding";
 import { checkStateBasedActions } from "./gre/sba";
-import { applyPendingChoiceSubmit } from "./gre/pendingChoiceSubmit";
+import {
+    applyPendingChoiceSubmit,
+    applyMayPaySubmit,
+} from "./gre/pendingChoiceSubmit";
 import { findActiveGameForUser, gameBelongsToUser } from "./gameLifecycle";
 
 export const STARTING_HAND_SIZE = 7;
@@ -3185,69 +3188,10 @@ export const submitMayPay = mutation({
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
 
-        const queue = state.pendingChoices ?? [];
-        if (queue.length === 0) throw new Error("No pending choice");
-        const head = queue[0];
-        if (head.kind !== "may-pay") {
-            throw new Error("Pending choice is not a may-pay");
-        }
-        if (head.playerId !== args.playerId) {
-            throw new Error("Not your pending choice");
-        }
-
-        if (args.accept && head.cost) {
-            const player = getPlayer(state, args.playerId);
-            const normalized = normalizeManaCost(head.cost);
-            if (
-                !isManaCostCovered(
-                    player.manaPool,
-                    normalized,
-                    getManaSubstitutions(state, player.id)
-                )
-            ) {
-                throw new Error(
-                    "Cannot pay the cost from your current mana pool"
-                );
-            }
-            payManaCost(
-                player.manaPool,
-                normalized,
-                getManaSubstitutions(state, player.id)
-            );
-            commitLandsForCost(player, normalized);
-        }
-
-        const answer = [args.accept ? "yes" : "no"];
-
-        // Commit into the stack item's collectedChoices so the resolve step
-        // re-invocation reads the answer back via requestMayPay.
-        const stackItem = state.stack.find((s) => s.id === head.stackItemId);
-        if (!stackItem) throw new Error("Stack item not found");
-        const key = `${head.step}:${head.choiceId}`;
-        stackItem.collectedChoices = {
-            ...(stackItem.collectedChoices ?? {}),
-            [key]: answer,
-        };
-
-        queue.shift();
-        state.pendingChoices = queue.length > 0 ? queue : undefined;
-
-        if ((state.pendingChoices?.length ?? 0) === 0) {
-            resolveTopOfStack(state);
-            if ((state.pendingChoices?.length ?? 0) > 0) {
-                state.priorityPlayerId = state.pendingChoices![0].playerId;
-            } else if (state.pendingTarget) {
-                // Resolution requested a copy-retarget (CR 707.10b).
-                state.priorityPlayerId = state.pendingTarget.playerId;
-            } else {
-                state.priorityPlayerId = state.activePlayerId;
-                state.passCount = 0;
-                drainAutoPasses(state);
-            }
-            checkStateBasedActions(state);
-        } else {
-            state.priorityPlayerId = state.pendingChoices![0].playerId;
-        }
+        applyMayPaySubmit(state, {
+            playerId: args.playerId,
+            accept: args.accept,
+        });
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);

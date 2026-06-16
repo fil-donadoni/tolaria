@@ -84,6 +84,8 @@ export function describeMove(move: Move, state: GameState): string {
             return `resolve choice (${move.cardInstanceIds.length} card${
                 move.cardInstanceIds.length === 1 ? "" : "s"
             })`;
+        case "may-pay":
+            return move.accept ? "pay optional cost" : "decline optional cost";
         case "play-land":
             return `play ${instanceName(state, move.cardInstanceId)}`;
         case "cast-spell": {
