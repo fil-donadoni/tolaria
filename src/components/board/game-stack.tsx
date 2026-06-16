@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { StackItem } from "~/types/game";
@@ -9,6 +10,7 @@ import {
 } from "~/lib/card-utils";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useDraggable } from "~/hooks/useDraggable";
+import { repositionLeaderLines } from "~/hooks/use-leader-lines";
 import DragHandle from "./drag-handle";
 import StackAbilityTile from "./stack-ability-tile";
 import ColorOverlayCardImage from "../cards/color-overlay-card-image";
@@ -21,6 +23,13 @@ export default function GameStack({ stack }: GameStackProps) {
     const { gameId, playerId, pendingTarget } = useGameContext();
     const selectTarget = useMutation(api.game.selectTarget);
     const { offset, dragHandlers } = useDraggable();
+
+    // The panel moves via CSS transform, which fires no resize/scroll event,
+    // so target arrows would keep stale endpoints. Re-anchor them on every
+    // offset change — this runs each pointermove during a drag.
+    useEffect(() => {
+        repositionLeaderLines();
+    }, [offset.x, offset.y]);
 
     const canTargetSpell =
         !!pendingTarget &&
