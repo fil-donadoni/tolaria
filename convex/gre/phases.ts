@@ -13,13 +13,14 @@ import {
     applyTargetPrevention,
     bumpDamageDealtToPlayer,
     consumePreventionIfAny,
+    destroyWithReplacements,
     drawCard,
     flushPendingEvents,
     getOpponentId,
     getPlayer,
+    isCombatDamageImmune,
     matchesPermanentFilter,
     moveCard,
-    regenerateOrDestroy,
     resolveTopOfStack,
     runDamageReplacement,
     tapPermanent,
@@ -609,6 +610,16 @@ export function applyAllCombatDamage(
         rawAmount: number
     ): void {
         if (rawAmount <= 0) return;
+        // CR 615 — Ebony Horse: prevent all combat damage to and by the
+        // shielded creature. Block both directions before the replacement
+        // pipeline (the damage simply never happens).
+        if (isCombatDamageImmune(state, source.id)) return;
+        if (
+            rawTarget.type === "permanent" &&
+            isCombatDamageImmune(state, rawTarget.id)
+        ) {
+            return;
+        }
         const repl = runDamageReplacement(
             state,
             source.id,
@@ -834,7 +845,7 @@ export function applyAllCombatDamage(
             activePlayer.battlefield.find((c) => c.id === cardId) ??
             defender.battlefield.find((c) => c.id === cardId);
         if (!carrier) continue;
-        const wasDestroyed = regenerateOrDestroy(state, cardId);
+        const wasDestroyed = destroyWithReplacements(state, cardId);
         if (!wasDestroyed) continue;
         // The destroyed card has already been moved to its owner's graveyard
         // by removePermanentTo. Reset combat-only flags on the dead instance
@@ -1362,6 +1373,30 @@ function tickAllDurations(state: GameState): void {
             kept.push({ ...shield, duration: next });
         }
         state.damageRedirections = kept.length > 0 ? kept : undefined;
+    }
+
+    // Transient destroy-replacement shields (Pyramids mode 2). Unconsumed
+    // remainder wears off at the same boundary (ADR 0020).
+    if (state.destroyReplacementShields?.length) {
+        const kept: typeof state.destroyReplacementShields = [];
+        for (const shield of state.destroyReplacementShields) {
+            const next = tickDuration(shield.duration, view);
+            if (next === null) continue;
+            kept.push({ ...shield, duration: next });
+        }
+        state.destroyReplacementShields = kept.length > 0 ? kept : undefined;
+    }
+
+    // Per-instance combat-damage immunity shields (Ebony Horse). Wear off at
+    // the same boundary.
+    if (state.combatDamageImmunity?.length) {
+        const kept: typeof state.combatDamageImmunity = [];
+        for (const shield of state.combatDamageImmunity) {
+            const next = tickDuration(shield.duration, view);
+            if (next === null) continue;
+            kept.push({ ...shield, duration: next });
+        }
+        state.combatDamageImmunity = kept.length > 0 ? kept : undefined;
     }
 
     // "Becomes a creature" animations (e.g. Jade Statue). On expiry, splice

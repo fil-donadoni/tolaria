@@ -21,6 +21,7 @@ import type {
     CardType,
     Color,
     DamageReplacementEvent,
+    DestroyReplacementEvent,
     DiscardReplacementEvent,
     LifeChangeReplacementEvent,
     LoseGameReplacementEvent,
@@ -42,6 +43,7 @@ import type {
     PlayerState,
 } from "./state";
 import {
+    bumpDamageDealtToPlayer,
     getPlayer,
     matchesPermanentFilter,
     moveCard,
@@ -257,6 +259,58 @@ export function applyTapReplacements(
     return result === null ? null : (result as TapReplacementEvent);
 }
 
+/** Runs CR 614 destroy replacements (ADR 0020). Consults permanent-bound
+ *  `replacementEffects[]` with `eventKind: "destroy"` first, then the transient
+ *  `state.destroyReplacementShields` (Pyramids mode 2). Returns the event if
+ *  the destruction should proceed, or null if a replacement intercepted it —
+ *  in which case the permanent stays on the battlefield. Regeneration is
+ *  deliberately NOT handled here (it remains a specialised shield inside
+ *  `regenerateOrDestroy`). */
+export function applyDestroyReplacements(
+    state: GameState,
+    event: DestroyReplacementEvent
+): DestroyReplacementEvent | null {
+    const continuous = applyReplacementsLoop(state, "destroy", event);
+    if (continuous === null) return null;
+    return applyTransientDestroyShields(
+        state,
+        continuous as DestroyReplacementEvent
+    );
+}
+
+/** Consumes a transient destroy-replacement shield keyed to the event's
+ *  target (Pyramids mode 2). On a match: removes one charge, heals the saved
+ *  permanent's marked damage (oracle "remove all damage marked on it
+ *  instead"), and returns null so the destruction is replaced. Otherwise
+ *  returns the event unchanged. */
+function applyTransientDestroyShields(
+    state: GameState,
+    event: DestroyReplacementEvent
+): DestroyReplacementEvent | null {
+    const shields = state.destroyReplacementShields;
+    if (!shields || shields.length === 0) return event;
+    const idx = shields.findIndex(
+        (s) => s.targetInstanceId === event.targetInstanceId && s.remaining > 0
+    );
+    if (idx === -1) return event;
+    const shield = shields[idx];
+    const kept = [
+        ...shields.slice(0, idx),
+        ...(shield.remaining - 1 > 0
+            ? [{ ...shield, remaining: shield.remaining - 1 }]
+            : []),
+        ...shields.slice(idx + 1),
+    ];
+    state.destroyReplacementShields = kept.length > 0 ? kept : undefined;
+    // Oracle "remove all damage marked on it instead" — the saved permanent
+    // sheds its marked damage so the same lethal hit doesn't re-destroy it.
+    const saved = findOnBattlefieldAnywhere(state, event.targetInstanceId);
+    if (saved && saved.damageMarked !== undefined) {
+        delete saved.damageMarked;
+    }
+    return null;
+}
+
 /** Applies transient one-shot damage shields stored in
  *  `state.damageRedirections` (CR 614 — Reverse Damage / Jade Monolith /
  *  Personal Incarnation activated). Runs AFTER continuous replacements so a
@@ -338,6 +392,28 @@ export function applyTransientDamageRedirections(
             } else {
                 kept.push(sh);
             }
+        } else if (sh.kind === "reflect-to-source-controller") {
+            if (
+                current.target.type === "player" &&
+                current.target.id === sh.playerId &&
+                current.sourceInstanceId === sh.sourceInstanceId &&
+                sh.remaining > 0
+            ) {
+                // Eye for an Eye (CR 614): the damage to the chosen player is
+                // NOT reduced — it proceeds unchanged. Additionally, deal an
+                // equal amount to the source's controller. Applied as a raw
+                // life adjustment + tally (mirrors Reverse Damage's gain-life
+                // here) rather than re-entering the full damage pipeline.
+                const reflectTo = current.sourceControllerId;
+                getPlayer(state, reflectTo).life -= current.amount;
+                bumpDamageDealtToPlayer(state, reflectTo, current.amount);
+                if (sh.remaining - 1 > 0) {
+                    kept.push({ ...sh, remaining: sh.remaining - 1 });
+                }
+                // do not modify `current` — the original damage still lands.
+                continue;
+            }
+            kept.push(sh);
         } else if (sh.kind === "from-source-to-permanent-redirect-to-player") {
             const sourceMatches =
                 sh.sourceInstanceId === undefined ||

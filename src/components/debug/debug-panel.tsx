@@ -126,6 +126,40 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // ARN Batch 3 (#175) — damage prevention / replacement / destroy-
+        // replacement / reflect. You control Oasis ({T}: prevent next 1 to a
+        // creature), Ali from Cairo (your life can't drop below 1), Ebony Horse
+        // ({2},{T}: untap an attacker and prevent its combat damage both ways),
+        // and Pyramids ({2}: destroy an Aura on a land OR save a land from the
+        // next destruction this turn). Hold Eye for an Eye ({W}{W}: the chosen
+        // source's next damage to you is also dealt to its controller). The
+        // opponent has a Prodigal Sorcerer to ping with and a Stone Rain to
+        // blow up your land — point Pyramids' save mode at the targeted land.
+        label: "ARN: prevention/replacement (Oasis / Ali from Cairo / Ebony Horse / Eye for an Eye / Pyramids)",
+        cards: [
+            { name: "Oasis", owner: "me" as const },
+            { name: "Ali from Cairo", owner: "me" as const },
+            { name: "Ebony Horse", owner: "me" as const },
+            { name: "Pyramids", owner: "me" as const },
+            {
+                name: "Eye for an Eye",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, count: 4 },
+            { name: "Prodigal Sorcerer", owner: "opp" as const },
+            {
+                name: "Stone Rain",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "opp" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Blocked is combat state, not blocker count (#172, CR 509.1h/510.1c).
         // You control a War Mammoth (3/3 trample) and Grizzly Bears (2/2, no
         // trample); the opponent has two Grizzly Bears to block with. Attack
