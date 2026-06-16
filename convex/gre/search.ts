@@ -72,6 +72,8 @@ import {
 import { describeMove } from "./describeMove";
 import { determinize } from "./determinize";
 import { makeRng } from "./rng";
+import { isCreature, hasManaAbility } from "./constants";
+import { tryGetCardById } from "../cards";
 
 /** Search budget: stop at `iterations` tree iterations, or once `timeMs` of
  *  wall-clock has elapsed (whichever comes first). At least one must be set —
@@ -116,6 +118,12 @@ const MAX_TREE_DEPTH = 40;
 /** Chance the rollout policy plays a uniform-random move instead of the
  *  immediate-best one — keeps playouts from collapsing to a single line. */
 const ROLLOUT_EPSILON = 0.25;
+/** Soft penalty subtracted from a discouraged move's reward in the rollout
+ *  default policy (ADR 0020 §4). Small — a fraction of the reward band — so it
+ *  only breaks ties / suppresses no-payoff lines: any move with real value (a
+ *  lethal dork attack, a must-cast instant) clears it easily. Pure policy bias;
+ *  the move stays legal and explorable by the tree. */
+const ROLLOUT_GUARDRAIL_PENALTY = 0.05;
 /** A terminal `evaluate` magnitude dominates every material term. */
 const TERMINAL = WIN_SCORE / 2;
 /** Width of the reward band reserved, at each terminal extreme, for the
@@ -526,8 +534,57 @@ function rollout(state: GameState, botId: string, rng: () => number): Leaf {
     return scoreLeaf(state, botId);
 }
 
+/** Rollout default-policy guardrail (ADR 0020 §4). Returns true for a move the
+ *  greedy default policy should AVOID modelling as typical play, because a
+ *  competent player would not normally make it:
+ *
+ *    * attacking with a creature worth more held back — a mana producer (it taps
+ *      out of being a source / blocker for marginal chip damage); and
+ *    * casting a holdable instant at sorcery speed — the mover's own main phase,
+ *      where the effect could be kept for a reactive window instead.
+ *
+ *  This biases the DEFAULT POLICY only — never legality. The move stays in the
+ *  legal set and the tree can still explore it (the `ROLLOUT_EPSILON` random
+ *  branch and UCB1 both reach it), so genuinely correct lines — a lethal dork
+ *  attack, a must-cast instant — remain available; they simply have to earn it
+ *  through reward rather than being modelled as the default. */
+export function isDiscouragedRolloutMove(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (move.kind === "declare-attackers") {
+        if (move.attackerIds.length === 0) return false;
+        const player = state.players.find((p) => p.id === pid);
+        if (!player) return false;
+        // A mana producer is worth more as a source / blocker than as a chip
+        // attacker; discourage swinging with one.
+        return move.attackerIds.some((id) => {
+            const c = player.battlefield.find((x) => x.id === id);
+            return !!c && isCreature(c) && hasManaAbility(c);
+        });
+    }
+    if (move.kind === "cast-spell") {
+        // Sorcery-speed window: the mover is the active player at a main phase,
+        // where a pure instant could instead be held for a reactive moment.
+        const atSorcerySpeed =
+            pid === state.activePlayerId &&
+            (state.phase === "PRECOMBAT_MAIN" ||
+                state.phase === "POSTCOMBAT_MAIN");
+        if (!atSorcerySpeed) return false;
+        const player = state.players.find((p) => p.id === pid);
+        const card = player?.hand.find((c) => c.id === move.cardInstanceId);
+        const cardId = (card?.card as { id?: string } | undefined)?.id;
+        const def = cardId ? tryGetCardById(cardId) : undefined;
+        return !!def && def.types.includes("Instant");
+    }
+    return false;
+}
+
 /** The move maximizing the mover's immediate reward (1-ply lookahead), with an
- *  RNG tie-break. Each candidate is probed on a clone so `state` is untouched. */
+ *  RNG tie-break. Each candidate is probed on a clone so `state` is untouched.
+ *  Discouraged lines (ADR 0020 §4) take a small reward penalty so the default
+ *  policy avoids them without removing them from the explorable set. */
 function bestImmediateMove(
     state: GameState,
     pid: string,
@@ -542,7 +599,10 @@ function bestImmediateMove(
         const probe = cloneGameState(state);
         applyMoveInSearch(probe, pid, move);
         const r = reward(probe, botId);
-        const moverReward = moverIsBot ? r : 1 - r;
+        let moverReward = moverIsBot ? r : 1 - r;
+        if (isDiscouragedRolloutMove(state, pid, move)) {
+            moverReward -= ROLLOUT_GUARDRAIL_PENALTY;
+        }
         if (moverReward > bestScore) {
             bestScore = moverReward;
             best = [move];

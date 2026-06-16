@@ -797,4 +797,77 @@ describe("AI diagnosis harness (Forge comparison)", () => {
             }
         }
     );
+
+    // -----------------------------------------------------------------------
+    // Episode #6 — keeps a mana dork home when attacking it gains nothing (ADR
+    // 0020 §4, issue #209). p1 has a real 3/3 and a Birds of Paradise (0/1), the
+    // opponent's board is OPEN. Attacking with BoP pushes 0 damage (it has no
+    // power) and only taps it out of being a mana source / blocker. The rollout
+    // guardrail biases the default policy away from this pointless dork swing
+    // (alongside the snapshot's available-mana term); the bot attacks with the
+    // real threat but holds the dork back. (The companion deterministic proof of
+    // the guardrail is the `isDiscouragedRolloutMove` unit suite in search.test;
+    // a soft, rollout-only bias cannot by itself flip a ROOT cast the search
+    // already scores higher on immediate value — see ADR 0020, lever 4.)
+    // -----------------------------------------------------------------------
+    it(
+        "episode #6: keeps a mana dork home on a swing that gains it nothing",
+        { timeout: DIAGNOSIS_TIMEOUT_MS },
+        () => {
+            const giant = makeInstance(HILL_GIANT, {
+                id: "threat",
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: false,
+            });
+            const bop = makeInstance(BOP, {
+                id: "dork6",
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: false,
+            });
+            const state = makeState({
+                phase: "DECLARE_ATTACKERS",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                combat: {
+                    attackerIds: [],
+                    confirmed: false,
+                    blockerAssignments: {},
+                    blockersConfirmed: false,
+                },
+                players: [
+                    makePlayer("p1", { hand: [], battlefield: [giant, bop] }),
+                    makePlayer("p2", {}),
+                ],
+            });
+
+            const trace = diagnose("EP#6 keep the mana dork home", state, "p1");
+            const chosen = trace.candidates.find(
+                (c) => c.label === trace.chosen
+            )?.move;
+            // The chosen attack must not tap the mana dork for nothing.
+            if (chosen?.kind === "declare-attackers") {
+                expect(chosen.attackerIds).not.toContain("dork6");
+            }
+            // And the dork-inclusive attack must not out-reward holding it back.
+            const withDork = trace.candidates.filter(
+                (c) =>
+                    c.move.kind === "declare-attackers" &&
+                    c.move.attackerIds.includes("dork6")
+            );
+            const withoutDork = trace.candidates.filter(
+                (c) =>
+                    c.move.kind === "declare-attackers" &&
+                    !c.move.attackerIds.includes("dork6")
+            );
+            const best = (cs: typeof trace.candidates) =>
+                Math.max(-Infinity, ...cs.map((c) => c.meanReward));
+            if (withDork.length && withoutDork.length) {
+                expect(best(withoutDork)).toBeGreaterThanOrEqual(
+                    best(withDork)
+                );
+            }
+        }
+    );
 });
