@@ -954,6 +954,109 @@ export const libraryOfAlexandria: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Layer 7b set-base-P/T (CR 613.4b, ADR 0017) — Batch 2 (#174)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const singingTree: CardDefinition = {
+    id: "3003bf1e-8085-45d8-882b-c449109e7631",
+    name: "Singing Tree",
+    oracleText:
+        "{T}: Target attacking creature has base power 0 until end of turn.",
+    manaCost: { X: 3, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Plant"],
+    power: 0,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "singing-tree-set-power",
+            oracleText:
+                "{T}: Target attacking creature has base power 0 until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatRoleFilter: "attacking",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.setBasePT(target, 0, undefined, {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
+
+export const islandOfWakWak: CardDefinition = {
+    id: "f09cbd18-79f1-49a0-a3bd-b380ff5ecf03",
+    name: "Island of Wak-Wak",
+    oracleText:
+        "{T}: Target creature with flying has base power 0 until end of turn.",
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "island-of-wak-wak-set-power",
+            oracleText:
+                "{T}: Target creature with flying has base power 0 until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                requireAbility: "flying",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.setBasePT(target, 0, undefined, {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
+
+export const sorceressQueen: CardDefinition = {
+    id: "94742003-f0f1-4483-b1a0-e7163995db1b",
+    name: "Sorceress Queen",
+    oracleText:
+        "{T}: Target creature other than Sorceress Queen has base power and toughness 0/2 until end of turn.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "sorceress-queen-set",
+            oracleText:
+                "{T}: Target creature other than Sorceress Queen has base power and toughness 0/2 until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            // Static fallback; the dynamic form excludes the source itself
+            // ("a creature other than Sorceress Queen").
+            targetRequirement: { type: "Creature", count: 1 },
+            getTargetRequirement: (source) => ({
+                type: "Creature",
+                count: 1,
+                excludeInstanceIds: [source.id],
+            }),
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.setBasePT(target, 0, 2, { phase: "end-of-turn" });
+                }
+            },
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Deferred to later batches — need engine work beyond existing primitives:
 //
 //   • Hurr Jackal — "{T}: Target creature can't be regenerated this turn"
@@ -974,8 +1077,6 @@ export const libraryOfAlexandria: CardDefinition = {
 //     resolveSteps support on activated abilities.
 //
 // Other batches (PRD #171):
-//   • Batch 2 (#174, set base P/T): Singing Tree, Sorceress Queen,
-//     Island of Wak-Wak.
 //   • Batch 3 (#175, prevention/replacement): Oasis, Ali from Cairo,
 //     Ebony Horse, Eye for an Eye, Pyramids.
 //   • Batch 4 (#191, coin flip): Bottle of Suleiman, Mijae Djinn, Ydwen Efreet.
