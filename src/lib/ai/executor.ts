@@ -12,6 +12,7 @@
 //   declare-blockers → (selectBlocker → assignBlockerTarget)* → confirmBlockers
 //   mulligan         → declareMulligan
 //   mulligan-bottom  → submitResolutionChoice (kind "mulligan-bottom")
+//   resolution-choice→ submitResolutionChoice (any zone-pick kind, ADR 0016)
 //   pass             → passPriority
 //
 // Mana payment is explicit (the engine never auto-taps): the Move carries a
@@ -100,6 +101,9 @@ export async function executeMove(
             return;
 
         case "mulligan-bottom":
+        case "resolution-choice":
+            // Both submit through the same `submitResolutionChoice` mutation
+            // (CR 608.2 / ADR 0016); the choice identity travels on the Move.
             await mutations.submitResolutionChoice({
                 ...base,
                 stackItemId: move.stackItemId,

@@ -7800,7 +7800,7 @@ export const timeVault: CardDefinition = {
 // Mana Short — {2}{U} Instant. "Tap all lands target player controls. That
 // player loses all unspent mana." (CR 106.4)
 export const manaShort: CardDefinition = {
-    id: "a0486cfc-b33f-4e20-a28e-c2a7e92e3a17",
+    id: "73e3e0b3-5284-464f-8c62-0f7801c966f5",
     name: "Mana Short",
     oracleText:
         "Tap all lands target player controls. That player loses all unspent mana.",
@@ -7819,7 +7819,7 @@ export const manaShort: CardDefinition = {
 // the mana lost this way." Simplified model: tap all target's lands, drain
 // their pool, add drained mana to caster. (CR 106.4)
 export const drainPower: CardDefinition = {
-    id: "b4f0660a-40e6-4d6e-9e1b-4d26e2e7de47",
+    id: "ea3830c5-cc66-453e-9e53-0636e00ee0ee",
     name: "Drain Power",
     oracleText:
         "Target player activates a mana ability of each land they control. Then that player loses all unspent mana and you add the mana lost this way.",

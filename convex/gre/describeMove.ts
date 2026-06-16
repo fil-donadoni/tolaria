@@ -80,6 +80,10 @@ export function describeMove(move: Move, state: GameState): string {
             return `bottom ${move.cardInstanceIds.length} card${
                 move.cardInstanceIds.length === 1 ? "" : "s"
             }`;
+        case "resolution-choice":
+            return `resolve choice (${move.cardInstanceIds.length} card${
+                move.cardInstanceIds.length === 1 ? "" : "s"
+            })`;
         case "play-land":
             return `play ${instanceName(state, move.cardInstanceId)}`;
         case "cast-spell": {

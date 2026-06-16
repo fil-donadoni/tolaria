@@ -8,15 +8,93 @@
 // here on the main thread from `mulliganHand` / `mulligansTaken` and never
 // reaches the Worker.
 
-import type { PublicGameState } from "@convex/gameProjections";
-import type { Move } from "@convex/gre";
-import type { BotAction, BotView } from "./brain";
+import type {
+    PublicGameState,
+    SlimCardInstance,
+} from "@convex/gameProjections";
+import type { Move, PendingChoice } from "@convex/gre";
+import { getPendingChoiceMin, getPendingChoiceMax } from "@convex/gre";
+import type { BotAction, BotView, ChoiceCandidate, OwedChoice } from "./brain";
 
 /** Land detection on a projected hand card. The slim instance keeps the
  *  `types` array from `CardInstanceState` (only `card` is stripped), so a land
  *  is any card whose printed types include "Land" (CR 305.1). */
 function handCardIsLand(types: string[] | undefined): boolean {
     return (types ?? []).includes("Land");
+}
+
+/** Map a slim card the bot can see into a {@link ChoiceCandidate} for the
+ *  default-selection policy (just id + land flag for the material ordering). */
+function toCandidate(card: SlimCardInstance): ChoiceCandidate {
+    return { id: card.id, isLand: handCardIsLand(card.types) };
+}
+
+/** Read the cards the bot may legally pick for `head` from its projected view.
+ *  The wire projection already exposes the relevant zone to the chooser
+ *  (`librarySearch` for search, `libraryPeek` for reorder, `revealedHand` for
+ *  reveal, the bot's own visible hand/battlefield otherwise — see
+ *  `projectPublicState`). Returns [] for choices that pick from no zone
+ *  (`may-pay`). Battlefield `filter` narrowing is deferred to issue #165; the
+ *  `candidateIds` allow-list is applied here since it's a cheap id check. */
+function readChoiceZone(
+    state: PublicGameState,
+    head: PendingChoice,
+    botId: string
+): SlimCardInstance[] {
+    const ownerId = head.zoneOwnerId ?? botId;
+    const owner = state.players.find((p) => p.id === ownerId);
+    if (!owner) return [];
+
+    let cards: SlimCardInstance[];
+    switch (head.zone) {
+        case "library":
+            cards =
+                head.kind === "search-library"
+                    ? (owner.librarySearch ?? [])
+                    : (owner.libraryPeek ?? []);
+            break;
+        case "hand":
+            // reveal-hand exposes the owner's hand face-up; otherwise the bot
+            // picks from its own (always-visible) hand.
+            cards =
+                owner.revealedHand ??
+                owner.hand.filter(
+                    (c): c is NonNullable<typeof c> => c !== null
+                );
+            break;
+        case "battlefield":
+            cards = head.allControllers
+                ? state.players.flatMap((p) => p.battlefield)
+                : owner.battlefield;
+            break;
+        default:
+            return [];
+    }
+
+    if (head.candidateIds) {
+        const allow = new Set(head.candidateIds);
+        cards = cards.filter((c) => allow.has(c.id));
+    }
+    return cards;
+}
+
+/** Project the active bot-owed `PendingChoice` into the {@link OwedChoice} the
+ *  default policy reasons about. Skips `mulligan-bottom` (handled by the
+ *  pre-game mulligan branch) and choices owed to another player. */
+function buildOwedChoice(
+    state: PublicGameState,
+    botId: string
+): OwedChoice | undefined {
+    const head = state.pendingChoices?.[0];
+    if (!head || head.playerId !== botId || head.kind === "mulligan-bottom") {
+        return undefined;
+    }
+    return {
+        kind: head.kind,
+        min: getPendingChoiceMin(head.count),
+        max: getPendingChoiceMax(head.count),
+        candidates: readChoiceZone(state, head, botId).map(toCandidate),
+    };
 }
 
 /** Project the bot-viewpoint `PublicGameState` into the gate's decision window.
@@ -58,16 +136,20 @@ export function buildBotView(state: PublicGameState, botId: string): BotView {
         }
     }
 
+    // Mid-resolution interactive choice owed to the bot (ADR 0016) — surfaced
+    // for ANY bot-owed head choice except `mulligan-bottom` (handled above).
+    view.owedChoice = buildOwedChoice(state, botId);
+
     return view;
 }
 
-/** Translate a mulligan-phase gate decision into the `Move` the executor
- *  realises (issue #145). The keep / mull / bottom choice is made by the cheap
- *  main-thread heuristic, NOT the Worker search (ISMCTS mulligan evaluation is
- *  out of scope), so these windows short-circuit straight to a `Move`. Returns
- *  null when the action is not a mulligan decision or the bottoming choice
- *  identity can't be read from the state. */
-export function mulliganActionToMove(
+/** Translate a brain-resolved gate decision into the `Move` the executor
+ *  realises (issue #145, generalised for ADR 0016). These are the windows the
+ *  cheap main-thread layer resolves WITHOUT the Worker search: mulligan
+ *  keep/mull/bottom and any mid-resolution choice default. Returns null when the
+ *  action is not one of those, or when the choice identity can't be read from
+ *  the active pending choice. */
+export function botActionToMove(
     action: BotAction,
     state: PublicGameState,
     botId: string
@@ -86,6 +168,23 @@ export function mulliganActionToMove(
         }
         return {
             kind: "mulligan-bottom",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: action.cardInstanceIds,
+        };
+    }
+    if (action.kind === "resolution-choice") {
+        const head = state.pendingChoices?.[0];
+        if (
+            !head ||
+            head.playerId !== botId ||
+            head.kind === "mulligan-bottom"
+        ) {
+            return null;
+        }
+        return {
+            kind: "resolution-choice",
             stackItemId: head.stackItemId,
             step: head.step,
             choiceId: head.choiceId,

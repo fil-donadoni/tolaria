@@ -23,7 +23,7 @@ import type { GameState, MulliganState } from "@convex/gre/state";
 import { projectPublicState } from "@convex/gameProjections";
 import type { Phase } from "@convex/gre";
 import { decideBotAction } from "../brain";
-import { buildBotView, mulliganActionToMove } from "../bot-view";
+import { buildBotView, botActionToMove } from "../bot-view";
 import { executeMove, type MoveMutations } from "../executor";
 
 const HUMAN = "u1-p1";
@@ -118,11 +118,11 @@ function makeMulliganGame(opts: {
 async function driveBotOnce(
     state: GameState,
     seq: number
-): Promise<ReturnType<typeof mulliganActionToMove>> {
+): Promise<ReturnType<typeof botActionToMove>> {
     const projected = projectPublicState(state, seq, BOT);
     const view = buildBotView(projected, BOT);
     const action = decideBotAction(view);
-    const move = mulliganActionToMove(action, projected, BOT);
+    const move = botActionToMove(action, projected, BOT);
     if (move)
         await executeMove(move, {
             gameId: "g" as never,

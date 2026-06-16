@@ -442,7 +442,7 @@ export const drainLifeLeb: CardPrint = {
 
 export const drainPowerLeb: CardPrint = {
     printId: "9672caeb-5cf8-4b40-a371-005c911a67d9",
-    definitionId: "b4f0660a-40e6-4d6e-9e1b-4d26e2e7de47",
+    definitionId: "ea3830c5-cc66-453e-9e53-0636e00ee0ee",
     setCode: "leb",
 };
 
@@ -988,7 +988,7 @@ export const manaFlareLeb: CardPrint = {
 
 export const manaShortLeb: CardPrint = {
     printId: "4da4f9a8-024b-4707-b300-ccb11bd87cea",
-    definitionId: "a0486cfc-b33f-4e20-a28e-c2a7e92e3a17",
+    definitionId: "73e3e0b3-5284-464f-8c62-0f7801c966f5",
     setCode: "leb",
 };
 

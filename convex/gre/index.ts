@@ -18,7 +18,10 @@ export type {
     PlayerState,
     CardInstanceState,
     StackItem,
+    PendingChoice,
+    PendingChoiceKind,
 } from "./state";
+export { getPendingChoiceMin, getPendingChoiceMax } from "./state";
 export type { Phase, Zone } from "./types";
 
 // Structural-sharing clone for search (issue #108).

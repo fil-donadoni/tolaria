@@ -1,7 +1,13 @@
 // Pure bot decision function (ADR 0001, issue #109). Worker-free — exercises
 // decideBotAction directly. The pass-only bot keeps, declares nothing, passes.
 import { describe, expect, it } from "vitest";
-import { decideBotAction, MULLIGAN_FLOOR, type BotView } from "../brain";
+import {
+    chooseResolution,
+    decideBotAction,
+    MULLIGAN_FLOOR,
+    type BotView,
+    type OwedChoice,
+} from "../brain";
 
 const BOT = "u1-p2";
 const HUMAN = "u1-p1";
@@ -206,5 +212,75 @@ describe("decideBotAction (pass-only bot, issue #109)", () => {
         expect(
             decideBotAction(view({ priorityPlayerId: BOT, gameOver: true }))
         ).toEqual({ kind: "none" });
+    });
+});
+
+describe("chooseResolution default policy (ADR 0016, issue #162)", () => {
+    function owed(overrides: Partial<OwedChoice> = {}): OwedChoice {
+        return {
+            kind: "search-library",
+            min: 1,
+            max: 1,
+            candidates: [
+                { id: "land", isLand: true },
+                { id: "spell", isLand: false },
+            ],
+            ...overrides,
+        };
+    }
+
+    it("search-library fetches the required count, preferring non-lands", () => {
+        // min 1, candidates land-first — the material ordering must still pick
+        // the non-land spell.
+        expect(chooseResolution(owed())).toEqual(["spell"]);
+    });
+
+    it("search-library picks exactly `min` cards in zone order within a tier", () => {
+        const picks = chooseResolution(
+            owed({
+                min: 2,
+                max: 2,
+                candidates: [
+                    { id: "land1", isLand: true },
+                    { id: "spell1", isLand: false },
+                    { id: "spell2", isLand: false },
+                    { id: "land2", isLand: true },
+                ],
+            })
+        );
+        // Two non-lands come first, in zone order; deterministic, in-bounds.
+        expect(picks).toEqual(["spell1", "spell2"]);
+    });
+
+    it("search-library declines legally when min is 0 (optional search)", () => {
+        expect(chooseResolution(owed({ min: 0, max: 1 }))).toEqual([]);
+    });
+
+    it("throws loudly for a not-yet-implemented kind (gap stays visible)", () => {
+        expect(() => chooseResolution(owed({ kind: "discard-hand" }))).toThrow(
+            /not yet implemented/
+        );
+    });
+});
+
+describe("decideBotAction resolves an owed mid-resolution choice (ADR 0016)", () => {
+    it("returns a resolution-choice (not a pass) when the bot is owed a choice", () => {
+        const action = decideBotAction(
+            view({
+                // The engine sets priority to the chooser while a choice is
+                // pending; the bot must resolve it, not pass into a no-op.
+                priorityPlayerId: BOT,
+                owedChoice: {
+                    kind: "search-library",
+                    min: 1,
+                    max: 1,
+                    candidates: [{ id: "fetch-me", isLand: false }],
+                },
+            })
+        );
+        expect(action).toEqual({
+            kind: "resolution-choice",
+            cardInstanceIds: ["fetch-me"],
+        });
     });
 });

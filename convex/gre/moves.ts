@@ -55,6 +55,18 @@ export type Move =
           choiceId: string;
           cardInstanceIds: string[];
       }
+    | {
+          /** Generic mid-resolution choice submission (CR 608.2 / ADR 0016) —
+           *  the bot's legal default for any zone-pick `PendingChoiceKind`
+           *  (search-library, discard, scry, …). Realised through the same
+           *  `submitResolutionChoice` mutation as `mulligan-bottom`; the choice
+           *  identity is read from the active pending choice. */
+          kind: "resolution-choice";
+          stackItemId: string;
+          step: number;
+          choiceId: string;
+          cardInstanceIds: string[];
+      }
     | { kind: "play-land"; cardInstanceId: string }
     | {
           kind: "cast-spell";

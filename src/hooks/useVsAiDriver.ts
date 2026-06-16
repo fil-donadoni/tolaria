@@ -25,7 +25,7 @@ import { shouldThink, budgetFor } from "@convex/gre";
 import { consultBrain } from "~/lib/ai/brain-client";
 import { setLatestAiTrace } from "~/lib/ai/trace-store";
 import { decideBotAction } from "~/lib/ai/brain";
-import { buildBotView, mulliganActionToMove } from "~/lib/ai/bot-view";
+import { buildBotView, botActionToMove } from "~/lib/ai/bot-view";
 import { executeMove, type MoveMutations } from "~/lib/ai/executor";
 import { projectedToGameState } from "~/lib/ai/state-adapter";
 import { getStoredDifficulty } from "~/lib/session";
@@ -89,17 +89,20 @@ export function useVsAiDriver(
         const signature = String(botState.seq);
         if (lastSignature.current === signature) return;
 
-        // Mulligan decisions (issue #145) are made by the cheap main-thread
-        // heuristic — keep / mull / bottom-N — and skip the Worker entirely
-        // (ISMCTS mulligan evaluation is out of scope). Realise them straight
-        // through the executor, mirroring the immediate-pass short-circuit.
+        // Brain-resolved windows skip the Worker entirely and realise straight
+        // through the executor (mirroring the immediate-pass short-circuit):
+        // mulligan keep / mull / bottom-N (issue #145, ISMCTS mulligan eval out
+        // of scope) and any mid-resolution interactive choice default (ADR 0016 —
+        // the GRE surfaces no move while a choice is pending, so the search can't
+        // make it).
         if (
             action.kind === "keep" ||
             action.kind === "mull" ||
-            action.kind === "mulligan-bottom"
+            action.kind === "mulligan-bottom" ||
+            action.kind === "resolution-choice"
         ) {
             if (inFlight.current) return;
-            const move = mulliganActionToMove(action, botState, botId);
+            const move = botActionToMove(action, botState, botId);
             if (!move) return;
             lastSignature.current = signature;
             void executeMove(move, { gameId, botId, mutations }).catch(() => {

@@ -27,3 +27,6 @@ convex/_generated
 *.tsbuildinfo
 
 .ralph/logs/
+
+# Claude Code runtime lock (per-session: sessionId/pid). Not shared config.
+.claude/scheduled_tasks.lock
