@@ -32,7 +32,7 @@ function CandidateRow({
     cand: CandidateTrace;
     chosen: boolean;
 }) {
-    const { self, opp, margin } = cand.eval;
+    const { self, opp, margin, danger } = cand.eval;
     return (
         <div
             className={`rounded px-1.5 py-1 ${
@@ -56,6 +56,19 @@ function CandidateRow({
                 >
                     Δ{margin}
                 </span>{" "}
+                {danger !== 0 && (
+                    <span
+                        className={
+                            danger < 0
+                                ? "text-rose-400/80"
+                                : "text-emerald-400/80"
+                        }
+                        title="Danger Clock (race term)"
+                    >
+                        clk{danger > 0 ? "+" : ""}
+                        {Math.round(danger)}{" "}
+                    </span>
+                )}
                 <span className="text-white/50">self</span>{" "}
                 {termLine(self) || "—"}{" "}
                 <span className="text-white/50">opp</span>{" "}

@@ -11,6 +11,7 @@ import {
     materialMargin,
     WIN_SCORE,
 } from "../evaluate";
+import { dangerClock, predictUnblockedDamage } from "../dangerClock";
 import {
     makeInstance,
     makePlayer,
@@ -410,5 +411,146 @@ describe("cardValue — latent worth + aiValue override (ADR 0018)", () => {
             ],
         });
         expect(evaluate(bombs, "p1")).toBeGreaterThan(evaluate(lands, "p1"));
+    });
+});
+
+// Danger Clock — the race term (ADR 0018, issue #196). Ordering asserts only.
+describe("dangerClock — race term, net of blockers (ADR 0018)", () => {
+    const attacker = (cardId: string, id: string, extra = {}) =>
+        makeInstance(cardId, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id,
+            isSummoningSick: false,
+            ...extra,
+        });
+    const oppCreature = (cardId: string, id: string, extra = {}) =>
+        makeInstance(cardId, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id,
+            isSummoningSick: false,
+            ...extra,
+        });
+
+    it("predicts a lone attacker's full power when unblocked", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker(GIANT, "g")] }), // 3/3
+                makePlayer("p2"),
+            ],
+        });
+        expect(predictUnblockedDamage(state, "p1", "p2")).toBe(3);
+    });
+
+    it("is net of blockers: a legal blocker chumps the threat to zero", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker(GIANT, "g")] }),
+                makePlayer("p2", { battlefield: [oppCreature(GIANT, "wall")] }),
+            ],
+        });
+        // The 3/3 can be blocked by the opponent's 3/3 → no damage through.
+        expect(predictUnblockedDamage(state, "p1", "p2")).toBe(0);
+    });
+
+    it("respects evasion: a ground blocker can't stop a flyer", () => {
+        const flyer = attacker(GIANT, "f", { staticAbilities: ["flying"] });
+        const ground = oppCreature(GIANT, "wall", { staticAbilities: [] });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [flyer] }),
+                makePlayer("p2", { battlefield: [ground] }),
+            ],
+        });
+        // Ground 3/3 cannot block the flyer → 3 still gets through.
+        expect(predictUnblockedDamage(state, "p1", "p2")).toBe(3);
+    });
+
+    it("is symmetric: a mirrored board nets to a zero clock", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker(GIANT, "g1")] }),
+                makePlayer("p2", { battlefield: [oppCreature(GIANT, "g2")] }),
+            ],
+        });
+        expect(dangerClock(state, "p1")).toBe(0);
+    });
+
+    it("holding the strictly faster clock scores positive", () => {
+        // p1's attacker is unblockable; p2's same-size attacker is blocked by
+        // p1 → p1 races faster.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        attacker(GIANT, "mine", {
+                            staticAbilities: ["flying"],
+                        }),
+                        attacker(GIANT, "blocker"), // blocks p2's ground attacker
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [oppCreature(GIANT, "theirs")], // ground, blockable
+                }),
+            ],
+        });
+        expect(dangerClock(state, "p1")).toBeGreaterThan(0);
+        expect(dangerClock(state, "p2")).toBeLessThan(0); // symmetric sign flip
+    });
+
+    it("an opposing lethal clock with no blocker scores worse, and worse still at lower life", () => {
+        const threatened = (life: number) =>
+            makeState({
+                players: [
+                    makePlayer("p1", { life }), // no blockers
+                    makePlayer("p2", {
+                        battlefield: [oppCreature(GIANT, "threat")],
+                    }),
+                ],
+            });
+        // Under an unblocked opposing clock the term is negative (defend!).
+        expect(dangerClock(threatened(20), "p1")).toBeLessThan(0);
+        // The same board is more dangerous the lower the bot's life.
+        expect(dangerClock(threatened(3), "p1")).toBeLessThan(
+            dangerClock(threatened(20), "p1")
+        );
+    });
+
+    it("evaluate rewards holding the faster clock, all else equal", () => {
+        // Two positions with the SAME material (a 3/3 each side), differing only
+        // in WHO can be blocked: when my attacker evades and theirs doesn't, I
+        // hold the faster clock and the leaf scores higher.
+        const iRaceFaster = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        attacker(GIANT, "mine", {
+                            staticAbilities: ["flying"],
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [oppCreature(GIANT, "theirs")],
+                }),
+            ],
+        });
+        const theyRaceFaster = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [attacker(GIANT, "mine")],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        oppCreature(GIANT, "theirs", {
+                            staticAbilities: ["flying"],
+                        }),
+                    ],
+                }),
+            ],
+        });
+        expect(evaluate(iRaceFaster, "p1")).toBeGreaterThan(
+            evaluate(theyRaceFaster, "p1")
+        );
     });
 });

@@ -26,6 +26,7 @@ import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
 import { isCreature, isLand, hasManaAbility, manaValue } from "./constants";
 import { getInstanceManaCost, getInstanceAiValue } from "../cards";
+import { dangerClock } from "./dangerClock";
 
 /** A won position. Large enough to dominate every reachable material margin so
  *  the bot always prefers lethal, and finite so two winning lines stay
@@ -210,7 +211,8 @@ export function evaluate(state: GameState, playerId: string): number {
     // Terminal detection. A recorded game-over is authoritative; otherwise a
     // player at ≤ 0 life has effectively lost (SBA may not have run on this
     // sandbox state yet). The material margin is added so two won/lost lines
-    // remain ordered by how decisive they are.
+    // remain ordered by how decisive they are. The Danger Clock is omitted in
+    // terminal positions — the outcome already dominates and the race is moot.
     if (state.gameOver) {
         if (state.gameOver.winnerId === playerId) return WIN_SCORE + margin;
         if (state.gameOver.loserId === playerId) return -WIN_SCORE + margin;
@@ -220,7 +222,10 @@ export function evaluate(state: GameState, playerId: string): number {
     if (oppLost && !meLost) return WIN_SCORE + margin;
     if (meLost && !oppLost) return -WIN_SCORE + margin;
 
-    return margin;
+    // Open position: add the Danger Clock race term (ADR 0018). Kept OUT of
+    // `materialMargin` so the issue-#138 saturation-proof tie-break stays pure
+    // material; the clock shapes only the leaf `evaluate` the reward band reads.
+    return margin + dangerClock(state, playerId);
 }
 
 /** Pure material margin from `playerId`'s view: sum(self terms) − sum(opp
@@ -237,15 +242,18 @@ export function materialMargin(state: GameState, playerId: string): number {
 }
 
 /** `playerId`'s view of a position, decomposed into per-player, per-term
- *  contributions plus the final `evaluate` value. Pure read used only by the
- *  DecisionTrace debug view — it never feeds the search itself. `margin` is the
- *  pre-terminal material difference (sum(self) − sum(opp)); `total` is the full
- *  `evaluate(state, playerId)` (terminal offsets included), so the two differ
- *  exactly when the position is terminal. */
+ *  contributions plus the relational Danger Clock and the final `evaluate`
+ *  value. Pure read used only by the DecisionTrace debug view — it never feeds
+ *  the search itself. `margin` is the pre-terminal material difference
+ *  (sum(self) − sum(opp)); `danger` is the signed Danger Clock term (ADR 0018,
+ *  positive = the player holds the faster clock); `total` is the full
+ *  `evaluate(state, playerId)`. In an open position `total = margin + danger`;
+ *  in a terminal one the win/loss offset dominates and `danger` is omitted. */
 export type PositionBreakdown = {
     self: EvalTerms;
     opp: EvalTerms;
     margin: number;
+    danger: number;
     total: number;
 };
 
@@ -263,7 +271,7 @@ export function evaluateBreakdown(
         mana: 0,
     };
     if (!me || !opp) {
-        return { self: empty, opp: empty, margin: 0, total: 0 };
+        return { self: empty, opp: empty, margin: 0, danger: 0, total: 0 };
     }
     const self = playerTerms(state, me);
     const oppTerms = playerTerms(state, opp);
@@ -272,6 +280,7 @@ export function evaluateBreakdown(
         self,
         opp: oppTerms,
         margin,
+        danger: dangerClock(state, playerId),
         total: evaluate(state, playerId),
     };
 }
