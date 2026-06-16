@@ -60,6 +60,7 @@ function engineMutations(state: GameState): MoveMutations {
         selectBlocker: reject,
         assignBlockerTarget: reject,
         confirmBlockers: reject,
+        confirmDamage: reject,
         declareMulligan: reject,
         submitResolutionChoice: async (args) => {
             applyPendingChoiceSubmit(state, args);

@@ -33,6 +33,18 @@ export type BotView = {
     hasCombat: boolean;
     attackersConfirmed: boolean;
     blockersConfirmed: boolean;
+    /** Combat-damage assignment flag (`combat.damageConfirmed`): `false` while a
+     *  multi-block step waits for manual assignment + confirmation, `undefined`
+     *  when damage auto-applied or no damage step is open. The server rejects a
+     *  `passPriority` while it is `false`, so the bot must confirm instead of
+     *  pass (else it loops on the rejection). */
+    damageConfirmed?: boolean;
+    /** True when a damage step is open (`damageConfirmed === false`), the bot is
+     *  one of the step's assigners (CR 702.21j-k — normally the active player,
+     *  banding can shift it), and it has NOT yet confirmed its portion. The bot
+     *  owes a `confirmDamage`; cleared once it has confirmed so it doesn't loop
+     *  re-confirming while waiting on another assigner. */
+    botOwesDamageConfirm?: boolean;
     /** Mulligan declaration window (pre-game). */
     mulliganDeclaringId?: string;
     /** True while ANY player is bottoming cards after a mulligan (CR 103.5).
@@ -99,6 +111,7 @@ export type OwedChoice = {
  *   - `may-pay`           → `submitMayPay` (yes-no family, ADR 0016)
  *   - `declare-attackers` → `confirmAttackers` (empty selection = no attack)
  *   - `declare-blockers`  → `confirmBlockers` (empty selection = no block)
+ *   - `confirm-combat-damage` → `confirmDamage` (default assignment, multi-block)
  *   - `pass`              → `passPriority`
  *   - `none`              → the bot owes no action right now; do nothing. */
 export type BotAction =
@@ -109,6 +122,7 @@ export type BotAction =
     | { kind: "may-pay"; accept: boolean }
     | { kind: "declare-attackers" }
     | { kind: "declare-blockers" }
+    | { kind: "confirm-combat-damage" }
     | { kind: "pass" }
     | { kind: "none" };
 
@@ -320,6 +334,39 @@ export function decideBotAction(view: BotView): BotAction {
         // Defender is the non-active player; in a 2-player game that is the bot
         // whenever the human is active.
         return { kind: "declare-blockers" };
+    }
+
+    // The active player gets priority on entering each combat sub-step (CR
+    // 508–510), but the server forbids passing until that step's turn-based
+    // action is done — a `passPriority` is rejected, and the driver retries on
+    // the next state, looping forever. Mirror those gates so the bot resolves
+    // the step (or waits) instead of passing into a rejection.
+
+    // Combat-damage assignment (CR 510.1c, multi-block). The assigner must
+    // confirm damage before priority can pass; `passPriority` is rejected while
+    // `damageConfirmed === false`. Confirm instead of passing.
+    if (
+        (view.phase === "FIRST_STRIKE_DAMAGE" ||
+            view.phase === "COMBAT_DAMAGE") &&
+        view.hasCombat &&
+        view.damageConfirmed === false
+    ) {
+        if (view.botOwesDamageConfirm) return { kind: "confirm-combat-damage" };
+        // Bot holds priority but is not the (outstanding) assigner: wait for the
+        // assigner to confirm rather than pass into a rejection.
+        if (view.priorityPlayerId === view.botId) return NONE;
+    }
+
+    // Attacker awaiting the defender's blocks (CR 509.1). The active attacker
+    // holds priority here, but a pass is rejected until blockers are confirmed;
+    // the defender declares blocks via its own client, so the bot just waits.
+    if (
+        view.phase === "DECLARE_BLOCKERS" &&
+        view.hasCombat &&
+        !view.blockersConfirmed &&
+        view.activePlayerId === view.botId
+    ) {
+        return NONE;
     }
 
     // Ordinary priority window.

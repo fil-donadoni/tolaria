@@ -23,6 +23,24 @@ import { cardValueById } from "@convex/gre";
 import { matchesPermanentFilter } from "@convex/cards/filters";
 import type { BotAction, BotView, ChoiceCandidate, OwedChoice } from "./brain";
 
+/** Whether the bot still owes a combat-damage confirmation this step. True only
+ *  when a damage step is open (`damageConfirmed === false`), the bot is one of
+ *  the step's assigners (CR 702.21j-k — the source controller, banding can shift
+ *  it), and it has not yet confirmed its portion. Mirrors the `confirmDamage`
+ *  server gate so an accepted confirmation is never rejected, and clears once the
+ *  bot has confirmed so the driver doesn't loop while another assigner is still
+ *  outstanding. */
+function botOwesDamageConfirm(
+    combat: PublicGameState["combat"],
+    botId: string
+): boolean {
+    if (!combat || combat.damageConfirmed !== false) return false;
+    const assigners = new Set(Object.values(combat.damageAssignerIds ?? {}));
+    if (!assigners.has(botId)) return false;
+    const confirmedBy = new Set(combat.damageAssignmentConfirmedBy ?? []);
+    return !confirmedBy.has(botId);
+}
+
 /** Land detection on a projected hand card. The slim instance keeps the
  *  `types` array from `CardInstanceState` (only `card` is stripped), so a land
  *  is any card whose printed types include "Land" (CR 305.1). */
@@ -151,6 +169,8 @@ export function buildBotView(state: PublicGameState, botId: string): BotView {
         hasCombat: combat !== undefined,
         attackersConfirmed: combat?.confirmed === true,
         blockersConfirmed: combat?.blockersConfirmed === true,
+        damageConfirmed: combat?.damageConfirmed,
+        botOwesDamageConfirm: botOwesDamageConfirm(combat, botId),
         mulliganDeclaringId: state.mulligan?.declaringPlayerId,
         mulliganBottoming: state.mulligan?.bottoming === true,
         gameOver: state.gameOver !== undefined,

@@ -64,6 +64,7 @@ export function useVsAiDriver(
         selectBlocker: useMutation(api.game.selectBlocker),
         assignBlockerTarget: useMutation(api.game.assignBlockerTarget),
         confirmBlockers: useMutation(api.game.confirmBlockers),
+        confirmDamage: useMutation(api.game.confirmDamage),
         declareMulligan: useMutation(api.game.declareMulligan),
         submitResolutionChoice: useMutation(api.game.submitResolutionChoice),
         submitMayPay: useMutation(api.game.submitMayPay),
@@ -89,6 +90,22 @@ export function useVsAiDriver(
         // against double-submitting the same state.
         const signature = String(botState.seq);
         if (lastSignature.current === signature) return;
+
+        // Combat-damage confirmation (CR 510.1c, multi-block): the gate already
+        // decided the bot owes a `confirmDamage`, so realise it directly — no
+        // Worker, no search. The engine pre-fills the default assignment on step
+        // entry, so confirming is enough. Without this the bot would `pass` and
+        // the server would reject it ("Must assign combat damage…") forever.
+        if (action.kind === "confirm-combat-damage") {
+            if (inFlight.current) return;
+            lastSignature.current = signature;
+            void mutations
+                .confirmDamage({ gameId, playerId: botId })
+                .catch(() => {
+                    lastSignature.current = null;
+                });
+            return;
+        }
 
         // Brain-resolved windows skip the Worker entirely and realise straight
         // through the executor (mirroring the immediate-pass short-circuit):

@@ -216,6 +216,85 @@ describe("decideBotAction (pass-only bot, issue #109)", () => {
     });
 });
 
+// Regression: the active player gets priority on entering each combat sub-step,
+// but the server rejects a `passPriority` until the step's turn-based action is
+// done. Passing there looped on the rejection and froze the app.
+describe("decideBotAction does not pass into a combat-step rejection", () => {
+    it("waits (none) as the attacker while blocks are unconfirmed", () => {
+        expect(
+            decideBotAction(
+                view({
+                    phase: "DECLARE_BLOCKERS",
+                    activePlayerId: BOT,
+                    priorityPlayerId: BOT,
+                    hasCombat: true,
+                    blockersConfirmed: false,
+                })
+            )
+        ).toEqual({ kind: "none" });
+    });
+
+    it("passes normally as the attacker once blocks are confirmed", () => {
+        expect(
+            decideBotAction(
+                view({
+                    phase: "DECLARE_BLOCKERS",
+                    activePlayerId: BOT,
+                    priorityPlayerId: BOT,
+                    hasCombat: true,
+                    blockersConfirmed: true,
+                })
+            )
+        ).toEqual({ kind: "pass" });
+    });
+
+    it("confirms combat damage when it owes an assignment (multi-block)", () => {
+        for (const phase of ["FIRST_STRIKE_DAMAGE", "COMBAT_DAMAGE"] as const) {
+            expect(
+                decideBotAction(
+                    view({
+                        phase,
+                        activePlayerId: BOT,
+                        priorityPlayerId: BOT,
+                        hasCombat: true,
+                        damageConfirmed: false,
+                        botOwesDamageConfirm: true,
+                    })
+                )
+            ).toEqual({ kind: "confirm-combat-damage" });
+        }
+    });
+
+    it("waits (none) in a damage step it does not assign rather than passing", () => {
+        expect(
+            decideBotAction(
+                view({
+                    phase: "COMBAT_DAMAGE",
+                    activePlayerId: BOT,
+                    priorityPlayerId: BOT,
+                    hasCombat: true,
+                    damageConfirmed: false,
+                    botOwesDamageConfirm: false,
+                })
+            )
+        ).toEqual({ kind: "none" });
+    });
+
+    it("passes normally in a damage step with no open assignment (auto-applied)", () => {
+        expect(
+            decideBotAction(
+                view({
+                    phase: "COMBAT_DAMAGE",
+                    activePlayerId: BOT,
+                    priorityPlayerId: BOT,
+                    hasCombat: true,
+                    damageConfirmed: undefined,
+                })
+            )
+        ).toEqual({ kind: "pass" });
+    });
+});
+
 describe("chooseResolution default policy (ADR 0016, issue #162)", () => {
     function owed(overrides: Partial<OwedChoice> = {}): OwedChoice {
         return {

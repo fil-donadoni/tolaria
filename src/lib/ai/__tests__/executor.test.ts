@@ -25,6 +25,7 @@ function fakeMutations() {
         selectBlocker: vi.fn().mockResolvedValue(null),
         assignBlockerTarget: vi.fn().mockResolvedValue(null),
         confirmBlockers: vi.fn().mockResolvedValue(null),
+        confirmDamage: vi.fn().mockResolvedValue(null),
         declareMulligan: vi.fn().mockResolvedValue(null),
         submitResolutionChoice: vi.fn().mockResolvedValue(null),
         submitMayPay: vi.fn().mockResolvedValue(null),
