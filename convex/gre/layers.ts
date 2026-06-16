@@ -74,8 +74,11 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
 };
 
 /**
- * Sum of P/T buffs applied to `target` by static effects of all permanents
- * currently on the battlefield (CR 611.2).
+ * Layer 7d static P/T buffs: sum of `pt-buff` static effects applied to
+ * `target` by all permanents on the battlefield (CR 613.4d, 611.2). These are
+ * +N/+N deltas (Crusade, Bad Moon, Castle) applied on top of the base / CDA /
+ * set / counter stack. `pt-cda` is NOT summed here — it is layer 7a, see
+ * `getCDAContribution`.
  */
 export function getStaticPTBuff(
     state: LayerStateView,
@@ -90,30 +93,75 @@ export function getStaticPTBuff(
     for (const player of state.players) {
         for (const source of player.battlefield) {
             for (const effect of getStaticEffects(source)) {
-                if (effect.kind === "pt-buff") {
-                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
-                        continue;
-                    }
-                    power += effect.power;
-                    toughness += effect.toughness;
-                } else if (effect.kind === "pt-cda") {
-                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
-                        continue;
-                    }
-                    const pt = effect.compute(
-                        source,
-                        state,
-                        STATIC_EFFECT_CTX,
-                        target
-                    );
-                    power += pt.power;
-                    toughness += pt.toughness;
+                if (effect.kind !== "pt-buff") continue;
+                if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                    continue;
                 }
+                power += effect.power;
+                toughness += effect.toughness;
             }
         }
     }
 
     if (power === 0 && toughness === 0) return ZERO;
+    return { power, toughness };
+}
+
+/**
+ * Layer 7a characteristic-defining contribution: sum of `pt-cda` effects
+ * (CR 613.4a, 604.3). The result is added on top of the printed base P/T to
+ * form the starting value of the pipeline; a layer 7b set (`temporaryPTSet`)
+ * may override it. Promoted out of the summed buff bucket so a set can win
+ * over it (ADR 0017).
+ */
+function getCDAContribution(
+    state: LayerStateView,
+    target: PermanentView
+): PTBuff {
+    if (!STATIC_EFFECT_CTX.isCreature(target)) return ZERO;
+    let power = 0;
+    let toughness = 0;
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            for (const effect of getStaticEffects(source)) {
+                if (effect.kind !== "pt-cda") continue;
+                if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                    continue;
+                }
+                const pt = effect.compute(
+                    source,
+                    state,
+                    STATIC_EFFECT_CTX,
+                    target
+                );
+                power += pt.power;
+                toughness += pt.toughness;
+            }
+        }
+    }
+    if (power === 0 && toughness === 0) return ZERO;
+    return { power, toughness };
+}
+
+/**
+ * Layer 7b set-P/T override (CR 613.4b). Reads the timestamped `temporaryPTSet`
+ * entries on the target and returns the latest value per characteristic
+ * (CR 613.7 — array order is the timestamp, latest entry wins; consistent with
+ * `controlChanges` / text-change stacks). `power`/`toughness` are independently
+ * optional: "base power 0" sets power and leaves toughness to the 7a value.
+ */
+function getSetPT(target: PermanentView): {
+    power?: number;
+    toughness?: number;
+} {
+    const sets = target.temporaryPTSet;
+    if (!sets?.length) return {};
+    let power: number | undefined;
+    let toughness: number | undefined;
+    for (const entry of sets) {
+        if (entry.power !== undefined) power = entry.power;
+        if (entry.toughness !== undefined) toughness = entry.toughness;
+    }
     return { power, toughness };
 }
 
@@ -163,28 +211,80 @@ function getCounterPTBuff(target: PermanentView): PTBuff {
     return { power, toughness };
 }
 
-/** Effective power after static P/T buffs. Not floored (combat damage floors separately). */
+/**
+ * Evaluates the CR 613.4 P/T sublayers in order (ADR 0017), per characteristic:
+ *
+ *   7a CDA      → starting value = printed base + Σ pt-cda
+ *   7b set      → if a `temporaryPTSet` overrides this characteristic, replace
+ *   7c counters → += counter contribution
+ *   7d modifier → += static pt-buff + temporaryPTMods (pump, anthems)
+ *   7e switch   → power/toughness swap — no card in scope; intentionally
+ *                 absent (the first switch card lands the 7e body + its test).
+ *
+ * Computed at read time, never mutating card state — same discipline as the
+ * previous flat sum, but ordered so a 7b set wins over the 7a base/CDA and
+ * counters/modifiers stack on top of the set value.
+ */
+function evaluateLayer(
+    base: number,
+    cda: number,
+    set: number | undefined,
+    counter: number,
+    modifier: number
+): number {
+    let value = base + cda; // 7a
+    if (set !== undefined) value = set; // 7b override
+    value += counter; // 7c
+    value += modifier; // 7d
+    return value; // 7e: no-op (no switch card in scope)
+}
+
+function computeEffectivePT(
+    state: LayerStateView,
+    target: PermanentView
+): PTBuff {
+    const basePower = target.power ?? 0;
+    const baseToughness = target.toughness ?? 0;
+    // Fast path: only creatures carry P/T-layer effects (CR 208.2).
+    if (!STATIC_EFFECT_CTX.isCreature(target)) {
+        return { power: basePower, toughness: baseToughness };
+    }
+    const cda = getCDAContribution(state, target); // 7a
+    const set = getSetPT(target); // 7b
+    const counter = getCounterPTBuff(target); // 7c
+    const buff = getStaticPTBuff(state, target); // 7d static
+    const temp = getTemporaryPTBuff(target); // 7d temporary
+    return {
+        power: evaluateLayer(
+            basePower,
+            cda.power,
+            set.power,
+            counter.power,
+            buff.power + temp.power
+        ),
+        toughness: evaluateLayer(
+            baseToughness,
+            cda.toughness,
+            set.toughness,
+            counter.toughness,
+            buff.toughness + temp.toughness
+        ),
+    };
+}
+
+/** Effective power after the CR 613.4 layer pipeline. Not floored (combat
+ *  damage floors separately). */
 export function getEffectivePower(
     state: LayerStateView,
     target: PermanentView
 ): number {
-    return (
-        (target.power ?? 0) +
-        getStaticPTBuff(state, target).power +
-        getTemporaryPTBuff(target).power +
-        getCounterPTBuff(target).power
-    );
+    return computeEffectivePT(state, target).power;
 }
 
-/** Effective toughness after static P/T buffs. */
+/** Effective toughness after the CR 613.4 layer pipeline. */
 export function getEffectiveToughness(
     state: LayerStateView,
     target: PermanentView
 ): number {
-    return (
-        (target.toughness ?? 0) +
-        getStaticPTBuff(state, target).toughness +
-        getTemporaryPTBuff(target).toughness +
-        getCounterPTBuff(target).toughness
-    );
+    return computeEffectivePT(state, target).toughness;
 }
