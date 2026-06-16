@@ -1499,6 +1499,178 @@ export const camel: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Batch 7 (#178) — scheduled pay-or-suffer effects (delayed trigger + may-pay)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const NAFS_ASP_ID = "965f722c-2b18-4c22-8c30-12552def5940";
+
+// Nafs Asp — on dealing damage to a player, schedule a delayed trigger at that
+// player's NEXT DRAW STEP (new `next-draw-step` timing) offering "pay {1} or
+// lose 1 life". The "before that draw step" window is modelled as a may-pay at
+// the draw step itself.
+export const nafsAsp: CardDefinition = {
+    id: NAFS_ASP_ID,
+    name: "Nafs Asp",
+    oracleText:
+        "Whenever this creature deals damage to a player, that player loses 1 life at the beginning of their next draw step unless they pay {1} before that draw step.",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Snake"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        damageDealtTrigger({
+            id: "nafs-asp-damage",
+            oracleText:
+                "Whenever this creature deals damage to a player, that player loses 1 life at the beginning of their next draw step unless they pay {1} before that draw step.",
+            source: "self",
+            target: { kind: "player", player: { relation: "any" } },
+            resolve: (ctx, event) => {
+                if (event.target.type !== "player") return;
+                ctx.scheduleDelayedTrigger(
+                    NAFS_ASP_ID,
+                    "nafs-asp-draw-step",
+                    "next-draw-step",
+                    { playerId: event.target.id },
+                    event.target.id
+                );
+            },
+        }),
+    ],
+    delayedTriggers: [
+        {
+            id: "nafs-asp-draw-step",
+            oracleText:
+                "That player loses 1 life unless they paid {1} before this draw step.",
+            timing: "next-draw-step",
+            resolve: (ctx, payload) => {
+                const pid = payload.playerId;
+                if (!pid) return;
+                const paid = ctx.requestMayPay({
+                    playerId: pid,
+                    choiceId: "nafs-asp-pay",
+                    cost: { X: 1 },
+                    prompt: "Pay {1} to avoid losing 1 life to Nafs Asp?",
+                });
+                if (paid === undefined) return; // suspended for the decision
+                if (!paid) ctx.loseLife(pid, 1);
+            },
+        },
+    ],
+};
+
+// Cyclone — upkeep: add a wind counter, then pay {G} per counter or sacrifice;
+// if paid, deal (counter count) damage to each creature and player. The wind
+// counter and the damage run on the resumed (committed) path so the stepped
+// re-run after the may-pay suspension doesn't double-apply them.
+export const cyclone: CardDefinition = {
+    id: "f11684d6-5b74-47a7-a2d0-256c9e437aa6",
+    name: "Cyclone",
+    oracleText:
+        "At the beginning of your upkeep, put a wind counter on this enchantment, then sacrifice this enchantment unless you pay {G} for each wind counter on it. If you pay, this enchantment deals damage equal to the number of wind counters on it to each creature and each player.",
+    manaCost: { X: 2, G: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "cyclone-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, put a wind counter on this enchantment, then sacrifice this enchantment unless you pay {G} for each wind counter on it. If you pay, this enchantment deals damage equal to the number of wind counters on it to each creature and each player.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const self = {
+                    type: "permanent" as const,
+                    id: ctx.sourceInstanceId,
+                };
+                // Cost basis = counters after the (not-yet-applied) increment.
+                const windCount = ctx.getCounterCount(self, "wind") + 1;
+                const paid = ctx.requestMayPay({
+                    playerId: scopedPlayerId,
+                    choiceId: "cyclone-pay",
+                    cost: { G: windCount },
+                    prompt: `Pay {G} for each wind counter (×${windCount}) or sacrifice Cyclone?`,
+                });
+                if (paid === undefined) return; // suspended for the decision
+                // Committed path (runs once on resume).
+                ctx.addCounter(self, "wind", 1);
+                if (!paid) {
+                    ctx.sacrifice(ctx.sourceInstanceId);
+                    return;
+                }
+                ctx.dealDamageToEach(windCount, {
+                    creatures: true,
+                    players: true,
+                });
+            },
+        }),
+    ],
+};
+
+// Drop of Honey — upkeep: destroy the least-power creature (can't be
+// regenerated; you choose among ties). A separate state trigger sacrifices it
+// when the battlefield has no creatures.
+export const dropOfHoney: CardDefinition = {
+    id: "26e090d4-e7fe-403c-9aca-05c1b45ed238",
+    name: "Drop of Honey",
+    oracleText:
+        "At the beginning of your upkeep, destroy the creature with the least power. It can't be regenerated. If two or more creatures are tied for least power, you choose one of them.\nWhen there are no creatures on the battlefield, sacrifice this enchantment.",
+    manaCost: { G: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "drop-of-honey-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, destroy the creature with the least power. It can't be regenerated. If two or more creatures are tied for least power, you choose one of them.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const creatureIds = ctx.allPlayerIds.flatMap((pid) =>
+                    ctx.getBattlefieldIds(pid, { types: "Creature" })
+                );
+                if (creatureIds.length === 0) return;
+                const powers = creatureIds.map((id) =>
+                    ctx.getPower({ type: "permanent", id })
+                );
+                const minPower = Math.min(...powers);
+                const tied = creatureIds.filter(
+                    (_id, i) => powers[i] === minPower
+                );
+                let victimId = tied[0];
+                if (tied.length > 1) {
+                    const picks = ctx.requestChoice({
+                        playerId: scopedPlayerId,
+                        choiceId: "drop-of-honey-tie",
+                        kind: "choose-permanents",
+                        zone: "battlefield",
+                        candidateIds: tied,
+                        count: 1,
+                        prompt: "Choose a creature with the least power to destroy.",
+                    });
+                    if (picks === undefined) return; // suspended for the choice
+                    victimId = picks[0] ?? tied[0];
+                }
+                ctx.destroy(
+                    { type: "permanent", id: victimId },
+                    { cantBeRegenerated: true }
+                );
+            },
+        }),
+        stateTrigger({
+            id: "drop-of-honey-sacrifice",
+            oracleText:
+                "When there are no creatures on the battlefield, sacrifice this enchantment.",
+            condition: (_self, state) =>
+                state.players.every((p) =>
+                    p.battlefield.every((c) => !c.types.includes("Creature"))
+                ),
+            resolve: (ctx) => {
+                ctx.sacrifice(ctx.sourceInstanceId);
+            },
+        }),
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Deferred to later batches — need engine work beyond existing primitives:
 //
 //   • Hurr Jackal — "{T}: Target creature can't be regenerated this turn"
@@ -1520,7 +1692,6 @@ export const camel: CardDefinition = {
 //
 // Other batches (PRD #171):
 //   • Batch 4 (#191, coin flip): Bottle of Suleiman, Mijae Djinn, Ydwen Efreet.
-//   • Batch 7 (#178, delayed-pay): Nafs Asp, Cyclone, Drop of Honey.
 //   • Batch 8 (#179, phasing): Oubliette.
 //   • Batch 9 (#180-187, misc): Metamorphosis, Jihad, Magnetic Mountain,
 //     Aladdin's Lamp, Cuombajj Witches, Ifh-Bíff Efreet, Guardian Beast,

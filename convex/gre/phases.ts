@@ -901,7 +901,13 @@ export function fireDelayedTriggers(
     const firing: DelayedTriggerInstance[] = [];
     const remaining: DelayedTriggerInstance[] = [];
     for (const t of state.delayedTriggers) {
-        (t.timing === timing ? firing : remaining).push(t);
+        // A `next-draw-step` instance fires only on its target player's draw
+        // step (CR 504); the global-boundary timings ignore `targetPlayerId`.
+        const matches =
+            t.timing === timing &&
+            (t.targetPlayerId === undefined ||
+                t.targetPlayerId === state.activePlayerId);
+        (matches ? firing : remaining).push(t);
     }
     state.delayedTriggers = remaining.length > 0 ? remaining : undefined;
     if (firing.length === 0) return;
@@ -1002,6 +1008,9 @@ function performPhaseEntry(state: GameState): void {
             break;
         case "DRAW":
             drawStep(state);
+            // CR 504.2 — "at the beginning of the draw step" delayed triggers
+            // (Nafs Asp's pay-or-lose-life) fire for the active player.
+            fireDelayedTriggers(state, "next-draw-step");
             break;
         case "DECLARE_ATTACKERS":
             state.combat = {

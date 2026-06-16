@@ -50,6 +50,28 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ARN Batch 7 (#178) — scheduled pay-or-suffer. Cyclone ({2}{G}{G}):
+        // each of your upkeeps add a wind counter, then pay {G} per counter or
+        // sacrifice it; if you pay it deals that many damage to each creature
+        // and player. Drop of Honey ({G}): each upkeep destroy the least-power
+        // creature (you choose among ties); it sacrifices when no creatures
+        // remain. Nafs Asp ({G}, 1/1): when it damages a player they lose 1
+        // life at their next draw step unless they pay {1}. Forests pay upkeep
+        // costs.
+        label: "ARN: pay-or-suffer (Cyclone / Drop of Honey / Nafs Asp)",
+        cards: [
+            { name: "Cyclone", owner: "me" as const },
+            { name: "Drop of Honey", owner: "me" as const },
+            { name: "Nafs Asp", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 4 },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Flying Men", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 6 (#177) — Deserts. You control two Deserts ({T}: add {C};
         // {T} at end of combat: deal 1 to an attacking creature), Desert Nomads
         // (desertwalk + immune to Desert damage) and a Camel (banding; while

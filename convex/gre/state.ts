@@ -529,9 +529,12 @@ export type DelayedTriggerInstance = {
     /** Controller of the delayed trigger (CR 113.7). */
     controller: string;
     /** When the trigger should fire. */
-    timing: "next-end-step" | "next-end-of-combat";
+    timing: "next-end-step" | "next-end-of-combat" | "next-draw-step";
     /** Payload carried over from the scheduling spell's resolution. */
     payload: Record<string, string>;
+    /** For `next-draw-step`: the player whose draw step fires this trigger
+     *  (CR 504). Undefined for the global-boundary timings. */
+    targetPlayerId?: string;
 };
 
 /** Tracks an in-progress spell cast during the payment phase (CR 601.2). */
@@ -3407,8 +3410,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         scheduleDelayedTrigger(
             sourceCardId: string,
             triggerId: string,
-            timing: "next-end-step" | "next-end-of-combat",
-            payload: Record<string, string>
+            timing: "next-end-step" | "next-end-of-combat" | "next-draw-step",
+            payload: Record<string, string>,
+            targetPlayerId?: string
         ): void {
             state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
             const instance: DelayedTriggerInstance = {
@@ -3418,6 +3422,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 controller: item.castById,
                 timing,
                 payload,
+                ...(targetPlayerId ? { targetPlayerId } : {}),
             };
             state.delayedTriggers = [
                 ...(state.delayedTriggers ?? []),
