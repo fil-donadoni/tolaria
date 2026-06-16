@@ -132,6 +132,72 @@ async function driveBotOnce(
     return move;
 }
 
+describe("regression guard: bot never stalls in a mulligan window (issue #163)", () => {
+    // An older, intermittent freeze left the bot with no action in the
+    // opening-hand mulligan step. The keep/mull work (issue #145) fixed it, but
+    // the behaviour was unguarded — a future change could silently reintroduce
+    // it. These pin, from the SAME projected bot view the live driver uses, that
+    // the bot is always owed a concrete action when it is owed a mulligan
+    // decision: never `none`.
+
+    /** decideBotAction for the bot, built from the real wire projection. */
+    function decideFromProjection(
+        state: GameState
+    ): ReturnType<typeof decideBotAction> {
+        const view = buildBotView(projectPublicState(state, 1, BOT), BOT);
+        return decideBotAction(view);
+    }
+
+    it("never returns `none` for a mulligan DECLARATION window owed to the bot", () => {
+        // Across every land/spell split of a 7-card hand, and every legal
+        // mulligan count, the declaration must resolve to keep or mull.
+        for (let lands = 0; lands <= 7; lands++) {
+            for (let taken = 0; taken <= 4; taken++) {
+                const state = makeMulliganGame({
+                    lands,
+                    spells: 7 - lands,
+                    botMulligansTaken: taken,
+                });
+                const action = decideFromProjection(state);
+                expect(action.kind).not.toBe("none");
+                expect(["keep", "mull"]).toContain(action.kind);
+            }
+        }
+    });
+
+    it("never returns `none` for a mulligan BOTTOMING window owed to the bot (legal count of ids)", () => {
+        // Drive the bot to a keep so the engine enqueues its bottoming choice,
+        // then assert the bottoming window yields a legal mulligan-bottom action
+        // (exactly `mulligansTaken` ids, all distinct, all from the hand).
+        for (let taken = 1; taken <= 4; taken++) {
+            const state = makeMulliganGame({
+                lands: 4,
+                spells: 3,
+                botMulligansTaken: taken,
+            });
+            // Keep → bottoming enqueued for the bot.
+            recordDeclaration(state, BOT, "keep");
+            expect(state.mulligan?.bottoming).toBe(true);
+            expect(state.pendingChoices?.[0]?.kind).toBe("mulligan-bottom");
+
+            const action = decideFromProjection(state);
+            expect(action.kind).toBe("mulligan-bottom");
+            if (action.kind !== "mulligan-bottom") {
+                throw new Error("unreachable");
+            }
+            // London mulligan: bottom exactly `taken` cards (CR 103.5).
+            expect(action.cardInstanceIds).toHaveLength(taken);
+            expect(new Set(action.cardInstanceIds).size).toBe(taken);
+            const botHandIds = new Set(
+                state.players.find((p) => p.id === BOT)!.hand.map((c) => c.id)
+            );
+            for (const id of action.cardInstanceIds) {
+                expect(botHandIds.has(id)).toBe(true);
+            }
+        }
+    });
+});
+
 describe("bot mulligan full path (issue #145)", () => {
     it("keeps a good hand, then bottoms the right number of cards and the game proceeds", async () => {
         // Bot already mulliganed once → must bottom 1 card on keep. Hand has an
