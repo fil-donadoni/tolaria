@@ -68,6 +68,26 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // ARN Batch 5 (#176) — control-gain (CR 613.1b, layer 2). Aladdin
+        // ({1}{R}{R},{T}) steals the opponent's Brass Man for as long as you
+        // control Aladdin; Old Man of the Sea ({T}, tap it) steals a creature
+        // with power <= 2 while it stays tapped (it reverts when Old Man
+        // untaps). Ghazbán Ogre flips to whoever has strictly the most life at
+        // their upkeep — you start behind on life so it leaves you.
+        label: "ARN: control-gain (Aladdin / Old Man of the Sea / Ghazbán Ogre)",
+        cards: [
+            { name: "Aladdin", owner: "me" as const },
+            { name: "Old Man of the Sea", owner: "me" as const },
+            { name: "Ghazbán Ogre", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            { name: "Island", owner: "me" as const, count: 2 },
+            { name: "Brass Man", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 1 (#173) — combat tricks. You control two Grizzly Bears
         // and hold Army of Allah ({1}{W}{W}, attackers +2/+0), Piety ({2}{W},
         // blockers +0/+3) and Sandstorm ({G}, 1 damage to each attacking

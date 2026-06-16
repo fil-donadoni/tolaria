@@ -163,6 +163,14 @@ describe("game_state serialize round-trip", () => {
         lion.damagedBySources = ["bolt-1", "bolt-2"];
         lion.controlChanges = [
             { auraId: "aura-1", previousControllerId: "p1" },
+            {
+                auraId: "aladdin-1",
+                previousControllerId: "p2",
+                condition: {
+                    kind: "controller-controls-source",
+                    controllerId: "p1",
+                },
+            },
         ];
         lion.exileOnDeath = true;
         lion.mustAttackThisTurn = true;
@@ -204,6 +212,14 @@ describe("game_state serialize round-trip", () => {
         expect(got.damagedBySources).toEqual(["bolt-1", "bolt-2"]);
         expect(got.controlChanges).toEqual([
             { auraId: "aura-1", previousControllerId: "p1" },
+            {
+                auraId: "aladdin-1",
+                previousControllerId: "p2",
+                condition: {
+                    kind: "controller-controls-source",
+                    controllerId: "p1",
+                },
+            },
         ]);
         expect(got.exileOnDeath).toBe(true);
         expect(got.mustAttackThisTurn).toBe(true);

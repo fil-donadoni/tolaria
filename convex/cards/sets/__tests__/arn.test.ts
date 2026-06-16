@@ -43,8 +43,12 @@ import {
     singingTree,
     islandOfWakWak,
     sorceressQueen,
+    aladdin,
+    oldManOfTheSea,
+    ghazbanOgre,
 } from "../arn";
 import { grizzlyBears, plains, mountain, forest, island } from "../lea";
+import { checkStateBasedActions } from "../../../gre/sba";
 import {
     makeInstance,
     makePlayer,
@@ -53,6 +57,7 @@ import {
 } from "../../__tests__/setup";
 import {
     resolveTopOfStack,
+    removePermanentTo,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -1009,5 +1014,184 @@ describe("Sorceress Queen ({T}: target other creature base 0/2)", () => {
         const legal = getLegalTargets(state, req, [], "p1").map((t) => t.id);
         expect(legal).toContain("other");
         expect(legal).not.toContain("queen");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Batch 5 (#176) — activated / triggered control-gain (CR 613.1b, layer 2)
+// ---------------------------------------------------------------------------
+
+describe("Aladdin ({1}{R}{R},{T}: gain control of an artifact while you control it)", () => {
+    it("takes an artifact's control, reverting when Aladdin leaves", () => {
+        const al = makeInstance(aladdin.id, {
+            id: "aladdin",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const art = makeInstance(brassMan.id, {
+            id: "art",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [al] }),
+                makePlayer("p2", { battlefield: [art] }),
+            ],
+        });
+        resolveActivated(state, al, "aladdin-steal-artifact", [
+            { type: "permanent", id: "art" },
+        ]);
+        checkStateBasedActions(state);
+        // Artifact now under p1, physically in p1's battlefield array.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "art")
+                ?.controllerId
+        ).toBe("p1");
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "art")
+        ).toBeUndefined();
+
+        // Aladdin leaves → "for as long as you control Aladdin" lapses → revert.
+        removePermanentTo(state, "aladdin", "graveyard");
+        checkStateBasedActions(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "art")
+                ?.controllerId
+        ).toBe("p2");
+    });
+
+    it("the control change survives the public projection (wire format)", () => {
+        const al = makeInstance(aladdin.id, {
+            id: "aladdin",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const art = makeInstance(brassMan.id, {
+            id: "art",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [al] }),
+                makePlayer("p2", { battlefield: [art] }),
+            ],
+        });
+        resolveActivated(state, al, "aladdin-steal-artifact", [
+            { type: "permanent", id: "art" },
+        ]);
+        checkStateBasedActions(state);
+        const projected = projectPublicState(state, 1, "p1");
+        // The stolen artifact projects under p1 (the new controller).
+        expect(
+            projected.players[0].battlefield.find((c) => c.id === "art")
+                ?.controllerId
+        ).toBe("p1");
+        expect(
+            projected.players[1].battlefield.find((c) => c.id === "art")
+        ).toBeUndefined();
+    });
+});
+
+describe("Old Man of the Sea ({T}: steal a creature with power <= its own while tapped)", () => {
+    it("gains control while tapped and reverts when it untaps", () => {
+        const old = makeInstance(oldManOfTheSea.id, {
+            id: "old",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [old] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        // Activation taps Old Man (cost {T}); resolveActivated assumes the cost
+        // was paid, so tap the source to model the condition.
+        old.isTapped = true;
+        resolveActivated(state, old, "old-man-of-the-sea-steal", [
+            { type: "permanent", id: "bear" },
+        ]);
+        checkStateBasedActions(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "bear")
+                ?.controllerId
+        ).toBe("p1");
+
+        // Old Man untaps → "remains tapped" lapses → control reverts.
+        state.players[0].battlefield.find((c) => c.id === "old")!.isTapped =
+            false;
+        checkStateBasedActions(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")
+                ?.controllerId
+        ).toBe("p2");
+    });
+
+    it("only creatures with power <= its own are legal targets", () => {
+        const old = makeInstance(oldManOfTheSea.id, { id: "old" });
+        const small = makeInstance(grizzlyBears.id, { id: "small" }); // 2/2
+        const big = makeInstance(moorishCavalry.id, { id: "big" }); // 3/3
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [old, small, big] }),
+                makePlayer("p2"),
+            ],
+        });
+        const req = oldManOfTheSea.activatedAbilities![0].getTargetRequirement!(
+            { ...old } as never,
+            state as never
+        );
+        const legal = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        expect(legal).toContain("small");
+        expect(legal).not.toContain("big");
+    });
+});
+
+describe("Ghazbán Ogre (upkeep: control to the unique most-life player, CR 603.4)", () => {
+    it("moves to the player with strictly the most life at upkeep", () => {
+        const ogre = makeInstance(ghazbanOgre.id, {
+            id: "ogre",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 15, battlefield: [ogre] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        resolveTrigger(state, ogre, "ghazban-ogre-upkeep", upkeepEvent("p1"));
+        checkStateBasedActions(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "ogre")
+                ?.controllerId
+        ).toBe("p2");
+    });
+
+    it("does not move on a life tie (no unique most-life player)", () => {
+        const ogre = makeInstance(ghazbanOgre.id, {
+            id: "ogre",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [ogre] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        resolveTrigger(state, ogre, "ghazban-ogre-upkeep", upkeepEvent("p1"));
+        checkStateBasedActions(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "ogre")
+                ?.controllerId
+        ).toBe("p1");
     });
 });

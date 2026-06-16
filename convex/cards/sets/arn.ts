@@ -1057,6 +1057,150 @@ export const sorceressQueen: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Batch 5 (#176) — activated / triggered control-gain (CR 613.1b, layer 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Returns the unique player with strictly more life than every other, or
+ *  null on a tie (CR 104 "the player with the most life"). */
+function uniqueMostLife(
+    lives: ReadonlyArray<{ id: string; life: number }>
+): string | null {
+    let max = -Infinity;
+    let leader: string | null = null;
+    let tied = false;
+    for (const { id, life } of lives) {
+        if (life > max) {
+            max = life;
+            leader = id;
+            tied = false;
+        } else if (life === max) {
+            tied = true;
+        }
+    }
+    return tied ? null : leader;
+}
+
+// Aladdin — activated control change conditioned on "you control Aladdin"
+// (CR 611.2b). Reverts via the conditional-control SBA when Aladdin leaves or
+// changes controller.
+export const aladdin: CardDefinition = {
+    id: "db52bad2-a3ec-4f6f-9418-12e8c40703f6",
+    name: "Aladdin",
+    oracleText:
+        "{1}{R}{R}, {T}: Gain control of target artifact for as long as you control Aladdin.",
+    manaCost: { X: 2, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Rogue"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "aladdin-steal-artifact",
+            oracleText:
+                "{1}{R}{R}, {T}: Gain control of target artifact for as long as you control Aladdin.",
+            cost: { mana: { X: 1, R: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Artifact", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (!target || target.type !== "permanent") return;
+                ctx.gainControl(target, ctx.controller, {
+                    kind: "controller-controls-source",
+                    controllerId: ctx.controller,
+                });
+            },
+        },
+    ],
+};
+
+// Old Man of the Sea — control change conditioned on "remains tapped and the
+// target's power stays <= this creature's power". The "may choose not to
+// untap" clause is not yet modelled (no optional-untap choice mechanism); Old
+// Man therefore untaps normally and the SBA reverts control at the controller's
+// next upkeep. Tracked as a follow-up.
+export const oldManOfTheSea: CardDefinition = {
+    id: "d10f8a05-78b0-42a7-adcd-83f6bafe5417",
+    name: "Old Man of the Sea",
+    oracleText:
+        "You may choose not to untap this creature during your untap step.\n{T}: Gain control of target creature with power less than or equal to this creature's power for as long as this creature remains tapped and that creature's power remains less than or equal to this creature's power.",
+    manaCost: { X: 1, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Djinn"],
+    power: 2,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "old-man-of-the-sea-steal",
+            oracleText:
+                "{T}: Gain control of target creature with power less than or equal to this creature's power for as long as this creature remains tapped and that creature's power remains less than or equal to this creature's power.",
+            cost: { tap: true },
+            useStack: true,
+            // Static fallback caps at the printed power; the dynamic form reads
+            // the source's current power at activation.
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                powerFilter: { max: 2 },
+            },
+            getTargetRequirement: (source) => ({
+                type: "Creature",
+                count: 1,
+                powerFilter: { max: source.power ?? 0 },
+            }),
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (!target || target.type !== "permanent") return;
+                ctx.gainControl(target, ctx.controller, {
+                    kind: "source-tapped-and-power-ge",
+                });
+            },
+        },
+    ],
+};
+
+// Ghazbán Ogre — at your upkeep, an indefinite control reassign to the unique
+// most-life player (no revert condition). Intervening-if gates on a strict
+// unique maximum (CR 603.4).
+export const ghazbanOgre: CardDefinition = {
+    id: "f9d613d5-36a2-4633-b5af-64511bb29cc2",
+    name: "Ghazbán Ogre",
+    oracleText:
+        "At the beginning of your upkeep, if a player has more life than each other player, the player with the most life gains control of Ghazbán Ogre.",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Ogre"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "ghazban-ogre-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, if a player has more life than each other player, the player with the most life gains control of Ghazbán Ogre.",
+            phase: "UPKEEP",
+            scope: "your",
+            interveningIf: (_event, _self, state) =>
+                !!state &&
+                uniqueMostLife(
+                    state.players.map((p) => ({ id: p.id, life: p.life }))
+                ) !== null,
+            resolve: (ctx) => {
+                const leader = uniqueMostLife(
+                    ctx.allPlayerIds.map((id) => ({
+                        id,
+                        life: ctx.getLife(id),
+                    }))
+                );
+                if (!leader) return;
+                ctx.gainControl(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    leader
+                );
+            },
+        }),
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Deferred to later batches — need engine work beyond existing primitives:
 //
 //   • Hurr Jackal — "{T}: Target creature can't be regenerated this turn"
@@ -1080,7 +1224,6 @@ export const sorceressQueen: CardDefinition = {
 //   • Batch 3 (#175, prevention/replacement): Oasis, Ali from Cairo,
 //     Ebony Horse, Eye for an Eye, Pyramids.
 //   • Batch 4 (#191, coin flip): Bottle of Suleiman, Mijae Djinn, Ydwen Efreet.
-//   • Batch 5 (#176, control-gain): Aladdin, Old Man of the Sea, Ghazbán Ogre.
 //   • Batch 6 (#177, deserts): Desert, Desert Nomads, Camel.
 //   • Batch 7 (#178, delayed-pay): Nafs Asp, Cyclone, Drop of Honey.
 //   • Batch 8 (#179, phasing): Oubliette.

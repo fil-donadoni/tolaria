@@ -2,6 +2,7 @@ import type {
     AnimateSpec,
     CardType,
     Color,
+    ControlChangeCondition,
     DurationSpec,
     GameEvent,
     ManaCost as CardManaCost,
@@ -234,8 +235,17 @@ export type CardInstanceState = {
      *  splices it out and patches the next entry's `previousControllerId`
      *  so a later pop still lands on the correct value. */
     controlChanges?: Array<{
+        /** Instance id of the source that imposed this control change — an aura
+         *  (Control Magic) or a non-aura control-granting permanent (Aladdin,
+         *  Old Man of the Sea, Ghazbán Ogre). Named `auraId` for back-compat. */
         auraId: string;
         previousControllerId: string;
+        /** Optional "for as long as" condition (CR 611.2b). When present, the
+         *  conditional-control SBA (`checkConditionalControlChanges`) reverts
+         *  this entry the moment the condition stops holding. Absent = an
+         *  indefinite control change that only reverts when its source leaves
+         *  or is explicitly undone. */
+        condition?: ControlChangeCondition;
     }>;
     /** Temporary "becomes a creature" animation (CR 208.2, 611.1). Set by
      *  `animateAsCreature`; on expiry the engine restores the saved P/T
@@ -1864,12 +1874,38 @@ export function applyAuraControlChange(
             e.applies(found.card, aura, STATIC_EFFECT_CTX)
     );
     if (!applies) return;
-    const newControllerId = aura.controllerId;
+    applyControlChange(state, hostId, aura.controllerId, aura.id);
+}
+
+/** Generic control-change primitive (CR 613.1b, layer 2) shared by aura
+ *  attachment and activated/triggered control-gain (Aladdin, Old Man of the
+ *  Sea, Ghazbán Ogre). Pushes an entry onto the host's `controlChanges`
+ *  stack keyed by `sourceId`, flips `controllerId`, moves the host into the
+ *  new controller's battlefield array so zone iteration stays consistent, and
+ *  sets summoning sickness (CR 702.10c). To keep a re-applying source (Ghazbán
+ *  re-firing each upkeep) from stacking duplicates, any prior entry from the
+ *  same `sourceId` is reverted first. No-op if the host is missing or already
+ *  under `newControllerId` after that revert. */
+export function applyControlChange(
+    state: GameState,
+    hostId: string,
+    newControllerId: string,
+    sourceId: string,
+    condition?: ControlChangeCondition
+): void {
+    // Collapse a prior change from the same source before re-applying.
+    revertControlChange(state, hostId, sourceId);
+    const found = findOnBattlefield(state, hostId);
+    if (!found) return;
     if (found.card.controllerId === newControllerId) return;
     const stack = found.card.controlChanges ?? [];
     found.card.controlChanges = [
         ...stack,
-        { auraId: aura.id, previousControllerId: found.card.controllerId },
+        {
+            auraId: sourceId,
+            previousControllerId: found.card.controllerId,
+            ...(condition ? { condition } : {}),
+        },
     ];
     found.card.controllerId = newControllerId;
     if (found.card.types.includes("Creature")) {
@@ -1897,12 +1933,24 @@ export function unapplyAuraControlChange(
     state: GameState,
     aura: CardInstanceState
 ): void {
-    const hostId = aura.attachedTo;
-    if (!hostId) return;
+    if (!aura.attachedTo) return;
+    revertControlChange(state, aura.attachedTo, aura.id);
+}
+
+/** Generic reverse of `applyControlChange`, keyed by the source instance id.
+ *  Removes the source's entry from the host's `controlChanges` stack: a top
+ *  entry pops and restores `controllerId` (moving the host back); a middle
+ *  entry is spliced with the chain re-patched (CR 108.3). No-op if the host
+ *  or the source's entry is missing. */
+export function revertControlChange(
+    state: GameState,
+    hostId: string,
+    sourceId: string
+): void {
     const found = findOnBattlefield(state, hostId);
     if (!found) return;
     const stack = found.card.controlChanges ?? [];
-    const idx = stack.findIndex((e) => e.auraId === aura.id);
+    const idx = stack.findIndex((e) => e.auraId === sourceId);
     if (idx === -1) return;
     const entry = stack[idx];
     const isTop = idx === stack.length - 1;
@@ -2832,6 +2880,25 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             found.card.isTapped = false;
+        },
+        // CR 613.1b (layer 2): gain control of a permanent. The control change
+        // is sourced by the resolving permanent (`item.id`) so it reverts when
+        // that source leaves or its `condition` lapses (Aladdin, Old Man of the
+        // Sea). Ghazbán Ogre omits the condition for an indefinite reassign.
+        gainControl(
+            target: TargetSelection,
+            newControllerId: string,
+            condition?: ControlChangeCondition
+        ): void {
+            if (target.type !== "permanent") return;
+            if (!findOnBattlefield(state, target.id)) return;
+            applyControlChange(
+                state,
+                target.id,
+                newControllerId,
+                item.id,
+                condition
+            );
         },
         destroyAll(
             filter?: CardType | CardType[] | PermanentFilter,
