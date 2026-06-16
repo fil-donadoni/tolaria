@@ -14,6 +14,7 @@ import {
 } from "../state";
 import type { CardType } from "../../cards/types";
 import { tryGetCardById } from "../../cards";
+import { projectPublicState } from "../../gameProjections";
 import {
     castle,
     lightningBolt,
@@ -560,5 +561,98 @@ describe("Bad Moon static effect (CR 611)", () => {
         expect(
             getPlayer(state, "p1").battlefield.find((c) => c.id === "wraith")
         ).toBeDefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Layer 7b set-base-P/T pipeline (CR 613.4b, ADR 0017)
+// ---------------------------------------------------------------------------
+
+describe("CR 613.4 ordered P/T pipeline (set effects, ADR 0017)", () => {
+    const EOT = { phase: "end-of-turn" as const };
+
+    function bearWith(overrides: Partial<CardInstanceState>): {
+        state: GameState;
+        bear: CardInstanceState;
+    } {
+        const bear = makeCreature("bear", "p1", { power: 2, toughness: 2 });
+        Object.assign(bear, overrides);
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [bear] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        return { state, bear };
+    }
+
+    it("set base power 0 leaves toughness untouched", () => {
+        const { state, bear } = bearWith({
+            temporaryPTSet: [{ power: 0, duration: EOT }],
+        });
+        expect(getEffectivePower(state, bear)).toBe(0);
+        expect(getEffectiveToughness(state, bear)).toBe(2);
+    });
+
+    it("set base power and toughness to 0/2", () => {
+        const { state, bear } = bearWith({
+            temporaryPTSet: [{ power: 0, toughness: 2, duration: EOT }],
+        });
+        expect(getEffectivePower(state, bear)).toBe(0);
+        expect(getEffectiveToughness(state, bear)).toBe(2);
+    });
+
+    it("set 0/2 + a +1/+1 counter computes 1/3 (7b then 7c)", () => {
+        const { state, bear } = bearWith({
+            temporaryPTSet: [{ power: 0, toughness: 2, duration: EOT }],
+            counters: { "+1/+1": 1 },
+        });
+        expect(getEffectivePower(state, bear)).toBe(1);
+        expect(getEffectiveToughness(state, bear)).toBe(3);
+    });
+
+    it("set 0/2 + a +2/+2 pump computes 2/4 (7b then 7d)", () => {
+        const { state, bear } = bearWith({
+            temporaryPTSet: [{ power: 0, toughness: 2, duration: EOT }],
+            temporaryPTMods: [{ power: 2, toughness: 2, duration: EOT }],
+        });
+        expect(getEffectivePower(state, bear)).toBe(2);
+        expect(getEffectiveToughness(state, bear)).toBe(4);
+    });
+
+    it("two set effects resolve by timestamp — the latest entry wins", () => {
+        const { state, bear } = bearWith({
+            temporaryPTSet: [
+                { power: 5, duration: EOT },
+                { power: 0, duration: EOT },
+            ],
+        });
+        expect(getEffectivePower(state, bear)).toBe(0);
+    });
+
+    it("a set overrides the printed base entirely (not summed)", () => {
+        // A 4/4 set to base power 1 reads 1, not 5.
+        const big = makeCreature("big", "p1", { power: 4, toughness: 4 });
+        big.temporaryPTSet = [{ power: 1, duration: EOT }];
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [big] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        expect(getEffectivePower(state, big)).toBe(1);
+    });
+
+    it("wire format: set 0/2 + counter survives projectPublicState", () => {
+        const { state } = bearWith({
+            temporaryPTSet: [{ power: 0, toughness: 2, duration: EOT }],
+            counters: { "+1/+1": 1 },
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(1);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
     });
 });
