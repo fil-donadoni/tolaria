@@ -787,12 +787,18 @@ export interface SpellContext {
      *  `getCardById(sourceCardId).delayedTriggers[triggerId]`. `payload` holds
      *  serializable state (instance / player ids) read by the resolver —
      *  closures are not permitted so replays reproduce correctly. Used by
-     *  Berserk's "at the beginning of the next end step, destroy ~". */
+     *  Berserk's "at the beginning of the next end step, destroy ~".
+     *
+     *  `timing: "next-draw-step"` fires at the beginning of a specific player's
+     *  next draw step (CR 504) — pass that player's id as `targetPlayerId` so
+     *  the trigger fires only on their draw step (Nafs Asp). The other timings
+     *  ignore `targetPlayerId` and fire at the next global boundary. */
     scheduleDelayedTrigger: (
         sourceCardId: string,
         triggerId: string,
-        timing: "next-end-step" | "next-end-of-combat",
-        payload: Record<string, string>
+        timing: "next-end-step" | "next-end-of-combat" | "next-draw-step",
+        payload: Record<string, string>,
+        targetPlayerId?: string
     ) => void;
     /** Returns true if the target permanent was declared as an attacker this
      *  turn (CR 506.2). Used by "destroy it if it attacked this turn"-style
@@ -1065,7 +1071,7 @@ export interface DelayedTriggerDef {
     /** Oracle text shown on the stack when the trigger fires. */
     oracleText: string;
     /** When the trigger should fire. */
-    timing: "next-end-step" | "next-end-of-combat";
+    timing: "next-end-step" | "next-end-of-combat" | "next-draw-step";
     /** Invoked when the trigger resolves from the stack. `payload` carries
      *  serialized references (ids) chosen at scheduling time. */
     resolve: (ctx: SpellContext, payload: Record<string, string>) => void;

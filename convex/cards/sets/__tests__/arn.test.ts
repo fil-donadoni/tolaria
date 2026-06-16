@@ -54,6 +54,9 @@ import {
     desert,
     desertNomads,
     camel,
+    nafsAsp,
+    cyclone,
+    dropOfHoney,
 } from "../arn";
 import {
     grizzlyBears,
@@ -67,7 +70,7 @@ import {
 } from "../lea";
 import { checkStateBasedActions } from "../../../gre/sba";
 import { validateBlockerEligibility } from "../../../gre/combat";
-import { applyAllCombatDamage } from "../../../gre/phases";
+import { applyAllCombatDamage, fireDelayedTriggers } from "../../../gre/phases";
 import { applyDamageReplacements } from "../../../gre/replacements";
 import {
     makeInstance,
@@ -1686,5 +1689,220 @@ describe("Camel (banding + Desert-damage prevention for its band while attacking
         expect(state.players[1].graveyard.some((c) => c.id === "camel")).toBe(
             true
         );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Batch 7 (#178) — scheduled pay-or-suffer (delayed trigger + may-pay)
+// ---------------------------------------------------------------------------
+
+/** Push a delayed trigger onto the stack as the engine's `fireDelayedTriggers`
+ *  does, then resolve it. */
+function resolveDelayed(
+    state: GameState,
+    sourceCardId: string,
+    controller: string,
+    delayedTriggerId: string,
+    payload: Record<string, string>
+): void {
+    state.stack.push({
+        id: `dt-stack-${delayedTriggerId}`,
+        card: { id: sourceCardId },
+        controllerId: controller,
+        ownerId: controller,
+        zone: "stack",
+        types: [],
+        subtypes: [],
+        staticAbilities: [],
+        isTapped: false,
+        castById: controller,
+        delayedTriggerId,
+        delayedPayload: payload,
+    } as StackItem);
+    resolveTopOfStack(state);
+}
+
+describe("Nafs Asp (damage → next-draw-step pay {1} or lose 1 life)", () => {
+    it("schedules a next-draw-step delayed trigger on the damaged player", () => {
+        const asp = makeInstance(nafsAsp.id, {
+            id: "asp",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [asp] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, asp, "nafs-asp-damage", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "asp",
+            sourceControllerId: "p1",
+            target: { type: "player", id: "p2" },
+            amount: 1,
+            isCombat: true,
+        } as StackItem["triggerEvent"]);
+        const dt = state.delayedTriggers?.[0];
+        expect(dt?.timing).toBe("next-draw-step");
+        expect(dt?.targetPlayerId).toBe("p2");
+        expect(dt?.payload.playerId).toBe("p2");
+    });
+
+    it("fires only on the target player's draw step; declining loses 1 life", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+            delayedTriggers: [
+                {
+                    id: "delayed-1",
+                    sourceCardId: nafsAsp.id,
+                    triggerId: "nafs-asp-draw-step",
+                    controller: "p1",
+                    timing: "next-draw-step",
+                    payload: { playerId: "p2" },
+                    targetPlayerId: "p2",
+                },
+            ],
+        });
+        // p1's draw step does NOT fire it (wrong player).
+        state.activePlayerId = "p1";
+        fireDelayedTriggers(state, "next-draw-step");
+        expect(state.stack).toHaveLength(0);
+        expect(state.delayedTriggers).toHaveLength(1);
+
+        // p2's draw step fires it.
+        state.activePlayerId = "p2";
+        fireDelayedTriggers(state, "next-draw-step");
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state); // suspends at the may-pay
+        answerChoice(state, ["decline"]);
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("paying {1} avoids the life loss", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", {
+                    life: 20,
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 1 },
+                }),
+            ],
+        });
+        resolveDelayed(state, nafsAsp.id, "p1", "nafs-asp-draw-step", {
+            playerId: "p2",
+        });
+        answerChoice(state, ["yes"]);
+        expect(state.players[1].life).toBe(20);
+    });
+});
+
+describe("Cyclone (upkeep: wind counter, pay {G}/counter or sacrifice + damage-each)", () => {
+    it("declining the payment sacrifices Cyclone", () => {
+        const cyc = makeInstance(cyclone.id, { id: "cyc" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cyc] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, cyc, "cyclone-upkeep", upkeepEvent("p1"));
+        answerChoice(state, ["decline"]);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard).toHaveLength(1);
+    });
+
+    it("paying adds a wind counter and deals that many to each creature and player", () => {
+        const cyc = makeInstance(cyclone.id, { id: "cyc" });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    battlefield: [cyc],
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 1, C: 0 },
+                }),
+                makePlayer("p2", { life: 20, battlefield: [bear] }),
+            ],
+        });
+        resolveTrigger(state, cyc, "cyclone-upkeep", upkeepEvent("p1"));
+        answerChoice(state, ["yes"]);
+        const cycAfter = state.players[0].battlefield.find(
+            (c) => c.id === "cyc"
+        )!;
+        expect(cycAfter.counters?.wind).toBe(1);
+        // 1 damage to each creature and each player.
+        expect(state.players[0].life).toBe(19);
+        expect(state.players[1].life).toBe(19);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")
+                ?.damageMarked
+        ).toBe(1);
+    });
+});
+
+describe("Drop of Honey (upkeep: destroy least-power; sac when no creatures)", () => {
+    it("destroys the single least-power creature (can't be regenerated)", () => {
+        const drop = makeInstance(dropOfHoney.id, { id: "drop" });
+        const weak = makeInstance(flyingMen.id, { id: "weak" }); // 1/1
+        const strong = makeInstance(grizzlyBears.id, {
+            id: "strong",
+            controllerId: "p2",
+            ownerId: "p2",
+        }); // 2/2
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [drop, weak] }),
+                makePlayer("p2", { battlefield: [strong] }),
+            ],
+        });
+        resolveTrigger(state, drop, "drop-of-honey-upkeep", upkeepEvent("p1"));
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "weak")
+        ).toBeUndefined();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "strong")
+        ).toBeDefined();
+    });
+
+    it("asks the controller to choose among power ties", () => {
+        const drop = makeInstance(dropOfHoney.id, { id: "drop" });
+        const g1 = makeInstance(grizzlyBears.id, { id: "g1" });
+        const g2 = makeInstance(grizzlyBears.id, { id: "g2" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [drop, g1, g2] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, drop, "drop-of-honey-upkeep", upkeepEvent("p1"));
+        answerChoice(state, ["g2"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "g2")
+        ).toBeUndefined();
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "g1")
+        ).toBeDefined();
+    });
+
+    it("sacrifices itself when there are no creatures (state trigger)", () => {
+        const drop = makeInstance(dropOfHoney.id, { id: "drop" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [drop] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, drop, "drop-of-honey-sacrifice", {
+            type: "STATE_CHECK",
+        } as StackItem["triggerEvent"]);
+        expect(state.players[0].battlefield).toHaveLength(0);
     });
 });

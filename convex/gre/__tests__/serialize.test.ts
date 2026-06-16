@@ -597,6 +597,15 @@ describe("optional field round-trip smoke tests", () => {
                 timing: "next-end-step",
                 payload: { targetId: "p2" },
             },
+            {
+                id: "dt-2",
+                sourceCardId: "nafs-asp",
+                triggerId: "nafs-asp-draw-step",
+                controller: "p1",
+                timing: "next-draw-step",
+                payload: { playerId: "p2" },
+                targetPlayerId: "p2",
+            },
         ];
         expect(roundTrip(state).delayedTriggers).toEqual(state.delayedTriggers);
     });
