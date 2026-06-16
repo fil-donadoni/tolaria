@@ -11,7 +11,11 @@ import {
     materialMargin,
     WIN_SCORE,
 } from "../evaluate";
-import { dangerClock, predictUnblockedDamage } from "../dangerClock";
+import {
+    dangerClock,
+    predictUnblockedDamage,
+    predictCombatOutcome,
+} from "../dangerClock";
 import {
     makeInstance,
     makePlayer,
@@ -22,6 +26,7 @@ const BEARS = getCardByName("Grizzly Bears").id; // 2/2 ground
 const GIANT = getCardByName("Hill Giant").id; // 3/3 ground
 const SPRITES = getCardByName("Scryb Sprites").id; // 1/1 flying
 const MOUNTAIN = getCardByName("Mountain").id;
+const BOP = getCardByName("Birds of Paradise").id; // 0/1 flying mana dork
 
 function bear(controllerId: string, id: string) {
     return makeInstance(BEARS, { controllerId, ownerId: controllerId, id });
@@ -619,6 +624,160 @@ describe("evaluateCreature — temporary buffs excluded from material (issue #20
         });
         expect(evaluateCreature(state, buffed)).toBeGreaterThan(
             evaluateCreature(state, plain)
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Combat-aware declare-attackers leaf (ADR 0020 §3, issue #208). A
+// declare-attackers position is otherwise scored on the PRE-damage snapshot, so
+// the leaf returns the same value for every attack set and the choice falls to
+// the noisy rollout (a mana dork suiciding for 1). Folding the expected combat
+// exchange into the leaf lets it tell a profitable attack from a creature
+// walking into death. Reuses the pure Danger Clock block predictor.
+// ---------------------------------------------------------------------------
+describe("predictCombatOutcome — crude declared-combat resolution (issue #208)", () => {
+    const atk = (cardId: string, id: string, extra = {}) =>
+        makeInstance(cardId, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id,
+            isSummoningSick: false,
+            isAttacking: true,
+            isTapped: true,
+            ...extra,
+        });
+    const blk = (cardId: string, id: string, extra = {}) =>
+        makeInstance(cardId, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id,
+            isSummoningSick: false,
+            ...extra,
+        });
+
+    /** A DECLARE_BLOCKERS state with `attackerIds` already declared by p1. */
+    function declaredCombat(
+        attackers: ReturnType<typeof atk>[],
+        blockers: ReturnType<typeof blk>[]
+    ) {
+        return makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: attackers }),
+                makePlayer("p2", { battlefield: blockers }),
+            ],
+            combat: {
+                attackerIds: attackers.map((a) => a.id),
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+    }
+
+    it("a 2/2 into a 3/3 dies for nothing (surviving killer block)", () => {
+        const state = declaredCombat([atk(BEARS, "g")], [blk(GIANT, "wall")]);
+        const out = predictCombatOutcome(state, "p1", "p2");
+        expect(out.deadAttackerIds).toEqual(["g"]);
+        expect(out.deadBlockerIds).toEqual([]);
+        expect(out.faceDamage).toBe(0);
+    });
+
+    it("a 3/3 into an open board hits for its full power", () => {
+        const state = declaredCombat([atk(GIANT, "g")], []);
+        const out = predictCombatOutcome(state, "p1", "p2");
+        expect(out.faceDamage).toBe(3);
+        expect(out.deadAttackerIds).toEqual([]);
+    });
+
+    it("equal bodies trade — both die", () => {
+        const state = declaredCombat([atk(GIANT, "g")], [blk(GIANT, "wall")]);
+        const out = predictCombatOutcome(state, "p1", "p2");
+        expect(out.deadAttackerIds).toEqual(["g"]);
+        expect(out.deadBlockerIds).toEqual(["wall"]);
+        expect(out.faceDamage).toBe(0);
+    });
+});
+
+describe("evaluate — declare-attackers leaf distinguishes attack sets (issue #208)", () => {
+    const atk = (cardId: string, id: string, extra = {}) =>
+        makeInstance(cardId, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id,
+            isSummoningSick: false,
+            isAttacking: true,
+            isTapped: true,
+            ...extra,
+        });
+    const blk = (cardId: string, id: string) =>
+        makeInstance(cardId, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id,
+            isSummoningSick: false,
+        });
+
+    function declaredCombat(
+        attackers: ReturnType<typeof atk>[],
+        blockers: ReturnType<typeof blk>[]
+    ) {
+        return makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: attackers }),
+                makePlayer("p2", { battlefield: blockers }),
+            ],
+            combat: {
+                attackerIds: attackers.map((a) => a.id),
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+    }
+
+    it("a profitable attack outranks a suicidal one (no longer identical)", () => {
+        // Suicidal: a 2/2 swings into a 3/3 and dies for nothing.
+        const suicidal = declaredCombat([atk(BEARS, "g")], [blk(GIANT, "w")]);
+        // Profitable: a 3/3 swings into an open board for 3 to the face.
+        const profitable = declaredCombat([atk(GIANT, "g")], []);
+        expect(evaluate(profitable, "p1")).toBeGreaterThan(
+            evaluate(suicidal, "p1")
+        );
+    });
+
+    it("holding a mana dork back outranks sending it to die for nothing", () => {
+        // p1 has a real 3/3 and a Birds of Paradise (0/1). Sending BoP alongside
+        // the Giant taps it and walks it into a fatal block for 0 damage; holding
+        // it back keeps the body and the mana. The held-back line must score higher.
+        const giantAttacking = atk(GIANT, "giant");
+        const bopAttacking = atk(BOP, "bop");
+        const attackBoth = declaredCombat(
+            [giantAttacking, bopAttacking],
+            [blk(BEARS, "w")]
+        );
+        // Hold BoP back: it is not in the attack set, untapped, still a blocker/source.
+        const giantOnly = declaredCombat(
+            [atk(GIANT, "giant2")],
+            [blk(BEARS, "w2")]
+        );
+        giantOnly.players[0].battlefield.push(
+            makeInstance(BOP, {
+                controllerId: "p1",
+                ownerId: "p1",
+                id: "bop-held",
+                isSummoningSick: false,
+                isTapped: false,
+            })
+        );
+        expect(evaluate(giantOnly, "p1")).toBeGreaterThan(
+            evaluate(attackBoth, "p1")
         );
     });
 });

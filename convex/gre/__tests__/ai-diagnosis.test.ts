@@ -35,6 +35,7 @@ const FOREST = getCardByName("Forest").id;
 const ISLAND = getCardByName("Island").id;
 const BRAINGEYSER = getCardByName("Braingeyser").id; // {X}{U}{U}: target player draws X
 const GIANT_GROWTH = getCardByName("Giant Growth").id; // {G}: +3/+3 until EOT
+const BOP = getCardByName("Birds of Paradise").id; // 0/1 flying mana dork
 
 /** Iteration budgets, smallest → largest. medium (400) is what the bot plays at;
  *  the larger rungs isolate budget/exploration limits from structural ones. A
@@ -714,6 +715,85 @@ describe("AI diagnosis harness (Forge comparison)", () => {
             expect(chosenAttack?.kind).toBe("declare-attackers");
             if (chosenAttack?.kind === "declare-attackers") {
                 expect(chosenAttack.attackerIds.length).toBeGreaterThan(0);
+            }
+        }
+    );
+
+    // -----------------------------------------------------------------------
+    // Episode #5 — attacks with a mana dork into death (ADR 0020 §3, issue
+    // #208). With an empty hand the bot attacked with Birds of Paradise (a 0/1
+    // mana source) alongside its real threat, walking it into a fatal block for
+    // 1 chip damage. The `declare-attackers` leaf used to score identically for
+    // every attack set (scored before damage), so the choice fell to the
+    // aggressive rollout. With the combat-aware leaf, the attack set that
+    // includes BoP scores below the one that holds it back. The bot should send
+    // the real attacker but keep the dork home.
+    // -----------------------------------------------------------------------
+    it(
+        "episode #5: holds a mana dork back instead of attacking it into death",
+        { timeout: DIAGNOSIS_TIMEOUT_MS },
+        () => {
+            const giant = makeInstance(HILL_GIANT, {
+                id: "real-threat",
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: false,
+            });
+            const bop = makeInstance(BOP, {
+                id: "dork",
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: false,
+            });
+            // Defender has a 2/2 — enough to kill BoP for free if it attacks.
+            const wall = makeInstance(GRIZZLY, {
+                id: "wall",
+                controllerId: "p2",
+                ownerId: "p2",
+                isSummoningSick: false,
+            });
+            const state = makeState({
+                phase: "DECLARE_ATTACKERS",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                combat: {
+                    attackerIds: [],
+                    confirmed: false,
+                    blockerAssignments: {},
+                    blockersConfirmed: false,
+                },
+                players: [
+                    makePlayer("p1", { hand: [], battlefield: [giant, bop] }),
+                    makePlayer("p2", { battlefield: [wall] }),
+                ],
+            });
+
+            const trace = diagnose("EP#5 mana dork into death", state, "p1");
+            const chosen = trace.candidates.find(
+                (c) => c.label === trace.chosen
+            )?.move;
+            // The chosen attack must not send the mana dork to die.
+            if (chosen?.kind === "declare-attackers") {
+                expect(chosen.attackerIds).not.toContain("dork");
+            }
+            // And at the leaf, holding the dork back outranks attacking with it:
+            // compare the best attack set with the dork vs the best without.
+            const withDork = trace.candidates.filter(
+                (c) =>
+                    c.move.kind === "declare-attackers" &&
+                    c.move.attackerIds.includes("dork")
+            );
+            const withoutDork = trace.candidates.filter(
+                (c) =>
+                    c.move.kind === "declare-attackers" &&
+                    !c.move.attackerIds.includes("dork")
+            );
+            const best = (cs: typeof trace.candidates) =>
+                Math.max(-Infinity, ...cs.map((c) => c.meanReward));
+            if (withDork.length && withoutDork.length) {
+                expect(best(withoutDork)).toBeGreaterThanOrEqual(
+                    best(withDork)
+                );
             }
         }
     );
