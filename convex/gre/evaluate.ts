@@ -23,7 +23,12 @@
 // layer system so static buffs (counters, anthems) are reflected.
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";
-import { getEffectivePower, getEffectiveToughness } from "./layers";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+    getPermanentEffectivePower,
+    getPermanentEffectiveToughness,
+} from "./layers";
 import { isCreature, isLand, hasManaAbility, manaValue } from "./constants";
 import {
     getInstanceManaCost,
@@ -127,16 +132,20 @@ function creatureValueRaw(
     return value;
 }
 
-/** Realized Forge-scale value of a creature in play. Reads effective P/T (layer
- *  system) and mana value (registry / embedded cost). Floored at 0 power/
- *  toughness so a shrunk creature never goes negative through the body term. */
+/** Realized Forge-scale value of a creature in play. Reads PERMANENT effective
+ *  P/T (ADR 0020 §2) — until-end-of-turn buffs (combat tricks) are excluded so
+ *  the leaf does not score a temporary +X/+X as lasting board material, which
+ *  gave the bot a false incentive to dump a trick at sorcery speed. Persistent
+ *  layers (counters, static buffs) still count. Mana value comes from the
+ *  registry / embedded cost. Floored at 0 power/toughness so a shrunk creature
+ *  never goes negative through the body term. */
 export function evaluateCreature(
     state: GameState,
     card: CardInstanceState
 ): number {
     return creatureValueRaw(
-        Math.max(0, getEffectivePower(state, card)),
-        Math.max(0, getEffectiveToughness(state, card)),
+        Math.max(0, getPermanentEffectivePower(state, card)),
+        Math.max(0, getPermanentEffectiveToughness(state, card)),
         manaValue(getInstanceManaCost(card)),
         card.staticAbilities
     );

@@ -241,8 +241,16 @@ function evaluateLayer(
 
 function computeEffectivePT(
     state: LayerStateView,
-    target: PermanentView
+    target: PermanentView,
+    opts: { includeTemporary?: boolean } = {}
 ): PTBuff {
+    // When false, the until-boundary (until-end-of-turn / -combat) P/T layers are
+    // dropped: the timestamped `temporaryPTSet` (7b) and the one-shot
+    // `temporaryPTMods` (7d temp), both purged at the next phase boundary. The
+    // persistent layers (CDA, counters, static buffs) are unaffected. Used only
+    // by the bot evaluation, so a combat trick's temporary buff is not scored as
+    // permanent material (ADR 0020 §2).
+    const includeTemporary = opts.includeTemporary ?? true;
     const basePower = target.power ?? 0;
     const baseToughness = target.toughness ?? 0;
     // Fast path: only creatures carry P/T-layer effects (CR 208.2).
@@ -250,10 +258,10 @@ function computeEffectivePT(
         return { power: basePower, toughness: baseToughness };
     }
     const cda = getCDAContribution(state, target); // 7a
-    const set = getSetPT(target); // 7b
+    const set = includeTemporary ? getSetPT(target) : {}; // 7b (temporary)
     const counter = getCounterPTBuff(target); // 7c
     const buff = getStaticPTBuff(state, target); // 7d static
-    const temp = getTemporaryPTBuff(target); // 7d temporary
+    const temp = includeTemporary ? getTemporaryPTBuff(target) : ZERO; // 7d temp
     return {
         power: evaluateLayer(
             basePower,
@@ -287,4 +295,25 @@ export function getEffectiveToughness(
     target: PermanentView
 ): number {
     return computeEffectivePT(state, target).toughness;
+}
+
+/** Effective power EXCLUDING until-boundary modifications (`temporaryPTSet`,
+ *  `temporaryPTMods`). The bot evaluation uses this so a combat trick's
+ *  "until end of turn" buff is not counted as permanent material (ADR 0020 §2).
+ *  Persistent layers (CDA, counters, static buffs, +1/+1 counters) still count. */
+export function getPermanentEffectivePower(
+    state: LayerStateView,
+    target: PermanentView
+): number {
+    return computeEffectivePT(state, target, { includeTemporary: false }).power;
+}
+
+/** Effective toughness EXCLUDING until-boundary modifications — toughness twin
+ *  of `getPermanentEffectivePower` (ADR 0020 §2). */
+export function getPermanentEffectiveToughness(
+    state: LayerStateView,
+    target: PermanentView
+): number {
+    return computeEffectivePT(state, target, { includeTemporary: false })
+        .toughness;
 }
