@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
+import type { CardPrinting } from "@convex/cards";
 
 export interface CardIndexEntry {
     cardId: string;
@@ -12,6 +13,7 @@ export interface CardIndexEntry {
     colors: string[];
     manaValue: number;
     oracleText: string;
+    prints: CardPrinting[];
 }
 
 export type ColorMode = "at-most" | "include-all" | "include-any";
@@ -25,6 +27,9 @@ export interface CardSearchFilters {
     types: string[];
     /** Selected mana values. `7` is treated as "7 or more". */
     manaValues: number[];
+    /** Selected set codes. Empty = all sets. A card matches when any of its
+     *  printings belongs to a selected set. */
+    sets: string[];
 }
 
 export const DEFAULT_FILTERS: CardSearchFilters = {
@@ -34,6 +39,7 @@ export const DEFAULT_FILTERS: CardSearchFilters = {
     colorMode: "include-any",
     types: [],
     manaValues: [],
+    sets: [],
 };
 
 function matchesColors(
@@ -94,13 +100,22 @@ function matchesManaValue(mv: number, selected: number[]): boolean {
     return selected.includes(mv);
 }
 
+export function matchesSets(
+    prints: CardPrinting[],
+    selected: string[]
+): boolean {
+    if (selected.length === 0) return true;
+    return prints.some((p) => selected.includes(p.setCode));
+}
+
 export function hasAnyFilter(filters: CardSearchFilters): boolean {
     return (
         filters.text.trim().length > 0 ||
         filters.colors.length > 0 ||
         filters.includeColorless ||
         filters.types.length > 0 ||
-        filters.manaValues.length > 0
+        filters.manaValues.length > 0 ||
+        filters.sets.length > 0
     );
 }
 
@@ -121,7 +136,8 @@ export function useCardSearch(filters: CardSearchFilters): {
                 matchesText(e, filters.text) &&
                 matchesColors(e.colors, filters) &&
                 matchesTypes(e, filters.types) &&
-                matchesManaValue(e.manaValue, filters.manaValues)
+                matchesManaValue(e.manaValue, filters.manaValues) &&
+                matchesSets(e.prints, filters.sets)
         );
         return filtered.sort(
             (a, b) => a.manaValue - b.manaValue || a.name.localeCompare(b.name)

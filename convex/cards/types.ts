@@ -747,9 +747,22 @@ export interface SpellContext {
      *  (CR 508.1d, Siren's Call). Cleared at CLEANUP. */
     setAllCreaturesMustAttack: (playerId: string) => void;
     /** Removes a permanent from combat — clears isAttacking/isBlocking and
-     *  updates combat data structures (CR 506.4). If a sole blocker is
-     *  removed, the formerly-blocked attacker becomes unblocked. */
+     *  updates combat data structures (CR 506.4). Removing a blocker leaves
+     *  the attacker(s) it was blocking still blocked (CR 509.1h): they deal no
+     *  combat damage to the defender without trample. Use `becomeUnblocked`
+     *  for the rare effect that actually un-blocks an attacker. */
     removeFromCombat: (target: TargetSelection) => void;
+    /** Makes an attacker that became blocked count as unblocked (CR 509.1h),
+     *  so it deals its combat damage to the defending player. Strips it from
+     *  the blocked set and from every blocker's assignment. Used by Ydwen
+     *  Efreet's coin-flip removal. No-op outside combat. */
+    becomeUnblocked: (attackerId: string) => void;
+    /** Current block graph as attackerId → ids of the creatures blocking it
+     *  (band-expanded, CR 702.21e). A pure read of combat state for effects
+     *  that must inspect blocks — e.g. False Orders, which unblocks the
+     *  attackers left with no blocker after their sole blocker is removed.
+     *  Empty outside combat. */
+    getBlockersByAttacker: () => Record<string, string[]>;
     /** Grants a target permanent the ability to block additional attackers
      *  this turn (CR 509.1a). `value` is the number of EXTRA attackers (999
      *  = "any number"). Cleared at CLEANUP. Used by Blaze of Glory. */

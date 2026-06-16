@@ -98,6 +98,7 @@ import {
     getEffectiveBlockGraph,
     outstandingDamageAssigner,
     isLegalBandComposition,
+    recordBlockedAttackers,
 } from "./gre/banding";
 import { checkStateBasedActions } from "./gre/sba";
 import {
@@ -2838,6 +2839,7 @@ export const confirmBlockers = mutation({
 
         state.combat.pendingBlockerId = undefined;
         state.combat.blockersConfirmed = true;
+        recordBlockedAttackers(state);
         emitBlockersConfirmedEvents(state);
 
         // CR 509.2 — active player gets priority immediately after blockers

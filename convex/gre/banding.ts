@@ -82,6 +82,22 @@ export function getEffectiveBlockGraph(state: GameState): BlockGraph {
 }
 
 /**
+ * Records which attackers became blocked this combat (CR 509.1h). Call once
+ * blockers are locked in: an attacker counts as blocked iff it has at least
+ * one blocker in the band-expanded block graph at that moment. The result is
+ * stored on `combat.blockedAttackerIds` and read at the damage step, so an
+ * attacker that later loses every blocker still deals no combat damage to the
+ * defender without trample (CR 510.1c) — its blocked status no longer depends
+ * on the live blocker count.
+ */
+export function recordBlockedAttackers(state: GameState): void {
+    if (!state.combat) return;
+    state.combat.blockedAttackerIds = Object.keys(
+        getEffectiveBlockGraph(state).blockersByAttacker
+    );
+}
+
+/**
  * Determines which player assigns `source`'s combat damage among
  * `targetCreatureIds` (CR 702.21j-k). If any target is a creature with
  * banding, authority shifts to that target's controller (the opponent of the

@@ -196,18 +196,23 @@ workflow.
 2. **Verify rules** — `/mtg-rules-check` to get exact CR text and current implementation status
 3. **Plan** — Agree on scope: what to implement now, what to defer
 4. **Implement** — Write code, following CR and project patterns
-5. **Test** — Write tests at ALL layers: GRE unit tests, backend integration (game.ts mutations), frontend utils, AND wire format. Two pieces passing individually but failing together is a shipped bug. Every feature that crosses the GRE → game.ts → UI boundary MUST have at least one integration test exercising the full path. Run `bun run test`
-6. **Validate** — `bun run check:all` must pass with zero errors
+5. **Test** — Write tests at ALL layers: GRE unit tests, backend integration (game.ts mutations), frontend utils, AND wire format. Two pieces passing individually but failing together is a shipped bug. Every feature that crosses the GRE → game.ts → UI boundary MUST have at least one integration test exercising the full path. While iterating, run only the **targeted tests** for what you changed (`bun run test <path>`); the full `bun run test` suite is part of the pre-done gate (step 6, see § Quality gates for cadence).
+6. **Validate** — Run the full gate once, before marking done: `bun run check:all` (zero errors) + full `bun run test` (zero failures). See § Quality gates.
 7. **Preset scenario** — For any new card or gameplay feature, add a dedicated entry to `PRESET_SCENARIOS` in `src/components/debug/debug-panel.tsx` so the user can load it one-click from the Debug panel and exercise the feature end-to-end. Choose cards/zones/phase/`landCount` that hit the golden path (and ideally a key edge case). Skip only for pure refactors with no user-visible behavior change.
 8. **UI verify** — Only when the user explicitly requests browser verification. Do NOT auto-test new cards or gameplay features in Chrome — preset scenarios + vitest + wire format tests are the default verification. The user will ask for a Chrome run when they want one.
 
 ### Quality gates (mandatory, no exceptions)
 
-Before marking any task as done:
+The full gate is **mandatory before a task is marked done / before merge** — never skipped. It is the slow checks that get deferred, not removed.
 
-1. `bun run check:all` — format + lint + type-check (zero errors)
-2. `bun run test` — vitest suite (zero failures)
-3. Browser visual verification is NOT a default gate. Run it only when the user explicitly asks for a Chrome check.
+**Cadence** (the suite is slow — don't pay for it on every edit):
+
+- **While iterating** — run only the **targeted tests** for the module you're touching (`bun run test <path>` / `vitest run <path>`). Formatting is automatic: `husky` + `lint-staged` runs `prettier --write` on every commit, so you never run a formatter by hand mid-work. Do **not** run `check:all`, full `lint`, `check:ts`, or the full `test` suite repeatedly mid-iteration.
+- **Before marking the task done / before merge** — run the full gate once:
+    1. `bun run check:all` — format + lint + type-check (zero errors)
+    2. `bun run test` — full vitest suite (zero failures)
+
+Browser visual verification is NOT a default gate. Run it only when the user explicitly asks for a Chrome check.
 
 ## Rules Implementation Process
 

@@ -8,7 +8,7 @@
 // once per filter keystroke.
 
 import { query } from "./_generated/server";
-import { getAllCards } from "./cards";
+import { getAllCards, getPrintingsForCard, type CardPrinting } from "./cards";
 import { getCardColors } from "./cards/colors";
 import { aggregateOracleText } from "./cards/oracleAggregator";
 import { manaValue } from "./gre/constants";
@@ -23,6 +23,9 @@ export interface CardIndexRow {
     colors: string[];
     manaValue: number;
     oracleText: string;
+    /** All printings (original first). `cardId === prints[0].printId`. Drives
+     *  the set filter and the per-card edition picker. */
+    prints: CardPrinting[];
 }
 
 export const list = query({
@@ -38,6 +41,7 @@ export const list = query({
             colors: getCardColors(def) as string[],
             manaValue: manaValue(def.manaCost),
             oracleText: aggregateOracleText(def).searchable,
+            prints: getPrintingsForCard(def.id),
         }));
     },
 });

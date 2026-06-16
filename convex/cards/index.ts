@@ -29,15 +29,30 @@ function isCardDefinition(value: unknown): value is CardDefinition {
     );
 }
 
-const setExports: Record<string, unknown>[] = [lea, leb];
+// Set modules paired with their lowercase set code. The code is the home set
+// of every `CardDefinition` declared in that module (e.g. Beta-original cards
+// live in `leb` with home set "leb"); `CardPrint` entries carry their own
+// `setCode` and may point at a definition from another module.
+const setModules: { code: string; exports: Record<string, unknown> }[] = [
+    { code: "lea", exports: lea },
+    { code: "leb", exports: leb },
+];
 
-const allCards: CardDefinition[] = setExports.flatMap((set) =>
-    Object.values(set).filter(isCardDefinition)
+const allCards: CardDefinition[] = setModules.flatMap((m) =>
+    Object.values(m.exports).filter(isCardDefinition)
 );
 
-const allPrints: CardPrint[] = setExports.flatMap((set) =>
-    Object.values(set).filter(isCardPrint)
+const allPrints: CardPrint[] = setModules.flatMap((m) =>
+    Object.values(m.exports).filter(isCardPrint)
 );
+
+// definitionId → home set code (the module the CardDefinition is declared in).
+const definitionSetCode = new Map<string, string>();
+for (const m of setModules) {
+    for (const value of Object.values(m.exports)) {
+        if (isCardDefinition(value)) definitionSetCode.set(value.id, m.code);
+    }
+}
 
 const definitionRegistry = new Map<string, CardDefinition>(
     allCards.map((card) => [card.id, card])
@@ -243,13 +258,42 @@ export function getInstanceManaCost(instance: {
  *  use `getPrintsForCard` to enumerate printings. */
 export const getAllCards = (): CardDefinition[] => allCards;
 
-/** All known prints of a card (every Scryfall UUID that resolves to the
- *  given definition), ordered with the original print first. Used by the
- *  deck builder UI to let the player pick which edition to include. */
-export const getPrintsForCard = (definitionId: string): string[] => {
-    const ids = [definitionId];
+/** A single printing of a card: its image-key print id and the set it was
+ *  printed in. */
+export interface CardPrinting {
+    printId: string;
+    setCode: string;
+}
+
+/** All known printings of a card (the original definition plus every reprint),
+ *  ordered with the original print first. Used by the deck builder UI to let the
+ *  player pick which edition to include — `[0]` is the default (the original
+ *  `CardDefinition`). */
+export const getPrintingsForCard = (definitionId: string): CardPrinting[] => {
+    const printings: CardPrinting[] = [
+        {
+            printId: definitionId,
+            setCode: definitionSetCode.get(definitionId) ?? "",
+        },
+    ];
     for (const print of allPrints) {
-        if (print.definitionId === definitionId) ids.push(print.printId);
+        if (print.definitionId === definitionId) {
+            printings.push({ printId: print.printId, setCode: print.setCode });
+        }
     }
-    return ids;
+    return printings;
+};
+
+/** All known print ids of a card, original first. Thin wrapper over
+ *  `getPrintingsForCard` for callers that only need the ids. */
+export const getPrintsForCard = (definitionId: string): string[] =>
+    getPrintingsForCard(definitionId).map((p) => p.printId);
+
+/** Every set code in the catalogue (home sets + reprint sets), sorted. Drives
+ *  the deck builder's set filter. */
+export const getAllSetCodes = (): string[] => {
+    const codes = new Set<string>();
+    for (const code of definitionSetCode.values()) codes.add(code);
+    for (const print of allPrints) codes.add(print.setCode);
+    return [...codes].sort();
 };

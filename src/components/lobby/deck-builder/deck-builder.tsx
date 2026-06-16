@@ -14,7 +14,7 @@ import ManaValueFilter from "./mana-value-filter";
 import ResultsGrid from "./results-grid";
 import SaveDeckBar from "./save-deck-bar";
 import SearchBar from "./search-bar";
-import SubtypeCombobox from "./subtype-combobox";
+import SetFilter from "./set-filter";
 import TypeFilter from "./type-filter";
 import {
     DEFAULT_FILTERS,
@@ -243,6 +243,15 @@ export default function DeckBuilder({
         }));
     }, []);
 
+    const toggleSet = useCallback((setCode: string) => {
+        setFilters((f) => ({
+            ...f,
+            sets: f.sets.includes(setCode)
+                ? f.sets.filter((s) => s !== setCode)
+                : [...f.sets, setCode],
+        }));
+    }, []);
+
     const setText = useCallback((text: string) => {
         setFilters((f) => ({ ...f, text }));
     }, []);
@@ -286,10 +295,7 @@ export default function DeckBuilder({
                         selected={filters.types}
                         onToggle={toggleType}
                     />
-                    <SubtypeCombobox
-                        selected={filters.types}
-                        onToggle={toggleType}
-                    />
+                    <SetFilter selected={filters.sets} onToggle={toggleSet} />
                     <ManaValueFilter
                         selected={filters.manaValues}
                         onToggle={toggleManaValue}
@@ -302,6 +308,7 @@ export default function DeckBuilder({
                     <ResultsGrid
                         entries={entries}
                         idle={idle}
+                        activeSets={filters.sets}
                         onAdd={handleAdd}
                     />
                 </div>
