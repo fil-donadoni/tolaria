@@ -21,6 +21,7 @@ import {
     jayemdaeTome,
     lightningBolt,
 } from "../../cards/sets/lea";
+import { oasis, pyramids, dancingScimitar } from "../../cards/sets/arn";
 import type { CardType } from "../../cards/types";
 
 // ---------------------------------------------------------------------------
@@ -510,5 +511,125 @@ describe("activation flow — targeted ability (Circle of Protection: Red)", () 
         expect(p1.battlefield.find((c) => c.id === "plains-0")!.isTapped).toBe(
             false
         );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Batch 3 (#175) — prevention / destroy-replacement through the full
+// activate → pay → commit → resolve → effect path.
+// ---------------------------------------------------------------------------
+
+describe("activation flow — Oasis ({T}: prevent next 1 to target creature)", () => {
+    it("activates (tap-only), resolves, and prevents 1 of a later 3 damage", () => {
+        const oasisLand = makeInstance({
+            id: "oasis",
+            card: { id: oasis.id },
+            types: ["Land"],
+        });
+        const bear = makeInstance({
+            id: "bear",
+            card: { id: dancingScimitar.id },
+            types: ["Creature"],
+        });
+        const state = makeGame({
+            players: [
+                makePlayer({ id: "p1", battlefield: [oasisLand, bear] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+
+        // Tap-only ability commits immediately; target selection (mirrored here)
+        // locks the creature onto the committed stack item.
+        const result = activateAbility(state, "p1", "oasis", "oasis-prevent");
+        expect(result).toBe("committed");
+        expect(oasisLand.isTapped).toBe(true);
+        state.stack[state.stack.length - 1].targets = [
+            { type: "permanent", id: "bear" },
+        ];
+        resolveTopOfStack(state);
+
+        // Shield recorded against the creature.
+        expect(
+            state.targetPreventionShields?.some(
+                (s) => s.targetType === "permanent" && s.targetId === "bear"
+            )
+        ).toBe(true);
+
+        // A 3-damage bolt now lands 2 on the bear (1 prevented).
+        const bolt: StackItem = {
+            ...makeInstance({
+                id: "bolt",
+                card: { id: lightningBolt.id },
+                types: ["Instant"],
+                zone: "stack",
+                controllerId: "p2",
+                ownerId: "p2",
+            }),
+            castById: "p2",
+            targets: [{ type: "permanent", id: "bear" }],
+        };
+        state.stack.push(bolt);
+        resolveTopOfStack(state);
+
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "bear")!
+                .damageMarked
+        ).toBe(2);
+    });
+});
+
+describe("activation flow — Pyramids save-land ({2}: destroy replacement)", () => {
+    it("enters pendingActivation, commits after paying {2}, and records the shield", () => {
+        const pyr = makeInstance({
+            id: "pyr",
+            card: { id: pyramids.id },
+            types: ["Artifact"],
+        });
+        const islands = Array.from({ length: 2 }, (_, i) =>
+            makeInstance({
+                id: `island-${i}`,
+                card: ISLAND_CARD,
+                types: ["Land"],
+                subtypes: ["Island"],
+            })
+        );
+        const land = makeInstance({
+            id: "victim",
+            card: { id: "mountain-x" },
+            types: ["Land"],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeGame({
+            players: [
+                makePlayer({ id: "p1", battlefield: [pyr, ...islands] }),
+                makePlayer({ id: "p2", battlefield: [land] }),
+            ],
+        });
+
+        // Empty pool → pending. Mirror finalizeTargetSelection carrying the
+        // chosen land onto the pendingActivation.
+        const result = activateAbility(
+            state,
+            "p1",
+            "pyr",
+            "pyramids-save-land"
+        );
+        expect(result).toBe("pending");
+        state.pendingActivation!.targets = [
+            { type: "permanent", id: "victim" },
+        ];
+
+        expect(tapForActivationPayment(state, "p1", "island-0")).toBe("tapped");
+        expect(tapForActivationPayment(state, "p1", "island-1")).toBe(
+            "committed"
+        );
+
+        resolveTopOfStack(state);
+        expect(
+            state.destroyReplacementShields?.some(
+                (s) => s.targetInstanceId === "victim"
+            )
+        ).toBe(true);
     });
 });

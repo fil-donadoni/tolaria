@@ -954,6 +954,190 @@ export const libraryOfAlexandria: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Batch 3 (#175) — damage prevention / replacement / destroy-replacement / reflect
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Oasis — reuses the existing target-keyed prevention shield (CR 615.1). A
+// nonbasic land with no mana ability, only the prevent activation.
+export const oasis: CardDefinition = {
+    id: "6f38565e-88b9-433d-b0e9-a3b9734f183f",
+    name: "Oasis",
+    oracleText:
+        "{T}: Prevent the next 1 damage that would be dealt to target creature this turn.",
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "oasis-prevent",
+            oracleText:
+                "{T}: Prevent the next 1 damage that would be dealt to target creature this turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (!target) return;
+                ctx.preventNextNDamageToTarget(target, 1, {
+                    phase: "end-of-turn",
+                });
+            },
+        },
+    ],
+};
+
+// Ali from Cairo — declarative damage replacement (CR 614): clamp any damage
+// that would drop its controller's life below 1 so it lands on exactly 1.
+// Fires per damage event (repeatable, CR 616.1d).
+export const aliFromCairo: CardDefinition = {
+    id: "42027613-d261-4ce2-8ba1-7a2480c660f8",
+    name: "Ali from Cairo",
+    oracleText:
+        "Damage that would reduce your life total to less than 1 reduces it to 1 instead.",
+    manaCost: { X: 2, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Human"],
+    power: 0,
+    toughness: 1,
+    replacementEffects: [
+        {
+            id: "ali-from-cairo-clamp",
+            oracleText:
+                "Damage that would reduce your life total to less than 1 reduces it to 1 instead.",
+            eventKind: "damage",
+            appliesTo: (event, self, state) => {
+                if (event.kind !== "damage") return false;
+                if (event.target.type !== "player") return false;
+                if (event.target.id !== self.controllerId) return false;
+                const player = state.players.find(
+                    (p) => p.id === self.controllerId
+                );
+                if (!player) return false;
+                // Only intercept damage that would drop life below 1.
+                return event.amount >= player.life;
+            },
+            replace: (event, ctx) => {
+                if (event.kind !== "damage") return { kind: "consumed" };
+                const player = ctx.state.players.find(
+                    (p) => p.id === ctx.self.controllerId
+                );
+                const life = player?.life ?? 1;
+                // Reduce the amount so the resulting life total is exactly 1.
+                return {
+                    kind: "modified",
+                    event: { ...event, amount: Math.max(0, life - 1) },
+                };
+            },
+        },
+    ],
+};
+
+// Ebony Horse — untaps a controlled attacker and shields it from all combat
+// damage both ways this turn (CR 615, per-instance transient shield).
+export const ebonyHorse: CardDefinition = {
+    id: "9ae81ec7-2b7d-4301-8114-032be5e6b663",
+    name: "Ebony Horse",
+    oracleText:
+        "{2}, {T}: Untap target attacking creature you control. Prevent all combat damage that would be dealt to and dealt by that creature this turn.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "ebony-horse-untap",
+            oracleText:
+                "{2}, {T}: Untap target attacking creature you control. Prevent all combat damage that would be dealt to and dealt by that creature this turn.",
+            cost: { mana: { X: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+                combatRoleFilter: "attacking",
+            },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (!target) return;
+                ctx.untap(target);
+                ctx.preventAllCombatDamageToAndBy(target, {
+                    phase: "end-of-turn",
+                });
+            },
+        },
+    ],
+};
+
+// Eye for an Eye — transient reflect entry on the damageRedirections family
+// (CR 614): the chosen source's next damage to you proceeds unchanged, and an
+// equal amount is dealt to that source's controller.
+export const eyeForAnEye: CardDefinition = {
+    id: "2933ca2a-097b-44f4-ae56-ad524d26fd06",
+    name: "Eye for an Eye",
+    oracleText:
+        "The next time a source of your choice would deal damage to you this turn, instead that source deals that much damage to you and Eye for an Eye deals that much damage to that source's controller.",
+    manaCost: { W: 2 },
+    types: ["Instant"],
+    targetRequirement: { type: ["any", "spell"], count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const [target] = ctx.targets;
+        if (!target) return;
+        // The "source of your choice" is a permanent or a spell on the stack —
+        // never a player.
+        if (target.type === "player") return;
+        ctx.addDamageRedirectionShield({
+            kind: "reflect-to-source-controller",
+            sourceInstanceId: target.id,
+            playerId: ctx.controller,
+            remaining: 1,
+            duration: { phase: "end-of-turn" },
+        });
+    },
+};
+
+// Pyramids — modal. The engine models `modes` only on spells, so the "Choose
+// one —" is expressed as two equally-priced ({2}) single-mode activated
+// abilities: behaviorally identical to picking one mode (ADR 0020). Mode 1
+// destroys an Aura; mode 2 records a one-shot destroy replacement on a land.
+export const pyramids: CardDefinition = {
+    id: "d2e9decf-47b7-44e0-b380-8055b6011021",
+    name: "Pyramids",
+    oracleText:
+        "{2}: Choose one —\n• Destroy target Aura attached to a land.\n• The next time target land would be destroyed this turn, remove all damage marked on it instead.",
+    manaCost: { X: 6 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "pyramids-destroy-aura",
+            oracleText: "{2}: Destroy target Aura attached to a land.",
+            cost: { mana: { X: 2 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Enchantment",
+                subtypeFilter: "Aura",
+                count: 1,
+            },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (!target) return;
+                ctx.destroy(target);
+            },
+        },
+        {
+            id: "pyramids-save-land",
+            oracleText:
+                "{2}: The next time target land would be destroyed this turn, remove all damage marked on it instead.",
+            cost: { mana: { X: 2 } },
+            useStack: true,
+            targetRequirement: { type: "Land", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (!target) return;
+                ctx.addDestroyReplacementShield(target, {
+                    phase: "end-of-turn",
+                });
+            },
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Layer 7b set-base-P/T (CR 613.4b, ADR 0017) — Batch 2 (#174)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1077,8 +1261,6 @@ export const sorceressQueen: CardDefinition = {
 //     resolveSteps support on activated abilities.
 //
 // Other batches (PRD #171):
-//   • Batch 3 (#175, prevention/replacement): Oasis, Ali from Cairo,
-//     Ebony Horse, Eye for an Eye, Pyramids.
 //   • Batch 4 (#191, coin flip): Bottle of Suleiman, Mijae Djinn, Ydwen Efreet.
 //   • Batch 5 (#176, control-gain): Aladdin, Old Man of the Sea, Ghazbán Ogre.
 //   • Batch 6 (#177, deserts): Desert, Desert Nomads, Camel.
