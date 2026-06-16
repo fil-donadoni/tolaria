@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import Board from "~/components/board/board";
@@ -20,6 +20,7 @@ export default function GameRoute() {
         api.game.getGame,
         pageVisible && session.gameId ? { gameId: session.gameId } : "skip"
     );
+    const leaveGame = useMutation(api.game.leaveGame);
 
     useEffect(() => {
         if (!session.gameId || !session.playerId) {
@@ -28,6 +29,9 @@ export default function GameRoute() {
     }, [session, navigate]);
 
     const handleLeave = () => {
+        // Delete the abandoned waiting room server-side so the user is free to
+        // create another game (#155). Only reachable from the "waiting" screen.
+        if (session.gameId) void leaveGame({ gameId: session.gameId });
         clearSession();
         setSession({ gameId: null, playerId: null });
     };
