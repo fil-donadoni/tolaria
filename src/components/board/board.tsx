@@ -236,6 +236,8 @@ export default function Board({
                                 kind="cast"
                                 pendingCast={pendingCast}
                                 me={me}
+                                gameId={gameId}
+                                playerId={viewerId}
                             />
                         )}
                         {pendingActivation &&
@@ -244,6 +246,8 @@ export default function Board({
                                     kind="activation"
                                     pendingActivation={pendingActivation}
                                     me={me}
+                                    gameId={gameId}
+                                    playerId={viewerId}
                                 />
                             )}
                         {pendingChoices && pendingChoices.length > 0 && (

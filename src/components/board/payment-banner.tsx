@@ -1,8 +1,15 @@
+import { useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import type { PendingActivation, PendingCast, Player } from "~/types/game";
 import { getCardById } from "@convex/cards";
 import { useDraggable } from "~/hooks/useDraggable";
 
-type Props =
+type Props = {
+    gameId: Id<"games">;
+    playerId: string;
+} & (
     | {
           kind: "cast";
           pendingCast: PendingCast;
@@ -12,10 +19,13 @@ type Props =
           kind: "activation";
           pendingActivation: PendingActivation;
           me: Player | undefined;
-      };
+      }
+);
 
 export default function PaymentBanner(props: Props) {
     const { offset, dragHandlers } = useDraggable();
+    const autoTap = useMutation(api.game.autoTapForPayment);
+    const [busy, setBusy] = useState(false);
 
     let cardName: string;
     let subtitle: string;
@@ -32,6 +42,20 @@ export default function PaymentBanner(props: Props) {
         );
         cardName = source ? getCardById(source.card.id).name : "ability";
         subtitle = "pay the activation costs";
+    }
+
+    async function handleAutoTap() {
+        if (busy) return;
+        setBusy(true);
+        try {
+            await autoTap({ gameId: props.gameId, playerId: props.playerId });
+        } catch {
+            // No valid combination (server-side guard) — leave the banner up so
+            // the player can tap manually. The validation toast surfaces nothing
+            // here by design; manual tapping remains available.
+        } finally {
+            setBusy(false);
+        }
     }
 
     return (
@@ -55,6 +79,15 @@ export default function PaymentBanner(props: Props) {
                 </p>
                 <div className="h-[1px] w-full bg-gradient-to-r from-zinc-600 via-zinc-500/40 to-transparent my-1.5" />
                 <p className="text-zinc-400 text-xs">{subtitle}</p>
+                <button
+                    type="button"
+                    onClick={handleAutoTap}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    disabled={busy}
+                    className="mt-2 w-full rounded-sm border border-emerald-700/60 bg-emerald-900/40 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200 hover:bg-emerald-800/50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    Auto-tap
+                </button>
             </div>
         </div>
     );

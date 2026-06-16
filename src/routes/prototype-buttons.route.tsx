@@ -341,6 +341,8 @@ export default function PrototypeButtonsRoute() {
                     kind="cast"
                     pendingCast={FAKE_CAST}
                     me={FAKE_PLAYER}
+                    gameId={FAKE_GAME_ID}
+                    playerId="p1"
                 />
             )}
         </div>

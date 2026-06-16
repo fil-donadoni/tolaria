@@ -66,6 +66,29 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Auto-tap mana (#154). Shivan Dragon ({4}{R}{R}) sits in hand with a
+        // mixed mana base: 3 Mountains, a Volcanic Island (U/R dual), a Mox Ruby
+        // and a Sol Ring ({C}{C}). Cast the Dragon, then hit "Auto-tap" on the
+        // payment banner — it picks a minimal valid combination (Sol Ring covers
+        // 2 generic in one tap; the dual is steered to {R}; sources are never
+        // over-tapped) and commits the spell in one action. Manual tapping still
+        // works. Sacrifice/side-effect mana abilities (Black Lotus) are excluded.
+        label: "Auto-tap: pay a mixed cost in one click (#154)",
+        cards: [
+            {
+                name: "Shivan Dragon",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 3 },
+            { name: "Volcanic Island", owner: "me" as const },
+            { name: "Mox Ruby", owner: "me" as const },
+            { name: "Sol Ring", owner: "me" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Face-down permanents (CR 708.2, ADR 0013). Each side has a creature
         // placed face down: it reads as a 2/2 colourless nameless vanilla
         // creature. You see your own face-down card's true identity; the
