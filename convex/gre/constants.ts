@@ -27,6 +27,7 @@ export const LANDWALK_KEYWORDS: Record<string, string> = {
     swampwalk: "Swamp",
     mountainwalk: "Mountain",
     forestwalk: "Forest",
+    desertwalk: "Desert",
 };
 
 /** Card types that represent permanents on the battlefield. */

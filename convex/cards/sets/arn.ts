@@ -1385,6 +1385,120 @@ export const ghazbanOgre: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Batch 6 (#177) — Deserts (desertwalk reuses landwalk; Desert-source damage
+// prevention via the replacement framework, CR 614)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Desert — a nonbasic Desert land: taps for {C}, or (only at end of combat)
+// pings an attacking creature. The ping's source is a Desert, so Camel /
+// Desert Nomads' "prevent damage Deserts would deal" replacements catch it.
+export const desert: CardDefinition = {
+    id: "201155ea-f474-4e13-acda-cb071a6ca977",
+    name: "Desert",
+    oracleText:
+        "{T}: Add {C}.\n{T}: Desert deals 1 damage to target attacking creature. Activate only during the end of combat step.",
+    types: ["Land"],
+    subtypes: ["Desert"],
+    activatedAbilities: [
+        {
+            id: "desert-mana",
+            oracleText: "{T}: Add {C}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ C: 1 }),
+            manaProduced: { C: 1 },
+        },
+        {
+            id: "desert-ping",
+            oracleText:
+                "{T}: Desert deals 1 damage to target attacking creature. Activate only during the end of combat step.",
+            cost: { tap: true },
+            useStack: true,
+            activationPhaseRestriction: ["END_OF_COMBAT"],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatRoleFilter: "attacking",
+            },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (target?.type === "permanent") ctx.dealDamage(target, 1);
+            },
+        },
+    ],
+};
+
+// Desert Nomads — desertwalk (reuses the landwalk evasion machinery, keyed to
+// the Desert subtype) plus a static "prevent all damage Deserts would deal to
+// this creature" replacement (CR 614).
+export const desertNomads: CardDefinition = {
+    id: "e46d0c10-ec09-48ba-9e93-1392dca8111a",
+    name: "Desert Nomads",
+    oracleText:
+        "Desertwalk\nPrevent all damage that would be dealt to this creature by Deserts.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Nomad"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["desertwalk"],
+    replacementEffects: [
+        {
+            id: "desert-nomads-no-desert-damage",
+            oracleText:
+                "Prevent all damage that would be dealt to this creature by Deserts.",
+            eventKind: "damage",
+            appliesTo: (event, self) =>
+                event.kind === "damage" &&
+                event.target.type === "permanent" &&
+                event.target.id === self.id &&
+                !!event.sourceSubtypes?.includes("Desert"),
+            replace: () => ({ kind: "consumed" }),
+        },
+    ],
+};
+
+// Camel — banding, plus "as long as this creature is attacking, prevent all
+// damage Deserts would deal to it and to creatures banded with it" (CR 614).
+// The protected set is Camel's attacking band (or just Camel if attacking
+// solo); the prevention only applies while Camel is itself an attacker.
+export const camel: CardDefinition = {
+    id: "e0078aa8-bfb8-43b0-a6b7-1991596c21e1",
+    name: "Camel",
+    oracleText:
+        "Banding\nAs long as this creature is attacking, prevent all damage Deserts would deal to this creature and to creatures banded with this creature.",
+    manaCost: { W: 1 },
+    types: ["Creature"],
+    subtypes: ["Camel"],
+    power: 0,
+    toughness: 1,
+    staticAbilities: ["banding"],
+    replacementEffects: [
+        {
+            id: "camel-band-no-desert-damage",
+            oracleText:
+                "As long as this creature is attacking, prevent all damage Deserts would deal to this creature and to creatures banded with this creature.",
+            eventKind: "damage",
+            appliesTo: (event, self, state) => {
+                if (event.kind !== "damage") return false;
+                if (event.target.type !== "permanent") return false;
+                if (!event.sourceSubtypes?.includes("Desert")) return false;
+                const combat = state.combat;
+                // Camel must itself be attacking for the shield to apply.
+                if (!combat || !combat.attackerIds.includes(self.id))
+                    return false;
+                const band = combat.bands?.find((b) =>
+                    b.memberIds.includes(self.id)
+                );
+                const protectedIds = band ? band.memberIds : [self.id];
+                return protectedIds.includes(event.target.id);
+            },
+            replace: () => ({ kind: "consumed" }),
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Deferred to later batches — need engine work beyond existing primitives:
 //
 //   • Hurr Jackal — "{T}: Target creature can't be regenerated this turn"
@@ -1406,7 +1520,6 @@ export const ghazbanOgre: CardDefinition = {
 //
 // Other batches (PRD #171):
 //   • Batch 4 (#191, coin flip): Bottle of Suleiman, Mijae Djinn, Ydwen Efreet.
-//   • Batch 6 (#177, deserts): Desert, Desert Nomads, Camel.
 //   • Batch 7 (#178, delayed-pay): Nafs Asp, Cyclone, Drop of Honey.
 //   • Batch 8 (#179, phasing): Oubliette.
 //   • Batch 9 (#180-187, misc): Metamorphosis, Jihad, Magnetic Mountain,

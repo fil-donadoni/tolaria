@@ -1871,6 +1871,10 @@ export interface DamageReplacementEvent {
     sourceColors: ReadonlyArray<Color>;
     /** Card types of the source. */
     sourceTypes: ReadonlyArray<CardType>;
+    /** Subtypes of the source (CR 205.3). Used to discriminate "damage a
+     *  Desert would deal" (Camel, Desert Nomads). Optional for back-compat
+     *  with synthetic events; populated by `runDamageReplacement`. */
+    sourceSubtypes?: ReadonlyArray<string>;
     /** Static keyword abilities of the source (CR 702.x). Used to discriminate
      *  "damage from a flying source" etc. */
     sourceStaticAbilities: ReadonlyArray<string>;
@@ -2023,6 +2027,9 @@ export interface ReplacementStateView {
         /** attackerId → ordered blocker ids (CR 509.2). Empty array means
          *  the attacker is unblocked. */
         blockersByAttacker: Readonly<Record<string, ReadonlyArray<string>>>;
+        /** Declared attacking bands (CR 702.21e). Read by Camel to extend its
+         *  Desert-damage prevention to the creatures banded with it. */
+        bands?: ReadonlyArray<{ memberIds: ReadonlyArray<string> }>;
     };
 }
 

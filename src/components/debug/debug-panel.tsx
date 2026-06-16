@@ -50,6 +50,26 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ARN Batch 6 (#177) — Deserts. You control two Deserts ({T}: add {C};
+        // {T} at end of combat: deal 1 to an attacking creature), Desert Nomads
+        // (desertwalk + immune to Desert damage) and a Camel (banding; while
+        // attacking, it and its band ignore Desert damage). Attack with the
+        // Nomads (unblockable — the opponent has no Desert) and, in your end of
+        // combat step, ping an attacker with a Desert; aim it at a band with
+        // Camel to watch the prevention apply.
+        label: "ARN: deserts (Desert / Desert Nomads / Camel)",
+        cards: [
+            { name: "Desert", owner: "me" as const, count: 2 },
+            { name: "Desert Nomads", owner: "me" as const },
+            { name: "Camel", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 2 (#174) — layer 7b set-base-P/T (CR 613.4b, ADR 0017).
         // Sorceress Queen ({T}: target other creature has base P/T 0/2) and
         // Island of Wak-Wak ({T}: target flyer has base power 0). Tap Sorceress
