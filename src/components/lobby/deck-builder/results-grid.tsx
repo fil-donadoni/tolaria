@@ -1,16 +1,19 @@
-import CardImage from "~/components/cards/card-image";
 import type { CardIndexEntry } from "./useCardSearch";
+import ResultCard from "./result-card";
 
 interface ResultsGridProps {
     entries: CardIndexEntry[] | undefined;
     /** True when no filter is set — show prompt instead of cards. */
     idle: boolean;
-    onAdd: (cardId: string, cardName: string) => void;
+    /** Active set filter — forwarded to each card to pick its default edition. */
+    activeSets: string[];
+    onAdd: (printId: string, cardName: string) => void;
 }
 
 export default function ResultsGrid({
     entries,
     idle,
+    activeSets,
     onAdd,
 }: ResultsGridProps) {
     if (entries === undefined) {
@@ -43,17 +46,12 @@ export default function ResultsGrid({
     return (
         <div className="flex flex-wrap gap-2 p-2 md:gap-3">
             {entries.map((entry) => (
-                <button
+                <ResultCard
                     key={entry.cardId}
-                    onClick={() => onAdd(entry.cardId, entry.name)}
-                    className="group relative w-[var(--card-w-sm)] shrink-0 transition hover:scale-[1.03]"
-                    title={`Add ${entry.name}`}
-                >
-                    <div className="aspect-5/7 w-full">
-                        <CardImage card={{ id: entry.cardId }} />
-                    </div>
-                    <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent group-hover:ring-accent/60" />
-                </button>
+                    entry={entry}
+                    activeSets={activeSets}
+                    onAdd={onAdd}
+                />
             ))}
         </div>
     );

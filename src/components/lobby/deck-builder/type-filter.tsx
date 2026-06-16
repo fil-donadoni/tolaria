@@ -1,6 +1,15 @@
-import { cn } from "~/lib/utils";
+import { useMemo } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
+import MultiCombobox, {
+    type ComboboxGroup,
+    type ComboboxOption,
+} from "./multi-combobox";
 
-const TYPES = [
+// Card types pinned to the top of the list; everything else (sub/supertypes)
+// follows below a separator, alphabetically. All toggle the same `types`
+// filter — `matchesTypes` checks types, subtypes, and supertypes together.
+const CARD_TYPE_OPTIONS: ComboboxOption[] = [
     "Creature",
     "Instant",
     "Sorcery",
@@ -8,7 +17,9 @@ const TYPES = [
     "Enchantment",
     "Land",
     "Planeswalker",
-] as const;
+].map((value) => ({ value, label: value }));
+
+const CARD_TYPE_VALUES = new Set(CARD_TYPE_OPTIONS.map((o) => o.value));
 
 interface TypeFilterProps {
     selected: string[];
@@ -16,25 +27,33 @@ interface TypeFilterProps {
 }
 
 export default function TypeFilter({ selected, onToggle }: TypeFilterProps) {
+    const all = useQuery(api.cardIndex.list, {});
+
+    const groups = useMemo<ComboboxGroup[]>(() => {
+        const set = new Set<string>();
+        if (all) {
+            for (const row of all) {
+                for (const s of row.subtypes) set.add(s);
+                for (const s of row.supertypes) set.add(s);
+            }
+        }
+        // Drop any subtype that collides with a card type name (none today,
+        // but keeps the two groups disjoint if the catalogue grows).
+        const subAndSuper = Array.from(set)
+            .filter((s) => !CARD_TYPE_VALUES.has(s))
+            .sort((a, b) => a.localeCompare(b))
+            .map((value) => ({ value, label: value }));
+        return [{ options: CARD_TYPE_OPTIONS }, { options: subAndSuper }];
+    }, [all]);
+
     return (
-        <div className="flex flex-wrap items-center gap-1">
-            {TYPES.map((t) => {
-                const active = selected.includes(t);
-                return (
-                    <button
-                        key={t}
-                        onClick={() => onToggle(t)}
-                        className={cn(
-                            "rounded-full px-2.5 py-1 text-[11px] uppercase tracking-wide transition",
-                            active
-                                ? "filter-chip-active text-parchment"
-                                : "filter-chip-inactive text-text-muted hover:text-parchment"
-                        )}
-                    >
-                        {t}
-                    </button>
-                );
-            })}
-        </div>
+        <MultiCombobox
+            groups={groups}
+            selected={selected}
+            onToggle={onToggle}
+            placeholder="Type"
+            searchPlaceholder="Search type…"
+            emptyText="No matching type."
+        />
     );
 }
