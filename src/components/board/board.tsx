@@ -18,6 +18,7 @@ import { computeSoloViewerId } from "~/lib/priority";
 import PlayerBoard from "./player-board";
 import GameStack from "./game-stack";
 import PhaseTracker from "./phase-tracker";
+import PriorityIndicator from "./priority-indicator";
 import ActionBar from "./action-bar";
 import AutoPassController from "./auto-pass-controller";
 import GameOverDialog from "./game-over-dialog";
@@ -215,6 +216,7 @@ export default function Board({
                         {orderedPlayers.map((player) => (
                             <PlayerBoard key={player.id} player={player} />
                         ))}
+                        <PriorityIndicator />
                         <PhaseTracker />
                         {stackItems.length > 0 && (
                             <GameStack stack={stackItems} />

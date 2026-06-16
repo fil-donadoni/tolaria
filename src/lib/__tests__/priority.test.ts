@@ -3,9 +3,11 @@ import {
     computeHasPriority,
     computeAutoPassBlocked,
     computeSoloViewerId,
+    computePriorityState,
     type HasPriorityCtx,
     type AutoPassBlockedCtx,
     type SoloViewerCtx,
+    type PriorityStateCtx,
 } from "../priority";
 import type { Combat } from "~/types/game";
 
@@ -337,5 +339,103 @@ describe("damage-assignment authority (CR 702.21j-k)", () => {
                 })
             )
         ).toBe("p1");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// computePriorityState (#152 board-wide priority indicator)
+// ---------------------------------------------------------------------------
+
+describe("computePriorityState", () => {
+    function ctx(overrides: Partial<PriorityStateCtx> = {}): PriorityStateCtx {
+        return { ...makePriorityCtx(), ...overrides };
+    }
+
+    it("'mine' when the local player plainly holds priority", () => {
+        expect(computePriorityState(ctx())).toBe("mine");
+    });
+
+    it("'opponent' when priority rests with the other player", () => {
+        expect(computePriorityState(ctx({ priorityPlayerId: "p2" }))).toBe(
+            "opponent"
+        );
+    });
+
+    it("'none' when the game is over", () => {
+        expect(
+            computePriorityState(
+                ctx({
+                    gameOver: {
+                        winnerId: "p1",
+                        loserId: "p2",
+                        reason: "life",
+                    },
+                })
+            )
+        ).toBe("none");
+    });
+
+    it.each(["MULLIGAN", "UNTAP", "CLEANUP"])(
+        "'none' during the non-priority phase %s",
+        (phase) => {
+            expect(computePriorityState(ctx({ phase }))).toBe("none");
+        }
+    );
+
+    it("'mine' while the local player has a pending cast", () => {
+        expect(
+            computePriorityState(
+                ctx({
+                    priorityPlayerId: "p2",
+                    pendingCast: {
+                        playerId: "p1",
+                        cardInstanceId: "c",
+                        manaCost: {},
+                        tappedLandIds: [],
+                    },
+                })
+            )
+        ).toBe("mine");
+    });
+
+    it("'opponent' while the opponent has a pending cast", () => {
+        expect(
+            computePriorityState(
+                ctx({
+                    pendingCast: {
+                        playerId: "p2",
+                        cardInstanceId: "c",
+                        manaCost: {},
+                        tappedLandIds: [],
+                    },
+                })
+            )
+        ).toBe("opponent");
+    });
+
+    it("'mine' while the local player declares attackers", () => {
+        expect(
+            computePriorityState(
+                ctx({
+                    phase: "DECLARE_ATTACKERS",
+                    combat: combatAttackersOpen,
+                })
+            )
+        ).toBe("mine");
+    });
+
+    it("'opponent' while waiting on the opponent to declare attackers", () => {
+        // Local player is the defender (not active) during opponent's attack.
+        expect(
+            computePriorityState(
+                ctx({
+                    playerId: "p2",
+                    activePlayerId: "p1",
+                    priorityPlayerId: "p1",
+                    phase: "DECLARE_ATTACKERS",
+                    combat: combatAttackersOpen,
+                })
+            )
+        ).toBe("opponent");
     });
 });

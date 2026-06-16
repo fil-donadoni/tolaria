@@ -103,6 +103,53 @@ export function computeHasPriority(ctx: HasPriorityCtx): boolean {
     );
 }
 
+/** Coarse priority status for the local player, for the board-wide priority
+ *  indicator (#152). Three mutually exclusive states:
+ *  - `"mine"`     — it's on the local player to act: they hold priority, own an
+ *                   in-flight sub-action (mid-cast / choosing targets), or owe a
+ *                   combat decision (declaring attackers/blockers, assigning
+ *                   damage).
+ *  - `"opponent"` — it's on the opponent to act (their priority, their pending
+ *                   sub-action, or their combat decision).
+ *  - `"none"`     — no one is being asked for input: the game is over, a
+ *                   pre-priority/turn-based phase is running (mulligan, untap,
+ *                   cleanup), or the stack/step is auto-resolving. */
+export type PriorityState = "mine" | "opponent" | "none";
+
+export type PriorityStateCtx = HasPriorityCtx & { gameOver?: GameOver };
+
+/** Phases where no player ever receives priority (CR 502/514 + pre-game). */
+const NON_PRIORITY_PHASES = new Set(["MULLIGAN", "UNTAP", "CLEANUP"]);
+
+export function computePriorityState(ctx: PriorityStateCtx): PriorityState {
+    if (ctx.gameOver) return "none";
+    if (NON_PRIORITY_PHASES.has(ctx.phase)) return "none";
+
+    // Turn-based combat decisions (CR 508/509/510) suspend priority. The
+    // selecting/assigning helpers are defined from the local player's seat, so
+    // a true result always means it's on the local player.
+    if (
+        isSelectingAttackers(ctx) ||
+        isSelectingBlockers(ctx) ||
+        isAssigningDamage(ctx)
+    ) {
+        return "mine";
+    }
+    if (isWaitingOnOpponent(ctx)) return "opponent";
+    if (isDamageStepOpen(ctx)) return "opponent"; // opponent owes the assignment
+
+    // In-flight sub-actions (mid-cast, choosing targets) belong to one player.
+    const pendingOwner =
+        ctx.pendingCast?.playerId ??
+        ctx.pendingActivation?.playerId ??
+        ctx.pendingTarget?.playerId;
+    if (pendingOwner)
+        return pendingOwner === ctx.playerId ? "mine" : "opponent";
+
+    // Plain priority window.
+    return ctx.priorityPlayerId === ctx.playerId ? "mine" : "opponent";
+}
+
 export function computeAutoPassBlocked(ctx: AutoPassBlockedCtx): boolean {
     if (ctx.gameOver) return true;
     if (ctx.autoPassPlayers?.includes(ctx.playerId)) return true;
