@@ -466,4 +466,101 @@ describe("AI diagnosis harness (Forge comparison)", () => {
             expect(trace).toBeDefined();
         }
     );
+
+    // -----------------------------------------------------------------------
+    // Episode C — Danger Clock (slice 3, issue #196). The bot reads the race:
+    // it DEFENDS under a lethal opposing clock and PRESSES when it holds the
+    // faster clock, instead of turtling.
+    //
+    //  (1) Defend: the bot is the defender at 4 life facing two 3/3 attackers
+    //      (6 = lethal) with one 3/3 blocker. It must block to stabilise.
+    //  (2) Press: the bot holds two ready 3/3s against an opponent with no
+    //      blockers; it attacks to push its clock rather than passing.
+    // -----------------------------------------------------------------------
+    it(
+        "episode C: danger clock — blocks under a lethal clock, presses when ahead",
+        { timeout: DIAGNOSIS_TIMEOUT_MS },
+        () => {
+            // (1) Defend. p2 is the active attacker; the bot p1 owes blocks.
+            const atk = (id: string) =>
+                makeInstance(HILL_GIANT, {
+                    id,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    isSummoningSick: false,
+                    isAttacking: true,
+                });
+            const defendState = makeState({
+                phase: "DECLARE_BLOCKERS",
+                activePlayerId: "p2",
+                priorityPlayerId: "p1",
+                combat: {
+                    attackerIds: ["a1", "a2"],
+                    confirmed: true,
+                    blockerAssignments: {},
+                    blockersConfirmed: false,
+                },
+                players: [
+                    makePlayer("p1", {
+                        life: 4,
+                        battlefield: [
+                            makeInstance(HILL_GIANT, {
+                                id: "wall",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                isSummoningSick: false,
+                            }),
+                        ],
+                    }),
+                    makePlayer("p2", {
+                        life: 20,
+                        battlefield: [atk("a1"), atk("a2")],
+                    }),
+                ],
+            });
+            const defend = diagnose(
+                "EP#C-defend lethal clock",
+                defendState,
+                "p1"
+            );
+            // The bot must block (non-empty assignment) — taking 6 is lethal.
+            expect(defend.chosen).toContain("block");
+
+            // (2) Press. The bot p1 is the active player with two ready 3/3s and
+            // the opponent has no blockers; it should declare attackers.
+            const mine = (id: string) =>
+                makeInstance(HILL_GIANT, {
+                    id,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    isSummoningSick: false,
+                });
+            const pressState = makeState({
+                phase: "DECLARE_ATTACKERS",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                combat: {
+                    attackerIds: [],
+                    confirmed: false,
+                    blockerAssignments: {},
+                    blockersConfirmed: false,
+                },
+                players: [
+                    makePlayer("p1", {
+                        life: 20,
+                        battlefield: [mine("m1"), mine("m2")],
+                    }),
+                    makePlayer("p2", { life: 12 }),
+                ],
+            });
+            const press = diagnose("EP#C-press faster clock", pressState, "p1");
+            const chosenAttack = press.candidates.find(
+                (c) => c.label === press.chosen
+            )?.move;
+            expect(chosenAttack?.kind).toBe("declare-attackers");
+            if (chosenAttack?.kind === "declare-attackers") {
+                expect(chosenAttack.attackerIds.length).toBeGreaterThan(0);
+            }
+        }
+    );
 });
