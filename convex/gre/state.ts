@@ -264,6 +264,17 @@ export type CardInstanceState = {
         toughness: number;
         duration: Duration;
     }[];
+    /** Layer 7b set-P/T effects scoped to a phase boundary (CR 613.4b, ADR
+     *  0017). Each entry SETS power and/or toughness to a fixed value
+     *  (independently optional). The latest entry per characteristic wins at
+     *  read time (array order = timestamp, CR 613.7). Spliced out by
+     *  `tickAllDurations` when `duration` expires, exactly like
+     *  `temporaryPTMods`. Pushed by `setBasePT`. */
+    temporaryPTSet?: {
+        power?: number;
+        toughness?: number;
+        duration: Duration;
+    }[];
     /** Counters on this permanent (CR 122). Map of counter type → count.
      *  Layer 7d folds P/T-modifying types (+1/+1, +1/+0, ...) into effective
      *  stat reads. Mutated by `addCounter`/`removeCounter`. Cleared on
@@ -2790,6 +2801,30 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     toughness,
                     duration: resolveDuration(duration, item.castById, state),
                 },
+            ];
+        },
+        setBasePT(
+            target: TargetSelection,
+            power: number | undefined,
+            toughness: number | undefined,
+            duration: DurationSpec
+        ): void {
+            if (target.type !== "permanent") return;
+            if (power === undefined && toughness === undefined) return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            // CR 613.4b / 613.7 — append; the latest entry per characteristic
+            // wins at read time. Purged with temporaryPTMods at the boundary.
+            const entry: {
+                power?: number;
+                toughness?: number;
+                duration: Duration;
+            } = { duration: resolveDuration(duration, item.castById, state) };
+            if (power !== undefined) entry.power = power;
+            if (toughness !== undefined) entry.toughness = toughness;
+            found.card.temporaryPTSet = [
+                ...(found.card.temporaryPTSet ?? []),
+                entry,
             ];
         },
         // CR 122.1: put `count` counters of `type` on the permanent. Stored

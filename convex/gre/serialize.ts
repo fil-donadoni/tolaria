@@ -98,6 +98,9 @@ function compactCard(
     if (card.temporaryPTMods?.length) {
         out.temporaryPTMods = card.temporaryPTMods;
     }
+    if (card.temporaryPTSet?.length) {
+        out.temporaryPTSet = card.temporaryPTSet;
+    }
     if (card.counters && Object.keys(card.counters).length > 0) {
         out.counters = card.counters;
     }
@@ -223,6 +226,10 @@ function expandCard(
     if (compact.temporaryPTMods) {
         result.temporaryPTMods =
             compact.temporaryPTMods as CardInstanceState["temporaryPTMods"];
+    }
+    if (compact.temporaryPTSet) {
+        result.temporaryPTSet =
+            compact.temporaryPTSet as CardInstanceState["temporaryPTSet"];
     }
     if (compact.counters) {
         result.counters = compact.counters as Record<string, number>;

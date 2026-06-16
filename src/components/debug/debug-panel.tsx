@@ -50,6 +50,24 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ARN Batch 2 (#174) — layer 7b set-base-P/T (CR 613.4b, ADR 0017).
+        // Sorceress Queen ({T}: target other creature has base P/T 0/2) and
+        // Island of Wak-Wak ({T}: target flyer has base power 0). Tap Sorceress
+        // Queen on the opponent's Serendib Efreet to shrink it to 0/2, or tap
+        // Island of Wak-Wak on the flyer to zero its power. A +1/+1 counter on
+        // a 0/2 reads 1/3 — the set applies before the counter.
+        label: "ARN: set base P/T (Sorceress Queen + Island of Wak-Wak)",
+        cards: [
+            { name: "Sorceress Queen", owner: "me" as const },
+            { name: "Island of Wak-Wak", owner: "me" as const },
+            { name: "Swamp", owner: "me" as const, count: 3 },
+            { name: "Serendib Efreet", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 1 (#173) — combat tricks. You control two Grizzly Bears
         // and hold Army of Allah ({1}{W}{W}, attackers +2/+0), Piety ({2}{W},
         // blockers +0/+3) and Sandstorm ({G}, 1 damage to each attacking

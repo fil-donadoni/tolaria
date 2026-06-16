@@ -151,6 +151,10 @@ describe("game_state serialize round-trip", () => {
         lion.temporaryPTMods = [
             { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
         ];
+        lion.temporaryPTSet = [
+            { power: 0, duration: { phase: "end-of-turn" } },
+            { power: 0, toughness: 2, duration: { phase: "end-of-turn" } },
+        ];
         lion.counters = { "+1/+1": 1, "+1/+0": 2 };
         lion.grantedStaticAbilities = [{ ability: "flying", auraId: "aura-1" }];
         lion.grantedActivatedAbilities = [
@@ -185,6 +189,10 @@ describe("game_state serialize round-trip", () => {
         expect(got.attachedTo).toBe("host-id");
         expect(got.temporaryPTMods).toEqual([
             { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
+        ]);
+        expect(got.temporaryPTSet).toEqual([
+            { power: 0, duration: { phase: "end-of-turn" } },
+            { power: 0, toughness: 2, duration: { phase: "end-of-turn" } },
         ]);
         expect(got.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
         expect(got.grantedStaticAbilities).toEqual([

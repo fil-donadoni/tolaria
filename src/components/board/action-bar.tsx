@@ -35,6 +35,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
     const confirmBlockers = useMutation(api.game.confirmBlockers);
     const confirmDamage = useMutation(api.game.confirmDamage);
     const passPriority = useMutation(api.game.passPriority);
+    const autoTap = useMutation(api.game.autoTapForPayment);
     const endTurn = useMutation(api.game.endTurn);
     const cancelAutoPass = useMutation(api.game.cancelAutoPass);
 
@@ -149,7 +150,11 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
             }
             if (e.code === "Space" && !e.repeat) {
                 e.preventDefault();
-                if (isSelectingAttackers) {
+                if (isPayingCast || isPayingActivation) {
+                    // While the PaymentBanner is up, Space mirrors its
+                    // "Auto-tap" button instead of passing priority.
+                    autoTap({ gameId, playerId });
+                } else if (isSelectingAttackers) {
                     confirmAttackers({ gameId, playerId });
                 } else if (isSelectingBlockers) {
                     confirmBlockers({ gameId, playerId });
@@ -177,6 +182,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         isQueuedEndTurn,
         isPayingCast,
         isPayingActivation,
+        autoTap,
         isSelectingAttackers,
         isSelectingBlockers,
         cancelCast,
@@ -280,6 +286,16 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 }
                 tone="primary"
                 shortcut="space"
+                disabled={isBusy}
+            />
+        );
+        buttons.push(
+            <ActionButton
+                key="pass-turn-blockers"
+                onClick={handleEndTurn}
+                label="Pass Turn"
+                tone="destructive"
+                shortcut="enter"
                 disabled={isBusy}
             />
         );

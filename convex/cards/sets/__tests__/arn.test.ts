@@ -45,6 +45,9 @@ import {
     ebonyHorse,
     eyeForAnEye,
     pyramids,
+    singingTree,
+    islandOfWakWak,
+    sorceressQueen,
 } from "../arn";
 import {
     grizzlyBears,
@@ -71,6 +74,7 @@ import {
     type StackItem,
 } from "../../../gre/state";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
+import { getLegalTargets } from "../../../gre/rules";
 import { projectPublicState } from "../../../gameProjections";
 
 // --- helpers ---------------------------------------------------------------
@@ -1192,5 +1196,118 @@ describe("Pyramids (modal destroy-aura / save land, CR 614 + ADR 0020)", () => {
         expect(
             state.players[1].battlefield.find((c) => c.id === "land")
         ).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Layer 7b set-base-P/T cards (CR 613.4b, ADR 0017)
+// ---------------------------------------------------------------------------
+
+describe("Singing Tree ({T}: target attacking creature base power 0)", () => {
+    it("sets the target's base power to 0, leaving toughness", () => {
+        const tree = makeInstance(singingTree.id, { id: "tree" });
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "atk",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tree] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+        });
+        resolveActivated(state, tree, "singing-tree-set-power", [
+            { type: "permanent", id: "atk" },
+        ]);
+        const bear = state.players[1].battlefield.find((c) => c.id === "atk")!;
+        expect(getEffectivePower(state, bear)).toBe(0);
+        expect(getEffectiveToughness(state, bear)).toBe(2);
+    });
+});
+
+describe("Island of Wak-Wak ({T}: target flyer base power 0)", () => {
+    it("sets a flyer's base power to 0", () => {
+        const isl = makeInstance(islandOfWakWak.id, { id: "wakwak" });
+        const flyer = makeInstance(grizzlyBears.id, {
+            id: "flyer",
+            controllerId: "p2",
+            ownerId: "p2",
+            staticAbilities: ["flying"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [isl] }),
+                makePlayer("p2", { battlefield: [flyer] }),
+            ],
+        });
+        resolveActivated(state, isl, "island-of-wak-wak-set-power", [
+            { type: "permanent", id: "flyer" },
+        ]);
+        const f = state.players[1].battlefield.find((c) => c.id === "flyer")!;
+        expect(getEffectivePower(state, f)).toBe(0);
+    });
+    it("only flyers are legal targets (requireAbility)", () => {
+        const flyer = makeInstance(grizzlyBears.id, {
+            id: "flyer",
+            staticAbilities: ["flying"],
+        });
+        const ground = makeInstance(grizzlyBears.id, { id: "ground" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [flyer, ground] }),
+                makePlayer("p2"),
+            ],
+        });
+        const req = islandOfWakWak.activatedAbilities![0].targetRequirement!;
+        const legal = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        expect(legal).toContain("flyer");
+        expect(legal).not.toContain("ground");
+    });
+});
+
+describe("Sorceress Queen ({T}: target other creature base 0/2)", () => {
+    it("sets the target's base power and toughness to 0/2, +counter = 1/3", () => {
+        const queen = makeInstance(sorceressQueen.id, { id: "queen" });
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [queen] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        resolveActivated(state, queen, "sorceress-queen-set", [
+            { type: "permanent", id: "victim" },
+        ]);
+        const v = state.players[1].battlefield.find((c) => c.id === "victim")!;
+        expect(getEffectivePower(state, v)).toBe(0);
+        expect(getEffectiveToughness(state, v)).toBe(2);
+        // 7b set then 7c counter (CR 613.4): 0/2 + a +1/+1 counter = 1/3.
+        v.counters = { "+1/+1": 1 };
+        expect(getEffectivePower(state, v)).toBe(1);
+        expect(getEffectiveToughness(state, v)).toBe(3);
+    });
+    it("cannot target itself (excludeInstanceIds via getTargetRequirement)", () => {
+        const queen = makeInstance(sorceressQueen.id, { id: "queen" });
+        const other = makeInstance(grizzlyBears.id, { id: "other" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [queen, other] }),
+                makePlayer("p2"),
+            ],
+        });
+        const ability = sorceressQueen.activatedAbilities![0];
+        const req = ability.getTargetRequirement!(
+            { ...queen } as never,
+            state as never
+        );
+        const legal = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        expect(legal).toContain("other");
+        expect(legal).not.toContain("queen");
     });
 });

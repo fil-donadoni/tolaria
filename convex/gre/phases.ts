@@ -1429,6 +1429,20 @@ function tickAllDurations(state: GameState): void {
         }
     }
 
+    // Layer 7b set-P/T effects (Singing Tree, Sorceress Queen — "base power 0
+    // until end of turn"). Purged at the same boundary as `temporaryPTMods`.
+    for (const p of state.players) {
+        for (const card of p.battlefield) {
+            if (!card.temporaryPTSet?.length) continue;
+            const kept: typeof card.temporaryPTSet = [];
+            for (const entry of card.temporaryPTSet) {
+                const next = tickDuration(entry.duration, view);
+                if (next !== null) kept.push({ ...entry, duration: next });
+            }
+            card.temporaryPTSet = kept.length > 0 ? kept : undefined;
+        }
+    }
+
     // Fog-style blanket combat-damage prevention (CR 615). Only meaningful
     // at CLEANUP — the flag is set at resolution time and lasts until end of
     // turn. Cleared unconditionally so it doesn't persist across turns.

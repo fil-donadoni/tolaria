@@ -145,6 +145,14 @@ export interface TargetRequirement {
      *  Used by Nettling Imp ("target non-Wall creature"). Single string is
      *  shorthand for one subtype. */
     excludeSubtypes?: string | string[];
+    /** Restricts legal permanent targets to those whose `staticAbilities`
+     *  include this keyword (CR 702). Used by Island of Wak-Wak ("target
+     *  creature with flying"). Ignored for player / spell targets. */
+    requireAbility?: string;
+    /** Excludes specific permanent instance ids. Used for "target creature
+     *  other than ~" via a dynamic `getTargetRequirement` that injects the
+     *  source's own id (Sorceress Queen). */
+    excludeInstanceIds?: ReadonlyArray<string>;
     /** Restricts legal permanent targets by effective toughness (CR 613
      *  layer 7c). Both bounds inclusive. Used by Stone Giant ("target
      *  creature you control with toughness less than Stone Giant's power").
@@ -417,6 +425,19 @@ export interface SpellContext {
         target: TargetSelection,
         power: number,
         toughness: number,
+        duration: DurationSpec
+    ) => void;
+    /** Sets the target's base power and/or toughness to a fixed value until
+     *  `duration` expires (CR 613.4b layer 7b, ADR 0017). Pass `undefined` for
+     *  a characteristic to leave it untouched ("base power 0" sets power only).
+     *  Counters (7c) and +N/+N modifiers (7d) still apply on top of the set
+     *  value. The latest set per characteristic wins. No-op if the target has
+     *  left the battlefield. Used by Singing Tree, Island of Wak-Wak, and
+     *  Sorceress Queen. */
+    setBasePT: (
+        target: TargetSelection,
+        power: number | undefined,
+        toughness: number | undefined,
         duration: DurationSpec
     ) => void;
     /** Puts `count` counters of type `type` on `target` (CR 122.1). No-op if
@@ -1063,6 +1084,13 @@ export interface PermanentView {
      *  (END_OF_COMBAT or CLEANUP). Used by "+X/+Y until end of turn" spells
      *  and pump activations (Firebreathing, Howl from Beyond, ...). */
     temporaryPTMods?: ReadonlyArray<{ power: number; toughness: number }>;
+    /** Layer 7b set-P/T effects scoped to a phase boundary (CR 613.4b, ADR
+     *  0017). Each entry sets `power` and/or `toughness` to a fixed value
+     *  (independently optional); the latest entry per characteristic wins
+     *  (array order is the timestamp). Purged at the same phase boundary as
+     *  `temporaryPTMods`. Used by Singing Tree / Island of Wak-Wak (set power
+     *  0) and Sorceress Queen (set 0/2). */
+    temporaryPTSet?: ReadonlyArray<{ power?: number; toughness?: number }>;
     /** Counters on this permanent (CR 122). Map of counter type → count.
      *  Layer 7d (P/T-modifying counters: +1/+1, +1/+0, +0/+1, -1/-1, -0/-1,
      *  -1/-0) contributes at stat-read time. Other types are inert to layers
