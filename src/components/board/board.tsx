@@ -146,6 +146,7 @@ export default function Board({
     const pendingCast = state.pendingCast;
     const pendingActivation = state.pendingActivation;
     const autoPassPlayers = state.autoPassPlayers;
+    const queuedEndTurn = state.queuedEndTurn;
     const combat = state.combat;
     const pendingTarget = state.pendingTarget;
     const pendingChoices = state.pendingChoices;
@@ -201,6 +202,7 @@ export default function Board({
                 pendingTarget,
                 pendingChoices,
                 autoPassPlayers,
+                queuedEndTurn,
                 combat,
                 gameOver,
                 allPlayers,

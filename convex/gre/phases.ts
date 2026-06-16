@@ -1592,6 +1592,22 @@ export function advancePhase(state: GameState): Phase[] {
 export function drainAutoPasses(state: GameState): void {
     const maxIterations = 50; // safety bound
     for (let i = 0; i < maxIterations; i++) {
+        // Consume a queued "Pass Turn" intent: a player who pressed Enter
+        // without priority is promoted into a rest-of-turn auto-pass the
+        // moment priority lands on them (mirrors `endTurn`). CR 117 — a
+        // standing intent to pass that fires on the next priority window.
+        if (state.queuedEndTurn?.includes(state.priorityPlayerId)) {
+            const promoted = state.autoPassPlayers ?? [];
+            if (!promoted.includes(state.priorityPlayerId)) {
+                promoted.push(state.priorityPlayerId);
+            }
+            state.autoPassPlayers = promoted;
+            const remaining = state.queuedEndTurn.filter(
+                (id) => id !== state.priorityPlayerId
+            );
+            state.queuedEndTurn = remaining.length > 0 ? remaining : undefined;
+        }
+
         const autoPass = state.autoPassPlayers ?? [];
         const singleShot = state.singleShotAutoPass === state.priorityPlayerId;
         if (!autoPass.includes(state.priorityPlayerId) && !singleShot) break;

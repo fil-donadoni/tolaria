@@ -24,6 +24,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         pendingActivation,
         pendingTarget,
         autoPassPlayers,
+        queuedEndTurn,
         combat,
         allPlayers,
     } = useGameContext();
@@ -59,6 +60,9 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         waitingOnOpponent && phase === "DECLARE_ATTACKERS";
     const hasPriority = computeHasPriority(priorityCtx);
     const isAutoPass = autoPassPlayers?.includes(playerId) ?? false;
+    // A "Pass Turn" intent registered while this player lacked priority; it
+    // fires the moment they next gain priority (issue #157).
+    const isQueuedEndTurn = queuedEndTurn?.includes(playerId) ?? false;
 
     const [isBusy, setIsBusy] = useState(false);
 
@@ -101,39 +105,34 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
     }, [isBusy, hasPriority, isAutoPass, passPriority, gameId, playerId]);
 
     const handleEndTurn = useCallback(async () => {
-        // Pass Turn is also valid while declaring attackers: `endTurn` reads
-        // priority as the active player there and `drainAutoPasses` auto-confirms
-        // the current attacker selection before fast-forwarding to end of turn.
-        if (isBusy || isAutoPass) return;
-        if (!hasPriority && !isSelectingAttackers) return;
+        // `endTurn` accepts the call with or without priority: with priority it
+        // auto-passes the rest of the turn; without it (issue #157) the server
+        // records a queued intent that fires the moment priority next lands on
+        // this player. Pass Turn is also valid while declaring attackers, where
+        // `drainAutoPasses` auto-confirms the current selection first.
+        if (isBusy || isAutoPass || isQueuedEndTurn) return;
         setIsBusy(true);
         try {
             await endTurn({ gameId, playerId });
         } catch {
-            // Benign race: priority may have moved between render and click;
-            // the server rejects with "You don't have priority". Ignore.
+            // Benign race: priority may have moved between render and click.
+            // Ignore — not an actionable error.
         } finally {
             setIsBusy(false);
         }
-    }, [
-        isBusy,
-        hasPriority,
-        isSelectingAttackers,
-        isAutoPass,
-        endTurn,
-        gameId,
-        playerId,
-    ]);
+    }, [isBusy, isAutoPass, isQueuedEndTurn, endTurn, gameId, playerId]);
 
     const handleCancelAutoPass = useCallback(async () => {
-        if (isBusy || !isAutoPass) return;
+        // Cancels either an active auto-pass or a not-yet-fired queued Pass Turn
+        // intent — `cancelAutoPass` clears both flags for the player.
+        if (isBusy || (!isAutoPass && !isQueuedEndTurn)) return;
         setIsBusy(true);
         try {
             await cancelAutoPass({ gameId, playerId });
         } finally {
             setIsBusy(false);
         }
-    }, [isBusy, isAutoPass, cancelAutoPass, gameId, playerId]);
+    }, [isBusy, isAutoPass, isQueuedEndTurn, cancelAutoPass, gameId, playerId]);
 
     useEffect(() => {
         function onKeyDown(e: KeyboardEvent) {
@@ -160,7 +159,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
             }
             if (e.code === "Enter" && !e.repeat) {
                 e.preventDefault();
-                if (isAutoPass) {
+                if (isAutoPass || isQueuedEndTurn) {
                     handleCancelAutoPass();
                 } else {
                     handleEndTurn();
@@ -175,6 +174,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         handleEndTurn,
         handleCancelAutoPass,
         isAutoPass,
+        isQueuedEndTurn,
         isPayingCast,
         isPayingActivation,
         isSelectingAttackers,
@@ -340,6 +340,26 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 className="bg-zinc-800/40 hover:bg-zinc-700/40 border border-zinc-600/45 text-zinc-300 px-5 py-2 rounded-sm text-sm font-beleren tracking-wide transition-colors shadow-md cursor-pointer"
             >
                 Auto-passing... (cancel)
+                <span className="ml-2 text-xs opacity-70 hidden md:inline">
+                    [enter]
+                </span>
+            </button>
+        );
+    }
+
+    // Queued Pass Turn intent (issue #157): the player pressed Enter without
+    // priority. Surfaced independently of the priority-driven branches above
+    // so it stays visible while waiting for priority to return. Mutually
+    // exclusive with isAutoPass (the engine clears the queue once it fires).
+    if (isQueuedEndTurn) {
+        buttons.push(
+            <button
+                key="queued-end-turn"
+                onClick={handleCancelAutoPass}
+                disabled={isBusy}
+                className="bg-zinc-800/40 hover:bg-zinc-700/40 border border-zinc-600/45 text-zinc-300 px-5 py-2 rounded-sm text-sm font-beleren tracking-wide transition-colors shadow-md cursor-pointer"
+            >
+                Pass Turn queued (cancel)
                 <span className="ml-2 text-xs opacity-70 hidden md:inline">
                     [enter]
                 </span>

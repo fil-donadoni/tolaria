@@ -7,11 +7,12 @@ import {
     effectiveMaxHandSize,
     finalizeCleanupDiscard,
 } from "../phases";
-import type {
-    GameState,
-    PlayerState,
-    CardInstanceState,
-    StackItem,
+import {
+    getOpponentId,
+    type GameState,
+    type PlayerState,
+    type CardInstanceState,
+    type StackItem,
 } from "../state";
 import type { Phase } from "../types";
 import type { CardType } from "../../cards/types";
@@ -1312,6 +1313,162 @@ describe("drainAutoPasses", () => {
         drainAutoPasses(state);
         expect(state.turn).toBe(2);
         expect(state.singleShotAutoPass).toBeUndefined();
+    });
+
+    // -----------------------------------------------------------------------
+    // queuedEndTurn — a "Pass Turn" (Enter) intent registered while the player
+    // lacked priority. It is promoted into a rest-of-turn auto-pass the moment
+    // priority next lands on the player (issue #157).
+    // -----------------------------------------------------------------------
+
+    it("promotes a queued intent to auto-pass when priority lands on the player", () => {
+        const state = makeGameState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+            queuedEndTurn: ["p1"],
+        });
+        drainAutoPasses(state);
+        // p1's queued intent fires: promoted to autoPassPlayers, then auto-passes.
+        expect(state.queuedEndTurn).toBeUndefined();
+        expect(state.autoPassPlayers).toEqual(["p1"]);
+        expect(state.priorityPlayerId).toBe("p2");
+        expect(state.passCount).toBe(1);
+    });
+
+    it("leaves the intent untouched while priority is on the other player", () => {
+        const state = makeGameState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+            passCount: 0,
+            queuedEndTurn: ["p1"],
+        });
+        drainAutoPasses(state);
+        // p2 is neither auto-passing nor queued → drain is a no-op; p1's
+        // standing intent persists until priority next reaches p1.
+        expect(state.priorityPlayerId).toBe("p2");
+        expect(state.passCount).toBe(0);
+        expect(state.queuedEndTurn).toEqual(["p1"]);
+        expect(state.autoPassPlayers).toBeUndefined();
+    });
+
+    it("merges into an existing auto-pass list without duplicating", () => {
+        const state = makeGameState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+            passCount: 1,
+            autoPassPlayers: ["p2"],
+            queuedEndTurn: ["p2"],
+        });
+        drainAutoPasses(state);
+        // p2 was already auto-passing; the queued entry is consumed (cleared)
+        // and does not create a duplicate in autoPassPlayers.
+        expect(state.queuedEndTurn).toBeUndefined();
+        expect(state.autoPassPlayers).toEqual(["p2"]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Pass Turn intent lifecycle (issue #157) — end-to-end across the simulated
+// game.ts mutation handlers and the engine drain. These pure mirrors of
+// `endTurn` / `passPriority` / `cancelAutoPass` keep the test free of a Convex
+// context (same precedent as activation-flow.test.ts).
+// ---------------------------------------------------------------------------
+
+// Mirrors the no-priority queue branch + has-priority auto-pass branch of the
+// production `endTurn` mutation (convex/game.ts).
+function simEndTurn(state: GameState, playerId: string): void {
+    if (state.priorityPlayerId !== playerId) {
+        const queued = state.queuedEndTurn ?? [];
+        if (!queued.includes(playerId)) queued.push(playerId);
+        state.queuedEndTurn = queued;
+        return;
+    }
+    const autoPass = state.autoPassPlayers ?? [];
+    if (!autoPass.includes(playerId)) autoPass.push(playerId);
+    state.autoPassPlayers = autoPass;
+    drainAutoPasses(state);
+}
+
+// Mirrors the tail of the production `passPriority` mutation.
+function simPassPriority(state: GameState, playerId: string): void {
+    state.passCount += 1;
+    if (state.passCount >= 2 && state.stack.length === 0) {
+        advancePhase(state);
+    } else if (state.passCount >= 2 && state.stack.length > 0) {
+        // (no stack in these scenarios — kept for fidelity)
+    } else {
+        state.priorityPlayerId = getOpponentId(state, playerId);
+    }
+    drainAutoPasses(state);
+}
+
+// Mirrors the production `cancelAutoPass` mutation.
+function simCancelAutoPass(state: GameState, playerId: string): void {
+    const autoPass = state.autoPassPlayers ?? [];
+    const queued = state.queuedEndTurn ?? [];
+    const wasAuto = autoPass.includes(playerId);
+    const wasSingle = state.singleShotAutoPass === playerId;
+    const wasQueued = queued.includes(playerId);
+    if (!wasAuto && !wasSingle && !wasQueued) return;
+    if (wasAuto) {
+        const r = autoPass.filter((id) => id !== playerId);
+        state.autoPassPlayers = r.length > 0 ? r : undefined;
+    }
+    if (wasSingle) state.singleShotAutoPass = undefined;
+    if (wasQueued) {
+        const r = queued.filter((id) => id !== playerId);
+        state.queuedEndTurn = r.length > 0 ? r : undefined;
+    }
+}
+
+describe("Pass Turn intent lifecycle (issue #157)", () => {
+    it("queues when pressed without priority, then fires when priority returns", () => {
+        // p1 is the active player and holds priority; p2 (no priority) presses
+        // Enter to pass the turn.
+        const state = makeGameState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+        });
+
+        simEndTurn(state, "p2");
+        // Not a no-op: a standing intent is recorded and nothing else moves yet.
+        expect(state.queuedEndTurn).toEqual(["p2"]);
+        expect(state.autoPassPlayers).toBeUndefined();
+        expect(state.priorityPlayerId).toBe("p1");
+
+        // p1 passes priority → it lands on p2 → the queued intent fires.
+        simPassPriority(state, "p1");
+        expect(state.queuedEndTurn).toBeUndefined();
+        expect(state.autoPassPlayers).toContain("p2");
+        // p2 now auto-passes the rest of the turn, so the game has progressed
+        // past p1's precombat main.
+        expect(state.phase).not.toBe("PRECOMBAT_MAIN");
+    });
+
+    it("can be cancelled before it fires", () => {
+        const state = makeGameState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+        });
+
+        simEndTurn(state, "p2");
+        expect(state.queuedEndTurn).toEqual(["p2"]);
+
+        simCancelAutoPass(state, "p2");
+        expect(state.queuedEndTurn).toBeUndefined();
+
+        // Priority returning to p2 no longer triggers an auto-pass.
+        simPassPriority(state, "p1");
+        expect(state.priorityPlayerId).toBe("p2");
+        expect(state.autoPassPlayers).toBeUndefined();
     });
 });
 

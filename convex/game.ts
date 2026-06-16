@@ -3236,7 +3236,10 @@ export const declareMulligan = mutation({
     },
 });
 
-/** Set auto-pass: automatically pass priority for the rest of this turn. */
+/** Set auto-pass: automatically pass priority for the rest of this turn.
+ *  When the caller does NOT currently hold priority the request is recorded
+ *  as a queued intent (`queuedEndTurn`) that fires via `drainAutoPasses` the
+ *  moment priority next lands on them — pressing Enter is never a no-op. */
 export const endTurn = mutation({
     args: {
         gameId: v.id("games"),
@@ -3248,15 +3251,30 @@ export const endTurn = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
-        assertNoPendingChoices(state);
 
         if (state.phase === "MULLIGAN") {
             throw new Error("Cannot end turn during mulligan phase");
         }
 
+        // Validate identity even on the queue path so a bad playerId is rejected.
+        getPlayer(state, args.playerId);
+
         if (state.priorityPlayerId !== args.playerId) {
-            throw new Error("You don't have priority");
+            // No priority: register a standing intent instead of acting now.
+            // It will be promoted to a rest-of-turn auto-pass when priority
+            // next reaches the player (see drainAutoPasses).
+            const queued = state.queuedEndTurn ?? [];
+            if (!queued.includes(args.playerId)) {
+                queued.push(args.playerId);
+            }
+            state.queuedEndTurn = queued;
+
+            const nextSeq = gameState.seq + 1;
+            await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+            return;
         }
+
+        assertNoPendingChoices(state);
 
         // Add player to autoPass list
         const autoPassPlayers = state.autoPassPlayers ?? [];
@@ -3292,9 +3310,11 @@ export const cancelAutoPass = mutation({
         assertGameNotOver(state);
 
         const autoPassPlayers = state.autoPassPlayers ?? [];
+        const queuedEndTurn = state.queuedEndTurn ?? [];
         const wasAutoPass = autoPassPlayers.includes(args.playerId);
         const wasSingleShot = state.singleShotAutoPass === args.playerId;
-        if (!wasAutoPass && !wasSingleShot) return;
+        const wasQueued = queuedEndTurn.includes(args.playerId);
+        if (!wasAutoPass && !wasSingleShot && !wasQueued) return;
 
         if (wasAutoPass) {
             const remaining = autoPassPlayers.filter(
@@ -3305,6 +3325,12 @@ export const cancelAutoPass = mutation({
         }
         if (wasSingleShot) {
             state.singleShotAutoPass = undefined;
+        }
+        if (wasQueued) {
+            const remaining = queuedEndTurn.filter(
+                (id) => id !== args.playerId
+            );
+            state.queuedEndTurn = remaining.length > 0 ? remaining : undefined;
         }
 
         const nextSeq = gameState.seq + 1;

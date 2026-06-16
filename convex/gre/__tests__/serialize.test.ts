@@ -464,6 +464,12 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).singleShotAutoPass).toBe("p1");
     });
 
+    it("queuedEndTurn", () => {
+        const state = freshState();
+        state.queuedEndTurn = ["p1", "p2"];
+        expect(roundTrip(state).queuedEndTurn).toEqual(["p1", "p2"]);
+    });
+
     it("combat", () => {
         const state = freshState();
         state.combat = {

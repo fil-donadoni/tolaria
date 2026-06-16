@@ -814,6 +814,13 @@ export type GameState = {
      *  is cleared. Set when a player casts/activates without holding Ctrl so they
      *  don't waste a priority round responding to their own action (CR 117). */
     singleShotAutoPass?: string;
+    /** Player IDs that pressed "Pass Turn" (Enter) while NOT holding priority.
+     *  A standing intent: the moment priority next lands on the player,
+     *  `drainAutoPasses` promotes them into `autoPassPlayers` (rest-of-turn
+     *  auto-pass) and clears the entry. Cancellable before it fires. Unlike
+     *  `autoPassPlayers` it survives the turn boundary so an intent that never
+     *  got a priority window still fires on the player's next priority. */
+    queuedEndTurn?: string[];
     /** Active combat state. Set at DECLARE_ATTACKERS, cleared at END_OF_COMBAT. */
     combat?: {
         attackerIds: string[];
