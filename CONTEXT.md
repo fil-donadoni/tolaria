@@ -222,8 +222,16 @@ A read-only record of what the **Brain** considered for a single move: every can
 _Avoid_: Log, debug dump, reasoning log
 
 **Evaluation**:
-The **Brain**'s numeric judgement of how good a position is for a given **Player**, summed from weighted terms (life, cards in **Hand**, creature power, board presence, available **Mana**). A higher number is better for that player; the **Brain** prefers moves leading to positions it evaluates highly.
+The **Brain**'s numeric judgement of how good a position is for a given **Player**, summed from weighted terms (life, cards in **Hand** via **Card Value**, creature power, board presence, available **Mana**, and the **Danger Clock**). A higher number is better for that player; the **Brain** prefers moves leading to positions it evaluates highly. Tuned for ordering, not absolute magnitude.
 _Avoid_: Score, heuristic, fitness
+
+**Card Value**:
+The **Brain**'s worth of a single card, in **Evaluation** units. Has two faces: _latent_ value (potential while the card sits in **Hand**/**Library**/**Graveyard**) and _realized_ value (a **Permanent**'s contribution once on the **Battlefield**, its power/toughness/keywords). Derived from card characteristics (mana value, P/T, keywords), with an optional per-**Card Definition** override for cards the heuristic misjudges. Lets the **Brain** prefer keeping/fetching a bomb over a **Land** and refuse to spend a good card for no effect.
+_Avoid_: Card weight, card score, rating
+
+**Danger Clock**:
+The **Brain**'s read of the race: each **Player**'s estimated turns-to-lethal (life ÷ incoming **Combat Damage**, net of available **Blockers**). The **Evaluation** rewards holding the faster clock, so the **Bot** both defends when threatened and pushes damage when ahead instead of stalling. Estimates the threat beyond the search's turn-boundary horizon.
+_Avoid_: Threat level, aggro score, race
 
 **Compact State**:
 The serialized form of **GameState** stored in Convex. Strips defaults, coalesces against **Card Definitions**, and compresses **Library** entries to `[instanceId, cardId]` tuples.
