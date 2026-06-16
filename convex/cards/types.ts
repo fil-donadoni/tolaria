@@ -167,6 +167,21 @@ export interface TargetRequirement {
     spellTypeFilter?: CardType | CardType[];
 }
 
+/** "For as long as" condition on a conditional control change (CR 611.2b).
+ *  Re-evaluated by the conditional-control SBA; when it stops holding the
+ *  control change is reverted. The source of the change is the resolving
+ *  ability's permanent (the `controlChanges` entry's source id). Serializable
+ *  (no closures) so replays reproduce deterministically.
+ *
+ *  - `controller-controls-source`: holds while `controllerId` still controls
+ *    the source permanent (Aladdin — "for as long as you control this").
+ *  - `source-tapped-and-power-ge`: holds while the source is tapped and its
+ *    effective power is >= the controlled permanent's effective power
+ *    (Old Man of the Sea). */
+export type ControlChangeCondition =
+    | { kind: "controller-controls-source"; controllerId: string }
+    | { kind: "source-tapped-and-power-ge" };
+
 export interface TargetSelection {
     /** "permanent" = battlefield card, "player" = player, "spell" = stack
      *  item, "graveyard-card" = card in a player's graveyard (CR 400.7). */
@@ -514,6 +529,20 @@ export interface SpellContext {
      *  Used by Twiddle's untap mode and similar "untap target permanent"
      *  effects. */
     untap: (target: TargetSelection) => void;
+    /** Changes control of a target permanent to `newControllerId` (CR 613.1b,
+     *  layer 2). Routes through the shared control-change machinery: the host
+     *  moves into the new controller's battlefield array, summoning sickness is
+     *  set (CR 702.10c), and a `controlChanges` entry keyed by the resolving
+     *  source (`ctx.sourceInstanceId`) records the prior controller for revert.
+     *  Pass `condition` for a "for as long as" control change (Aladdin, Old Man
+     *  of the Sea) that the conditional-control SBA reverts when it lapses;
+     *  omit it for an indefinite reassignment (Ghazbán Ogre). No-op if the
+     *  target has left the battlefield or is already under `newControllerId`. */
+    gainControl: (
+        target: TargetSelection,
+        newControllerId: string,
+        condition?: ControlChangeCondition
+    ) => void;
     /** Destroys every permanent on the battlefield matching the filter
      *  (CR 701.7). Shorthand `CardType | CardType[]` is equivalent to
      *  `{ types }`. The object form supports compounding types, subtypes, and

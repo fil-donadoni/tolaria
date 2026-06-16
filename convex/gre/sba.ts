@@ -1,7 +1,7 @@
 import type { CardInstanceState, GameState } from "./state";
-import { getOpponentId, removePermanentTo } from "./state";
+import { getOpponentId, removePermanentTo, revertControlChange } from "./state";
 import { isAura } from "./constants";
-import { getEffectiveToughness } from "./layers";
+import { getEffectivePower, getEffectiveToughness } from "./layers";
 import { isProtectedFromSource } from "./protection";
 import { applyLoseGameReplacements } from "./replacements";
 import { applyStateTriggers } from "./triggers";
@@ -201,8 +201,76 @@ export function checkZeroToughnessSBA(state: GameState): boolean {
  *  game scans for state-triggered abilities (CR 603.8) and puts them on the
  *  stack. The two checkpoints are coupled at every priority handoff, so we
  *  fold the state-trigger scan into this entry point. */
+/** Finds a permanent on any battlefield by instance id (CR 110). */
+function findPermanent(
+    state: GameState,
+    id: string
+): CardInstanceState | undefined {
+    for (const p of state.players) {
+        const hit = p.battlefield.find((c) => c.id === id);
+        if (hit) return hit;
+    }
+    return undefined;
+}
+
+/** Returns true while a conditional control change (CR 611.2b) still holds.
+ *  The change's source is the entry's `auraId`; a missing source always
+ *  fails the condition (the effect ends when its source leaves). */
+function controlConditionHolds(
+    state: GameState,
+    host: CardInstanceState,
+    entry: NonNullable<CardInstanceState["controlChanges"]>[number]
+): boolean {
+    const cond = entry.condition;
+    if (!cond) return true;
+    const source = findPermanent(state, entry.auraId);
+    if (!source) return false;
+    if (cond.kind === "controller-controls-source") {
+        // Aladdin: holds while the gainer still controls the source.
+        return source.controllerId === cond.controllerId;
+    }
+    // Old Man of the Sea: holds while the source is tapped and its power is
+    // still >= the controlled creature's power.
+    if (!source.isTapped) return false;
+    return getEffectivePower(state, source) >= getEffectivePower(state, host);
+}
+
+/** SBA for "for as long as" control changes (CR 611.2b). Scans every
+ *  permanent's `controlChanges` for entries whose condition has lapsed and
+ *  reverts them (returning control to the prior controller). Loops until
+ *  stable because a revert moves a permanent between battlefield arrays.
+ *  Indefinite control changes (no `condition`, e.g. Ghazbán Ogre) are
+ *  untouched. */
+export function checkConditionalControlChanges(state: GameState): boolean {
+    let revertedAny = false;
+    for (;;) {
+        let reverted = false;
+        for (const player of state.players) {
+            let hit: { hostId: string; sourceId: string } | null = null;
+            for (const card of player.battlefield) {
+                const entry = card.controlChanges?.find(
+                    (e) => e.condition && !controlConditionHolds(state, card, e)
+                );
+                if (entry) {
+                    hit = { hostId: card.id, sourceId: entry.auraId };
+                    break;
+                }
+            }
+            if (hit) {
+                revertControlChange(state, hit.hostId, hit.sourceId);
+                reverted = true;
+                revertedAny = true;
+                break; // battlefield arrays mutated — restart the scan
+            }
+        }
+        if (!reverted) break;
+    }
+    return revertedAny;
+}
+
 export function checkStateBasedActions(state: GameState): void {
     checkAuraAttachmentSBA(state);
+    checkConditionalControlChanges(state);
     checkZeroToughnessSBA(state);
     checkTokenExistenceSBA(state);
     checkGameOverSBA(state);
