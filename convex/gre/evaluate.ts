@@ -25,7 +25,11 @@
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
 import { isCreature, isLand, hasManaAbility, manaValue } from "./constants";
-import { getInstanceManaCost, getInstanceAiValue } from "../cards";
+import {
+    getInstanceManaCost,
+    getInstanceAiValue,
+    tryGetCardById,
+} from "../cards";
 import { dangerClock } from "./dangerClock";
 
 /** A won position. Large enough to dominate every reachable material margin so
@@ -101,6 +105,28 @@ const KEYWORD_BONUS: Record<string, (power: number) => number> = {
     defender: () => -30,
 };
 
+/** Pure Forge-scale creature body value from raw characteristics — no game
+ *  state. Shared by the realized `evaluateCreature` (effective P/T) and the
+ *  latent `cardValue*` (base P/T), so both read the identical formula. Power /
+ *  toughness must already be floored at 0. */
+function creatureValueRaw(
+    power: number,
+    toughness: number,
+    mv: number,
+    staticAbilities: readonly string[]
+): number {
+    let value =
+        CREATURE_BASE +
+        power * W_CR_POWER +
+        toughness * W_CR_TOUGHNESS +
+        mv * W_CR_MV;
+    for (const keyword of staticAbilities) {
+        const bonus = KEYWORD_BONUS[keyword];
+        if (bonus) value += bonus(power);
+    }
+    return value;
+}
+
 /** Realized Forge-scale value of a creature in play. Reads effective P/T (layer
  *  system) and mana value (registry / embedded cost). Floored at 0 power/
  *  toughness so a shrunk creature never goes negative through the body term. */
@@ -108,36 +134,75 @@ export function evaluateCreature(
     state: GameState,
     card: CardInstanceState
 ): number {
-    const power = Math.max(0, getEffectivePower(state, card));
-    const toughness = Math.max(0, getEffectiveToughness(state, card));
-    const mv = manaValue(getInstanceManaCost(card));
+    return creatureValueRaw(
+        Math.max(0, getEffectivePower(state, card)),
+        Math.max(0, getEffectiveToughness(state, card)),
+        manaValue(getInstanceManaCost(card)),
+        card.staticAbilities
+    );
+}
 
-    let value =
-        CREATURE_BASE +
-        power * W_CR_POWER +
-        toughness * W_CR_TOUGHNESS +
-        mv * W_CR_MV;
-
-    for (const keyword of card.staticAbilities) {
-        const bonus = KEYWORD_BONUS[keyword];
-        if (bonus) value += bonus(power);
+/** Latent worth from a card's raw characteristics (ADR 0018) — the SHARED core
+ *  of every `cardValue*` entry point. An `aiValue` override wins outright (the
+ *  Forge `SVar` analog); otherwise a creature is its discounted creature body
+ *  (a card in hand must still be cast and survive), and a non-creature is
+ *  `NONCREATURE_BASE + MV × W_NC_MV`. A basic land scores `NONCREATURE_BASE`
+ *  (MV 0) — below its realized in-play worth, so developing it stays strictly
+ *  positive (issue #149). */
+function latentValue(chars: {
+    isCreature: boolean;
+    power: number;
+    toughness: number;
+    manaValue: number;
+    staticAbilities: readonly string[];
+    aiValue?: number;
+}): number {
+    if (chars.aiValue !== undefined) return chars.aiValue;
+    if (chars.isCreature) {
+        return (
+            LATENT_DISCOUNT *
+            creatureValueRaw(
+                Math.max(0, chars.power),
+                Math.max(0, chars.toughness),
+                chars.manaValue,
+                chars.staticAbilities
+            )
+        );
     }
-    return value;
+    return NONCREATURE_BASE + chars.manaValue * W_NC_MV;
 }
 
 /** Latent Forge-scale worth of a card NOT in play (hand / library / graveyard),
- *  per ADR 0018. Pure. An `aiValue` override on the CardDefinition wins outright
- *  (the Forge `SVar` analog); otherwise a creature is its discounted realized
- *  `evaluateCreature` (a card in hand must still be cast and survive), and a
- *  non-creature is `NONCREATURE_BASE + MV × W_NC_MV`. A basic land therefore
- *  scores `NONCREATURE_BASE` (MV 0) — below its realized in-play worth, so
- *  developing it stays strictly positive (issue #149). */
+ *  from its live instance — the Hand-term entry point (reads effective P/T, so a
+ *  buffed hand card is rare but correct). Pure. */
 export function cardValue(state: GameState, card: CardInstanceState): number {
-    const override = getInstanceAiValue(card);
-    if (override !== undefined) return override;
-    if (isCreature(card))
-        return LATENT_DISCOUNT * evaluateCreature(state, card);
-    return NONCREATURE_BASE + manaValue(getInstanceManaCost(card)) * W_NC_MV;
+    return latentValue({
+        isCreature: isCreature(card),
+        power: getEffectivePower(state, card),
+        toughness: getEffectiveToughness(state, card),
+        manaValue: manaValue(getInstanceManaCost(card)),
+        staticAbilities: card.staticAbilities,
+        aiValue: getInstanceAiValue(card),
+    });
+}
+
+/** Latent worth of a card from its registry id alone — the resolution-choice
+ *  entry point (ADR 0018, issue #197). The bot's owed-choice path has full card
+ *  identity but only a slim projected instance, so this derives the value from
+ *  the `CardDefinition` (base P/T, mana value, keywords, `aiValue`) via the same
+ *  `latentValue` core the Hand term uses. Returns 0 for an unknown id (a token
+ *  or a card the client registry lacks — it simply ranks lowest). */
+export function cardValueById(cardId: string): number {
+    const def = tryGetCardById(cardId);
+    if (!def) return 0;
+    return latentValue({
+        isCreature: def.types.includes("Creature"),
+        power: def.power ?? 0,
+        toughness: def.toughness ?? 0,
+        manaValue: manaValue(def.manaCost),
+        staticAbilities: def.staticAbilities ?? [],
+        aiValue: def.aiValue,
+    });
 }
 
 /** One player's material score split into its weighted contributions. Each

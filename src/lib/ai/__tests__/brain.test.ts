@@ -223,33 +223,48 @@ describe("chooseResolution default policy (ADR 0016, issue #162)", () => {
             min: 1,
             max: 1,
             candidates: [
-                { id: "land", isLand: true },
-                { id: "spell", isLand: false },
+                { id: "land", value: 8 }, // basic land — low cardValue
+                { id: "spell", value: 150 }, // spell/creature — high cardValue
             ],
             ...overrides,
         };
     }
 
-    it("search-library fetches the required count, preferring non-lands", () => {
-        // min 1, candidates land-first — the material ordering must still pick
-        // the non-land spell.
+    it("search-library fetches the required count, preferring the higher value", () => {
+        // min 1, candidates land-first — the value ordering must still pick the
+        // higher-value spell.
         expect(chooseResolution(owed())).toEqual(["spell"]);
     });
 
-    it("search-library picks exactly `min` cards in zone order within a tier", () => {
+    it("search-library fetches the single highest-value candidate", () => {
+        // Distinct values: the bot digs out the bomb, not a random non-land.
+        expect(
+            chooseResolution(
+                owed({
+                    candidates: [
+                        { id: "dud", value: 20 },
+                        { id: "bomb", value: 400 },
+                        { id: "land", value: 8 },
+                    ],
+                })
+            )
+        ).toEqual(["bomb"]);
+    });
+
+    it("search-library picks exactly `min` cards in value order", () => {
         const picks = chooseResolution(
             owed({
                 min: 2,
                 max: 2,
                 candidates: [
-                    { id: "land1", isLand: true },
-                    { id: "spell1", isLand: false },
-                    { id: "spell2", isLand: false },
-                    { id: "land2", isLand: true },
+                    { id: "land1", value: 8 },
+                    { id: "spell1", value: 150 },
+                    { id: "spell2", value: 150 },
+                    { id: "land2", value: 8 },
                 ],
             })
         );
-        // Two non-lands come first, in zone order; deterministic, in-bounds.
+        // Two highest-value come first, ties in zone order; deterministic.
         expect(picks).toEqual(["spell1", "spell2"]);
     });
 
@@ -269,10 +284,10 @@ describe("chooseResolution default policy (ADR 0016, issue #162)", () => {
 
 describe("chooseResolution remaining zone-pick policies (ADR 0016, issue #165)", () => {
     const cards: ChoiceCandidate[] = [
-        { id: "land1", isLand: true },
-        { id: "spell1", isLand: false },
-        { id: "spell2", isLand: false },
-        { id: "land2", isLand: true },
+        { id: "land1", value: 8 },
+        { id: "spell1", value: 150 },
+        { id: "spell2", value: 150 },
+        { id: "land2", value: 8 },
     ];
     const owed = (over: Partial<OwedChoice>): OwedChoice => ({
         kind: "choose-permanents",
@@ -282,7 +297,7 @@ describe("chooseResolution remaining zone-pick policies (ADR 0016, issue #165)",
         ...over,
     });
 
-    it("keep-permanents / keep-hand keep the best `min` (non-lands first)", () => {
+    it("keep-permanents / keep-hand keep the highest-value `min`", () => {
         for (const kind of ["keep-permanents", "keep-hand"] as const) {
             expect(chooseResolution(owed({ kind, min: 2, max: 2 }))).toEqual([
                 "spell1",
@@ -291,7 +306,7 @@ describe("chooseResolution remaining zone-pick policies (ADR 0016, issue #165)",
         }
     });
 
-    it("sacrifice-permanents / discard-hand shed the worst `min` (lands first)", () => {
+    it("sacrifice-permanents / discard-hand shed the lowest-value `min`", () => {
         for (const kind of ["sacrifice-permanents", "discard-hand"] as const) {
             expect(chooseResolution(owed({ kind, min: 2, max: 2 }))).toEqual([
                 "land1",
@@ -329,7 +344,9 @@ describe("chooseResolution remaining zone-pick policies (ADR 0016, issue #165)",
         ).toEqual([]);
     });
 
-    it("reorder-library keeps the current order (all peeked cards)", () => {
+    it("reorder-library puts the best on top (scry, all peeked cards)", () => {
+        // CR 401.4 scry/reorder: the highest-value cards go on top so the bot
+        // draws its best next; ties keep the exposed order (ADR 0018).
         expect(
             chooseResolution(
                 owed({
@@ -338,7 +355,7 @@ describe("chooseResolution remaining zone-pick policies (ADR 0016, issue #165)",
                     max: 4,
                 })
             )
-        ).toEqual(["land1", "spell1", "spell2", "land2"]);
+        ).toEqual(["spell1", "spell2", "land1", "land2"]);
     });
 });
 
@@ -353,7 +370,7 @@ describe("decideBotAction resolves an owed mid-resolution choice (ADR 0016)", ()
                     kind: "search-library",
                     min: 1,
                     max: 1,
-                    candidates: [{ id: "fetch-me", isLand: false }],
+                    candidates: [{ id: "fetch-me", value: 150 }],
                 },
             })
         );

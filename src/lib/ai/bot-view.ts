@@ -19,6 +19,7 @@ import {
     normalizeManaCost,
     isManaCostCovered,
 } from "@convex/gre";
+import { cardValueById } from "@convex/gre";
 import { matchesPermanentFilter } from "@convex/cards/filters";
 import type { BotAction, BotView, ChoiceCandidate, OwedChoice } from "./brain";
 
@@ -30,9 +31,14 @@ function handCardIsLand(types: string[] | undefined): boolean {
 }
 
 /** Map a slim card the bot can see into a {@link ChoiceCandidate} for the
- *  default-selection policy (just id + land flag for the material ordering). */
+ *  default-selection policy. The bot has full identity of its OWN owed-choice
+ *  cards, so the projected latent `value` is derived from the card id via the
+ *  shared `cardValueById` (ADR 0018, issue #197). This value lives only on the
+ *  bot-only owed-choice path — never the 2-player public projection. */
 function toCandidate(card: SlimCardInstance): ChoiceCandidate {
-    return { id: card.id, isLand: handCardIsLand(card.types) };
+    // `card.id` is the INSTANCE id (what the submission selects); `card.card.id`
+    // is the card-definition id the shared `cardValueById` derives worth from.
+    return { id: card.id, value: cardValueById(card.card.id) };
 }
 
 /** Read the cards the bot may legally pick for `head` from its projected view.
