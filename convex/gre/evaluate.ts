@@ -25,7 +25,7 @@
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
 import { isCreature, isLand, hasManaAbility, manaValue } from "./constants";
-import { getInstanceManaCost } from "../cards";
+import { getInstanceManaCost, getInstanceAiValue } from "../cards";
 
 /** A won position. Large enough to dominate every reachable material margin so
  *  the bot always prefers lethal, and finite so two winning lines stay
@@ -37,17 +37,27 @@ export const WIN_SCORE = 1_000_000;
 // Tuned for ordering (see file header). On the ~100-base scale a 2/2 vanilla is
 // worth ~170, so life, hand and mana are scaled to stay commensurate.
 const W_LIFE = 8; // per life point (20 life ≈ one creature)
-// Flat per-card hand worth. Slice 2 (issue #195) replaces this with the latent
-// `cardValue` of each card; until then every hand card is worth the same.
-const W_HAND = 15;
 const W_PERMANENT = 5; // board-presence bonus for every permanent in play
 // Per untapped mana source (available-mana proxy). Weighted so DEVELOPING a land
-// stays strictly positive (issue #149): a land drop is −W_HAND (leaves hand)
-// +W_PERMANENT (enters battlefield, not a creature so no creature value)
-// +W_MANA (adds an untapped source). The delta is −15 +5 +12 = +2 > 0, so both
-// the greedy 1-ply selection and the ISMCTS tie-break prefer the drop over
-// passing. Monotonicity ("more mana raises the score") is preserved.
+// stays strictly positive (issue #149): a land drop is −cardValue(land) (leaves
+// hand) +W_PERMANENT (enters battlefield, not a creature so no creature value)
+// +W_MANA (adds an untapped source). A basic land's latent `cardValue` is
+// NONCREATURE_BASE (8, MV 0), so the delta is −8 +5 +12 = +9 > 0 — the greedy
+// 1-ply selection and the ISMCTS tie-break both prefer the drop over passing.
 const W_MANA = 12;
+
+// --- Latent `cardValue` primitive (ADR 0018, issue #195) -------------------
+// The worth of a specific card while it is NOT in play (hand / library /
+// graveyard), used for the Hand term and (slice 4) the resolution-choice path.
+// Creatures reuse the Forge `evaluateCreature` body, discounted because a card
+// in hand still has to be cast (and survive) to realize its board value; non-
+// creatures get `base + MV × k`. An `aiValue` override on the CardDefinition
+// replaces the derived value verbatim. A card is scored as latent OR realized,
+// never both (battlefield permanents keep their realized eval), so the
+// issue-#138 material tie-break stays intact.
+const LATENT_DISCOUNT = 0.85; // latent creature worth = discounted realized
+const NONCREATURE_BASE = 8; // base latent worth of a non-creature card (MV 0)
+const W_NC_MV = 10; // per mana value, non-creature latent worth
 
 // --- Forge `evaluateCreature` port (ADR 0018) ------------------------------
 // Realized worth of a creature on the battlefield: a base, power- and
@@ -114,6 +124,21 @@ export function evaluateCreature(
     return value;
 }
 
+/** Latent Forge-scale worth of a card NOT in play (hand / library / graveyard),
+ *  per ADR 0018. Pure. An `aiValue` override on the CardDefinition wins outright
+ *  (the Forge `SVar` analog); otherwise a creature is its discounted realized
+ *  `evaluateCreature` (a card in hand must still be cast and survive), and a
+ *  non-creature is `NONCREATURE_BASE + MV × W_NC_MV`. A basic land therefore
+ *  scores `NONCREATURE_BASE` (MV 0) — below its realized in-play worth, so
+ *  developing it stays strictly positive (issue #149). */
+export function cardValue(state: GameState, card: CardInstanceState): number {
+    const override = getInstanceAiValue(card);
+    if (override !== undefined) return override;
+    if (isCreature(card))
+        return LATENT_DISCOUNT * evaluateCreature(state, card);
+    return NONCREATURE_BASE + manaValue(getInstanceManaCost(card)) * W_NC_MV;
+}
+
 /** One player's material score split into its weighted contributions. Each
  *  field is the term's contribution to the score, so the terms sum to the
  *  player's `playerScore`. Surfaced by `evaluateBreakdown` for the DecisionTrace
@@ -134,7 +159,10 @@ export type EvalTerms = {
 function playerTerms(state: GameState, player: PlayerState): EvalTerms {
     const terms: EvalTerms = {
         life: player.life * W_LIFE,
-        hand: player.hand.length * W_HAND,
+        // Latent worth of the hand (ADR 0018): each card's `cardValue`, replacing
+        // the old flat per-card constant. A bomb in hand now outweighs a spare
+        // land, and pitching a good card for no effect is a decisive loss.
+        hand: player.hand.reduce((sum, c) => sum + cardValue(state, c), 0),
         creatures: 0,
         permanents: 0,
         mana: 0,
