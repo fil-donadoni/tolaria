@@ -34,6 +34,7 @@ const HILL_GIANT = getCardByName("Hill Giant").id; // 3/3
 const FOREST = getCardByName("Forest").id;
 const ISLAND = getCardByName("Island").id;
 const BRAINGEYSER = getCardByName("Braingeyser").id; // {X}{U}{U}: target player draws X
+const GIANT_GROWTH = getCardByName("Giant Growth").id; // {G}: +3/+3 until EOT
 
 /** Iteration budgets, smallest → largest. medium (400) is what the bot plays at;
  *  the larger rungs isolate budget/exploration limits from structural ones. A
@@ -309,6 +310,95 @@ describe("AI diagnosis harness (Forge comparison)", () => {
             );
             // Documented-correct outcome: develop the land now, never pass on it.
             expect(chosenCand?.move.kind).toBe("play-land");
+        }
+    );
+
+    // -----------------------------------------------------------------------
+    // Episode #4 — dumps a combat trick at sorcery speed (ADR 0020 §2, issue
+    // #207). Holding only Giant Growth, the bot cast it on its own creature in
+    // precombat main because the leaf counted the temporary +3/+3 as permanent
+    // material (+87 = 3×W_CR_POWER + 3×W_CR_TOUGHNESS). With the temporary buff
+    // excluded from the realized creature term, casting now only LOSES material
+    // (a card + the mana) for no lasting gain, so `pass` must outrank it. This
+    // lever removes the false incentive; holding the trick for the right window
+    // is lever 4 (#209).
+    // -----------------------------------------------------------------------
+    it(
+        "episode #4: sorcery-speed combat trick with no payoff — should pass",
+        { timeout: DIAGNOSIS_TIMEOUT_MS },
+        () => {
+            // Summoning-sick: it cannot attack this turn, so an until-end-of-turn
+            // +3/+3 has NO payoff (no combat to use it in, the buff expires at
+            // cleanup). Casting is pure loss of a card + mana.
+            const grizzly = makeInstance(GRIZZLY, {
+                id: "own-bear",
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: true,
+            });
+            const forest = makeInstance(FOREST, {
+                id: "g-forest",
+                controllerId: "p1",
+                ownerId: "p1",
+                isTapped: false,
+            });
+            const trick = makeInstance(GIANT_GROWTH, {
+                id: "gg",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+            const lib = (owner: string) =>
+                [0, 1, 2, 3, 4].map((i) =>
+                    makeInstance(FOREST, {
+                        id: `${owner}-lib${i}`,
+                        controllerId: owner,
+                        ownerId: owner,
+                        zone: "library",
+                    })
+                );
+            const state = makeState({
+                phase: "PRECOMBAT_MAIN",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                players: [
+                    makePlayer("p1", {
+                        hand: [trick],
+                        battlefield: [grizzly, forest],
+                        library: lib("p1"),
+                    }),
+                    makePlayer("p2", { library: lib("p2") }),
+                ],
+            });
+
+            const trace = diagnose(
+                "EP#4 Giant Growth at sorcery speed, no payoff",
+                state,
+                "p1"
+            );
+            const cast = trace.candidates.find(
+                (c) => c.move.kind === "cast-spell"
+            );
+            const pass = trace.candidates.find((c) => c.move.kind === "pass");
+            expect(cast).toBeDefined();
+            expect(pass).toBeDefined();
+
+            // Lever-2 guarantee (deterministic): the temporary +3/+3 is NOT
+            // counted as permanent material. Before the fix, casting inflated the
+            // self.creatures term by +87 (3×W_CR_POWER + 3×W_CR_TOUGHNESS) over
+            // passing; now the post-cast creatures term equals the pass-line term,
+            // so the false "free lasting board gain" incentive is gone.
+            expect(cast!.eval.self.creatures).toBe(pass!.eval.self.creatures);
+
+            // With the false incentive removed, casting no longer DECISIVELY
+            // beats passing — the two are now outcome-equal (within OUTCOME_EPS
+            // 0.05), down from the motivating trace's 0.027 gap. Actually teaching
+            // the bot to HOLD the trick (so pass strictly wins) is lever 4 (#209);
+            // here we only assert the false eval incentive is gone.
+            const OUTCOME_EPS = 0.05;
+            expect(cast!.meanReward - pass!.meanReward).toBeLessThan(
+                OUTCOME_EPS
+            );
         }
     );
 

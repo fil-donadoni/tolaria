@@ -554,3 +554,71 @@ describe("dangerClock — race term, net of blockers (ADR 0018)", () => {
         );
     });
 });
+
+// ---------------------------------------------------------------------------
+// Temporary (until-end-of-turn) buffs are not permanent material
+// (ADR 0020 §2, issue #207). The leaf used to count a combat trick's +X/+X as
+// lasting board material — the creatures term rose by the full body delta —
+// giving the bot a false incentive to dump a trick at sorcery speed. The
+// realized creature value now reads PERMANENT effective P/T, so an
+// until-boundary buff (7d temp pump or 7b temp set) does not reorder material
+// the way a permanent change (a +1/+1 counter) does.
+// ---------------------------------------------------------------------------
+describe("evaluateCreature — temporary buffs excluded from material (issue #207)", () => {
+    const EOT = { phase: "end-of-turn" } as const;
+
+    function vanilla(id: string, overrides = {}) {
+        return makeInstance(BEARS, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id,
+            ...overrides,
+        });
+    }
+
+    it("an until-end-of-turn pump (Giant Growth +3/+3) adds no creature material", () => {
+        const plain = vanilla("plain");
+        const pumped = vanilla("pumped", {
+            temporaryPTMods: [{ power: 3, toughness: 3, duration: EOT }],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [plain, pumped] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(evaluateCreature(state, pumped)).toBe(
+            evaluateCreature(state, plain)
+        );
+    });
+
+    it("an until-end-of-turn set-P/T (7b) is likewise not counted as material", () => {
+        const plain = vanilla("plain2");
+        const setBig = vanilla("setbig", {
+            temporaryPTSet: [{ power: 6, toughness: 6, duration: EOT }],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [plain, setBig] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(evaluateCreature(state, setBig)).toBe(
+            evaluateCreature(state, plain)
+        );
+    });
+
+    it("a PERMANENT +1/+1 counter DOES raise creature material (control)", () => {
+        const plain = vanilla("plain3");
+        const buffed = vanilla("buffed", { counters: { "+1/+1": 1 } });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [plain, buffed] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(evaluateCreature(state, buffed)).toBeGreaterThan(
+            evaluateCreature(state, plain)
+        );
+    });
+});
