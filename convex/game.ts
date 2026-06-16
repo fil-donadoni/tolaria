@@ -43,6 +43,7 @@ import {
     allocInstanceId,
     tapPermanent,
 } from "./gre/state";
+import { buildAutoTapSources, solveAutoTap } from "./gre/autoTap";
 import type { Color, ManaCost, SpellMode } from "./cards/types";
 import {
     assertLegalAction,
@@ -1837,6 +1838,75 @@ export const tapForActivationPayment = mutation({
         // If the pool now covers pendingActivation, pay mana, apply deferred
         // tap/sacrifice costs and push the ability on the stack.
         tryAutoCommitPendingActivation(state, args.playerId);
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/**
+ * Auto-tap mana sources to pay the pending cast or activation in one action
+ * (issue #154). Finds a minimal valid combination of untapped pure-mana
+ * sources, taps them (reusing the manual single-tap path), and lets the
+ * existing auto-commit move the spell/ability onto the stack. Throws if no
+ * combination can cover the cost. Sacrifice/side-effect mana abilities and
+ * summoning-sick dorks are excluded — those stay manual.
+ */
+export const autoTapForPayment = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+
+        const pending =
+            state.pendingCast?.playerId === args.playerId
+                ? state.pendingCast
+                : state.pendingActivation?.playerId === args.playerId
+                  ? state.pendingActivation
+                  : undefined;
+        if (!pending) throw new Error("No pending payment");
+
+        const player = getPlayer(state, args.playerId);
+        const sources = buildAutoTapSources(player.battlefield);
+        const plan = solveAutoTap(
+            player.manaPool,
+            pending.manaCost,
+            getManaSubstitutions(state, player.id),
+            sources
+        );
+        if (!plan) {
+            throw new Error("No mana combination can pay this cost");
+        }
+
+        for (const step of plan) {
+            const card = player.battlefield.find((c) => c.id === step.cardId);
+            if (!card) continue;
+            tapSourceIntoPayment(
+                state,
+                player,
+                card,
+                step.manaChoiceIndex,
+                pending.tappedLandIds
+            );
+        }
+
+        // Pool now covers the cost (the solver guarantees it) → commit.
+        if (state.pendingCast?.playerId === args.playerId) {
+            tryAutoCommitPendingCast(state, args.playerId);
+        } else {
+            tryAutoCommitPendingActivation(state, args.playerId);
+        }
 
         await saveGameState(
             ctx,
