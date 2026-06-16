@@ -733,6 +733,35 @@ export interface SpellContext {
                   remaining: number;
                   duration: DurationSpec;
               }
+            | {
+                  /** Eye for an Eye (CR 614): the next time the chosen source
+                   *  would deal damage to `playerId`, the damage to the player
+                   *  is NOT reduced — additionally, an equal amount is dealt to
+                   *  that source's controller. One-shot per charge. */
+                  kind: "reflect-to-source-controller";
+                  sourceInstanceId: string;
+                  playerId: string;
+                  remaining: number;
+                  duration: DurationSpec;
+              }
+    ) => void;
+    /** Records a transient destroy-replacement shield on a permanent (CR 614,
+     *  Pyramids): the next time `target` would be destroyed before `duration`
+     *  expires, the destruction is replaced — the permanent stays on the
+     *  battlefield and its marked damage is removed (oracle "remove all damage
+     *  marked on it instead"). One-shot. See ADR 0020. No-op if the target has
+     *  left the battlefield. */
+    addDestroyReplacementShield: (
+        target: TargetSelection,
+        duration: DurationSpec
+    ) => void;
+    /** Prevents all combat damage that would be dealt to and dealt by `target`
+     *  for `duration` (CR 615, Ebony Horse). A transient per-instance shield
+     *  consumed in the combat damage step. No-op if the target has left the
+     *  battlefield. */
+    preventAllCombatDamageToAndBy: (
+        target: TargetSelection,
+        duration: DurationSpec
     ) => void;
     /** Grants a keyword static ability to a permanent for a limited duration
      *  (CR 113.1, 611.1b). Appends to the target's `staticAbilities` so combat
@@ -1826,7 +1855,8 @@ export type ReplacementEventKind =
     | "lifeloss"
     | "discard"
     | "lose-game"
-    | "tap";
+    | "tap"
+    | "destroy";
 
 /** Damage event subject to CR 614 redirection / prevention. */
 export interface DamageReplacementEvent {
@@ -1892,12 +1922,27 @@ export interface TapReplacementEvent {
     cardInstanceId: string;
 }
 
+/** Destroy event: a permanent about to be destroyed (CR 701.7). A
+ *  replacement intercepts the destruction BEFORE it happens (CR 614),
+ *  distinct from regeneration (CR 701.15, a specialised shield consulted
+ *  inside `regenerateOrDestroy`). Pyramids' "the next time target land
+ *  would be destroyed this turn" save runs as a transient destroy
+ *  replacement; a permanent-bound `replacementEffects[]` entry with
+ *  `eventKind: "destroy"` consumes this for an "if ~ would be destroyed,
+ *  instead ..." continuous effect. See ADR 0020. */
+export interface DestroyReplacementEvent {
+    kind: "destroy";
+    /** Instance id of the permanent about to be destroyed. */
+    targetInstanceId: string;
+}
+
 export type ReplacementEvent =
     | DamageReplacementEvent
     | LifeChangeReplacementEvent
     | DiscardReplacementEvent
     | LoseGameReplacementEvent
-    | TapReplacementEvent;
+    | TapReplacementEvent
+    | DestroyReplacementEvent;
 
 /** Side-effect mutators handed to a `ReplacementEffect.replace` body. Lets
  *  the effect issue follow-up actions ("draw N cards instead", "sacrifice

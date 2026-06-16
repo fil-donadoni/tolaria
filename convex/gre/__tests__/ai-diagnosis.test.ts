@@ -249,6 +249,70 @@ describe("AI diagnosis harness (Forge comparison)", () => {
     );
 
     // -----------------------------------------------------------------------
+    // Episode #1 — sits on a land drop (ADR 0020 §1, issue #206). With a Forest
+    // in hand and nothing else to do, the bot scored `pass` and `play Forest`
+    // outcome-equal and the material tie-break picked `pass` on rollout noise,
+    // developing the land only in the second main. The land-drop tie-break in
+    // `selectRootMove` must develop the land when nothing competes — a land has
+    // no option cost, so deferring it is never right.
+    // -----------------------------------------------------------------------
+    it(
+        "episode #1: develops its land when nothing else competes",
+        { timeout: DIAGNOSIS_TIMEOUT_MS },
+        () => {
+            const forestInHand = makeInstance(FOREST, {
+                id: "forest-hand",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+            // An already-developed board so this is a mid-game land drop (the
+            // motivating trace played the land only in the second main).
+            const islands = [0, 1].map((i) =>
+                makeInstance(ISLAND, {
+                    id: `dev-island${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    isTapped: false,
+                })
+            );
+            const lib = (owner: string) =>
+                [0, 1, 2, 3, 4].map((i) =>
+                    makeInstance(FOREST, {
+                        id: `${owner}-lib${i}`,
+                        controllerId: owner,
+                        ownerId: owner,
+                        zone: "library",
+                    })
+                );
+            const state = makeState({
+                phase: "PRECOMBAT_MAIN",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                players: [
+                    makePlayer("p1", {
+                        hand: [forestInHand],
+                        battlefield: islands,
+                        library: lib("p1"),
+                    }),
+                    makePlayer("p2", { library: lib("p2") }),
+                ],
+            });
+
+            const trace = diagnose(
+                "EP#1 land drop with nothing competing",
+                state,
+                "p1"
+            );
+            const chosenCand = trace.candidates.find(
+                (c) => c.label === trace.chosen
+            );
+            // Documented-correct outcome: develop the land now, never pass on it.
+            expect(chosenCand?.move.kind).toBe("play-land");
+        }
+    );
+
+    // -----------------------------------------------------------------------
     // Episode A — ACTION BIAS (root cause behind the X=0 waste-cast), now FIXED
     // by the turn-boundary rollout horizon (ADR 0015).
     //

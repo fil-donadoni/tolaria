@@ -42,6 +42,7 @@ import { colorWordsPresent, landTypesPresent } from "./textChanges";
 import { randomInt, seededShuffle } from "./rng";
 import {
     applyDamageReplacements,
+    applyDestroyReplacements,
     applyDiscardReplacements,
     applyLifeChangeReplacements,
     applyTapReplacements,
@@ -995,6 +996,15 @@ export type GameState = {
      *  Siren's Call). Checked in `getRequiredAttackerIds` alongside the
      *  per-creature `mustAttackThisTurn`. Cleared at CLEANUP. */
     allCreaturesMustAttack?: string;
+    /** Transient destroy-replacement shields (CR 614, Pyramids mode 2). Each
+     *  entry replaces the next destruction of its keyed permanent before
+     *  `duration` expires. Consumed via `destroyWithReplacements`; unconsumed
+     *  remainder purged at expiry. See ADR 0020. */
+    destroyReplacementShields?: DestroyReplacementShield[];
+    /** Per-instance "prevent all combat damage to and by this permanent"
+     *  shields (CR 615, Ebony Horse). Consumed in the combat damage step;
+     *  unconsumed remainder purged at `duration` expiry. */
+    combatDamageImmunity?: CombatDamageImmunity[];
 };
 
 /** Player-level replacement preferences. Each entry is opt-in: undefined
@@ -1045,7 +1055,35 @@ export type DamageRedirection =
           /** Remaining charges. `1` = one-shot, decrements per match. */
           remaining: number;
           duration: Duration;
+      }
+    | {
+          /** Eye for an Eye (CR 614): the next time the chosen source would
+           *  deal damage to `playerId`, that damage to the player proceeds
+           *  unchanged AND an equal amount is dealt to the source's
+           *  controller. Decrements per match. */
+          kind: "reflect-to-source-controller";
+          sourceInstanceId: string;
+          playerId: string;
+          remaining: number;
+          duration: Duration;
       };
+
+/** Transient destroy-replacement shield (CR 614, Pyramids). The next time the
+ *  keyed permanent would be destroyed before `duration` expires, the
+ *  destruction is replaced: the permanent stays and its marked damage is
+ *  removed. One-shot per charge. See ADR 0020. */
+export type DestroyReplacementShield = {
+    targetInstanceId: string;
+    remaining: number;
+    duration: Duration;
+};
+
+/** Per-instance "prevent all combat damage to and by this permanent" shield
+ *  (CR 615, Ebony Horse). Consumed in the combat damage step. */
+export type CombatDamageImmunity = {
+    instanceId: string;
+    duration: Duration;
+};
 
 /** Returns true if a prevention effect matches (source, player) and consumes
  *  it. Called from every damage-dealing path (spell/ability, combat). */
@@ -2122,6 +2160,44 @@ export function regenerateOrDestroy(
     return true;
 }
 
+/** Replacement-aware destroy wrapper (CR 614, ADR 0020). Runs the destroy
+ *  replacement layer FIRST (permanent-bound `replacementEffects[]` with
+ *  `eventKind: "destroy"` plus transient `destroyReplacementShields` — Pyramids
+ *  mode 2). If a replacement intercepts the destruction, the permanent stays
+ *  on the battlefield and this returns false. Otherwise it falls through to
+ *  `regenerateOrDestroy` (CR 701.15 regeneration shield + the actual move),
+ *  whose tested body is left untouched. Regeneration is deliberately NOT
+ *  modelled as a "destroy" replacement — it stays a specialised shield inside
+ *  `regenerateOrDestroy`.
+ *
+ *  Returns true only when the permanent actually left the battlefield. */
+export function destroyWithReplacements(
+    state: GameState,
+    cardId: string,
+    opts?: { cantBeRegenerated?: boolean }
+): boolean {
+    if (!findOnBattlefield(state, cardId)) return false;
+    const replaced = applyDestroyReplacements(state, {
+        kind: "destroy",
+        targetInstanceId: cardId,
+    });
+    // null === the destruction was replaced (CR 614.6) — do not destroy.
+    if (replaced === null) return false;
+    return regenerateOrDestroy(state, cardId, opts);
+}
+
+/** Returns true if the permanent is shielded from all combat damage (to and
+ *  by) this turn (CR 615, Ebony Horse). */
+export function isCombatDamageImmune(
+    state: GameState,
+    instanceId: string
+): boolean {
+    return (
+        state.combatDamageImmunity?.some((s) => s.instanceId === instanceId) ??
+        false
+    );
+}
+
 /** Removes a permanent from battlefield and moves it to the target zone of its owner.
  *  When `toZone` is "hand" or "library", the card becomes a new object
  *  (CR 400.7) and battlefield-only transient state (tap, marked damage, regen
@@ -2570,9 +2646,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     found.card.damageMarked >=
                     getEffectiveToughness(state, found.card)
                 ) {
-                    // CR 704.5g lethal → regen shield gets a chance to
-                    // replace the destroy (CR 614.5, 701.15a).
-                    regenerateOrDestroy(state, target.id);
+                    // CR 704.5g lethal → destroy replacement (CR 614, ADR
+                    // 0020) then regen shield gets a chance to replace the
+                    // destroy (CR 614.5, 701.15a).
+                    destroyWithReplacements(state, target.id);
                 }
             }
         },
@@ -2600,30 +2677,81 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 item.castById,
                 state
             );
+            let entry: DamageRedirection;
+            switch (shield.kind) {
+                case "prevent-from-source-gain-life":
+                    entry = {
+                        kind: "prevent-from-source-gain-life",
+                        sourceInstanceId: shield.sourceInstanceId,
+                        playerId: shield.playerId,
+                        duration: resolved,
+                    };
+                    break;
+                case "to-self-redirect-to-owner":
+                    entry = {
+                        kind: "to-self-redirect-to-owner",
+                        targetInstanceId: shield.targetInstanceId,
+                        remaining: shield.remaining,
+                        duration: resolved,
+                    };
+                    break;
+                case "from-source-to-permanent-redirect-to-player":
+                    entry = {
+                        kind: "from-source-to-permanent-redirect-to-player",
+                        sourceInstanceId: shield.sourceInstanceId,
+                        targetInstanceId: shield.targetInstanceId,
+                        redirectToPlayerId: shield.redirectToPlayerId,
+                        remaining: shield.remaining,
+                        duration: resolved,
+                    };
+                    break;
+                case "reflect-to-source-controller":
+                    entry = {
+                        kind: "reflect-to-source-controller",
+                        sourceInstanceId: shield.sourceInstanceId,
+                        playerId: shield.playerId,
+                        remaining: shield.remaining,
+                        duration: resolved,
+                    };
+                    break;
+            }
             state.damageRedirections = [
                 ...(state.damageRedirections ?? []),
-                shield.kind === "prevent-from-source-gain-life"
-                    ? {
-                          kind: "prevent-from-source-gain-life",
-                          sourceInstanceId: shield.sourceInstanceId,
-                          playerId: shield.playerId,
-                          duration: resolved,
-                      }
-                    : shield.kind === "to-self-redirect-to-owner"
-                      ? {
-                            kind: "to-self-redirect-to-owner",
-                            targetInstanceId: shield.targetInstanceId,
-                            remaining: shield.remaining,
-                            duration: resolved,
-                        }
-                      : {
-                            kind: "from-source-to-permanent-redirect-to-player",
-                            sourceInstanceId: shield.sourceInstanceId,
-                            targetInstanceId: shield.targetInstanceId,
-                            redirectToPlayerId: shield.redirectToPlayerId,
-                            remaining: shield.remaining,
-                            duration: resolved,
-                        },
+                entry,
+            ];
+        },
+        addDestroyReplacementShield(
+            target: TargetSelection,
+            duration: DurationSpec
+        ): void {
+            // CR 614 — Pyramids' "the next time target land would be destroyed
+            // this turn" save. One-shot, target-keyed transient replacement.
+            if (target.type !== "permanent") return;
+            if (!findOnBattlefield(state, target.id)) return;
+            state.destroyReplacementShields = [
+                ...(state.destroyReplacementShields ?? []),
+                {
+                    targetInstanceId: target.id,
+                    remaining: 1,
+                    duration: resolveDuration(duration, item.castById, state),
+                },
+            ];
+        },
+        preventAllCombatDamageToAndBy(
+            target: TargetSelection,
+            duration: DurationSpec
+        ): void {
+            // CR 615 — Ebony Horse: prevent all combat damage to and by the
+            // target for the duration. Stored per-instance, consumed in the
+            // combat damage step (both as source and as target).
+            if (target.type !== "permanent") return;
+            if (!findOnBattlefield(state, target.id)) return;
+            state.combatDamageImmunity = [
+                ...(state.combatDamageImmunity ?? []),
+                {
+                    instanceId: target.id,
+                    duration: resolveDuration(duration, item.castById, state),
+                },
             ];
         },
         preventNextNDamageToTarget(
@@ -2823,7 +2951,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             // Return value reports whether the permanent actually moved to
             // the graveyard (false if a shield saved it, indestructible
             // protected it, or the target had already left play).
-            return regenerateOrDestroy(state, target.id, opts);
+            return destroyWithReplacements(state, target.id, opts);
         },
         exile(target: TargetSelection): void {
             if (target.type === "player")
@@ -2914,10 +3042,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 }
             }
             for (const id of ids) {
-                // Each victim independently gets a chance to consume a
-                // regeneration shield (CR 614.5, 701.15a) — unless the caller
-                // opts out via `cantBeRegenerated` (CR 701.15c).
-                regenerateOrDestroy(state, id, opts);
+                // Each victim independently gets a chance to consume a destroy
+                // replacement (CR 614, ADR 0020) or a regeneration shield
+                // (CR 614.5, 701.15a) — unless the caller opts out via
+                // `cantBeRegenerated` (CR 701.15c).
+                destroyWithReplacements(state, id, opts);
             }
         },
         // CR 121.1: cards are drawn one at a time. Stops if the library empties

@@ -399,6 +399,16 @@ describe("schema drift guard", () => {
         state.combatBlockRestrictions = [
             { attackerId: "atkA", allowedPileLabel: "left" },
         ];
+        state.destroyReplacementShields = [
+            {
+                targetInstanceId: "land1",
+                remaining: 1,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        state.combatDamageImmunity = [
+            { instanceId: "atk1", duration: { phase: "end-of-turn" } },
+        ];
 
         const stateKeys = new Set(Object.keys(state));
         const missing = [...stateKeys].filter((k) => !allKnown.has(k));
@@ -671,6 +681,30 @@ describe("optional field round-trip smoke tests", () => {
         ];
         expect(roundTrip(state).damageRedirections).toEqual(
             state.damageRedirections
+        );
+    });
+
+    it("destroyReplacementShields", () => {
+        const state = freshState();
+        state.destroyReplacementShields = [
+            {
+                targetInstanceId: "land1",
+                remaining: 1,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        expect(roundTrip(state).destroyReplacementShields).toEqual(
+            state.destroyReplacementShields
+        );
+    });
+
+    it("combatDamageImmunity", () => {
+        const state = freshState();
+        state.combatDamageImmunity = [
+            { instanceId: "atk1", duration: { phase: "end-of-turn" } },
+        ];
+        expect(roundTrip(state).combatDamageImmunity).toEqual(
+            state.combatDamageImmunity
         );
     });
 

@@ -59,6 +59,12 @@ export type MoveMutations = {
     selectBlocker: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
     assignBlockerTarget: (a: GP & { attackerId: string }) => Promise<unknown>;
     confirmBlockers: (a: GP) => Promise<unknown>;
+    /** Confirm the bot's portion of combat-damage assignment (CR 510.1c). Not a
+     *  GRE `Move`: the damage step is resolved by the driver's gate (the search
+     *  auto-confirms it in playout), so this is driven directly, not via
+     *  `executeMove`. The engine pre-fills the default assignment on step entry,
+     *  so the bot only needs to confirm. */
+    confirmDamage: (a: GP) => Promise<unknown>;
     declareMulligan: (
         a: GP & { decision: "keep" | "mull" }
     ) => Promise<unknown>;

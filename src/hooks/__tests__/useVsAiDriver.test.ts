@@ -34,6 +34,7 @@ vi.mock("@convex/_generated/api", () => ({
             selectBlocker: "selectBlocker",
             assignBlockerTarget: "assignBlockerTarget",
             confirmBlockers: "confirmBlockers",
+            confirmDamage: "confirmDamage",
             declareMulligan: "declareMulligan",
             submitResolutionChoice: "submitResolutionChoice",
             passPriority: "passPriority",

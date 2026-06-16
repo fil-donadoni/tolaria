@@ -143,7 +143,7 @@ function materialSignal(margin: number): number {
     return x < -1 ? -1 : x > 1 ? 1 : x;
 }
 
-type Edge = {
+export type Edge = {
     move: Move;
     /** Player who chose this move (perspective the rewards are stored in). */
     mover: string;
@@ -159,7 +159,7 @@ type Edge = {
     avail: number;
 };
 
-type Node = {
+export type Node = {
     children: Map<string, Edge>;
 };
 
@@ -754,7 +754,7 @@ const OUTCOME_EPS = 0.05;
  *  best (the outcome-equal set), then choose the one with the most surviving
  *  material (`totalMargin`). Outcome dominates; material — which never saturates
  *  — breaks the tie a free chump attack would otherwise win on noise. */
-function selectRootMove(root: Node, moves: Move[]): Move {
+export function selectRootMove(root: Node, moves: Move[]): Move {
     const pool = [...root.children.values()].filter((e) => e.visits > 0);
     if (pool.length === 0) return moves[0];
 
@@ -773,6 +773,20 @@ function selectRootMove(root: Node, moves: Move[]): Move {
     let best = contenders[0];
     for (const edge of contenders) {
         if (meanMargin(edge) > meanMargin(best)) best = edge;
+    }
+
+    // Land-drop tie-break (ADR 0020 §1, issue #206). A land has no option cost
+    // in this engine — there is no bluff or hidden-information value to holding
+    // it — so deferring it is never right. When the robust pick is `pass` but an
+    // outcome-equal `play-land` is already a contender (within `OUTCOME_EPS` of
+    // the best mean reward), develop the land instead. Fires ONLY on
+    // outcome-equality, so it can never override a genuine decision, and never
+    // overrides a non-`pass` robust pick. Generalizes the issue-#149 "land drop
+    // strictly positive" invariant to the tie-break (a strictly-better land
+    // already wins on mean reward and never reaches this branch).
+    if (best.move.kind === "pass") {
+        const land = contenders.find((e) => e.move.kind === "play-land");
+        if (land) return land.move;
     }
     return best.move;
 }

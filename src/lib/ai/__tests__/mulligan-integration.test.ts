@@ -50,6 +50,7 @@ function engineMutations(state: GameState): MoveMutations {
         selectBlocker: reject,
         assignBlockerTarget: reject,
         confirmBlockers: reject,
+        confirmDamage: reject,
         declareMulligan: async ({ playerId, decision }) => {
             recordDeclaration(state, playerId, decision);
         },
