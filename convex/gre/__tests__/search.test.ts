@@ -10,6 +10,7 @@ import {
     searchWithTrace,
     reward,
     selectRootMove,
+    isDiscouragedRolloutMove,
     type Edge,
     type Node,
 } from "../search";
@@ -27,6 +28,8 @@ const GIANT = getCardByName("Hill Giant").id; // 3/3
 const BEARS = getCardByName("Grizzly Bears").id; // 2/2
 const BOLT = getCardByName("Lightning Bolt").id; // R: 3 dmg any target
 const MOUNTAIN = getCardByName("Mountain").id;
+const BOP = getCardByName("Birds of Paradise").id; // 0/1 mana dork
+const GIANT_GROWTH = getCardByName("Giant Growth").id; // {G} instant +3/+3
 
 function creature(
     cardId: string,
@@ -471,5 +474,120 @@ describe("selectRootMove — land-drop tie-break (issue #206)", () => {
             { move: PASS, meanReward: 0.66, meanMargin: 350 },
         ]);
         expect(selectRootMove(root, [LAND, PASS]).kind).toBe("play-land");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Rollout default-policy guardrails (ADR 0020 §4, issue #209). Soft biases on
+// the rollout policy ONLY — never legality. `isDiscouragedRolloutMove` flags the
+// obviously-bad lines the greedy default should not model as typical play.
+// ---------------------------------------------------------------------------
+describe("isDiscouragedRolloutMove — rollout guardrails (issue #209)", () => {
+    it("flags attacking with a mana producer (worth more held back)", () => {
+        const bop = makeInstance(BOP, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "bop",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [bop] }),
+                makePlayer("p2"),
+            ],
+        });
+        const move: Move = { kind: "declare-attackers", attackerIds: ["bop"] };
+        expect(isDiscouragedRolloutMove(state, "p1", move)).toBe(true);
+    });
+
+    it("does NOT flag attacking with a normal creature", () => {
+        const giant = creature(GIANT, "p1", "g");
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [giant] }),
+                makePlayer("p2"),
+            ],
+        });
+        const move: Move = { kind: "declare-attackers", attackerIds: ["g"] };
+        expect(isDiscouragedRolloutMove(state, "p1", move)).toBe(false);
+    });
+
+    it("does NOT flag declaring no attackers", () => {
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        const move: Move = { kind: "declare-attackers", attackerIds: [] };
+        expect(isDiscouragedRolloutMove(state, "p1", move)).toBe(false);
+    });
+
+    it("flags casting a holdable instant at sorcery speed (own main phase)", () => {
+        const gg = makeInstance(GIANT_GROWTH, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "gg",
+            zone: "hand",
+        });
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [makePlayer("p1", { hand: [gg] }), makePlayer("p2")],
+        });
+        const move: Move = {
+            kind: "cast-spell",
+            cardInstanceId: "gg",
+            targets: [],
+            confirmTargets: false,
+            tapPlan: [],
+        };
+        expect(isDiscouragedRolloutMove(state, "p1", move)).toBe(true);
+    });
+
+    it("does NOT flag the same instant during combat (a reactive window)", () => {
+        const gg = makeInstance(GIANT_GROWTH, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "gg",
+            zone: "hand",
+        });
+        const state = makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [makePlayer("p1", { hand: [gg] }), makePlayer("p2")],
+        });
+        const move: Move = {
+            kind: "cast-spell",
+            cardInstanceId: "gg",
+            targets: [],
+            confirmTargets: false,
+            tapPlan: [],
+        };
+        expect(isDiscouragedRolloutMove(state, "p1", move)).toBe(false);
+    });
+
+    it("does NOT flag a sorcery-speed land drop or a non-instant", () => {
+        const land = makeInstance(MOUNTAIN, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "m",
+            zone: "hand",
+        });
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [makePlayer("p1", { hand: [land] }), makePlayer("p2")],
+        });
+        const move: Move = { kind: "play-land", cardInstanceId: "m" };
+        expect(isDiscouragedRolloutMove(state, "p1", move)).toBe(false);
     });
 });
