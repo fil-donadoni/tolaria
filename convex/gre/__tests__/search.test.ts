@@ -5,7 +5,8 @@
 // the budget bound. See `convex/gre/search.ts`.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
-import { search, searchWithTrace } from "../search";
+import { search, searchWithTrace, reward } from "../search";
+import { evaluate } from "../evaluate";
 import { greedySelectMove } from "../greedy";
 import { enumerateMoves } from "../moves";
 import type { Move } from "../moves";
@@ -156,11 +157,35 @@ describe("search — beats greedy 1-ply on a multi-step line (issue #112)", () =
         // Opp p2 at 6 with a 3/3. One Bolt at the 3/3 is the best SINGLE move by
         // material (+creature removal), so greedy takes it. But two Bolts to the
         // face is exactly lethal — only multi-step search sees it.
+        //
+        // The opponent is given a non-empty library on purpose: without it the
+        // opp decks on their next draw, so BOTH the bolt-the-face line AND the
+        // kill-the-creature line win in rollout (the creature line just leaves
+        // the opp alive at 6 to deck). That decking confound let the OLD,
+        // small-scale eval pass this test only because reducing the opp's life
+        // (6 × W_LIFE) happened to out-margin removing a 3/3 — an ordering the
+        // Forge-scale rescale (ADR 0018) legitimately flips (a 3/3 is worth far
+        // more than 6 life). A real library removes the artifact so the test
+        // checks its actual intent: the bolt-to-face line is the ONLY win, and
+        // only multi-step search finds it. (Slice 3's Danger Clock is what will
+        // make life-in-lethal-range premium; slice 1 must not depend on it.)
+        const oppLibrary = [0, 1, 2, 3].map((i) =>
+            makeInstance(GIANT, {
+                controllerId: "p2",
+                ownerId: "p2",
+                id: `p2-lib${i}`,
+                zone: "library",
+            })
+        );
         const makePos = () =>
             botMainPhase(
                 [bolt("p1", "b1"), bolt("p1", "b2")],
                 [land("p1", "m1"), land("p1", "m2")],
-                { life: 6, battlefield: [creature(GIANT, "p2", "ogre")] }
+                {
+                    life: 6,
+                    battlefield: [creature(GIANT, "p2", "ogre")],
+                    library: oppLibrary,
+                }
             );
 
         const greedy = greedySelectMove(makePos(), "p1");
@@ -313,5 +338,47 @@ describe("search — respects the budget bound (issue #112)", () => {
         );
         expect(move).not.toBeNull();
         expect(isLegal(state, "p1", move)).toBe(true);
+    });
+});
+
+describe("search — reward band stays monotonic in eval (ADR 0018, issue #194)", () => {
+    // The Forge-scale rescale recalibrated the eval → [0, 1] reward band
+    // (`MATERIAL_FULL`). The mapping must remain monotone non-decreasing in
+    // `evaluate`, or a strictly better position could score a worse reward and
+    // the search would prefer the worse line.
+    const lifeState = (myLife: number, oppLife: number) =>
+        makeState({
+            players: [
+                makePlayer("p1", { life: myLife }),
+                makePlayer("p2", { life: oppLife }),
+            ],
+        });
+
+    it("a higher eval never maps to a lower reward (open band)", () => {
+        // Sweep the opponent's life down: lower opp life ⇒ higher eval for p1.
+        let prevEval = -Infinity;
+        let prevReward = -Infinity;
+        for (let oppLife = 1; oppLife <= 20; oppLife++) {
+            const state = lifeState(20, 21 - oppLife); // 20 → 1
+            const e = evaluate(state, "p1");
+            const r = reward(state, "p1");
+            expect(e).toBeGreaterThan(prevEval); // strictly increasing eval
+            expect(r).toBeGreaterThanOrEqual(prevReward); // monotone reward
+            expect(r).toBeGreaterThan(0);
+            expect(r).toBeLessThan(1);
+            prevEval = e;
+            prevReward = r;
+        }
+    });
+
+    it("a won position out-rewards every open one, a lost one under-rewards all", () => {
+        const won = lifeState(20, 0); // opp dead
+        const lost = lifeState(0, 20); // bot dead
+        const evenish = lifeState(20, 20);
+        const ahead = lifeState(20, 5);
+        expect(reward(won, "p1")).toBeGreaterThan(reward(ahead, "p1"));
+        expect(reward(ahead, "p1")).toBeGreaterThan(reward(evenish, "p1"));
+        expect(reward(lost, "p1")).toBeLessThan(reward(evenish, "p1"));
+        expect(reward(won, "p1")).toBeGreaterThan(reward(lost, "p1"));
     });
 });

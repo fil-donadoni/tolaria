@@ -4,7 +4,12 @@
 // be iterated). See `convex/gre/evaluate.ts`.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
-import { evaluate, materialMargin, WIN_SCORE } from "../evaluate";
+import {
+    evaluate,
+    evaluateCreature,
+    materialMargin,
+    WIN_SCORE,
+} from "../evaluate";
 import {
     makeInstance,
     makePlayer,
@@ -12,6 +17,7 @@ import {
 } from "../../cards/__tests__/setup";
 
 const BEARS = getCardByName("Grizzly Bears").id; // 2/2 ground
+const GIANT = getCardByName("Hill Giant").id; // 3/3 ground
 const SPRITES = getCardByName("Scryb Sprites").id; // 1/1 flying
 const MOUNTAIN = getCardByName("Mountain").id;
 
@@ -203,5 +209,117 @@ describe("evaluate (issue #111)", () => {
             ],
         });
         expect(evaluate(flyer, "p1")).toBeGreaterThan(0);
+    });
+});
+
+// Forge `evaluateCreature` port + Forge-scale magnitudes (ADR 0018, issue #194).
+// Ordering asserts only — the weights are expected to be re-tuned.
+describe("evaluateCreature — Forge scale & keyword vocabulary (ADR 0018)", () => {
+    /** A bare creature instance in a one-creature state, so `evaluateCreature`
+     *  can read effective P/T through the layer system. */
+    function loneCreature(
+        cardId: string,
+        overrides: Partial<Parameters<typeof makeInstance>[1]> = {}
+    ) {
+        const inst = makeInstance(cardId, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "c",
+            ...overrides,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [inst] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, inst };
+    }
+
+    it("is Forge-scale: a vanilla 2/2 is worth in the hundreds", () => {
+        const { state, inst } = loneCreature(BEARS);
+        expect(evaluateCreature(state, inst)).toBeGreaterThan(100);
+    });
+
+    it("a bigger body is worth more (power + toughness weighted)", () => {
+        const bears = loneCreature(BEARS); // 2/2
+        const giant = loneCreature(GIANT); // 3/3
+        expect(evaluateCreature(giant.state, giant.inst)).toBeGreaterThan(
+            evaluateCreature(bears.state, bears.inst)
+        );
+    });
+
+    it("higher mana value adds worth, all else equal", () => {
+        // Same body (2/2), different embedded mana cost — `getInstanceManaCost`
+        // reads the embedded cost first, so this isolates the MV term.
+        const cheap = loneCreature(BEARS, {
+            card: { id: BEARS, manaCost: { G: 1, C: 1 } }, // MV 2
+        });
+        const pricey = loneCreature(BEARS, {
+            card: { id: BEARS, manaCost: { G: 1, C: 5 } }, // MV 6
+        });
+        expect(evaluateCreature(pricey.state, pricey.inst)).toBeGreaterThan(
+            evaluateCreature(cheap.state, cheap.inst)
+        );
+    });
+
+    it("evasion is power-scaled: the flying bonus grows with power", () => {
+        // Flying on a 3/3 is worth more than flying on a 1/1 — the bonus tracks
+        // the damage the evasion pushes through (CR 509.1b).
+        const bigFlyer = loneCreature(GIANT, { staticAbilities: ["flying"] });
+        const bigGround = loneCreature(GIANT, { staticAbilities: [] });
+        const smallFlyer = loneCreature(SPRITES, {
+            staticAbilities: ["flying"],
+        });
+        const smallGround = loneCreature(SPRITES, { staticAbilities: [] });
+        const bigBonus =
+            evaluateCreature(bigFlyer.state, bigFlyer.inst) -
+            evaluateCreature(bigGround.state, bigGround.inst);
+        const smallBonus =
+            evaluateCreature(smallFlyer.state, smallFlyer.inst) -
+            evaluateCreature(smallGround.state, smallGround.inst);
+        expect(bigBonus).toBeGreaterThan(smallBonus);
+        expect(smallBonus).toBeGreaterThan(0);
+    });
+
+    it("defender is penalised: it can't attack, so its power is dead weight", () => {
+        const wall = loneCreature(GIANT, { staticAbilities: ["defender"] });
+        const attacker = loneCreature(GIANT, { staticAbilities: [] });
+        expect(evaluateCreature(wall.state, wall.inst)).toBeLessThan(
+            evaluateCreature(attacker.state, attacker.inst)
+        );
+    });
+
+    it("an unimplemented keyword is zero-cost (no entry → no bonus)", () => {
+        // Structured so a new keyword drops in at one weight entry: a keyword the
+        // table doesn't know adds nothing, equalling the vanilla value.
+        const known = loneCreature(GIANT, { staticAbilities: [] });
+        const unknown = loneCreature(GIANT, {
+            staticAbilities: ["totally-made-up-keyword"],
+        });
+        expect(evaluateCreature(unknown.state, unknown.inst)).toBe(
+            evaluateCreature(known.state, known.inst)
+        );
+    });
+
+    it("WIN_SCORE dominates even a wide Forge-scale board", () => {
+        // Ten 3/3s a side is a far wider board than the engine's card pool
+        // supports; the material margin must still be a small fraction of
+        // WIN_SCORE so a win always outranks any material lead.
+        const ten = (owner: string) =>
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) =>
+                makeInstance(GIANT, {
+                    controllerId: owner,
+                    ownerId: owner,
+                    id: `${owner}-g${i}`,
+                })
+            );
+        const wide = makeState({
+            players: [
+                makePlayer("p1", { battlefield: ten("p1") }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(Math.abs(materialMargin(wide, "p1"))).toBeLessThan(WIN_SCORE);
     });
 });

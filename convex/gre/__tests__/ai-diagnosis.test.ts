@@ -81,7 +81,7 @@ function diagnose(
                     `v=${String(c.visits).padStart(5)}`,
                     `R=${c.meanReward.toFixed(3)}`,
                     `M=${c.meanMargin.toFixed(1).padStart(6)}`,
-                    `selfPwr=${e.self.power} oppHand=${e.opp.hand} oppPwr=${e.opp.power}`,
+                    `selfCr=${e.self.creatures} oppHand=${e.opp.hand} oppCr=${e.opp.creatures}`,
                 ].join("  ");
             });
 
