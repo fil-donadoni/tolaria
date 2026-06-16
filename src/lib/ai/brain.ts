@@ -59,13 +59,18 @@ export type BotView = {
     owedChoice?: OwedChoice;
 };
 
-/** A choosable card as the bot sees it on its projected view — enough for the
- *  trivial material ordering the weak-but-legal defaults use (ADR 0016). */
+/** A choosable card as the bot sees it on its projected view (ADR 0016). Carries
+ *  a projected latent `value` (the shared `cardValue` primitive, ADR 0018,
+ *  issue #197) so `chooseResolution` orders by real card worth — fetch/keep the
+ *  best, sacrifice/discard the worst — instead of a single is-a-land bit. The
+ *  `value` lives ONLY on this bot-only owed-choice path; it is never wired into
+ *  the 2-player public projection, so it can't leak per-card valuations of a
+ *  hidden hand in real PvP. */
 export type ChoiceCandidate = {
     id: string;
-    /** Lands rank lowest in the material ordering (a spell is worth more than a
-     *  land to dig out / keep mid-game). */
-    isLand: boolean;
+    /** Projected latent Forge-scale worth (higher = keep / fetch; lower =
+     *  sacrifice / discard). A land ranks lowest, a bomb highest. */
+    value: number;
 };
 
 /** The interactive choice the bot is owed this window (ADR 0016), reduced to the
@@ -175,14 +180,15 @@ function assertNever(x: never): never {
     throw new Error(`Unhandled PendingChoiceKind: ${String(x)}`);
 }
 
-/** A trivial material proxy used to order candidates: lands rank below
- *  non-lands (a spell/creature is worth more to keep or dig out than a land in
- *  this weak default). Stable `Array.sort` makes every pick deterministic. */
+/** Order candidates by projected card `value` (ADR 0018): `bestFirst` highest
+ *  worth first (fetch / keep these), `worstFirst` lowest first (sacrifice /
+ *  discard these). Stable `Array.sort` keeps zone order on ties, so every pick
+ *  stays deterministic. */
 function bestFirst(candidates: ChoiceCandidate[]): ChoiceCandidate[] {
-    return [...candidates].sort((a, b) => Number(a.isLand) - Number(b.isLand));
+    return [...candidates].sort((a, b) => b.value - a.value);
 }
 function worstFirst(candidates: ChoiceCandidate[]): ChoiceCandidate[] {
-    return [...candidates].sort((a, b) => Number(b.isLand) - Number(a.isLand));
+    return [...candidates].sort((a, b) => a.value - b.value);
 }
 
 /** The bot's weak-but-legal default for a mid-resolution zone-pick choice
@@ -230,10 +236,11 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "reveal-hand":
             return [];
 
-        // Keep the current order (CR 401.4 scry/reorder): submit the peeked
-        // cards in the order they were exposed (candidates are in top order).
+        // Scry / reorder (CR 401.4): keep the best on top — submit the peeked
+        // cards highest projected value first, so the bot draws its best card
+        // next (ADR 0018). Ties keep the exposed order (stable sort).
         case "reorder-library":
-            return candidates.map((c) => c.id);
+            return bestFirst(candidates).map((c) => c.id);
 
         // `may-pay` is a yes/no answer routed through `submitMayPay`
         // (`decideBotAction` handles it before reaching here), and

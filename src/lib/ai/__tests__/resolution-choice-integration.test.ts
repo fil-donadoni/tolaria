@@ -123,6 +123,31 @@ describe("bot resolution-choice full path — search-library (ADR 0016, #162)", 
             "bot-lib-bears",
             "bot-lib-land",
         ]);
+        // Each candidate carries a projected `cardValue` (ADR 0018, issue #197),
+        // and the creature outranks the land by value — not a single is-a-land
+        // bit, so the bot fetches the better card.
+        const candidates = view.owedChoice!.candidates;
+        expect(candidates.every((c) => typeof c.value === "number")).toBe(true);
+        const bears = candidates.find((c) => c.id === "bot-lib-bears")!;
+        const land = candidates.find((c) => c.id === "bot-lib-land")!;
+        expect(bears.value).toBeGreaterThan(land.value);
+    });
+
+    it("the projected value lives only on the owed-choice path, never the public projection (no PvP hidden-hand leak)", () => {
+        const state = makeTutorState();
+        const projected = projectPublicState(state, 1, BOT);
+        // The bot-only owed-choice candidates carry `value`...
+        const view = buildBotView(projected, BOT);
+        expect(view.owedChoice!.candidates.every((c) => "value" in c)).toBe(
+            true
+        );
+        // ...but the 2-player public projection NEVER does: the searched library
+        // cards are slim instances with no `value`, so real PvP can't leak a
+        // per-card valuation of a hidden hand (issue #197 / ADR 0018 user story).
+        const botProjected = projected.players.find((p) => p.id === BOT)!;
+        for (const c of botProjected.librarySearch ?? []) {
+            expect("value" in c).toBe(false);
+        }
     });
 
     it("resolves the search without freezing — a legal card moves to hand and the queue drains", async () => {
