@@ -17,6 +17,7 @@ import {
 import type { Phase } from "../types";
 import type { CardType } from "../../cards/types";
 import { tryGetCardById } from "../../cards";
+import { recordBlockedAttackers } from "../banding";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -1753,6 +1754,142 @@ describe("applyAllCombatDamage", () => {
         // Attacker takes 2+3=5, dies (5 >= 5)
         const p1 = state.players.find((p) => p.id === "p1")!;
         expect(p1.battlefield).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// "Blocked" is combat state, not the live blocker count (issue #172,
+// CR 509.1h, 510.1c)
+// ---------------------------------------------------------------------------
+
+describe("blocked is combat state, not blocker count (CR 509.1h/510.1c)", () => {
+    /** Build a combat-damage state. `blockedAttackerIds` records which
+     *  attackers became blocked this combat (normally set at declare-blockers).
+     *  Blockers listed in `blockerAssignments` but absent from `blockers` model
+     *  a blocker that left combat (e.g. killed) after blocks were locked in. */
+    function makeState(opts: {
+        attackers: CardInstanceState[];
+        blockers: CardInstanceState[];
+        blockerAssignments: Record<string, string[]>;
+        blockedAttackerIds?: string[];
+    }) {
+        return makeGameState({
+            activePlayerId: "p1",
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer({ id: "p1", battlefield: opts.attackers }),
+                makePlayer({ id: "p2", battlefield: opts.blockers }),
+            ],
+            combat: {
+                attackerIds: opts.attackers.map((a) => a.id),
+                confirmed: true,
+                blockerAssignments: opts.blockerAssignments,
+                blockedAttackerIds: opts.blockedAttackerIds,
+                blockersConfirmed: true,
+            },
+        });
+    }
+
+    const attacker = (
+        overrides: Partial<Parameters<typeof makeCard>[0]> = {}
+    ) =>
+        makeCard({
+            id: "att",
+            power: 3,
+            toughness: 3,
+            staticAbilities: [],
+            controllerId: "p1",
+            ownerId: "p1",
+            ...overrides,
+        });
+
+    it("a never-blocked attacker hits the defender", () => {
+        const state = makeState({
+            attackers: [attacker()],
+            blockers: [],
+            blockerAssignments: {},
+            // not recorded as blocked
+        });
+
+        applyAllCombatDamage(state, {});
+
+        expect(state.players.find((p) => p.id === "p2")!.life).toBe(17);
+    });
+
+    it("an attacker that became blocked and lost all blockers deals NO damage to the defender (no trample)", () => {
+        // Blocker "blk" is gone from the battlefield (killed after blocking),
+        // but the attacker is still recorded as blocked.
+        const state = makeState({
+            attackers: [attacker()],
+            blockers: [],
+            blockerAssignments: { blk: ["att"] },
+            blockedAttackerIds: ["att"],
+        });
+
+        applyAllCombatDamage(state, {});
+
+        expect(state.players.find((p) => p.id === "p2")!.life).toBe(20);
+    });
+
+    it("same case WITH trample deals full damage to the defender (CR 510.1c)", () => {
+        const state = makeState({
+            attackers: [attacker({ staticAbilities: ["trample"] })],
+            blockers: [],
+            blockerAssignments: { blk: ["att"] },
+            blockedAttackerIds: ["att"],
+        });
+
+        applyAllCombatDamage(state, {});
+
+        // No blocker left to absorb lethal — the full 3 tramples through.
+        expect(state.players.find((p) => p.id === "p2")!.life).toBe(17);
+    });
+
+    it("a recorded-blocked attacker that still has a live blocker deals to the blocker, not the defender", () => {
+        const blocker = makeCard({
+            id: "blk",
+            power: 1,
+            toughness: 3,
+            staticAbilities: [],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            attackers: [attacker()],
+            blockers: [blocker],
+            blockerAssignments: { blk: ["att"] },
+            blockedAttackerIds: ["att"],
+        });
+
+        applyAllCombatDamage(state, { att: { blk: 3 } });
+
+        expect(state.players.find((p) => p.id === "p2")!.life).toBe(20);
+        // blocker dies (3 >= 3)
+        expect(
+            state.players.find((p) => p.id === "p2")!.graveyard
+        ).toHaveLength(1);
+    });
+
+    it("recordBlockedAttackers records exactly the attackers with a blocker", () => {
+        const state = makeState({
+            attackers: [attacker({ id: "att" }), attacker({ id: "att2" })],
+            blockers: [
+                makeCard({
+                    id: "blk",
+                    power: 1,
+                    toughness: 1,
+                    staticAbilities: [],
+                    controllerId: "p2",
+                    ownerId: "p2",
+                }),
+            ],
+            blockerAssignments: { blk: ["att"] },
+        });
+
+        recordBlockedAttackers(state);
+
+        // att is blocked; att2 was never blocked.
+        expect(state.combat!.blockedAttackerIds).toEqual(["att"]);
     });
 });
 

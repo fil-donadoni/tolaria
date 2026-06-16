@@ -36,6 +36,7 @@ import {
     getEffectiveToughness,
 } from "./layers";
 import { isProtectedFromSource } from "./protection";
+import { getEffectiveBlockGraph } from "./banding";
 import { colorWordsPresent, landTypesPresent } from "./textChanges";
 import { randomInt, seededShuffle } from "./rng";
 import {
@@ -829,6 +830,13 @@ export type GameState = {
          *  attackers it is blocking. Normally length 1; multi-block creatures
          *  (Two-Headed Giant, Blaze of Glory) may have 2+. */
         blockerAssignments: Record<string, string[]>;
+        /** Ids of attackers that became blocked this combat (CR 509.1h). Set
+         *  when blockers are locked in; read at the damage step so an attacker
+         *  that lost every blocker still counts as blocked (deals no combat
+         *  damage to the defender without trample, all of it with trample —
+         *  CR 510.1c). Distinct from the live blocker count: removing a blocker
+         *  from combat does NOT un-block its attacker. */
+        blockedAttackerIds?: string[];
         /** Blocker currently being assigned by the defending player (visible to both clients). */
         pendingBlockerId?: string;
         blockersConfirmed: boolean;
@@ -3251,13 +3259,43 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             }
             if (card.isBlocking) {
                 card.isBlocking = false;
-                // Remove from blocker assignments and check if any attacker
-                // becomes unblocked (sole blocker removed)
+                // Remove this blocker from the assignments. The attackers it
+                // was blocking STAY blocked (CR 509.1h) — blocked status lives
+                // in combat.blockedAttackerIds, not the live blocker count — so
+                // they deal no combat damage to the defender without trample.
                 const ba = state.combat.blockerAssignments;
                 if (ba[target.id]) {
                     delete ba[target.id];
                 }
             }
+        },
+
+        becomeUnblocked(attackerId: string): void {
+            if (!state.combat) return;
+            // CR 509.1h override (Ydwen Efreet): an attacker that became
+            // blocked is made unblocked, so it deals its combat damage to the
+            // defending player. Drop it from the blocked set and strip it from
+            // every blocker's assignment so the live block graph agrees.
+            if (state.combat.blockedAttackerIds) {
+                state.combat.blockedAttackerIds =
+                    state.combat.blockedAttackerIds.filter(
+                        (id) => id !== attackerId
+                    );
+            }
+            const ba = state.combat.blockerAssignments;
+            for (const blockerId of Object.keys(ba)) {
+                const filtered = ba[blockerId].filter(
+                    (id) => id !== attackerId
+                );
+                if (filtered.length !== ba[blockerId].length) {
+                    ba[blockerId] = filtered;
+                }
+            }
+        },
+
+        getBlockersByAttacker(): Record<string, string[]> {
+            if (!state.combat) return {};
+            return getEffectiveBlockGraph(state).blockersByAttacker;
         },
 
         setMustBlockAll(target: TargetSelection): void {

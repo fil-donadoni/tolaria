@@ -26,6 +26,7 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup";
+import { evaluate } from "../evaluate";
 import type { GameState } from "../state";
 
 const GRIZZLY = getCardByName("Grizzly Bears").id; // 2/2
@@ -81,7 +82,7 @@ function diagnose(
                     `v=${String(c.visits).padStart(5)}`,
                     `R=${c.meanReward.toFixed(3)}`,
                     `M=${c.meanMargin.toFixed(1).padStart(6)}`,
-                    `selfPwr=${e.self.power} oppHand=${e.opp.hand} oppPwr=${e.opp.power}`,
+                    `selfCr=${e.self.creatures} oppHand=${e.opp.hand} oppCr=${e.opp.creatures}`,
                 ].join("  ");
             });
 
@@ -335,6 +336,230 @@ describe("AI diagnosis harness (Forge comparison)", () => {
                 expect(pass!.meanReward).toBeGreaterThanOrEqual(
                     waste.meanReward
                 );
+            }
+        }
+    );
+
+    // -----------------------------------------------------------------------
+    // Episode B — latent Card Value closes the residual ADR 0015 leaf blind
+    // spot (slice 2, issue #195). Two related claims:
+    //
+    //  (1) X=0 waste-cast DECISIVELY rejected. With the flat hand term, pitching
+    //      Braingeyser for a 0-card draw cost the same tiny amount as any card;
+    //      now the hand term is each card's `cardValue`, so the waste is a clear
+    //      loss and `pass` out-rewards every X=0 line by a real margin (not the
+    //      hair's-breadth tie of the old eval).
+    //
+    //  (2) The eval values a bomb in hand above a spare land — the latent
+    //      ordering that makes the bot keep its best card. Asserted directly on
+    //      `evaluate` (the leaf), the level the search consumes.
+    // -----------------------------------------------------------------------
+    it(
+        "episode B: latent card value — X=0 decisively rejected, bomb kept over land",
+        { timeout: DIAGNOSIS_TIMEOUT_MS },
+        () => {
+            const islands = [0, 1, 2].map((i) =>
+                makeInstance(ISLAND, {
+                    id: `bisland${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    isTapped: false,
+                })
+            );
+            const brain = makeInstance(BRAINGEYSER, {
+                id: "bbrain",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+            const lib = (owner: string) =>
+                [0, 1, 2, 3, 4].map((i) =>
+                    makeInstance(FOREST, {
+                        id: `b-${owner}-lib${i}`,
+                        controllerId: owner,
+                        ownerId: owner,
+                        zone: "library",
+                    })
+                );
+            const state = makeState({
+                phase: "PRECOMBAT_MAIN",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                players: [
+                    makePlayer("p1", {
+                        hand: [brain],
+                        battlefield: islands,
+                        library: lib("p1"),
+                    }),
+                    makePlayer("p2", { library: lib("p2") }),
+                ],
+            });
+
+            const trace = diagnose(
+                "EP#B X=0 decisive rejection + latent value",
+                state,
+                "p1"
+            );
+
+            // (1) At the real play budget the bot never makes the X=0 waste cast,
+            // and `pass` STRICTLY out-rewards every X=0 line (a clear margin, not
+            // the old near-tie).
+            const { trace: playTrace } = searchWithTrace(
+                state,
+                "p1",
+                { iterations: 400, timeMs: 60_000 },
+                SEED
+            );
+            if (!playTrace)
+                throw new Error("episode B: search returned no trace");
+            expect(playTrace.chosen).not.toContain("X=0");
+            const pass = playTrace.candidates.find(
+                (c) => c.move.kind === "pass"
+            );
+            const wasteX0 = playTrace.candidates.filter(
+                (c) => c.move.kind === "cast-spell" && c.move.chosenX === 0
+            );
+            expect(pass).toBeDefined();
+            expect(wasteX0.length).toBeGreaterThan(0);
+            for (const waste of wasteX0) {
+                expect(pass!.meanReward).toBeGreaterThan(waste.meanReward);
+            }
+
+            // (2) Latent ordering: a hand holding a 3/3 bomb evaluates strictly
+            // higher than the same hand holding a spare basic land.
+            const withBomb = makeState({
+                players: [
+                    makePlayer("p1", {
+                        hand: [
+                            makeInstance(HILL_GIANT, {
+                                id: "bomb",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "hand",
+                            }),
+                        ],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            const withLand = makeState({
+                players: [
+                    makePlayer("p1", {
+                        hand: [
+                            makeInstance(FOREST, {
+                                id: "spare",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "hand",
+                            }),
+                        ],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            expect(evaluate(withBomb, "p1")).toBeGreaterThan(
+                evaluate(withLand, "p1")
+            );
+
+            // Silence the unused-trace lint when the ladder print is all we want
+            // from `diagnose`.
+            expect(trace).toBeDefined();
+        }
+    );
+
+    // -----------------------------------------------------------------------
+    // Episode C — Danger Clock (slice 3, issue #196). The bot reads the race:
+    // it DEFENDS under a lethal opposing clock and PRESSES when it holds the
+    // faster clock, instead of turtling.
+    //
+    //  (1) Defend: the bot is the defender at 4 life facing two 3/3 attackers
+    //      (6 = lethal) with one 3/3 blocker. It must block to stabilise.
+    //  (2) Press: the bot holds two ready 3/3s against an opponent with no
+    //      blockers; it attacks to push its clock rather than passing.
+    // -----------------------------------------------------------------------
+    it(
+        "episode C: danger clock — blocks under a lethal clock, presses when ahead",
+        { timeout: DIAGNOSIS_TIMEOUT_MS },
+        () => {
+            // (1) Defend. p2 is the active attacker; the bot p1 owes blocks.
+            const atk = (id: string) =>
+                makeInstance(HILL_GIANT, {
+                    id,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    isSummoningSick: false,
+                    isAttacking: true,
+                });
+            const defendState = makeState({
+                phase: "DECLARE_BLOCKERS",
+                activePlayerId: "p2",
+                priorityPlayerId: "p1",
+                combat: {
+                    attackerIds: ["a1", "a2"],
+                    confirmed: true,
+                    blockerAssignments: {},
+                    blockersConfirmed: false,
+                },
+                players: [
+                    makePlayer("p1", {
+                        life: 4,
+                        battlefield: [
+                            makeInstance(HILL_GIANT, {
+                                id: "wall",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                isSummoningSick: false,
+                            }),
+                        ],
+                    }),
+                    makePlayer("p2", {
+                        life: 20,
+                        battlefield: [atk("a1"), atk("a2")],
+                    }),
+                ],
+            });
+            const defend = diagnose(
+                "EP#C-defend lethal clock",
+                defendState,
+                "p1"
+            );
+            // The bot must block (non-empty assignment) — taking 6 is lethal.
+            expect(defend.chosen).toContain("block");
+
+            // (2) Press. The bot p1 is the active player with two ready 3/3s and
+            // the opponent has no blockers; it should declare attackers.
+            const mine = (id: string) =>
+                makeInstance(HILL_GIANT, {
+                    id,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    isSummoningSick: false,
+                });
+            const pressState = makeState({
+                phase: "DECLARE_ATTACKERS",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                combat: {
+                    attackerIds: [],
+                    confirmed: false,
+                    blockerAssignments: {},
+                    blockersConfirmed: false,
+                },
+                players: [
+                    makePlayer("p1", {
+                        life: 20,
+                        battlefield: [mine("m1"), mine("m2")],
+                    }),
+                    makePlayer("p2", { life: 12 }),
+                ],
+            });
+            const press = diagnose("EP#C-press faster clock", pressState, "p1");
+            const chosenAttack = press.candidates.find(
+                (c) => c.label === press.chosen
+            )?.move;
+            expect(chosenAttack?.kind).toBe("declare-attackers");
+            if (chosenAttack?.kind === "declare-attackers") {
+                expect(chosenAttack.attackerIds.length).toBeGreaterThan(0);
             }
         }
     );
