@@ -1938,10 +1938,22 @@ export interface ReplacementEffect {
     ) => ReplacementResult;
 }
 
-/** Declarative shorthand for one-effect resolve bodies. Each value maps to a
- *  closure in `convex/cards/effectRegistry.ts`. Add new shorthands as soon as
- *  the same `resolve` body repeats across two cards (rule of two extraction). */
-export type EffectShorthand = "destroy-target";
+/** Pump every attacking (or blocking) creature by a fixed amount until end of
+ *  turn (CR 611.2). Drives Army of Allah (+2/+0 attackers) and Piety (+0/+3
+ *  blockers). Parametric so future "all attackers/blockers get +X/+Y" cards are
+ *  data rather than a duplicated resolve closure. */
+export interface PumpCombatEffect {
+    kind: "pump-combat";
+    side: "attacking" | "blocking";
+    power: number;
+    toughness: number;
+}
+
+/** Declarative shorthand for one-effect resolve bodies. String values map to a
+ *  closure in `convex/cards/effectRegistry.ts`; object values carry their own
+ *  parameters. Add new shorthands as soon as the same `resolve` body repeats
+ *  across two cards (rule of two extraction). */
+export type EffectShorthand = "destroy-target" | PumpCombatEffect;
 
 /** Full card definition used by the GRE. */
 export interface CardDefinition {

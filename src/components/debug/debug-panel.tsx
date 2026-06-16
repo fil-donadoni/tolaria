@@ -50,6 +50,64 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ARN Batch 1 (#173) — combat tricks. You control two Grizzly Bears
+        // and hold Army of Allah ({1}{W}{W}, attackers +2/+0), Piety ({2}{W},
+        // blockers +0/+3) and Sandstorm ({G}, 1 damage to each attacking
+        // creature). Declare an attack and pump with Army of Allah; on defense
+        // cast Piety; or wipe a 1-toughness alpha strike with Sandstorm. Lands
+        // are provided to pay for all three.
+        label: "ARN: pump-combat tricks (Army of Allah / Piety / Sandstorm)",
+        cards: [
+            { name: "Grizzly Bears", owner: "me" as const, count: 2 },
+            {
+                name: "Army of Allah",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Piety", owner: "me" as const, zone: "hand" as const },
+            { name: "Sandstorm", owner: "me" as const, zone: "hand" as const },
+            { name: "Plains", owner: "me" as const, count: 3 },
+            { name: "Forest", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const, count: 2 },
+        ],
+        phase: "DECLARE_ATTACKERS",
+        landCount: 0,
+    },
+    {
+        // ARN Batch 1 (#173) — "islands-matter". Dandân (4/1, can't attack
+        // unless the defender controls an Island) and Island Fish Jasconius
+        // (6/8, doesn't untap — pay {U}{U}{U} on upkeep to untap) both
+        // self-sacrifice when you control no Islands. The opponent has an
+        // Island so the attack restriction is satisfied; remove your own
+        // Islands to watch the state-trigger sacrifice fire.
+        label: "ARN: islands-matter (Dandân + Island Fish Jasconius)",
+        cards: [
+            { name: "Dandân", owner: "me" as const },
+            { name: "Island Fish Jasconius", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 3 },
+            { name: "Island", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // ARN Batch 1 (#173) — signature creatures & utility. Juzám Djinn and
+        // Serendib Efreet ping you each upkeep; King Suleiman ({T}: destroy
+        // target Djinn or Efreet) answers the opponent's Mijae-sized threats;
+        // Wyluli Wolf pumps; Rukh Egg leaves a 4/4 flier when it dies.
+        label: "ARN: Djinns/Efreets + King Suleiman + Rukh Egg",
+        cards: [
+            { name: "King Suleiman", owner: "me" as const },
+            { name: "Wyluli Wolf", owner: "me" as const },
+            { name: "Rukh Egg", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, count: 2 },
+            { name: "Juzám Djinn", owner: "opp" as const },
+            { name: "Serendib Efreet", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Beta-original cards (ADR 0014): cards first printed in LEB with no
         // Alpha counterpart. Volcanic Island is the tenth ABUR dual ({T}: add
         // {U} or {R}); Circle of Protection: Black is the missing CoP. Tap a
