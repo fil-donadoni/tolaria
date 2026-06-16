@@ -84,12 +84,30 @@ export type SearchBudget = {
 
 /** The single shipped difficulty preset for this slice (CR-agnostic tuning).
  *  A lobby selector that exposes multiple presets is a separate slice (#114). */
-export const DEFAULT_BUDGET: SearchBudget = { iterations: 400, timeMs: 300 };
+// ADR 0015: the turn-boundary rollout plays a full round per playout (longer
+// than the old 8-ply horizon), so the wall-clock ceiling is raised to ~1.5s to
+// let the 400-iteration budget actually complete. Still well under human
+// decision pace, so the opponent stays fluid.
+export const DEFAULT_BUDGET: SearchBudget = { iterations: 400, timeMs: 1500 };
 
 /** UCB1 exploration constant. */
 const UCB_C = 1.4;
-/** Truncated-rollout horizon (plies) before falling back to the heuristic. */
-const ROLLOUT_DEPTH = 8;
+/** Rollout horizon, in EXTRA full bot turns beyond the first (ADR 0015). The
+ *  rollout always plays forward to the start of the bot's NEXT turn — a complete
+ *  round in which BOTH players had symmetric opportunity to act — then this many
+ *  additional bot-turn-starts before scoring. `0` = score at the bot's next turn
+ *  start (the baseline). A turn-clock horizon, unlike a fixed ply count, judges
+ *  every candidate after the same game-clock progress, removing the own-turn
+ *  action bias a ply horizon gives "do something now" over "pass". */
+const ROLLOUT_EXTRA_BOT_TURNS = 0;
+/** Hard cap on turn-boundary crossings inside a single rollout — guards against
+ *  a stall loop (a board that never advances the active player back to the bot,
+ *  e.g. mutual passing across empty turns until someone decks) and bounds the
+ *  rollout length when the bot's turn never recurs. */
+const MAX_ROLLOUT_TURNS = 6;
+/** Backstop ply cap inside a rollout, on top of the turn cap, so a single
+ *  pathological turn with a runaway move list can't spin forever. */
+const MAX_ROLLOUT_PLIES = 300;
 /** Hard cap on plies applied while descending the tree in one iteration —
  *  guards against a pathological no-progress cycle (e.g. mutual passing across
  *  empty turns until someone decks). */
@@ -458,10 +476,36 @@ function scoreLeaf(state: GameState, botId: string): Leaf {
 /** Play `state` forward to a stable leaf with a cheap policy, then score it.
  *  Policy: with probability `ROLLOUT_EPSILON` a uniform-random legal move,
  *  otherwise the move with the best immediate reward for its mover (a 1-ply
- *  greedy step). Bounded by `ROLLOUT_DEPTH`. Mutates `state` (caller owns it). */
+ *  greedy step). Mutates `state` (caller owns it).
+ *
+ *  Horizon (ADR 0015): the rollout stops at the START of the bot's next turn
+ *  (a full round; `ROLLOUT_EXTRA_BOT_TURNS` adds further bot-turn-starts),
+ *  NOT after a fixed ply count. Scoring every candidate at the same game-clock
+ *  boundary — after both players have had a symmetric chance to act — removes
+ *  the action bias of a ply horizon, where "act on my own turn" was scored
+ *  before the opponent's reply but "pass" was scored after the opponent
+ *  developed. `MAX_ROLLOUT_TURNS` / `MAX_ROLLOUT_PLIES` bound stall loops. */
 function rollout(state: GameState, botId: string, rng: () => number): Leaf {
-    for (let d = 0; d < ROLLOUT_DEPTH; d++) {
+    const startTurn = state.turn;
+    let lastTurn = state.turn;
+    let botTurnStarts = 0;
+
+    for (let ply = 0; ply < MAX_ROLLOUT_PLIES; ply++) {
         if (state.gameOver) break;
+
+        // Turn-boundary horizon: a fresh bot-turn START is the active player
+        // being the bot right after a turn crossing (not the bot turn the
+        // rollout began in). Stop once we've reached enough of them.
+        const turnChanged = state.turn !== lastTurn;
+        lastTurn = state.turn;
+        if (turnChanged && state.activePlayerId === botId) {
+            botTurnStarts += 1;
+            if (botTurnStarts > ROLLOUT_EXTRA_BOT_TURNS) break;
+        }
+        // Stall cap: the bot's turn never recurs (e.g. it lost priority forever
+        // on a degenerate board) — score wherever we got to.
+        if (state.turn - startTurn >= MAX_ROLLOUT_TURNS) break;
+
         const pid = decidingPlayer(state);
         if (!pid) break;
         const moves = enumerateMoves(state, pid);

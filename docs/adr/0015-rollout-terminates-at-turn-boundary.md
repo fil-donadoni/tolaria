@@ -66,10 +66,30 @@ never advance the turn).
   tuned empirically with the harness on representative boards.
 - **−** Requires a turn-boundary stop condition in the rollout loop and a
   K-turn safety cap; slightly more rollout bookkeeping than a ply counter.
-- **Validation:** the `it.fails` action-bias test in the harness must flip to
-  passing (then convert it to `it(...)`); the existing combat/lethal scenarios
-  (suicidal-attack tie-break, lethal detection) must stay green; record the
-  iteration count actually reached at the new `timeMs`.
+- **Validation (done):** the `it.fails` action-bias episode (`episode A` in
+  `convex/gre/__tests__/ai-diagnosis.test.ts`) flipped to passing and is now a
+  plain `it(...)`. At the real play budget (400 iterations) the bot no longer
+  prefers the strictly-wasteful `Braingeyser X=0` cast: `pass` now out-rewards
+  every `X=0` line (it could not under the old ply horizon), and the bot picks
+  the genuinely-better `X=1 → self` draw. The combat/lethal scenarios
+  (suicidal-attack tie-break, lethal detection) stay green, and the
+  Braingeyser-targets-opponent episode (`episode #3`) is now **reliably**
+  correct rather than flaky — the gift to the opponent is judged at the same
+  game-clock horizon as targeting self, so `bestSelf > bestOpp` deterministically.
+
+## Implementation notes
+
+- `ROLLOUT_DEPTH = 8` (a fixed ply count) is replaced in `search.ts` by a
+  turn-clock horizon: `rollout` stops at the START of the bot's next turn
+  (`ROLLOUT_EXTRA_BOT_TURNS = 0` extra full turns), bounded by
+  `MAX_ROLLOUT_TURNS = 6` and a `MAX_ROLLOUT_PLIES = 300` backstop against stall
+  loops. `DEFAULT_BUDGET.timeMs` is raised 300 → **1500 ms** so the 400-iteration
+  budget completes despite the longer (full-round) rollouts.
+- **Residual, out of scope (ADR 0016 eval work):** at very high budgets
+  (~20k iterations) the `X=0` cast begins out-_evaluating_ `pass` again — an
+  eval blind spot (drawing zero cards is scored as non-negative), NOT a horizon
+  artifact. The horizon fix removes the _action bias_ at the live budget; the
+  leaf-eval blindness is the deferred Forge-comparison eval enrichment.
 
 ## Alternatives rejected
 
