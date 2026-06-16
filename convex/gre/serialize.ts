@@ -507,6 +507,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "pendingChoices",
     "autoPassPlayers",
     "singleShotAutoPass",
+    "queuedEndTurn",
     "combat",
     "nextGrantSeq",
     "mulligan",
