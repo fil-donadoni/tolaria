@@ -48,8 +48,8 @@ function makeCard(
 // ---------------------------------------------------------------------------
 
 describe("EVASION_RULES registry", () => {
-    it("contains 8 entries: unblockable + 5 landwalk + fear + flying", () => {
-        expect(EVASION_RULES).toHaveLength(8);
+    it("contains 9 entries: unblockable + 6 landwalk + fear + flying", () => {
+        expect(EVASION_RULES).toHaveLength(9);
         const keywords = EVASION_RULES.map((r) => r.keyword);
         expect(keywords).toContain("unblockable");
         expect(keywords).toContain("plainswalk");
@@ -57,6 +57,7 @@ describe("EVASION_RULES registry", () => {
         expect(keywords).toContain("swampwalk");
         expect(keywords).toContain("mountainwalk");
         expect(keywords).toContain("forestwalk");
+        expect(keywords).toContain("desertwalk");
         expect(keywords).toContain("fear");
         expect(keywords).toContain("flying");
     });

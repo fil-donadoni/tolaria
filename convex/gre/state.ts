@@ -2063,6 +2063,7 @@ export function runDamageReplacement(
         sourceControllerId,
         sourceColors: desc.colors,
         sourceTypes: desc.types,
+        sourceSubtypes: desc.subtypes,
         sourceStaticAbilities: desc.staticAbilities,
         target,
         amount,

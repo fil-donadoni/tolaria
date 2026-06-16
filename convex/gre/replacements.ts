@@ -91,6 +91,9 @@ function buildStateView(state: GameState): ReplacementStateView {
         combat = {
             attackerIds: state.combat.attackerIds,
             blockersByAttacker,
+            bands: state.combat.bands?.map((b) => ({
+                memberIds: b.memberIds,
+            })),
         };
     }
     return {

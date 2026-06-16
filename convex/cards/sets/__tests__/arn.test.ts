@@ -51,6 +51,9 @@ import {
     aladdin,
     oldManOfTheSea,
     ghazbanOgre,
+    desert,
+    desertNomads,
+    camel,
 } from "../arn";
 import {
     grizzlyBears,
@@ -63,6 +66,7 @@ import {
     stoneRain,
 } from "../lea";
 import { checkStateBasedActions } from "../../../gre/sba";
+import { validateBlockerEligibility } from "../../../gre/combat";
 import { applyAllCombatDamage } from "../../../gre/phases";
 import { applyDamageReplacements } from "../../../gre/replacements";
 import {
@@ -1493,5 +1497,194 @@ describe("Ghazbán Ogre (upkeep: control to the unique most-life player, CR 603.
             state.players[0].battlefield.find((c) => c.id === "ogre")
                 ?.controllerId
         ).toBe("p1");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Batch 6 (#177) — Deserts (desertwalk + Desert-source damage prevention)
+// ---------------------------------------------------------------------------
+
+describe("Desert (mana + end-of-combat ping)", () => {
+    it("taps for {C} and pings an attacking creature for 1", () => {
+        expect(desert.subtypes).toContain("Desert");
+        const manaAbility = desert.activatedAbilities!.find(
+            (a) => a.id === "desert-mana"
+        )!;
+        expect(manaAbility.manaProduced).toEqual({ C: 1 });
+
+        const des = makeInstance(desert.id, { id: "des" });
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "atk",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [des] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+        });
+        resolveActivated(state, des, "desert-ping", [
+            { type: "permanent", id: "atk" },
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "atk")
+                ?.damageMarked
+        ).toBe(1);
+    });
+});
+
+describe("Desert Nomads (desertwalk + prevent damage from Deserts)", () => {
+    it("has desertwalk and is unblockable when the defender controls a Desert", () => {
+        expect(desertNomads.staticAbilities).toContain("desertwalk");
+        const nomads = makeInstance(desertNomads.id, { id: "nomads" });
+        const blocker = makeInstance(grizzlyBears.id, { id: "blk" });
+        const des = makeInstance(desert.id, { id: "des" });
+
+        // Defender controls a Desert → desertwalk makes Nomads unblockable.
+        expect(
+            validateBlockerEligibility(nomads, blocker, [blocker, des]).eligible
+        ).toBe(false);
+        // No Desert → blockable normally.
+        expect(
+            validateBlockerEligibility(nomads, blocker, [blocker]).eligible
+        ).toBe(true);
+    });
+
+    it("prevents Desert damage to itself but takes non-Desert damage", () => {
+        const nomads = makeInstance(desertNomads.id, {
+            id: "nomads",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const des = makeInstance(desert.id, { id: "des" });
+        const tim = makeInstance(prodigalSorcerer.id, { id: "tim" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [des, tim] }),
+                makePlayer("p2", { battlefield: [nomads] }),
+            ],
+        });
+        // Desert ping → prevented (source is a Desert).
+        resolveActivated(state, des, "desert-ping", [
+            { type: "permanent", id: "nomads" },
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "nomads")
+                ?.damageMarked ?? 0
+        ).toBe(0);
+        // A non-Desert source still hits it.
+        resolveActivated(state, tim, "prodigal-sorcerer-zap", [
+            { type: "permanent", id: "nomads" },
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "nomads")
+                ?.damageMarked
+        ).toBe(1);
+    });
+
+    it("the Desert-damage prevention fires through the public projection (wire format)", () => {
+        const nomads = makeInstance(desertNomads.id, {
+            id: "nomads",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [nomads] }),
+            ],
+        });
+        const projected = projectPublicState(state, 2, "p2");
+        // The projection strips card.card to { id }; the replacement is looked
+        // up from the registry by that id, so it must still consume the event.
+        const ev = applyDamageReplacements(projected as unknown as GameState, {
+            kind: "damage",
+            sourceInstanceId: "des",
+            sourceControllerId: "p1",
+            sourceColors: [],
+            sourceTypes: ["Land"],
+            sourceSubtypes: ["Desert"],
+            sourceStaticAbilities: [],
+            target: { type: "permanent", id: "nomads" },
+            amount: 1,
+            isCombat: false,
+        });
+        expect(ev).toBeNull();
+    });
+});
+
+describe("Camel (banding + Desert-damage prevention for its band while attacking)", () => {
+    it("has banding", () => {
+        expect(camel.staticAbilities).toContain("banding");
+    });
+
+    it("while attacking, prevents Desert damage to itself and band-mates", () => {
+        const cam = makeInstance(camel.id, {
+            id: "camel",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const ally = makeInstance(grizzlyBears.id, {
+            id: "ally",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const des = makeInstance(desert.id, { id: "des" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [des] }),
+                makePlayer("p2", { battlefield: [cam, ally] }),
+            ],
+            combat: {
+                attackerIds: ["camel", "ally"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+                bands: [{ bandId: "b1", memberIds: ["camel", "ally"] }],
+            },
+        });
+        // Desert damage to the band-mate is prevented (Camel attacking).
+        resolveActivated(state, des, "desert-ping", [
+            { type: "permanent", id: "ally" },
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "ally")
+                ?.damageMarked ?? 0
+        ).toBe(0);
+        // And to Camel itself.
+        resolveActivated(state, des, "desert-ping", [
+            { type: "permanent", id: "camel" },
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "camel")
+                ?.damageMarked ?? 0
+        ).toBe(0);
+    });
+
+    it("does NOT prevent Desert damage while Camel is not attacking", () => {
+        const cam = makeInstance(camel.id, {
+            id: "camel",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const des = makeInstance(desert.id, { id: "des" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [des] }),
+                makePlayer("p2", { battlefield: [cam] }),
+            ],
+        });
+        resolveActivated(state, des, "desert-ping", [
+            { type: "permanent", id: "camel" },
+        ]);
+        // Damage lands (not prevented) — the 0/1 Camel takes lethal and dies.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "camel")
+        ).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === "camel")).toBe(
+            true
+        );
     });
 });
