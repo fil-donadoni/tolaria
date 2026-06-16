@@ -126,11 +126,13 @@ const TERMINAL = WIN_SCORE / 2;
  *  flat `return 1` for every win erased that signal. */
 const TERMINAL_BAND = 0.25;
 /** Material margin (in `evaluate` units) that fills a half-band. Kept LINEAR up
- *  to this cap — not `tanh` — so a single creature's worth of material (~5–8)
- *  shifts the reward by a fixed, decision-relevant amount regardless of how far
- *  ahead the bot already is. `tanh` saturates near a decided position and was
- *  the root cause: the creature delta vanished into the flat tail. */
-const MATERIAL_FULL = 24;
+ *  to this cap — not `tanh` — so a single creature's worth of material shifts
+ *  the reward by a fixed, decision-relevant amount regardless of how far ahead
+ *  the bot already is. `tanh` saturates near a decided position and was the root
+ *  cause: the creature delta vanished into the flat tail. Forge-scale (ADR
+ *  0018): a vanilla 2/2 is worth ~170, so this cap (~3 creatures) keeps one
+ *  creature's worth a meaningful, non-saturating fraction of the band. */
+const MATERIAL_FULL = 500;
 
 /** Map a material margin to [-1, 1], linear (constant slope) until it saturates
  *  at ±`MATERIAL_FULL`. Linear is deliberate: the discriminating quantity is a
@@ -223,7 +225,7 @@ export function decidingPlayer(state: GameState): string | null {
  *  The material map is linear (see `materialSignal`), so losing a creature for
  *  nothing costs the same slice of reward whether the bot is even or far ahead —
  *  the suicidal-attack signal no longer saturates away. */
-function reward(state: GameState, botId: string): number {
+export function reward(state: GameState, botId: string): number {
     const v = evaluate(state, botId);
     if (v >= TERMINAL) {
         const material = 0.5 + 0.5 * materialSignal(v - WIN_SCORE);
