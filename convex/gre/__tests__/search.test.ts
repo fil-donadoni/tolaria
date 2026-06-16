@@ -5,7 +5,14 @@
 // the budget bound. See `convex/gre/search.ts`.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
-import { search, searchWithTrace, reward } from "../search";
+import {
+    search,
+    searchWithTrace,
+    reward,
+    selectRootMove,
+    type Edge,
+    type Node,
+} from "../search";
 import { evaluate } from "../evaluate";
 import { greedySelectMove } from "../greedy";
 import { enumerateMoves } from "../moves";
@@ -380,5 +387,89 @@ describe("search — reward band stays monotonic in eval (ADR 0018, issue #194)"
         expect(reward(ahead, "p1")).toBeGreaterThan(reward(evenish, "p1"));
         expect(reward(lost, "p1")).toBeLessThan(reward(evenish, "p1"));
         expect(reward(won, "p1")).toBeGreaterThan(reward(lost, "p1"));
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Land-drop tie-break in root selection (ADR 0020 §1, issue #206).
+//
+// A land has no option cost in this engine, so when `pass` and a `play-land`
+// move come out OUTCOME-EQUAL (within OUTCOME_EPS), the robust pick must develop
+// the land rather than letting the material tie-break pick `pass` on rollout
+// noise. These are direct `selectRootMove` unit tests over synthetic edges, so
+// the fire / no-fire conditions are asserted without rollout variance.
+// ---------------------------------------------------------------------------
+describe("selectRootMove — land-drop tie-break (issue #206)", () => {
+    const PASS: Move = { kind: "pass" };
+    const LAND: Move = { kind: "play-land", cardInstanceId: "forest" };
+    const SPELL = {
+        kind: "cast-spell",
+        cardInstanceId: "bolt",
+        targets: [],
+        manaPayment: {},
+    } as unknown as Move;
+
+    /** Build a synthetic root whose edges carry the given mean reward and mean
+     *  margin at a fixed visit count (so every edge is "equally explored"). */
+    function rootOf(
+        edges: { move: Move; meanReward: number; meanMargin: number }[]
+    ): Node {
+        const VISITS = 100;
+        const children = new Map<string, Edge>();
+        edges.forEach((e, i) => {
+            children.set(`${e.move.kind}:${i}`, {
+                move: e.move,
+                mover: "p1",
+                node: { children: new Map() },
+                visits: VISITS,
+                totalReward: e.meanReward * VISITS,
+                totalMargin: e.meanMargin * VISITS,
+                avail: VISITS,
+            });
+        });
+        return { children };
+    }
+
+    it("FIRE: picks the land when pass and play-land are outcome-equal", () => {
+        // Pass wins the raw material tie-break (330 vs 327) on noise; the land is
+        // outcome-equal, so the tie-break must hand it the pick anyway.
+        const root = rootOf([
+            { move: PASS, meanReward: 0.6635, meanMargin: 330 },
+            { move: LAND, meanReward: 0.6633, meanMargin: 327 },
+        ]);
+        expect(selectRootMove(root, [PASS, LAND]).kind).toBe("play-land");
+    });
+
+    it("NO-FIRE: keeps pass when the land is genuinely worse (not outcome-equal)", () => {
+        // Land trails pass by more than OUTCOME_EPS (0.05) — a real difference,
+        // so it is not a contender and pass stands.
+        const root = rootOf([
+            { move: PASS, meanReward: 0.7, meanMargin: 320 },
+            { move: LAND, meanReward: 0.6, meanMargin: 400 },
+        ]);
+        expect(selectRootMove(root, [PASS, LAND]).kind).toBe("pass");
+    });
+
+    it("NO-FIRE: does not override a non-pass robust pick", () => {
+        // A spell is the robust pick (highest margin among outcome-equal moves);
+        // the tie-break only rescues `pass`, so the spell is returned, not the land.
+        const root = rootOf([
+            { move: SPELL, meanReward: 0.66, meanMargin: 400 },
+            { move: PASS, meanReward: 0.66, meanMargin: 350 },
+            { move: LAND, meanReward: 0.66, meanMargin: 300 },
+        ]);
+        expect(selectRootMove(root, [SPELL, PASS, LAND]).kind).toBe(
+            "cast-spell"
+        );
+    });
+
+    it("preserves the issue-#149 invariant: a strictly-better land wins on its own", () => {
+        // When the land is strictly the better outcome it is the lone contender
+        // and wins through the normal path — the tie-break is not even consulted.
+        const root = rootOf([
+            { move: LAND, meanReward: 0.8, meanMargin: 300 },
+            { move: PASS, meanReward: 0.66, meanMargin: 350 },
+        ]);
+        expect(selectRootMove(root, [LAND, PASS]).kind).toBe("play-land");
     });
 });
