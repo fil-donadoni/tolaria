@@ -1725,6 +1725,22 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 3,
     },
+    {
+        // Runtime-granted keyword in the live oracle text (#156, CR 702.13c).
+        // Lord of Atlantis grants islandwalk to OTHER Merfolk via a layer-7c
+        // static effect, so Merfolk of the Pearl Trident — a vanilla creature
+        // with no native keywords — gains islandwalk on its instance. Hover /
+        // long-press the Merfolk: its abilities panel shows "[+] Islandwalk"
+        // in green. Remove the Lord (e.g. via a bounce) and it disappears.
+        label: "Granted landwalk in oracle text (Lord of Atlantis → Merfolk)",
+        cards: [
+            { name: "Lord of Atlantis", owner: "me" as const },
+            { name: "Merfolk of the Pearl Trident", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

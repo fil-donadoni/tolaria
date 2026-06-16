@@ -6,8 +6,16 @@ import {
     wantsSpellTarget,
     getStackAbilities,
     getAbilityOracleText,
+    getDisplayAbilities,
+    resolvePreviewAbilities,
+    type DisplayAbilities,
 } from "../card-utils";
 import type { CardInstance } from "~/types/game";
+
+// Real card ids from convex/cards/sets/lea.ts, used to exercise the
+// definition-vs-instance keyword diff in getDisplayAbilities (#156).
+const MERFOLK_ID = "2b871039-6a66-4ac3-95e7-24759c1f2f92"; // vanilla, no keywords
+const PHANTASMAL_FORCES_ID = "0631c7c8-9aa5-4333-8e20-20247fc47033"; // native flying
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -347,5 +355,117 @@ describe("matchesSpellTypeFilter", () => {
             true
         );
         expect(matchesSpellTypeFilter({ types: ["Instant"] }, [])).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getDisplayAbilities — runtime keyword grants (#156)
+// ---------------------------------------------------------------------------
+
+describe("getDisplayAbilities (#156 granted keywords)", () => {
+    it("marks a keyword on the instance but not the def as 'granted'", () => {
+        // Merfolk of the Pearl Trident is a vanilla creature; islandwalk here
+        // is granted at runtime (e.g. by Lord of Atlantis, CR 702.13c).
+        const instance = makeCardInstance({
+            card: { id: MERFOLK_ID },
+            staticAbilities: ["islandwalk"],
+        });
+        const { keywords } = getDisplayAbilities(MERFOLK_ID, instance);
+        expect(keywords).toEqual([{ name: "islandwalk", state: "granted" }]);
+    });
+
+    it("marks a keyword on both def and instance as 'native'", () => {
+        const instance = makeCardInstance({
+            card: { id: PHANTASMAL_FORCES_ID },
+            staticAbilities: ["flying"],
+        });
+        const { keywords } = getDisplayAbilities(
+            PHANTASMAL_FORCES_ID,
+            instance
+        );
+        expect(keywords).toContainEqual({ name: "flying", state: "native" });
+    });
+
+    it("marks a def keyword missing from the instance as 'lost'", () => {
+        const instance = makeCardInstance({
+            card: { id: PHANTASMAL_FORCES_ID },
+            staticAbilities: [], // flying stripped at runtime
+        });
+        const { keywords } = getDisplayAbilities(
+            PHANTASMAL_FORCES_ID,
+            instance
+        );
+        expect(keywords).toContainEqual({ name: "flying", state: "lost" });
+    });
+
+    it("shows native and granted keywords together", () => {
+        const instance = makeCardInstance({
+            card: { id: PHANTASMAL_FORCES_ID },
+            staticAbilities: ["flying", "islandwalk"],
+        });
+        const { keywords } = getDisplayAbilities(
+            PHANTASMAL_FORCES_ID,
+            instance
+        );
+        expect(keywords).toContainEqual({ name: "flying", state: "native" });
+        expect(keywords).toContainEqual({
+            name: "islandwalk",
+            state: "granted",
+        });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// resolvePreviewAbilities — what the preview body renders (#156)
+// ---------------------------------------------------------------------------
+
+describe("resolvePreviewAbilities (#156)", () => {
+    const full: DisplayAbilities = {
+        keywords: [
+            { name: "flying", state: "native" },
+            { name: "islandwalk", state: "granted" },
+            { name: "defender", state: "lost" },
+        ],
+        activated: [
+            { id: "a1", oracleText: "{T}: native", state: "native" },
+            { id: "a2", oracleText: "{T}: granted", state: "granted" },
+        ],
+        triggered: [{ id: "t1", oracleText: "When ..." }],
+    };
+
+    it("returns the full set unchanged when Oracle text is not shown", () => {
+        expect(resolvePreviewAbilities(full, false)).toEqual(full);
+    });
+
+    it("keeps only runtime deltas when Oracle text is shown", () => {
+        const result = resolvePreviewAbilities(full, true);
+        // native keyword is already in the printed text — dropped.
+        expect(result.keywords).toEqual([
+            { name: "islandwalk", state: "granted" },
+            { name: "defender", state: "lost" },
+        ]);
+        // only granted activated abilities survive; native + triggered drop.
+        expect(result.activated).toEqual([
+            { id: "a2", oracleText: "{T}: granted", state: "granted" },
+        ]);
+        expect(result.triggered).toEqual([]);
+    });
+
+    it("surfaces a granted keyword even when the card shows Oracle text (the #156 bug)", () => {
+        // End-to-end: a vanilla creature granted islandwalk at runtime. Its
+        // printed Oracle text would otherwise suppress the structured panel.
+        const instance = makeCardInstance({
+            card: { id: MERFOLK_ID },
+            staticAbilities: ["islandwalk"],
+        });
+        const abilities = getDisplayAbilities(MERFOLK_ID, instance);
+        const body = resolvePreviewAbilities(
+            abilities,
+            /* showOracleText */ true
+        );
+        expect(body.keywords).toContainEqual({
+            name: "islandwalk",
+            state: "granted",
+        });
     });
 });
