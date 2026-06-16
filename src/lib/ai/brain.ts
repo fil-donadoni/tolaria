@@ -175,52 +175,74 @@ function assertNever(x: never): never {
     throw new Error(`Unhandled PendingChoiceKind: ${String(x)}`);
 }
 
-/** The bot's weak-but-legal default for a mid-resolution choice (ADR 0016).
- *  Returns the card-instance ids to submit through `submitResolutionChoice`.
- *  Pure and deterministic. The switch is EXHAUSTIVE over `PendingChoiceKind`:
- *  unimplemented kinds throw loudly (issues #164/#165 fill them) rather than
- *  return an illegal/empty pick that the server would reject back into a freeze.
- *
- *  Quality is explicitly deferred to the evaluation work — the picks here are
- *  the minimal legal action, not the best one. */
-export function chooseResolution(choice: OwedChoice): string[] {
-    const { kind } = choice;
-    switch (kind) {
-        case "search-library": {
-            // Fetch the required count, preferring non-lands (higher material)
-            // and falling back to lands, in zone order. `Array.sort` is stable,
-            // so the pick is deterministic. Smart tutor targeting is deferred.
-            const ordered = [...choice.candidates].sort(
-                (a, b) => Number(a.isLand) - Number(b.isLand)
-            );
-            return ordered.slice(0, choice.min).map((c) => c.id);
-        }
+/** A trivial material proxy used to order candidates: lands rank below
+ *  non-lands (a spell/creature is worth more to keep or dig out than a land in
+ *  this weak default). Stable `Array.sort` makes every pick deterministic. */
+function bestFirst(candidates: ChoiceCandidate[]): ChoiceCandidate[] {
+    return [...candidates].sort((a, b) => Number(a.isLand) - Number(b.isLand));
+}
+function worstFirst(candidates: ChoiceCandidate[]): ChoiceCandidate[] {
+    return [...candidates].sort((a, b) => Number(b.isLand) - Number(a.isLand));
+}
 
-        // `may-pay` is a yes/no answer (not a card pick) routed through
-        // `submitMayPay`; `decideBotAction` handles it before reaching here, and
+/** The bot's weak-but-legal default for a mid-resolution zone-pick choice
+ *  (ADR 0016). Returns the card-instance ids to submit through
+ *  `submitResolutionChoice`. Pure and deterministic. The switch is EXHAUSTIVE
+ *  over `PendingChoiceKind`; adding a kind without a case fails the build
+ *  (`assertNever`) so no future choice can silently freeze the bot.
+ *
+ *  Every branch returns a count within `[min, max]` of candidates the server
+ *  will accept (the candidate set is already zone/filter/allow-list filtered in
+ *  `buildBotView`). Quality is explicitly deferred to the evaluation work —
+ *  these are minimal legal actions, not the best ones. */
+export function chooseResolution(choice: OwedChoice): string[] {
+    const { kind, candidates, min } = choice;
+    switch (kind) {
+        // Keep / fetch the best `min` (non-lands first): the chooser retains
+        // these and the rest are sacrificed / discarded / left behind.
+        case "search-library":
+        case "keep-permanents":
+        case "keep-hand":
+            return bestFirst(candidates)
+                .slice(0, min)
+                .map((c) => c.id);
+
+        // Shed the worst `min` (lands first): the submission is what gets
+        // sacrificed / discarded.
+        case "sacrifice-permanents":
+        case "discard-hand":
+            return worstFirst(candidates)
+                .slice(0, min)
+                .map((c) => c.id);
+
+        // Neutral pick of exactly `min` legal candidates in zone order. For the
+        // range kinds `min` is 0 (CR 502.1 untap cap is permissive; "up to"
+        // partitions; optional Illusionary Mask), so these resolve to an empty,
+        // always-legal submission.
+        case "choose-permanents":
+        case "pick-source":
+        case "choose-hand-card":
+        case "untap-pick":
+        case "partition":
+            return candidates.slice(0, min).map((c) => c.id);
+
+        // Reveal-hand only acknowledges (count 0) — submit nothing.
+        case "reveal-hand":
+            return [];
+
+        // Keep the current order (CR 401.4 scry/reorder): submit the peeked
+        // cards in the order they were exposed (candidates are in top order).
+        case "reorder-library":
+            return candidates.map((c) => c.id);
+
+        // `may-pay` is a yes/no answer routed through `submitMayPay`
+        // (`decideBotAction` handles it before reaching here), and
         // `mulligan-bottom` has its own pre-game branch. Reaching either via
         // `chooseResolution` is a programming error.
         case "may-pay":
         case "mulligan-bottom":
             throw new Error(
                 `chooseResolution: "${kind}" is not resolved here (use the dedicated path)`
-            );
-
-        // Not yet implemented — #165 fills the remaining zone-pick + modal
-        // kinds. Each throws so the gap is loud, never a silent freeze.
-        case "keep-permanents":
-        case "sacrifice-permanents":
-        case "keep-hand":
-        case "pick-source":
-        case "untap-pick":
-        case "discard-hand":
-        case "reorder-library":
-        case "reveal-hand":
-        case "choose-permanents":
-        case "partition":
-        case "choose-hand-card":
-            throw new Error(
-                `chooseResolution: default policy not yet implemented for "${kind}"`
             );
 
         default:
