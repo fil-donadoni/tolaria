@@ -39,6 +39,9 @@ const BEARS = getCardByName("Grizzly Bears").id; // a creature (higher material)
 const IVORY_CUP = getCardByName("Ivory Cup").id; // "you may pay {1}: gain 1 life"
 const CLONE = getCardByName("Clone").id; // may-pay → choose-permanents (Creature)
 const NATURAL_SELECTION = getCardByName("Natural Selection").id; // reorder-library
+const PLAINS = getCardByName("Plains").id; // white-producing land
+const MOUNTAIN = getCardByName("Mountain").id; // red-producing land
+const SHIVAN_DRAGON = getCardByName("Shivan Dragon").id; // 4RR — castable only off red sources
 
 /** Fake mutation surface routing `submitResolutionChoice` / `submitMayPay`
  *  through the SAME engine primitives the real `game.ts` mutations call. Every
@@ -381,6 +384,130 @@ describe("bot resolution-choice full path — remaining kinds (ADR 0016, #165)",
         // reorder submission is accepted and the game advances (no freeze).
         const kinds = await driveBotToStable(state);
         expect(kinds[0]).toBe("resolution-choice");
+        expect(state.pendingChoices).toBeUndefined();
+    });
+});
+
+/** A state where the bot owes a CR 514.1 cleanup `discard-hand` choice with a
+ *  hand of `landsInHand` Plains plus an off-color Shivan Dragon, and
+ *  `landsInPlay` Plains already in play. Mirrors the shape
+ *  `tryEnqueueCleanupDiscard` builds so the real `applyPendingChoiceSubmit` /
+ *  `finalizeCleanupDiscard` commit path runs. */
+function makeCleanupDiscardState(
+    landsInHand: number,
+    landsInPlay: number,
+    landId: string = PLAINS
+): GameState {
+    const handLands = Array.from({ length: landsInHand }, (_, i) =>
+        makeInstance(landId, {
+            id: `hand-land-${i}`,
+            controllerId: BOT,
+            ownerId: BOT,
+            zone: "hand",
+        })
+    );
+    const dragon = makeInstance(SHIVAN_DRAGON, {
+        id: "shivan",
+        controllerId: BOT,
+        ownerId: BOT,
+        zone: "hand",
+    });
+    const playLands = Array.from({ length: landsInPlay }, (_, i) =>
+        makeInstance(landId, {
+            id: `play-land-${i}`,
+            controllerId: BOT,
+            ownerId: BOT,
+            zone: "battlefield",
+        })
+    );
+    const state = makeState({
+        activePlayerId: BOT,
+        priorityPlayerId: BOT,
+        players: [
+            makePlayer(HUMAN),
+            makePlayer(BOT, {
+                hand: [...handLands, dragon],
+                battlefield: playLands,
+            }),
+        ],
+    });
+    state.pendingChoices = [
+        {
+            stackItemId: "",
+            step: 0,
+            choiceId: `cleanup-discard-${BOT}`,
+            playerId: BOT,
+            zoneOwnerId: BOT,
+            kind: "discard-hand",
+            zone: "hand",
+            count: 1,
+            prompt: "Discard a card (hand size)",
+        },
+    ];
+    state.pendingCleanupDiscard = { playerId: BOT };
+    return state;
+}
+
+describe("bot resolution-choice full path — discard-hand mana-aware (issue #242)", () => {
+    it("1 land in hand + 1 land in play: discards the spell, keeps the land — committed across the real cleanup path", async () => {
+        const state = makeCleanupDiscardState(1, 1);
+        expect(state.pendingChoices?.[0]?.kind).toBe("discard-hand");
+
+        const projected = projectPublicState(state, 1, BOT);
+        const view = buildBotView(projected, BOT);
+        // The owed choice carries the board's mana situation (issue #242).
+        expect(view.owedChoice).toMatchObject({ kind: "discard-hand" });
+        expect(view.owedChoice?.manaSituation).toMatchObject({
+            landsInPlay: 1,
+            landsInHand: 1,
+        });
+
+        const action = decideBotAction(view);
+        expect(action.kind).toBe("resolution-choice");
+        const move = botActionToMove(action, projected, BOT);
+        if (!move) throw new Error("unreachable");
+
+        await executeMove(move, {
+            gameId: "g" as never,
+            botId: BOT,
+            mutations: engineMutations(state),
+        });
+
+        // The land stayed in hand; the off-color expensive Shivan Dragon went to
+        // the graveyard — and the cleanup committed (no freeze).
+        const bot = state.players.find((p) => p.id === BOT)!;
+        expect(bot.hand.map((c) => c.id)).toEqual(["hand-land-0"]);
+        expect(bot.graveyard.map((c) => c.id)).toEqual(["shivan"]);
+        expect(state.pendingChoices).toBeUndefined();
+    });
+
+    it("land-flooded: sheds a surplus land, keeps the castable spell", async () => {
+        // Mana-developed board (6 Mountains in play) + two more lands in hand.
+        // The Dragon is castable off red sources, so it is worth keeping; an
+        // extra land is the right pitch since the bot is flooded.
+        const state = makeCleanupDiscardState(2, 6, MOUNTAIN);
+
+        const projected = projectPublicState(state, 1, BOT);
+        const view = buildBotView(projected, BOT);
+        expect(view.owedChoice?.manaSituation).toMatchObject({
+            landsInPlay: 6,
+            landsInHand: 2,
+            producibleColors: ["R"],
+        });
+
+        const action = decideBotAction(view);
+        const move = botActionToMove(action, projected, BOT);
+        if (!move) throw new Error("unreachable");
+        await executeMove(move, {
+            gameId: "g" as never,
+            botId: BOT,
+            mutations: engineMutations(state),
+        });
+
+        const bot = state.players.find((p) => p.id === BOT)!;
+        // A land was discarded (the surplus), the castable spell kept.
+        expect(bot.graveyard.map((c) => c.id)).toEqual(["hand-land-0"]);
+        expect(bot.hand.map((c) => c.id)).toContain("shivan");
         expect(state.pendingChoices).toBeUndefined();
     });
 });

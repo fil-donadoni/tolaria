@@ -18,6 +18,7 @@
 // the evaluation work (ADR 0016).
 
 import type { PendingChoiceKind } from "@convex/gre";
+import type { Color } from "@convex/cards/types";
 
 /** The minimal slice of game state the bot needs to decide. Built on the
  *  driving client from the full state (the bot's hand is visible to the human's
@@ -83,7 +84,46 @@ export type ChoiceCandidate = {
     /** Projected latent Forge-scale worth (higher = keep / fetch; lower =
      *  sacrifice / discard). A land ranks lowest, a bomb highest. */
     value: number;
+    /** Whether the card is a land (CR 305.1). Lands are the constraining
+     *  resource for the discard heuristic (issue #242), so they are ranked by
+     *  scarcity rather than by raw `value`. Absent on candidates the policy
+     *  never needs it for (only the `discard-hand` path reads it). */
+    isLand?: boolean;
+    /** Mana value of the card's cost (CR 202.3), folding `X` to its written
+     *  value. Drives the "shed the most expensive uncastable spell first"
+     *  ordering in the discard heuristic. Undefined for lands / cards with no
+     *  cost. */
+    manaValue?: number;
+    /** Colors required by the card's cost (CR 202.2). A spell whose colors the
+     *  controller cannot currently produce is "uncastable" and ranked first to
+     *  shed. Empty / undefined for colorless or cost-less cards. */
+    colors?: Color[];
 };
+
+/** The controller's mana picture at the moment of a `discard-hand` choice
+ *  (issue #242). Built by `buildBotView` from the bot's visible battlefield and
+ *  hand so the discard heuristic can weigh lands as the constraining resource
+ *  and rank spells by castability. Pure data — no live search. */
+export type ManaSituation = {
+    /** Lands the controller already has in play (untapped or not — a land in
+     *  play is still a future mana source). */
+    landsInPlay: number;
+    /** Lands currently in the controller's hand (candidates for the drop). */
+    landsInHand: number;
+    /** Distinct colors the controller's lands in play can currently produce.
+     *  A spell needing a color outside this set is treated as uncastable. */
+    producibleColors: Color[];
+};
+
+/** A controller with this many or fewer lands in play is still developing its
+ *  mana and is "land-light" (issue #242): lands are the constraining resource
+ *  and must NOT be auto-discarded. The reported case (1 land in play) sits well
+ *  inside this band, so the bot keeps the land and sheds a spell instead. Above
+ *  the threshold the board is mana-developed and an excess land is a fair pitch
+ *  (the land-flooded counter-case). CR 305.2 caps a player at one land drop per
+ *  turn, so ~4 lands in play is enough to operate while extra lands in hand
+ *  are surplus. */
+export const LAND_LIGHT_LANDS_IN_PLAY = 4;
 
 /** The interactive choice the bot is owed this window (ADR 0016), reduced to the
  *  fields `chooseResolution` reasons about. Built by `buildBotView` from the
@@ -100,6 +140,10 @@ export type OwedChoice = {
     /** `may-pay` only: whether the optional cost is trivially affordable from the
      *  bot's available mana (ADR 0016 minimal policy: accept iff affordable). */
     affordable?: boolean;
+    /** `discard-hand` only: the controller's mana picture, so the discard
+     *  heuristic can protect scarce lands and rank spells by castability
+     *  (issue #242). Undefined for every other choice kind. */
+    manaSituation?: ManaSituation;
 };
 
 /** A bot decision, realised by the executor through EXISTING mutations only
@@ -205,6 +249,53 @@ function worstFirst(candidates: ChoiceCandidate[]): ChoiceCandidate[] {
     return [...candidates].sort((a, b) => a.value - b.value);
 }
 
+/** Mana-aware discard priority (issue #242). Higher score = shed sooner. The
+ *  heuristic ranks by the board's mana situation, not by a fixed card value
+ *  alone (ADR 0016 / ADR 0018 deferred-quality follow-up):
+ *
+ *  - A land is the constraining resource while the controller is land-light
+ *    (`landsInPlay <= LAND_LIGHT_LANDS_IN_PLAY`); it gets the LOWEST priority so
+ *    the bot keeps it and sheds a spell instead (the reported 1-land case).
+ *    Once the board is mana-developed, an EXCESS land (more than one land in
+ *    hand, or already flooded) becomes a fair pitch and ranks high.
+ *  - A spell is ranked by how hard it is to cast against current mana: an
+ *    uncastable spell (needs a color the lands in play can't produce) is shed
+ *    first, then the most expensive spells (highest mana value) ahead of cheap
+ *    ones the controller can realistically deploy. */
+function discardPriority(c: ChoiceCandidate, mana: ManaSituation): number {
+    if (c.isLand) {
+        const landLight = mana.landsInPlay <= LAND_LIGHT_LANDS_IN_PLAY;
+        // Land-light: protect the land (never shed it ahead of any spell).
+        if (landLight) return -1000;
+        // Mana-developed: a SURPLUS land (2+ in hand) is a fair pitch and ranks
+        // above kept spells. A lone extra land is insurance against a flood
+        // dry-spell, so it ranks below every spell (but above a protected
+        // land-light land) — a hand that is otherwise all spells still sheds
+        // its worst spell first, and the land only goes if nothing else can.
+        return mana.landsInHand >= 2 ? 500 : -900;
+    }
+    // Spell: castability first, then mana value, then inverse card worth as a
+    // deterministic tie-break (a weaker card sheds before an equal-cost bomb).
+    const colors = c.colors ?? [];
+    const producible = new Set(mana.producibleColors);
+    const uncastable = colors.some((col) => !producible.has(col));
+    const mv = c.manaValue ?? 0;
+    // Uncastable spells dominate the shed order; among castable spells the most
+    // expensive go first. `value` (0..~) only breaks exact ties.
+    return (uncastable ? 1000 : 0) + mv * 10 - c.value;
+}
+
+/** Order discard candidates highest-shed-priority first (issue #242). Stable on
+ *  ties so the pick stays deterministic. */
+function discardOrder(
+    candidates: ChoiceCandidate[],
+    mana: ManaSituation
+): ChoiceCandidate[] {
+    return [...candidates].sort(
+        (a, b) => discardPriority(b, mana) - discardPriority(a, mana)
+    );
+}
+
 /** The bot's weak-but-legal default for a mid-resolution zone-pick choice
  *  (ADR 0016). Returns the card-instance ids to submit through
  *  `submitResolutionChoice`. Pure and deterministic. The switch is EXHAUSTIVE
@@ -228,12 +319,24 @@ export function chooseResolution(choice: OwedChoice): string[] {
                 .map((c) => c.id);
 
         // Shed the worst `min` (lands first): the submission is what gets
-        // sacrificed / discarded.
+        // sacrificed. A permanent in play is already deployed mana/board, so
+        // raw card worth is the right axis here.
         case "sacrifice-permanents":
-        case "discard-hand":
             return worstFirst(candidates)
                 .slice(0, min)
                 .map((c) => c.id);
+
+        // Discard the `min` cards the controller can least use (issue #242):
+        // keep scarce lands while land-light, shed uncastable / most-expensive
+        // spells first. Falls back to raw card worth when the mana situation is
+        // absent (it always accompanies a `discard-hand` choice from
+        // `buildBotView`, but the policy stays total over its input).
+        case "discard-hand": {
+            const order = choice.manaSituation
+                ? discardOrder(candidates, choice.manaSituation)
+                : worstFirst(candidates);
+            return order.slice(0, min).map((c) => c.id);
+        }
 
         // Neutral pick of exactly `min` legal candidates in zone order. For the
         // range kinds `min` is 0 (CR 502.1 untap cap is permissive; "up to"
