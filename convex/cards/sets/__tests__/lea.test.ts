@@ -1319,6 +1319,173 @@ describe("Swords to Plowshares (exile + gain life = power, CR 608.3)", () => {
     });
 });
 
+describe("target-legality gate at resolution (CR 608.2b / 608.2c)", () => {
+    // CR 608.2b — "If all its targets, for every instance of the word
+    // 'target,' are now illegal, the spell or ability doesn't resolve. It's
+    // removed from the stack and, if it's a spell, put into its owner's
+    // graveyard." (Countered by the game rules / "fizzle".)
+    it("CR 608.2b — Swords to Plowshares fizzles cleanly when its sole target left the battlefield (regression for the crash)", () => {
+        const angel = makeInstance(serraAngel.id, {
+            id: "angel",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [angel] }),
+            ],
+        });
+        pushSpell(state, swordsToPlowshares.id, "p1", [
+            { type: "permanent", id: "angel" },
+        ]);
+        // Target leaves the battlefield before resolution (bounced/sacrificed).
+        removePermanentTo(state, "angel", "graveyard");
+
+        // Must NOT throw "Creature angel not on battlefield" — the gate
+        // counters the spell before its resolve() runs.
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+
+        // No effect applied: controller did NOT gain life from the (gone) power.
+        expect(state.players[1].life).toBe(20);
+        // Countered by the game rules → owner's graveyard (Swords' caster p1).
+        const gy = state.players[0].graveyard;
+        expect(
+            gy.some(
+                (c) => (c.card as { id?: string }).id === swordsToPlowshares.id
+            )
+        ).toBe(true);
+        // The spell left the stack.
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("CR 608.2b — a single-target damage spell with its only target gone fizzles to the graveyard, dealing no damage", () => {
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [lion] }),
+            ],
+        });
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "permanent", id: "lion" },
+        ]);
+        removePermanentTo(state, "lion", "graveyard");
+
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        // Opponent's life untouched — the bolt never resolved.
+        expect(state.players[1].life).toBe(20);
+        // Bolt is in p1's graveyard (countered), not still on the stack.
+        expect(state.stack).toHaveLength(0);
+        expect(
+            state.players[0].graveyard.some(
+                (c) => (c.card as { id?: string }).id === lightningBolt.id
+            )
+        ).toBe(true);
+    });
+
+    // CR 608.2c — "The spell or ability does as much as possible." An illegal
+    // target is skipped; remaining legal targets are still affected.
+    it("CR 608.2c — Fireball with one of two targets gone still resolves, hitting only the surviving target", () => {
+        const survivor = makeInstance(serraAngel.id, {
+            id: "survivor",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const goner = makeInstance(serraAngel.id, {
+            id: "goner",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [survivor, goner] }),
+            ],
+        });
+        const item = pushSpell(state, fireball.id, "p1", [
+            { type: "permanent", id: "survivor" },
+            { type: "permanent", id: "goner" },
+        ]);
+        // X=2: Serra Angel has 4 toughness, so the surviving target takes
+        // damage but lives — letting us assert it was actually hit.
+        item.chosenX = 2;
+        // One of the two targets leaves before resolution.
+        removePermanentTo(state, "goner", "graveyard");
+
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+
+        // At least one legal target remained → the spell resolves (not
+        // countered). The gate prunes the illegal target so resolve() only
+        // reads the survivor (CR 608.2c "an illegal target is skipped").
+        const remaining = state.players[1].battlefield.find(
+            (c) => c.id === "survivor"
+        );
+        expect(remaining).toBeDefined();
+        expect(remaining?.damageMarked).toBeGreaterThan(0);
+        // The spell left the stack (resolved) rather than being countered.
+        expect(state.stack).toHaveLength(0);
+    });
+
+    // Untargeted spells are entirely unaffected by the gate.
+    it("untargeted spell (Wrath of God) is unaffected by the legality gate", () => {
+        const angel = makeInstance(serraAngel.id, { id: "angel" });
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [angel] }),
+                makePlayer("p2", { battlefield: [lion] }),
+            ],
+        });
+        pushSpell(state, wrathOfGod.id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        // Both creatures destroyed — the gate did not interfere.
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[1].battlefield).toHaveLength(0);
+    });
+
+    // Wire format: the fizzle outcome must survive the GameState → public
+    // projection so the client sees the spell gone from the stack and in the
+    // graveyard (rather than a stuck stack item).
+    it("wire format: fizzle outcome survives projectPublicState", () => {
+        const angel = makeInstance(serraAngel.id, {
+            id: "angel",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [angel] }),
+            ],
+        });
+        pushSpell(state, swordsToPlowshares.id, "p1", [
+            { type: "permanent", id: "angel" },
+        ]);
+        removePermanentTo(state, "angel", "graveyard");
+        resolveTopOfStack(state);
+
+        const projected = projectPublicState(state, 1, "p1");
+        // Stack is empty in the projected (client-visible) state.
+        expect(projected.stack).toHaveLength(0);
+        // Swords sits in p1's projected graveyard, slimmed to `{ id }`.
+        const slimGy = projected.players[0].graveyard;
+        expect(
+            slimGy.some(
+                (c) => (c.card as { id?: string }).id === swordsToPlowshares.id
+            )
+        ).toBe(true);
+    });
+});
+
 describe("Wrath of God (destroy all creatures, can't regenerate, CR 701.15c)", () => {
     it("moves every creature to its owner's graveyard", () => {
         const angel = makeInstance(serraAngel.id, { id: "angel" });

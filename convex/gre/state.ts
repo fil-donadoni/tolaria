@@ -1241,6 +1241,71 @@ export function processPendingActionTriggers(state: GameState): void {
     state.passCount = 0;
 }
 
+/** Re-checks a single chosen target's legality at resolution (CR 608.2b/c).
+ *  A target is illegal when the object it points at has left the zone it was
+ *  chosen in: a permanent off the battlefield, a spell off the stack, a
+ *  graveyard card no longer in that graveyard, or a vanished player.
+ *
+ *  Scope note: this gate intentionally checks ZONE EXISTENCE only, the actual
+ *  crash class this fixes (a `resolve()` body reading a target that already
+ *  left, e.g. Swords' `getController`). Characteristic-based illegality
+ *  acquired after targeting — protection (CR 702.16b), shroud/hexproof
+ *  (CR 702.11/702.18) — is enforced at target *selection* and at the aura
+ *  re-check in `finalizeSpellResolution`; folding it in here would also reject
+ *  deliberately-constructed in-isolation effects (e.g. Deathlace recoloring a
+ *  protected creature to exercise the layer-3 primitive). */
+function isTargetStillLegal(
+    state: GameState,
+    target: TargetSelection
+): boolean {
+    switch (target.type) {
+        case "player":
+            // CR 800.4a — a player can leave the game, but in 1v1 the target
+            // player always exists; treat a missing player id as illegal.
+            return state.players.some((p) => p.id === target.id);
+        case "spell":
+            // CR 608.2b — a spell target that has left the stack (resolved or
+            // countered) is now illegal.
+            return state.stack.some((s) => s.id === target.id);
+        case "graveyard-card": {
+            const owner = state.players.find((p) => p.id === target.playerId);
+            return owner?.graveyard.some((c) => c.id === target.id) ?? false;
+        }
+        case "permanent":
+            // CR 608.2b — left the battlefield => illegal (the Swords crash).
+            return findOnBattlefield(state, target.id) !== null;
+        default:
+            return false;
+    }
+}
+
+/** Global target-legality gate run before any `resolve()` dispatch (CR
+ *  608.2b/608.2c). Returns one of:
+ *   - `"fizzle"`  — the item has one or more targets and EVERY target is now
+ *                   illegal; it must be countered by the game rules and must
+ *                   NOT resolve (CR 608.2b).
+ *   - `"resolve"` — the item is untargeted, or at least one target is still
+ *                   legal. For the partially-illegal case the item's `targets`
+ *                   array is pruned in place to the legal subset so each card's
+ *                   `resolve()` only reads legal targets (CR 608.2c "does as
+ *                   much as possible"; an illegal target is skipped).
+ *
+ *  Untargeted spells/abilities (`targets` empty/undefined) always resolve. */
+function targetLegalityGate(
+    state: GameState,
+    item: StackItem
+): "fizzle" | "resolve" {
+    const targets = item.targets ?? [];
+    if (targets.length === 0) return "resolve"; // untargeted — unaffected
+
+    const legal = targets.filter((t) => isTargetStillLegal(state, t));
+    if (legal.length === 0) return "fizzle"; // CR 608.2b — all targets illegal
+
+    // CR 608.2c — prune illegal targets; the spell does as much as possible.
+    if (legal.length !== targets.length) item.targets = legal;
+    return "resolve";
+}
+
 function resolveTopOfStackInner(state: GameState): StackItem | null {
     if (state.stack.length === 0) throw new Error("Stack is empty");
 
@@ -1252,6 +1317,33 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     const cardDef = cardId ? (tryGetCardById(cardId) ?? undefined) : undefined;
     const isSpell =
         !top.abilityId && !top.triggeredAbilityId && !top.delayedTriggerId;
+
+    // --- Target-legality gate (CR 608.2b/608.2c) ---
+    // Re-check chosen targets BEFORE dispatching any resolve handler. Only run
+    // on a fresh resolution (resolutionStep undefined) so a spell suspended
+    // mid-resolve for player choices isn't re-gated on resume. If every target
+    // is now illegal the item is countered by the game rules: a spell goes to
+    // its owner's graveyard, an ability simply leaves the stack — neither runs
+    // its effect. Partially-legal items have `targets` pruned to the legal
+    // subset (handled inside the gate) and resolve normally.
+    if (top.resolutionStep === undefined) {
+        if (targetLegalityGate(state, top) === "fizzle") {
+            delete top.collectedChoices;
+            state.stack.pop();
+            // CR 608.2b — a countered SPELL is put into its owner's graveyard;
+            // a countered ability ceases to exist. `isSpell` distinguishes the
+            // two. Aura/permanent spells route through finalizeSpellResolution
+            // which (for the non-permanent branch) handles the graveyard move;
+            // for permanent spells a fully-illegal target means it never enters
+            // play, so it likewise goes to the graveyard as a countered spell.
+            if (isSpell && !top.isCopy) {
+                const owner = getPlayer(state, top.ownerId);
+                top.zone = "graveyard";
+                owner.graveyard.push(top);
+            }
+            return top;
+        }
+    }
 
     // --- Stepped spell resolve (CR 608.2, 101.4) ---
     // Peek-and-pop: the item stays on the stack while steps run so that
