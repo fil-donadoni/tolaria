@@ -6,6 +6,7 @@ import {
     matchesSpellTypeFilter,
     wantsSpellTarget,
     getStackAbilities,
+    getAnyPlayerStackAbilities,
     getAbilityOracleText,
     getDisplayAbilities,
     resolvePreviewAbilities,
@@ -265,6 +266,43 @@ describe("getStackAbilities", () => {
             isTapped: false,
         });
         expect(getStackAbilities(card)).toHaveLength(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getAnyPlayerStackAbilities (CR 113.3c — surfaced on opponents' permanents)
+// ---------------------------------------------------------------------------
+
+describe("getAnyPlayerStackAbilities", () => {
+    const IFH_BIFF_ID = "e503a4f2-a785-4e7a-89a7-a9b24fb98831";
+
+    it("returns Ifh-Bíff Efreet's {G} ability (flagged any-player)", () => {
+        const card = makeCardInstance({
+            card: { id: IFH_BIFF_ID },
+            types: ["Creature"],
+            subtypes: ["Efreet"],
+            isTapped: false,
+        });
+        const abilities = getAnyPlayerStackAbilities(card);
+        expect(abilities).toHaveLength(1);
+        expect(abilities[0].id).toBe("ifh-biff-efreet-rain");
+    });
+
+    it("returns empty for a controller-only ability (Nevinyrral's Disk)", () => {
+        const card = makeCardInstance({
+            card: { id: "12926dc8-8e6f-4a47-a12b-4d674189615a" },
+            types: ["Artifact"],
+            isTapped: false,
+        });
+        expect(getAnyPlayerStackAbilities(card)).toHaveLength(0);
+    });
+
+    it("returns empty for a vanilla creature with no abilities", () => {
+        const card = makeCardInstance({
+            card: { id: "ce2d603a-3231-4a8c-bf39-1617586ea870" },
+            types: ["Creature"],
+        });
+        expect(getAnyPlayerStackAbilities(card)).toHaveLength(0);
     });
 });
 

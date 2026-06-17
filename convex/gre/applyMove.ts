@@ -42,6 +42,7 @@ import { recordBlockedAttackers } from "./banding";
 import { cloneGameState } from "./clone";
 import { enumerateMoves, type Move } from "./moves";
 import { evaluate } from "./evaluate";
+import { tryGetCardById } from "../cards";
 
 /** Tap the planned mana sources on the (already cloned) state. Coarse model:
  *  a source listed in the tap plan is marked tapped so the resulting position
@@ -207,10 +208,26 @@ export function applyMoveForSearch(
             // not resolve the ability's effect this slice.
             applyTapPlan(next, playerId, move.tapPlan);
             {
-                const src = player.battlefield.find(
-                    (c) => c.id === move.cardInstanceId
-                );
-                if (src) src.isTapped = true;
+                // CR 113.3c — the source may be on another player's battlefield
+                // ("any player may activate"), so search globally. Tap it only
+                // when the ability actually has a {T} cost; any-player damage
+                // abilities (Ifh-Bíff Efreet) don't tap their source.
+                let src: CardInstanceState | undefined;
+                for (const p of next.players) {
+                    src = p.battlefield.find(
+                        (c) => c.id === move.cardInstanceId
+                    );
+                    if (src) break;
+                }
+                if (src) {
+                    const def = tryGetCardById(
+                        (src.card as { id?: string }).id ?? ""
+                    );
+                    const ability = def?.activatedAbilities?.find(
+                        (a) => a.id === move.abilityId
+                    );
+                    if (ability?.cost.tap) src.isTapped = true;
+                }
             }
             checkStateBasedActions(next);
             return next;

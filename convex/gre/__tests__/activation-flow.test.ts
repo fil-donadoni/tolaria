@@ -21,7 +21,13 @@ import {
     jayemdaeTome,
     lightningBolt,
 } from "../../cards/sets/lea";
-import { oasis, pyramids, dancingScimitar } from "../../cards/sets/arn";
+import {
+    oasis,
+    pyramids,
+    dancingScimitar,
+    ifhBiffEfreet,
+    birdMaiden,
+} from "../../cards/sets/arn";
 import type { CardType } from "../../cards/types";
 
 // ---------------------------------------------------------------------------
@@ -38,13 +44,29 @@ function activateAbility(
     abilityId: string
 ): "committed" | "pending" {
     const player = getPlayer(state, playerId);
-    const card = player.battlefield.find((c) => c.id === cardInstanceId);
+    // Mirror game.ts: look on the activator's own battlefield first, then fall
+    // back to a global search so "any player may activate" sources on another
+    // player's battlefield resolve (CR 113.3c). The permission gate below
+    // rejects cross-battlefield activations unless the ability opts in.
+    let card = player.battlefield.find((c) => c.id === cardInstanceId);
+    if (!card) {
+        for (const p of state.players) {
+            const found = p.battlefield.find((c) => c.id === cardInstanceId);
+            if (found) {
+                card = found;
+                break;
+            }
+        }
+    }
     if (!card) throw new Error("Card not on battlefield");
 
     const def = getCardById((card.card as { id: string }).id);
     const ability = def.activatedAbilities?.find((a) => a.id === abilityId);
     if (!ability || !ability.useStack) {
         throw new Error("Not a stack ability");
+    }
+    if (!ability.activatableByAnyPlayer && card.controllerId !== playerId) {
+        throw new Error("You do not control this permanent");
     }
     if (ability.cost.tap && card.isTapped) {
         throw new Error("Already tapped");
@@ -109,8 +131,20 @@ function tapForActivationPayment(
 
     if (!isManaCostCovered(player.manaPool, pa.manaCost)) return "tapped";
 
-    // Commit: pay mana, apply deferred tap/sacrifice, push on stack.
-    const source = player.battlefield.find((c) => c.id === pa.cardInstanceId);
+    // Commit: pay mana, apply deferred tap/sacrifice, push on stack. The
+    // source may live on another player's battlefield (CR 113.3c, "any player
+    // may activate"), so search globally — mirrors game.ts's
+    // tryAutoCommitPendingActivation. Mana is still paid from the activator.
+    let source = player.battlefield.find((c) => c.id === pa.cardInstanceId);
+    if (!source) {
+        for (const p of state.players) {
+            const found = p.battlefield.find((c) => c.id === pa.cardInstanceId);
+            if (found) {
+                source = found;
+                break;
+            }
+        }
+    }
     if (!source) throw new Error("Source vanished");
     payManaCost(player.manaPool, pa.manaCost);
     commitLandsForCost(player, pa.manaCost);
@@ -184,6 +218,13 @@ const ISLAND_CARD = {
     types: ["Land"],
     supertypes: ["Basic"],
     subtypes: ["Island"],
+};
+
+const FOREST_CARD = {
+    name: "Forest",
+    types: ["Land"],
+    supertypes: ["Basic"],
+    subtypes: ["Forest"],
 };
 
 // SLIM. `card.card` reduces to `{ id }`; runtime fields fall back to the
@@ -631,5 +672,96 @@ describe("activation flow — Pyramids save-land ({2}: destroy replacement)", ()
                 (s) => s.targetInstanceId === "victim"
             )
         ).toBe(true);
+    });
+});
+
+describe("activation flow — Ifh-Bíff Efreet ({G}, any player may activate, CR 113.3c)", () => {
+    /** p1 controls the Efreet (3/3 flyer); p2 has a Forest to pay {G} and a
+     *  flyer (Bird Maiden) to take the sweep. The opponent activates the
+     *  controller's permanent — the cross-battlefield case the flag enables. */
+    function setup() {
+        const efreet = makeInstance({
+            id: "efreet",
+            card: { id: ifhBiffEfreet.id },
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppFlyer = makeInstance({
+            id: "opp-flyer",
+            card: { id: birdMaiden.id },
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const forest = makeInstance({
+            id: "forest",
+            card: FOREST_CARD,
+            types: ["Land"],
+            subtypes: ["Forest"],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeGame({
+            players: [
+                makePlayer({ id: "p1", battlefield: [efreet] }),
+                makePlayer({ id: "p2", battlefield: [oppFlyer, forest] }),
+            ],
+        });
+        return { state };
+    }
+
+    it("opponent activates the controller's Efreet, pays {G} from their own Forest, and the sweep resolves", () => {
+        const { state } = setup();
+
+        // p2 (the opponent) activates p1's Efreet — empty pool → pending.
+        const result = activateAbility(
+            state,
+            "p2",
+            "efreet",
+            "ifh-biff-efreet-rain"
+        );
+        expect(result).toBe("pending");
+
+        // Pay {G} from p2's own Forest → commits.
+        expect(tapForActivationPayment(state, "p2", "forest")).toBe(
+            "committed"
+        );
+        // The stack item is owed by the activator (p2), the source untapped.
+        expect(state.stack[0]?.castById).toBe("p2");
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "efreet")!
+                .isTapped
+        ).toBe(false);
+
+        resolveTopOfStack(state);
+
+        // Both players took 1; both flyers took 1.
+        expect(state.players[0].life).toBe(19);
+        expect(state.players[1].life).toBe(19);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "efreet")!
+                .damageMarked
+        ).toBe(1);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "opp-flyer")!
+                .damageMarked
+        ).toBe(1);
+    });
+
+    it("a controller-only ability still rejects cross-battlefield activation", () => {
+        const { state } = setup();
+        // Pyramids' {2}: ability has NO any-player flag, so an opponent must not
+        // be able to activate it off the controller's battlefield (the default,
+        // CR 602.1). Place it on p1; p2 attempts activation → permission error.
+        const pyr = makeInstance({
+            id: "pyr",
+            card: { id: pyramids.id },
+            types: ["Artifact"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        state.players[0].battlefield.push(pyr);
+        expect(() =>
+            activateAbility(state, "p2", "pyr", "pyramids-save-land")
+        ).toThrow(/do not control/);
     });
 });

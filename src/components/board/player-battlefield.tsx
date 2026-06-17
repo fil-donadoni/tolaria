@@ -16,6 +16,7 @@ import {
     getActivatedManaMenuEntry,
     canRefundManaTap,
     getStackAbilities,
+    getAnyPlayerStackAbilities,
     wantsPermanentTarget,
     matchesPermanentFilter,
     matchesTargetRequirement,
@@ -97,6 +98,12 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     const isInPayment = isPayingCast || isPayingActivation;
 
     const hasPriority = isMe && priorityPlayerId === playerId;
+    // CR 113.3c — "any player may activate" abilities (Ifh-Bíff Efreet) can be
+    // fired by the viewer even on an OPPONENT's permanent. Surface those on the
+    // opponent's block whenever the viewer holds priority. Distinct from
+    // `hasPriority` (which is gated on `isMe`) so the controller-only default is
+    // unaffected.
+    const viewerHasPriority = priorityPlayerId === playerId;
 
     const isSelectingTarget =
         !!pendingTarget &&
@@ -622,13 +629,24 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     // --- Activated abilities ---
 
     function getActivatable(card: CardInstance) {
+        // Activation is blocked entirely while any payment/target/choice is in
+        // progress, regardless of whose permanent this is.
         if (
-            !hasPriority ||
             pendingCast ||
             pendingActivation ||
             pendingTarget ||
             (pendingChoices && pendingChoices.length > 0)
         ) {
+            return [];
+        }
+        // CR 113.3c — on an OPPONENT's permanent, the viewer may only activate
+        // "any player may activate" abilities, and only while holding priority.
+        // Controller-only abilities and mana abilities stay hidden there.
+        if (!isMe) {
+            if (!viewerHasPriority) return [];
+            return getAnyPlayerStackAbilities(card, phase);
+        }
+        if (!hasPriority) {
             return [];
         }
         // CR 508.1 / 509.1 — declaring attackers and declaring blockers are

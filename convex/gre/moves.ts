@@ -411,7 +411,8 @@ function enumerateCastMoves(
 function enumerateAbilityMoves(
     state: GameState,
     player: PlayerState,
-    perm: CardInstanceState
+    perm: CardInstanceState,
+    opts?: { anyPlayerOnly?: boolean }
 ): Move[] {
     const cardId = (perm.card as { id?: string }).id;
     const def = cardId ? tryGetCardById(cardId) : undefined;
@@ -419,6 +420,9 @@ function enumerateAbilityMoves(
 
     const moves: Move[] = [];
     for (const ability of def.activatedAbilities) {
+        // When scanning an opponent's permanent (CR 113.3c), only "any player
+        // may activate" abilities are legal for this player.
+        if (opts?.anyPlayerOnly && !ability.activatableByAnyPlayer) continue;
         // Only abilities that use the stack are macro-moves here; mana abilities
         // are funded on demand by the cast planner, never activated standalone.
         if (!ability.useStack) continue;
@@ -653,6 +657,19 @@ export function enumerateMoves(state: GameState, playerId: string): Move[] {
     }
     for (const perm of player.battlefield) {
         moves.push(...enumerateAbilityMoves(state, player, perm));
+    }
+    // CR 113.3c — "any player may activate" abilities (Ifh-Bíff Efreet) can be
+    // fired off an OPPONENT's permanent. Enumerate only those there; the bot
+    // still pays from its own pool (planManaPayment reads `player`).
+    const opponent = otherPlayer(state, player.id);
+    if (opponent) {
+        for (const perm of opponent.battlefield) {
+            moves.push(
+                ...enumerateAbilityMoves(state, player, perm, {
+                    anyPlayerOnly: true,
+                })
+            );
+        }
     }
     return moves;
 }
