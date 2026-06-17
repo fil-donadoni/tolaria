@@ -403,6 +403,96 @@ function declaredCombatDelta(state: GameState, viewerId: string): number {
     return viewerId === attackerId ? attackerDelta : -attackerDelta;
 }
 
+/** The material + life swing of a block ALREADY DECLARED (blockers confirmed,
+ *  damage not yet dealt), from `viewerId`'s perspective (ADR 0021 slice 2,
+ *  issue #222). Unlike `declaredCombatDelta` — which predicts the defender's OWN
+ *  sensible block off a pre-block snapshot — this scores the SPECIFIC block
+ *  assignment recorded in `state.combat.blockerAssignments`, so it can rank one
+ *  block against another. It is the lens the reactive rollout default policy
+ *  uses to pick a SANE block; it is deliberately NOT folded into `evaluate`, so
+ *  the shared leaf magnitudes (and the search reward band / issue-#138 tie-break)
+ *  are unchanged. Crude on purpose, matching the Danger Clock shape: a blocked
+ *  attacker dies if the blockers' total power covers its toughness; each blocker
+ *  dies if the attacker's power (assigned in listed order) covers its toughness;
+ *  an unblocked attacker's power hits the defender's life. Zero when no block is
+ *  confirmed. */
+export function declaredBlockDelta(state: GameState, viewerId: string): number {
+    const combat = state.combat;
+    if (
+        !combat ||
+        !combat.confirmed ||
+        !combat.blockersConfirmed ||
+        combat.attackerIds.length === 0
+    ) {
+        return 0;
+    }
+    const attackerId = state.activePlayerId; // CR 508.1 — active player attacks.
+    const attacker = state.players.find((p) => p.id === attackerId);
+    const defender = state.players.find((p) => p.id !== attackerId);
+    if (!attacker || !defender) return 0;
+
+    // Invert blockerId → attackerIds into attackerId → blockers (in stable
+    // listed order) so each attacker's combat can be resolved independently.
+    const blockersByAttacker = new Map<string, CardInstanceState[]>();
+    for (const [blockerId, atkIds] of Object.entries(
+        combat.blockerAssignments
+    )) {
+        const blocker = defender.battlefield.find((c) => c.id === blockerId);
+        if (!blocker) continue;
+        for (const atkId of atkIds) {
+            const list = blockersByAttacker.get(atkId) ?? [];
+            list.push(blocker);
+            blockersByAttacker.set(atkId, list);
+        }
+    }
+
+    let faceDamage = 0;
+    const deadAttackers: CardInstanceState[] = [];
+    const deadBlockers: CardInstanceState[] = [];
+
+    for (const atkId of combat.attackerIds) {
+        const atk = attacker.battlefield.find((c) => c.id === atkId);
+        if (!atk) continue;
+        const blockers = blockersByAttacker.get(atkId) ?? [];
+        if (blockers.length === 0) {
+            faceDamage += Math.max(0, getPermanentEffectivePower(state, atk));
+            continue;
+        }
+        const atkPower = Math.max(0, getPermanentEffectivePower(state, atk));
+        const atkTough = Math.max(
+            0,
+            getPermanentEffectiveToughness(state, atk)
+        );
+        // Blockers' combined power vs the attacker's toughness.
+        const blockPower = blockers.reduce(
+            (sum, b) => sum + Math.max(0, getPermanentEffectivePower(state, b)),
+            0
+        );
+        if (blockPower >= atkTough) deadAttackers.push(atk);
+        // Attacker assigns its power to blockers in listed order, lethal first.
+        let remaining = atkPower;
+        for (const b of blockers) {
+            const bTough = Math.max(
+                0,
+                getPermanentEffectiveToughness(state, b)
+            );
+            if (remaining >= bTough) {
+                deadBlockers.push(b);
+                remaining -= bTough;
+            }
+        }
+    }
+
+    const value = (cards: CardInstanceState[]) =>
+        cards.reduce((sum, c) => sum + evaluateCreature(state, c), 0);
+    // Defender's view: gains the dead attackers' worth, loses its dead blockers,
+    // and takes the unblocked face damage.
+    const defenderDelta =
+        value(deadAttackers) - value(deadBlockers) - faceDamage * W_LIFE;
+
+    return viewerId === defender.id ? defenderDelta : -defenderDelta;
+}
+
 /** Pure material margin from `playerId`'s view: sum(self terms) − sum(opp
  *  terms), with NO terminal win/loss offset. Unlike `evaluate`, this never
  *  saturates — a creature's worth of material is the same delta whether the
