@@ -63,6 +63,7 @@ import {
     cuombajjWitches,
     ifhBiffEfreet,
     guardianBeast,
+    abuJafar,
 } from "../arn";
 import {
     grizzlyBears,
@@ -110,6 +111,7 @@ import {
     regenerateOrDestroy,
     destroyWithReplacements,
     applyControlChange,
+    combatPartnerIds,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -658,6 +660,161 @@ describe("Rukh Egg (dies → 4/4 flying Bird at next end step)", () => {
             creatureToughness: 3,
         } as StackItem["triggerEvent"]);
         expect((state.delayedTriggers ?? []).length).toBe(1);
+    });
+});
+
+describe("Abu Ja'far (dies → destroy combat partners; no regen; CR 603.2/603.10)", () => {
+    /** Build combat with Abu Ja'far in it and return the assembled state. When
+     *  `abuIsAttacker` is true Abu is the attacker and `partner` is its
+     *  blocker; otherwise Abu is a blocker and `partner` is the attacker it
+     *  blocks. `partnerRegen` gives the partner a regeneration shield. */
+    function combatState(opts: {
+        abuIsAttacker: boolean;
+        partnerRegen?: boolean;
+    }) {
+        const abu = makeInstance(abuJafar.id, {
+            id: "abu",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const partner = makeInstance(grizzlyBears.id, {
+            id: "partner",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        if (opts.partnerRegen) partner.regenerationShields = 1;
+        const blockerAssignments: Record<string, string[]> = opts.abuIsAttacker
+            ? { partner: ["abu"] }
+            : { abu: ["partner"] };
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [abu] }),
+                makePlayer("p2", { battlefield: [partner] }),
+            ],
+            combat: {
+                attackerIds: [opts.abuIsAttacker ? "abu" : "partner"],
+                confirmed: true,
+                blockerAssignments,
+                blockedAttackerIds: [opts.abuIsAttacker ? "abu" : "partner"],
+                blockersConfirmed: true,
+            },
+        });
+        return { state, abu, partner };
+    }
+
+    it("combatPartnerIds finds the creature blocking it (Abu attacking)", () => {
+        const { state } = combatState({ abuIsAttacker: true });
+        expect(combatPartnerIds(state, "abu")).toEqual(["partner"]);
+    });
+
+    it("combatPartnerIds finds the creature it blocks (Abu blocking)", () => {
+        const { state } = combatState({ abuIsAttacker: false });
+        expect(combatPartnerIds(state, "abu")).toEqual(["partner"]);
+    });
+
+    it("destroys the creature blocking Abu Ja'far when it dies", () => {
+        const { state, abu } = combatState({ abuIsAttacker: true });
+        // Death snapshots combatPartnerIds onto CREATURE_DIED.
+        removePermanentTo(state, "abu", "graveyard");
+        const died = (state.pendingEvents ?? []).find(
+            (e) => e.type === "CREATURE_DIED"
+        ) as { combatPartnerIds?: string[] } | undefined;
+        expect(died?.combatPartnerIds).toEqual(["partner"]);
+        // Resolve the death trigger with that captured event.
+        resolveTrigger(state, abu, "abu-jafar-death", {
+            type: "CREATURE_DIED",
+            creatureInstanceId: "abu",
+            creatureControllerId: "p1",
+            creatureTypes: ["Creature"],
+            damagedBySources: [],
+            creaturePower: 0,
+            creatureToughness: 1,
+            combatPartnerIds: ["partner"],
+        } as StackItem["triggerEvent"]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "partner")
+        ).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === "partner")).toBe(
+            true
+        );
+    });
+
+    it("destroys the attacker Abu Ja'far was blocking when it dies", () => {
+        const { state, abu } = combatState({ abuIsAttacker: false });
+        removePermanentTo(state, "abu", "graveyard");
+        resolveTrigger(state, abu, "abu-jafar-death", {
+            type: "CREATURE_DIED",
+            creatureInstanceId: "abu",
+            creatureControllerId: "p1",
+            creatureTypes: ["Creature"],
+            damagedBySources: [],
+            creaturePower: 0,
+            creatureToughness: 1,
+            combatPartnerIds: ["partner"],
+        } as StackItem["triggerEvent"]);
+        expect(state.players[1].graveyard.some((c) => c.id === "partner")).toBe(
+            true
+        );
+    });
+
+    it("partners can't be regenerated (regen shield does not save them)", () => {
+        const { state, abu, partner } = combatState({
+            abuIsAttacker: true,
+            partnerRegen: true,
+        });
+        expect(partner.regenerationShields).toBe(1);
+        removePermanentTo(state, "abu", "graveyard");
+        resolveTrigger(state, abu, "abu-jafar-death", {
+            type: "CREATURE_DIED",
+            creatureInstanceId: "abu",
+            creatureControllerId: "p1",
+            creatureTypes: ["Creature"],
+            damagedBySources: [],
+            creaturePower: 0,
+            creatureToughness: 1,
+            combatPartnerIds: ["partner"],
+        } as StackItem["triggerEvent"]);
+        // cantBeRegenerated suppressed the shield (CR 701.15c).
+        expect(state.players[1].graveyard.some((c) => c.id === "partner")).toBe(
+            true
+        );
+    });
+
+    it("does nothing when Abu Ja'far dies outside combat", () => {
+        const abu = makeInstance(abuJafar.id, {
+            id: "abu",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bystander = makeInstance(grizzlyBears.id, {
+            id: "by",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [abu] }),
+                makePlayer("p2", { battlefield: [bystander] }),
+            ],
+        });
+        removePermanentTo(state, "abu", "graveyard");
+        const died = (state.pendingEvents ?? []).find(
+            (e) => e.type === "CREATURE_DIED"
+        ) as { combatPartnerIds?: string[] } | undefined;
+        expect(died?.combatPartnerIds ?? []).toEqual([]);
+        resolveTrigger(state, abu, "abu-jafar-death", {
+            type: "CREATURE_DIED",
+            creatureInstanceId: "abu",
+            creatureControllerId: "p1",
+            creatureTypes: ["Creature"],
+            damagedBySources: [],
+            creaturePower: 0,
+            creatureToughness: 1,
+            combatPartnerIds: [],
+        } as StackItem["triggerEvent"]);
+        expect(state.players[1].battlefield.some((c) => c.id === "by")).toBe(
+            true
+        );
     });
 });
 

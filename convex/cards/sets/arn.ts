@@ -2043,6 +2043,41 @@ export const guardianBeast: CardDefinition = {
     ],
 };
 
+// Abu Ja'far — death trigger that destroys its combat partners (CR 603.2 /
+// 603.10). The trigger resolves after Abu Ja'far is already in the graveyard,
+// so the engine snapshots "creatures blocking or blocked by it" at the moment
+// of death onto the CREATURE_DIED event (`combatPartnerIds`, computed by
+// `combatPartnerIds()` in state.ts). The body re-checks each partner is still
+// on the battlefield (CR 608.2b) and destroys it with `cantBeRegenerated`
+// (CR 701.15c — the printed "they can't be regenerated").
+export const abuJafar: CardDefinition = {
+    id: "0e9ad288-d164-44a6-96ec-4185a1587f1a",
+    name: "Abu Ja'far",
+    oracleText:
+        "When this creature dies, destroy all creatures blocking or blocked by it. They can't be regenerated.",
+    manaCost: { W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human"],
+    power: 0,
+    toughness: 1,
+    triggeredAbilities: [
+        diedTrigger({
+            id: "abu-jafar-death",
+            oracleText:
+                "When this creature dies, destroy all creatures blocking or blocked by it. They can't be regenerated.",
+            scope: "self",
+            resolve: (ctx, _event, deadCreature) => {
+                for (const partnerId of deadCreature.combatPartnerIds) {
+                    ctx.destroy(
+                        { type: "permanent", id: partnerId },
+                        { cantBeRegenerated: true }
+                    );
+                }
+            },
+        }),
+    ],
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Deferred to later batches — need engine work beyond existing primitives:
 //
@@ -2067,7 +2102,7 @@ export const guardianBeast: CardDefinition = {
 //   • Batch 4 (#191, coin flip): Bottle of Suleiman, Mijae Djinn, Ydwen Efreet.
 //   • Batch 9 (#180-187, misc): Metamorphosis, Jihad, Magnetic Mountain,
 //     Aladdin's Lamp, Cuombajj Witches, Ifh-Bíff Efreet,
-//     Abu Ja'far, Jandor's Ring, Erg Raiders, City in a Bottle, Aladdin's Ring
+//     Jandor's Ring, Erg Raiders, City in a Bottle, Aladdin's Ring
 //     (charge-counter variant N/A), Flying Carpet variants N/A.
 //
 // Out of scope — ante / subgames depend on game modes the engine does not model

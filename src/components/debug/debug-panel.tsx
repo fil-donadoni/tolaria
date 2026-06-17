@@ -74,6 +74,28 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // ARN Batch 9 (#185) — Abu Ja'far ({W}, 0/1 Human): "When this creature
+        // dies, destroy all creatures blocking or blocked by it. They can't be
+        // regenerated." (CR 603.2 death trigger / 603.10 last known info). You
+        // control Abu Ja'far; the opponent has Grizzly Bears (2/2). Attack with
+        // Abu Ja'far and let the Bears block: Abu (0 power) deals no damage but
+        // takes 2 and dies, and its death trigger destroys the blocking Bears —
+        // even though Abu is already in the graveyard when it resolves. Give the
+        // opponent's Bears a Regeneration shield in play (none here) and they
+        // still die: the destroy is "can't be regenerated". The opponent's
+        // second creature (Hill Giant) is left alone — only the combat partner
+        // is destroyed.
+        label: "ARN: dies-destroys-blocker (Abu Ja'far)",
+        cards: [
+            { name: "Abu Ja'far", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Hill Giant", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 9 (#184) — Guardian Beast ({3}{B}, 2/4). While the Beast is
         // UNTAPPED, your noncreature artifacts can't be enchanted, can't be the
         // targets of spells or abilities, have indestructible, and their control

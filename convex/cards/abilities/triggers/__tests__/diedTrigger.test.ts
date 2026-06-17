@@ -262,7 +262,23 @@ describe("diedTrigger factory", () => {
             lastKnownPower: 7,
             lastKnownToughness: 3,
             damagedBySources: ["src"],
+            combatPartnerIds: [],
         });
+    });
+
+    it("surfaces combatPartnerIds from the event (CR 603.10, Abu Ja'far)", () => {
+        const seen = vi.fn();
+        const ability = diedTrigger({
+            id: "x",
+            oracleText: "...",
+            scope: "any",
+            resolve: (_ctx, _event, dead) => seen(dead.combatPartnerIds),
+        });
+        ability.resolve(
+            {} as SpellContext,
+            makeEvent({ combatPartnerIds: ["a", "b"] })
+        );
+        expect(seen).toHaveBeenCalledWith(["a", "b"]);
     });
 
     it("'self' scope fires on the source's own death (CR 603.10 LKI host)", () => {

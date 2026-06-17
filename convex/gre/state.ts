@@ -2267,6 +2267,29 @@ export function isCombatDamageImmune(
     );
 }
 
+/** Last-known combat relationship (CR 603.10) for a creature about to leave
+ *  the battlefield: every creature that, at this instant, is blocking it or is
+ *  blocked by it. `blockerAssignments` maps blockerId → the attackers it
+ *  blocks, so a creature `id`'s partners are (a) blockers whose assignment
+ *  list contains `id` — i.e. creatures blocking `id` when `id` is an attacker —
+ *  plus (b) the assignment list of `id` itself when `id` is a blocker — i.e.
+ *  the attackers `id` is blocking. Abu Ja'far (ARN) reads this at death to
+ *  destroy "all creatures blocking or blocked by it". Returns deduped ids.
+ *  Empty when there is no combat or the creature was not in combat. */
+export function combatPartnerIds(state: GameState, id: string): string[] {
+    const ba = state.combat?.blockerAssignments;
+    if (!ba) return [];
+    const partners = new Set<string>();
+    // (b) `id` is a blocker → the attackers it is blocking are blocked by it.
+    for (const attackerId of ba[id] ?? []) partners.add(attackerId);
+    // (a) some other creature is blocking `id` (i.e. `id` is an attacker).
+    for (const [blockerId, attackerIds] of Object.entries(ba)) {
+        if (attackerIds.includes(id)) partners.add(blockerId);
+    }
+    partners.delete(id);
+    return [...partners];
+}
+
 /** Removes a permanent from battlefield and moves it to the target zone of its owner.
  *  When `toZone` is "hand" or "library", the card becomes a new object
  *  (CR 400.7) and battlefield-only transient state (tap, marked damage, regen
@@ -2319,6 +2342,13 @@ export function removePermanentTo(
     const snapshotToughness = wasCreature
         ? getEffectiveToughness(state, creature)
         : 0;
+    // CR 603.10 — capture the moment-of-death combat relationship before the
+    // card leaves play and combat is cleared, so a death trigger that resolves
+    // after the creature is in the graveyard (Abu Ja'far) still knows which
+    // creatures were blocking or blocked by it.
+    const snapshotCombatPartners = wasCreature
+        ? combatPartnerIds(state, cardId)
+        : [];
     creature.zone = toZone;
     creature.attachedTo = undefined;
     // CR 707.2 — a copy effect lasts only while the object is on the
@@ -2345,6 +2375,7 @@ export function removePermanentTo(
                 damagedBySources: snapshotDamagedBy,
                 creaturePower: snapshotPower,
                 creatureToughness: snapshotToughness,
+                combatPartnerIds: snapshotCombatPartners,
             },
         ];
         // Running tally of creatures that have died this turn. Read by

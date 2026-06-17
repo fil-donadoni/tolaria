@@ -1707,6 +1707,14 @@ export interface CreatureDiedEvent {
     /** Effective toughness snapshotted at the moment the creature left the
      *  battlefield (CR 603.10). Used by triggers like Creature Bond. */
     creatureToughness: number;
+    /** Instance ids of the creatures that, at the moment of death, were
+     *  blocking this creature or blocked by it (CR 603.10 last known
+     *  information). Read by death triggers that act on combat partners after
+     *  the dying creature has already left the battlefield (Abu Ja'far —
+     *  "destroy all creatures blocking or blocked by it"). Empty when the
+     *  creature was not in combat. Optional so older event fixtures and
+     *  serialized logs without the field deserialize as "no partners". */
+    combatPartnerIds?: readonly string[];
 }
 
 /** Enter-the-battlefield event emitted whenever a permanent enters play via

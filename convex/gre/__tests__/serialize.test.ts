@@ -438,6 +438,7 @@ describe("schema drift guard", () => {
                 damagedBySources: [],
                 creaturePower: 2,
                 creatureToughness: 2,
+                combatPartnerIds: ["c2"],
             },
         ];
         state.deathsThisTurn = 1;
@@ -691,6 +692,7 @@ describe("optional field round-trip smoke tests", () => {
                 damagedBySources: [],
                 creaturePower: 2,
                 creatureToughness: 2,
+                combatPartnerIds: ["c2"],
             },
         ];
         expect(roundTrip(state).pendingEvents).toEqual(state.pendingEvents);
