@@ -50,6 +50,30 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ARN Batch 9 (#181) — Magnetic Mountain ({1}{R}{R} enchantment): blue
+        // creatures don't untap during their controllers' untap steps (CR 502.1
+        // hard skip). At each player's upkeep that player may choose any number
+        // of their tapped blue creatures and pay {4} each to untap them. Your
+        // two Flying Men start tapped; advance to your upkeep, choose them, and
+        // pay {8} from the Mountains/Islands to untap. Pass through your untap
+        // step to confirm they stay tapped without paying.
+        label: "ARN: untap lock (Magnetic Mountain)",
+        cards: [
+            { name: "Magnetic Mountain", owner: "me" as const },
+            {
+                name: "Flying Men",
+                owner: "me" as const,
+                tapped: true,
+                count: 2,
+            },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+            { name: "Island", owner: "me" as const, count: 4 },
+            { name: "Flying Men", owner: "opp" as const, tapped: true },
+        ],
+        phase: "UPKEEP",
+        landCount: 0,
+    },
+    {
         // ARN Batch 9 (#180) — Metamorphosis ({G} sorcery): as an additional
         // cost sacrifice a creature, then add X mana of one chosen color where
         // X = 1 + the sacrificed creature's mana value, spendable only on

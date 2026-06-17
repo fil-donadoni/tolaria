@@ -21,6 +21,9 @@ import {
 } from "@convex/gre";
 import { cardValueById } from "@convex/gre";
 import { matchesPermanentFilter } from "@convex/cards/filters";
+import { getColorsFromCost } from "@convex/cards/colors";
+import { tryGetCardById } from "@convex/cards";
+import type { Color } from "@convex/cards/types";
 import type { BotAction, BotView, ChoiceCandidate, OwedChoice } from "./brain";
 
 /** Whether the bot still owes a combat-damage confirmation this step. True only
@@ -100,9 +103,26 @@ function readChoiceZone(
                 : owner.battlefield;
             // CR-style permanent filter (types / subtypes / excludeInstanceIds /
             // …) — the slim projected card is structurally a MatchablePermanent.
+            // CR 202.2 — the wire projection doesn't carry derived colors, so
+            // populate them (colorOverride else printed cost) for color filters,
+            // mirroring the server's effectivePermanentView.
             if (head.filter) {
                 const filter = head.filter;
-                cards = cards.filter((c) => matchesPermanentFilter(c, filter));
+                cards = cards.filter((c) =>
+                    matchesPermanentFilter(
+                        {
+                            ...c,
+                            colors: ((c as { colorOverride?: string[] })
+                                .colorOverride ??
+                                getColorsFromCost(
+                                    tryGetCardById(
+                                        (c.card as { id: string }).id
+                                    )?.manaCost
+                                )) as Color[],
+                        },
+                        filter
+                    )
+                );
             }
             break;
         default:

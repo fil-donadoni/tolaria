@@ -59,6 +59,7 @@ import {
     dropOfHoney,
     metamorphosis,
     oubliette,
+    magneticMountain,
 } from "../arn";
 import {
     grizzlyBears,
@@ -72,10 +73,16 @@ import {
     flight,
 } from "../lea";
 import { getInstanceManaCost, tryGetCardById } from "../../";
+import type { Color } from "../../types";
 import { checkStateBasedActions } from "../../../gre/sba";
 import { validateBlockerEligibility } from "../../../gre/combat";
-import { applyAllCombatDamage, fireDelayedTriggers } from "../../../gre/phases";
+import {
+    applyAllCombatDamage,
+    fireDelayedTriggers,
+    untapStep,
+} from "../../../gre/phases";
 import { applyDamageReplacements } from "../../../gre/replacements";
+import { matchesPermanentFilter } from "../../filters";
 import {
     makeInstance,
     makePlayer,
@@ -97,7 +104,11 @@ import {
     type GameState,
     type StackItem,
 } from "../../../gre/state";
-import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+    STATIC_EFFECT_CTX,
+} from "../../../gre/layers";
 import { getLegalTargets } from "../../../gre/rules";
 import { projectPublicState } from "../../../gameProjections";
 
@@ -2169,5 +2180,198 @@ describe("Oubliette (phasing CR 702.26)", () => {
             kind: "source-leaves",
             sourceId: "oubl",
         });
+    });
+});
+
+describe("Magnetic Mountain (CR 502.1 untap restriction + upkeep untap)", () => {
+    // --- Static untap restriction (CR 502.1) -------------------------------
+    it("blue creatures don't untap during the untap step; non-blue ones do", () => {
+        const mm = makeInstance(magneticMountain.id, { id: "mm" });
+        const blueCreature = makeInstance(flyingMen.id, {
+            id: "blue",
+            controllerId: "p1",
+            isTapped: true,
+        });
+        const greenCreature = makeInstance(grizzlyBears.id, {
+            id: "green",
+            controllerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [mm, blueCreature, greenCreature],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        untapStep(state);
+        // maxUntap 0 hard-skip auto-resolves: no prompt, blue stays tapped.
+        expect(state.pendingChoices ?? []).toEqual([]);
+        const blue = state.players[0].battlefield.find((c) => c.id === "blue")!;
+        const green = state.players[0].battlefield.find(
+            (c) => c.id === "green"
+        )!;
+        expect(blue.isTapped).toBe(true);
+        expect(green.isTapped).toBe(false);
+    });
+
+    it("the no-untap filter matches a blue creature on the projected wire state (CR 202.2)", () => {
+        const mm = makeInstance(magneticMountain.id, { id: "mm" });
+        const blueCreature = makeInstance(flyingMen.id, {
+            id: "blue",
+            controllerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mm, blueCreature] }),
+                makePlayer("p2"),
+            ],
+        });
+        const filter = { types: "Creature" as const, colors: ["U"] as Color[] };
+        // GRE-side: colors derived via STATIC_EFFECT_CTX.getColors.
+        expect(
+            matchesPermanentFilter(
+                {
+                    ...blueCreature,
+                    colors: STATIC_EFFECT_CTX.getColors(blueCreature),
+                },
+                filter
+            )
+        ).toBe(true);
+        // Wire-format: the assertion survives the projection (colors derived
+        // the same way client-side from the slim card's def).
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBlue = projected.players[0].battlefield.find(
+            (c) => c.id === "blue"
+        )!;
+        expect(
+            matchesPermanentFilter(
+                {
+                    ...slimBlue,
+                    colors: STATIC_EFFECT_CTX.getColors(
+                        slimBlue as unknown as Parameters<
+                            typeof STATIC_EFFECT_CTX.getColors
+                        >[0]
+                    ),
+                },
+                filter
+            )
+        ).toBe(true);
+    });
+
+    // --- Filter unit: colors + tapped ---------------------------------------
+    it("matchesPermanentFilter gates on colors + tapped together", () => {
+        const f = {
+            types: "Creature" as const,
+            colors: ["U"] as Color[],
+            tapped: true,
+        };
+        const tappedBlue = {
+            ...makeInstance(flyingMen.id, { id: "tb", isTapped: true }),
+            colors: ["U"] as Color[],
+        };
+        const untappedBlue = {
+            ...makeInstance(flyingMen.id, { id: "ub", isTapped: false }),
+            colors: ["U"] as Color[],
+        };
+        const tappedGreen = {
+            ...makeInstance(grizzlyBears.id, { id: "tg", isTapped: true }),
+            colors: ["G"] as Color[],
+        };
+        expect(matchesPermanentFilter(tappedBlue, f)).toBe(true);
+        expect(matchesPermanentFilter(untappedBlue, f)).toBe(false);
+        expect(matchesPermanentFilter(tappedGreen, f)).toBe(false);
+    });
+
+    // --- Upkeep trigger: choose + pay + untap (CR 603.6a / 118) -------------
+    function setupUpkeep() {
+        const mm = makeInstance(magneticMountain.id, { id: "mm" });
+        const b1 = makeInstance(flyingMen.id, {
+            id: "b1",
+            controllerId: "p1",
+            isTapped: true,
+        });
+        const b2 = makeInstance(flyingMen.id, {
+            id: "b2",
+            controllerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [mm, b1, b2],
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 8 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, mm };
+    }
+
+    it("pays {4} each and untaps the chosen blue creatures", () => {
+        const { state, mm } = setupUpkeep();
+        resolveTrigger(
+            state,
+            mm,
+            "magnetic-mountain-upkeep",
+            upkeepEvent("p1")
+        );
+        // First suspension: the choose-permanents pick.
+        answerChoice(state, ["b1", "b2"]);
+        // Second suspension: the may-pay (accept).
+        answerChoice(state, ["yes"]);
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "b1")!.isTapped).toBe(false);
+        expect(bf.find((c) => c.id === "b2")!.isTapped).toBe(false);
+    });
+
+    it("declining the payment leaves the creatures tapped", () => {
+        const { state, mm } = setupUpkeep();
+        resolveTrigger(
+            state,
+            mm,
+            "magnetic-mountain-upkeep",
+            upkeepEvent("p1")
+        );
+        answerChoice(state, ["b1", "b2"]);
+        answerChoice(state, ["decline"]);
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "b1")!.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "b2")!.isTapped).toBe(true);
+    });
+
+    it("choosing none asks for no payment and untaps nothing", () => {
+        const { state, mm } = setupUpkeep();
+        resolveTrigger(
+            state,
+            mm,
+            "magnetic-mountain-upkeep",
+            upkeepEvent("p1")
+        );
+        answerChoice(state, []);
+        // No may-pay was enqueued (chose zero creatures).
+        expect(state.pendingChoices ?? []).toEqual([]);
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "b1")!.isTapped).toBe(true);
+        expect(bf.find((c) => c.id === "b2")!.isTapped).toBe(true);
+    });
+
+    it("no trigger effect when the upkeep player controls no tapped blue creatures", () => {
+        const mm = makeInstance(magneticMountain.id, { id: "mm" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mm] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(
+            state,
+            mm,
+            "magnetic-mountain-upkeep",
+            upkeepEvent("p1")
+        );
+        expect(state.pendingChoices ?? []).toEqual([]);
     });
 });

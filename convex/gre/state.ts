@@ -3975,8 +3975,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         ): string[] {
             const bf = getPlayer(state, playerId).battlefield;
             if (!filter) return bf.map((c) => c.id);
+            // CR 202.2 — populate effective colors so color-scoped filters
+            // (Magnetic Mountain's "blue creatures") match on the battlefield.
             return bf
-                .filter((c) => matchesPermanentFilter(c, filter))
+                .filter((c) =>
+                    matchesPermanentFilter(
+                        { ...c, colors: STATIC_EFFECT_CTX.getColors(c) },
+                        filter
+                    )
+                )
                 .map((c) => c.id);
         },
         hasSubtype(target: TargetSelection, subtype: string): boolean {
