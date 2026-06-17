@@ -1173,6 +1173,14 @@ export interface PermanentView {
     /** True if the creature was declared as a blocker this turn. Mirrors
      *  `hasAttackedThisTurn` for end-of-combat triggers like Clockwork Beast. */
     hasBlockedThisTurn?: boolean;
+    /** True while the creature still has summoning sickness (CR 302.6) — it
+     *  entered the battlefield or came under its current controller's control
+     *  since their most recent turn began, and is cleared at that controller's
+     *  untap step. Exposed so end-step / upkeep triggers can implement the
+     *  "unless it came under your control this turn" exemption (Erg Raiders).
+     *  The trigger system passes the raw `CardInstanceState` as `self`, so this
+     *  flag is populated for trigger predicates. */
+    isSummoningSick?: boolean;
     /** One-shot P/T modifications scoped to a phase boundary (CR 611.1, 611.2).
      *  Each entry adds to `power`/`toughness` at read time; the engine purges
      *  entries whose `duration` has expired during phase-boundary cleanup
