@@ -51,6 +51,11 @@ const gameRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/game",
     component: GameRoute,
+    // `?board=next` selects the DOM-only spatial board (PRD #249); absent or
+    // any other value falls back to the current board.
+    validateSearch: (search: Record<string, unknown>): { board?: "next" } => ({
+        board: search.board === "next" ? "next" : undefined,
+    }),
 });
 
 const prototypeButtonsRoute = createRoute({
