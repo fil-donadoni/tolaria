@@ -404,6 +404,128 @@ describe("AI diagnosis harness (Forge comparison)", () => {
     );
 
     // -----------------------------------------------------------------------
+    // Episode #5 — the canonical combat-trick ambush (ADR 0021 slice 3, issue
+    // #223). The headline reactive line ADR 0020 lever 4 could not reach: a 3/3
+    // that can attack + Giant Growth in hand, into an open 3/3. The right play
+    // is to HOLD the trick — pass out of the main phase, attack with the 2/2,
+    // and cast the pump only IF the 3/3 blocks (turning the 2/2 into a 5/5 that
+    // kills the 3/3 and survives, a free creature). Dumping the trick precombat
+    // reveals it and wastes its ambush value. That `hold → attack → block →
+    // respond` subtree is too sparse to accrue visits at realistic budgets, so
+    // before this slice the hold line was barely explored.
+    //
+    // What slice 3 delivers (and this episode pins): the reactive line is now
+    // REACHABLE — the soft prior drives real visits down it, and the policy
+    // actually PLAYS the ambush (proved deterministically by the seam tests in
+    // search.test.ts: bait the block, hold priority pre-block, pump in response).
+    // Three pieces make the line playable: the reactive prior EXPLORES it; the
+    // pre-block guardrail stops the rollout dumping the pump early; and the
+    // policy strips the pre-block combat pre-judgment while holding a trick (so
+    // attacking the bait and waiting are not scored as walking into death), with
+    // `declaredBlockDelta` on effective P/T letting the block-step pump be seen.
+    //
+    // What it does NOT yet do: strictly out-score the precombat dump on MEAN
+    // reward at the budgets the bot plays. The ambush is one high-value branch
+    // among many noisy ε-greedy playouts of the hold line, so the line's mean
+    // stays just below a low-variance dump; a soft prior raises exploration, not
+    // the mean. Closing that gap needs a lower-variance / pump-aware rollout and
+    // is deferred (flagged in the PR). This episode therefore asserts the
+    // reachability + non-domination the lever genuinely buys.
+    // -----------------------------------------------------------------------
+    it(
+        "episode #5: canonical combat-trick ambush — hold line is reachable & competitive",
+        { timeout: DIAGNOSIS_TIMEOUT_MS },
+        () => {
+            const attacker = makeInstance(GRIZZLY, {
+                id: "own-bear",
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: false, // CAN attack this turn
+            });
+            const forest = makeInstance(FOREST, {
+                id: "g-forest",
+                controllerId: "p1",
+                ownerId: "p1",
+                isTapped: false,
+            });
+            const trick = makeInstance(GIANT_GROWTH, {
+                id: "gg",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+            const blocker = makeInstance(HILL_GIANT, {
+                id: "opp-giant",
+                controllerId: "p2",
+                ownerId: "p2",
+                isSummoningSick: false,
+            });
+            const lib = (owner: string) =>
+                [0, 1, 2, 3, 4].map((i) =>
+                    makeInstance(FOREST, {
+                        id: `${owner}-lib${i}`,
+                        controllerId: owner,
+                        ownerId: owner,
+                        zone: "library",
+                    })
+                );
+            const state = makeState({
+                phase: "PRECOMBAT_MAIN",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                players: [
+                    makePlayer("p1", {
+                        hand: [trick],
+                        battlefield: [attacker, forest],
+                        library: lib("p1"),
+                    }),
+                    makePlayer("p2", {
+                        battlefield: [blocker],
+                        library: lib("p2"),
+                    }),
+                ],
+            });
+
+            const trace = diagnose(
+                "EP#5 canonical ambush (2/2 + Giant Growth into a 3/3)",
+                state,
+                "p1"
+            );
+            // The precombat DUMP (cast Giant Growth on the bot's own attacker)
+            // and HOLDING the trick (pass out of the main phase).
+            const dump = trace.candidates.find(
+                (c) =>
+                    c.move.kind === "cast-spell" &&
+                    c.move.targets.some((t) => t.id === "own-bear")
+            );
+            const hold = trace.candidates.find((c) => c.move.kind === "pass");
+            expect(dump).toBeDefined();
+            expect(hold).toBeDefined();
+
+            // REACHABILITY (the slice-3 deliverable, AC bullet 1): before the
+            // reactive prior the `hold → attack → block → respond` subtree was so
+            // sparse the hold line was barely explored. The prior now drives a
+            // substantial share of visits down it, so holding is a genuine,
+            // explored contender rather than rollout dust.
+            expect(hold!.visits).toBeGreaterThan(trace.iterations * 0.2);
+
+            // NON-DOMINATION: holding is no longer a clearly-worse line — it
+            // sits within the outcome band of the precombat dump (the seam tests
+            // in search.test.ts prove the policy now actually PLAYS the ambush:
+            // bait the block, hold priority, pump in response). Strictly
+            // out-scoring the robust dump in this pure bait is bounded by rollout
+            // variance — the ambush is one high-value branch among many noisy
+            // playouts of the hold line, and a soft prior cannot lift the line's
+            // MEAN above a low-variance dump. That last step needs a
+            // lower-variance / pump-aware rollout and is deferred; see the PR.
+            const OUTCOME_EPS = 0.05;
+            expect(hold!.meanReward).toBeGreaterThan(
+                dump!.meanReward - OUTCOME_EPS
+            );
+        }
+    );
+
+    // -----------------------------------------------------------------------
     // Episode A — ACTION BIAS (root cause behind the X=0 waste-cast), now FIXED
     // by the turn-boundary rollout horizon (ADR 0015).
     //

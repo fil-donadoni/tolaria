@@ -12,6 +12,8 @@ import {
     selectRootMove,
     selectRolloutMove,
     isDiscouragedRolloutMove,
+    isReactiveInstantCast,
+    reactivePrior,
     type Edge,
     type Node,
 } from "../search";
@@ -788,5 +790,249 @@ describe("selectRolloutMove — reactive rollout default policy (issue #222)", (
             makeRng(7)
         );
         expect(moveA).toEqual(moveB);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Reactive-line reachability (ADR 0021 slice 3, issue #223). The soft prior
+// biases the tree to EXPLORE instant-speed responses in their windows, and the
+// rollout policy now PLAYS the `hold → attack → block → respond` ambush. The
+// prior is unit-tested for shape (fires in the right windows, decays with
+// visits); the policy is unit-tested deterministically at each step of the
+// ambush — the seam-level proof that the reactive line is reachable & playable.
+// ---------------------------------------------------------------------------
+const GG = GIANT_GROWTH;
+
+describe("reactivePrior — soft reactive-line bias (issue #223)", () => {
+    // Opponent's turn, bot p1 holds Lightning Bolt with open mana and priority:
+    // a reactive window for an instant.
+    const reactiveCast = () => {
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [bolt("p1", "bolt")],
+                    battlefield: [land("p1", "m1")],
+                }),
+                makePlayer("p2", {
+                    battlefield: [creature(BEARS, "p2", "atk")],
+                }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const move = enumerateMoves(state, "p1").find(
+            (m) => m.kind === "cast-spell"
+        )!;
+        return { state, move };
+    };
+
+    it("fires on an instant cast in a reactive window and decays with visits", () => {
+        const { state, move } = reactiveCast();
+        expect(isReactiveInstantCast(state, "p1", move)).toBe(true);
+        const atOne = reactivePrior(state, "p1", move, 1);
+        const atTen = reactivePrior(state, "p1", move, 10);
+        expect(atOne).toBeGreaterThan(0);
+        // Soft: the bonus shrinks monotonically as the edge is visited, so it
+        // can never dominate accumulated reward.
+        expect(atTen).toBeLessThan(atOne);
+        expect(atTen).toBeGreaterThan(0);
+    });
+
+    it("does NOT fire at the mover's own main phase (sorcery speed)", () => {
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(GG, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "gg",
+                            zone: "hand",
+                        }),
+                    ],
+                    battlefield: [
+                        creature(BEARS, "p1", "bear"),
+                        makeInstance(FOREST, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "f1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const move = enumerateMoves(state, "p1").find(
+            (m) => m.kind === "cast-spell"
+        )!;
+        expect(isReactiveInstantCast(state, "p1", move)).toBe(false);
+        expect(reactivePrior(state, "p1", move, 1)).toBe(0);
+    });
+
+    it("does NOT fire for a non-instant move", () => {
+        const { state } = reactiveCast();
+        expect(reactivePrior(state, "p1", { kind: "pass" }, 1)).toBe(0);
+    });
+});
+
+describe("selectRolloutMove — plays the combat-trick ambush (issue #223)", () => {
+    const fixedRng = () => 0;
+    const giantGrowth = (id: string) =>
+        makeInstance(GG, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id,
+            zone: "hand",
+        });
+    const forest = (id: string) =>
+        makeInstance(FOREST, { controllerId: "p1", ownerId: "p1", id });
+
+    it("baits the block: attacks the 2/2 into a 3/3 while holding the trick", () => {
+        // The leaf reads the un-pumped attacker as walking into the block, but
+        // the bot holds Giant Growth — the policy strips that pre-judgment and
+        // declares the attack to set up the ambush.
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [giantGrowth("gg")],
+                    battlefield: [creature(BEARS, "p1", "bear"), forest("f")],
+                }),
+                makePlayer("p2", {
+                    battlefield: [creature(GIANT, "p2", "blocker")],
+                }),
+            ],
+            combat: {
+                attackerIds: [],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const chosen = selectRolloutMove(
+            state,
+            "p1",
+            "p1",
+            enumerateMoves(state, "p1"),
+            fixedRng
+        );
+        expect(chosen.kind).toBe("declare-attackers");
+        if (chosen.kind !== "declare-attackers") throw new Error("kind");
+        expect(chosen.attackerIds).toContain("bear");
+    });
+
+    it("holds priority before blocks instead of dumping the pump early", () => {
+        // Attacker declared, bot has priority before blocks. Pumping now reveals
+        // the trick and forfeits the ambush; the policy waits.
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [giantGrowth("gg")],
+                    battlefield: [
+                        creature(BEARS, "p1", "bear", { isAttacking: true }),
+                        forest("f"),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [creature(GIANT, "p2", "blocker")],
+                }),
+            ],
+            combat: {
+                attackerIds: ["bear"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const chosen = selectRolloutMove(
+            state,
+            "p1",
+            "p1",
+            enumerateMoves(state, "p1"),
+            fixedRng
+        );
+        expect(chosen.kind).toBe("pass");
+    });
+
+    it("casts the pump in response once the block is committed", () => {
+        // The 3/3 has blocked the 2/2. Pumping to a 5/5 now kills the blocker
+        // and survives — the payoff the policy sees via the effective-P/T block
+        // exchange — so it casts the trick.
+        const state = makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [giantGrowth("gg")],
+                    battlefield: [
+                        creature(BEARS, "p1", "bear", { isAttacking: true }),
+                        forest("f"),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        creature(GIANT, "p2", "blocker", { isBlocking: true }),
+                    ],
+                }),
+            ],
+            combat: {
+                attackerIds: ["bear"],
+                confirmed: true,
+                blockerAssignments: { blocker: ["bear"] },
+                blockersConfirmed: true,
+            },
+        });
+        const chosen = selectRolloutMove(
+            state,
+            "p1",
+            "p1",
+            enumerateMoves(state, "p1"),
+            fixedRng
+        );
+        expect(chosen.kind).toBe("cast-spell");
+        if (chosen.kind !== "cast-spell") throw new Error("kind");
+        expect(chosen.cardInstanceId).toBe("gg");
+    });
+
+    it("does NOT cast a no-payoff trick just because the window is reactive (over-aggressive guard)", () => {
+        // Opponent's turn, no combat: pumping the bot's own creature buys
+        // nothing. Despite the reactive window, the policy holds the trick — the
+        // soft prior biases exploration, it never forces a no-payoff cast.
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [giantGrowth("gg")],
+                    battlefield: [creature(BEARS, "p1", "bear"), forest("f")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const chosen = selectRolloutMove(
+            state,
+            "p1",
+            "p1",
+            enumerateMoves(state, "p1"),
+            fixedRng
+        );
+        expect(chosen.kind).toBe("pass");
     });
 });
