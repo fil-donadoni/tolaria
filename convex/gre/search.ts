@@ -66,6 +66,8 @@ import {
     evaluate,
     evaluateBreakdown,
     declaredBlockDelta,
+    declaredCombatDelta,
+    hasCastableInstant,
     materialMargin,
     WIN_SCORE,
     type PositionBreakdown,
@@ -96,6 +98,12 @@ export const DEFAULT_BUDGET: SearchBudget = { iterations: 400, timeMs: 1500 };
 
 /** UCB1 exploration constant. */
 const UCB_C = 1.4;
+/** Weight of the soft reactive prior added to UCB1 (ADR 0021 slice 3, issue
+ *  #223). Sized to meaningfully bias EXPLORING an instant-speed response in its
+ *  window when the edge is barely visited, yet — because it decays as
+ *  1/(1+visits) — to fall below the UCB1 exploration term within a handful of
+ *  visits, so it can never dominate the accumulated reward. */
+const REACTIVE_PRIOR_C = 0.5;
 /** Rollout horizon, in EXTRA full bot turns beyond the first (ADR 0015). The
  *  rollout always plays forward to the start of the bot's NEXT turn — a complete
  *  round in which BOTH players had symmetric opportunity to act — then this many
@@ -571,18 +579,32 @@ export function isDiscouragedRolloutMove(
         });
     }
     if (move.kind === "cast-spell") {
+        const player = state.players.find((p) => p.id === pid);
+        const card = player?.hand.find((c) => c.id === move.cardInstanceId);
+        const cardId = (card?.card as { id?: string } | undefined)?.id;
+        const def = cardId ? tryGetCardById(cardId) : undefined;
+        if (!def || !def.types.includes("Instant")) return false;
         // Sorcery-speed window: the mover is the active player at a main phase,
         // where a pure instant could instead be held for a reactive moment.
         const atSorcerySpeed =
             pid === state.activePlayerId &&
             (state.phase === "PRECOMBAT_MAIN" ||
                 state.phase === "POSTCOMBAT_MAIN");
-        if (!atSorcerySpeed) return false;
-        const player = state.players.find((p) => p.id === pid);
-        const card = player?.hand.find((c) => c.id === move.cardInstanceId);
-        const cardId = (card?.card as { id?: string } | undefined)?.id;
-        const def = cardId ? tryGetCardById(cardId) : undefined;
-        return !!def && def.types.includes("Instant");
+        if (atSorcerySpeed) return true;
+        // Premature combat trick (ADR 0021 slice 3): the active attacker casting
+        // an instant BEFORE the opponent has committed blocks dumps the trick
+        // early and forfeits the ambush. The competent line is to hold priority,
+        // let blocks be declared, and respond then. Discouraged in the default
+        // policy only — the tree still explores a genuine pre-block cast (e.g.
+        // pushing lethal), it just isn't modelled as typical play.
+        const combat = state.combat;
+        const preBlockAsAttacker =
+            pid === state.activePlayerId &&
+            !!combat &&
+            combat.confirmed &&
+            !combat.blockersConfirmed &&
+            combat.attackerIds.length > 0;
+        return preBlockAsAttacker;
     }
     return false;
 }
@@ -607,10 +629,30 @@ function policyValue(probe: GameState, botId: string, move: Move): number {
         resolveTopOfStack(probe);
     }
     let v = evaluate(probe, botId);
-    if (move.kind === "declare-blockers" && move.assignments.length > 0) {
-        v += declaredBlockDelta(probe, botId);
+    const combat = probe.combat;
+    if (
+        combat &&
+        combat.confirmed &&
+        !combat.blockersConfirmed &&
+        combat.attackerIds.length > 0 &&
+        hasCastableInstant(probe, probe.activePlayerId)
+    ) {
+        // Don't PRE-JUDGE the attacker's combat while the attacker holds a
+        // castable trick (ADR 0021 slice 3): the held instant may swing the
+        // exchange, and the competent line is to wait for blocks and respond.
+        // `evaluate` folds in the pre-block predicted exchange (`declaredCombatDelta`,
+        // ADR 0020 §3), which reads the attacker as walking into the block —
+        // making the policy either dump the pump early or decline the bait.
+        // Strip it so the policy holds priority and lets the actual combat (with
+        // the trick) resolve downstream. Policy-only, so the shared leaf
+        // magnitudes / reward band are untouched.
+        v -= declaredCombatDelta(probe, botId);
     }
-    return v;
+    // Fold the declared block exchange in for ANY move taken at a confirmed,
+    // pre-damage block — `declaredBlockDelta` reads effective P/T, so it covers
+    // the block declaration itself AND a combat trick just cast in response (the
+    // resolved pump is live this turn). No-op when no block is confirmed.
+    return v + declaredBlockDelta(probe, botId);
 }
 
 /** The reactive-aware rollout DEFAULT POLICY (ADR 0021 slice 2, issue #222): the
@@ -649,6 +691,15 @@ export function selectRolloutMove(
         if (isDiscouragedRolloutMove(state, pid, move)) {
             moverReward -= ROLLOUT_GUARDRAIL_PENALTY;
         }
+        // Setup-attack bonus (ADR 0021 slice 3): nudge the default policy to
+        // ATTACK when it holds a castable trick, so the rollout actually plays
+        // out the ambush instead of declining the bait. Small — it tips an
+        // even-looking setup (an attacker that merely trades) without forcing a
+        // clearly-losing one (a creature that just dies in the block), the
+        // mirror of the pre-block guardrail.
+        if (isAmbushSetupAttack(state, pid, move)) {
+            moverReward += ROLLOUT_GUARDRAIL_PENALTY;
+        }
         if (moverReward > bestScore) {
             bestScore = moverReward;
             best = [move];
@@ -667,6 +718,92 @@ function ucb1(edge: Edge): number {
     const exploit = edge.totalReward / edge.visits;
     const explore = UCB_C * Math.sqrt(Math.log(edge.avail) / edge.visits);
     return exploit + explore;
+}
+
+/** Whether `move` casts an instant-speed answer in a REACTIVE window — a combat
+ *  step or the opponent's turn, i.e. anywhere but the mover's OWN main phase
+ *  (the exact mirror of the ADR 0020 §4 sorcery-speed definition). These are the
+ *  windows where holding a trick to respond pays. */
+export function isReactiveInstantCast(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (move.kind !== "cast-spell") return false;
+    const ownMain =
+        pid === state.activePlayerId &&
+        (state.phase === "PRECOMBAT_MAIN" || state.phase === "POSTCOMBAT_MAIN");
+    if (ownMain) return false;
+    const player = state.players.find((p) => p.id === pid);
+    const card = player?.hand.find((c) => c.id === move.cardInstanceId);
+    const cardId = (card?.card as { id?: string } | undefined)?.id;
+    const def = cardId ? tryGetCardById(cardId) : undefined;
+    if (!def) return false;
+    return (
+        def.types.includes("Instant") ||
+        (def.staticAbilities?.includes("flash") ?? false)
+    );
+}
+
+/** Whether `move` is a non-empty ATTACK by a mover that holds a castable instant
+ *  — the SETUP half of the `hold → attack → opponent blocks → cast in response`
+ *  line. The leaf scores such an attack on the pre-trick exchange (it can read
+ *  as a creature walking into death), so without a nudge the tree never explores
+ *  the attack and the reactive subtree behind it is unreachable. Gated on
+ *  holding a live trick so it never fires on a plain empty-handed attack (e.g.
+ *  the suicidal-chump episode stays correct). */
+function isAmbushSetupAttack(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    return (
+        move.kind === "declare-attackers" &&
+        move.attackerIds.length > 0 &&
+        hasCastableInstant(state, pid)
+    );
+}
+
+/** Whether `move` is HOLDING PRIORITY (a pass) at a pre-block combat step while
+ *  the active player has attackers declared and a castable instant in hand — the
+ *  MIDDLE of the ambush line: wait for the opponent to commit blocks before
+ *  spending the trick. The leaf scores waiting as if the un-pumped attacker just
+ *  dies to the block, so the search would rather pump pre-emptively (forfeiting
+ *  the ambush) than wait; this nudge keeps the wait explored so the block-step
+ *  response behind it is reachable. */
+function isReactiveHold(state: GameState, pid: string, move: Move): boolean {
+    if (move.kind !== "pass") return false;
+    const combat = state.combat;
+    if (!combat || !combat.confirmed || combat.blockersConfirmed) return false;
+    if (combat.attackerIds.length === 0) return false;
+    if (pid !== state.activePlayerId) return false;
+    return hasCastableInstant(state, pid);
+}
+
+/** Soft progressive-bias prior added to an edge's UCB1 score (ADR 0021 slice 3,
+ *  issue #223). It biases the search to EXPLORE the reactive line — the attack
+ *  that BAITS a block, holding priority to WAIT for that block, and the
+ *  instant-speed RESPONSE in its window — so the otherwise-too-sparse
+ *  `hold → attack → block → respond` subtree accrues the visits its real value
+ *  needs to surface. The
+ *  bonus DECAYS as `REACTIVE_PRIOR_C / (1 + visits)`, so it can never dominate an
+ *  edge's accumulated reward: a genuine no-payoff line is washed out once
+ *  visited. Pure bias — NEVER a hard expansion rule, never a legality change.
+ *  Zero for every other move. */
+export function reactivePrior(
+    state: GameState,
+    pid: string,
+    move: Move,
+    visits: number
+): number {
+    if (
+        !isReactiveInstantCast(state, pid, move) &&
+        !isAmbushSetupAttack(state, pid, move) &&
+        !isReactiveHold(state, pid, move)
+    ) {
+        return 0;
+    }
+    return REACTIVE_PRIOR_C / (1 + visits);
 }
 
 /** Grow the tree by one iteration on a freshly-determinized world. */
@@ -714,7 +851,8 @@ function iterate(
         for (const { key } of keyed) {
             const edge = node.children.get(key)!;
             edge.avail += 1;
-            const val = ucb1(edge);
+            const val =
+                ucb1(edge) + reactivePrior(world, pid, edge.move, edge.visits);
             if (val > bestVal) {
                 bestVal = val;
                 bestEdge = edge;

@@ -262,6 +262,39 @@ function hasInstantTiming(card: CardInstanceState): boolean {
     return card.staticAbilities.includes("flash");
 }
 
+/** Untapped mana sources + floating mana available to `player` this turn — the
+ *  color-blind coarse proxy the `mana` term and the flexibility / castability
+ *  gates all share (CR 601 colored requirements are not modelled). */
+function availableManaFor(player: PlayerState): number {
+    let n = 0;
+    for (const perm of player.battlefield) {
+        if (!perm.isTapped && (isLand(perm) || hasManaAbility(perm))) n += 1;
+    }
+    for (const c of ["W", "U", "B", "R", "G", "C"] as const) {
+        n += player.manaPool[c] ?? 0;
+    }
+    return n;
+}
+
+/** Whether `playerId` holds at least one instant-speed card it can afford to
+ *  cast THIS turn (ADR 0021 slice 1 castability, reused by slice 3). The search
+ *  uses this to know a player has a live reactive option — a trick to ambush a
+ *  block with, a removal to hold up — when deciding whether the reactive line is
+ *  worth exploring. */
+export function hasCastableInstant(
+    state: GameState,
+    playerId: string
+): boolean {
+    const player = state.players.find((p) => p.id === playerId);
+    if (!player) return false;
+    const availableMana = availableManaFor(player);
+    return player.hand.some(
+        (c) =>
+            hasInstantTiming(c) &&
+            manaValue(getInstanceManaCost(c)) <= availableMana
+    );
+}
+
 /** The reactive-flexibility bonus for one player (ADR 0021 slice 1, issue #221).
  *  Counts holdable instants in hand the player has enough open mana to cast THIS
  *  turn (`availableMana` ≥ the card's mana value — the same color-blind proxy the
@@ -294,22 +327,13 @@ function playerTerms(state: GameState, player: PlayerState): EvalTerms {
         flexibility: 0,
     };
 
-    let availableMana = 0;
     for (const perm of player.battlefield) {
         terms.permanents += W_PERMANENT;
         if (isCreature(perm)) {
             terms.creatures += evaluateCreature(state, perm);
         }
-        // Available mana: an untapped source that can still produce mana this
-        // turn. Lands and other mana permanents both count.
-        if (!perm.isTapped && (isLand(perm) || hasManaAbility(perm))) {
-            availableMana += 1;
-        }
     }
-    // Floating mana is already-available too.
-    for (const c of ["W", "U", "B", "R", "G", "C"] as const) {
-        availableMana += player.manaPool[c] ?? 0;
-    }
+    const availableMana = availableManaFor(player);
     terms.mana = availableMana * W_MANA;
     // Reactive flexibility uses the SAME available-mana count as the affordability
     // gate, so it can only reward instants the player can actually cast now.
@@ -370,7 +394,10 @@ export function evaluate(state: GameState, playerId: string): number {
  *  evaluates identically and the choice falls to the noisy rollout. Folding the
  *  predicted exchange in lets the leaf tell a profitable attack from a creature
  *  walking into death. Zero when no combat is pending blocks. */
-function declaredCombatDelta(state: GameState, viewerId: string): number {
+export function declaredCombatDelta(
+    state: GameState,
+    viewerId: string
+): number {
     const combat = state.combat;
     if (
         !combat ||
@@ -415,7 +442,15 @@ function declaredCombatDelta(state: GameState, viewerId: string): number {
  *  attacker dies if the blockers' total power covers its toughness; each blocker
  *  dies if the attacker's power (assigned in listed order) covers its toughness;
  *  an unblocked attacker's power hits the defender's life. Zero when no block is
- *  confirmed. */
+ *  confirmed.
+ *
+ *  Lethality reads EFFECTIVE P/T (temp buffs included, like `predictCombatOutcome`)
+ *  — the combat happens THIS turn while an until-end-of-turn pump is live, so a
+ *  combat trick cast in response to the block MUST count here (ADR 0021 slice 3,
+ *  issue #223); this is what lets the rollout policy see that holding a trick and
+ *  casting it in the block step wins the exchange. The dead creatures' WORTH
+ *  still comes from `evaluateCreature` (permanent P/T): you lose the base
+ *  creature, not its one-turn pumped body. */
 export function declaredBlockDelta(state: GameState, viewerId: string): number {
     const combat = state.combat;
     if (
@@ -455,27 +490,21 @@ export function declaredBlockDelta(state: GameState, viewerId: string): number {
         if (!atk) continue;
         const blockers = blockersByAttacker.get(atkId) ?? [];
         if (blockers.length === 0) {
-            faceDamage += Math.max(0, getPermanentEffectivePower(state, atk));
+            faceDamage += Math.max(0, getEffectivePower(state, atk));
             continue;
         }
-        const atkPower = Math.max(0, getPermanentEffectivePower(state, atk));
-        const atkTough = Math.max(
-            0,
-            getPermanentEffectiveToughness(state, atk)
-        );
+        const atkPower = Math.max(0, getEffectivePower(state, atk));
+        const atkTough = Math.max(0, getEffectiveToughness(state, atk));
         // Blockers' combined power vs the attacker's toughness.
         const blockPower = blockers.reduce(
-            (sum, b) => sum + Math.max(0, getPermanentEffectivePower(state, b)),
+            (sum, b) => sum + Math.max(0, getEffectivePower(state, b)),
             0
         );
         if (blockPower >= atkTough) deadAttackers.push(atk);
         // Attacker assigns its power to blockers in listed order, lethal first.
         let remaining = atkPower;
         for (const b of blockers) {
-            const bTough = Math.max(
-                0,
-                getPermanentEffectiveToughness(state, b)
-            );
+            const bTough = Math.max(0, getEffectiveToughness(state, b));
             if (remaining >= bTough) {
                 deadBlockers.push(b);
                 remaining -= bTough;
