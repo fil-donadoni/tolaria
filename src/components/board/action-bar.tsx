@@ -158,6 +158,12 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                     confirmAttackers({ gameId, playerId });
                 } else if (isSelectingBlockers) {
                     confirmBlockers({ gameId, playerId });
+                } else if (isAssigningDamage) {
+                    // Mirror the Confirm Damage button: only fire once every
+                    // attacker's damage has been legally assigned.
+                    if (allDamageAssigned) {
+                        confirmDamage({ gameId, playerId });
+                    }
                 } else {
                     handlePass();
                 }
@@ -185,10 +191,13 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         autoTap,
         isSelectingAttackers,
         isSelectingBlockers,
+        isAssigningDamage,
+        allDamageAssigned,
         cancelCast,
         cancelActivation,
         confirmAttackers,
         confirmBlockers,
+        confirmDamage,
         gameId,
         playerId,
     ]);

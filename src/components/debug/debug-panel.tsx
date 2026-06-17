@@ -50,6 +50,67 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // AI — combat-trick ambush with a mana dork. The bot (opp) has a Birds of
+        // Paradise (0/1 flyer), an untapped Forest and Giant Growth ({G}: +3/+3)
+        // in hand. You (me) have an untapped Hypnotic Specter (2/2 flyer) that can
+        // block. The bait: if the bot swings the 0/1 and you block with your 2/2,
+        // the bot pumps the Birds to 3/4 in response — killing your Specter while
+        // surviving, trading a card + a tapped dork for your 2/2. END YOUR TURN
+        // and watch the bot: does it set up the ambush (swing the dork), and if
+        // you block, does it fire Giant Growth to trade up? (The mana-dork attack
+        // guardrail discourages the swing; the held trick should re-enable it as
+        // an ambush — this scenario is to observe that interplay.)
+        label: "AI: mana-dork ambush (Birds + Giant Growth vs Specter)",
+        cards: [
+            { name: "Birds of Paradise", owner: "opp" as const },
+            { name: "Forest", owner: "opp" as const },
+            {
+                name: "Giant Growth",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Hypnotic Specter", owner: "me" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // AI — mana-screw land drop (search.ts land-drop tie-break). The bot
+        // (opp) is stuck on ONE Plains with a second Plains in hand and a fistful
+        // of spells it cannot afford (Mahamoti Djinn 6, Air Elemental 4, two
+        // Counterspells). Developing the land is the only sensible play, but `pass`
+        // out-rewards it by rollout noise (inside OUTCOME_EPS) and gets explored
+        // far more, so the land used to fall out of the visit band and the bot sat
+        // on its only land — then discarded it in cleanup. END YOUR TURN and watch
+        // the bot's precombat main: it must play the second Plains (and so never
+        // reach an over-7 discard). Regression guard for the land-drop tie-break
+        // pulling from the full pool on outcome-equality, not the visit band.
+        label: "AI: mana-screw land drop (1 Plains + uncastable hand)",
+        cards: [
+            { name: "Plains", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const, zone: "hand" as const },
+            {
+                name: "Mahamoti Djinn",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Air Elemental",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Counterspell",
+                owner: "opp" as const,
+                zone: "hand" as const,
+                count: 2,
+            },
+            { name: "Plains", owner: "me" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 9 (#181) — Magnetic Mountain ({1}{R}{R} enchantment): blue
         // creatures don't untap during their controllers' untap steps (CR 502.1
         // hard skip). At each player's upkeep that player may choose any number
@@ -110,6 +171,7 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Grizzly Bears", owner: "me" as const },
             { name: "Serendib Efreet", owner: "opp" as const },
             { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Llanowar Elves", owner: "me" as const },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,

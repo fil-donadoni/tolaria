@@ -2,21 +2,30 @@ import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { CardPrinting } from "@convex/cards";
+import { foldAccents } from "@convex/cards/textNormalize";
 
 export interface CardIndexEntry {
     cardId: string;
     name: string;
     nameLower: string;
+    /** `nameLower` with diacritics stripped — drives accent-insensitive search. */
+    nameFold: string;
     types: string[];
     subtypes: string[];
     supertypes: string[];
     colors: string[];
     manaValue: number;
     oracleText: string;
+    /** `oracleText` with diacritics stripped. */
+    oracleFold: string;
     prints: CardPrinting[];
 }
 
 export type ColorMode = "at-most" | "include-all" | "include-any";
+
+/** Two-way match mode for the type and set multi-selects.
+ *  `all` = card must satisfy every selected value; `any` = at least one. */
+export type MatchMode = "all" | "any";
 
 export interface CardSearchFilters {
     text: string;
@@ -25,11 +34,15 @@ export interface CardSearchFilters {
     includeColorless: boolean;
     colorMode: ColorMode;
     types: string[];
+    /** How multiple selected types combine. Only relevant with 2+ selected. */
+    typeMode: MatchMode;
     /** Selected mana values. `7` is treated as "7 or more". */
     manaValues: number[];
     /** Selected set codes. Empty = all sets. A card matches when any of its
      *  printings belongs to a selected set. */
     sets: string[];
+    /** How multiple selected sets combine. Only relevant with 2+ selected. */
+    setMode: MatchMode;
 }
 
 export const DEFAULT_FILTERS: CardSearchFilters = {
@@ -38,8 +51,10 @@ export const DEFAULT_FILTERS: CardSearchFilters = {
     includeColorless: false,
     colorMode: "include-any",
     types: [],
+    typeMode: "any",
     manaValues: [],
     sets: [],
+    setMode: "any",
 };
 
 function matchesColors(
@@ -77,21 +92,32 @@ function tokenizeQuery(text: string): string[] {
 
 function matchesText(entry: CardIndexEntry, text: string): boolean {
     if (!text) return true;
-    const tokens = tokenizeQuery(text.toLowerCase());
+    // Fold accents so "ifh-bi" matches "Ifh-Bíff Efreet". The index carries
+    // pre-folded fields; the query is folded here.
+    const tokens = tokenizeQuery(foldAccents(text.toLowerCase()));
     if (tokens.length === 0) return true;
     return tokens.every(
-        (t) => entry.nameLower.includes(t) || entry.oracleText.includes(t)
+        (t) => entry.nameFold.includes(t) || entry.oracleFold.includes(t)
     );
 }
 
-function matchesTypes(entry: CardIndexEntry, selected: string[]): boolean {
-    if (selected.length === 0) return true;
-    return selected.some(
-        (t) =>
-            entry.types.includes(t) ||
-            entry.subtypes.includes(t) ||
-            entry.supertypes.includes(t)
+function entryHasType(entry: CardIndexEntry, t: string): boolean {
+    return (
+        entry.types.includes(t) ||
+        entry.subtypes.includes(t) ||
+        entry.supertypes.includes(t)
     );
+}
+
+function matchesTypes(
+    entry: CardIndexEntry,
+    selected: string[],
+    mode: MatchMode
+): boolean {
+    if (selected.length === 0) return true;
+    return mode === "all"
+        ? selected.every((t) => entryHasType(entry, t))
+        : selected.some((t) => entryHasType(entry, t));
 }
 
 function matchesManaValue(mv: number, selected: number[]): boolean {
@@ -102,10 +128,14 @@ function matchesManaValue(mv: number, selected: number[]): boolean {
 
 export function matchesSets(
     prints: CardPrinting[],
-    selected: string[]
+    selected: string[],
+    mode: MatchMode
 ): boolean {
     if (selected.length === 0) return true;
-    return prints.some((p) => selected.includes(p.setCode));
+    const printed = new Set(prints.map((p) => p.setCode));
+    return mode === "all"
+        ? selected.every((s) => printed.has(s))
+        : selected.some((s) => printed.has(s));
 }
 
 export function hasAnyFilter(filters: CardSearchFilters): boolean {
@@ -135,9 +165,9 @@ export function useCardSearch(filters: CardSearchFilters): {
             (e) =>
                 matchesText(e, filters.text) &&
                 matchesColors(e.colors, filters) &&
-                matchesTypes(e, filters.types) &&
+                matchesTypes(e, filters.types, filters.typeMode) &&
                 matchesManaValue(e.manaValue, filters.manaValues) &&
-                matchesSets(e.prints, filters.sets)
+                matchesSets(e.prints, filters.sets, filters.setMode)
         );
         return filtered.sort(
             (a, b) => a.manaValue - b.manaValue || a.name.localeCompare(b.name)

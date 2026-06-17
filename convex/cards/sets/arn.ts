@@ -1962,7 +1962,7 @@ export const cuombajjWitches: CardDefinition = {
 // activator pays {G} from their own pool; the source is not tapped and stays
 // under its controller's control.
 export const ifhBiffEfreet: CardDefinition = {
-    id: "e503a4f2-a785-4e7a-89a7-a9b24fb98831",
+    id: "c0b10fb7-8667-42bf-aeb6-35767a82917b",
     name: "Ifh-Bíff Efreet",
     oracleText:
         "Flying\n{G}: This creature deals 1 damage to each creature with flying and each player. Any player may activate this ability.",

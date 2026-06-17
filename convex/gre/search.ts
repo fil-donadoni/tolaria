@@ -60,6 +60,7 @@ import {
     buildAutoDamageAssignments,
 } from "./phases";
 import { cloneGameState } from "./clone";
+import { predictCombatOutcome } from "./dangerClock";
 import { recordBlockedAttackers } from "./banding";
 import { enumerateMoves, type Move } from "./moves";
 import {
@@ -1033,10 +1034,45 @@ const OUTCOME_EPS = 0.05;
  *  best (the outcome-equal set), then choose the one with the most surviving
  *  material (`totalMargin`). Outcome dominates; material — which never saturates
  *  — breaks the tie a free chump attack would otherwise win on noise. */
+/** A declared attack that gains NOTHING: every attacker is fully absorbed (no
+ *  blocker dies) and no damage reaches the defender's life. From a player's view
+ *  there is no reason to make such an attack even with no risk of losing the
+ *  attacker — a creature that attacks without vigilance taps out of defence, so a
+ *  neutral attack is already a tempo loss (the only upside, bluffing a trick for
+ *  free damage, the bot cannot represent). The check reuses `predictCombatOutcome`
+ *  — the same sensible-defender prediction the leaf eval uses — on the post-attack
+ *  state. `declare-attackers` is the active player's move (CR 508.1). */
+function isWastefulAttack(state: GameState, move: Move): boolean {
+    if (move.kind !== "declare-attackers" || move.attackerIds.length === 0) {
+        return false;
+    }
+    const attackerId = state.activePlayerId;
+    const defender = state.players.find((p) => p.id !== attackerId);
+    if (!defender) return false;
+    const probe = cloneGameState(state);
+    applyMoveInSearch(probe, attackerId, move);
+    const outcome = predictCombatOutcome(probe, attackerId, defender.id);
+    return outcome.deadBlockerIds.length === 0 && outcome.faceDamage === 0;
+}
+
+/** The defender's value of a specific declared block, from `botId`'s view: the
+ *  `declaredBlockDelta` of the post-block state (kills gained − blockers lost −
+ *  face taken, minus the cautious-block discount). The principled measure of a
+ *  block's worth — a clean kill scores highest, a dominated over-commit (a double
+ *  chump that loses two creatures to kill nothing) lowest. `declare-blockers` is
+ *  the defender's move, i.e. `botId` itself at this decision. */
+function blockDeltaOf(state: GameState, move: Move, botId: string): number {
+    if (move.kind !== "declare-blockers") return -Infinity;
+    const probe = cloneGameState(state);
+    applyMoveInSearch(probe, botId, move);
+    return declaredBlockDelta(probe, botId);
+}
+
 export function selectRootMove(
     root: Node,
     moves: Move[],
-    rootState?: GameState
+    rootState?: GameState,
+    botId?: string
 ): Move {
     const pool = [...root.children.values()].filter((e) => e.visits > 0);
     if (pool.length === 0) return moves[0];
@@ -1058,17 +1094,84 @@ export function selectRootMove(
         if (meanMargin(edge) > meanMargin(best)) best = edge;
     }
 
+    // Wasteful-attack tie-break. The material tie-break above can pick a purely
+    // neutral attack (fully absorbed, kills nothing, no face damage) over staying
+    // back, because a survived attacker leaves board material unchanged and the
+    // tiny realised differences are rollout noise within `OUTCOME_EPS`. Attacking
+    // for an at-best-neutral result is strictly dominated by holding — the swing
+    // taps a blocker out of defence for no gain. So when the robust pick is a
+    // wasteful attack, drop it (and any other wasteful attack) and keep the
+    // best-material contender that is NOT wasteful: a productive attack (deals
+    // damage / kills) or simply staying back. Fires only among outcome-equal
+    // contenders, so an attack with real value out-rewards the field and never
+    // reaches here.
+    if (rootState && isWastefulAttack(rootState, best.move)) {
+        // Pull the alternative from the FULL pool on outcome-equality alone (not
+        // the `VISIT_TOL` visit band), as the hold-trick rule does: staying back
+        // is the lower-variance, lower-visit line, so UCB explores the neutral
+        // swing more and pushes the defensive option out of the visit band even
+        // when the two are outcome-equal. Among outcome-equal, NON-wasteful
+        // alternatives, keep the best-material one.
+        const productive = pool.filter(
+            (e) =>
+                mean(e) >= bestMean - OUTCOME_EPS &&
+                !isWastefulAttack(rootState, e.move)
+        );
+        if (productive.length > 0) {
+            best = productive.reduce((m, e) =>
+                meanMargin(e) > meanMargin(m) ? e : m
+            );
+        }
+    }
+
+    // Block-quality tie-break. A block decision is decided by the same material
+    // tie-break / rollout noise, which cannot tell a clean kill-block from a
+    // wasteful over-commit: a double chump that loses two creatures to kill
+    // nothing leaves the same board as a single chump in most rollouts, so it can
+    // win on noise. `declaredBlockDelta` is the principled measure of a declared
+    // block's worth, so among outcome-equal block contenders keep the highest —
+    // it preserves a genuinely good block (a kill / favourable trade scores top)
+    // while rejecting a dominated over-commit. Pulled from the full pool on
+    // outcome-equality (not the visit band), as the hold-trick rule is: the
+    // lighter block is the lower-variance, lower-visit line.
+    if (rootState && botId && best.move.kind === "declare-blockers") {
+        const blocks = pool.filter(
+            (e) =>
+                e.move.kind === "declare-blockers" &&
+                mean(e) >= bestMean - OUTCOME_EPS
+        );
+        if (blocks.length > 0) {
+            best = blocks
+                .map((e) => ({
+                    e,
+                    delta: blockDeltaOf(rootState, e.move, botId),
+                }))
+                .reduce((m, x) => (x.delta > m.delta ? x : m)).e;
+        }
+    }
+
     // Land-drop tie-break (ADR 0020 §1, issue #206). A land has no option cost
     // in this engine — there is no bluff or hidden-information value to holding
     // it — so deferring it is never right. When the robust pick is `pass` but an
-    // outcome-equal `play-land` is already a contender (within `OUTCOME_EPS` of
-    // the best mean reward), develop the land instead. Fires ONLY on
-    // outcome-equality, so it can never override a genuine decision, and never
-    // overrides a non-`pass` robust pick. Generalizes the issue-#149 "land drop
-    // strictly positive" invariant to the tie-break (a strictly-better land
-    // already wins on mean reward and never reaches this branch).
+    // outcome-equal `play-land` exists (within `OUTCOME_EPS` of the best mean
+    // reward), develop the land instead. Fires ONLY on outcome-equality, so it
+    // can never override a genuine decision, and never overrides a non-`pass`
+    // robust pick. Generalizes the issue-#149 "land drop strictly positive"
+    // invariant to the tie-break (a strictly-better land already wins on mean
+    // reward and never reaches this branch).
+    //
+    // Pulled from the full `pool` on outcome-equality alone — NOT gated on the
+    // `VISIT_TOL` visit band (same as the hold-trick rule below). When `pass`
+    // out-rewards the land by a hair (rollout noise inside `OUTCOME_EPS`), UCB
+    // explores `pass` more and the land falls out of the visit band even though
+    // the two are outcome-equal. Gating the land on `contenders` (visit-band)
+    // would then silently drop it — exactly the mana-screwed case where the bot
+    // sat on its only land rather than developing it.
     if (best.move.kind === "pass") {
-        const land = contenders.find((e) => e.move.kind === "play-land");
+        const land = pool.find(
+            (e) =>
+                e.move.kind === "play-land" && mean(e) >= bestMean - OUTCOME_EPS
+        );
         if (land) return land.move;
     }
 
@@ -1169,7 +1272,7 @@ export function searchWithTrace(
         if (timeMs !== undefined && now() - start >= timeMs) break;
     }
 
-    const move = selectRootMove(root, moves, state);
+    const move = selectRootMove(root, moves, state, playerId);
     return { move, trace: buildTrace(root, state, playerId, i, move) };
 }
 

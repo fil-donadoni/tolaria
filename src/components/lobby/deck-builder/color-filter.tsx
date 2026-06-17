@@ -28,7 +28,7 @@ export default function ColorFilter({
     onChangeMode,
 }: ColorFilterProps) {
     return (
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-1">
                 {COLORS.map((c) => {
                     const active = selectedColors.includes(c);
@@ -65,7 +65,7 @@ export default function ColorFilter({
                 </button>
             </div>
 
-            <div className="flex items-center gap-1 rounded-sm border border-border-subtle/40 bg-surface-elevated/20 p-0.5 text-[11px]">
+            <div className="flex flex-wrap items-center gap-1 rounded-sm border border-border-subtle/40 bg-surface-elevated/20 p-0.5 text-[11px]">
                 {(Object.keys(MODE_LABELS) as ColorMode[]).map((m) => (
                     <button
                         key={m}
@@ -74,6 +74,7 @@ export default function ColorFilter({
                             "rounded-sm px-2 py-1 transition",
                             mode === m ? "segment-active" : "segment-inactive"
                         )}
+                        aria-pressed={mode === m}
                     >
                         {MODE_LABELS[m]}
                     </button>

@@ -26,7 +26,8 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup";
-import { evaluate, declaredBlockDelta } from "../evaluate";
+import { evaluate, declaredBlockDelta, declaredCombatDelta } from "../evaluate";
+import { predictCombatOutcome } from "../dangerClock";
 import type { GameState } from "../state";
 
 const GRIZZLY = getCardByName("Grizzly Bears").id; // 2/2
@@ -36,6 +37,10 @@ const ISLAND = getCardByName("Island").id;
 const BRAINGEYSER = getCardByName("Braingeyser").id; // {X}{U}{U}: target player draws X
 const GIANT_GROWTH = getCardByName("Giant Growth").id; // {G}: +3/+3 until EOT
 const BOP = getCardByName("Birds of Paradise").id; // 0/1 flying mana dork
+const IRONROOT = getCardByName("Ironroot Treefolk").id; // 3/5
+const GIANT_SPIDER = getCardByName("Giant Spider").id; // 2/4 reach
+const HYPNOTIC = getCardByName("Hypnotic Specter").id; // 2/2 flying
+const SCRYB = getCardByName("Scryb Sprites").id; // 1/1 flying
 
 /** Iteration budgets, smallest → largest. medium (400) is what the bot plays at;
  *  the larger rungs isolate budget/exploration limits from structural ones. A
@@ -1218,6 +1223,213 @@ describe("AI diagnosis harness (Forge comparison)", () => {
             expect(blockerCount(loadedTrace.chosen)).toBeLessThanOrEqual(
                 blockerCount(emptyTrace.chosen)
             );
+        }
+    );
+
+    // -----------------------------------------------------------------------
+    // Episode #9 — pointless / risky attack into an absorbing blocker. The bot
+    // p2 attacks Ironroot Treefolk (3/5) into a p1 board holding Giant Spider
+    // (2/4 reach), Hypnotic Specter (2/2 flying) and a Bird (0/1), with open
+    // mana and cards in hand. NO p1 creature has 5 power, so neither a killing
+    // nor a trading block exists — but Giant Spider (toughness 4 > 3) BLOCKS AND
+    // SURVIVES, absorbing all 3 damage for FREE. The realistic best case is a
+    // neutral exchange (0 face, nothing dies); the downside is real (the attack
+    // taps the 3/5 out of defence and risks a trick on the open mana). Attacking
+    // for an at-best-neutral result is wrong — the bot should stay back.
+    //
+    // Two layers of evidence:
+    //   * leaf: `predictCombatOutcome` must NOT report 3 face damage (it must
+    //     model the free absorbing block), so `declaredCombatDelta` for the
+    //     attack is ≤ 0 — never a phantom +24 (= 3 × W_LIFE) reward; and
+    //   * search: the no-attack line keeps at least as much material as the lone
+    //     Ironroot swing.
+    // -----------------------------------------------------------------------
+    it(
+        "episode #9: no profitable attack into an absorbing blocker — should stay back",
+        { timeout: DIAGNOSIS_TIMEOUT_MS },
+        () => {
+            const makeRiskyAttack = (declared: boolean): GameState => {
+                const ironroot = makeInstance(IRONROOT, {
+                    id: "ir",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    isSummoningSick: false,
+                    isTapped: declared,
+                    isAttacking: declared,
+                });
+                const spider = makeInstance(GIANT_SPIDER, {
+                    id: "spider",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    isSummoningSick: false,
+                });
+                const specter = makeInstance(HYPNOTIC, {
+                    id: "specter",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    isSummoningSick: false,
+                });
+                const bird = makeInstance(BOP, {
+                    id: "bird",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    isSummoningSick: false,
+                });
+                // p1 holds open mana + a card, so the swing also risks a trick.
+                const p1Lands = [0, 1, 2, 3, 4, 5].map((i) =>
+                    makeInstance(FOREST, {
+                        id: `p1-land${i}`,
+                        controllerId: "p1",
+                        ownerId: "p1",
+                        isTapped: false,
+                    })
+                );
+                const p1Hand = [
+                    makeInstance(GRIZZLY, {
+                        id: "p1-card",
+                        controllerId: "p1",
+                        ownerId: "p1",
+                        zone: "hand",
+                    }),
+                ];
+                return makeState({
+                    phase: "DECLARE_ATTACKERS",
+                    activePlayerId: "p2",
+                    priorityPlayerId: "p2",
+                    combat: {
+                        attackerIds: declared ? ["ir"] : [],
+                        confirmed: declared,
+                        blockerAssignments: {},
+                        blockersConfirmed: false,
+                    },
+                    players: [
+                        makePlayer("p1", {
+                            battlefield: [spider, specter, bird, ...p1Lands],
+                            hand: p1Hand,
+                        }),
+                        makePlayer("p2", { hand: [], battlefield: [ironroot] }),
+                    ],
+                });
+            };
+
+            // Leaf-level (deterministic): the free absorbing block by Giant Spider
+            // means the predicted combat is NOT 3 face damage, so the attacker's
+            // declared-combat delta carries no phantom reward.
+            const declaredState = makeRiskyAttack(true);
+            const outcome = predictCombatOutcome(declaredState, "p2", "p1");
+            expect(outcome.faceDamage).toBe(0);
+            expect(outcome.deadAttackerIds).toEqual([]);
+            expect(
+                declaredCombatDelta(declaredState, "p2")
+            ).toBeLessThanOrEqual(0);
+
+            // Search-level: the bot does NOT swing the 3/5 into the absorbing
+            // blocker. (Note the rollout `meanMargin` actually FAVOURS the swing —
+            // a survived attacker leaves board material unchanged and the tiny
+            // realised differences are noise — which is exactly why the neutral
+            // swing must be ruled out structurally, not via the material
+            // tie-break; see `isWastefulAttack` in search.ts.)
+            const trace = diagnose(
+                "EP#9 Ironroot 3/5 into Giant Spider 2/4 + open mana",
+                makeRiskyAttack(false),
+                "p2"
+            );
+            expect(trace.chosen).not.toContain("Ironroot");
+        }
+    );
+
+    // -----------------------------------------------------------------------
+    // Episode #10 — double CHUMP that cannot even kill the attacker. The bot p2
+    // is the DEFENDER facing a lone Hypnotic Specter (2/2 flying). It holds two
+    // tiny flyers: Scryb Sprites (1/1) and a Bird (0/1). Their COMBINED power is
+    // 1 < the Specter's 2 toughness, so NO block kills it — the Specter survives
+    // any block and its 2 power kills both 1-toughness blockers. A double block
+    // therefore loses TWO creatures to kill nothing; a single block loses one;
+    // not blocking loses none (taking 2 + a discard). Double-blocking is strictly
+    // dominated. The bot must not throw two creatures away for nothing.
+    // -----------------------------------------------------------------------
+    it(
+        "episode #10: never double-chump a 2/2 with two 1-power blockers",
+        { timeout: DIAGNOSIS_TIMEOUT_MS },
+        () => {
+            const makeChump = (): GameState => {
+                const specter = makeInstance(HYPNOTIC, {
+                    id: "ch-atk",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    isSummoningSick: false,
+                    isAttacking: true,
+                });
+                const sprites = makeInstance(SCRYB, {
+                    id: "ch-sprites",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    isSummoningSick: false,
+                });
+                const bird = makeInstance(BOP, {
+                    id: "ch-bird",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    isSummoningSick: false,
+                });
+                return makeState({
+                    phase: "DECLARE_BLOCKERS",
+                    activePlayerId: "p1",
+                    priorityPlayerId: "p2",
+                    combat: {
+                        attackerIds: ["ch-atk"],
+                        confirmed: true,
+                        blockerAssignments: {},
+                        blockersConfirmed: false,
+                    },
+                    players: [
+                        makePlayer("p1", { battlefield: [specter], hand: [] }),
+                        makePlayer("p2", {
+                            battlefield: [sprites, bird],
+                            hand: [],
+                        }),
+                    ],
+                });
+            };
+
+            // Leaf-level: the double block (both blockers on the Specter) scores
+            // strictly WORSE for the defender than a single block — it loses an
+            // extra creature to kill nothing.
+            const withBlocks = (
+                assignments: Record<string, string[]>
+            ): GameState => {
+                const s = makeChump();
+                return {
+                    ...s,
+                    combat: {
+                        ...s.combat!,
+                        blockerAssignments: assignments,
+                        blockersConfirmed: true,
+                    },
+                };
+            };
+            const doubleVal = declaredBlockDelta(
+                withBlocks({
+                    "ch-sprites": ["ch-atk"],
+                    "ch-bird": ["ch-atk"],
+                }),
+                "p2"
+            );
+            const singleVal = declaredBlockDelta(
+                withBlocks({ "ch-bird": ["ch-atk"] }),
+                "p2"
+            );
+            expect(doubleVal).toBeLessThan(singleVal);
+
+            // Search-level: the bot does not commit BOTH blockers to the Specter.
+            const trace = diagnose(
+                "EP#10 double-chump a 2/2 with 1/1 + 0/1",
+                makeChump(),
+                "p2"
+            );
+            const blockerCount = (label: string) =>
+                (label.match(/↦/g) ?? []).length;
+            expect(blockerCount(trace.chosen)).toBeLessThan(2);
         }
     );
 });

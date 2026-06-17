@@ -189,7 +189,25 @@ export function predictCombatOutcome(
             continue;
         }
 
-        // 3. Unblocked — its power reaches the defender's life.
+        // 3. Free absorbing block — a blocker that SURVIVES (toughness > the
+        // attacker's power) prevents all of this attacker's face damage at no
+        // cost, so a sensible defender takes it: nothing dies, no damage gets
+        // through. This models the Giant-Spider-eats-the-3/5 case, the reason a
+        // non-lethal chip attack into a bigger-bodied blocker gains the attacker
+        // nothing. (The steady-state Danger Clock deliberately omits this — it
+        // does not perma-commit a blocker; see `predictUnblockedDamage` — but a
+        // DECLARED one-shot combat, which is all this predictor scores, does get
+        // the free absorb.) A pure non-surviving chump is still NOT modelled: the
+        // defender keeps a creature it would only trade down, and takes the hit.
+        const absorber = legal.find(
+            (b) => getEffectiveToughness(state, b) > atkP
+        );
+        if (absorber) {
+            used.add(absorber.id);
+            continue;
+        }
+
+        // 4. Unblocked — its power reaches the defender's life.
         out.faceDamage += atkP;
     }
 

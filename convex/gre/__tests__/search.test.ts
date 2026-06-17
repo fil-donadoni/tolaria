@@ -420,19 +420,24 @@ describe("selectRootMove — land-drop tie-break (issue #206)", () => {
     /** Build a synthetic root whose edges carry the given mean reward and mean
      *  margin at a fixed visit count (so every edge is "equally explored"). */
     function rootOf(
-        edges: { move: Move; meanReward: number; meanMargin: number }[]
+        edges: {
+            move: Move;
+            meanReward: number;
+            meanMargin: number;
+            visits?: number;
+        }[]
     ): Node {
-        const VISITS = 100;
         const children = new Map<string, Edge>();
         edges.forEach((e, i) => {
+            const visits = e.visits ?? 100;
             children.set(`${e.move.kind}:${i}`, {
                 move: e.move,
                 mover: "p1",
                 node: { children: new Map() },
-                visits: VISITS,
-                totalReward: e.meanReward * VISITS,
-                totalMargin: e.meanMargin * VISITS,
-                avail: VISITS,
+                visits,
+                totalReward: e.meanReward * visits,
+                totalMargin: e.meanMargin * visits,
+                avail: visits,
             });
         });
         return { children };
@@ -444,6 +449,19 @@ describe("selectRootMove — land-drop tie-break (issue #206)", () => {
         const root = rootOf([
             { move: PASS, meanReward: 0.6635, meanMargin: 330 },
             { move: LAND, meanReward: 0.6633, meanMargin: 327 },
+        ]);
+        expect(selectRootMove(root, [PASS, LAND]).kind).toBe("play-land");
+    });
+
+    it("FIRE: picks the land even when it fell out of the visit band (mana-screwed)", () => {
+        // Regression: a mana-screwed bot sat on its only land. `pass` out-rewards
+        // the land by a hair (rollout noise, inside OUTCOME_EPS), so UCB explored
+        // pass far more (761 vs 439) and the land dropped below the VISIT_TOL band.
+        // The tie-break must still rescue it — it pulls from the full pool on
+        // outcome-equality, not the visit band.
+        const root = rootOf([
+            { move: PASS, meanReward: 0.6135, meanMargin: 227, visits: 761 },
+            { move: LAND, meanReward: 0.5708, meanMargin: 248, visits: 439 },
         ]);
         expect(selectRootMove(root, [PASS, LAND]).kind).toBe("play-land");
     });

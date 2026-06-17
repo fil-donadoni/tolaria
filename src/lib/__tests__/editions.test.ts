@@ -53,17 +53,27 @@ describe("defaultEdition", () => {
 
 describe("matchesSets (set filter)", () => {
     it("matches everything when no set is selected", () => {
-        expect(matchesSets(prints, [])).toBe(true);
+        expect(matchesSets(prints, [], "any")).toBe(true);
     });
 
     it("matches when any printing belongs to a selected set", () => {
-        expect(matchesSets(prints, ["leb"])).toBe(true);
-        expect(matchesSets(prints, ["lea"])).toBe(true);
+        expect(matchesSets(prints, ["leb"], "any")).toBe(true);
+        expect(matchesSets(prints, ["lea"], "any")).toBe(true);
     });
 
     it("rejects when no printing belongs to a selected set", () => {
-        expect(matchesSets([{ printId: "x", setCode: "lea" }], ["leb"])).toBe(
-            false
-        );
+        expect(
+            matchesSets([{ printId: "x", setCode: "lea" }], ["leb"], "any")
+        ).toBe(false);
+    });
+
+    it("'all' mode requires a printing in every selected set", () => {
+        // `prints` spans lea + leb (see fixture).
+        expect(matchesSets(prints, ["lea", "leb"], "all")).toBe(true);
+        expect(matchesSets(prints, ["lea", "unf"], "all")).toBe(false);
+    });
+
+    it("'any' mode matches when at least one selected set is present", () => {
+        expect(matchesSets(prints, ["lea", "unf"], "any")).toBe(true);
     });
 });

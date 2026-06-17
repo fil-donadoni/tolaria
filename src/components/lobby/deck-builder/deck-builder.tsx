@@ -16,12 +16,8 @@ import SaveDeckBar from "./save-deck-bar";
 import SearchBar from "./search-bar";
 import SetFilter from "./set-filter";
 import TypeFilter from "./type-filter";
-import {
-    DEFAULT_FILTERS,
-    type CardSearchFilters,
-    type ColorMode,
-    useCardSearch,
-} from "./useCardSearch";
+import { useFilterSearchParams } from "./useFilterSearchParams";
+import { type ColorMode, type MatchMode, useCardSearch } from "./useCardSearch";
 
 interface WorkingDeck {
     name: string;
@@ -70,7 +66,7 @@ export default function DeckBuilder({
                 cards: [],
             }
     );
-    const [filters, setFilters] = useState<CardSearchFilters>(DEFAULT_FILTERS);
+    const [filters, setFilters] = useFilterSearchParams();
 
     const { create, update } = useUserDeckMutations();
     const userDeckIdRef = useRef<Id<"userDecks"> | null>(
@@ -208,53 +204,85 @@ export default function DeckBuilder({
         onClose(userDeckIdRef.current);
     }, [flush, onClose]);
 
-    const toggleColor = useCallback((color: string) => {
-        setFilters((f) => ({
-            ...f,
-            colors: f.colors.includes(color)
-                ? f.colors.filter((c) => c !== color)
-                : [...f.colors, color],
-        }));
-    }, []);
+    const toggleColor = useCallback(
+        (color: string) => {
+            setFilters((f) => ({
+                ...f,
+                colors: f.colors.includes(color)
+                    ? f.colors.filter((c) => c !== color)
+                    : [...f.colors, color],
+            }));
+        },
+        [setFilters]
+    );
 
     const toggleColorless = useCallback(() => {
         setFilters((f) => ({ ...f, includeColorless: !f.includeColorless }));
-    }, []);
+    }, [setFilters]);
 
-    const setColorMode = useCallback((mode: ColorMode) => {
-        setFilters((f) => ({ ...f, colorMode: mode }));
-    }, []);
+    const setColorMode = useCallback(
+        (mode: ColorMode) => {
+            setFilters((f) => ({ ...f, colorMode: mode }));
+        },
+        [setFilters]
+    );
 
-    const toggleType = useCallback((type: string) => {
-        setFilters((f) => ({
-            ...f,
-            types: f.types.includes(type)
-                ? f.types.filter((t) => t !== type)
-                : [...f.types, type],
-        }));
-    }, []);
+    const toggleType = useCallback(
+        (type: string) => {
+            setFilters((f) => ({
+                ...f,
+                types: f.types.includes(type)
+                    ? f.types.filter((t) => t !== type)
+                    : [...f.types, type],
+            }));
+        },
+        [setFilters]
+    );
 
-    const toggleManaValue = useCallback((value: number) => {
-        setFilters((f) => ({
-            ...f,
-            manaValues: f.manaValues.includes(value)
-                ? f.manaValues.filter((v) => v !== value)
-                : [...f.manaValues, value],
-        }));
-    }, []);
+    const setTypeMode = useCallback(
+        (mode: MatchMode) => {
+            setFilters((f) => ({ ...f, typeMode: mode }));
+        },
+        [setFilters]
+    );
 
-    const toggleSet = useCallback((setCode: string) => {
-        setFilters((f) => ({
-            ...f,
-            sets: f.sets.includes(setCode)
-                ? f.sets.filter((s) => s !== setCode)
-                : [...f.sets, setCode],
-        }));
-    }, []);
+    const toggleManaValue = useCallback(
+        (value: number) => {
+            setFilters((f) => ({
+                ...f,
+                manaValues: f.manaValues.includes(value)
+                    ? f.manaValues.filter((v) => v !== value)
+                    : [...f.manaValues, value],
+            }));
+        },
+        [setFilters]
+    );
 
-    const setText = useCallback((text: string) => {
-        setFilters((f) => ({ ...f, text }));
-    }, []);
+    const toggleSet = useCallback(
+        (setCode: string) => {
+            setFilters((f) => ({
+                ...f,
+                sets: f.sets.includes(setCode)
+                    ? f.sets.filter((s) => s !== setCode)
+                    : [...f.sets, setCode],
+            }));
+        },
+        [setFilters]
+    );
+
+    const setSetMode = useCallback(
+        (mode: MatchMode) => {
+            setFilters((f) => ({ ...f, setMode: mode }));
+        },
+        [setFilters]
+    );
+
+    const setText = useCallback(
+        (text: string) => {
+            setFilters((f) => ({ ...f, text }));
+        },
+        [setFilters]
+    );
 
     return (
         <div
@@ -294,8 +322,15 @@ export default function DeckBuilder({
                     <TypeFilter
                         selected={filters.types}
                         onToggle={toggleType}
+                        mode={filters.typeMode}
+                        onChangeMode={setTypeMode}
                     />
-                    <SetFilter selected={filters.sets} onToggle={toggleSet} />
+                    <SetFilter
+                        selected={filters.sets}
+                        onToggle={toggleSet}
+                        mode={filters.setMode}
+                        onChangeMode={setSetMode}
+                    />
                     <ManaValueFilter
                         selected={filters.manaValues}
                         onToggle={toggleManaValue}
