@@ -306,6 +306,13 @@ export interface ActivatedAbility {
      *  `CardInstanceState.activationsThisTurn[abilityId]` and resets at
      *  turn start. Used by Instill Energy. */
     oncePerTurn?: boolean;
+    /** "Any player may activate this ability" (CR 113.3c / 602.1). By default
+     *  only the source's controller may activate an activated ability; when
+     *  this is set, any player with priority may activate it — they pay the
+     *  costs from their own resources (mana pool / life), but the source's
+     *  controller is unchanged and the ability still resolves as a normal
+     *  activated ability on the stack. Used by Ifh-Bíff Efreet. */
+    activatableByAnyPlayer?: boolean;
 }
 
 // --- Temporary-effect durations (CR 611.2, 514.2, 511.3) ---

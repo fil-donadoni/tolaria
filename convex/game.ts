@@ -370,7 +370,20 @@ function tryAutoCommitPendingActivation(
     )
         return null;
 
-    const card = player.battlefield.find((c) => c.id === pa.cardInstanceId);
+    // CR 113.3c — the source may live on another player's battlefield for an
+    // "any player may activate" ability, so search every battlefield rather
+    // than just the activator's. Mana is still paid from the activator's pool
+    // above; only the source-permanent lookup is global.
+    let card = player.battlefield.find((c) => c.id === pa.cardInstanceId);
+    if (!card) {
+        for (const p of state.players) {
+            const found = p.battlefield.find((c) => c.id === pa.cardInstanceId);
+            if (found) {
+                card = found;
+                break;
+            }
+        }
+    }
     if (!card) {
         // Source vanished (e.g. removed by an opposing effect). Drop the
         // payment silently — lands stay tapped (same policy as cancelCast for
@@ -3506,9 +3519,23 @@ export const activateAbility = mutation({
         }
 
         const player = getPlayer(state, args.playerId);
-        const card = player.battlefield.find(
-            (c) => c.id === args.cardInstanceId
-        );
+        // CR 602.1 — by default only the source's controller activates an
+        // activated ability, so look on the activator's own battlefield first.
+        // For "any player may activate" abilities (CR 113.3c, Ifh-Bíff Efreet)
+        // the source can live on another player's battlefield; fall back to a
+        // global search and gate it on the resolved ability's flag below.
+        let card = player.battlefield.find((c) => c.id === args.cardInstanceId);
+        if (!card) {
+            for (const p of state.players) {
+                const found = p.battlefield.find(
+                    (c) => c.id === args.cardInstanceId
+                );
+                if (found) {
+                    card = found;
+                    break;
+                }
+            }
+        }
         if (!card) throw new Error("Card not on battlefield");
 
         const cardId = (card.card as { id?: string }).id;
@@ -3517,6 +3544,15 @@ export const activateAbility = mutation({
         const resolved = resolveActivatedAbility(card, args.abilityId);
         if (!resolved) throw new Error("Ability not found");
         const ability = resolved.ability;
+        // CR 602.1 — enforce the controller-only default unless the ability is
+        // explicitly "any player may activate". `card.controllerId` is the
+        // source's controller; only that player may activate otherwise.
+        if (
+            !ability.activatableByAnyPlayer &&
+            card.controllerId !== args.playerId
+        ) {
+            throw new Error("You do not control this permanent");
+        }
         const grantedSourceCardId = resolved.grantedSourceCardId;
         if (!ability.useStack) {
             throw new Error("Use tapUntap for mana abilities");

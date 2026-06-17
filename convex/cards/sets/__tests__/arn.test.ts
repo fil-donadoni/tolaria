@@ -61,6 +61,7 @@ import {
     oubliette,
     magneticMountain,
     cuombajjWitches,
+    ifhBiffEfreet,
 } from "../arn";
 import {
     grizzlyBears,
@@ -2503,5 +2504,134 @@ describe("Cuombajj Witches (opponent-chosen second target, CR 115.4 / 608.2)", (
         expect(new Set(head?.candidateIds)).toEqual(
             new Set(["witches", "p1-body", "p2-body"])
         );
+    });
+});
+
+describe("Ifh-Bíff Efreet (any-player-activatable mass flyer damage, CR 113.3c / 120.3)", () => {
+    /** p1 controls the Efreet (3/3 flyer), a tough flyer (Bird Maiden 1/2,
+     *  survives the ping so its `damageMarked` is observable), and a ground
+     *  creature (Grizzly Bears). p2 controls a tough flyer (Bird Maiden), a
+     *  ground creature (Grizzly Bears), and a fragile flyer (Flying Men 1/1)
+     *  that dies to the 1 damage — proving the sweep hits flyers lethally. */
+    function setup() {
+        const efreet = makeInstance(ifhBiffEfreet.id, {
+            id: "efreet",
+            controllerId: "p1",
+        });
+        const myFlyer = makeInstance(birdMaiden.id, {
+            id: "p1-flyer",
+            controllerId: "p1",
+        });
+        const myGround = makeInstance(grizzlyBears.id, {
+            id: "p1-ground",
+            controllerId: "p1",
+        });
+        const oppFlyer = makeInstance(birdMaiden.id, {
+            id: "p2-flyer",
+            controllerId: "p2",
+        });
+        const oppGround = makeInstance(grizzlyBears.id, {
+            id: "p2-ground",
+            controllerId: "p2",
+        });
+        const fragileFlyer = makeInstance(flyingMen.id, {
+            id: "p2-fragile-flyer",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [efreet, myFlyer, myGround],
+                }),
+                makePlayer("p2", {
+                    battlefield: [oppFlyer, oppGround, fragileFlyer],
+                }),
+            ],
+        });
+        return { state, efreet };
+    }
+
+    /** Push the activated ability with a chosen activator (`castById`) — mirrors
+     *  the post-`activateAbility` state where the activator may differ from the
+     *  source's controller (CR 113.3c). */
+    function fire(
+        state: GameState,
+        source: CardInstanceState,
+        activator: string
+    ) {
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: activator,
+            abilityId: "ifh-biff-efreet-rain",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    function bf(state: GameState, playerIdx: number, id: string) {
+        return state.players[playerIdx].battlefield.find((c) => c.id === id)!;
+    }
+
+    it("damages each creature with flying and each player; spares non-flyers", () => {
+        const { state, efreet } = setup();
+        fire(state, efreet, "p1");
+
+        // Both players take 1.
+        expect(state.players[0].life).toBe(19);
+        expect(state.players[1].life).toBe(19);
+        // Every surviving flyer (incl. the Efreet itself, a 3/3) takes 1.
+        expect(bf(state, 0, "efreet").damageMarked).toBe(1);
+        expect(bf(state, 0, "p1-flyer").damageMarked).toBe(1);
+        expect(bf(state, 1, "p2-flyer").damageMarked).toBe(1);
+        // The 1/1 flyer took lethal flying damage and left via SBA.
+        expect(
+            state.players[1].battlefield.find(
+                (c) => c.id === "p2-fragile-flyer"
+            )
+        ).toBeUndefined();
+        // Ground creatures are untouched.
+        expect(bf(state, 0, "p1-ground").damageMarked).toBeUndefined();
+        expect(bf(state, 1, "p2-ground").damageMarked).toBeUndefined();
+    });
+
+    it("is symmetric regardless of who activates it (any player)", () => {
+        // Activated by the OPPONENT (p2), not the controller — same outcome.
+        const { state, efreet } = setup();
+        fire(state, efreet, "p2");
+
+        expect(state.players[0].life).toBe(19);
+        expect(state.players[1].life).toBe(19);
+        expect(bf(state, 0, "p1-flyer").damageMarked).toBe(1);
+        expect(bf(state, 1, "p2-flyer").damageMarked).toBe(1);
+        expect(bf(state, 0, "p1-ground").damageMarked).toBeUndefined();
+    });
+
+    it("definition snapshot: {2}{G}{G} 3/3 Efreet with flying and an any-player {G} ability", () => {
+        expect(ifhBiffEfreet.manaCost).toEqual({ X: 2, G: 2 });
+        expect(ifhBiffEfreet.power).toBe(3);
+        expect(ifhBiffEfreet.toughness).toBe(3);
+        expect(ifhBiffEfreet.subtypes).toEqual(["Efreet"]);
+        expect(ifhBiffEfreet.staticAbilities).toContain("flying");
+        const ability = ifhBiffEfreet.activatedAbilities![0];
+        expect(ability.cost).toEqual({ mana: { G: 1 } });
+        expect(ability.useStack).toBe(true);
+        expect(ability.activatableByAnyPlayer).toBe(true);
+    });
+
+    it("wire format: the flyer-only damage survives projection", () => {
+        const { state, efreet } = setup();
+        fire(state, efreet, "p2");
+        const projected = projectPublicState(state, 1, "p2");
+        // p2's own flyer took 1, ground creature did not — visible client-side.
+        const projFlyer = projected.players[1].battlefield.find(
+            (c) => c.id === "p2-flyer"
+        )!;
+        const projGround = projected.players[1].battlefield.find(
+            (c) => c.id === "p2-ground"
+        )!;
+        expect(projFlyer.damageMarked).toBe(1);
+        expect(projGround.damageMarked).toBeUndefined();
+        expect(projected.players[1].life).toBe(19);
     });
 });

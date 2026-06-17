@@ -74,6 +74,28 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // ARN Batch 9 (#183) — Ifh-Bíff Efreet ({2}{G}{G}, 3/3 flyer):
+        // "{G}: This creature deals 1 damage to each creature with flying and
+        // each player. Any player may activate this ability." (CR 113.3c /
+        // 120.3). The Efreet belongs to the OPPONENT, but YOU can still fire it
+        // — right-click it to find the {G} ability in its menu (surfaced on the
+        // opponent's permanent because it is any-player-activatable). Pay {G}
+        // from a Forest. The ping hits both players and every flyer (the Efreet
+        // itself, both Flying Men) but spares the Grizzly Bears. The 1/1 Flying
+        // Men die; the Efreet and ground creatures survive.
+        label: "ARN: any-player ability (Ifh-Bíff Efreet)",
+        cards: [
+            { name: "Ifh-Bíff Efreet", owner: "opp" as const },
+            { name: "Flying Men", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Forest", owner: "me" as const, count: 2 },
+            { name: "Flying Men", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 9 (#182) — Cuombajj Witches ({B}{B}, 1/3): "{T}: This
         // creature deals 1 damage to any target and 1 damage to any target of
         // an opponent's choice." (CR 115.4 / 608.2). Tap the Witches and pick
