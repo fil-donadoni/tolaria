@@ -37,6 +37,7 @@ import {
     getEffectiveToughness,
 } from "./layers";
 import { isProtectedFromSource } from "./protection";
+import { isGuardedAgainst } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
 import { colorWordsPresent, landTypesPresent } from "./textChanges";
 import { randomInt, seededShuffle } from "./rng";
@@ -1457,7 +1458,11 @@ function finalizeSpellResolution(
                 isLegalAuraHost(host, item) &&
                 // CR 702.16b: the target can't have acquired protection
                 // matching the aura's color between cast and resolution.
-                !isProtectedFromSource(host, item);
+                !isProtectedFromSource(host, item) &&
+                // CR 303.4 — the host can't have become "can't be enchanted"
+                // (Guardian Beast) between cast and resolution. Already-attached
+                // Auras are unaffected; this gate only blocks new attachment.
+                !isGuardedAgainst(state, host, "cantBeEnchanted");
             if (!isLegalHost || host === undefined) {
                 item.zone = "graveyard";
                 getPlayer(state, item.ownerId).graveyard.push(item);
@@ -1990,6 +1995,10 @@ export function applyControlChange(
     revertControlChange(state, hostId, sourceId);
     const found = findOnBattlefield(state, hostId);
     if (!found) return;
+    // CR 613.1b — a continuous `permanent-guard` may bar control change
+    // (Guardian Beast: "their control can't be changed" while it is untapped).
+    // Read live so the lock tracks the guarding source's tap state.
+    if (isGuardedAgainst(state, found.card, "controlCantChange")) return;
     if (found.card.controllerId === newControllerId) return;
     const stack = found.card.controlChanges ?? [];
     found.card.controlChanges = [
@@ -2175,6 +2184,10 @@ export function regenerateOrDestroy(
     // (A creature with indestructible and lethal damage marks survives — the
     // marked damage stays, but SBA 704.5g doesn't fire on it.)
     if (found.card.staticAbilities.includes("indestructible")) return false;
+    // CR 702.12 via a continuous `permanent-guard` (Guardian Beast — "your
+    // noncreature artifacts have indestructible as long as ~ is untapped").
+    // Read live so the grant tracks the source's current tap state.
+    if (isGuardedAgainst(state, found.card, "indestructible")) return false;
     // CR 614.1a (Disintegrate) — exileOnDeath suppresses regeneration and
     // routes death to exile instead of graveyard.
     const exileOnDeath = found.card.exileOnDeath === true;

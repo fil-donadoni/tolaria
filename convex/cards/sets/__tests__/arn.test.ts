@@ -62,6 +62,7 @@ import {
     magneticMountain,
     cuombajjWitches,
     ifhBiffEfreet,
+    guardianBeast,
 } from "../arn";
 import {
     grizzlyBears,
@@ -73,6 +74,10 @@ import {
     psionicBlast,
     stoneRain,
     flight,
+    blackLotus,
+    shatter,
+    stealArtifact,
+    animateArtifact,
 } from "../lea";
 import { getInstanceManaCost, tryGetCardById } from "../../";
 import type { Color } from "../../types";
@@ -102,6 +107,9 @@ import {
     normalizeManaCost,
     phaseOutPermanent,
     phaseInBundle,
+    regenerateOrDestroy,
+    destroyWithReplacements,
+    applyControlChange,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -2633,5 +2641,195 @@ describe("Ifh-Bíff Efreet (any-player-activatable mass flyer damage, CR 113.3c 
         expect(projFlyer.damageMarked).toBe(1);
         expect(projGround.damageMarked).toBeUndefined();
         expect(projected.players[1].life).toBe(19);
+    });
+});
+
+// Guardian Beast — continuous `permanent-guard` (CR 611). While untapped, its
+// controller's noncreature artifacts can't be targeted (CR 702.16b-style),
+// can't be enchanted (CR 303.4), have indestructible (CR 702.12), and their
+// control can't change (CR 613.1b). All four gates read the guard live, so a
+// tap/untap transition flips the protections.
+describe("Guardian Beast (permanent-guard while untapped, CR 611)", () => {
+    /** p1 controls Guardian Beast + a noncreature artifact (Black Lotus). */
+    function setup(opts: { beastTapped?: boolean } = {}) {
+        const beast = makeInstance(guardianBeast.id, {
+            id: "beast",
+            controllerId: "p1",
+            isTapped: opts.beastTapped ?? false,
+        });
+        const lotus = makeInstance(blackLotus.id, {
+            id: "lotus",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [beast, lotus] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, beast, lotus };
+    }
+
+    const onBattlefield = (state: GameState, id: string) =>
+        state.players.some((p) => p.battlefield.some((c) => c.id === id));
+    const controllerOf = (state: GameState, id: string) =>
+        state.players.find((p) => p.battlefield.some((c) => c.id === id))?.id;
+
+    describe("indestructible (CR 702.12)", () => {
+        it("a guarded artifact survives 'destroy' while the Beast is untapped", () => {
+            const { state } = setup();
+            const destroyed = destroyWithReplacements(state, "lotus");
+            expect(destroyed).toBe(false);
+            expect(onBattlefield(state, "lotus")).toBe(true);
+        });
+
+        it("the artifact is destroyed once the Beast is tapped", () => {
+            const { state, beast } = setup();
+            beast.isTapped = true;
+            const destroyed = destroyWithReplacements(state, "lotus");
+            expect(destroyed).toBe(true);
+            expect(onBattlefield(state, "lotus")).toBe(false);
+        });
+
+        it("integration: resolving Shatter at the artifact is a no-op while untapped", () => {
+            const { state } = setup();
+            pushSpell(state, shatter.id, "p2", [
+                { type: "permanent", id: "lotus" },
+            ]);
+            resolveTopOfStack(state);
+            expect(onBattlefield(state, "lotus")).toBe(true);
+        });
+
+        it("integration: Shatter destroys the artifact once the Beast is tapped", () => {
+            const { state, beast } = setup();
+            beast.isTapped = true;
+            pushSpell(state, shatter.id, "p2", [
+                { type: "permanent", id: "lotus" },
+            ]);
+            resolveTopOfStack(state);
+            expect(onBattlefield(state, "lotus")).toBe(false);
+        });
+
+        it("does not protect the Beast's controller's OTHER creatures, nor artifacts of another player", () => {
+            // Only noncreature artifacts the Beast's controller controls are
+            // guarded. A regular creature p1 controls is still destructible,
+            // and an opponent's artifact is unguarded.
+            const { state } = setup();
+            const bear = makeInstance(grizzlyBears.id, {
+                id: "bear",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const oppLotus = makeInstance(blackLotus.id, {
+                id: "opp-lotus",
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+            state.players[0].battlefield.push(bear);
+            state.players[1].battlefield.push(oppLotus);
+            expect(regenerateOrDestroy(state, "bear")).toBe(true);
+            expect(destroyWithReplacements(state, "opp-lotus")).toBe(true);
+        });
+    });
+
+    describe("can't be targeted (CR 702.16b-style)", () => {
+        it("getLegalTargets excludes the guarded artifact while untapped", () => {
+            const { state } = setup();
+            const targets = getLegalTargets(state, shatter.targetRequirement!, [
+                "R",
+            ]);
+            expect(targets.some((t) => t.id === "lotus")).toBe(false);
+        });
+
+        it("getLegalTargets includes the artifact once the Beast is tapped", () => {
+            const { state, beast } = setup();
+            beast.isTapped = true;
+            const targets = getLegalTargets(state, shatter.targetRequirement!, [
+                "R",
+            ]);
+            expect(targets.some((t) => t.id === "lotus")).toBe(true);
+        });
+
+        it("wire format: the targeting ban survives projection", () => {
+            const { state } = setup();
+            const projected = projectPublicState(state, 1, "p1");
+            const targets = getLegalTargets(
+                projected as unknown as GameState,
+                shatter.targetRequirement!,
+                ["R"]
+            );
+            expect(targets.some((t) => t.id === "lotus")).toBe(false);
+        });
+    });
+
+    describe("can't be enchanted (CR 303.4)", () => {
+        it("an Aura cast at the guarded artifact fizzles to the graveyard while untapped", () => {
+            const { state } = setup();
+            // Animate Artifact targets a noncreature artifact.
+            pushSpell(state, animateArtifact.id, "p1", [
+                { type: "permanent", id: "lotus" },
+            ]);
+            resolveTopOfStack(state);
+            // Aura did not attach — it fizzled to its owner's graveyard.
+            const aura = state.players[0].graveyard.find(
+                (c) => (c.card as { id?: string }).id === animateArtifact.id
+            );
+            expect(aura).toBeDefined();
+            const lotus = state.players[0].battlefield.find(
+                (c) => c.id === "lotus"
+            )!;
+            expect(lotus.attachedTo).toBeUndefined();
+            // The artifact stays a noncreature (Animate Artifact never applied).
+            expect(lotus.types.includes("Creature")).toBe(false);
+        });
+
+        it("the Aura attaches once the Beast is tapped", () => {
+            const { state, beast } = setup();
+            beast.isTapped = true;
+            pushSpell(state, animateArtifact.id, "p1", [
+                { type: "permanent", id: "lotus" },
+            ]);
+            resolveTopOfStack(state);
+            const lotus = state.players[0].battlefield.find(
+                (c) => c.id === "lotus"
+            )!;
+            expect(lotus.types.includes("Creature")).toBe(true);
+        });
+    });
+
+    describe("control can't be changed (CR 613.1b)", () => {
+        it("applyControlChange is a no-op on the guarded artifact while untapped", () => {
+            const { state } = setup();
+            applyControlChange(state, "lotus", "p2", "src-1");
+            expect(controllerOf(state, "lotus")).toBe("p1");
+        });
+
+        it("control changes once the Beast is tapped", () => {
+            const { state, beast } = setup();
+            beast.isTapped = true;
+            applyControlChange(state, "lotus", "p2", "src-1");
+            expect(controllerOf(state, "lotus")).toBe("p2");
+        });
+
+        it("integration: Steal Artifact can't steal the guarded artifact while untapped", () => {
+            const { state } = setup();
+            pushSpell(state, stealArtifact.id, "p2", [
+                { type: "permanent", id: "lotus" },
+            ]);
+            resolveTopOfStack(state);
+            // The aura fizzles (can't enchant), so control never changes.
+            expect(controllerOf(state, "lotus")).toBe("p1");
+        });
+    });
+
+    it("definition snapshot: 2/4 Beast, {3}{B}, single permanent-guard", () => {
+        expect(guardianBeast.power).toBe(2);
+        expect(guardianBeast.toughness).toBe(4);
+        expect(guardianBeast.manaCost).toEqual({ X: 3, B: 1 });
+        const guards = (guardianBeast.staticEffects ?? []).filter(
+            (e) => e.kind === "permanent-guard"
+        );
+        expect(guards).toHaveLength(1);
     });
 });

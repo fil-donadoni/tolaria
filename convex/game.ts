@@ -46,6 +46,7 @@ import {
     tapPermanent,
 } from "./gre/state";
 import { buildAutoTapSources, solveAutoTap } from "./gre/autoTap";
+import { isGuardedAgainst } from "./gre/permanentGuard";
 import type { Color, ManaCost, SpellMode } from "./cards/types";
 import {
     assertLegalAction,
@@ -2259,6 +2260,13 @@ export const selectTarget = mutation({
             );
             if (isProtectedFromColors(matchedCard, sourceColors)) {
                 throw new Error("Target has protection from this source");
+            }
+            // CR 611 — a continuous `permanent-guard` (Guardian Beast) may bar
+            // targeting entirely. Mirror of the getLegalTargets gate.
+            if (isGuardedAgainst(state, matchedCard, "cantBeTargeted")) {
+                throw new Error(
+                    "Target can't be the target of spells or abilities"
+                );
             }
         } else if (args.targetType === "player") {
             if (!wantsAny && !reqTypes.includes("player")) {
