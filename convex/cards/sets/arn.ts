@@ -2142,6 +2142,137 @@ export const abuJafar: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Batch 4 (#191) — coin flip (CR 705). `ctx.flipCoin()` wraps the seeded PRNG
+// (rngSeed/rngCounter) so outcomes are deterministic on replay. Mijae/Ydwen
+// reuse the existing `removeFromCombat`; Ydwen reuses `becomeUnblocked` (#172)
+// and the new `setCantBlockThisTurn` (twin of `setMustBlockAll`).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const bottleOfSuleiman: CardDefinition = {
+    id: "c474cd6b-5610-49eb-ac98-918d900efe8b",
+    name: "Bottle of Suleiman",
+    oracleText:
+        "{1}, Sacrifice this artifact: Flip a coin. If you win the flip, create a 5/5 colorless Djinn artifact creature token with flying. If you lose the flip, this artifact deals 5 damage to you.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "bottle-of-suleiman-flip",
+            oracleText:
+                "{1}, Sacrifice this artifact: Flip a coin. If you win the flip, create a 5/5 colorless Djinn artifact creature token with flying. If you lose the flip, this artifact deals 5 damage to you.",
+            // Self-sacrifice paid at activation commit (CR 117.9); the source is
+            // already off the battlefield by resolution, so the win branch
+            // creates the token and the lose branch deals 5 to its controller.
+            cost: { mana: { X: 1 }, sacrifice: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                if (ctx.flipCoin()) {
+                    ctx.createToken(
+                        {
+                            name: "Djinn",
+                            types: ["Artifact", "Creature"],
+                            subtypes: ["Djinn"],
+                            power: 5,
+                            toughness: 5,
+                            staticAbilities: ["flying"],
+                        },
+                        ctx.controller
+                    );
+                } else {
+                    ctx.dealDamage({ type: "player", id: ctx.controller }, 5);
+                }
+            },
+        },
+    ],
+};
+
+export const mijaeDjinn: CardDefinition = {
+    id: "d3ddbe51-cd1a-4b2c-849a-7c82d622122a",
+    name: "Mijae Djinn",
+    oracleText:
+        "Whenever this creature attacks, flip a coin. If you lose the flip, remove this creature from combat and tap it.",
+    manaCost: { R: 3 },
+    types: ["Creature"],
+    subtypes: ["Djinn"],
+    power: 6,
+    toughness: 3,
+    triggeredAbilities: [
+        {
+            id: "mijae-djinn-attack-flip",
+            oracleText:
+                "Whenever this creature attacks, flip a coin. If you lose the flip, remove this creature from combat and tap it.",
+            event: "ATTACKERS_DECLARED",
+            matches: (event, self) =>
+                event.type === "ATTACKERS_DECLARED" &&
+                event.attackerIds.includes(self.id),
+            resolve: (ctx) => {
+                if (ctx.flipCoin()) return; // won: stays attacking
+                const self: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                ctx.removeFromCombat(self);
+                ctx.tap(self);
+            },
+        },
+    ],
+};
+
+export const ydwenEfreet: CardDefinition = {
+    id: "efdba2a9-d171-45ed-8dd4-9d0046128f68",
+    name: "Ydwen Efreet",
+    oracleText:
+        "Whenever this creature blocks, flip a coin. If you lose the flip, remove this creature from combat and it can't block this turn. Creatures it was blocking that had become blocked by only this creature this combat become unblocked.",
+    manaCost: { R: 3 },
+    types: ["Creature"],
+    subtypes: ["Efreet"],
+    power: 3,
+    toughness: 6,
+    triggeredAbilities: [
+        {
+            id: "ydwen-efreet-block-flip",
+            oracleText:
+                "Whenever this creature blocks, flip a coin. If you lose the flip, remove this creature from combat and it can't block this turn. Creatures it was blocking that had become blocked by only this creature this combat become unblocked.",
+            // BLOCKERS_CONFIRMED fires once per attacker-blocker pair; this
+            // trigger collapses to a single flip per block declaration by
+            // matching only the pair whose blocker is self and whose attacker
+            // is the first one Ydwen blocked (so the flip runs once even when
+            // Ydwen blocks a band).
+            event: "BLOCKERS_CONFIRMED",
+            matches: (event, self) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return false;
+                return event.blockerId === self.id;
+            },
+            resolve: (ctx) => {
+                const self: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                // Capture the attackers Ydwen is solely blocking BEFORE it
+                // leaves combat: any attacker whose only blocker is Ydwen
+                // becomes unblocked (CR 509.1h) and hits the defender.
+                const blockersByAttacker = ctx.getBlockersByAttacker();
+                if (ctx.flipCoin()) return; // won: stays blocking
+                const solelyBlocked = Object.keys(blockersByAttacker).filter(
+                    (attackerId) => {
+                        const blockers = blockersByAttacker[attackerId];
+                        return (
+                            blockers.length === 1 &&
+                            blockers[0] === ctx.sourceInstanceId
+                        );
+                    }
+                );
+                ctx.removeFromCombat(self);
+                ctx.setCantBlockThisTurn(self);
+                for (const attackerId of solelyBlocked) {
+                    ctx.becomeUnblocked(attackerId);
+                }
+            },
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Deferred to later batches — need engine work beyond existing primitives:
 //
 //   • Hurr Jackal — "{T}: Target creature can't be regenerated this turn"
@@ -2162,7 +2293,6 @@ export const abuJafar: CardDefinition = {
 //     resolveSteps support on activated abilities.
 //
 // Other batches (PRD #171):
-//   • Batch 4 (#191, coin flip): Bottle of Suleiman, Mijae Djinn, Ydwen Efreet.
 //   • Batch 9 (#180-187, misc): Metamorphosis, Jihad, Magnetic Mountain,
 //     Aladdin's Lamp, Cuombajj Witches, Ifh-Bíff Efreet,
 //     Jandor's Ring, Erg Raiders, City in a Bottle, Aladdin's Ring

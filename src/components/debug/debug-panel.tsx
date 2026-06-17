@@ -53,6 +53,29 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ARN Batch 4 (#191) — coin flip (CR 705). Flips route through the
+        // seeded PRNG so they are deterministic on replay.
+        //   • Bottle of Suleiman ({4} artifact): activate "{1}, Sacrifice this
+        //     artifact" — win the flip → a 5/5 flying Djinn token; lose → 5
+        //     damage to you.
+        //   • Mijae Djinn ({R}{R}{R}, 6/3): attack with it — lose the flip and
+        //     it is removed from combat and tapped.
+        //   • Ydwen Efreet ({R}{R}{R}, 3/6, opponent-controlled): attack into
+        //     it with your Grizzly Bears and let Ydwen block — lose the flip
+        //     and Ydwen leaves combat, can't block this turn, and the Bears
+        //     (solely blocked by it) become unblocked and hit the opponent.
+        label: "ARN: coin flip (Bottle / Mijae / Ydwen)",
+        cards: [
+            { name: "Bottle of Suleiman", owner: "me" as const },
+            { name: "Mijae Djinn", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 2 },
+            { name: "Ydwen Efreet", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 9 (#187) — Erg Raiders ({1}{B}, 2/3): "At the beginning of
         // your end step, if it didn't attack this turn, it deals 2 damage to
         // you. This ability doesn't trigger if it came under your control this
