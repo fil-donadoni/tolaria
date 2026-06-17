@@ -1563,6 +1563,9 @@ function emptyManaPools(state: GameState): void {
         for (const color of Object.keys(player.manaPool)) {
             player.manaPool[color] = 0;
         }
+        // CR 106.6 / 500.4: restricted mana (e.g. Metamorphosis) empties with
+        // the rest of the pool at end of step/phase.
+        player.restrictedMana = undefined;
         for (const card of player.battlefield) {
             if (card.isTapped) {
                 card.manaCommitted = true;

@@ -27,6 +27,8 @@ import {
     applySourceStaticEffects,
     getBasicLandMana,
     payManaCost,
+    payManaCostForSpell,
+    spendablePoolForSpell,
     payRemoveCounterCost,
     commitLandsForCost,
     resolveTopOfStack,
@@ -444,9 +446,19 @@ function tryAutoCommitPendingCast(
         return null;
     }
     const player = getPlayer(state, playerId);
+    // CR 106.6: a creature spell may also be paid with restricted mana whose
+    // restriction permits it (Metamorphosis). Fold it into the affordability
+    // check and drain it first at payment.
+    const castCard = player.hand.find(
+        (c) => c.id === state.pendingCast!.cardInstanceId
+    );
+    const castDef = castCard
+        ? tryGetCardById((castCard.card as { id: string }).id)
+        : undefined;
+    const isCreatureSpell = castDef?.types.includes("Creature") ?? false;
     if (
         !isManaCostCovered(
-            player.manaPool,
+            spendablePoolForSpell(player, isCreatureSpell),
             state.pendingCast.manaCost,
             getManaSubstitutions(state, player.id)
         )
@@ -460,9 +472,10 @@ function tryAutoCommitPendingCast(
         return null;
     }
 
-    payManaCost(
-        player.manaPool,
+    payManaCostForSpell(
+        player,
         state.pendingCast.manaCost,
+        isCreatureSpell,
         getManaSubstitutions(state, player.id)
     );
     commitLandsForCost(player, state.pendingCast.manaCost);
@@ -1190,18 +1203,22 @@ function finalizeTargetSelection(
         : {};
     applyCostIncrease(manaCost, getCostModifiers(state, cardInHand, "spell"));
 
+    // CR 106.6: creature spells may spend restriction-permitting mana
+    // (Metamorphosis) in addition to the fungible pool.
+    const isCreatureSpell = cardDef.types.includes("Creature");
     if (
         Object.keys(manaCost).length === 0 ||
         isManaCostCovered(
-            player.manaPool,
+            spendablePoolForSpell(player, isCreatureSpell),
             manaCost,
             getManaSubstitutions(state, player.id)
         )
     ) {
         if (Object.keys(manaCost).length > 0) {
-            payManaCost(
-                player.manaPool,
+            payManaCostForSpell(
+                player,
                 manaCost,
+                isCreatureSpell,
                 getManaSubstitutions(state, player.id)
             );
             commitLandsForCost(player, manaCost);
@@ -1467,17 +1484,25 @@ export const announceCast = mutation({
             return;
         }
 
-        // If cost is zero or pool already covers it, commit immediately
+        // If cost is zero or pool already covers it, commit immediately.
+        // CR 106.6: creature spells may also spend restriction-permitting
+        // mana (Metamorphosis).
+        const isCreatureSpell = cardDef.types.includes("Creature");
         if (
             Object.keys(manaCost).length === 0 ||
             isManaCostCovered(
-                player.manaPool,
+                spendablePoolForSpell(player, isCreatureSpell),
                 manaCost,
                 getManaSubstitutions(state, player.id)
             )
         ) {
             if (Object.keys(manaCost).length > 0) {
-                payManaCost(player.manaPool, manaCost);
+                payManaCostForSpell(
+                    player,
+                    manaCost,
+                    isCreatureSpell,
+                    getManaSubstitutions(state, player.id)
+                );
                 commitLandsForCost(player, manaCost);
             }
             const card = removeFromZone(player, args.cardInstanceId, "hand");

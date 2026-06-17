@@ -88,6 +88,20 @@ describe("game_state serialize round-trip", () => {
         });
     });
 
+    it("preserves restricted mana across the round trip (CR 106.6)", () => {
+        const state = freshState();
+        state.players[0].restrictedMana = [
+            { color: "G", amount: 2, restriction: "creature-spell" },
+        ];
+        const expanded = expandState(compactState(state));
+        expect(expanded.players[0].restrictedMana).toEqual([
+            { color: "G", amount: 2, restriction: "creature-spell" },
+        ]);
+        // Absent when empty (omitted rather than serialized as []).
+        const empty = expandState(compactState(freshState()));
+        expect(empty.players[0].restrictedMana).toBeUndefined();
+    });
+
     it("preserves stack items with cast metadata", () => {
         const state = freshState();
         const bolt = state.players[0].hand[0];

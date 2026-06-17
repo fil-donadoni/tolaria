@@ -97,6 +97,17 @@ function makeGameState(overrides: Partial<GameState> = {}): GameState {
 // ---------------------------------------------------------------------------
 
 describe("advancePhase", () => {
+    describe("mana emptying (CR 500.4 / 106.6)", () => {
+        it("empties restricted mana when a step ends", () => {
+            const state = makeGameState({ phase: "PRECOMBAT_MAIN" });
+            state.players[0].restrictedMana = [
+                { color: "G", amount: 3, restriction: "creature-spell" },
+            ];
+            advancePhase(state);
+            expect(state.players[0].restrictedMana).toBeUndefined();
+        });
+    });
+
     describe("linear phase progression", () => {
         it("UPKEEP → DRAW", () => {
             const state = makeGameState({ phase: "UPKEEP" });

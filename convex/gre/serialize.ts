@@ -347,6 +347,7 @@ type CompactPlayer = {
     exile: CompactCard[];
     battlefield: CompactCard[];
     manaPool: Record<string, number>;
+    restrictedMana?: PlayerState["restrictedMana"];
     hasDrawnFromEmpty?: boolean;
     landsPlayedThisTurn?: number;
     turnsTaken?: number;
@@ -372,6 +373,9 @@ function compactPlayer(player: PlayerState): CompactPlayer {
         ),
         manaPool: compactManaPool(player.manaPool),
     };
+    if (player.restrictedMana?.length) {
+        out.restrictedMana = player.restrictedMana;
+    }
     if (player.hasDrawnFromEmpty) out.hasDrawnFromEmpty = true;
     if (player.landsPlayedThisTurn) {
         out.landsPlayedThisTurn = player.landsPlayedThisTurn;
@@ -408,6 +412,9 @@ function expandPlayer(player: CompactPlayer): PlayerState {
         ),
         manaPool: expandManaPool(player.manaPool),
     };
+    if (player.restrictedMana?.length) {
+        result.restrictedMana = player.restrictedMana.map((r) => ({ ...r }));
+    }
     if (player.hasDrawnFromEmpty) result.hasDrawnFromEmpty = true;
     if (player.landsPlayedThisTurn !== undefined) {
         result.landsPlayedThisTurn = player.landsPlayedThisTurn;

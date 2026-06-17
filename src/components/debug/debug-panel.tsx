@@ -50,6 +50,32 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ARN Batch 9 (#180) — Metamorphosis ({G} sorcery): as an additional
+        // cost sacrifice a creature, then add X mana of one chosen color where
+        // X = 1 + the sacrificed creature's mana value, spendable only on
+        // creature spells (CR 106.6). Tap the Forest, cast Metamorphosis,
+        // sacrifice the Grizzly Bears (MV 2 -> X = 3), pick a color, then cast
+        // the second Grizzly Bears from hand paying with the restricted mana.
+        label: "ARN: restricted mana (Metamorphosis)",
+        cards: [
+            {
+                name: "Metamorphosis",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Forest", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 8 (#179) — phasing (CR 702.26, ADR 0021). Cast Oubliette
         // ({1}{B}{B}) and choose the opponent's Serendib Efreet: it phases out
         // (treated as though it doesn't exist — gone from the board, fires no
