@@ -1952,6 +1952,44 @@ export const cuombajjWitches: CardDefinition = {
     ],
 };
 
+// Ifh-Bíff Efreet — "Flying\n{G}: This creature deals 1 damage to each creature
+// with flying and each player. Any player may activate this ability."
+// (CR 113.3c — "any player may activate"; CR 120.3 mass damage). The damage
+// body is identical to Hurricane's `dealDamageToEach` sweep (1 fixed instead of
+// X), and the only novelty is the activation-permission flag: any player with
+// priority — not just the controller — may pay {G} to fire it (game.ts gates
+// the controller-only default on `ability.activatableByAnyPlayer`). The
+// activator pays {G} from their own pool; the source is not tapped and stays
+// under its controller's control.
+export const ifhBiffEfreet: CardDefinition = {
+    id: "e503a4f2-a785-4e7a-89a7-a9b24fb98831",
+    name: "Ifh-Bíff Efreet",
+    oracleText:
+        "Flying\n{G}: This creature deals 1 damage to each creature with flying and each player. Any player may activate this ability.",
+    manaCost: { X: 2, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Efreet"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "ifh-biff-efreet-rain",
+            oracleText:
+                "{G}: This creature deals 1 damage to each creature with flying and each player. Any player may activate this ability.",
+            cost: { mana: { G: 1 } },
+            useStack: true,
+            activatableByAnyPlayer: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.dealDamageToEach(1, {
+                    creatures: { requireAbility: "flying" },
+                    players: true,
+                });
+            },
+        },
+    ],
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Deferred to later batches — need engine work beyond existing primitives:
 //

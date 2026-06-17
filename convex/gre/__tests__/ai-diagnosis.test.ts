@@ -26,7 +26,7 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup";
-import { evaluate } from "../evaluate";
+import { evaluate, declaredBlockDelta } from "../evaluate";
 import type { GameState } from "../state";
 
 const GRIZZLY = getCardByName("Grizzly Bears").id; // 2/2
@@ -990,6 +990,234 @@ describe("AI diagnosis harness (Forge comparison)", () => {
                     best(withDork)
                 );
             }
+        }
+    );
+
+    // -----------------------------------------------------------------------
+    // Episode #7 — attacker AMBUSH: holds the combat trick at the root instead
+    // of dumping it (ADR 0021 §B, issue #229; the deferred #223 AC). The
+    // canonical position: the bot p1 has a ready 2/2 and Giant Growth + an
+    // untapped Forest in hand/play; the opponent p2 has a 3/3 that can block.
+    // At sorcery speed the bot can DUMP the trick (cast it on its bear in
+    // precombat main) or HOLD it (pass, attack, pump in response to the block).
+    //
+    // Before the interaction-aware predictor, `declaredCombatDelta` read the
+    // un-pumped 2/2 as walking into the 3/3, so the ambush was a rare,
+    // high-variance branch whose mean stayed below the low-variance dump and the
+    // bot dumped at the root. With the attacker's held pump modelled, the bait
+    // attacker is no longer pre-judged dead, so the hold line out-scores the
+    // dump and the chosen root move is NOT the sorcery-speed cast.
+    // -----------------------------------------------------------------------
+    it(
+        "episode #7: holds the combat trick at the root (attacker ambush)",
+        { timeout: DIAGNOSIS_TIMEOUT_MS },
+        () => {
+            const bear = makeInstance(GRIZZLY, {
+                id: "bait-bear",
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: false,
+            });
+            const forest = makeInstance(FOREST, {
+                id: "amb-forest",
+                controllerId: "p1",
+                ownerId: "p1",
+                isTapped: false,
+            });
+            const trick = makeInstance(GIANT_GROWTH, {
+                id: "amb-gg",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+            // Opponent's 3/3 blocker, untapped and ready.
+            const wall = makeInstance(HILL_GIANT, {
+                id: "amb-wall",
+                controllerId: "p2",
+                ownerId: "p2",
+                isSummoningSick: false,
+            });
+            const lib = (owner: string) =>
+                [0, 1, 2, 3, 4].map((i) =>
+                    makeInstance(FOREST, {
+                        id: `amb-${owner}-lib${i}`,
+                        controllerId: owner,
+                        ownerId: owner,
+                        zone: "library",
+                    })
+                );
+            const state = makeState({
+                phase: "PRECOMBAT_MAIN",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                players: [
+                    makePlayer("p1", {
+                        hand: [trick],
+                        battlefield: [bear, forest],
+                        library: lib("p1"),
+                    }),
+                    makePlayer("p2", {
+                        battlefield: [wall],
+                        library: lib("p2"),
+                    }),
+                ],
+            });
+
+            const { trace } = searchWithTrace(
+                state,
+                "p1",
+                { iterations: 400, timeMs: 60_000 },
+                SEED
+            );
+            if (!trace) throw new Error("episode #7: search returned no trace");
+
+            diagnose("EP#7 attacker ambush — hold vs dump", state, "p1");
+
+            // The chosen root move must NOT be the sorcery-speed dump of the
+            // trick — the bot holds it for the block step.
+            const cast = trace.candidates.find(
+                (c) => c.move.kind === "cast-spell"
+            );
+            const pass = trace.candidates.find((c) => c.move.kind === "pass");
+            expect(cast).toBeDefined();
+            expect(pass).toBeDefined();
+            expect(trace.chosen).not.toContain("Giant Growth");
+            expect(trace.chosen).toBe("pass");
+
+            // The held line is at least outcome-EQUAL with the precombat dump
+            // (within OUTCOME_EPS). The false "dumping decisively wins" incentive
+            // is gone: with the held pump modelled (the bait is no longer
+            // pre-judged dead) plus the lower-variance reactive rollout, holding
+            // is no worse, and the hold-the-trick selection tie-break then keeps
+            // the option rather than spending it at sorcery speed for a marginal,
+            // rollout-noise edge — so the chosen ROOT move is the hold, not the
+            // dump (the deferred #223 acceptance criterion).
+            const OUTCOME_EPS = 0.05;
+            expect(cast!.meanReward - pass!.meanReward).toBeLessThan(
+                OUTCOME_EPS
+            );
+        }
+    );
+
+    // -----------------------------------------------------------------------
+    // Episode #8 — cautious MULTI-BLOCK (ADR 0021 §C, issue #229). The bot p1
+    // is the DEFENDER facing one 3/3 attacker, holding two 2/2 blockers. A
+    // double-block (combined 4 power) kills the 3/3 with no trick — a clean win
+    // IF the attacker has nothing. But when the attacker holds a castable
+    // +3/+3 pump, the pump lets the 3/3 SURVIVE and kill both committed 2/2s, so
+    // the over-committed block is a trap. The cautious-block discount must make
+    // the double-block score WORSE when the attacker is loaded (open mana + a
+    // trick) than when the attacker is tapped out / empty-handed, so the bot
+    // keeps a blocker back rather than walking two creatures into a likely trick.
+    // -----------------------------------------------------------------------
+    it(
+        "episode #8: blocks cautiously vs a loaded attacker, normally vs an empty one",
+        { timeout: DIAGNOSIS_TIMEOUT_MS },
+        () => {
+            const makeMultiBlock = (attackerLoaded: boolean): GameState => {
+                const atk = makeInstance(HILL_GIANT, {
+                    id: "mb-atk",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    isSummoningSick: false,
+                    isAttacking: true,
+                });
+                const b1 = makeInstance(GRIZZLY, {
+                    id: "mb-b1",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    isSummoningSick: false,
+                });
+                const b2 = makeInstance(GRIZZLY, {
+                    id: "mb-b2",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    isSummoningSick: false,
+                });
+                const hand = attackerLoaded
+                    ? [
+                          makeInstance(GIANT_GROWTH, {
+                              id: "mb-gg",
+                              controllerId: "p2",
+                              ownerId: "p2",
+                              zone: "hand",
+                          }),
+                      ]
+                    : [];
+                const lands = attackerLoaded
+                    ? [
+                          makeInstance(FOREST, {
+                              id: "mb-forest",
+                              controllerId: "p2",
+                              ownerId: "p2",
+                              isTapped: false,
+                          }),
+                      ]
+                    : [];
+                return makeState({
+                    phase: "DECLARE_BLOCKERS",
+                    activePlayerId: "p2",
+                    priorityPlayerId: "p1",
+                    combat: {
+                        attackerIds: ["mb-atk"],
+                        confirmed: true,
+                        blockerAssignments: {},
+                        blockersConfirmed: false,
+                    },
+                    players: [
+                        makePlayer("p1", { battlefield: [b1, b2] }),
+                        makePlayer("p2", {
+                            battlefield: [atk, ...lands],
+                            hand,
+                        }),
+                    ],
+                });
+            };
+
+            // Leaf-level guarantee (deterministic, the level the search consumes):
+            // the SAME double-block scores strictly lower from the defender's view
+            // when the attacker holds a castable trick than when it is empty.
+            const doubleBlocked = (s: GameState): GameState => ({
+                ...s,
+                combat: {
+                    ...s.combat!,
+                    blockerAssignments: {
+                        "mb-b1": ["mb-atk"],
+                        "mb-b2": ["mb-atk"],
+                    },
+                    blockersConfirmed: true,
+                },
+            });
+            const loadedVal = declaredBlockDelta(
+                doubleBlocked(makeMultiBlock(true)),
+                "p1"
+            );
+            const emptyVal = declaredBlockDelta(
+                doubleBlocked(makeMultiBlock(false)),
+                "p1"
+            );
+            expect(loadedVal).toBeLessThan(emptyVal);
+
+            // And via the full search: against an empty-handed attacker the bot
+            // commits the double-block (kills the 3/3 for free); against a loaded
+            // attacker it does NOT walk both blockers into the likely pump.
+            const emptyTrace = diagnose(
+                "EP#8 cautious block — empty attacker",
+                makeMultiBlock(false),
+                "p1"
+            );
+            const loadedTrace = diagnose(
+                "EP#8 cautious block — loaded attacker",
+                makeMultiBlock(true),
+                "p1"
+            );
+            const blockerCount = (label: string) =>
+                (label.match(/block/gi) ?? []).length;
+            // The empty-attacker line blocks at least as committedly as the
+            // loaded line — caution never makes the bot block MORE into a trick.
+            expect(blockerCount(loadedTrace.chosen)).toBeLessThanOrEqual(
+                blockerCount(emptyTrace.chosen)
+            );
         }
     );
 });

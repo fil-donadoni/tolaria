@@ -323,3 +323,51 @@ describe("enumerateMoves — mulligan (issue #110)", () => {
         expect(enumerateMoves(state, "p2")).toEqual([]);
     });
 });
+
+describe("enumerateMoves — any-player abilities on opponents (CR 113.3c)", () => {
+    const IFH_BIFF = getCardByName("Ifh-Bíff Efreet").id;
+
+    it("offers the opponent's Ifh-Bíff {G} ability when the bot can pay", () => {
+        // p1 (the bot) controls a Forest for {G}; p2 controls Ifh-Bíff Efreet.
+        const efreet = makeInstance(IFH_BIFF, {
+            id: "efreet",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land(FOREST, "p1")] }),
+                makePlayer("p2", { battlefield: [efreet] }),
+            ],
+        });
+        const moves = enumerateMoves(state, "p1");
+        const activate = moves.find(
+            (m) =>
+                m.kind === "activate-ability" &&
+                m.cardInstanceId === "efreet" &&
+                m.abilityId === "ifh-biff-efreet-rain"
+        );
+        expect(activate).toBeDefined();
+    });
+
+    it("does not offer the opponent's controller-only abilities", () => {
+        // Sorceress Queen's {T} set-power ability is NOT any-player; the bot
+        // must not see it on the opponent's permanent.
+        const queen = makeInstance(getCardByName("Sorceress Queen").id, {
+            id: "queen",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land(FOREST, "p1")] }),
+                makePlayer("p2", { battlefield: [queen] }),
+            ],
+        });
+        const moves = enumerateMoves(state, "p1");
+        const onOpponent = moves.filter(
+            (m) => m.kind === "activate-ability" && m.cardInstanceId === "queen"
+        );
+        expect(onOpponent).toEqual([]);
+    });
+});

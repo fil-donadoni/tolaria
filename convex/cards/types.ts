@@ -306,6 +306,13 @@ export interface ActivatedAbility {
      *  `CardInstanceState.activationsThisTurn[abilityId]` and resets at
      *  turn start. Used by Instill Energy. */
     oncePerTurn?: boolean;
+    /** "Any player may activate this ability" (CR 113.3c / 602.1). By default
+     *  only the source's controller may activate an activated ability; when
+     *  this is set, any player with priority may activate it — they pay the
+     *  costs from their own resources (mana pool / life), but the source's
+     *  controller is unchanged and the ability still resolves as a normal
+     *  activated ability on the stack. Used by Ifh-Bíff Efreet. */
+    activatableByAnyPlayer?: boolean;
 }
 
 // --- Temporary-effect durations (CR 611.2, 514.2, 511.3) ---
@@ -2129,6 +2136,30 @@ export interface PumpCombatEffect {
  *  across two cards (rule of two extraction). */
 export type EffectShorthand = "destroy-target" | PumpCombatEffect;
 
+/** Opt-in structured AI combat hints (ADR 0021, issue #229). Declares the
+ *  combat-relevant SHAPE of a card whose effect lives in an opaque imperative
+ *  `resolve()` body, so the interaction-aware combat predictor can model the
+ *  card while it is HELD in hand. Purely a prediction input — it never changes
+ *  how the spell actually resolves. Each field is independent and optional; a
+ *  card may carry one, both, or neither.
+ *
+ *    * `pump` — an until-end-of-turn power/toughness boost on a creature (a
+ *      combat trick, e.g. Giant Growth `+3/+3`). The predictor adds it to a
+ *      held-back attacker so an ambush attacker is no longer pre-judged dead,
+ *      and to the threat a defender faces so over-committing blockers into a
+ *      likely pump is discounted.
+ *    * `removal` — an instant-speed effect that can kill a creature in combat
+ *      (e.g. Lightning Bolt). The predictor lets a defender holding it remove a
+ *      blocker (attacker connects) and discounts an over-committed block. The
+ *      magnitude is intentionally coarse (a single creature removed), matching
+ *      the crude, valuation-free combat predictor. */
+export interface AiCombatHint {
+    /** Until-end-of-turn stat boost this card grants when cast in combat. */
+    pump?: { power: number; toughness: number };
+    /** True if this card is instant-speed creature removal usable in combat. */
+    removal?: boolean;
+}
+
 /** Full card definition used by the GRE. */
 export interface CardDefinition {
     id: CardId;
@@ -2149,6 +2180,19 @@ export interface CardDefinition {
      *  derivation scales to the full catalog, this annotates just the
      *  exceptions. */
     aiValue?: number;
+    /** Opt-in structured AI combat hints (ADR 0021, issue #229). Card effects
+     *  are imperative `resolve()` bodies the bot search cannot introspect, so a
+     *  card whose body is a combat trick or instant-speed removal declares the
+     *  shape of that effect here. The interaction-aware combat predictor
+     *  (`convex/gre/dangerClock.ts`) reads these hints off CASTABLE instants in
+     *  the relevant player's hand (gated on enough open mana) to model held
+     *  interaction in combat — an attacker's ambush pump (so a bait attacker is
+     *  no longer pre-judged dead) and a defender's caution against committing
+     *  blockers into a likely trick. ABSENCE of a hint = current behavior (the
+     *  predictor ignores the card). Latent/predictive only — it never changes
+     *  how a spell actually resolves. Optional and rare: only cards that matter
+     *  to combat prediction need annotating. */
+    aiCombatHint?: AiCombatHint;
     /** Printed Oracle text (read-only, display/reference only). Mirrors the
      *  card's printed rules text from Scryfall. The engine does NOT parse this
      *  string — behavior comes from `resolve`/`activatedAbilities`/etc.

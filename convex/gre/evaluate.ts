@@ -36,6 +36,7 @@ import {
     tryGetCardById,
 } from "../cards";
 import { dangerClock, predictCombatOutcome } from "./dangerClock";
+import { castableHeldInteraction } from "./heldInteraction";
 
 /** A won position. Large enough to dominate every reachable material margin so
  *  the bot always prefers lethal, and finite so two winning lines stay
@@ -412,7 +413,28 @@ export function declaredCombatDelta(
     const defender = state.players.find((p) => p.id !== attackerId);
     if (!defender) return 0;
 
-    const outcome = predictCombatOutcome(state, attackerId, defender.id);
+    // Interaction-aware, HIDDEN-INFORMATION-respecting (ADR 0021, issue #229).
+    // The attacker's held pump is folded into the prediction ONLY when scoring
+    // from the ATTACKER's OWN perspective (`viewerId === attackerId`). That is
+    // the holder reasoning about its own trick: a bait attacker held back for a
+    // pump is no longer pre-judged dead, so the bot will SEND the bait into the
+    // block instead of declining the attack. The DEFENDER's view
+    // (`viewerId !== attackerId`) gets the UN-pumped prediction — the trick is
+    // hidden, so the opponent blocks the visible 2/2 with its 3/3 rather than
+    // playing around a card it cannot see (avoiding the clairvoyance / strategy-
+    // fusion that would neutralise the ambush). The bot then pumps in response in
+    // its block window (the reactive rollout default policy casts it; see
+    // `policyValue`), trading up. Absent a castable pump both views are unchanged.
+    const attackerHeld = castableHeldInteraction(
+        state.players.find((p) => p.id === attackerId)!
+    );
+    const ownView = viewerId === attackerId;
+    const outcome = predictCombatOutcome(
+        state,
+        attackerId,
+        defender.id,
+        ownView ? attackerHeld.pump : undefined
+    );
     const value = (ids: string[], owner: PlayerState) =>
         ids.reduce((sum, id) => {
             const c = owner.battlefield.find((x) => x.id === id);
@@ -427,7 +449,7 @@ export function declaredCombatDelta(
         value(outcome.deadAttackerIds, attacker) +
         outcome.faceDamage * W_LIFE;
 
-    return viewerId === attackerId ? attackerDelta : -attackerDelta;
+    return ownView ? attackerDelta : -attackerDelta;
 }
 
 /** The material + life swing of a block ALREADY DECLARED (blockers confirmed,
@@ -481,6 +503,14 @@ export function declaredBlockDelta(state: GameState, viewerId: string): number {
         }
     }
 
+    // This block resolves THIS turn, before cleanup, so a temporary combat-trick
+    // buff already on a creature IS live for the exchange (ADR 0021, issue #229).
+    // Use FULL effective P/T (`getEffectivePower`, temporary buffs included) here
+    // — NOT the buff-excluding `getPermanentEffective*` the material terms use —
+    // so a pump cast in response to the block is reflected: it is what lets the
+    // reactive rollout SEE that casting the trick saves the attacker. (The
+    // material terms still exclude the buff: a +X/+X is never lasting board
+    // material, only a one-combat swing, which this combat delta is.)
     let faceDamage = 0;
     const deadAttackers: CardInstanceState[] = [];
     const deadBlockers: CardInstanceState[] = [];
@@ -519,7 +549,120 @@ export function declaredBlockDelta(state: GameState, viewerId: string): number {
     const defenderDelta =
         value(deadAttackers) - value(deadBlockers) - faceDamage * W_LIFE;
 
-    return viewerId === defender.id ? defenderDelta : -defenderDelta;
+    // Cautious multi-block (ADR 0021, issue #229). If the ATTACKER holds castable
+    // interaction (a pump or instant removal), a block that only WINS when the
+    // attacker has no trick is over-exposed: a held pump lets the attacker
+    // survive AND kill the committed blockers; a held removal kills one blocker
+    // so the attacker connects. The block's value is discounted by a SOFT,
+    // hedged expectation of that swing — never a hard rule — so the defender
+    // keeps blockers back / single-blocks when the attacker is loaded, and
+    // blocks normally when the attacker is tapped out / empty-handed (no
+    // castable interaction → zero penalty, current behavior).
+    const caution = cautiousBlockPenalty(state, attacker, blockersByAttacker);
+    const defenderDeltaHedged = defenderDelta - caution;
+
+    return viewerId === defender.id
+        ? defenderDeltaHedged
+        : -defenderDeltaHedged;
+}
+
+/** Fraction of the worst-case trick swing folded into the block valuation. Soft:
+ *  the discount is the EXPECTED cost of an over-committed block against a loaded
+ *  attacker, not a certainty (the attacker may have no trick, may not have mana,
+ *  may save it). A hedged expectation, exactly as the issue specifies. */
+const BLOCK_CAUTION_FRACTION = 0.5;
+
+/** The hedged penalty subtracted from a declared block when the attacker holds
+ *  castable interaction (ADR 0021, issue #229). For each attacker the defender
+ *  blocks, it estimates the swing a held PUMP or held REMOVAL would cause and
+ *  charges `BLOCK_CAUTION_FRACTION` of the LARGEST such swing across the block
+ *  (one trick, one target — the attacker spends it where it hurts most):
+ *
+ *    * held pump — applied to a blocked attacker the defender's blockers would
+ *      otherwise kill, the attacker SURVIVES and its (pumped) power now kills the
+ *      committed blockers: the swing is the blockers the defender now loses for
+ *      nothing PLUS the attacker it no longer trades away.
+ *    * held removal — one of the defender's blockers on a multi-block is killed
+ *      in response; if removing it lets the attacker LIVE, the swing is that
+ *      blocker (lost for nothing) plus the attacker no longer killed.
+ *
+ *  Crude and valuation-light, matching the rest of the predictor. Zero when the
+ *  attacker has no castable interaction, so a tapped-out / empty-handed attacker
+ *  is blocked normally. */
+function cautiousBlockPenalty(
+    state: GameState,
+    attacker: PlayerState,
+    blockersByAttacker: Map<string, CardInstanceState[]>
+): number {
+    const held = castableHeldInteraction(attacker);
+    if (!held.pump && !held.removal) return 0;
+
+    const cval = (c: CardInstanceState) => evaluateCreature(state, c);
+    let worstSwing = 0;
+
+    for (const [atkId, blockers] of blockersByAttacker) {
+        if (blockers.length === 0) continue;
+        const atk = attacker.battlefield.find((c) => c.id === atkId);
+        if (!atk) continue;
+        const atkPower = Math.max(0, getPermanentEffectivePower(state, atk));
+        const atkTough = Math.max(
+            0,
+            getPermanentEffectiveToughness(state, atk)
+        );
+        const blockPower = blockers.reduce(
+            (sum, b) => sum + Math.max(0, getPermanentEffectivePower(state, b)),
+            0
+        );
+        // This block, with no trick, kills the attacker — the exchange the
+        // defender is counting on. Only such a block is exposed to a flip.
+        const blockKillsAttacker = blockPower >= atkTough;
+        if (!blockKillsAttacker) continue;
+
+        // Held pump: attacker survives (toughness raised past the block power)
+        // and its raised power now kills the blockers in listed order.
+        if (held.pump) {
+            const survives = blockPower < atkTough + held.pump.toughness;
+            if (survives) {
+                let remaining = atkPower + held.pump.power;
+                const lostBlockers: CardInstanceState[] = [];
+                for (const b of blockers) {
+                    const bT = Math.max(
+                        0,
+                        getPermanentEffectiveToughness(state, b)
+                    );
+                    if (remaining >= bT) {
+                        lostBlockers.push(b);
+                        remaining -= bT;
+                    }
+                }
+                // Swing: the attacker the defender no longer kills + the blockers
+                // it now loses for nothing.
+                const swing =
+                    cval(atk) + lostBlockers.reduce((s, b) => s + cval(b), 0);
+                if (swing > worstSwing) worstSwing = swing;
+            }
+        }
+
+        // Held removal: kill the single biggest committed blocker; if doing so
+        // drops the block below lethal, the attacker lives and the removed
+        // blocker is lost for nothing.
+        if (held.removal) {
+            const biggest = [...blockers].sort(
+                (a, b) =>
+                    getPermanentEffectivePower(state, b) -
+                    getPermanentEffectivePower(state, a)
+            )[0];
+            const remainingPower =
+                blockPower -
+                Math.max(0, getPermanentEffectivePower(state, biggest));
+            if (remainingPower < atkTough) {
+                const swing = cval(atk) + cval(biggest);
+                if (swing > worstSwing) worstSwing = swing;
+            }
+        }
+    }
+
+    return BLOCK_CAUTION_FRACTION * worstSwing;
 }
 
 /** Pure material margin from `playerId`'s view: sum(self terms) − sum(opp

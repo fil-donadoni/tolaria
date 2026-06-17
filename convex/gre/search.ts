@@ -75,6 +75,7 @@ import {
 import { describeMove } from "./describeMove";
 import { determinize } from "./determinize";
 import { makeRng } from "./rng";
+import { hasCastableInstantHint } from "./heldInteraction";
 import { isCreature, hasManaAbility } from "./constants";
 import { tryGetCardById } from "../cards";
 
@@ -127,6 +128,17 @@ const MAX_TREE_DEPTH = 40;
 /** Chance the rollout policy plays a uniform-random move instead of the
  *  immediate-best one — keeps playouts from collapsing to a single line. */
 const ROLLOUT_EPSILON = 0.25;
+/** Lower exploration epsilon on a REACTIVE COMBAT line (ADR 0021, issue #229):
+ *  a declared combat where a player holds castable interaction. The multi-step
+ *  hold→attack→block→respond ambush is a narrow, response-conditioned line — at
+ *  the flat 0.25 epsilon a random move (skipping the in-response pump, or a
+ *  nonsense block) dilutes it to a minority playout, so its high-variance mean
+ *  stays just below the low-variance sorcery-speed dump. Dropping the random
+ *  rate when interaction is live lets the sane reactive line (the
+ *  `selectRolloutMove` default policy now casts the pump in its window) play out
+ *  reliably, so the held line's real value surfaces. Still > 0, so the tree is
+ *  not collapsed to a single line. */
+const ROLLOUT_EPSILON_REACTIVE = 0.05;
 /** Soft penalty subtracted from a discouraged move's reward in the rollout
  *  default policy (ADR 0020 §4). Small — a fraction of the reward band — so it
  *  only breaks ties / suppresses no-payoff lines: any move with real value (a
@@ -511,6 +523,29 @@ function scoreLeaf(state: GameState, botId: string): Leaf {
  *  the action bias of a ply horizon, where "act on my own turn" was scored
  *  before the opponent's reply but "pass" was scored after the opponent
  *  developed. `MAX_ROLLOUT_TURNS` / `MAX_ROLLOUT_PLIES` bound stall loops. */
+/** The exploration epsilon to use at `state` (ADR 0021, issue #229). Drops to
+ *  `ROLLOUT_EPSILON_REACTIVE` on a reactive combat line — a declared combat in
+ *  which EITHER player holds castable interaction — so the narrow ambush /
+ *  cautious-block line plays out reliably instead of being diluted by random
+ *  moves; the flat `ROLLOUT_EPSILON` otherwise. Pure read of `state`. */
+function rolloutEpsilonFor(state: GameState): number {
+    // A reactive combat line: any combat phase (the attack declaration that
+    // baits the block, the block, and the response window) while SOME player
+    // holds castable interaction. Covering the whole combat — not only a
+    // confirmed exchange — keeps the bait attack and the in-response pump from
+    // being randomised away, which is what dilutes the narrow ambush /
+    // cautious-block line to a minority playout.
+    const inCombat =
+        state.phase === "DECLARE_ATTACKERS" ||
+        state.phase === "DECLARE_BLOCKERS" ||
+        state.phase === "COMBAT_DAMAGE" ||
+        state.phase === "BEGINNING_OF_COMBAT" ||
+        state.phase === "END_OF_COMBAT";
+    if (!inCombat) return ROLLOUT_EPSILON;
+    const anyHeld = state.players.some((p) => hasCastableInstantHint(p));
+    return anyHeld ? ROLLOUT_EPSILON_REACTIVE : ROLLOUT_EPSILON;
+}
+
 function rollout(state: GameState, botId: string, rng: () => number): Leaf {
     const startTurn = state.turn;
     let lastTurn = state.turn;
@@ -538,7 +573,7 @@ function rollout(state: GameState, botId: string, rng: () => number): Leaf {
         if (moves.length === 0) break;
 
         let chosen: Move;
-        if (moves.length === 1 || rng() < ROLLOUT_EPSILON) {
+        if (moves.length === 1 || rng() < rolloutEpsilonFor(state)) {
             chosen = moves[Math.floor(rng() * moves.length)];
         } else {
             chosen = selectRolloutMove(state, pid, botId, moves, rng);
@@ -998,7 +1033,11 @@ const OUTCOME_EPS = 0.05;
  *  best (the outcome-equal set), then choose the one with the most surviving
  *  material (`totalMargin`). Outcome dominates; material — which never saturates
  *  — breaks the tie a free chump attack would otherwise win on noise. */
-export function selectRootMove(root: Node, moves: Move[]): Move {
+export function selectRootMove(
+    root: Node,
+    moves: Move[],
+    rootState?: GameState
+): Move {
     const pool = [...root.children.values()].filter((e) => e.visits > 0);
     if (pool.length === 0) return moves[0];
 
@@ -1032,7 +1071,61 @@ export function selectRootMove(root: Node, moves: Move[]): Move {
         const land = contenders.find((e) => e.move.kind === "play-land");
         if (land) return land.move;
     }
+
+    // Hold-the-trick tie-break (ADR 0021, issue #229). The mirror image of the
+    // land-drop rule. A combat trick / instant-speed answer held in hand DOES
+    // carry option value — it can respond to what the opponent does — so spending
+    // it at sorcery speed for a marginal payoff destroys that option. When the
+    // robust pick is to DUMP such a trick at sorcery speed but PASS (hold it) is
+    // an outcome-equal contender (within `OUTCOME_EPS`), keep the option: a held
+    // trick is never worse than a dumped one when the two are outcome-equal, and
+    // the dump is then pure rollout noise (the canonical 2/2 + Giant Growth, where
+    // the cautious opponent neutralises the trade-up, so hold ≈ dump on mean and
+    // the low-variance dump would otherwise win the material tie-break). Fires
+    // ONLY on outcome-equality, so a dump with REAL value (a lethal pump, a
+    // must-cast answer) wins on mean reward and never reaches this branch.
+    if (rootState && isSorcerySpeedTrickDump(rootState, best.move)) {
+        // Hold (`pass`) qualifies when it is outcome-equal on MEAN REWARD (within
+        // `OUTCOME_EPS`) — NOT gated on the `VISIT_TOL` visit count the land-drop
+        // rule uses. The held line is intrinsically lower-visit / higher-variance
+        // (the multi-step ambush), so it may not reach the visit band even when it
+        // is outcome-equal; but spending a trick at sorcery speed for an
+        // outcome-equal result is strictly dominated by keeping the option, so the
+        // visit count must not decide it. Pulled from the full `pool` for the same
+        // reason. A dump with REAL value out-rewards `pass` by more than
+        // `OUTCOME_EPS` and never reaches here.
+        const hold = pool.find(
+            (e) => e.move.kind === "pass" && mean(e) >= bestMean - OUTCOME_EPS
+        );
+        if (hold) return hold.move;
+    }
     return best.move;
+}
+
+/** Whether `move` dumps a held combat TRICK (a `pump` hint) at sorcery speed
+ *  (ADR 0021, issue #229) — a `cast-spell` of an Instant whose `aiCombatHint`
+ *  declares a pump, cast by the active player at a main phase (the window where
+ *  it could instead be held for the combat-step ambush). Used by the
+ *  hold-the-trick selection tie-break.
+ *
+ *  Scoped to PUMP tricks only — NOT removal. A pump's sole use is combat, so
+ *  spending it pre-combat is dominated by holding it whenever the two are
+ *  outcome-equal (the land-drop analogy: no reason to commit early). Removal is
+ *  deliberately excluded: a removal cast at sorcery speed can be the correct,
+ *  decisive play (killing a blocker, going face for lethal — e.g. a lethal
+ *  Lightning Bolt), so it must be left to win or lose on mean reward, never
+ *  redirected to `pass`. Pure. */
+function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
+    if (move.kind !== "cast-spell") return false;
+    const atSorcerySpeed =
+        state.phase === "PRECOMBAT_MAIN" || state.phase === "POSTCOMBAT_MAIN";
+    if (!atSorcerySpeed) return false;
+    const player = state.players.find((p) => p.id === state.activePlayerId);
+    const card = player?.hand.find((c) => c.id === move.cardInstanceId);
+    if (!card || !card.types.includes("Instant")) return false;
+    const cardId = (card.card as { id?: string } | undefined)?.id;
+    const def = cardId ? tryGetCardById(cardId) : undefined;
+    return !!def?.aiCombatHint?.pump;
 }
 
 // ---------------------------------------------------------------------------
@@ -1076,7 +1169,7 @@ export function searchWithTrace(
         if (timeMs !== undefined && now() - start >= timeMs) break;
     }
 
-    const move = selectRootMove(root, moves);
+    const move = selectRootMove(root, moves, state);
     return { move, trace: buildTrace(root, state, playerId, i, move) };
 }
 

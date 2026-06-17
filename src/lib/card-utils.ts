@@ -322,6 +322,25 @@ export function getStackAbilities(
     return [...native, ...granted];
 }
 
+/** Filters `getStackAbilities` to those flagged "any player may activate"
+ *  (CR 113.3c, Ifh-Bíff Efreet). Used to surface activatable abilities on an
+ *  OPPONENT's permanent for a viewer who holds priority — the only case where a
+ *  non-controller may activate. Granted abilities are never any-player, so only
+ *  the card's native definition is consulted. */
+export function getAnyPlayerStackAbilities(
+    card: CardInstance,
+    phase?: Phase
+): { id: string; oracleText: string }[] {
+    const cardDef = getCardById(card.card.id);
+    const anyPlayerIds = new Set(
+        (cardDef.activatedAbilities ?? [])
+            .filter((a) => a.activatableByAnyPlayer)
+            .map((a) => a.id)
+    );
+    if (anyPlayerIds.size === 0) return [];
+    return getStackAbilities(card, phase).filter((a) => anyPlayerIds.has(a.id));
+}
+
 /** Returns the oracle text for an activated ability by id, or null. Checks
  *  the card's own definition first, then any granted-activated entries on the
  *  passed instance (resolved via the granting card's def). */
