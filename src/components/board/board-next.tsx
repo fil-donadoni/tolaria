@@ -2,8 +2,10 @@ import { LayoutGroup } from "motion/react";
 import type { Player } from "~/types/game";
 import type { StackItem } from "~/types/game";
 import { rowLayout, fanLayout, type Placement } from "~/lib/board-layout";
+import { useGameContext } from "~/hooks/useGameContext";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
 import BoardNextCard from "./board-next-card";
+import BoardNextHandCard from "./board-next-hand-card";
 import GameStack from "./game-stack";
 import PhaseTracker from "./phase-tracker";
 import PriorityIndicator from "./priority-indicator";
@@ -40,11 +42,18 @@ function battlefieldItems(player: Player): SpatialItem[] {
 }
 
 /** Maps a hand to placeable slots. Opponent slots are `null` (hidden) and
- *  render as backs; the viewer's own hand carries full instances. */
-function handItems(player: Player): SpatialItem[] {
+ *  render as backs; the viewer's own hand carries full instances. The viewer's
+ *  cards are interactive ({@link BoardNextHandCard}: click + drag-to-cast, #254);
+ *  the opponent's are presentational only. */
+function handItems(player: Player, interactive: boolean): SpatialItem[] {
     return player.hand.map((card, i) => ({
         key: card ? card.id : `hidden-${player.id}-${i}`,
-        node: <BoardNextCard card={card} />,
+        node:
+            interactive && card ? (
+                <BoardNextHandCard card={card} />
+            ) : (
+                <BoardNextCard card={card} />
+            ),
     }));
 }
 
@@ -63,6 +72,10 @@ export default function BoardNext({
     stackItems,
 }: BoardNextProps) {
     const [opponent, me] = orderedPlayers;
+    // The viewer's own hand is interactive (drag-to-cast / play, #254); every
+    // other hand stays presentational. `playerId` is the current viewer seat
+    // (the solo viewer auto-follows priority, set by the Board orchestrator).
+    const { playerId: viewerId } = useGameContext();
 
     return (
         // A single LayoutGroup spans every zone so a card's shared-layout
@@ -77,7 +90,10 @@ export default function BoardNext({
                     <>
                         <div className="absolute left-0 right-0 top-0 h-[18%]">
                             <SpatialZone
-                                items={handItems(opponent)}
+                                items={handItems(
+                                    opponent,
+                                    opponent.id === viewerId
+                                )}
                                 layout={handLayout}
                                 mirror
                                 data-testid="zone-opponent-hand"
@@ -106,7 +122,7 @@ export default function BoardNext({
                         </div>
                         <div className="absolute left-0 right-0 bottom-0 h-[18%]">
                             <SpatialZone
-                                items={handItems(me)}
+                                items={handItems(me, me.id === viewerId)}
                                 layout={handLayout}
                                 data-testid="zone-player-hand"
                             />

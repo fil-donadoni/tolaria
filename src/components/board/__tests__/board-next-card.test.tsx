@@ -68,6 +68,14 @@ describe("BoardNextCard hover composition (#253)", () => {
         ).toBe("bolt");
     });
 
+    it("is not draggable — carries no drag-commit wrapper (battlefield is click-only, #254)", () => {
+        // The battlefield mounts BoardNextCard, never the interactive hand card.
+        // Asserting the absence of the drag wrapper marker proves battlefield
+        // cards never acquire the drag-to-cast gesture.
+        const { container } = render(<BoardNextCard card={makeCard("bear")} />);
+        expect(container.querySelector("[data-board-hand-card]")).toBeNull();
+    });
+
     it("renders a back (still inside the tilt root) for a hidden slot", () => {
         const { container, getByTestId } = render(
             <BoardNextCard card={null} />
