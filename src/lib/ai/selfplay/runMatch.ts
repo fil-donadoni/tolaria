@@ -14,7 +14,18 @@ import {
     runHeadlessGame,
     type GameResult,
     type GameEndReason,
+    type SeatConfig,
 } from "./playGame";
+
+/** The per-game runner. Defaults to the production `runHeadlessGame`;
+ *  injectable so the seat/turn accounting in `runMatch` can be unit-tested
+ *  deterministically without driving a full ISMCTS game (issue #243). */
+export type GameRunner = (
+    state: ReturnType<typeof createInitialGameState>,
+    seatA: SeatConfig,
+    seatB: SeatConfig,
+    seed: number
+) => GameResult;
 
 export type MatchConfig = {
     /** Preset deck id for seat A (e.g. "mono-red-burn"). */
@@ -66,7 +77,11 @@ const ZERO_REASONS = (): Record<GameEndReason, number> => ({
 
 /** Run a full match. Pure given (config, clock): the only impurity is reading
  *  wall-clock for the duration metric, passed in so callers/tests control it. */
-export function runMatch(config: MatchConfig, now: () => number): MatchReport {
+export function runMatch(
+    config: MatchConfig,
+    now: () => number,
+    runGame: GameRunner = runHeadlessGame
+): MatchReport {
     const start = now();
     const reasons = ZERO_REASONS();
     let aWins = 0;
@@ -86,7 +101,7 @@ export function runMatch(config: MatchConfig, now: () => number): MatchReport {
         const players = aOnPlay ? [aInput, bInput] : [bInput, aInput];
 
         const state = createInitialGameState(players, config.seed + i);
-        const result: GameResult = runHeadlessGame(
+        const result: GameResult = runGame(
             state,
             { id: "A", budget: config.budgetA },
             { id: "B", budget: config.budgetB },
