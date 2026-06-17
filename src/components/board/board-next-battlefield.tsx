@@ -50,6 +50,7 @@ export default function BoardNextBattlefield({
             items={items}
             layout={battlefieldLayout}
             mirror={mirror}
+            anchorKind="permanent"
             data-testid={testId}
         />
     );

@@ -3,16 +3,17 @@ import type { Player } from "~/types/game";
 import type { StackItem } from "~/types/game";
 import { fanLayout, type Placement } from "~/lib/board-layout";
 import { useGameContext } from "~/hooks/useGameContext";
+import { ArrowAnchorProvider } from "~/hooks/useArrowAnchors";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
 import BoardNextCard from "./board-next-card";
 import BoardNextBattlefield from "./board-next-battlefield";
 import BoardNextPlayerAnchor from "./board-next-player-anchor";
 import BoardNextHandCard from "./board-next-hand-card";
 import BoardNextPiles from "./board-next-piles";
+import BoardNextArrows from "./board-next-arrows";
 import GameStack from "./game-stack";
 import PhaseTracker from "./phase-tracker";
 import PriorityIndicator from "./priority-indicator";
-import TargetArrowsOverlay from "./target-arrows-overlay";
 
 type BoardNextProps = {
     /** Opponent first, viewer second (same ordering as the classic board). */
@@ -67,68 +68,77 @@ export default function BoardNext({
         // element (keyed by instance id in SpatialSlot) is matched across zone
         // boundaries — moving hand → battlefield animates the SAME element via a
         // FLIP rather than unmount/remount (#252).
-        <LayoutGroup>
-            <div className="absolute inset-0" data-board-variant="next">
-                {/* Opponent: hand on the top edge, battlefield below it — same
+        <ArrowAnchorProvider>
+            <LayoutGroup>
+                <div className="absolute inset-0" data-board-variant="next">
+                    {/* Opponent: hand on the top edge, battlefield below it — same
                     layout math, mirrored to the top half. */}
-                {opponent && (
-                    <>
-                        <BoardNextPlayerAnchor
-                            playerId={opponent.id}
-                            side="top"
-                        />
-                        <div className="absolute left-0 right-0 top-0 h-[18%]">
-                            <SpatialZone
-                                items={handItems(
-                                    opponent,
-                                    opponent.id === viewerId
-                                )}
-                                layout={handLayout}
-                                mirror
-                                data-testid="zone-opponent-hand"
+                    {opponent && (
+                        <>
+                            <BoardNextPlayerAnchor
+                                playerId={opponent.id}
+                                side="top"
                             />
-                        </div>
-                        <div className="absolute left-0 right-0 top-[18%] h-[32%]">
-                            <BoardNextBattlefield
-                                player={opponent}
-                                mirror
-                                data-testid="zone-opponent-battlefield"
-                            />
-                        </div>
-                    </>
-                )}
+                            <div className="absolute left-0 right-0 top-0 h-[18%]">
+                                <SpatialZone
+                                    items={handItems(
+                                        opponent,
+                                        opponent.id === viewerId
+                                    )}
+                                    layout={handLayout}
+                                    mirror
+                                    data-testid="zone-opponent-hand"
+                                />
+                            </div>
+                            <div className="absolute left-0 right-0 top-[18%] h-[32%]">
+                                <BoardNextBattlefield
+                                    player={opponent}
+                                    mirror
+                                    data-testid="zone-opponent-battlefield"
+                                />
+                            </div>
+                        </>
+                    )}
 
-                {/* Viewer: battlefield on the bottom half, hand on the bottom edge. */}
-                {me && (
-                    <>
-                        <BoardNextPlayerAnchor playerId={me.id} side="bottom" />
-                        <div className="absolute left-0 right-0 top-1/2 h-[32%]">
-                            <BoardNextBattlefield
-                                player={me}
-                                data-testid="zone-player-battlefield"
+                    {/* Viewer: battlefield on the bottom half, hand on the bottom edge. */}
+                    {me && (
+                        <>
+                            <BoardNextPlayerAnchor
+                                playerId={me.id}
+                                side="bottom"
                             />
-                        </div>
-                        <div className="absolute left-0 right-0 bottom-0 h-[18%]">
-                            <SpatialZone
-                                items={handItems(me, me.id === viewerId)}
-                                layout={handLayout}
-                                data-testid="zone-player-hand"
-                            />
-                        </div>
-                    </>
-                )}
+                            <div className="absolute left-0 right-0 top-1/2 h-[32%]">
+                                <BoardNextBattlefield
+                                    player={me}
+                                    data-testid="zone-player-battlefield"
+                                />
+                            </div>
+                            <div className="absolute left-0 right-0 bottom-0 h-[18%]">
+                                <SpatialZone
+                                    items={handItems(me, me.id === viewerId)}
+                                    layout={handLayout}
+                                    data-testid="zone-player-hand"
+                                />
+                            </div>
+                        </>
+                    )}
 
-                {/* Card piles (graveyard / library / exile) for both seats,
+                    {/* Card piles (graveyard / library / exile) for both seats,
                     reusing the existing pile components incl. their expanded
                     reveal + inertial scroll (#255). */}
-                <BoardNextPiles orderedPlayers={orderedPlayers} />
+                    <BoardNextPiles orderedPlayers={orderedPlayers} />
 
-                {/* Spatial chrome shared with the classic board. */}
-                <PriorityIndicator />
-                <PhaseTracker />
-                {stackItems.length > 0 && <GameStack stack={stackItems} />}
-                <TargetArrowsOverlay stack={stackItems} />
-            </div>
-        </LayoutGroup>
+                    {/* Spatial chrome shared with the classic board. */}
+                    <PriorityIndicator />
+                    <PhaseTracker />
+                    {stackItems.length > 0 && <GameStack stack={stackItems} />}
+                    {/* Our own SVG target arrows (replaces leader-line on the new
+                    board, #257): endpoints derive from the shared layout
+                    placements via the arrow-anchor registry, so arrows stay
+                    glued through the spring/tilt motion. */}
+                    <BoardNextArrows stack={stackItems} />
+                </div>
+            </LayoutGroup>
+        </ArrowAnchorProvider>
     );
 }
