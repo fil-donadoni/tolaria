@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { CardInstance } from "~/types/game";
+import { useInertialScroll } from "~/hooks/useInertialScroll";
 import GameDialog from "~/components/ui/game-dialog";
 import CardBack from "../cards/card-back";
 import SelectableCard from "../cards/selectable-card";
@@ -49,12 +50,19 @@ function FanLayout({
     onClose: () => void;
     selectedIds?: string[];
 }) {
+    // A full library fans to many overlapping cards that overflow the dialog
+    // width. Inertial drag-to-pan (Arena-like) makes browsing the reveal feel
+    // physical; native wheel + keyboard scroll stay intact (#255).
+    const scrollRef = useInertialScroll<HTMLDivElement>("x");
     return (
         <div
-            className="overflow-x-auto px-2 py-6"
+            ref={scrollRef}
+            tabIndex={0}
+            className="overflow-x-auto px-2 py-6 outline-none focus-visible:ring-1 focus-visible:ring-zinc-500/60"
             style={
                 {
                     "--pile-card-w": "clamp(5.5rem, 14vw, 13rem)",
+                    scrollBehavior: "smooth",
                 } as React.CSSProperties
             }
         >
