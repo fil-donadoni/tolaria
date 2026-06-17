@@ -1576,7 +1576,7 @@ export const timberWolvesLeb: CardPrint = {
 
 export const timeVaultLeb: CardPrint = {
     printId: "1164f22f-2706-4f35-9f58-d0eb8c344396",
-    definitionId: "c01a4081-dbb0-4a40-a27b-26e9a1b48803",
+    definitionId: "902441dc-c976-4c92-b897-6376eaa0fe38",
     setCode: "leb",
 };
 

@@ -7789,7 +7789,7 @@ export const fastbond: CardDefinition = {
 // step. "Skip your next turn: Untap Time Vault." "{T}: Take an extra turn
 // after this one." (CR 614.10, 500.7)
 export const timeVault: CardDefinition = {
-    id: "c01a4081-dbb0-4a40-a27b-26e9a1b48803",
+    id: "902441dc-c976-4c92-b897-6376eaa0fe38",
     name: "Time Vault",
     oracleText:
         "Time Vault enters tapped.\nTime Vault doesn't untap during your untap step.\nSkip your next turn: Untap Time Vault.\n{T}: Take an extra turn after this one.",
