@@ -30,7 +30,7 @@ guardrail touches:
 1. **The rollout default policy is greedy 1-ply and reactive-blind.** It chooses
    the move with the best immediate reward for its mover and never represents
    "wait now to react later". So the line `pass precombat → attack → opponent
-   blocks → cast the trick in response` — a multi-step, response-conditioned line
+blocks → cast the trick in response` — a multi-step, response-conditioned line
    — is essentially never produced in a playout, and the leaf estimates for the
    "hold" subtree are scored as if the trick were simply not used.
 2. **The leaf evaluation does not price flexibility.** ADR 0018 values cards in

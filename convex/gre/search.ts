@@ -65,6 +65,7 @@ import { enumerateMoves, type Move } from "./moves";
 import {
     evaluate,
     evaluateBreakdown,
+    declaredBlockDelta,
     materialMargin,
     WIN_SCORE,
     type PositionBreakdown,
@@ -234,7 +235,15 @@ export function decidingPlayer(state: GameState): string | null {
  *  nothing costs the same slice of reward whether the bot is even or far ahead —
  *  the suicidal-attack signal no longer saturates away. */
 export function reward(state: GameState, botId: string): number {
-    const v = evaluate(state, botId);
+    return rewardFromValue(evaluate(state, botId));
+}
+
+/** The reward-band shaping applied to an `evaluate` value, factored out of
+ *  `reward` so the rollout default policy can shape a combat-augmented value
+ *  (ADR 0021 slice 2) through the IDENTICAL band — terminal extremes reserve
+ *  `TERMINAL_BAND` for the surviving material margin, the open middle is linear
+ *  in the material signal. */
+function rewardFromValue(v: number): number {
     if (v >= TERMINAL) {
         const material = 0.5 + 0.5 * materialSignal(v - WIN_SCORE);
         return 1 - TERMINAL_BAND + TERMINAL_BAND * material;
@@ -470,9 +479,6 @@ function applyMoveInSearch(
 // Rollout (truncated playout)
 // ---------------------------------------------------------------------------
 
-/** Play `state` forward to a stable leaf with a cheap policy, then score it.
- *  Policy: with probability `ROLLOUT_EPSILON` a uniform-random legal move,
- *  otherwise the move with the best immediate reward for its mover (a 1-ply
 /** A scored leaf: the bounded `reward` (drives UCB1) plus the saturation-proof
  *  material `margin` (breaks outcome-equal ties), both from the bot's view. */
 type Leaf = { reward: number; margin: number };
@@ -487,8 +493,8 @@ function scoreLeaf(state: GameState, botId: string): Leaf {
 
 /** Play `state` forward to a stable leaf with a cheap policy, then score it.
  *  Policy: with probability `ROLLOUT_EPSILON` a uniform-random legal move,
- *  otherwise the move with the best immediate reward for its mover (a 1-ply
- *  greedy step). Mutates `state` (caller owns it).
+ *  otherwise the reactive-aware `selectRolloutMove` default policy (ADR 0021
+ *  slice 2). Mutates `state` (caller owns it).
  *
  *  Horizon (ADR 0015): the rollout stops at the START of the bot's next turn
  *  (a full round; `ROLLOUT_EXTRA_BOT_TURNS` adds further bot-turn-starts),
@@ -527,7 +533,7 @@ function rollout(state: GameState, botId: string, rng: () => number): Leaf {
         if (moves.length === 1 || rng() < ROLLOUT_EPSILON) {
             chosen = moves[Math.floor(rng() * moves.length)];
         } else {
-            chosen = bestImmediateMove(state, pid, botId, moves, rng);
+            chosen = selectRolloutMove(state, pid, botId, moves, rng);
         }
         applyMoveInSearch(state, pid, chosen);
     }
@@ -581,11 +587,49 @@ export function isDiscouragedRolloutMove(
     return false;
 }
 
-/** The move maximizing the mover's immediate reward (1-ply lookahead), with an
- *  RNG tie-break. Each candidate is probed on a clone so `state` is untouched.
- *  Discouraged lines (ADR 0020 §4) take a small reward penalty so the default
- *  policy avoids them without removing them from the explorable set. */
-function bestImmediateMove(
+/** The combat-aware leaf value the rollout policy scores a probed move on, from
+ *  `botId`'s view (ADR 0021 slice 2). Two reactive corrections over a plain
+ *  `evaluate` of the post-move snapshot, both POLICY-only (the shared leaf
+ *  magnitudes / reward band stay untouched):
+ *
+ *   * A cast spell only goes on the STACK in `applyMoveInSearch` — unresolved, so
+ *     a pre-resolution leaf sees the card leave hand but never its effect, and a
+ *     1-ply policy would never value a removal / answer. The policy looks one
+ *     resolution deep so it can SEE the effect: a kill makes casting pay, while a
+ *     no-payoff trick (a temporary buff, excluded from material) still scores
+ *     below holding.
+ *   * A just-declared block is scored on the pre-damage snapshot, so every block
+ *     assignment looks identical. `declaredBlockDelta` folds the actual exchange
+ *     in so the policy can tell a sane block from a bad one (the attacker side
+ *     already gets this from `evaluate`'s `declaredCombatDelta`, ADR 0020 §3). */
+function policyValue(probe: GameState, botId: string, move: Move): number {
+    if (move.kind === "cast-spell" && probe.stack.length > 0) {
+        resolveTopOfStack(probe);
+    }
+    let v = evaluate(probe, botId);
+    if (move.kind === "declare-blockers" && move.assignments.length > 0) {
+        v += declaredBlockDelta(probe, botId);
+    }
+    return v;
+}
+
+/** The reactive-aware rollout DEFAULT POLICY (ADR 0021 slice 2, issue #222): the
+ *  move maximizing the mover's combat-aware immediate reward (1-ply lookahead),
+ *  with an RNG tie-break. Each candidate is probed on a clone so `state` is
+ *  untouched. Three reactive properties, all soft (policy bias, never legality):
+ *
+ *    * holds a pure instant at sorcery speed when there is no payoff — the
+ *      ADR 0020 §4 guardrail penalty plus the slice-1 flexibility term make
+ *      dumping it score below passing;
+ *    * casts a held instant in a reactive window when it pays — a removal /
+ *      combat answer that improves the leaf wins on reward and is chosen;
+ *    * makes the sane block — `policyValue` folds the declared block exchange in,
+ *      so a profitable block out-scores a bad one or no block.
+ *
+ *  Exposed as a named seam (like `selectRootMove` / `isDiscouragedRolloutMove`)
+ *  so it is unit-testable in isolation without running a full search.
+ *  Deterministic given the `rng` stream. */
+export function selectRolloutMove(
     state: GameState,
     pid: string,
     botId: string,
@@ -598,7 +642,9 @@ function bestImmediateMove(
     for (const move of moves) {
         const probe = cloneGameState(state);
         applyMoveInSearch(probe, pid, move);
-        const r = reward(probe, botId);
+        // `policyValue` is from the bot's view; flip for the opponent so each
+        // mover greedily maximizes ITS own reward (a competent opponent).
+        const r = rewardFromValue(policyValue(probe, botId, move));
         let moverReward = moverIsBot ? r : 1 - r;
         if (isDiscouragedRolloutMove(state, pid, move)) {
             moverReward -= ROLLOUT_GUARDRAIL_PENALTY;
