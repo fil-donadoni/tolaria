@@ -47,7 +47,8 @@ export type ZonePickKind =
     | "reveal-hand"
     | "choose-permanents"
     | "partition"
-    | "choose-hand-card";
+    | "choose-hand-card"
+    | "choose-damage-target";
 /** CR 702.26 — condition under which a phased-out bundle phases back in. A
  *  discriminated union so future phasing variants stay expressible:
  *   - `source-leaves` (Oubliette): phase in when the named source leaves the

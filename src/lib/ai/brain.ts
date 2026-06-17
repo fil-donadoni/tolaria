@@ -246,6 +246,16 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "partition":
             return candidates.slice(0, min).map((c) => c.id);
 
+        // "Any target of an opponent's choice" (CR 115.4, Cuombajj Witches):
+        // the bot is the opponent picking where 1 damage lands. Minimal-legal
+        // default (ADR 0016) — pick exactly `min` (=1) by lowest projected
+        // value, so it tends to ping the least valuable target (a player or a
+        // small creature) rather than its own bomb. Smart targeting is deferred.
+        case "choose-damage-target":
+            return worstFirst(candidates)
+                .slice(0, min)
+                .map((c) => c.id);
+
         // Reveal-hand only acknowledges (count 0) — submit nothing.
         case "reveal-hand":
             return [];

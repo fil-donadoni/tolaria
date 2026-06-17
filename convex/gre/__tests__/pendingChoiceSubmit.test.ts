@@ -14,6 +14,7 @@ import {
     plains,
     winterOrb,
 } from "../../cards/sets/lea";
+import { cuombajjWitches, juzamDjinn } from "../../cards/sets/arn";
 import {
     makeInstance,
     makePlayer,
@@ -541,5 +542,106 @@ describe("applyPendingChoiceSubmit — no pending choice", () => {
                 cardInstanceIds: [],
             })
         ).toThrow(/no pending choice/i);
+    });
+});
+
+// Backend submission path for the opponent-chosen "any target" choice
+// (Cuombajj Witches). Exercises `applyPendingChoiceSubmit` for the
+// `choose-damage-target` kind: it validates against the permanent/player
+// allow-lists rather than the zone-membership check, then resumes the
+// suspended resolve so the second ping lands.
+describe("applyPendingChoiceSubmit — choose-damage-target (Cuombajj Witches)", () => {
+    /** Push the Witches ability on the stack with the controller's ping-1
+     *  target already chosen, resolve once to suspend on the opponent's
+     *  choice, and return the suspended state + the head choice. */
+    function suspendOnOpponentChoice() {
+        const witches = makeInstance(cuombajjWitches.id, {
+            id: "witches",
+            controllerId: "p1",
+        });
+        const myBody = makeInstance(juzamDjinn.id, {
+            id: "p1-body",
+            controllerId: "p1",
+        });
+        const oppBody = makeInstance(juzamDjinn.id, {
+            id: "p2-body",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [witches, myBody] }),
+                makePlayer("p2", { battlefield: [oppBody] }),
+            ],
+        });
+        state.stack.push({
+            ...witches,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "cuombajj-witches-pings",
+            targets: [{ type: "permanent", id: "p2-body" }],
+        });
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        return { state, head };
+    }
+
+    it("accepts a player pick and resumes to land both pings", () => {
+        const { state, head } = suspendOnOpponentChoice();
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["p1"], // opponent pings the controller
+        });
+        expect(state.players[0].life).toBe(19); // ping 2 → p1
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "p2-body")!
+                .damageMarked
+        ).toBe(1); // ping 1 → p2's body
+        expect(state.pendingChoices ?? []).toEqual([]);
+        expect(state.stack).toEqual([]);
+    });
+
+    it("accepts a damageable-permanent pick and resumes", () => {
+        const { state, head } = suspendOnOpponentChoice();
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["p1-body"], // opponent pings controller's body
+        });
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "p1-body")!
+                .damageMarked
+        ).toBe(1);
+        expect(state.pendingChoices ?? []).toEqual([]);
+    });
+
+    it("rejects an id that is neither a legal permanent nor a player", () => {
+        const { state, head } = suspendOnOpponentChoice();
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p2",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["does-not-exist"],
+            })
+        ).toThrow(/not a legal target/i);
+    });
+
+    it("rejects a submission from the wrong player (controller can't choose)", () => {
+        const { state, head } = suspendOnOpponentChoice();
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1", // the controller, not the chooser
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["p2-body"],
+            })
+        ).toThrow(/stale pending choice/i);
     });
 });

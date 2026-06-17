@@ -14,7 +14,8 @@
 // as commented back-references below. Ante / subgame cards are out of scope
 // (ADR 0010). Generic mana is encoded as `X: n` (e.g. {2}{R} → { X: 2, R: 1 }).
 
-import type { CardDefinition, SpellContext } from "../types";
+import type { CardDefinition, SpellContext, TargetSelection } from "../types";
+import { DAMAGEABLE_PERMANENT_TYPES } from "../types";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { untapRestriction } from "../abilities/static/untapRestriction";
 import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
@@ -1850,6 +1851,104 @@ export const magneticMountain: CardDefinition = {
                 }
             },
         }),
+    ],
+};
+
+// Cuombajj Witches — "{T}: This creature deals 1 damage to any target and 1
+// damage to any target of an opponent's choice." (modern oracle, ADR 0004).
+//
+// Two pings (CR 115.4 "any target" = creature / planeswalker / battle / player).
+// The controller chooses the FIRST target at activation (the ability's normal
+// `targetRequirement`, CR 602.2b). The SECOND target is "of an opponent's
+// choice" (CR 601.2c / 608.2) — chosen DURING resolution by an opponent via a
+// `choose-damage-target` mid-resolution choice (twin of Demonic Hordes' opponent
+// pick, but over "any target" rather than a battlefield zone, so the candidate
+// set spans damageable permanents AND players). The original printed text
+// ("damage is inflicted simultaneously") is simplified: our engine applies the
+// two pings sequentially within the single resolve step. With 1 damage each and
+// no replacement interaction between the two, the observable outcome is
+// identical, so the simplification is safe.
+export const cuombajjWitches: CardDefinition = {
+    id: "7995c3f9-a147-43c9-9f82-470924818a4c",
+    name: "Cuombajj Witches",
+    oracleText:
+        "{T}: This creature deals 1 damage to any target and 1 damage to any target of an opponent's choice.",
+    manaCost: { B: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 1,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "cuombajj-witches-pings",
+            oracleText:
+                "{T}: This creature deals 1 damage to any target and 1 damage to any target of an opponent's choice.",
+            cost: { tap: true },
+            useStack: true,
+            // Controller's target (CR 602.2b — chosen at activation).
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx) => {
+                // The opponent's choice (CR 601.2c) suspends and resumes the
+                // resolve step: on suspend `requestChoice` returns undefined,
+                // on resume the WHOLE body re-runs with the stored answer. So
+                // request the opponent's target FIRST and apply BOTH pings only
+                // after it resolves — otherwise ping 1 would be dealt twice
+                // (once before the suspend, once on resume). With no opponent
+                // (solo edge) or no legal second target, ping 1 still happens.
+                const own = ctx.targets[0];
+
+                const opponentId = ctx.allPlayerIds.find(
+                    (p) => p !== ctx.controller
+                );
+                const permanentCandidates = ctx.allPlayerIds.flatMap((pid) =>
+                    ctx.getBattlefieldIds(pid, {
+                        types: [...DAMAGEABLE_PERMANENT_TYPES],
+                    })
+                );
+                const playerCandidates = [...ctx.allPlayerIds];
+
+                // Only request the opponent's choice when there IS an opponent
+                // and at least one legal target. Otherwise skip straight to the
+                // controller's ping.
+                let opponentTarget: TargetSelection | undefined;
+                if (
+                    opponentId &&
+                    (permanentCandidates.length > 0 ||
+                        playerCandidates.length > 0)
+                ) {
+                    const picked = ctx.requestChoice({
+                        playerId: opponentId,
+                        choiceId: `cuombajj-${ctx.sourceInstanceId}`,
+                        kind: "choose-damage-target",
+                        zone: "battlefield",
+                        // CR 115.4 — every battlefield is a legal source of
+                        // damageable permanents, so the chooser picks from all
+                        // of them (the `filter` gates to the damageable types).
+                        allControllers: true,
+                        filter: { types: [...DAMAGEABLE_PERMANENT_TYPES] },
+                        candidateIds: permanentCandidates,
+                        candidatePlayerIds: playerCandidates,
+                        count: 1,
+                        prompt: "Cuombajj Witches: choose any target for 1 damage (opponent's choice).",
+                    });
+                    if (picked === undefined) return; // suspend: awaiting pick
+                    const id = picked[0];
+                    if (id) {
+                        // Disambiguate the chosen id: a player id targets the
+                        // player, otherwise a damageable permanent.
+                        opponentTarget = playerCandidates.includes(id)
+                            ? { type: "player", id }
+                            : { type: "permanent", id };
+                    }
+                }
+
+                // Both pings land now (CR 115.4 — original "simultaneously"
+                // simplified to sequential; identical observable outcome for
+                // 1 damage each).
+                if (own) ctx.dealDamage(own, 1);
+                if (opponentTarget) ctx.dealDamage(opponentTarget, 1);
+            },
+        },
     ],
 };
 

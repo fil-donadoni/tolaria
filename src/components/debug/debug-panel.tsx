@@ -74,6 +74,25 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // ARN Batch 9 (#182) — Cuombajj Witches ({B}{B}, 1/3): "{T}: This
+        // creature deals 1 damage to any target and 1 damage to any target of
+        // an opponent's choice." (CR 115.4 / 608.2). Tap the Witches and pick
+        // your "any target" (ping 1). The opponent then gets a
+        // choose-damage-target prompt to pick the second target — a damageable
+        // permanent on any battlefield OR a player. Both pings land once the
+        // opponent confirms. Swamps are only flavour; the ability costs no mana.
+        label: "ARN: opponent-chosen ping (Cuombajj Witches)",
+        cards: [
+            { name: "Cuombajj Witches", owner: "me" as const },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Serendib Efreet", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 9 (#180) — Metamorphosis ({G} sorcery): as an additional
         // cost sacrifice a creature, then add X mana of one chosen color where
         // X = 1 + the sacrificed creature's mana value, spendable only on

@@ -20,6 +20,7 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "choose-permanents": "Choose",
     partition: "Divide",
     "choose-hand-card": "Cast face down",
+    "choose-damage-target": "Choose target",
     // yes-no family
     "may-pay": "Optional",
     // order family

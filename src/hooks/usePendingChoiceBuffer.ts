@@ -17,6 +17,7 @@ export const CLIENT_BUFFERED_KINDS: ReadonlySet<PendingChoiceKind> =
         "untap-pick",
         "mulligan-bottom",
         "choose-permanents",
+        "choose-damage-target",
     ]);
 
 export function isClientBufferedKind(kind: PendingChoiceKind): boolean {

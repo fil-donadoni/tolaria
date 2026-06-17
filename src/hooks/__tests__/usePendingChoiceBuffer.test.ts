@@ -103,6 +103,8 @@ describe("isClientBufferedKind", () => {
         expect(isClientBufferedKind("mulligan-bottom")).toBe(true);
         // W26 — Kudzu's aura-retarget land choice.
         expect(isClientBufferedKind("choose-permanents")).toBe(true);
+        // Cuombajj Witches — opponent's "any target" pick (toggle then Done).
+        expect(isClientBufferedKind("choose-damage-target")).toBe(true);
     });
 
     it("returns false for kinds not yet migrated", () => {
