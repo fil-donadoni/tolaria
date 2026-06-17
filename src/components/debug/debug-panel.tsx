@@ -531,6 +531,30 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // AI debug: interaction-aware combat prediction (ADR 0021, issue #229).
+        // The bot ("opp" = p2) is the ATTACKER with a ready 2/2 (Grizzly Bears)
+        // and Giant Growth + an untapped Forest in hand; you (p1) have a 3/3
+        // (Hill Giant) able to block. Pass to the bot's turn and watch the AI
+        // trace: with the held +3/+3 modelled, the bot no longer pre-judges the
+        // 2/2 as walking into the block, and the hold-the-trick tie-break keeps
+        // the trick at the root instead of dumping it at sorcery speed (the
+        // attacker-ambush behaviour). Block the bear with your Hill Giant to see
+        // the bot pump in response and trade up.
+        label: "AI debug: attacker ambush — bot holds Giant Growth on a 2/2 vs your 3/3 (#229)",
+        cards: [
+            {
+                name: "Giant Growth",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Forest", owner: "opp" as const, count: 1 },
+            { name: "Grizzly Bears", owner: "opp" as const }, // the bait 2/2
+            { name: "Hill Giant", owner: "me" as const }, // your 3/3 blocker
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         label: "W29: Copy permanent — Clone / Copy Artifact / Vesuvan + Gaea's Liege (CR 707)",
         cards: [
             // Cast Clone ({3}{U}) and choose to enter as a copy of the Serra

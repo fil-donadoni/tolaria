@@ -1,4 +1,5 @@
 import type {
+    AiCombatHint,
     CardDefinition,
     CardPrint,
     CardSupertype,
@@ -266,6 +267,21 @@ export function getInstanceAiValue(instance: {
     if (embedded !== undefined) return embedded;
     const id = (instance.card as { id?: string }).id;
     return id ? (tryGetCardById(id)?.aiValue ?? undefined) : undefined;
+}
+
+/** Reads the AI combat hint off a `CardInstanceState`-shaped object (ADR 0021,
+ *  issue #229). Production stores only `{id}` in `instance.card` and relies on
+ *  the registry; test fixtures may inline it on the same field. Tries embedded
+ *  first so fixtures keep working, then falls back to the registry. Returns
+ *  undefined when the card declares no combat hint. */
+export function getInstanceAiCombatHint(instance: {
+    card: Record<string, unknown>;
+}): AiCombatHint | undefined {
+    const embedded = (instance.card as { aiCombatHint?: AiCombatHint })
+        .aiCombatHint;
+    if (embedded !== undefined) return embedded;
+    const id = (instance.card as { id?: string }).id;
+    return id ? (tryGetCardById(id)?.aiCombatHint ?? undefined) : undefined;
 }
 
 /** All registered `CardDefinition`s in load order. Reprints are not included

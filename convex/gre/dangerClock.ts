@@ -24,6 +24,7 @@ import {
     evaluateBlockerKeywords,
     evaluateAttackerKeywords,
 } from "./combatRegistry";
+import type { HeldPump } from "./heldInteraction";
 
 /** Reward magnitude for holding a one-combat-lethal clock (a full fraction).
  *  Forge-scale (ADR 0018) but kept below a creature's worth (~170) so the clock
@@ -106,7 +107,8 @@ export type CombatOutcome = {
 export function predictCombatOutcome(
     state: GameState,
     attackerId: string,
-    defenderId: string
+    defenderId: string,
+    attackerHeldPump?: HeldPump
 ): CombatOutcome {
     const empty: CombatOutcome = {
         faceDamage: 0,
@@ -125,6 +127,19 @@ export function predictCombatOutcome(
             (a, b) => getEffectivePower(state, b) - getEffectivePower(state, a)
         );
 
+    // Interaction-aware (ADR 0021, issue #229): a pump the ATTACKER holds in
+    // hand is modelled on the attacker MOST LIKELY to be contested — the biggest
+    // declared attacker (already first after the power sort). It is a held trick
+    // the attacker casts in response to blocks, so the predictor must not
+    // pre-judge that attacker as dead: its effective P/T gains the pump for this
+    // prediction only. One trick → one creature (CR 601 single target).
+    const pumpedId =
+        attackerHeldPump && declared.length > 0 ? declared[0].id : undefined;
+    const pumpP = (atk: { id: string }) =>
+        atk.id === pumpedId ? (attackerHeldPump?.power ?? 0) : 0;
+    const pumpT = (atk: { id: string }) =>
+        atk.id === pumpedId ? (attackerHeldPump?.toughness ?? 0) : 0;
+
     const blockers = defender.battlefield.filter((c) => isCreature(c));
     const used = new Set<string>();
     const out: CombatOutcome = {
@@ -134,8 +149,11 @@ export function predictCombatOutcome(
     };
 
     for (const atk of declared) {
-        const atkP = Math.max(0, getEffectivePower(state, atk));
-        const atkT = Math.max(0, getEffectiveToughness(state, atk));
+        const atkP = Math.max(0, getEffectivePower(state, atk) + pumpP(atk));
+        const atkT = Math.max(
+            0,
+            getEffectiveToughness(state, atk) + pumpT(atk)
+        );
         const legal = blockers.filter(
             (b) =>
                 !used.has(b.id) &&
