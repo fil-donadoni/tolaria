@@ -6,6 +6,7 @@ import {
     mirrorVertical,
     type Placement,
 } from "~/lib/board-layout";
+import SpatialSlot from "./spatial-slot";
 
 /** One placeable card slot: a stable key and the node to render inside it. */
 export type SpatialItem = {
@@ -29,10 +30,12 @@ type SpatialZoneProps = {
 };
 
 /** Absolutely-positions a zone's cards from shared pure layout output. Measures
- *  its own box, asks the supplied `layout` for per-card placements, and writes
- *  each one to a GPU `transform`. DOM-only view layer: it renders whatever node
- *  each item carries (reused card components), so the GRE boundary is untouched
- *  (#251). */
+ *  its own box, asks the supplied `layout` for per-card placements, and hands
+ *  each placement to an animated {@link SpatialSlot} keyed by the item's stable
+ *  id. The slot springs to its placement on reflow and animates across zone
+ *  boundaries via shared-layout identity (#252). DOM-only view layer: it renders
+ *  whatever node each item carries (reused card components), so the GRE boundary
+ *  is untouched (#251). */
 export default function SpatialZone({
     items,
     layout,
@@ -60,24 +63,19 @@ export default function SpatialZone({
             {items.map((item, i) => {
                 const p = placements[i];
                 // Before the first measurement the container is 0×0 and the
-                // layout collapses; render the slot off-screen rather than
-                // stacking everything at the origin.
+                // layout collapses; place the slot at the origin rather than
+                // stacking everything off-screen.
                 const placed = p ?? { x: 0, y: 0, rotation: 0, scale: 1 };
                 return (
-                    <div
+                    <SpatialSlot
                         key={item.key}
-                        data-card-slot={item.key}
-                        className="absolute left-0 top-0 will-change-transform"
-                        style={{
-                            width: cardWidth,
-                            height: cardHeight,
-                            transform: `translate(${placed.x - cardWidth / 2}px, ${
-                                placed.y - cardHeight / 2
-                            }px) rotate(${placed.rotation}deg) scale(${placed.scale})`,
-                        }}
+                        slotId={item.key}
+                        placement={placed}
+                        cardWidth={cardWidth}
+                        cardHeight={cardHeight}
                     >
                         {item.node}
-                    </div>
+                    </SpatialSlot>
                 );
             })}
         </div>
