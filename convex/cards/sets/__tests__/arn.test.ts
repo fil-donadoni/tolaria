@@ -22,6 +22,7 @@ import {
     hasranOgress,
     elHajjaj,
     khabalGhoul,
+    ergRaiders,
     rukhEgg,
     dandan,
     islandFishJasconius,
@@ -82,7 +83,7 @@ import {
     animateArtifact,
 } from "../lea";
 import { getInstanceManaCost, tryGetCardById } from "../../";
-import type { Color } from "../../types";
+import type { Color, PhaseBeginEvent } from "../../types";
 import { checkStateBasedActions } from "../../../gre/sba";
 import { validateBlockerEligibility } from "../../../gre/combat";
 import {
@@ -188,6 +189,12 @@ const upkeepEvent = (playerId: string) =>
         phase: "UPKEEP" as const,
         activePlayerId: playerId,
     }) as StackItem["triggerEvent"];
+
+const endStepEvent = (playerId: string): PhaseBeginEvent => ({
+    type: "PHASE_BEGIN",
+    phase: "END_STEP",
+    activePlayerId: playerId,
+});
 
 // ---------------------------------------------------------------------------
 // Vanilla / keyword creatures (CR 702)
@@ -724,6 +731,75 @@ describe("Khabál Ghoul (end step: +1/+1 per creature that died this turn)", () 
         const after = state.players[0].battlefield[0];
         expect(after.counters?.["+1/+1"]).toBe(3);
         expect(getEffectivePower(state, after)).toBe(4);
+    });
+});
+
+describe("Erg Raiders (end step: 2 damage to you unless it attacked / just arrived, CR 603.3e/603.4)", () => {
+    const ability = ergRaiders.triggeredAbilities!.find(
+        (a) => a.id === "erg-raiders-end-step"
+    )!;
+
+    it("is a 2/3 Human Warrior costing {1}{B}", () => {
+        expect(ergRaiders.power).toBe(2);
+        expect(ergRaiders.toughness).toBe(3);
+        expect(ergRaiders.subtypes).toEqual(["Human", "Warrior"]);
+        expect(ergRaiders.manaCost).toEqual({ X: 1, B: 1 });
+    });
+
+    it("deals 2 damage to you at end step when it didn't attack", () => {
+        const erg = makeInstance(ergRaiders.id, { id: "erg" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [erg] }),
+                makePlayer("p2"),
+            ],
+        });
+        // It triggers (didn't attack, not summoning sick)...
+        expect(ability.matches(endStepEvent("p1"), erg, state)).toBe(true);
+        resolveTrigger(state, erg, "erg-raiders-end-step", endStepEvent("p1"));
+        expect(state.players[0].life).toBe(18);
+    });
+
+    it("deals no damage when it attacked this turn (CR 603.4 intervening-if)", () => {
+        const erg = makeInstance(ergRaiders.id, {
+            id: "erg",
+            hasAttackedThisTurn: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [erg] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Intervening-if blocks it both at trigger time and at resolve time.
+        expect(ability.matches(endStepEvent("p1"), erg, state)).toBe(false);
+        resolveTrigger(state, erg, "erg-raiders-end-step", endStepEvent("p1"));
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("does not trigger the turn it came under your control (CR 603.3e)", () => {
+        const erg = makeInstance(ergRaiders.id, {
+            id: "erg",
+            isSummoningSick: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [erg] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(ability.matches(endStepEvent("p1"), erg, state)).toBe(false);
+    });
+
+    it("only fires on its own controller's end step, not the opponent's", () => {
+        const erg = makeInstance(ergRaiders.id, { id: "erg" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [erg] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(ability.matches(endStepEvent("p2"), erg, state)).toBe(false);
     });
 });
 

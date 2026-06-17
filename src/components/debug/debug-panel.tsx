@@ -53,6 +53,23 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ARN Batch 9 (#187) — Erg Raiders ({1}{B}, 2/3): "At the beginning of
+        // your end step, if it didn't attack this turn, it deals 2 damage to
+        // you. This ability doesn't trigger if it came under your control this
+        // turn." Two Raiders are already in play (not summoning sick, since
+        // the scenario starts mid-turn). Pass to your end step WITHOUT
+        // attacking: each Raiders deals 2 to you (you drop 4 total). To see
+        // the exemption, declare one as an attacker first — that one deals no
+        // damage at end step while the idle one still pings you for 2.
+        label: "ARN: end-step penalty (Erg Raiders)",
+        cards: [
+            { name: "Erg Raiders", owner: "me" as const, count: 2 },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN (#186) — Jandor's Ring ({2},{T}, discard the last card you drew
         // this turn: Draw a card). The Ring is on your battlefield with two
         // Islands for the {2}. A Grizzly Bears sits in hand and is marked as

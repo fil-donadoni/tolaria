@@ -1333,6 +1333,16 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     toughness: sourceCard.toughness,
                     attachedTo: sourceCard.attachedTo,
                     counters: sourceCard.counters,
+                    // Combat-history / summoning-sickness flags must survive
+                    // into the resolve-time intervening-if (CR 603.4d) so
+                    // "if it [didn't] attack this turn"-style predicates
+                    // (Clockwork Beast, Erg Raiders) read the real value
+                    // rather than undefined.
+                    isAttacking: sourceCard.isAttacking,
+                    isBlocking: sourceCard.isBlocking,
+                    hasAttackedThisTurn: sourceCard.hasAttackedThisTurn,
+                    hasBlockedThisTurn: sourceCard.hasBlockedThisTurn,
+                    isSummoningSick: sourceCard.isSummoningSick,
                     card: sourceCard.card as Record<string, unknown>,
                 };
                 if (!ability.interveningIf(top.triggerEvent, selfView, state)) {

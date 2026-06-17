@@ -434,6 +434,44 @@ export const khabalGhoul: CardDefinition = {
     ],
 };
 
+// Erg Raiders — end-step self-damage unless it attacked, with a
+// "came under your control this turn" exemption (CR 603.4 intervening-if for
+// the attack clause + CR 603.3e trigger gate for the control-change clause).
+// Reuses the existing `phaseTrigger` factory (END_STEP, scope "your") and the
+// `dealDamage` primitive (cf. Juzám Djinn upkeep self-damage). The exemption
+// reads `self.isSummoningSick`: that flag is set when a creature enters or
+// changes controller and is cleared at its controller's untap step, so it is
+// true for exactly the turn the creature came under your control.
+export const ergRaiders: CardDefinition = {
+    id: "35c73a97-531d-4dd5-8236-39b89c183c38",
+    name: "Erg Raiders",
+    oracleText:
+        "At the beginning of your end step, if Erg Raiders didn't attack this turn, Erg Raiders deals 2 damage to you. This ability doesn't trigger if Erg Raiders came under your control this turn.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Warrior"],
+    power: 2,
+    toughness: 3,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "erg-raiders-end-step",
+            oracleText:
+                "At the beginning of your end step, if Erg Raiders didn't attack this turn, Erg Raiders deals 2 damage to you. This ability doesn't trigger if Erg Raiders came under your control this turn.",
+            phase: "END_STEP",
+            scope: "your",
+            // CR 603.3e — the ability does not even trigger the turn Erg
+            // Raiders came under your control (summoning-sick this turn).
+            condition: (_event, self) => self.isSummoningSick !== true,
+            // CR 603.4 intervening-if — "if it didn't attack this turn".
+            // Re-checked at resolve; `hasAttackedThisTurn` persists to CLEANUP.
+            interveningIf: (_event, self) => self.hasAttackedThisTurn !== true,
+            resolve: (ctx, _event, scopedPlayerId) => {
+                ctx.dealDamage({ type: "player", id: scopedPlayerId }, 2);
+            },
+        }),
+    ],
+};
+
 export const rukhEgg: CardDefinition = {
     id: "b28f9e63-e5e4-44b5-a17e-8301ff17c623",
     name: "Rukh Egg",
