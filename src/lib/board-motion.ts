@@ -29,3 +29,37 @@ export const SLOT_SPRING = {
      *  settle (ease-out with a touch of late deceleration). */
     cssEasing: "cubic-bezier(0.22, 1, 0.36, 1)",
 } as const;
+
+/**
+ * Arena-style hover tilt constants for the spatial board (PRD #249, slice #253).
+ *
+ * The validated core (from the throwaway prototype `card-tilt.tsx`): on
+ * `pointermove` the card tilts toward the cursor — `px`/`py` are the pointer's
+ * offset from the card center in -0.5..0.5, mapped to `rotateX`/`rotateY` of up
+ * to {@link CARD_TILT.maxTiltDeg}, with a small `translateZ` lift and a subtle
+ * scale, plus a radial glare that tracks the pointer. On leave the transform
+ * eases back to flat over a longer duration and the glare fades out.
+ *
+ * The tilt is written imperatively to the element style on every pointermove —
+ * NO per-frame React state — so it stays smooth and text stays crisp (DOM
+ * rendering, no blur). It is applied on an INNER element so it composes with the
+ * outer slot's placement transform and the `motion` FLIP layer (#252) instead of
+ * fighting them.
+ */
+export const CARD_TILT = {
+    /** Max tilt magnitude in degrees — a small Arena-like twist (tunable). */
+    maxTiltDeg: 14,
+    /** Forward lift toward the viewer on hover, in px (the `translateZ`). */
+    liftZ: 28,
+    /** Uniform scale-up on hover (the subtle "this card is live" pop). */
+    hoverScale: 1.07,
+    /** Perspective depth applied to the tilt container, in px. Smaller = more
+     *  dramatic foreshortening. */
+    perspectivePx: 700,
+    /** Snappy follow while the pointer moves over the card. */
+    moveTransition: "transform 60ms linear",
+    /** Longer eased settle back to flat on pointer leave. */
+    resetTransition: "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)",
+    /** Glare opacity at full hover (faded to 0 on leave). */
+    glareOpacity: 0.55,
+} as const;
