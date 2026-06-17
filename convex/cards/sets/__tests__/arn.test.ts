@@ -64,6 +64,7 @@ import {
     ifhBiffEfreet,
     guardianBeast,
     abuJafar,
+    jandorsRing,
 } from "../arn";
 import {
     grizzlyBears,
@@ -112,6 +113,9 @@ import {
     destroyWithReplacements,
     applyControlChange,
     combatPartnerIds,
+    drawCard,
+    canPayDiscardLastDrawn,
+    payDiscardLastDrawn,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -449,6 +453,88 @@ describe("Aladdin's Ring ({8},{T}: 4 damage to any target)", () => {
             { type: "player", id: "p2" },
         ]);
         expect(state.players[1].life).toBe(16);
+    });
+});
+
+describe("Jandor's Ring ({2},{T}, discard last drawn: Draw a card)", () => {
+    // drawCard records the last-drawn card per player (CR — Jandor's Ring).
+    it("drawCard tracks the last card drawn this turn", () => {
+        const p1 = makePlayer("p1", {
+            library: [
+                makeInstance(grizzlyBears.id, { id: "a", zone: "library" }),
+                makeInstance(plains.id, { id: "b", zone: "library" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        const player = state.players[0];
+        expect(player.lastDrawnCardId).toBeUndefined();
+        const first = drawCard(player);
+        expect(first?.id).toBe("a");
+        expect(player.lastDrawnCardId).toBe("a");
+        drawCard(player);
+        expect(player.lastDrawnCardId).toBe("b");
+    });
+
+    it("can pay the discard cost only while the drawn card is still in hand", () => {
+        const p1 = makePlayer("p1", {
+            library: [
+                makeInstance(grizzlyBears.id, { id: "a", zone: "library" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        const player = state.players[0];
+        // No draw yet — cost unpayable.
+        expect(canPayDiscardLastDrawn(player)).toBe(false);
+        drawCard(player);
+        expect(canPayDiscardLastDrawn(player)).toBe(true);
+        // Card leaves hand (played/discarded elsewhere) — cost unpayable again.
+        player.hand = [];
+        expect(canPayDiscardLastDrawn(player)).toBe(false);
+    });
+
+    it("paying discards the last-drawn card and clears the tracker", () => {
+        const p1 = makePlayer("p1", {
+            library: [
+                makeInstance(grizzlyBears.id, { id: "a", zone: "library" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        const player = state.players[0];
+        drawCard(player);
+        expect(player.hand.map((c) => c.id)).toEqual(["a"]);
+        payDiscardLastDrawn(player);
+        expect(player.hand).toHaveLength(0);
+        expect(player.graveyard.map((c) => c.id)).toEqual(["a"]);
+        expect(player.lastDrawnCardId).toBeUndefined();
+        // Cost can no longer be paid — same draw can't fund a second use.
+        expect(canPayDiscardLastDrawn(player)).toBe(false);
+    });
+
+    it("resolving the ability draws a card", () => {
+        const ring = makeInstance(jandorsRing.id, { id: "ring" });
+        const p1 = makePlayer("p1", {
+            battlefield: [ring],
+            library: [makeInstance(plains.id, { id: "top", zone: "library" })],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        resolveActivated(state, ring, "jandors-ring-draw");
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["top"]);
+    });
+
+    it("wire format: lastDrawnCardId and the drawn hand card survive projection", () => {
+        const p1 = makePlayer("p1", {
+            library: [
+                makeInstance(grizzlyBears.id, { id: "a", zone: "library" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        drawCard(state.players[0]);
+        const projected = projectPublicState(state, 1, "p1");
+        const me = projected.players.find((p) => p.id === "p1")!;
+        expect(me.lastDrawnCardId).toBe("a");
+        // The viewer's own hand keeps the card id (slimmed but identifiable),
+        // so the UI can gate the discard cost on it.
+        expect(me.hand.some((c) => c !== null && c.id === "a")).toBe(true);
     });
 });
 

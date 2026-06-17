@@ -350,6 +350,7 @@ type CompactPlayer = {
     restrictedMana?: PlayerState["restrictedMana"];
     hasDrawnFromEmpty?: boolean;
     landsPlayedThisTurn?: number;
+    lastDrawnCardId?: string;
     turnsTaken?: number;
     grantedAbilities?: PlayerState["grantedAbilities"];
     skipNextTurn?: boolean;
@@ -379,6 +380,9 @@ function compactPlayer(player: PlayerState): CompactPlayer {
     if (player.hasDrawnFromEmpty) out.hasDrawnFromEmpty = true;
     if (player.landsPlayedThisTurn) {
         out.landsPlayedThisTurn = player.landsPlayedThisTurn;
+    }
+    if (player.lastDrawnCardId) {
+        out.lastDrawnCardId = player.lastDrawnCardId;
     }
     if (player.turnsTaken) out.turnsTaken = player.turnsTaken;
     if (player.grantedAbilities?.length) {
@@ -418,6 +422,9 @@ function expandPlayer(player: CompactPlayer): PlayerState {
     if (player.hasDrawnFromEmpty) result.hasDrawnFromEmpty = true;
     if (player.landsPlayedThisTurn !== undefined) {
         result.landsPlayedThisTurn = player.landsPlayedThisTurn;
+    }
+    if (player.lastDrawnCardId !== undefined) {
+        result.lastDrawnCardId = player.lastDrawnCardId;
     }
     if (player.turnsTaken !== undefined) {
         result.turnsTaken = player.turnsTaken;

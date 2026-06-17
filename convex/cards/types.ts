@@ -259,6 +259,13 @@ export interface ActivatedAbility {
          *  the counters are removed at activation commit. Used by Scavenging
          *  Ghoul ("Remove a corpse counter from this creature: Regenerate ~"). */
         removeCounter?: { type: string; count: number };
+        /** "Discard the last card you drew this turn" cost (CR 118.3 — an
+         *  additional cost paid from a fixed card, not a chosen one). The
+         *  ability is only legal to activate while the activating player has a
+         *  card recorded in `lastDrawnCardId` that is still in their hand; that
+         *  exact card is discarded at activation commit. Used by Jandor's
+         *  Ring. */
+        discardLastDrawn?: boolean;
     };
     /** Oracle text for this ability (displayed in context menus and on the stack). */
     oracleText: string;

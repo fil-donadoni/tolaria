@@ -1540,6 +1540,9 @@ function advanceTurn(state: GameState): void {
     state.singleShotAutoPass = undefined;
     // CR 117.2c / 305.2: reset per-turn land drop count at the start of each turn.
     for (const p of state.players) p.landsPlayedThisTurn = 0;
+    // "The last card you drew this turn" (Jandor's Ring) is turn-scoped —
+    // clear the tracker so a draw on a prior turn can't pay this turn's cost.
+    for (const p of state.players) p.lastDrawnCardId = undefined;
     // Reset the per-turn deaths tally so end-step counts are turn-scoped.
     state.deathsThisTurn = undefined;
     // Reset per-turn player damage tally (CR 120.3) — Simulacrum scopes its

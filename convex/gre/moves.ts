@@ -20,7 +20,7 @@
 
 import type { Color, TargetRequirement, TargetSelection } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
-import { normalizeManaCost } from "./state";
+import { normalizeManaCost, canPayDiscardLastDrawn } from "./state";
 import {
     getLegalActions,
     getLegalTargets,
@@ -452,6 +452,11 @@ function enumerateAbilityMoves(
         if (ability.cost.tap) {
             if (perm.isTapped) continue;
             if (isTapLockedBySummoningSickness(perm)) continue;
+        }
+        // CR 118.3 — "discard the last card you drew this turn" cost
+        // (Jandor's Ring) is unpayable when no such card is in hand.
+        if (ability.cost.discardLastDrawn && !canPayDiscardLastDrawn(player)) {
+            continue;
         }
         // Mana cost: must be payable. The {T} part of the cost is paid by the
         // activate mutation itself, not by the tap plan.

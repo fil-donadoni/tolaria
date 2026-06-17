@@ -440,6 +440,13 @@ export type PlayerState = {
     /** Number of lands played by this player during the current turn
      *  (CR 305.2 / 117.2c). Reset to 0 at the start of each turn. */
     landsPlayedThisTurn?: number;
+    /** Instance id of the last card this player drew during the current turn
+     *  (the card most recently moved from library to hand by a draw). Set by
+     *  `drawCard`, cleared at the start of each turn (`advanceTurn`). Used as
+     *  the discard cost for Jandor's Ring ("discard the last card you drew
+     *  this turn"). Stale when that card has since left the hand — consumers
+     *  must re-check the card is still in hand before using it. */
+    lastDrawnCardId?: string;
     /** Count of turns this player has taken so far in the game (CR 500.1).
      *  Starting player begins at 1 once UNTAP begins; the non-starting player
      *  reaches 1 when their first turn starts. Extra turns (CR 500.7)
@@ -593,6 +600,9 @@ export type PendingActivation = {
     /** Counter-removal cost (CR 122.6 — "Remove a [type] counter from this
      *  creature"). Applied at commit. */
     removeCounterCost?: { type: string; count: number };
+    /** True iff the ability has a "discard the last card you drew this turn"
+     *  cost (Jandor's Ring). The card is discarded at commit. */
+    discardLastDrawnSource?: boolean;
     /** Value chosen for X at activation announcement (CR 107.3 / 601.2b).
      *  Forwarded to the stack item at commit so resolve reads it via
      *  SpellContext.getX(). */
@@ -4241,7 +4251,11 @@ export function drawCard(player: PlayerState): CardInstanceState | null {
         player.hasDrawnFromEmpty = true;
         return null;
     }
-    return moveCard(player, player.library[0].id, "library", "hand");
+    const drawn = moveCard(player, player.library[0].id, "library", "hand");
+    // Track the most recent draw this turn (CR — "the last card you drew this
+    // turn"). Reset at turn start in advanceTurn. Used by Jandor's Ring.
+    player.lastDrawnCardId = drawn.id;
+    return drawn;
 }
 
 /** Moves a card between player zones (not stack). Returns the moved card.
@@ -4339,6 +4353,28 @@ export function payRemoveCounterCost(
     if (remaining === 0) delete next[cost.type];
     else next[cost.type] = remaining;
     card.counters = Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** True iff `player` can pay a "discard the last card you drew this turn"
+ *  cost (Jandor's Ring) — they drew a card this turn and it is still in
+ *  their hand (CR 118.3 — additional cost; CR 701.8 — discard). */
+export function canPayDiscardLastDrawn(player: PlayerState): boolean {
+    const id = player.lastDrawnCardId;
+    if (!id) return false;
+    return player.hand.some((c) => c.id === id);
+}
+
+/** Pays a "discard the last card you drew this turn" cost by discarding that
+ *  exact card. Throws if the card is no longer in hand (callers must check
+ *  `canPayDiscardLastDrawn` first). Clears the tracker so the same draw can't
+ *  pay a second activation this turn. */
+export function payDiscardLastDrawn(player: PlayerState): void {
+    const id = player.lastDrawnCardId;
+    if (!id || !player.hand.some((c) => c.id === id)) {
+        throw new Error("No card drawn this turn left to discard");
+    }
+    moveCard(player, id, "hand", "graveyard");
+    player.lastDrawnCardId = undefined;
 }
 
 /** Active "spend X as though Y" mana-substitution rules for one player.

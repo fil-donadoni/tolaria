@@ -774,6 +774,31 @@ export const aladdinsRing: CardDefinition = {
     ],
 };
 
+export const jandorsRing: CardDefinition = {
+    id: "71504078-a16f-4dc4-9626-0ecc42b1e93b",
+    name: "Jandor's Ring",
+    oracleText:
+        "{2}, {T}, Discard the last card you drew this turn: Draw a card.",
+    manaCost: { X: 6 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "jandors-ring-draw",
+            oracleText:
+                "{2}, {T}, Discard the last card you drew this turn: Draw a card.",
+            // CR 118.3 — `discardLastDrawn` is an additional cost paid from a
+            // fixed card (the last card drawn this turn). The engine validates
+            // the card is still in hand and discards it at activation commit;
+            // the ability is unactivatable when no such card exists.
+            cost: { mana: { X: 2 }, tap: true, discardLastDrawn: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.drawCards(ctx.controller, 1);
+            },
+        },
+    ],
+};
+
 export const brassMan: CardDefinition = {
     id: "1a364362-e42b-415c-9d95-b6ec7139f5e7",
     name: "Brass Man",

@@ -9,6 +9,9 @@ import {
     commitLandsForCost,
     removePermanentTo,
     resolveTopOfStack,
+    canPayDiscardLastDrawn,
+    payDiscardLastDrawn,
+    drawCard,
     type CardInstanceState,
     type PlayerState,
     type GameState,
@@ -27,6 +30,7 @@ import {
     dancingScimitar,
     ifhBiffEfreet,
     birdMaiden,
+    jandorsRing,
 } from "../../cards/sets/arn";
 import type { CardType } from "../../cards/types";
 
@@ -71,6 +75,11 @@ function activateAbility(
     if (ability.cost.tap && card.isTapped) {
         throw new Error("Already tapped");
     }
+    // CR 118.3 — "discard the last card you drew this turn" cost (Jandor's
+    // Ring). Validated up-front so we never enter an unpayable activation.
+    if (ability.cost.discardLastDrawn && !canPayDiscardLastDrawn(player)) {
+        throw new Error("No card drawn this turn left to discard");
+    }
     const manaCost = ability.cost.mana
         ? normalizeManaCost(ability.cost.mana)
         : undefined;
@@ -84,6 +93,9 @@ function activateAbility(
             tappedLandIds: [],
             tapSource: !!ability.cost.tap,
             sacrificeSource: !!ability.cost.sacrifice,
+            ...(ability.cost.discardLastDrawn
+                ? { discardLastDrawnSource: true }
+                : {}),
         };
         state.pendingActivation = pa;
         return "pending";
@@ -93,6 +105,9 @@ function activateAbility(
     if (manaCost) {
         payManaCost(player.manaPool, manaCost);
         commitLandsForCost(player, manaCost);
+    }
+    if (ability.cost.discardLastDrawn) {
+        payDiscardLastDrawn(player);
     }
     if (ability.cost.sacrifice) {
         removePermanentTo(state, card.id, "graveyard");
@@ -149,6 +164,14 @@ function tapForActivationPayment(
     payManaCost(player.manaPool, pa.manaCost);
     commitLandsForCost(player, pa.manaCost);
     if (pa.tapSource) source.isTapped = true;
+    if (pa.discardLastDrawnSource) {
+        // CR 118.3 — re-check at commit (the card may have left hand).
+        if (!canPayDiscardLastDrawn(player)) {
+            state.pendingActivation = undefined;
+            throw new Error("No card drawn this turn left to discard");
+        }
+        payDiscardLastDrawn(player);
+    }
     if (pa.sacrificeSource) removePermanentTo(state, source.id, "graveyard");
 
     const stackItem: StackItem = {
@@ -763,5 +786,105 @@ describe("activation flow — Ifh-Bíff Efreet ({G}, any player may activate, CR
         expect(() =>
             activateAbility(state, "p2", "pyr", "pyramids-save-land")
         ).toThrow(/do not control/);
+    });
+});
+
+describe("activation flow — Jandor's Ring ({2},{T}, discard last drawn: Draw)", () => {
+    function setup() {
+        const ring = makeInstance({
+            id: "ring",
+            card: { id: jandorsRing.id },
+            types: ["Artifact"],
+        });
+        const islands = Array.from({ length: 2 }, (_, i) =>
+            makeInstance({
+                id: `island-${i}`,
+                card: ISLAND_CARD,
+                types: ["Land"],
+                subtypes: ["Island"],
+            })
+        );
+        const library = Array.from({ length: 3 }, (_, i) =>
+            makeInstance({
+                id: `lib-${i}`,
+                card: { id: jandorsRing.id },
+                zone: "library",
+                types: ["Artifact"],
+            })
+        );
+        return makeGame({
+            players: [
+                makePlayer({
+                    id: "p1",
+                    battlefield: [ring, ...islands],
+                    library,
+                }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+    }
+
+    it("rejects activation when no card was drawn this turn", () => {
+        const state = setup();
+        expect(() =>
+            activateAbility(state, "p1", "ring", "jandors-ring-draw")
+        ).toThrow(/drew this turn|drawn this turn/);
+        expect(state.pendingActivation).toBeUndefined();
+    });
+
+    it("full path: draw → activate → tap lands → commit discards and draws", () => {
+        const state = setup();
+        const p1 = getPlayer(state, "p1");
+        // Draw the top card this turn — it becomes the discard cost.
+        const drawn = drawCard(p1)!;
+        expect(p1.lastDrawnCardId).toBe(drawn.id);
+        expect(p1.hand.map((c) => c.id)).toEqual([drawn.id]);
+
+        // Activate: mana pool empty → pendingActivation carrying the cost.
+        expect(activateAbility(state, "p1", "ring", "jandors-ring-draw")).toBe(
+            "pending"
+        );
+        expect(state.pendingActivation?.discardLastDrawnSource).toBe(true);
+        // Cost not yet paid — card still in hand, source untapped.
+        expect(p1.hand.map((c) => c.id)).toEqual([drawn.id]);
+        expect(p1.battlefield.find((c) => c.id === "ring")!.isTapped).toBe(
+            false
+        );
+
+        // Tap two Islands → auto-commit.
+        expect(tapForActivationPayment(state, "p1", "island-0")).toBe("tapped");
+        expect(tapForActivationPayment(state, "p1", "island-1")).toBe(
+            "committed"
+        );
+        expect(state.pendingActivation).toBeUndefined();
+        // Discard cost paid: the drawn card is in the graveyard, tracker clear.
+        expect(p1.graveyard.map((c) => c.id)).toEqual([drawn.id]);
+        expect(p1.lastDrawnCardId).toBeUndefined();
+        // Source tapped, ability on stack.
+        expect(p1.battlefield.find((c) => c.id === "ring")!.isTapped).toBe(
+            true
+        );
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].abilityId).toBe("jandors-ring-draw");
+
+        // Resolve: draw a card.
+        const handBefore = p1.hand.length;
+        resolveTopOfStack(state);
+        expect(p1.hand.length).toBe(handBefore + 1);
+    });
+
+    it("cancel from pendingActivation does not discard the card", () => {
+        const state = setup();
+        const p1 = getPlayer(state, "p1");
+        const drawn = drawCard(p1)!;
+        activateAbility(state, "p1", "ring", "jandors-ring-draw");
+        tapForActivationPayment(state, "p1", "island-0");
+        cancelActivation(state, "p1");
+        // Card still in hand, tracker intact, lands untapped.
+        expect(p1.hand.map((c) => c.id)).toEqual([drawn.id]);
+        expect(p1.lastDrawnCardId).toBe(drawn.id);
+        expect(p1.battlefield.find((c) => c.id === "island-0")!.isTapped).toBe(
+            false
+        );
     });
 });
