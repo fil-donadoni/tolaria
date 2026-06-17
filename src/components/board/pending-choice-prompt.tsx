@@ -6,7 +6,8 @@ import type { PendingChoice } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useDraggable } from "~/hooks/useDraggable";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
-import { isManaCostCovered, manaCostToString } from "~/lib/card-utils";
+import { usePendingChoicePrimaryAction } from "~/hooks/usePendingChoicePrimaryAction";
+import { manaCostToString } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
 import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
 
@@ -44,6 +45,10 @@ export default function PendingChoicePrompt({
     const submitMayPay = useMutation(api.game.submitMayPay);
     const [isBusy, setIsBusy] = useState(false);
     const bufferCtx = usePendingChoiceBuffer();
+    // Primary (affirmative) action — shared with the Space hotkey so the button
+    // and the key commit through one code path. Non-null when this viewer is
+    // the chooser; the Skip/No path below stays local (it's the secondary).
+    const primary = usePendingChoicePrimaryAction();
     const isChooser = choice.playerId === playerId;
     const min = getCountMin(choice.count);
     const max = getCountMax(choice.count);
@@ -57,23 +62,18 @@ export default function PendingChoicePrompt({
         allPlayers.find((p) => p.id === choice.playerId)?.name ?? "opponent";
     const sourceLabel = pendingChoiceLabel(choice.kind);
 
-    // Disable "Pay" until the chooser's mana pool covers the cost (CR 117.6).
-    // The chooser may activate mana abilities while the may-pay window is open
-    // (CR 117.3a) — `tapUntap` already allows this and the button will enable
-    // as soon as the pool can cover the full cost.
-    const chooser = allPlayers.find((p) => p.id === choice.playerId);
-    const canPay =
-        !isMayPay ||
-        !choice.cost ||
-        (chooser ? isManaCostCovered(chooser.manaPool, choice.cost) : false);
+    // "Pay" enables once the chooser's mana pool covers the cost (CR 117.6);
+    // the chooser may activate mana abilities while the may-pay window is open
+    // (CR 117.3a) and the button enables as soon as the pool can cover it. The
+    // gating itself lives in usePendingChoicePrimaryAction (shared with Space).
+    const canConfirm = primary?.canConfirm ?? false;
     const costSymbols =
         isMayPay && choice.cost
             ? formatOracleText(manaCostToString(choice.cost))
             : null;
 
-    // Done/Skip rules (ADR 0007). Disabled until buffer reaches `min`;
-    // label switches to "Skip" only when min === 0 and buffer is empty.
-    const canSubmit = selected >= min && selected <= max;
+    // Done/Skip label (ADR 0007): switches to "Skip" only when min === 0 and
+    // the buffer is empty.
     const submitLabel = min === 0 && selected === 0 ? "Skip" : "Done";
 
     return (
@@ -107,21 +107,9 @@ export default function PendingChoicePrompt({
                             <div className="flex gap-2 mt-1">
                                 <button
                                     type="button"
-                                    disabled={isBusy || !canPay}
+                                    disabled={!canConfirm}
                                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                    onClick={async () => {
-                                        if (isBusy) return;
-                                        setIsBusy(true);
-                                        try {
-                                            await submitMayPay({
-                                                gameId,
-                                                playerId,
-                                                accept: true,
-                                            });
-                                        } finally {
-                                            setIsBusy(false);
-                                        }
-                                    }}
+                                    onClick={() => primary?.confirm()}
                                 >
                                     {choice.cost ? (
                                         <>
@@ -165,9 +153,9 @@ export default function PendingChoicePrompt({
                                 </p>
                                 <button
                                     type="button"
-                                    disabled={!canSubmit || bufferCtx.isPending}
+                                    disabled={!canConfirm}
                                     className="mt-1 px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                    onClick={() => bufferCtx.submit()}
+                                    onClick={() => primary?.confirm()}
                                 >
                                     {submitLabel}
                                 </button>

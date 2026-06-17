@@ -62,6 +62,7 @@ import {
     getEffectiveToughness,
 } from "./gre/layers";
 import { projectFullState, projectPublicState } from "./gameProjections";
+import { computeSoloViewerId } from "./soloViewer";
 import { compactState, expandState } from "./gre/serialize";
 import { turnFaceDown } from "./gre/faceDown";
 import { substituteColorFilter } from "./gre/textChanges";
@@ -572,14 +573,29 @@ export const getPublicState = query({
         const game = await ctx.db.get(args.gameId);
         const state = gameState.state as GameState;
         // In solo mode, the single user controls both players: the viewer follows
-        // whoever currently has priority so the UI shows that player's hand and
-        // legal actions automatically. A vs-AI game is structurally solo but the
-        // two seats are distinct viewpoints — the human stays pinned to their
-        // seat and the bot driver queries as its own seat (ADR 0001) — so it
-        // uses the requested playerId, not the priority holder.
+        // whoever currently owes input so the UI shows that player's hand, legal
+        // actions, and any private choice zone (e.g. a `search-library` pile).
+        // This MUST use the same selector as the client board
+        // (`computeSoloViewerId`) — if the projection's viewer and the rendered
+        // viewer diverge, a private zone is exposed to the wrong seat and the
+        // search dialog opens without its cards until a refresh re-syncs.
+        // A vs-AI game is structurally solo but the two seats are distinct
+        // viewpoints — the human stays pinned to their seat and the bot driver
+        // queries as its own seat (ADR 0001) — so it uses the requested playerId.
         const viewerId =
             game?.solo === true && game?.vsAi !== true
-                ? (state.priorityPlayerId ?? state.activePlayerId)
+                ? computeSoloViewerId({
+                      activePlayerId: state.activePlayerId,
+                      priorityPlayerId:
+                          state.priorityPlayerId ?? state.activePlayerId,
+                      phase: state.phase,
+                      combat: state.combat,
+                      pendingCast: state.pendingCast,
+                      pendingActivation: state.pendingActivation,
+                      pendingTarget: state.pendingTarget,
+                      pendingChoices: state.pendingChoices,
+                      playerIds: state.players.map((p) => p.id),
+                  })
                 : args.playerId;
         return projectPublicState(
             state,

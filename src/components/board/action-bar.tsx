@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
+import { usePendingChoicePrimaryAction } from "~/hooks/usePendingChoicePrimaryAction";
 import {
     computeHasPriority,
     isAssigningDamage as isAssigningDamageFn,
@@ -38,6 +39,12 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
     const autoTap = useMutation(api.game.autoTapForPayment);
     const endTurn = useMutation(api.game.endTurn);
     const cancelAutoPass = useMutation(api.game.cancelAutoPass);
+
+    // Non-null only when a mid-resolution choice (CR 608.2) is waiting on THIS
+    // viewer — Space then mirrors the PendingChoicePrompt's affirmative button
+    // instead of passing priority (passPriority is rejected while a choice is
+    // pending — `assertNoPendingChoices`).
+    const pendingChoiceAction = usePendingChoicePrimaryAction();
 
     const priorityCtx = {
         playerId,
@@ -154,6 +161,14 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                     // While the PaymentBanner is up, Space mirrors its
                     // "Auto-tap" button instead of passing priority.
                     autoTap({ gameId, playerId });
+                } else if (pendingChoiceAction) {
+                    // A mid-resolution choice is waiting on this viewer: Space
+                    // mirrors the prompt's affirmative button. When not yet
+                    // legal (mana uncovered / too few picks) it's a no-op —
+                    // never falls through to a doomed passPriority.
+                    if (pendingChoiceAction.canConfirm) {
+                        pendingChoiceAction.confirm();
+                    }
                 } else if (isSelectingAttackers) {
                     confirmAttackers({ gameId, playerId });
                 } else if (isSelectingBlockers) {
@@ -188,6 +203,7 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         isQueuedEndTurn,
         isPayingCast,
         isPayingActivation,
+        pendingChoiceAction,
         autoTap,
         isSelectingAttackers,
         isSelectingBlockers,
