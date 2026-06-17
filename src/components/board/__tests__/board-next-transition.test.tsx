@@ -30,6 +30,13 @@ vi.mock("../board-next-card", () => ({
         <div data-testid="bn-card" data-card-id={card ? card.id : "back"} />
     ),
 }));
+// Interactive viewer-hand card (#254) pulls in Convex useMutation — stub inert;
+// slot identity for the FLIP comes from SpatialSlot, not this leaf.
+vi.mock("../board-next-hand-card", () => ({
+    default: ({ card }: { card: CardInstance }) => (
+        <div data-testid="bn-card" data-card-id={card.id} />
+    ),
+}));
 vi.mock("../game-stack", () => ({ default: () => null }));
 vi.mock("../phase-tracker", () => ({ default: () => null }));
 vi.mock("../priority-indicator", () => ({ default: () => null }));

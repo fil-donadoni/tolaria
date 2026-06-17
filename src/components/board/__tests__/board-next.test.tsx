@@ -33,6 +33,13 @@ vi.mock("../board-next-card", () => ({
         <div data-testid="bn-card" data-card-id={card ? card.id : "back"} />
     ),
 }));
+// The viewer's own hand renders the interactive card (#254), which pulls in
+// Convex's useMutation. This is a layout-placement test, so stub it inert.
+vi.mock("../board-next-hand-card", () => ({
+    default: ({ card }: { card: CardInstance }) => (
+        <div data-testid="bn-hand-card" data-card-id={card.id} />
+    ),
+}));
 vi.mock("../game-stack", () => ({ default: () => null }));
 vi.mock("../phase-tracker", () => ({ default: () => null }));
 vi.mock("../priority-indicator", () => ({ default: () => null }));
