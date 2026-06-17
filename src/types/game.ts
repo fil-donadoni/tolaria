@@ -20,6 +20,10 @@ export interface Player {
      *  player can pick one. Independent of `library` to keep the wire shape
      *  stable for all other consumers. */
     librarySearch?: CardInstance[];
+    /** Set only on the chooser's own player while a library-peek choice is
+     *  active (CR 401.4) — the looked-at top cards rendered face-up. Used by
+     *  reorder-library and by Aladdin's Lamp's `draw-look-keep` (keep one). */
+    libraryPeek?: CardInstance[];
     graveyard: CardInstance[];
     exile: CardInstance[];
     battlefield: CardInstance[];

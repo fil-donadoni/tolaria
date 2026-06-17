@@ -12,6 +12,8 @@ import DeckDetailRoute from "./routes/deck-detail.route";
 import GameRoute from "./routes/game.route";
 import PrototypeButtonsRoute from "./routes/prototype-buttons.route";
 import PrototypeActionButtonsRoute from "./routes/prototype-action-buttons.route";
+import PrototypeBoardRoute from "./routes/prototype-board.route";
+import PrototypeBoardFullRoute from "./routes/prototype-board-full.route";
 
 const rootRoute = createRootRoute({
     component: () => (
@@ -63,6 +65,18 @@ const prototypeActionButtonsRoute = createRoute({
     component: PrototypeActionButtonsRoute,
 });
 
+const prototypeBoardRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/prototype/board",
+    component: PrototypeBoardRoute,
+});
+
+const prototypeBoardFullRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/prototype/board-full",
+    component: PrototypeBoardFullRoute,
+});
+
 const routeTree = rootRoute.addChildren([
     indexRoute,
     decksCreateRoute,
@@ -71,6 +85,8 @@ const routeTree = rootRoute.addChildren([
     gameRoute,
     prototypeButtonsRoute,
     prototypeActionButtonsRoute,
+    prototypeBoardRoute,
+    prototypeBoardFullRoute,
 ]);
 
 const router = createRouter({ routeTree });

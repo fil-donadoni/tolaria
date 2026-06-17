@@ -1024,6 +1024,14 @@ export type GameState = {
      *  Scepter). Cleared once the discards land and the remainder of CLEANUP
      *  (CR 514.2 — damage wipe, "until end of turn" expiry) runs. */
     pendingCleanupDiscard?: { playerId: string };
+    /** Armed one-shot draw replacements (CR 614 — Aladdin's Lamp). Each entry
+     *  replaces the NEXT draw `playerId` would take this turn: look at the top
+     *  `x` cards, keep one to draw, bottom the rest in a random order. The
+     *  draw step (`drawStep`) consumes the first matching entry and suspends on
+     *  a `draw-look-keep` `PendingChoice`. Turn-scoped — "this turn" — so it is
+     *  cleared in `advanceTurn`; multiple entries (stacked activations / Lamps)
+     *  each cover one subsequent draw in FIFO order. */
+    drawLookReplacements?: Array<{ playerId: string; x: number }>;
     /** When true, all combat damage is prevented this turn (CR 615, Fog).
      *  Checked at the top of `applyAllCombatDamage`; cleared at CLEANUP. */
     preventAllCombatDamageThisTurn?: boolean;
@@ -1347,6 +1355,13 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     hasAttackedThisTurn: sourceCard.hasAttackedThisTurn,
                     hasBlockedThisTurn: sourceCard.hasBlockedThisTurn,
                     isSummoningSick: sourceCard.isSummoningSick,
+                    // CR 700.2c — the cast-time modal choice must survive into
+                    // the resolve-time intervening-if so modal-permanent state
+                    // triggers (Jihad's chosen-colour self-sacrifice) read the
+                    // chosen mode rather than undefined.
+                    chosenModeId: (sourceCard as { chosenModeId?: string })
+                        .chosenModeId,
+                    isToken: (sourceCard as { isToken?: boolean }).isToken,
                     card: sourceCard.card as Record<string, unknown>,
                 };
                 if (!ability.interveningIf(top.triggerEvent, selfView, state)) {
@@ -3275,6 +3290,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             for (let i = 0; i < amount; i++) {
                 if (drawCard(player) === null) break;
             }
+        },
+        // CR 614 — arm a one-shot replacement for the next draw `playerId`
+        // takes this turn (Aladdin's Lamp). Consumed by the draw step.
+        // No-op for X ≤ 0 ("X can't be 0").
+        armNextDraw(playerId: string, x: number): void {
+            if (x <= 0) return;
+            state.drawLookReplacements = state.drawLookReplacements ?? [];
+            state.drawLookReplacements.push({ playerId, x });
         },
         // CR 400.7: general zone-change primitive. Iterates over a snapshot
         // of source ids so moveCard's splice doesn't perturb iteration.

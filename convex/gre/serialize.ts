@@ -557,6 +557,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "destroyReplacementShields",
     "combatDamageImmunity",
     "phasedOut",
+    "drawLookReplacements",
 ] as const;
 
 /** Optional GameState keys that are intentionally ephemeral — never

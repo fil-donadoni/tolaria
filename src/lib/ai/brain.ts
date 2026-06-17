@@ -266,6 +266,13 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "reorder-library":
             return bestFirst(candidates).map((c) => c.id);
 
+        // Aladdin's Lamp (CR 614): look at the top X, keep the single best
+        // card to draw — the rest are bottomed at random by the engine.
+        case "draw-look-keep":
+            return bestFirst(candidates)
+                .slice(0, min)
+                .map((c) => c.id);
+
         // `may-pay` is a yes/no answer routed through `submitMayPay`
         // (`decideBotAction` handles it before reaching here), and
         // `mulligan-bottom` has its own pre-game branch. Reaching either via

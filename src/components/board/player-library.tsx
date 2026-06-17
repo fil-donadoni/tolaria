@@ -45,11 +45,26 @@ export default function PlayerLibrary({ player }: { player: Player }) {
         player.id === playerId &&
         !!player.librarySearch;
 
+    // Aladdin's Lamp (CR 614): the projection exposes the looked-at top X as
+    // `libraryPeek`; the chooser keeps one (count 1) to draw. Reuses the
+    // search picker's face-up grid + buffered-submit path.
+    const isLibraryPeekPick =
+        !!head &&
+        head.kind === "draw-look-keep" &&
+        head.zone === "library" &&
+        head.playerId === playerId &&
+        player.id === playerId &&
+        !!player.libraryPeek;
+
+    const isLibraryPick = isLibrarySearchTarget || isLibraryPeekPick;
+
     const libraryCards = isLibrarySearchTarget
         ? player.librarySearch!
-        : Array.isArray(player.library)
-          ? player.library
-          : libraryPlaceholders(player.library.count, player.id);
+        : isLibraryPeekPick
+          ? player.libraryPeek!
+          : Array.isArray(player.library)
+            ? player.library
+            : libraryPlaceholders(player.library.count, player.id);
     const hasCards = libraryCards.length > 0;
 
     const handleDraw = () => draw({ gameId, playerId });
@@ -61,13 +76,13 @@ export default function PlayerLibrary({ player }: { player: Player }) {
     // chooser can't over-select: clicking a fresh card at the cap replaces the
     // oldest pick (clear+toggle for the count=1 case), and a click on an
     // already-picked card always deselects it.
-    const searchCount = isLibrarySearchTarget ? head!.count : 1;
+    const searchCount = isLibraryPick ? head!.count : 1;
     const searchMin =
         typeof searchCount === "number" ? searchCount : searchCount.min;
     const searchMax =
         typeof searchCount === "number" ? searchCount : searchCount.max;
 
-    const onCardClick = isLibrarySearchTarget
+    const onCardClick = isLibraryPick
         ? (card: { id: string }) => {
               if (bufferCtx.buffer.includes(card.id)) {
                   bufferCtx.toggle(card.id);
@@ -89,20 +104,26 @@ export default function PlayerLibrary({ player }: { player: Player }) {
     const pile = (
         <CardsPile
             cards={libraryCards}
-            isFaceDown={!isLibrarySearchTarget}
+            isFaceDown={!isLibraryPick}
             emptyLabel="Library is empty"
-            title={isLibrarySearchTarget ? "Search your library" : "Library"}
+            title={
+                isLibrarySearchTarget
+                    ? "Search your library"
+                    : isLibraryPeekPick
+                      ? "Keep one card to draw"
+                      : "Library"
+            }
             onCardClick={onCardClick}
-            forceOpen={isLibrarySearchTarget}
+            forceOpen={isLibraryPick}
             // A full library has ~40-50 cards: the fan's 50% overlap merges
             // every amber selection ring into one solid strip and leaves only
-            // thin slivers clickable. Lay search results out in a grid so each
-            // card is fully visible and individually selectable, and surface
+            // thin slivers clickable. Lay the exposed cards out in a grid so
+            // each is fully visible and individually selectable, and surface
             // the buffered picks with a per-card ring.
-            layout={isLibrarySearchTarget ? "grid" : "fan"}
-            selectedIds={isLibrarySearchTarget ? bufferCtx.buffer : undefined}
+            layout={isLibraryPick ? "grid" : "fan"}
+            selectedIds={isLibraryPick ? bufferCtx.buffer : undefined}
             footer={
-                isLibrarySearchTarget ? (
+                isLibraryPick ? (
                     <LibrarySearchConfirm min={searchMin} max={searchMax} />
                 ) : undefined
             }

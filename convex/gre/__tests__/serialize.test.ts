@@ -472,6 +472,7 @@ describe("schema drift guard", () => {
         state.combatDamageImmunity = [
             { instanceId: "atk1", duration: { phase: "end-of-turn" } },
         ];
+        state.drawLookReplacements = [{ playerId: "p1", x: 3 }];
 
         const stateKeys = new Set(Object.keys(state));
         const missing = [...stateKeys].filter((k) => !allKnown.has(k));
@@ -501,6 +502,14 @@ describe("optional field round-trip smoke tests", () => {
             keepPriority: true,
         };
         expect(roundTrip(state).pendingCast).toEqual(state.pendingCast);
+    });
+
+    it("drawLookReplacements (Aladdin's Lamp)", () => {
+        const state = freshState();
+        state.drawLookReplacements = [{ playerId: "p1", x: 3 }];
+        expect(roundTrip(state).drawLookReplacements).toEqual(
+            state.drawLookReplacements
+        );
     });
 
     it("pendingActivation", () => {

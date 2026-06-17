@@ -21,6 +21,7 @@ import {
     drainAutoPasses,
     effectivePermanentView,
     finalizeCleanupDiscard,
+    finalizeDrawLookKeep,
     finalizeUntapPick,
 } from "./phases";
 import { checkStateBasedActions } from "./sba";
@@ -230,6 +231,11 @@ export function applyPendingChoiceSubmit(
             ) {
                 throw new Error("Card not in library");
             }
+            // Allow-list (Aladdin's Lamp): only the looked-at top cards are
+            // eligible, not the whole (hidden) library.
+            if (head.candidateIds && !head.candidateIds.includes(id)) {
+                throw new Error("Card is not an eligible choice");
+            }
         }
     }
 
@@ -266,6 +272,13 @@ export function applyPendingChoiceSubmit(
             }
         }
         finalizeUntapPick(state, args.cardInstanceIds);
+        return;
+    }
+
+    if (head.kind === "draw-look-keep") {
+        // CR 614 (Aladdin's Lamp) — phase-level draw replacement. The reorder +
+        // draw + priority resumption live in `finalizeDrawLookKeep`.
+        finalizeDrawLookKeep(state, args.cardInstanceIds);
         return;
     }
 

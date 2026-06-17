@@ -48,7 +48,12 @@ export type ZonePickKind =
     | "choose-permanents"
     | "partition"
     | "choose-hand-card"
-    | "choose-damage-target";
+    | "choose-damage-target"
+    // Aladdin's Lamp (#189): the chooser looks at the top X library cards
+    // (`candidateIds`) and keeps one to draw; the rest are bottomed in a
+    // random order. A phase-level choice (stackItemId === "") raised by the
+    // draw step's replacement, committed by `finalizeDrawLookKeep`.
+    | "draw-look-keep";
 /** CR 702.26 — condition under which a phased-out bundle phases back in. A
  *  discriminated union so future phasing variants stay expressible:
  *   - `source-leaves` (Oubliette): phase in when the named source leaves the

@@ -69,6 +69,8 @@ import {
     bottleOfSuleiman,
     mijaeDjinn,
     ydwenEfreet,
+    jihad,
+    aladdinsLamp,
 } from "../arn";
 import {
     grizzlyBears,
@@ -90,10 +92,12 @@ import type { Color, PhaseBeginEvent } from "../../types";
 import { checkStateBasedActions } from "../../../gre/sba";
 import { validateBlockerEligibility } from "../../../gre/combat";
 import {
+    advancePhase,
     applyAllCombatDamage,
     fireDelayedTriggers,
     untapStep,
 } from "../../../gre/phases";
+import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
 import { applyDamageReplacements } from "../../../gre/replacements";
 import { matchesPermanentFilter } from "../../filters";
 import {
@@ -3366,5 +3370,285 @@ describe("Ydwen Efreet (block flip, CR 705 + CR 509.1h)", () => {
             state
         );
         expect(result.eligible).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Jihad (#188) — conditional white anthem + state-triggered self-sacrifice
+// ---------------------------------------------------------------------------
+
+describe("Jihad (#188) — white anthem while chosen player controls the chosen color", () => {
+    /** p1 controls a white creature (Repentant Blacksmith, 1/2) + Jihad (chosen
+     *  color = the mode id); p2 is the opponent. `oppBattlefield` seeds p2. */
+    function withJihad(modeColor: Color, oppBattlefield: CardInstanceState[]) {
+        const whiteCreature = makeInstance(repentantBlacksmith.id, {
+            id: "white-creature",
+            controllerId: "p1",
+        });
+        const jihadInst = makeInstance(jihad.id, {
+            id: "jihad",
+            controllerId: "p1",
+            chosenModeId: modeColor,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [whiteCreature, jihadInst],
+                }),
+                makePlayer("p2", { battlefield: oppBattlefield }),
+            ],
+        });
+        return { state, whiteCreature, jihadInst };
+    }
+
+    it("buffs white creatures +2/+1 while the opponent controls a nontoken permanent of the chosen color", () => {
+        // Chosen color red; opponent controls a red creature (Mijae Djinn).
+        const redPermanent = makeInstance(mijaeDjinn.id, {
+            id: "red-perm",
+            controllerId: "p2",
+        });
+        const { state, whiteCreature } = withJihad("R", [redPermanent]);
+        // Repentant Blacksmith is 1/2 → +2/+1 = 3/3.
+        expect(getEffectivePower(state, whiteCreature)).toBe(3);
+        expect(getEffectiveToughness(state, whiteCreature)).toBe(3);
+    });
+
+    it("the anthem turns off when the opponent controls no nontoken permanent of the chosen color", () => {
+        // Opponent controls a BLUE permanent — chosen color is red → no buff.
+        const bluePermanent = makeInstance(flyingMen.id, {
+            id: "blue-perm",
+            controllerId: "p2",
+        });
+        const { state, whiteCreature } = withJihad("R", [bluePermanent]);
+        expect(getEffectivePower(state, whiteCreature)).toBe(1);
+        expect(getEffectiveToughness(state, whiteCreature)).toBe(2);
+    });
+
+    it("a token of the chosen color does NOT keep the anthem on (CR 111 nontoken)", () => {
+        const redToken = makeInstance(mijaeDjinn.id, {
+            id: "red-token",
+            controllerId: "p2",
+            isToken: true,
+        });
+        const { state, whiteCreature } = withJihad("R", [redToken]);
+        expect(getEffectivePower(state, whiteCreature)).toBe(1);
+    });
+
+    it("a permanent the source's controller controls does NOT satisfy the clause (must be the opponent's)", () => {
+        // p1 (Jihad's controller) controls the only red permanent; the
+        // opponent has none → anthem off.
+        const myRed = makeInstance(mijaeDjinn.id, {
+            id: "my-red",
+            controllerId: "p1",
+        });
+        const { state, whiteCreature } = withJihad("R", []);
+        state.players[0].battlefield.push(myRed);
+        expect(getEffectivePower(state, whiteCreature)).toBe(1);
+    });
+
+    it("sacrifices itself when the opponent controls no nontoken permanent of the chosen color (CR 603.8)", () => {
+        const { state, jihadInst } = withJihad("R", []);
+        resolveTrigger(state, jihadInst, "jihad-sacrifice", {
+            type: "STATE_CHECK",
+        } as StackItem["triggerEvent"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "jihad")
+        ).toBeUndefined();
+    });
+
+    it("survives the state-trigger while the opponent controls the chosen color (intervening-if)", () => {
+        const redPermanent = makeInstance(mijaeDjinn.id, {
+            id: "red-perm",
+            controllerId: "p2",
+        });
+        const { state, jihadInst } = withJihad("R", [redPermanent]);
+        resolveTrigger(state, jihadInst, "jihad-sacrifice", {
+            type: "STATE_CHECK",
+        } as StackItem["triggerEvent"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "jihad")
+        ).toBeDefined();
+    });
+
+    it("the conditional anthem survives the wire projection (mandatory)", () => {
+        const redPermanent = makeInstance(mijaeDjinn.id, {
+            id: "red-perm",
+            controllerId: "p2",
+        });
+        const { state } = withJihad("R", [redPermanent]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "white-creature"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+
+    it("resolves from the stack carrying the chosen mode onto the battlefield (cast→resolve)", () => {
+        const whiteCreature = makeInstance(repentantBlacksmith.id, {
+            id: "white-creature",
+            controllerId: "p1",
+        });
+        const redPermanent = makeInstance(mijaeDjinn.id, {
+            id: "red-perm",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [whiteCreature] }),
+                makePlayer("p2", { battlefield: [redPermanent] }),
+            ],
+        });
+        // Announce Jihad with the chosen colour locked (CR 700.2c).
+        state.stack.push({
+            ...makeInstance(jihad.id, {
+                id: "jihad",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "stack",
+            }),
+            castById: "p1",
+            chosenModeId: "R",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const onBattlefield = state.players[0].battlefield.find(
+            (c) => c.id === "jihad"
+        );
+        expect(onBattlefield?.chosenModeId).toBe("R");
+        // The anthem is live now that Jihad is in play and p2 controls red.
+        expect(getEffectivePower(state, whiteCreature)).toBe(3);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Aladdin's Lamp (#189) — {X},{T} next-draw look/keep/bottom replacement
+// ---------------------------------------------------------------------------
+
+describe("Aladdin's Lamp (#189) — replace the next draw with look-X-keep-one", () => {
+    /** Activate the Lamp's {X},{T} ability with the given X, arming the
+     *  replacement on its controller. Resolves through the real stack. */
+    function activateLamp(
+        state: GameState,
+        lamp: CardInstanceState,
+        x: number
+    ) {
+        state.stack.push({
+            ...lamp,
+            zone: "stack",
+            castById: lamp.controllerId,
+            abilityId: "aladdins-lamp-look",
+            chosenX: x,
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("arms a turn-scoped draw replacement on activation", () => {
+        const lamp = makeInstance(aladdinsLamp.id, { id: "lamp" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lamp] }),
+                makePlayer("p2"),
+            ],
+        });
+        activateLamp(state, lamp, 3);
+        expect(state.drawLookReplacements).toEqual([{ playerId: "p1", x: 3 }]);
+    });
+
+    it("X = 0 is a no-op (CR 107.3 — X can't be 0)", () => {
+        const lamp = makeInstance(aladdinsLamp.id, { id: "lamp" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lamp] }),
+                makePlayer("p2"),
+            ],
+        });
+        activateLamp(state, lamp, 0);
+        expect(state.drawLookReplacements).toBeUndefined();
+    });
+
+    it("the draw step looks at the top X, keeps one, bottoms the rest, and draws the kept card", () => {
+        const lamp = makeInstance(aladdinsLamp.id, { id: "lamp" });
+        // Library top→bottom: c0, c1, c2, c3 (deeper).
+        const lib = ["c0", "c1", "c2", "c3"].map((id) =>
+            makeInstance(grizzlyBears.id, {
+                id,
+                controllerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            turn: 2,
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [lamp], library: lib }),
+                makePlayer("p2"),
+            ],
+        });
+        activateLamp(state, lamp, 3);
+        // Advance UPKEEP → DRAW: the replacement fires and suspends on a choice.
+        advancePhase(state);
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("draw-look-keep");
+        expect(head?.candidateIds).toEqual(["c0", "c1", "c2"]); // top 3
+        expect(state.players[0].hand).toHaveLength(0); // not drawn yet
+
+        // Keep c2 (the third card looked at).
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: "",
+            step: 0,
+            choiceId: "draw-look-p1",
+            cardInstanceIds: ["c2"],
+        });
+
+        // c2 is drawn; the replacement is consumed.
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["c2"]);
+        expect(state.drawLookReplacements).toBeUndefined();
+        // c3 (below the looked-at window) is now on top; c0 and c1 are bottomed.
+        const libIds = state.players[0].library.map((c) => c.id);
+        expect(libIds[0]).toBe("c3");
+        expect(libIds.slice(1).sort()).toEqual(["c0", "c1"]);
+    });
+
+    it("expires at the start of the next turn if never consumed", () => {
+        const lamp = makeInstance(aladdinsLamp.id, { id: "lamp" });
+        const state = makeState({
+            turn: 2,
+            phase: "POSTCOMBAT_MAIN",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [lamp],
+                    library: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "lone",
+                            controllerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    library: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "p2lib",
+                            controllerId: "p2",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        activateLamp(state, lamp, 3);
+        expect(state.drawLookReplacements).toHaveLength(1);
+        // Run to end of turn → p2's turn begins → the replacement is cleared.
+        for (let i = 0; i < 12 && state.activePlayerId === "p1"; i++) {
+            advancePhase(state);
+        }
+        expect(state.activePlayerId).toBe("p2");
+        expect(state.drawLookReplacements).toBeUndefined();
     });
 });

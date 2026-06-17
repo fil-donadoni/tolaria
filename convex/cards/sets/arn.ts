@@ -14,8 +14,15 @@
 // as commented back-references below. Ante / subgame cards are out of scope
 // (ADR 0010). Generic mana is encoded as `X: n` (e.g. {2}{R} → { X: 2, R: 1 }).
 
-import type { CardDefinition, SpellContext, TargetSelection } from "../types";
+import type {
+    CardDefinition,
+    Color,
+    ManaCost,
+    SpellContext,
+    TargetSelection,
+} from "../types";
 import { DAMAGEABLE_PERMANENT_TYPES } from "../types";
+import { manaCostForCardId } from "../manaCostLookup";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { untapRestriction } from "../abilities/static/untapRestriction";
 import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
@@ -2273,6 +2280,169 @@ export const ydwenEfreet: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Jihad (#188) — "As this enchantment enters, choose a color and an opponent.
+// White creatures get +2/+1 as long as the chosen player controls a nontoken
+// permanent of the chosen color. When the chosen player controls no nontoken
+// permanents of the chosen color, sacrifice this enchantment." (CR 611.2c
+// conditional static, CR 603.8 state-triggered self-sacrifice.)
+//
+// "Choose a color" is modelled as a cast-time modal pick (CR 700.2 — the same
+// mechanism Phantasmal Terrain uses): five colour modes, the chosen one's id
+// (`"W"`/`"U"`/`"B"`/`"R"`/`"G"`) is the chosen colour. "Choose an opponent"
+// auto-resolves: 2-player / solo games have exactly one opponent, so the
+// clause keys off "a nontoken permanent the source's controller does NOT
+// control" — in a duel that is precisely the opponent's board (and it follows
+// control changes correctly: a stolen permanent stops counting for its old
+// controller). Both clauses share `opponentControlsChosenColor`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** True when SOME nontoken permanent of `color` is controlled by a player
+ *  other than `myControllerId` — i.e. (in a 2-player game) the opponent
+ *  controls a nontoken permanent of the chosen colour. `colorsOf` abstracts
+ *  the two call sites' colour derivation (the static layer's `ctx.getColors`
+ *  vs. the trigger view's raw `manaCost`). */
+function opponentControlsChosenColor<
+    T extends { controllerId: string; isToken?: boolean },
+>(
+    permanents: ReadonlyArray<T>,
+    myControllerId: string,
+    color: Color,
+    colorsOf: (perm: T) => ReadonlyArray<Color>
+): boolean {
+    return permanents.some(
+        (c) =>
+            c.controllerId !== myControllerId &&
+            !c.isToken &&
+            colorsOf(c).includes(color)
+    );
+}
+
+/** Colors (CR 202.2) of a battlefield-view permanent. The engine stores only
+ *  the slim `{ id }` card reference, so the colour comes from the registry's
+ *  `manaCost` (embedded cost honored first if a fat view ever provides one).
+ *  Mirrors `STATIC_EFFECT_CTX.getColors`' cost path without the layer-5
+ *  colorOverride / grantedColors stack — adequate for the chosen-colour check
+ *  (no ARN permanent carries a static colour override). */
+function permanentColors(perm: {
+    card?: Record<string, unknown>;
+}): ReadonlyArray<Color> {
+    const ref = perm.card as { id?: string; manaCost?: ManaCost } | undefined;
+    const cost =
+        ref?.manaCost ?? (ref?.id ? manaCostForCardId(ref.id) : undefined);
+    if (!cost) return [];
+    // Inline of `getColorsFromCost` (CR 202.2) — importing `../colors` would
+    // pull in `gre/constants → cards/index`, re-introducing the set↔registry
+    // eval-time cycle. Colourless `C` is not a colour.
+    return (["W", "U", "B", "R", "G"] as const).filter(
+        (c) => (cost[c] ?? 0) > 0
+    );
+}
+
+const JIHAD_COLOR_NAMES: Record<Color, string> = {
+    W: "white",
+    U: "blue",
+    B: "black",
+    R: "red",
+    G: "green",
+    C: "colorless",
+};
+
+const JIHAD_COLORS: Color[] = ["W", "U", "B", "R", "G"];
+
+export const jihad: CardDefinition = {
+    id: "b6c7705a-2987-4ef1-92b1-2c55d989ec6f",
+    name: "Jihad",
+    oracleText:
+        "As Jihad enters, choose a color and an opponent.\nWhite creatures get +2/+1 as long as the chosen player controls a nontoken permanent of the chosen color.\nWhen the chosen player controls no nontoken permanents of the chosen color, sacrifice Jihad.",
+    manaCost: { W: 3 },
+    types: ["Enchantment"],
+    // CR 700.2 — the colour is chosen as the enchantment enters (modal pick).
+    modes: JIHAD_COLORS.map((color) => ({
+        id: color,
+        label: JIHAD_COLOR_NAMES[color],
+        oracleText: `White creatures get +2/+1 as long as the chosen player controls a nontoken ${JIHAD_COLOR_NAMES[color]} permanent.`,
+        staticEffects: [
+            {
+                kind: "pt-buff" as const,
+                // CR 202.2 — the anthem always boosts WHITE creatures; only the
+                // active-condition keys off the chosen colour.
+                applies: (target, _source, ctx) =>
+                    ctx.isCreature(target) &&
+                    ctx.getColors(target).includes("W"),
+                condition: (source, state, ctx) =>
+                    opponentControlsChosenColor(
+                        state.players.flatMap((p) => p.battlefield),
+                        source.controllerId,
+                        color,
+                        (c) => ctx.getColors(c)
+                    ),
+                power: 2,
+                toughness: 1,
+            },
+        ],
+    })),
+    triggeredAbilities: [
+        stateTrigger({
+            id: "jihad-sacrifice",
+            oracleText:
+                "When the chosen player controls no nontoken permanents of the chosen color, sacrifice Jihad.",
+            condition: (self, state) => {
+                // The cast-time modal pick (CR 700.2c) is the chosen colour.
+                const color = self.chosenModeId as Color | undefined;
+                if (!color) return false;
+                const perms = state.players.flatMap((p) => p.battlefield);
+                return !opponentControlsChosenColor(
+                    perms,
+                    self.controllerId,
+                    color,
+                    permanentColors
+                );
+            },
+            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+        }),
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Aladdin's Lamp (#189) — "{X}, {T}: The next time you would draw a card this
+// turn, instead look at the top X cards of your library, put all but one of
+// them on the bottom of your library in a random order, then draw a card. X
+// can't be 0." (CR 614 draw replacement, CR 107.3 variable X.)
+//
+// The ability arms a one-shot, turn-scoped draw replacement (`armNextDraw`).
+// The replacement fires on the activator's NEXT draw step this turn, where the
+// engine suspends on a `draw-look-keep` choice and `finalizeDrawLookKeep`
+// applies the look/keep/bottom-random/draw. Replacing a mid-resolution draw
+// (e.g. another draw spell taken before the draw step in the same turn) needs
+// the resolveSteps-on-draw infra still pending for Bazaar of Baghdad — the
+// canonical "activate, then your draw step is replaced" line is fully covered.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const aladdinsLamp: CardDefinition = {
+    id: "42e7cf40-c136-4fcb-a947-558b713b39f6",
+    name: "Aladdin's Lamp",
+    oracleText:
+        "{X}, {T}: The next time you would draw a card this turn, instead look at the top X cards of your library, put all but one of them on the bottom of your library in a random order, then draw a card. X can't be 0.",
+    manaCost: { X: 10 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "aladdins-lamp-look",
+            oracleText:
+                "{X}, {T}: The next time you would draw a card this turn, instead look at the top X cards of your library, put all but one of them on the bottom of your library in a random order, then draw a card. X can't be 0.",
+            cost: { mana: { X: "X" }, tap: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                // CR 107.3 — "X can't be 0": a 0 activation is a no-op.
+                const x = ctx.getX();
+                if (x <= 0) return;
+                ctx.armNextDraw(ctx.controller, x);
+            },
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Deferred to later batches — need engine work beyond existing primitives:
 //
 //   • Hurr Jackal — "{T}: Target creature can't be regenerated this turn"
@@ -2293,10 +2463,11 @@ export const ydwenEfreet: CardDefinition = {
 //     resolveSteps support on activated abilities.
 //
 // Other batches (PRD #171):
-//   • Batch 9 (#180-187, misc): Metamorphosis, Jihad, Magnetic Mountain,
-//     Aladdin's Lamp, Cuombajj Witches, Ifh-Bíff Efreet,
-//     Jandor's Ring, Erg Raiders, City in a Bottle, Aladdin's Ring
-//     (charge-counter variant N/A), Flying Carpet variants N/A.
+//   • Batch 9 (#180-187, misc): Metamorphosis, Magnetic Mountain,
+//     Cuombajj Witches, Ifh-Bíff Efreet, Jandor's Ring, Erg Raiders,
+//     Aladdin's Ring (charge-counter variant N/A), Flying Carpet variants N/A.
+//     Jihad (#188) and Aladdin's Lamp (#189) are implemented above. City in a
+//     Bottle (#190) is out of scope (set-origin tracking infra not modelled).
 //
 // Out of scope — ante / subgames depend on game modes the engine does not model
 // (ADR 0010): Jeweled Bird, Ring of Ma'rûf, Shahrazad.

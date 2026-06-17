@@ -7,6 +7,7 @@ import type {
     Color,
     ManaCost,
 } from "./types";
+import { setCardManaCostLookup } from "./manaCostLookup";
 import * as lea from "./sets/lea";
 import * as leb from "./sets/leb";
 import * as arn from "./sets/arn";
@@ -90,6 +91,11 @@ export const getCardById = (cardId: string): CardDefinition => {
  *  by subsystems that operate best-effort (layer system, test fixtures). */
 export const tryGetCardById = (cardId: string): CardDefinition | null =>
     registry.get(cardId) ?? maybeSynthesizeToken(cardId) ?? null;
+
+// Break the set-module ↔ registry import cycle: inject a manaCost lookup into
+// the (cycle-free) colors module so set runtime code can derive an opponent
+// permanent's colours from its slim `{ id }` reference (Jihad — CR 202.2).
+setCardManaCostLookup((cardId) => tryGetCardById(cardId)?.manaCost);
 
 /** Registers a synthetic `CardDefinition` for a token (CR 111, 707.1).
  *  Tokens have no Scryfall print — their definition is derived from the

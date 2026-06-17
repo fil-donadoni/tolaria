@@ -4352,6 +4352,9 @@ export const debugSetupScenario = mutation({
         landCount: v.optional(v.number()),
         /** Fill each player's library with this many Plains. Default: unchanged. */
         libraryCount: v.optional(v.number()),
+        /** Override the turn number. Default: unchanged (turn 1 of a fresh solo
+         *  game skips the draw step — set ≥2 to exercise draw-step effects). */
+        turn: v.optional(v.number()),
         /** Mark "me"'s last placed hand card as the card drawn this turn
          *  (`lastDrawnCardId`), so abilities with a "discard the last card you
          *  drew this turn" cost (Jandor's Ring) are one-click activatable. */
@@ -4466,6 +4469,11 @@ export const debugSetupScenario = mutation({
             for (const source of player.battlefield) {
                 applySourceStaticEffects(state, source);
             }
+        }
+
+        // Set the turn number if requested (turn 1 skips the draw step).
+        if (args.turn !== undefined) {
+            state.turn = args.turn;
         }
 
         // Set phase if requested

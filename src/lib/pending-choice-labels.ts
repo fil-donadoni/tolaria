@@ -21,6 +21,7 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     partition: "Divide",
     "choose-hand-card": "Cast face down",
     "choose-damage-target": "Choose target",
+    "draw-look-keep": "Keep",
     // yes-no family
     "may-pay": "Optional",
     // order family

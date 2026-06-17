@@ -29,7 +29,19 @@ export type LayerStateView = StaticEffectStateView;
 function getStaticEffects(card: PermanentView): StaticEffect[] {
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return [];
-    return tryGetCardById(cardId)?.staticEffects ?? [];
+    const def = tryGetCardById(cardId);
+    if (!def) return [];
+    const cardEffects = def.staticEffects ?? [];
+    // CR 700.2c — a modal permanent also contributes its chosen mode's static
+    // effects (Jihad's per-colour anthem). Mirrors `getEffectiveStaticEffects`
+    // in state.ts (kept local to avoid a layers ↔ state import cycle).
+    const chosenModeId = (card as { chosenModeId?: string }).chosenModeId;
+    if (!chosenModeId || !def.modes) return cardEffects;
+    const mode = def.modes.find((m) => m.id === chosenModeId);
+    const modeEffects = mode?.staticEffects ?? [];
+    if (modeEffects.length === 0) return cardEffects;
+    if (cardEffects.length === 0) return modeEffects;
+    return [...cardEffects, ...modeEffects];
 }
 
 /** Context passed to every static-effect predicate. Pure, state-free. */
@@ -95,6 +107,15 @@ export function getStaticPTBuff(
             for (const effect of getStaticEffects(source)) {
                 if (effect.kind !== "pt-buff") continue;
                 if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                    continue;
+                }
+                // CR 611.2c source-level gate ("as long as ..."): evaluated
+                // once per source against the whole board (Jihad). Skips the
+                // buff entirely when the condition is currently false.
+                if (
+                    effect.condition &&
+                    !effect.condition(source, state, STATIC_EFFECT_CTX)
+                ) {
                     continue;
                 }
                 power += effect.power;

@@ -590,6 +590,12 @@ export interface SpellContext {
     ) => void;
     /** Player draws N cards one at a time (CR 121.1). Stops if library empties; sets hasDrawnFromEmpty (CR 704.5b). */
     drawCards: (playerId: string, amount: number) => void;
+    /** CR 614 — arms a one-shot replacement for the NEXT card `playerId` would
+     *  draw this turn (Aladdin's Lamp): look at the top X, keep one to draw,
+     *  bottom the rest in a random order. The draw step consumes it and
+     *  suspends on a `draw-look-keep` choice. No-op for `x ≤ 0` ("X can't be
+     *  0"). Turn-scoped — cleared at the start of the next turn. */
+    armNextDraw: (playerId: string, x: number) => void;
     /** Moves every card a player owns in `from` to `to` (CR 400.7). Cards are
      *  appended to the destination in source order. Library order after a
      *  move is not meaningful — pair with `shuffleLibrary` when the effect
@@ -1210,6 +1216,14 @@ export interface PermanentView {
      *  -1/-0) contributes at stat-read time. Other types are inert to layers
      *  and read by card-specific abilities only. */
     counters?: Readonly<Record<string, number>>;
+    /** True for tokens (CR 111). Predicates that scope to "nontoken
+     *  permanents" (Jihad's chosen-color clause) read this; populated from the
+     *  raw `CardInstanceState` the engine passes through as the view. */
+    isToken?: boolean;
+    /** Cast-time modal choice (CR 700.2c). Present on modal permanents so
+     *  static-effect and trigger predicates can read the chosen mode (Jihad's
+     *  chosen colour). Mirrors the `CardInstanceState` field. */
+    chosenModeId?: string;
     /** Raw card definition reference — predicates read manaCost for color, etc. */
     card: Record<string, unknown>;
 }
@@ -1242,6 +1256,17 @@ export interface StaticPTBuff {
     applies: (
         target: PermanentView,
         source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Optional source-level gate (CR 611.2c — "as long as ..."). Evaluated
+     *  once per source (not per target) against the whole board: when present
+     *  and false, the buff contributes nothing this read, regardless of
+     *  `applies`. Use for conditional anthems whose activeness depends on game
+     *  state — e.g. Jihad ("white creatures get +2/+1 as long as the chosen
+     *  player controls a nontoken permanent of the chosen color"). */
+    condition?: (
+        source: PermanentView,
+        state: StaticEffectStateView,
         ctx: StaticEffectContext
     ) => boolean;
     power: number;
@@ -1912,6 +1937,14 @@ export interface TriggerStateView {
             types: ReadonlyArray<string>;
             subtypes: ReadonlyArray<string>;
             staticAbilities: ReadonlyArray<string>;
+            /** True for tokens (CR 111). Exposed so state-trigger conditions
+             *  can scope to "nontoken permanents" — Jihad's self-sacrifice
+             *  clause. Populated from the raw `CardInstanceState`. */
+            isToken?: boolean;
+            /** Raw card definition reference — condition predicates read
+             *  `manaCost` to derive color (CR 202.2). Populated from the raw
+             *  `CardInstanceState` the engine passes through as the view. */
+            card?: Record<string, unknown>;
         }>;
         hand: { readonly length: number };
         landsPlayedThisTurn?: number;

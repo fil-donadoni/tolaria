@@ -176,12 +176,18 @@ export function projectPublicState(
         head.playerId === viewerId;
 
     // CR 401.4: reorder-library exposes the top N cards of the zone owner's
-    // library to the chooser so the UI can render them for reordering.
+    // library to the chooser so the UI can render them for reordering;
+    // draw-look-keep (Aladdin's Lamp) exposes the looked-at top X so the
+    // chooser can pick the one to keep.
     const exposeLibraryPeek =
-        head?.kind === "reorder-library" &&
+        (head?.kind === "reorder-library" || head?.kind === "draw-look-keep") &&
         head.zone === "library" &&
         head.playerId === viewerId;
-    const peekCount = exposeLibraryPeek ? getPendingChoiceMax(head!.count) : 0;
+    const peekCount = !exposeLibraryPeek
+        ? 0
+        : head!.kind === "draw-look-keep"
+          ? (head!.candidateIds?.length ?? 0)
+          : getPendingChoiceMax(head!.count);
     const peekZoneOwner = exposeLibraryPeek
         ? (head!.zoneOwnerId ?? head!.playerId)
         : undefined;

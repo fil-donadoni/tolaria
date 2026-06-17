@@ -46,6 +46,10 @@ type PresetScenario = {
     phase: string;
     landCount: number;
     libraryCount?: number;
+    /** Override the turn number. Default: unchanged (a fresh solo game is
+     *  turn 1, where the draw step is skipped — set ≥2 to exercise draw-step
+     *  effects like Aladdin's Lamp). */
+    turn?: number;
     /** Mark "me"'s last hand card as the card drawn this turn — enables
      *  "discard the last card you drew this turn" costs (Jandor's Ring). */
     markLastDrawn?: boolean;
@@ -74,6 +78,50 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
+    },
+    {
+        // ARN Batch 9 (#188) — Jihad ({W}{W}{W} Enchantment): "As it enters,
+        // choose a color and an opponent. White creatures get +2/+1 as long as
+        // the chosen player controls a nontoken permanent of the chosen color.
+        // When the chosen player controls no nontoken permanents of the chosen
+        // color, sacrifice it." Cast Jihad, choosing RED (the opponent's Mijae
+        // Djinn is red) — your white Repentant Blacksmith jumps from 1/2 to
+        // 3/3. Then destroy the opponent's Mijae Djinn (e.g. Psionic Blast):
+        // with no red permanent left, Jihad sacrifices itself at the next
+        // state check.
+        label: "ARN: Jihad (conditional white anthem + self-sac)",
+        cards: [
+            { name: "Jihad", owner: "me" as const, zone: "hand" as const },
+            { name: "Repentant Blacksmith", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, count: 3 },
+            {
+                name: "Psionic Blast",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mijae Djinn", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // ARN Batch 9 (#189) — Aladdin's Lamp ({10} Artifact): "{X}, {T}: The
+        // next time you would draw a card this turn, instead look at the top X
+        // cards of your library, put all but one of them on the bottom in a
+        // random order, then draw a card. X can't be 0." Starts in your UPKEEP
+        // with the Lamp untapped and four lands. Activate it for X=3 (tap 3
+        // lands), then pass priority to your draw step: the natural draw is
+        // replaced — look at the top 3, keep one, the other two are bottomed at
+        // random, and you draw the kept card.
+        label: "ARN: Aladdin's Lamp (next-draw look 3 keep 1)",
+        cards: [
+            { name: "Aladdin's Lamp", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+        ],
+        phase: "UPKEEP",
+        landCount: 0,
+        libraryCount: 12,
+        turn: 2,
     },
     {
         // ARN Batch 9 (#187) — Erg Raiders ({1}{B}, 2/3): "At the beginning of
@@ -2478,6 +2526,7 @@ export default function DebugPanel({
                                                         scenario.libraryCount,
                                                     markLastDrawn:
                                                         scenario.markLastDrawn,
+                                                    turn: scenario.turn,
                                                 })
                                             }
                                         >

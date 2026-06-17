@@ -27,6 +27,7 @@ import {
     tickDuration,
 } from "./state";
 import { tryGetCardById } from "../cards";
+import { seededShuffle } from "./rng";
 import { applyDiscardReplacements, describeDamageSource } from "./replacements";
 import {
     getEffectivePower,
@@ -365,11 +366,94 @@ export function untapStep(state: GameState): void {
     state.pendingUntapStep = undefined;
 }
 
-/** Draw step: active player draws a card. Skipped on turn 1 (CR 103.8). */
+/** Draw step: active player draws a card. Skipped on turn 1 (CR 103.8).
+ *
+ *  CR 614 — Aladdin's Lamp: if the active player has an armed draw-look
+ *  replacement, the natural draw is replaced. The step consumes the first
+ *  matching entry and suspends on a `draw-look-keep` `PendingChoice`
+ *  (mirroring the untap step's phase-level prompt); `finalizeDrawLookKeep`
+ *  reorders the library and performs the actual draw on commit. */
 function drawStep(state: GameState): void {
     if (state.turn === 1) return;
     if (hasDrawSkipReplacement(state, state.activePlayerId)) return;
-    drawCard(getPlayer(state, state.activePlayerId));
+
+    const armed = state.drawLookReplacements ?? [];
+    const idx = armed.findIndex((r) => r.playerId === state.activePlayerId);
+    const player = getPlayer(state, state.activePlayerId);
+    if (idx !== -1) {
+        const repl = armed[idx];
+        // One-shot: consume the replacement now whether or not it finds cards.
+        const remaining = [...armed.slice(0, idx), ...armed.slice(idx + 1)];
+        state.drawLookReplacements =
+            remaining.length > 0 ? remaining : undefined;
+
+        const x = Math.min(repl.x, player.library.length);
+        if (x <= 0) {
+            // No cards to look at — the replacement does nothing beyond the
+            // normal draw (which itself flags hasDrawnFromEmpty if empty).
+            drawCard(player);
+            return;
+        }
+        const topIds = player.library.slice(0, x).map((c) => c.id);
+        state.pendingChoices = state.pendingChoices ?? [];
+        state.pendingChoices.push({
+            stackItemId: "",
+            step: 0,
+            choiceId: `draw-look-${state.activePlayerId}`,
+            playerId: state.activePlayerId,
+            zoneOwnerId: state.activePlayerId,
+            kind: "draw-look-keep",
+            zone: "library",
+            candidateIds: topIds,
+            count: 1,
+            prompt: `Look at the top ${x} card${x === 1 ? "" : "s"} of your library. Keep one to draw; put the rest on the bottom in a random order.`,
+        });
+        state.priorityPlayerId = state.activePlayerId;
+        return;
+    }
+
+    drawCard(player);
+}
+
+/** Commits a `draw-look-keep` `PendingChoice` (CR 614 — Aladdin's Lamp): the
+ *  kept card stays on top, the other looked-at cards go to the bottom of the
+ *  library in a random order (seeded PRNG, so replays are deterministic), then
+ *  the active player draws the kept card. Resumes the normal draw-step priority
+ *  window afterwards (the draw step itself is not yet over — CR 504.2). */
+export function finalizeDrawLookKeep(
+    state: GameState,
+    selectedIds: string[]
+): void {
+    const queue = state.pendingChoices ?? [];
+    const head = queue[0];
+    if (!head || head.kind !== "draw-look-keep") return;
+    const player = getPlayer(state, head.zoneOwnerId ?? head.playerId);
+    const candidateIds = head.candidateIds ?? [];
+    const keptId = selectedIds[0];
+
+    const lookedSet = new Set(candidateIds);
+    const kept = player.library.find((c) => c.id === keptId);
+    // CR — "put all but one on the bottom in a random order".
+    const rest = player.library.filter(
+        (c) => lookedSet.has(c.id) && c.id !== keptId
+    );
+    seededShuffle(state, rest);
+    const below = player.library.filter((c) => !lookedSet.has(c.id));
+    player.library = [...(kept ? [kept] : []), ...below, ...rest];
+
+    queue.shift();
+    state.pendingChoices = queue.length > 0 ? queue : undefined;
+
+    // CR — "then draw a card" (the kept card is now on top).
+    drawCard(player);
+
+    if ((state.pendingChoices?.length ?? 0) > 0) {
+        state.priorityPlayerId = state.pendingChoices![0].playerId;
+        return;
+    }
+    state.priorityPlayerId = state.activePlayerId;
+    state.passCount = 0;
+    drainAutoPasses(state);
 }
 
 function hasDrawSkipReplacement(state: GameState, playerId: string): boolean {
@@ -1546,6 +1630,9 @@ function advanceTurn(state: GameState): void {
     // "The last card you drew this turn" (Jandor's Ring) is turn-scoped —
     // clear the tracker so a draw on a prior turn can't pay this turn's cost.
     for (const p of state.players) p.lastDrawnCardId = undefined;
+    // CR 614 — Aladdin's Lamp's draw replacement is "this turn"; any entry not
+    // consumed by a draw expires when the next turn begins.
+    state.drawLookReplacements = undefined;
     // Reset the per-turn deaths tally so end-step counts are turn-scoped.
     state.deathsThisTurn = undefined;
     // Reset per-turn player damage tally (CR 120.3) — Simulacrum scopes its
