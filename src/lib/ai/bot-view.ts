@@ -20,11 +20,18 @@ import {
     isManaCostCovered,
 } from "@convex/gre";
 import { cardValueById } from "@convex/gre";
+import { manaValue } from "@convex/gre/constants";
 import { matchesPermanentFilter } from "@convex/cards/filters";
-import { getColorsFromCost } from "@convex/cards/colors";
+import { getColorsFromCost, getCardColors } from "@convex/cards/colors";
 import { tryGetCardById } from "@convex/cards";
 import type { Color } from "@convex/cards/types";
-import type { BotAction, BotView, ChoiceCandidate, OwedChoice } from "./brain";
+import type {
+    BotAction,
+    BotView,
+    ChoiceCandidate,
+    ManaSituation,
+    OwedChoice,
+} from "./brain";
 
 /** Whether the bot still owes a combat-damage confirmation this step. True only
  *  when a damage step is open (`damageConfirmed === false`), the bot is one of
@@ -59,7 +66,53 @@ function handCardIsLand(types: string[] | undefined): boolean {
 function toCandidate(card: SlimCardInstance): ChoiceCandidate {
     // `card.id` is the INSTANCE id (what the submission selects); `card.card.id`
     // is the card-definition id the shared `cardValueById` derives worth from.
-    return { id: card.id, value: cardValueById(card.card.id) };
+    const def = tryGetCardById(card.card.id);
+    // CR 305.1 — a land has "Land" among its (projected) printed types; the
+    // discard heuristic (issue #242) treats lands as the constraining resource.
+    const isLand = handCardIsLand(card.types);
+    return {
+        id: card.id,
+        value: cardValueById(card.card.id),
+        isLand,
+        // CR 202.3 — mana value of the cost (X folded). Lands cost nothing.
+        manaValue: manaValue(def?.manaCost),
+        // CR 202.2 — colors the cost demands; empty for lands / colorless.
+        colors: getColorsFromCost(def?.manaCost),
+    };
+}
+
+/** Distinct colors the controller's lands in play can currently produce
+ *  (issue #242). Reads the bot's visible battlefield: each land's
+ *  color-identity (`getCardColors` — basic subtypes + declared mana abilities)
+ *  contributes to the producible set. A spell needing a color outside this set
+ *  is "uncastable" for the discard ranking. */
+function producibleColors(battlefield: SlimCardInstance[]): Color[] {
+    const set = new Set<Color>();
+    for (const perm of battlefield) {
+        if (!handCardIsLand(perm.types)) continue;
+        const def = tryGetCardById(perm.card.id);
+        if (!def) continue;
+        for (const c of getCardColors(def)) set.add(c);
+    }
+    return [...set];
+}
+
+/** The controller's mana picture for a `discard-hand` choice (issue #242),
+ *  read from the bot's visible battlefield and hand. */
+function buildManaSituation(
+    state: PublicGameState,
+    botId: string
+): ManaSituation {
+    const bot = state.players.find((p) => p.id === botId);
+    const battlefield = bot?.battlefield ?? [];
+    const hand = (bot?.hand ?? []).filter(
+        (c): c is NonNullable<typeof c> => c !== null
+    );
+    return {
+        landsInPlay: battlefield.filter((c) => handCardIsLand(c.types)).length,
+        landsInHand: hand.filter((c) => handCardIsLand(c.types)).length,
+        producibleColors: producibleColors(battlefield),
+    };
 }
 
 /** Read the cards the bot may legally pick for `head` from its projected view.
@@ -183,6 +236,12 @@ function buildOwedChoice(
         affordable:
             head.kind === "may-pay"
                 ? mayPayIsAffordable(state, head, botId)
+                : undefined,
+        // issue #242 — the discard heuristic needs the board's mana picture to
+        // protect scarce lands and rank spells by castability.
+        manaSituation:
+            head.kind === "discard-hand"
+                ? buildManaSituation(state, botId)
                 : undefined,
     };
 }

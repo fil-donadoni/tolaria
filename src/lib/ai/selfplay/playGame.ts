@@ -41,7 +41,14 @@ import {
     applyMayPaySubmit,
     recordDeclaration,
 } from "@convex/gre";
-import { chooseResolution, type OwedChoice } from "../brain";
+import { manaValue } from "@convex/gre/constants";
+import { getCardColors, getColorsFromCost } from "@convex/cards/colors";
+import { tryGetCardById } from "@convex/cards";
+import {
+    chooseResolution,
+    type ManaSituation,
+    type OwedChoice,
+} from "../brain";
 
 /** Why a game ended. `stall` / `max-plies` / `resolution-error` /
  *  `search-error` are harness guards, not real MTG outcomes — they surface a
@@ -129,6 +136,35 @@ function instanceValue(inst: CardInstanceState): number {
     return id ? cardValueById(id) : 0;
 }
 
+/** The registry card-definition id of an instance (`""` when unknown). */
+function cardDefId(inst: CardInstanceState): string {
+    return (inst.card as { id?: string } | undefined)?.id ?? "";
+}
+
+/** CR 305.1 — a land carries "Land" among its types. */
+function instanceIsLand(inst: CardInstanceState): boolean {
+    return inst.types.includes("Land");
+}
+
+/** The chooser's mana picture for a `discard-hand` choice (issue #242). Built
+ *  from the fat self-play state so the harness orders discards EXACTLY as live
+ *  play does (`buildBotView` builds the same shape from the wire projection). */
+function manaSituationFor(state: GameState, playerId: string): ManaSituation {
+    const player = getPlayer(state, playerId);
+    const colors = new Set<string>();
+    for (const perm of player.battlefield) {
+        if (!instanceIsLand(perm)) continue;
+        const def = tryGetCardById(cardDefId(perm));
+        if (!def) continue;
+        for (const c of getCardColors(def)) colors.add(c);
+    }
+    return {
+        landsInPlay: player.battlefield.filter(instanceIsLand).length,
+        landsInHand: player.hand.filter(instanceIsLand).length,
+        producibleColors: [...colors] as ManaSituation["producibleColors"],
+    };
+}
+
 /** Resolve the head pending choice with the production default policy, applied
  *  through the engine-side resolvers. Mutates `state`. Returns false if the
  *  choice can't be driven headless (caller aborts the game). */
@@ -145,10 +181,18 @@ function resolvePending(state: GameState): boolean {
 
     const min = getPendingChoiceMin(head.count);
     const max = getPendingChoiceMax(head.count);
-    const candidates = listCandidates(state, head).map((c) => ({
-        id: c.id,
-        value: instanceValue(c),
-    }));
+    const candidates = listCandidates(state, head).map((c) => {
+        const def = tryGetCardById(cardDefId(c));
+        return {
+            id: c.id,
+            value: instanceValue(c),
+            // issue #242 — mana fields the discard heuristic ranks on. Cheap to
+            // populate for every kind; only `discard-hand` reads them.
+            isLand: instanceIsLand(c),
+            manaValue: manaValue(def?.manaCost),
+            colors: getColorsFromCost(def?.manaCost),
+        };
+    });
 
     let ids: string[];
     if (head.kind === "mulligan-bottom") {
@@ -166,7 +210,17 @@ function resolvePending(state: GameState): boolean {
         const pid = head.candidatePlayerIds?.[0];
         ids = pid ? [pid] : [];
     } else {
-        const owed: OwedChoice = { kind: head.kind, min, max, candidates };
+        const owed: OwedChoice = {
+            kind: head.kind,
+            min,
+            max,
+            candidates,
+            // issue #242 — the discard heuristic needs the chooser's mana picture.
+            manaSituation:
+                head.kind === "discard-hand"
+                    ? manaSituationFor(state, head.playerId)
+                    : undefined,
+        };
         ids = chooseResolution(owed);
     }
 
