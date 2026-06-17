@@ -56,6 +56,28 @@ const W_PERMANENT = 5; // board-presence bonus for every permanent in play
 // 1-ply selection and the ISMCTS tie-break both prefer the drop over passing.
 const W_MANA = 12;
 
+// --- Reactive flexibility (ADR 0021 slice 1, issue #221) -------------------
+// Option value of holding an instant-speed answer you can actually cast right
+// now. For each holdable instant / flash card in hand that the player has
+// enough open, untapped mana to cast THIS turn, `evaluate` adds a small,
+// bounded bonus. This gives the search a reason to KEEP the option rather than
+// spend it for no payoff — a hand that can respond is worth more than the same
+// hand tapped out (no response possible).
+//
+// Scoped strictly to "can I respond, and with what, right now". It is NOT a
+// second count of the card's body: ADR 0018's latent `cardValue` already counts
+// the card while it sits in hand (see the `hand` term). This term is ADDITIVE
+// and GATED on castability, so the two never double-count — a card you cannot
+// afford to cast this turn (mana tapped out) contributes zero flexibility.
+//
+// Mana model: the affordability check counts untapped mana sources + floating
+// mana against the card's mana value, the same color-blind coarse proxy the
+// `mana` term uses (CR 601 colored requirements are not modelled here). Bounded
+// by `FLEX_CARD_CAP` so a hand stuffed with cheap instants cannot let the term
+// dominate genuine material — it only ever tips otherwise-close lines.
+const W_FLEX = 6; // bonus per castable held instant (small: < a land drop's +9)
+const FLEX_CARD_CAP = 3; // at most this many instants contribute (bound the term)
+
 // --- Latent `cardValue` primitive (ADR 0018, issue #195) -------------------
 // The worth of a specific card while it is NOT in play (hand / library /
 // graveyard), used for the Hand term and (slice 4) the resolution-choice path.
@@ -227,7 +249,35 @@ export type EvalTerms = {
     creatures: number;
     permanents: number;
     mana: number;
+    /** Reactive flexibility (ADR 0021 slice 1): bounded option-value bonus for
+     *  holdable instants in hand the player can afford to cast this turn. */
+    flexibility: number;
 };
+
+/** Whether a hand card can be cast at instant speed — an Instant, or any card
+ *  with the Flash keyword (CR 702.8). The flexibility term only rewards holding
+ *  cards that can actually answer something during an opponent's window. */
+function hasInstantTiming(card: CardInstanceState): boolean {
+    if (card.types.includes("Instant")) return true;
+    return card.staticAbilities.includes("flash");
+}
+
+/** The reactive-flexibility bonus for one player (ADR 0021 slice 1, issue #221).
+ *  Counts holdable instants in hand the player has enough open mana to cast THIS
+ *  turn (`availableMana` ≥ the card's mana value — the same color-blind proxy the
+ *  `mana` term uses), capped at `FLEX_CARD_CAP`. Castability-gated so a tapped-out
+ *  hand scores no flexibility, and additive to the latent `cardValue` already in
+ *  the `hand` term so the two never double-count. */
+function flexibilityTerm(player: PlayerState, availableMana: number): number {
+    let castable = 0;
+    for (const card of player.hand) {
+        if (!hasInstantTiming(card)) continue;
+        if (manaValue(getInstanceManaCost(card)) > availableMana) continue;
+        castable += 1;
+        if (castable === FLEX_CARD_CAP) break;
+    }
+    return castable * W_FLEX;
+}
 
 /** The weighted contributions of one player's resources, from their own
  *  perspective. `sumTerms` of this equals the legacy `playerScore`. */
@@ -241,6 +291,7 @@ function playerTerms(state: GameState, player: PlayerState): EvalTerms {
         creatures: 0,
         permanents: 0,
         mana: 0,
+        flexibility: 0,
     };
 
     let availableMana = 0;
@@ -260,11 +311,16 @@ function playerTerms(state: GameState, player: PlayerState): EvalTerms {
         availableMana += player.manaPool[c] ?? 0;
     }
     terms.mana = availableMana * W_MANA;
+    // Reactive flexibility uses the SAME available-mana count as the affordability
+    // gate, so it can only reward instants the player can actually cast now.
+    terms.flexibility = flexibilityTerm(player, availableMana);
     return terms;
 }
 
 function sumTerms(t: EvalTerms): number {
-    return t.life + t.hand + t.creatures + t.permanents + t.mana;
+    return (
+        t.life + t.hand + t.creatures + t.permanents + t.mana + t.flexibility
+    );
 }
 
 /** Material score of one player's resources, from their own perspective. */
@@ -388,6 +444,7 @@ export function evaluateBreakdown(
         creatures: 0,
         permanents: 0,
         mana: 0,
+        flexibility: 0,
     };
     if (!me || !opp) {
         return { self: empty, opp: empty, margin: 0, danger: 0, total: 0 };

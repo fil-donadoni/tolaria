@@ -17,6 +17,7 @@ const TERM_LABELS: [keyof EvalTerms, string][] = [
     ["creatures", "C"],
     ["permanents", "Pm"],
     ["mana", "M"],
+    ["flexibility", "Fx"],
 ];
 
 function termLine(terms: EvalTerms): string {

@@ -7,6 +7,7 @@ import { getCardByName } from "../../cards";
 import {
     cardValue,
     evaluate,
+    evaluateBreakdown,
     evaluateCreature,
     materialMargin,
     WIN_SCORE,
@@ -27,6 +28,7 @@ const GIANT = getCardByName("Hill Giant").id; // 3/3 ground
 const SPRITES = getCardByName("Scryb Sprites").id; // 1/1 flying
 const MOUNTAIN = getCardByName("Mountain").id;
 const BOP = getCardByName("Birds of Paradise").id; // 0/1 flying mana dork
+const GROWTH = getCardByName("Giant Growth").id; // instant, G (MV 1)
 
 function bear(controllerId: string, id: string) {
     return makeInstance(BEARS, { controllerId, ownerId: controllerId, id });
@@ -778,6 +780,152 @@ describe("evaluate — declare-attackers leaf distinguishes attack sets (issue #
         );
         expect(evaluate(giantOnly, "p1")).toBeGreaterThan(
             evaluate(attackBoth, "p1")
+        );
+    });
+});
+
+describe("reactive flexibility (ADR 0021 slice 1, issue #221)", () => {
+    const handCard = (cardId: string, id: string) =>
+        makeInstance(cardId, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id,
+            zone: "hand",
+        });
+    const land = (id: string, tapped: boolean) =>
+        makeInstance(MOUNTAIN, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id,
+            isTapped: tapped,
+        });
+
+    // A holdable instant in hand with N untapped lands to pay for it, vs the same
+    // hand with the lands tapped out (no response possible this turn).
+    const withMana = (tapped: boolean, hand = [handCard(GROWTH, "gg")]) =>
+        makeState({
+            players: [
+                makePlayer("p1", {
+                    hand,
+                    battlefield: [land("m1", tapped)],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+    it("a castable held instant with open mana scores higher than tapped out", () => {
+        // AC1: open mana → a response is possible → flexibility value; tapped out
+        // → no response → no flexibility. The term itself must reflect this.
+        const open = withMana(false);
+        const tapped = withMana(true);
+        expect(evaluateBreakdown(open, "p1").self.flexibility).toBeGreaterThan(
+            0
+        );
+        expect(evaluateBreakdown(tapped, "p1").self.flexibility).toBe(0);
+        expect(evaluate(open, "p1")).toBeGreaterThan(evaluate(tapped, "p1"));
+    });
+
+    it("holding a castable instant beats spending it for no payoff", () => {
+        // AC2: the held line keeps the card + untapped mana; the spent line has
+        // burned both for no board change. Holding must score higher.
+        const held = withMana(false);
+        const spentForNothing = makeState({
+            players: [
+                makePlayer("p1", { hand: [], battlefield: [land("m1", true)] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(evaluate(held, "p1")).toBeGreaterThan(
+            evaluate(spentForNothing, "p1")
+        );
+    });
+
+    it("the flexibility term is additive to the latent hand value, not a re-count", () => {
+        // AC3: the card's body is counted ONCE, in the `hand` term (latent
+        // cardValue). Flexibility is a separate, bounded bonus gated on
+        // castability — present only when the card can be cast now.
+        const open = evaluateBreakdown(withMana(false), "p1").self;
+        const tapped = evaluateBreakdown(withMana(true), "p1").self;
+        // Same card in hand both ways → identical hand (latent) value.
+        expect(open.hand).toBe(tapped.hand);
+        expect(open.hand).toBeGreaterThan(0);
+        // Flexibility lives in its own term and only appears when affordable.
+        expect(open.flexibility).toBeGreaterThan(0);
+        expect(tapped.flexibility).toBe(0);
+    });
+
+    it("a non-instant in hand earns no flexibility, even with open mana", () => {
+        // AC4: a sorcery-speed card (a creature here) cannot answer anything in a
+        // reactive window, so holding it carries no option value.
+        const creatureInHand = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [handCard(BEARS, "bears")],
+                    battlefield: [land("m1", false), land("m2", false)],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(evaluateBreakdown(creatureInHand, "p1").self.flexibility).toBe(
+            0
+        );
+    });
+
+    it("an unaffordable instant (cost exceeds open mana) earns no flexibility", () => {
+        // Castability gate: one untapped land cannot pay a 2-cost instant, so it
+        // contributes no option value even though it is instant-speed.
+        const tooExpensive = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [handCard(getCardByName("Counterspell").id, "cs")],
+                    battlefield: [land("m1", false)],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(evaluateBreakdown(tooExpensive, "p1").self.flexibility).toBe(0);
+    });
+
+    it("the flexibility term is bounded — extra castable instants saturate", () => {
+        // The term is capped so a hand stuffed with cheap instants can never let
+        // option value dominate genuine material.
+        const board = [
+            land("m1", false),
+            land("m2", false),
+            land("m3", false),
+            land("m4", false),
+            land("m5", false),
+        ];
+        const three = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        handCard(GROWTH, "g1"),
+                        handCard(GROWTH, "g2"),
+                        handCard(GROWTH, "g3"),
+                    ],
+                    battlefield: board,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const five = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        handCard(GROWTH, "g1"),
+                        handCard(GROWTH, "g2"),
+                        handCard(GROWTH, "g3"),
+                        handCard(GROWTH, "g4"),
+                        handCard(GROWTH, "g5"),
+                    ],
+                    battlefield: board,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(evaluateBreakdown(five, "p1").self.flexibility).toBe(
+            evaluateBreakdown(three, "p1").self.flexibility
         );
     });
 });
