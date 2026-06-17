@@ -151,6 +151,43 @@ export function applyPendingChoiceSubmit(
         );
     }
 
+    // --- "Any target" choice (CR 115.4): the pick is a damageable permanent
+    // OR a player (Cuombajj Witches — "1 damage to any target of an
+    // opponent's choice"). Players aren't in a zone, so this kind validates
+    // against its own allow-lists rather than the zone-membership check
+    // below. The single picked id is written verbatim into collectedChoices
+    // and the card's resolve step disambiguates permanent vs player. ---
+    if (head.kind === "choose-damage-target") {
+        const id = args.cardInstanceIds[0];
+        const playerOk = head.candidatePlayerIds?.includes(id) ?? false;
+        const permanentOk = head.candidateIds?.includes(id) ?? false;
+        if (!playerOk && !permanentOk) {
+            throw new Error("Not a legal target");
+        }
+        const stackItem = state.stack.find((s) => s.id === head.stackItemId);
+        if (!stackItem) throw new Error("Stack item not found");
+        const key = `${head.step}:${head.choiceId}`;
+        stackItem.collectedChoices = {
+            ...(stackItem.collectedChoices ?? {}),
+            [key]: args.cardInstanceIds,
+        };
+        queue.shift();
+        state.pendingChoices = queue.length > 0 ? queue : undefined;
+        if ((state.pendingChoices?.length ?? 0) === 0) {
+            resolveTopOfStack(state);
+            if ((state.pendingChoices?.length ?? 0) > 0) {
+                state.priorityPlayerId = state.pendingChoices![0].playerId;
+            } else {
+                state.priorityPlayerId = state.activePlayerId;
+                state.passCount = 0;
+                drainAutoPasses(state);
+            }
+        } else {
+            state.priorityPlayerId = state.pendingChoices![0].playerId;
+        }
+        return;
+    }
+
     const zoneOwner = getPlayer(state, head.zoneOwnerId ?? args.playerId);
 
     // --- Zone-level validation: verify every id exists in the declared zone ---

@@ -43,12 +43,13 @@ export const PERMANENT_TYPES = [
  * Permanent types that can be dealt damage (CR 120.3). Damage to any other
  * permanent (artifact, enchantment, land) is a no-op. This is also the set
  * of permanent types matched by a `"any target"` spell (CR 115.4).
+ *
+ * The canonical definition lives in the leaf `cards/types` module (so card
+ * sets can import it without a registry import cycle); re-exported here for
+ * the engine-side consumers that already import it from `gre/constants`.
  */
-export const DAMAGEABLE_PERMANENT_TYPES = [
-    "Creature",
-    "Planeswalker",
-    "Battle",
-] as const;
+export { DAMAGEABLE_PERMANENT_TYPES } from "../cards/types";
+import { DAMAGEABLE_PERMANENT_TYPES } from "../cards/types";
 
 export function isDamageablePermanent(card: CardInstanceState): boolean {
     return DAMAGEABLE_PERMANENT_TYPES.some((t) => card.types.includes(t));

@@ -164,11 +164,22 @@ function buildOwedChoice(
     if (!head || head.playerId !== botId || head.kind === "mulligan-bottom") {
         return undefined;
     }
+    const candidates = readChoiceZone(state, head, botId).map(toCandidate);
+    // CR 115.4 — a `choose-damage-target` choice (Cuombajj Witches) admits
+    // players as targets too. Players aren't in any zone, so append them from
+    // the choice's `candidatePlayerIds` allow-list. Each player gets a neutral
+    // value so the bot's worst-first default treats them like a low-value pick
+    // (the bot is the opponent choosing; a minimal-legal pick suffices, ADR 0016).
+    if (head.kind === "choose-damage-target" && head.candidatePlayerIds) {
+        for (const pid of head.candidatePlayerIds) {
+            candidates.push({ id: pid, value: 0 });
+        }
+    }
     return {
         kind: head.kind,
         min: getPendingChoiceMin(head.count),
         max: getPendingChoiceMax(head.count),
-        candidates: readChoiceZone(state, head, botId).map(toCandidate),
+        candidates,
         affordable:
             head.kind === "may-pay"
                 ? mayPayIsAffordable(state, head, botId)

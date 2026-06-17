@@ -60,6 +60,7 @@ import {
     metamorphosis,
     oubliette,
     magneticMountain,
+    cuombajjWitches,
 } from "../arn";
 import {
     grizzlyBears,
@@ -2373,5 +2374,134 @@ describe("Magnetic Mountain (CR 502.1 untap restriction + upkeep untap)", () => 
             upkeepEvent("p1")
         );
         expect(state.pendingChoices ?? []).toEqual([]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Cuombajj Witches ({T}: 1 damage to any target + 1 to an opponent's choice)
+// ---------------------------------------------------------------------------
+
+describe("Cuombajj Witches (opponent-chosen second target, CR 115.4 / 608.2)", () => {
+    /** Build a board: p1 controls the Witches, both players have a vanilla
+     *  creature to ping. `aladdinsRing` isn't a creature — use Juzám Djinn as a
+     *  damageable body on each side. */
+    function setup() {
+        const witches = makeInstance(cuombajjWitches.id, {
+            id: "witches",
+            controllerId: "p1",
+        });
+        const myBody = makeInstance(juzamDjinn.id, {
+            id: "p1-body",
+            controllerId: "p1",
+        });
+        const oppBody = makeInstance(juzamDjinn.id, {
+            id: "p2-body",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [witches, myBody] }),
+                makePlayer("p2", { battlefield: [oppBody] }),
+            ],
+        });
+        return { state, witches };
+    }
+
+    it("resolution suspends for the opponent's pick before any damage lands", () => {
+        const { state, witches } = setup();
+        // Controller's target (ping 1): the opponent's body.
+        resolveActivated(state, witches, "cuombajj-witches-pings", [
+            { type: "permanent", id: "p2-body" },
+        ]);
+
+        // No damage yet — both pings land only after the opponent picks (so
+        // ping 1 isn't double-applied across the suspend/resume of the resolve
+        // step). Life and damageMarked are still pristine.
+        const oppBody = state.players[1].battlefield.find(
+            (c) => c.id === "p2-body"
+        )!;
+        expect(oppBody.damageMarked).toBeUndefined();
+        expect(state.players[0].life).toBe(20);
+
+        // Resolution suspended: a choose-damage-target choice is owed to the
+        // OPPONENT (p2), not the controller.
+        const head = state.pendingChoices?.[0];
+        expect(head).toBeDefined();
+        expect(head!.kind).toBe("choose-damage-target");
+        expect(head!.playerId).toBe("p2");
+        // Candidate set spans every player + every damageable permanent.
+        expect(head!.candidatePlayerIds).toEqual(["p1", "p2"]);
+        expect(new Set(head!.candidateIds)).toEqual(
+            new Set(["witches", "p1-body", "p2-body"])
+        );
+    });
+
+    it("opponent's pick of a player lands the second ping on that player", () => {
+        const { state, witches } = setup();
+        resolveActivated(state, witches, "cuombajj-witches-pings", [
+            { type: "permanent", id: "p2-body" },
+        ]);
+        // Opponent (p2) chooses to ping the controller (p1).
+        answerChoice(state, ["p1"]);
+
+        expect(state.players[0].life).toBe(19); // p1 took 1 from ping 2
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "p2-body")!
+                .damageMarked
+        ).toBe(1); // ping 1 still on p2's body
+        expect(state.pendingChoices ?? []).toEqual([]);
+    });
+
+    it("opponent's pick of a permanent lands the second ping on that permanent", () => {
+        const { state, witches } = setup();
+        // Controller's ping 1 targets p2 (the player).
+        resolveActivated(state, witches, "cuombajj-witches-pings", [
+            { type: "player", id: "p2" },
+        ]);
+        // Opponent (p2) chooses to ping the controller's own body — both pings
+        // now land.
+        answerChoice(state, ["p1-body"]);
+        expect(state.players[1].life).toBe(19); // ping 1 hit p2
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "p1-body")!
+                .damageMarked
+        ).toBe(1); // ping 2 hit p1's body
+        expect(state.pendingChoices ?? []).toEqual([]);
+    });
+
+    it("both pings can hit the same player (controller and opponent both choose it)", () => {
+        const { state, witches } = setup();
+        resolveActivated(state, witches, "cuombajj-witches-pings", [
+            { type: "player", id: "p1" },
+        ]);
+        answerChoice(state, ["p1"]);
+        expect(state.players[0].life).toBe(18); // 1 + 1
+    });
+
+    it("definition snapshot: {B}{B} 1/3 Human Wizard with the tap ability", () => {
+        expect(cuombajjWitches.manaCost).toEqual({ B: 2 });
+        expect(cuombajjWitches.power).toBe(1);
+        expect(cuombajjWitches.toughness).toBe(3);
+        expect(cuombajjWitches.subtypes).toEqual(["Human", "Wizard"]);
+        const ability = cuombajjWitches.activatedAbilities![0];
+        expect(ability.cost.tap).toBe(true);
+        expect(ability.targetRequirement).toEqual({ type: "any", count: 1 });
+    });
+
+    it("wire format: the opponent's pending choice survives projection", () => {
+        const { state, witches } = setup();
+        resolveActivated(state, witches, "cuombajj-witches-pings", [
+            { type: "permanent", id: "p2-body" },
+        ]);
+        // The choice is owed to p2 — project from p2's viewpoint and assert the
+        // candidate allow-lists the frontend reads are intact across the wire.
+        const projected = projectPublicState(state, 1, "p2");
+        const head = projected.pendingChoices?.[0];
+        expect(head?.kind).toBe("choose-damage-target");
+        expect(head?.playerId).toBe("p2");
+        expect(head?.candidatePlayerIds).toEqual(["p1", "p2"]);
+        expect(new Set(head?.candidateIds)).toEqual(
+            new Set(["witches", "p1-body", "p2-body"])
+        );
     });
 });

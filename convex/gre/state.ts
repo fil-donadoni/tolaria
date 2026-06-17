@@ -710,6 +710,12 @@ export type PendingChoice = {
      *  spent" — a mana-value bound, not a type/keyword filter). Undefined =
      *  no extra restriction. The frontend reads it to gate clickability. */
     candidateIds?: string[];
+    /** For `kind: "choose-damage-target"` only — the player ids that are legal
+     *  damage targets (CR 115.4 — "any target" includes players). The chooser's
+     *  submission carries either a damageable permanent id (from `candidateIds`)
+     *  or one of these player ids. The frontend routes player-life clicks for
+     *  this kind; the backend validates the pick against this allow-list. */
+    candidatePlayerIds?: string[];
 };
 
 /** Reads the upper bound out of a `PendingChoice.count`, regardless of
@@ -3927,6 +3933,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (req.zoneOwnerId) entry.zoneOwnerId = req.zoneOwnerId;
             if (req.allControllers) entry.allControllers = true;
             if (req.candidateIds) entry.candidateIds = req.candidateIds;
+            if (req.candidatePlayerIds) {
+                entry.candidatePlayerIds = req.candidatePlayerIds;
+            }
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },

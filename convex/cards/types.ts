@@ -54,6 +54,17 @@ export type CardType =
     | "Battle"
     | "Kindred";
 
+/** Permanent types that can be dealt damage (CR 120.3) and the set of
+ *  permanent types matched by a `"any target"` spell (CR 115.4). Lives here in
+ *  the leaf `types` module (no runtime imports) so card sets can reference it
+ *  without forming a registry import cycle (`cards/index → set → constants →
+ *  cards/index`). Re-exported from `gre/constants` for back-compat. */
+export const DAMAGEABLE_PERMANENT_TYPES = [
+    "Creature",
+    "Planeswalker",
+    "Battle",
+] as const satisfies readonly CardType[];
+
 export type CardSupertype =
     | "Basic"
     | "Legendary"
@@ -973,6 +984,12 @@ export interface SpellContext {
          *  mana-value bound). Validated server-side at submit; the frontend
          *  gates clickability on it. */
         candidateIds?: string[];
+        /** For `kind: "choose-damage-target"` only — the player ids the chooser
+         *  may pick as the damage target (CR 115.4 "any target" includes
+         *  players). The submission carries either a damageable permanent id
+         *  (from `candidateIds`) OR one of these player ids. Used by Cuombajj
+         *  Witches ("1 damage to any target of an opponent's choice"). */
+        candidatePlayerIds?: string[];
     }) => string[] | undefined;
 
     /** Requests an optional yes/no decision with an optional mana cost

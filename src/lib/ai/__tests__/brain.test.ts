@@ -436,6 +436,24 @@ describe("chooseResolution remaining zone-pick policies (ADR 0016, issue #165)",
             )
         ).toEqual(["spell1", "spell2", "land1", "land2"]);
     });
+
+    it("choose-damage-target pings the lowest-value target (Cuombajj Witches)", () => {
+        // CR 115.4 — the bot is the opponent choosing where 1 damage lands.
+        // Minimal-legal default (ADR 0016): worst-first, so it picks a low-value
+        // target (a land-value player marker or a small creature) over a bomb.
+        expect(
+            chooseResolution(
+                owed({
+                    kind: "choose-damage-target",
+                    candidates: [
+                        { id: "bomb", value: 400 },
+                        { id: "p1", value: 0 }, // a player target (neutral)
+                        { id: "spell1", value: 150 },
+                    ],
+                })
+            )
+        ).toEqual(["p1"]);
+    });
 });
 
 describe("decideBotAction resolves an owed mid-resolution choice (ADR 0016)", () => {
