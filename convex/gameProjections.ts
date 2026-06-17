@@ -79,6 +79,14 @@ export type FullPlayer = Omit<
      *  Mirrors `PublicPlayer.librarySearch` so the same UI gate works in the
      *  full debug view. */
     librarySearch?: SlimCardInstance[];
+    /** Mirrors `PublicPlayer.libraryPeek` — the looked-at top N cards of the
+     *  zone owner's library during an active `reorder-library` /
+     *  `draw-look-keep` choice (CR 401.4), so the picker pile opens in the
+     *  full debug view too (#262). */
+    libraryPeek?: SlimCardInstance[];
+    /** Mirrors `PublicPlayer.revealedHand` — the zone owner's hand during an
+     *  active `reveal-hand` choice (CR 401.4), for the full debug view (#262). */
+    revealedHand?: SlimCardInstance[];
     graveyard: SlimCardInstance[];
     exile: SlimCardInstance[];
     battlefield: SlimCardInstance[];
@@ -154,6 +162,65 @@ function hydrateGrantedAbilities(
     return grants.map(hydrateGrantedAbility);
 }
 
+/** Resolved peek/reveal exposure derived from the head pending choice, scoped
+ *  to a single chooser. Shared by the public and full projections so both views
+ *  open the same picker piles (CR 401.4 / 701.19). All fields are `undefined`
+ *  when the chooser is not the head choice's player. */
+interface ChoiceExposure {
+    /** `search-library`: expose this player's whole library face-up. */
+    searchChooserId: string | undefined;
+    /** `reorder-library` / `draw-look-keep`: library owner whose top N is shown. */
+    peekZoneOwner: string | undefined;
+    /** Number of top cards to expose for the peek (0 when no peek). */
+    peekCount: number;
+    /** `reveal-hand`: hand owner whose hand is shown to the chooser. */
+    revealZoneOwner: string | undefined;
+}
+
+/** Computes the peek/reveal exposure for the chooser `chooserId` from the head
+ *  pending choice. Returns all-`undefined` when `chooserId` is not the chooser
+ *  of an exposing choice. Centralizes the head-inspection so the public and
+ *  full projections stay in lockstep (#239, #262). */
+function computeChoiceExposure(
+    state: GameState,
+    chooserId: string | undefined
+): ChoiceExposure {
+    const head = state.pendingChoices?.[0];
+    const isChooser = head !== undefined && head.playerId === chooserId;
+
+    // CR 401.4 / 701.19: search-library exposes the chooser's whole library.
+    const searchChooserId =
+        isChooser && head.kind === "search-library" && head.zone === "library"
+            ? head.playerId
+            : undefined;
+
+    // CR 401.4: reorder-library exposes the top N cards of the zone owner's
+    // library to the chooser so the UI can render them for reordering;
+    // draw-look-keep (Aladdin's Lamp) exposes the looked-at top X so the
+    // chooser can pick the one to keep.
+    const exposeLibraryPeek =
+        isChooser &&
+        (head.kind === "reorder-library" || head.kind === "draw-look-keep") &&
+        head.zone === "library";
+    const peekCount = !exposeLibraryPeek
+        ? 0
+        : head.kind === "draw-look-keep"
+          ? (head.candidateIds?.length ?? 0)
+          : getPendingChoiceMax(head.count);
+    const peekZoneOwner = exposeLibraryPeek
+        ? (head.zoneOwnerId ?? head.playerId)
+        : undefined;
+
+    // CR 401.4: reveal-hand exposes the zone owner's hand to the chooser.
+    const exposeRevealHand =
+        isChooser && head.kind === "reveal-hand" && head.zone === "hand";
+    const revealZoneOwner = exposeRevealHand
+        ? (head.zoneOwnerId ?? head.playerId)
+        : undefined;
+
+    return { searchChooserId, peekZoneOwner, peekCount, revealZoneOwner };
+}
+
 /**
  * Projects GameState into the public view: viewer's own hand has slim cards + legalActions,
  * opponent's hand is an array of nulls of equal length, libraries are reduced to { count }.
@@ -165,53 +232,22 @@ export function projectPublicState(
     allActions: boolean = false
 ): PublicGameState {
     // CR 401.4 / 701.19: while the viewer is the chooser of an active
-    // search-library choice, expose the searched player's library face-up so
-    // the UI can render it for selection. The choice always targets the
-    // chooser's own library in the current scope (see selectResolutionChoice),
-    // so we only expose `viewerId`'s library.
-    const head = state.pendingChoices?.[0];
-    const exposeLibraryForViewer =
-        head?.kind === "search-library" &&
-        head.zone === "library" &&
-        head.playerId === viewerId;
-
-    // CR 401.4: reorder-library exposes the top N cards of the zone owner's
-    // library to the chooser so the UI can render them for reordering;
-    // draw-look-keep (Aladdin's Lamp) exposes the looked-at top X so the
-    // chooser can pick the one to keep.
-    const exposeLibraryPeek =
-        (head?.kind === "reorder-library" || head?.kind === "draw-look-keep") &&
-        head.zone === "library" &&
-        head.playerId === viewerId;
-    const peekCount = !exposeLibraryPeek
-        ? 0
-        : head!.kind === "draw-look-keep"
-          ? (head!.candidateIds?.length ?? 0)
-          : getPendingChoiceMax(head!.count);
-    const peekZoneOwner = exposeLibraryPeek
-        ? (head!.zoneOwnerId ?? head!.playerId)
-        : undefined;
-
-    // CR 401.4: reveal-hand exposes the zone owner's hand to the chooser.
-    const exposeRevealHand =
-        head?.kind === "reveal-hand" &&
-        head.zone === "hand" &&
-        head.playerId === viewerId;
-    const revealZoneOwner = exposeRevealHand
-        ? (head!.zoneOwnerId ?? head!.playerId)
-        : undefined;
+    // search-library / reorder-library / draw-look-keep / reveal-hand choice,
+    // expose the looked-at zone face-up so the UI can render its picker pile.
+    const { searchChooserId, peekZoneOwner, peekCount, revealZoneOwner } =
+        computeChoiceExposure(state, viewerId);
 
     const players = state.players.map((player): PublicPlayer => {
         const librarySearch =
-            exposeLibraryForViewer && player.id === viewerId
+            player.id === searchChooserId
                 ? player.library.map(slimCard)
                 : undefined;
         const libraryPeek =
-            exposeLibraryPeek && player.id === peekZoneOwner
+            peekZoneOwner !== undefined && player.id === peekZoneOwner
                 ? player.library.slice(0, peekCount).map(slimCard)
                 : undefined;
         const revealedHand =
-            exposeRevealHand && player.id === revealZoneOwner
+            revealZoneOwner !== undefined && player.id === revealZoneOwner
                 ? player.hand.map(slimCard)
                 : undefined;
         const common = {
@@ -263,16 +299,16 @@ export function projectFullState(
     seq: number,
     allActions: boolean = false
 ): FullGameState {
-    // CR 401.4 / 701.19: an active `search-library` choice exposes the chooser's
-    // library face-up via `librarySearch` so the picker pile can open. The full
-    // debug view shows every zone, but the library picker still keys off this
-    // field — mirror the public projection so search dialogs work in "show all
-    // cards" mode too, not only via getPublicState.
+    // CR 401.4 / 701.19: an active search-library / reorder-library /
+    // draw-look-keep / reveal-hand choice exposes the looked-at zone face-up so
+    // the picker pile can open. The full debug view shows every zone, but the
+    // pickers still key off these fields — mirror the public projection so the
+    // dialogs work in "show all cards" mode too, not only via getPublicState
+    // (#239, #262). There is no single viewer here, so the chooser is the head
+    // choice's own player.
     const head = state.pendingChoices?.[0];
-    const searchChooserId =
-        head?.kind === "search-library" && head.zone === "library"
-            ? head.playerId
-            : undefined;
+    const { searchChooserId, peekZoneOwner, peekCount, revealZoneOwner } =
+        computeChoiceExposure(state, head?.playerId);
 
     const players = state.players.map(
         (player): FullPlayer => ({
@@ -292,6 +328,14 @@ export function projectFullState(
             librarySearch:
                 player.id === searchChooserId
                     ? player.library.map(slimCard)
+                    : undefined,
+            libraryPeek:
+                peekZoneOwner !== undefined && player.id === peekZoneOwner
+                    ? player.library.slice(0, peekCount).map(slimCard)
+                    : undefined,
+            revealedHand:
+                revealZoneOwner !== undefined && player.id === revealZoneOwner
+                    ? player.hand.map(slimCard)
                     : undefined,
             graveyard: player.graveyard.map(slimCard),
             exile: player.exile.map(slimCard),
