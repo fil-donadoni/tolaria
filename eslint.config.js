@@ -6,7 +6,18 @@ import tseslint from "typescript-eslint";
 import { defineConfig, globalIgnores } from "eslint/config";
 
 export default defineConfig([
-    globalIgnores(["dist", "convex/_generated"]),
+    globalIgnores([
+        "dist",
+        "convex/_generated",
+        // Throwaway exploration code (PRD #249): the WebGL/FX prototype boards
+        // were spikes to validate the DOM-only direction and are slated for
+        // removal once the new board (#250+) is proven. They predate the
+        // current react-hooks immutability rule and are not production code, so
+        // they are excluded from lint rather than retrofitted.
+        "src/routes/prototype-board",
+        "src/routes/prototype-board.route.tsx",
+        "src/routes/prototype-board-full.route.tsx",
+    ]),
     {
         files: ["**/*.{ts,tsx}"],
         extends: [

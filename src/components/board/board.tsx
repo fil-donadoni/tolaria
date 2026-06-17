@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useSearch } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { Player } from "~/types/game";
+import { resolveBoardVariant } from "~/lib/board-variant";
 import { GameContext } from "~/hooks/useGameContext";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import {
@@ -15,15 +17,12 @@ import {
 } from "~/hooks/usePendingChoiceBuffer";
 import { preloadCardImages } from "~/lib/image-preload";
 import { computeSoloViewerId } from "~/lib/priority";
-import PlayerBoard from "./player-board";
-import GameStack from "./game-stack";
-import PhaseTracker from "./phase-tracker";
-import PriorityIndicator from "./priority-indicator";
+import BoardClassic from "./board-classic";
+import BoardNext from "./board-next";
 import ActionBar from "./action-bar";
 import AutoPassController from "./auto-pass-controller";
 import GameOverDialog from "./game-over-dialog";
 import PauseMenuDialog from "./pause-menu-dialog";
-import TargetArrowsOverlay from "./target-arrows-overlay";
 import TargetSelectionBanner from "./target-selection-banner";
 import PaymentBanner from "./payment-banner";
 import PendingChoicePrompt from "./pending-choice-prompt";
@@ -60,6 +59,10 @@ export default function Board({
     const pageVisible = usePageVisible();
     const skipPhasePrefs = useSkipPhasePrefsState();
     const [pauseMenuOpen, setPauseMenuOpen] = useState(false);
+    // `?board=next` selects the DOM-only spatial root (PRD #249); anything else
+    // keeps the current board. View-layer only — no effect on GRE/mutations.
+    const search = useSearch({ strict: false }) as Record<string, unknown>;
+    const boardVariant = resolveBoardVariant(search);
     const publicState = useQuery(
         api.game.getPublicState,
         pageVisible && !showAllCards
@@ -215,15 +218,17 @@ export default function Board({
                     <main className="flex h-full w-full flex-col relative">
                         <AutoPassController solo={solo} />
                         {vsAi && <VsAiDriver gameId={gameId} botId={botId} />}
-                        {orderedPlayers.map((player) => (
-                            <PlayerBoard key={player.id} player={player} />
-                        ))}
-                        <PriorityIndicator />
-                        <PhaseTracker />
-                        {stackItems.length > 0 && (
-                            <GameStack stack={stackItems} />
+                        {boardVariant === "next" ? (
+                            <BoardNext
+                                orderedPlayers={orderedPlayers}
+                                stackItems={stackItems}
+                            />
+                        ) : (
+                            <BoardClassic
+                                orderedPlayers={orderedPlayers}
+                                stackItems={stackItems}
+                            />
                         )}
-                        <TargetArrowsOverlay stack={stackItems} />
                         {pendingTarget &&
                             pendingTarget.playerId === viewerId && (
                                 <TargetSelectionBanner
