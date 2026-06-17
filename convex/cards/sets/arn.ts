@@ -16,6 +16,7 @@
 
 import type { CardDefinition, SpellContext } from "../types";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
+import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
 import { stateTrigger } from "../abilities/triggers/stateTrigger";
@@ -1731,6 +1732,56 @@ export const metamorphosis: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Batch 8 (#179) — phasing (CR 702.26, ADR 0021)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Oubliette — modern Oracle uses phasing, not exile (ADR 0004). The ETB
+// trigger phases a chosen creature (with its Auras/Equipment) out of existence
+// until Oubliette leaves; `removePermanentTo`'s source-leaves hook phases it
+// back in tapped. Target choice is a `choose-permanents` resolution pick over
+// every battlefield (CR 702.26 deviation: modeled as a choice, not a true
+// target, so protection/hexproof aren't re-checked — acceptable for the
+// current pool; no new TargetRequirement.type introduced).
+export const oubliette: CardDefinition = {
+    id: "30d1450f-2909-410e-9920-731278fa74de",
+    name: "Oubliette",
+    oracleText:
+        "When this enchantment enters, target creature phases out until this enchantment leaves the battlefield. Tap that creature as it phases in this way. (Auras and Equipment phase out with it. While permanents are phased out, they're treated as though they don't exist.)",
+    manaCost: { X: 1, B: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "oubliette-phase-out",
+            oracleText:
+                "When this enchantment enters, target creature phases out until this enchantment leaves the battlefield. Tap that creature as it phases in this way.",
+            scope: "self",
+            resolve: (ctx) => {
+                const picks = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: `oubliette-${ctx.sourceInstanceId}`,
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    allControllers: true,
+                    filter: { types: "Creature" },
+                    count: 1,
+                    prompt: "Oubliette: choose a creature to phase out.",
+                });
+                if (picks === undefined) return; // suspended for the choice
+                const creatureId = picks[0];
+                if (!creatureId) return;
+                ctx.phaseOut(creatureId, {
+                    returnOn: {
+                        kind: "source-leaves",
+                        sourceId: ctx.sourceInstanceId,
+                    },
+                    onPhaseIn: { tap: true },
+                });
+            },
+        }),
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Deferred to later batches — need engine work beyond existing primitives:
 //
 //   • Hurr Jackal — "{T}: Target creature can't be regenerated this turn"
@@ -1752,7 +1803,6 @@ export const metamorphosis: CardDefinition = {
 //
 // Other batches (PRD #171):
 //   • Batch 4 (#191, coin flip): Bottle of Suleiman, Mijae Djinn, Ydwen Efreet.
-//   • Batch 8 (#179, phasing): Oubliette.
 //   • Batch 9 (#180-187, misc): Metamorphosis, Jihad, Magnetic Mountain,
 //     Aladdin's Lamp, Cuombajj Witches, Ifh-Bíff Efreet, Guardian Beast,
 //     Abu Ja'far, Jandor's Ring, Erg Raiders, City in a Bottle, Aladdin's Ring

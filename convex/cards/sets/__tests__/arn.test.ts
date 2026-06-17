@@ -58,6 +58,7 @@ import {
     cyclone,
     dropOfHoney,
     metamorphosis,
+    oubliette,
 } from "../arn";
 import {
     grizzlyBears,
@@ -68,6 +69,7 @@ import {
     prodigalSorcerer,
     psionicBlast,
     stoneRain,
+    flight,
 } from "../lea";
 import { getInstanceManaCost, tryGetCardById } from "../../";
 import { checkStateBasedActions } from "../../../gre/sba";
@@ -89,6 +91,8 @@ import {
     isManaCostCovered,
     getManaSubstitutions,
     normalizeManaCost,
+    phaseOutPermanent,
+    phaseInBundle,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -2033,5 +2037,137 @@ describe("Metamorphosis (CR 106.6 restricted mana / 117.9 additional cost)", () 
         expect(projected.players[0].restrictedMana).toEqual([
             { color: "G", amount: 2, restriction: "creature-spell" },
         ]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Oubliette — phasing (CR 702.26, ADR 0021)
+// ---------------------------------------------------------------------------
+
+describe("Oubliette (phasing CR 702.26)", () => {
+    /** Oubliette controlled by p1, enchanting/targeting p2's creature, which
+     *  itself carries an Aura. Returns the assembled state plus handles. */
+    function setup() {
+        const oubl = makeInstance(oubliette.id, {
+            id: "oubl",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const creature = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            counters: { "+1/+1": 2 },
+        });
+        const aura = makeInstance(flight.id, {
+            id: "flight-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "bear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [oubl, aura] }),
+                makePlayer("p2", { battlefield: [creature] }),
+            ],
+        });
+        return { state, oubl, creature, aura };
+    }
+
+    it("phases out the creature with its Aura, silently (no events, no graveyard)", () => {
+        const { state } = setup();
+        state.pendingEvents = undefined;
+        const bundleId = phaseOutPermanent(state, "bear", {
+            returnOn: { kind: "source-leaves", sourceId: "oubl" },
+            onPhaseIn: { tap: true },
+        });
+        expect(bundleId).not.toBeNull();
+        // Creature + aura are gone from every battlefield...
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")
+        ).toBeUndefined();
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "flight-1")
+        ).toBeUndefined();
+        // ...held in one bundle (host + aura), not in any graveyard...
+        expect(state.phasedOut).toHaveLength(1);
+        expect(state.phasedOut![0].cards).toHaveLength(2);
+        expect(state.players[1].graveyard).toHaveLength(0);
+        expect(state.players[0].graveyard).toHaveLength(0);
+        // ...and the silent move emits no enters/leaves triggers.
+        expect(state.pendingEvents ?? []).toHaveLength(0);
+    });
+
+    it("returns the creature tapped and still enchanted when Oubliette leaves", () => {
+        const { state } = setup();
+        phaseOutPermanent(state, "bear", {
+            returnOn: { kind: "source-leaves", sourceId: "oubl" },
+            onPhaseIn: { tap: true },
+        });
+        expect(state.phasedOut).toHaveLength(1);
+        // Oubliette leaving the battlefield ends the duration → phase in.
+        removePermanentTo(state, "oubl", "graveyard");
+        const bear = state.players[1].battlefield.find((c) => c.id === "bear");
+        expect(bear).toBeDefined();
+        expect(bear!.isTapped).toBe(true); // "Tap that creature as it phases in"
+        expect(bear!.counters?.["+1/+1"]).toBe(2); // counters preserved
+        const aura = state.players[0].battlefield.find(
+            (c) => c.id === "flight-1"
+        );
+        expect(aura).toBeDefined();
+        expect(aura!.attachedTo).toBe("bear"); // still attached
+        expect(state.phasedOut ?? []).toHaveLength(0);
+    });
+
+    it("does not return the bundle when an unrelated permanent leaves", () => {
+        const { state } = setup();
+        phaseOutPermanent(state, "bear", {
+            returnOn: { kind: "source-leaves", sourceId: "oubl" },
+        });
+        // The aura's controller (p1) sacrifices something else — bundle stays.
+        const filler = makeInstance(plains.id, { id: "filler" });
+        state.players[0].battlefield.push(filler);
+        removePermanentTo(state, "filler", "graveyard");
+        expect(state.phasedOut).toHaveLength(1);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")
+        ).toBeUndefined();
+    });
+
+    it("phaseIn can be invoked directly by bundle id", () => {
+        const { state } = setup();
+        const bundleId = phaseOutPermanent(state, "bear", {
+            returnOn: { kind: "untap-cycle" },
+        })!;
+        expect(phaseInBundle(state, bundleId)).toBe(true);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")
+        ).toBeDefined();
+        expect(phaseInBundle(state, bundleId)).toBe(false); // already gone
+    });
+
+    it("ETB trigger phases out the chosen creature (full path)", () => {
+        const { state } = setup();
+        resolveTrigger(
+            state,
+            state.players[0].battlefield[0],
+            "oubliette-phase-out",
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: "oubl",
+                controllerId: "p1",
+                types: ["Enchantment"],
+            } as StackItem["triggerEvent"]
+        );
+        // requestChoice suspended the trigger — answer it with the bear.
+        answerChoice(state, ["bear"]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")
+        ).toBeUndefined();
+        expect(state.phasedOut).toHaveLength(1);
+        expect(state.phasedOut![0].returnOn).toEqual({
+            kind: "source-leaves",
+            sourceId: "oubl",
+        });
     });
 });

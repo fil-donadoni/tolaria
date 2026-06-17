@@ -76,6 +76,22 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // ARN Batch 8 (#179) — phasing (CR 702.26, ADR 0021). Cast Oubliette
+        // ({1}{B}{B}) and choose the opponent's Serendib Efreet: it phases out
+        // (treated as though it doesn't exist — gone from the board, fires no
+        // leaves trigger). Destroy or bounce your Oubliette and the creature
+        // phases back in tapped. Swamps pay the cost.
+        label: "ARN: phasing (Oubliette)",
+        cards: [
+            { name: "Oubliette", owner: "me" as const, zone: "hand" as const },
+            { name: "Swamp", owner: "me" as const, count: 3 },
+            { name: "Serendib Efreet", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 7 (#178) — scheduled pay-or-suffer. Cyclone ({2}{G}{G}):
         // each of your upkeeps add a wind counter, then pay {G} per counter or
         // sacrifice it; if you pay it deals that many damage to each creature

@@ -10,10 +10,12 @@ import {
     searchWithTrace,
     reward,
     selectRootMove,
+    selectRolloutMove,
     isDiscouragedRolloutMove,
     type Edge,
     type Node,
 } from "../search";
+import { makeRng } from "../rng";
 import { evaluate } from "../evaluate";
 import { greedySelectMove } from "../greedy";
 import { enumerateMoves } from "../moves";
@@ -30,6 +32,7 @@ const BOLT = getCardByName("Lightning Bolt").id; // R: 3 dmg any target
 const MOUNTAIN = getCardByName("Mountain").id;
 const BOP = getCardByName("Birds of Paradise").id; // 0/1 mana dork
 const GIANT_GROWTH = getCardByName("Giant Growth").id; // {G} instant +3/+3
+const FOREST = getCardByName("Forest").id;
 
 function creature(
     cardId: string,
@@ -589,5 +592,201 @@ describe("isDiscouragedRolloutMove — rollout guardrails (issue #209)", () => {
         });
         const move: Move = { kind: "play-land", cardInstanceId: "m" };
         expect(isDiscouragedRolloutMove(state, "p1", move)).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// The reactive-aware rollout DEFAULT POLICY (ADR 0021 slice 2, issue #222).
+// `selectRolloutMove` is the named seam the rollout uses for its non-random
+// step. Unit-tested in isolation here (no full search): a fixed RNG makes the
+// greedy pick deterministic, so each crafted position asserts the policy makes
+// the competent move.
+// ---------------------------------------------------------------------------
+describe("selectRolloutMove — reactive rollout default policy (issue #222)", () => {
+    // rng() === 0 → the tie-break always takes the first of the best set, so a
+    // unique best move is returned deterministically.
+    const fixedRng = () => 0;
+    const pick = (state: ReturnType<typeof makeState>, pid: string) =>
+        selectRolloutMove(
+            state,
+            pid,
+            pid,
+            enumerateMoves(state, pid),
+            fixedRng
+        );
+
+    it("holds a pure instant at sorcery speed when there is no payoff", () => {
+        // p1's own main phase, only Giant Growth to cast (on its own creature for
+        // no board gain): casting burns the card + mana + reactive option for a
+        // temporary buff the leaf does not count. The policy holds (passes).
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(GIANT_GROWTH, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "gg",
+                            zone: "hand",
+                        }),
+                    ],
+                    battlefield: [
+                        creature(BEARS, "p1", "bears"),
+                        makeInstance(FOREST, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "f1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // Sanity: the no-payoff cast really is a legal option being declined.
+        const moves = enumerateMoves(state, "p1");
+        expect(moves.some((m) => m.kind === "cast-spell")).toBe(true);
+        expect(pick(state, "p1").kind).toBe("pass");
+    });
+
+    it("casts a held instant in a reactive window when it pays (removal)", () => {
+        // p2's combat; p1 holds Lightning Bolt with open mana and p2 is attacking
+        // with a 2/2. Bolting the attacker removes a creature now — a payoff the
+        // leaf sees once the policy looks one resolution deep — so the policy
+        // casts rather than holds.
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [bolt("p1", "bolt")],
+                    battlefield: [land("p1", "m1")],
+                }),
+                makePlayer("p2", {
+                    battlefield: [creature(BEARS, "p2", "atk")],
+                }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const chosen = pick(state, "p1");
+        expect(chosen.kind).toBe("cast-spell");
+        if (chosen.kind !== "cast-spell") throw new Error("kind");
+        expect(chosen.cardInstanceId).toBe("bolt");
+    });
+
+    it("makes the sane block: a survivor block on a smaller attacker", () => {
+        // p1 attacks with a 2/2 into p2's open 3/3. Blocking kills the attacker
+        // for free (the 3/3 survives); not blocking eats 2 to the face. The
+        // policy picks the block.
+        const state = makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [creature(BEARS, "p1", "atk")],
+                }),
+                makePlayer("p2", {
+                    life: 12,
+                    battlefield: [creature(GIANT, "p2", "blk")],
+                }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const chosen = pick(state, "p2");
+        expect(chosen.kind).toBe("declare-blockers");
+        if (chosen.kind !== "declare-blockers") throw new Error("kind");
+        expect(
+            chosen.assignments.some(
+                (a) => a.blockerId === "blk" && a.attackerId === "atk"
+            )
+        ).toBe(true);
+    });
+
+    it("preserves the ADR 0020 §4 guardrail: no suicide mana-dork attack", () => {
+        // A lone Birds of Paradise (0/1 mana dork) attacking deals no damage and
+        // taps out a mana source / blocker. The policy declares no attackers.
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(BOP, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "bop",
+                            isSummoningSick: false,
+                        }),
+                    ],
+                }),
+                makePlayer("p2", { life: 20 }),
+            ],
+            combat: {
+                attackerIds: [],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const chosen = pick(state, "p1");
+        expect(chosen.kind).toBe("declare-attackers");
+        if (chosen.kind !== "declare-attackers") throw new Error("kind");
+        expect(chosen.attackerIds).toHaveLength(0);
+    });
+
+    it("is deterministic under a fixed RNG stream", () => {
+        const build = () =>
+            makeState({
+                phase: "DECLARE_ATTACKERS",
+                activePlayerId: "p2",
+                priorityPlayerId: "p1",
+                players: [
+                    makePlayer("p1", {
+                        hand: [bolt("p1", "bolt")],
+                        battlefield: [land("p1", "m1")],
+                    }),
+                    makePlayer("p2", {
+                        battlefield: [creature(BEARS, "p2", "atk")],
+                    }),
+                ],
+                combat: {
+                    attackerIds: ["atk"],
+                    confirmed: true,
+                    blockerAssignments: {},
+                    blockersConfirmed: false,
+                },
+            });
+        const a = build();
+        const b = build();
+        const moveA = selectRolloutMove(
+            a,
+            "p1",
+            "p1",
+            enumerateMoves(a, "p1"),
+            makeRng(7)
+        );
+        const moveB = selectRolloutMove(
+            b,
+            "p1",
+            "p1",
+            enumerateMoves(b, "p1"),
+            makeRng(7)
+        );
+        expect(moveA).toEqual(moveB);
     });
 });

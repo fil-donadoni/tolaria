@@ -547,6 +547,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "allCreaturesMustAttack",
     "destroyReplacementShields",
     "combatDamageImmunity",
+    "phasedOut",
 ] as const;
 
 /** Optional GameState keys that are intentionally ephemeral — never
@@ -573,6 +574,22 @@ export function compactState(state: GameState): Record<string, unknown> {
         if (isPlainEmpty(v)) continue;
         out[k] = v;
     }
+    // CR 702.26 — phased-out bundles hold full battlefield-shaped permanents.
+    // Slim their `card` fat field down to `{ id }` like every other zone so
+    // the registry hydrates the definition on expand (the generic loop above
+    // stored them raw; overwrite with the compacted form).
+    if (state.phasedOut?.length) {
+        out.phasedOut = state.phasedOut.map((b) => ({
+            ...b,
+            cards: b.cards.map((c) => ({
+                // Carry `ownerId` explicitly: bundle cards have no surrounding
+                // player to default it from on expand (unlike battlefield
+                // arrays, which key the owner off the containing player).
+                ...compactCard(c, { ownerId: c.ownerId }),
+                ownerId: c.ownerId,
+            })),
+        }));
+    }
     return out;
 }
 
@@ -594,6 +611,23 @@ export function expandState(data: Record<string, unknown>): GameState {
         const v = data[k];
         if (v === undefined || v === null) continue;
         (result as Record<string, unknown>)[k] = v;
+    }
+    // CR 702.26 — rehydrate phased-out bundle permanents from their slim form
+    // (mirror of `compactState`). Phased permanents are logically still
+    // battlefield permanents, so expand them with `zone: "battlefield"`.
+    const compactBundles = data.phasedOut as
+        | { id: string; cards: CompactCard[]; [key: string]: unknown }[]
+        | undefined;
+    if (compactBundles) {
+        result.phasedOut = compactBundles.map((b) => ({
+            ...b,
+            cards: b.cards.map((c) =>
+                expandCard(c, {
+                    ownerId: (c.ownerId as string | undefined) ?? "",
+                    zone: "battlefield",
+                })
+            ),
+        })) as GameState["phasedOut"];
     }
     return result;
 }
