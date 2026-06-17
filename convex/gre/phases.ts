@@ -28,7 +28,11 @@ import {
 } from "./state";
 import { tryGetCardById } from "../cards";
 import { applyDiscardReplacements, describeDamageSource } from "./replacements";
-import { getEffectivePower, getEffectiveToughness } from "./layers";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+    STATIC_EFFECT_CTX,
+} from "./layers";
 import { isProtectedFromSource } from "./protection";
 import { collectTriggers } from "./triggers";
 import { hasAnyLegalBlock, getRequiredAttackerIds } from "./combat";
@@ -187,12 +191,19 @@ export function effectivePermanentView(
     state: GameState,
     card: CardInstanceState
 ): CardInstanceState {
-    if (!card.types.includes("Creature")) return card;
+    // CR 105 / 202.2 / 613.1d — populate effective colors so color-scoped
+    // filters (Magnetic Mountain's "blue creatures") match on the battlefield.
+    // `colors` honors layer-5 colorOverride + grantedColors via getColors.
+    const colors = STATIC_EFFECT_CTX.getColors(card);
+    if (!card.types.includes("Creature")) {
+        return { ...card, colors } as CardInstanceState;
+    }
     return {
         ...card,
+        colors,
         power: getEffectivePower(state, card),
         toughness: getEffectiveToughness(state, card),
-    };
+    } as CardInstanceState;
 }
 
 /** Untap step (CR 502.1, 502.4): the active player declares which

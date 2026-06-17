@@ -8,6 +8,7 @@ import {
     LANDWALK_KEYWORDS,
 } from "@convex/gre/constants";
 import { getCardById, tryGetCardById } from "@convex/cards";
+import { getColorsFromCost } from "@convex/cards/colors";
 
 export function isLand(card: CardInstance): boolean {
     return card.types?.includes("Land") ?? false;
@@ -147,6 +148,8 @@ export function matchesPermanentFilter(
         subtypes?: string | string[];
         requireAbility?: string;
         excludeAbility?: string;
+        colors?: string | string[];
+        tapped?: boolean;
     }
 ): boolean {
     if (filter.types !== undefined) {
@@ -175,6 +178,28 @@ export function matchesPermanentFilter(
         abilities.includes(filter.excludeAbility)
     ) {
         return false;
+    }
+    if (
+        filter.tapped !== undefined &&
+        (card.isTapped === true) !== filter.tapped
+    ) {
+        return false;
+    }
+    if (filter.colors !== undefined) {
+        // CR 202.2 / 613.1d — mirror the server's effective-color derivation:
+        // layer-5 colorOverride wins, else the printed cost's colors. NOTE:
+        // grantedColors aren't carried on the client CardInstance, so a color
+        // GRANTED by another permanent isn't reflected here — the controller's
+        // own printed/overridden colors suffice for the shipped color filters.
+        const cardColors =
+            card.colorOverride ??
+            getColorsFromCost(tryGetCardById(card.card.id)?.manaCost);
+        const wanted = Array.isArray(filter.colors)
+            ? filter.colors
+            : [filter.colors];
+        if (!wanted.some((c) => cardColors.includes(c as Color))) {
+            return false;
+        }
     }
     return true;
 }

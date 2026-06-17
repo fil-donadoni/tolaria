@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     wantsPermanentTarget,
+    matchesPermanentFilter,
     matchesTargetRequirement,
     matchesSpellTypeFilter,
     wantsSpellTarget,
@@ -467,5 +468,71 @@ describe("resolvePreviewAbilities (#156)", () => {
             name: "islandwalk",
             state: "granted",
         });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// matchesPermanentFilter — client mirror of the server filter (colors + tapped)
+// ---------------------------------------------------------------------------
+
+const FLYING_MEN_ID = "25ab9a2b-e248-4ae2-aac3-b49fdb3e260a"; // blue {U} creature
+const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // green creature
+
+describe("matchesPermanentFilter (client mirror — colors + tapped)", () => {
+    it("matches a tapped blue creature against { colors:[U], tapped:true }", () => {
+        const card = makeCardInstance({
+            card: { id: FLYING_MEN_ID },
+            types: ["Creature"],
+            isTapped: true,
+        });
+        expect(
+            matchesPermanentFilter(card, {
+                types: "Creature",
+                colors: ["U"],
+                tapped: true,
+            })
+        ).toBe(true);
+    });
+
+    it("rejects an untapped blue creature when tapped:true is required", () => {
+        const card = makeCardInstance({
+            card: { id: FLYING_MEN_ID },
+            types: ["Creature"],
+            isTapped: false,
+        });
+        expect(
+            matchesPermanentFilter(card, {
+                types: "Creature",
+                colors: ["U"],
+                tapped: true,
+            })
+        ).toBe(false);
+    });
+
+    it("rejects a tapped non-blue creature on the color filter", () => {
+        const card = makeCardInstance({
+            card: { id: GRIZZLY_BEARS_ID },
+            types: ["Creature"],
+            isTapped: true,
+        });
+        expect(
+            matchesPermanentFilter(card, {
+                types: "Creature",
+                colors: ["U"],
+                tapped: true,
+            })
+        ).toBe(false);
+    });
+
+    it("honors layer-5 colorOverride over the printed cost", () => {
+        const card = makeCardInstance({
+            card: { id: GRIZZLY_BEARS_ID }, // printed green
+            types: ["Creature"],
+            isTapped: true,
+            colorOverride: ["U"], // laced blue
+        });
+        expect(
+            matchesPermanentFilter(card, { colors: ["U"], tapped: true })
+        ).toBe(true);
     });
 });

@@ -16,6 +16,7 @@
 
 import type { CardDefinition, SpellContext } from "../types";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
+import { untapRestriction } from "../abilities/static/untapRestriction";
 import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
@@ -1776,6 +1777,77 @@ export const oubliette: CardDefinition = {
                     },
                     onPhaseIn: { tap: true },
                 });
+            },
+        }),
+    ],
+};
+
+// Magnetic Mountain (ARN) — "Blue creatures don't untap during their
+// controllers' untap steps. / At the beginning of each player's upkeep, that
+// player may choose any number of tapped blue creatures they control and pay
+// {4} for each creature chosen this way. If the player does, untap those
+// creatures."
+//
+// CR 502.1 — the untap-step restriction is a `StaticUntapRestriction` with a
+// color-scoped filter and maxUntap 0 (a hard skip of blue creatures), honored
+// by the untap dispatcher for every player's untap step (scope each-player).
+// CR 603.6a — the upkeep trigger fires at the beginning of EACH player's
+// upkeep (scope "each"); the upkeep player is the chooser/payer. The resolve
+// suspends twice (ADR 0008): a choose-any-number pick, then a may-pay scaled
+// to {4} × chosen (CR 118), and on payment untaps the chosen creatures.
+export const magneticMountain: CardDefinition = {
+    id: "95fde48b-e40a-4183-b324-1ec276dde015",
+    name: "Magnetic Mountain",
+    oracleText:
+        "Blue creatures don't untap during their controllers' untap steps.\nAt the beginning of each player's upkeep, that player may choose any number of tapped blue creatures they control and pay {4} for each creature chosen this way. If the player does, untap those creatures.",
+    manaCost: { X: 1, R: 2 },
+    types: ["Enchantment"],
+    staticEffects: [
+        untapRestriction({
+            id: "magnetic-mountain-no-untap",
+            oracleText:
+                "Blue creatures don't untap during their controllers' untap steps.",
+            filter: { types: "Creature", colors: ["U"] },
+            maxUntap: 0,
+        }),
+    ],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "magnetic-mountain-upkeep",
+            oracleText:
+                "At the beginning of each player's upkeep, that player may choose any number of tapped blue creatures they control and pay {4} for each creature chosen this way. If the player does, untap those creatures.",
+            phase: "UPKEEP",
+            scope: "each",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const eligible = ctx.getBattlefieldIds(scopedPlayerId, {
+                    types: "Creature",
+                    colors: ["U"],
+                    tapped: true,
+                });
+                if (eligible.length === 0) return;
+                const chosen = ctx.requestChoice({
+                    playerId: scopedPlayerId,
+                    choiceId: `${scopedPlayerId}:mm-pick`,
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    filter: { types: "Creature", colors: ["U"], tapped: true },
+                    count: { min: 0, max: eligible.length },
+                    prompt: "Choose any number of tapped blue creatures to untap ({4} each).",
+                });
+                if (chosen === undefined) return; // suspend: awaiting the pick
+                if (chosen.length === 0) return; // chose none — nothing to pay
+                const paid = ctx.requestMayPay({
+                    playerId: scopedPlayerId,
+                    choiceId: `${scopedPlayerId}:mm-pay`,
+                    cost: { X: 4 * chosen.length },
+                    prompt: `Pay {${4 * chosen.length}} to untap ${chosen.length} blue creature(s)?`,
+                });
+                if (paid === undefined) return; // suspend: awaiting the payment
+                if (paid) {
+                    for (const id of chosen) {
+                        ctx.untap({ type: "permanent", id });
+                    }
+                }
             },
         }),
     ],

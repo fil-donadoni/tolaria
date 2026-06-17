@@ -74,6 +74,11 @@ export interface PermanentFilter {
      *  `isAttacking`; used by combat pump effects scoped to blockers (Piety).
      *  Omitted = no constraint. */
     isBlocking?: boolean;
+    /** Filter by tapped state (CR 110.5). `true` keeps only tapped permanents,
+     *  `false` only untapped. Used by mid-resolution choice pickers scoped to
+     *  tapped permanents (Magnetic Mountain — "tapped blue creatures").
+     *  Omitted = no constraint. */
+    tapped?: boolean;
 }
 
 // --- SpellFilter (applied to SpellCastEvent) ---
@@ -148,6 +153,7 @@ export interface MatchablePermanent {
     toughness?: number;
     isAttacking?: boolean;
     isBlocking?: boolean;
+    isTapped?: boolean;
 }
 
 /** Structurally-typed view of a `SpellCastEvent` for `matchesSpellFilter`. */
@@ -226,6 +232,10 @@ export function matchesPermanentFilter(
     if (filter.isBlocking !== undefined) {
         const cardIsBlocking = card.isBlocking === true;
         if (filter.isBlocking !== cardIsBlocking) return false;
+    }
+    if (filter.tapped !== undefined) {
+        const cardIsTapped = card.isTapped === true;
+        if (filter.tapped !== cardIsTapped) return false;
     }
     if (
         filter.excludeInstanceIds !== undefined &&

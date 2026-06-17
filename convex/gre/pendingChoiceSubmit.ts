@@ -163,7 +163,15 @@ export function applyPendingChoiceSubmit(
         for (const id of args.cardInstanceIds) {
             const card = pool.find((c: CardInstanceState) => c.id === id);
             if (!card) throw new Error("Card not on battlefield");
-            if (head.filter && !matchesPermanentFilter(card, head.filter)) {
+            // CR 202.2 — match against the effective view so color/tapped
+            // filters (Magnetic Mountain) validate with colors populated.
+            if (
+                head.filter &&
+                !matchesPermanentFilter(
+                    effectivePermanentView(state, card),
+                    head.filter
+                )
+            ) {
                 throw new Error("Card does not match the required filter");
             }
         }
