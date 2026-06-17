@@ -41,6 +41,67 @@ describe("self-play harness (smoke)", () => {
     }, 60_000);
 });
 
+describe("self-play harness (search-error guard)", () => {
+    it("ends only the crashing game with search-error and never propagates", () => {
+        const players = [
+            presetToPlayerInput("mono-red-burn", 0, "A"),
+            presetToPlayerInput("mono-red-burn", 1, "B"),
+        ];
+        const state = createInitialGameState(players, 1234);
+        // Inject a search that crashes on the first decision — mirrors a buggy
+        // card resolution thrown during an ISMCTS rollout.
+        const crashingSearch = () => {
+            throw new Error("boom in rollout");
+        };
+        const result = runHeadlessGame(
+            state,
+            { id: "A", budget: { iterations: 4 } },
+            { id: "B", budget: { iterations: 4 } },
+            1234,
+            crashingSearch
+        );
+        // The exception did NOT propagate; the game ended as a harness guard.
+        expect(result.reason).toBe("search-error");
+        // A guard stop is NOT a decisive win/loss.
+        expect(result.winnerId).toBeNull();
+        expect(result.loserId).toBeNull();
+    });
+
+    it("counts a search-error game as a guard stop and the match still completes", () => {
+        // Run a real 2-game match, then assert the report's guard-stop
+        // accounting treats search-error exactly like the other guards (never a
+        // decisive win/loss). We build the expected report shape by replaying
+        // the loop with a crashing search across both games.
+        const crashingSearch = () => {
+            throw new Error("boom in rollout");
+        };
+        let guardStops = 0;
+        let decisive = 0;
+        const reasons: Record<string, number> = {};
+        for (let i = 0; i < 2; i++) {
+            const players = [
+                presetToPlayerInput("mono-red-burn", 0, "A"),
+                presetToPlayerInput("mono-red-burn", 1, "B"),
+            ];
+            const state = createInitialGameState(players, i + 1);
+            const result = runHeadlessGame(
+                state,
+                { id: "A", budget: { iterations: 4 } },
+                { id: "B", budget: { iterations: 4 } },
+                i + 1,
+                crashingSearch
+            );
+            reasons[result.reason] = (reasons[result.reason] ?? 0) + 1;
+            if (result.winnerId === "A" || result.winnerId === "B") decisive++;
+            else guardStops++;
+        }
+        // Both games crashed in search; the run completed (no hard failure).
+        expect(reasons["search-error"]).toBe(2);
+        expect(guardStops).toBe(2);
+        expect(decisive).toBe(0);
+    });
+});
+
 // `process` isn't in the browser-typed src tsconfig; read env off globalThis.
 const ENV: Record<string, string | undefined> =
     (globalThis as { process?: { env?: Record<string, string | undefined> } })

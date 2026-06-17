@@ -35,8 +35,9 @@ export type MatchReport = {
     decisive: number;
     aWins: number;
     bWins: number;
-    /** Non-terminal stops (stall / max-plies / resolution-error) — harness
-     *  health, NOT draws. A healthy match keeps this at 0. */
+    /** Non-terminal stops (stall / max-plies / resolution-error /
+     *  search-error) — harness health, NOT draws. A healthy match keeps this
+     *  at 0. */
     guardStops: number;
     /** Seat A win-rate over DECISIVE games (the headline number). 0.5 = even. */
     winRateA: number;
@@ -60,6 +61,7 @@ const ZERO_REASONS = (): Record<GameEndReason, number> => ({
     stall: 0,
     "max-plies": 0,
     "resolution-error": 0,
+    "search-error": 0,
 });
 
 /** Run a full match. Pure given (config, clock): the only impurity is reading
