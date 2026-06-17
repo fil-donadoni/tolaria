@@ -1,10 +1,12 @@
 import { LayoutGroup } from "motion/react";
 import type { Player } from "~/types/game";
 import type { StackItem } from "~/types/game";
-import { rowLayout, fanLayout, type Placement } from "~/lib/board-layout";
+import { fanLayout, type Placement } from "~/lib/board-layout";
 import { useGameContext } from "~/hooks/useGameContext";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
 import BoardNextCard from "./board-next-card";
+import BoardNextBattlefield from "./board-next-battlefield";
+import BoardNextPlayerAnchor from "./board-next-player-anchor";
 import BoardNextHandCard from "./board-next-hand-card";
 import BoardNextPiles from "./board-next-piles";
 import GameStack from "./game-stack";
@@ -18,28 +20,10 @@ type BoardNextProps = {
     stackItems: StackItem[];
 };
 
-/** Battlefield row: full size + gap until overflow, then overlap, then scale.
- *  Vertically centered in its zone (`rowLayout`, #251). */
-function battlefieldLayout(
-    count: number,
-    width: number,
-    height: number
-): Placement[] {
-    return rowLayout({ count, width, centerY: height / 2 });
-}
-
 /** Hand: shallow fanned arc, baseline near the bottom of its zone so the dome
  *  lifts upward into view (`fanLayout`, #251). */
 function handLayout(count: number, width: number, height: number): Placement[] {
     return fanLayout({ count, width, baseY: height * 0.6 });
-}
-
-/** Maps a battlefield (always-visible instances) to placeable slots. */
-function battlefieldItems(player: Player): SpatialItem[] {
-    return player.battlefield.map((card) => ({
-        key: card.id,
-        node: <BoardNextCard card={card} />,
-    }));
 }
 
 /** Maps a hand to placeable slots. Opponent slots are `null` (hidden) and
@@ -89,6 +73,10 @@ export default function BoardNext({
                     layout math, mirrored to the top half. */}
                 {opponent && (
                     <>
+                        <BoardNextPlayerAnchor
+                            playerId={opponent.id}
+                            side="top"
+                        />
                         <div className="absolute left-0 right-0 top-0 h-[18%]">
                             <SpatialZone
                                 items={handItems(
@@ -101,9 +89,8 @@ export default function BoardNext({
                             />
                         </div>
                         <div className="absolute left-0 right-0 top-[18%] h-[32%]">
-                            <SpatialZone
-                                items={battlefieldItems(opponent)}
-                                layout={battlefieldLayout}
+                            <BoardNextBattlefield
+                                player={opponent}
                                 mirror
                                 data-testid="zone-opponent-battlefield"
                             />
@@ -114,10 +101,10 @@ export default function BoardNext({
                 {/* Viewer: battlefield on the bottom half, hand on the bottom edge. */}
                 {me && (
                     <>
+                        <BoardNextPlayerAnchor playerId={me.id} side="bottom" />
                         <div className="absolute left-0 right-0 top-1/2 h-[32%]">
-                            <SpatialZone
-                                items={battlefieldItems(me)}
-                                layout={battlefieldLayout}
+                            <BoardNextBattlefield
+                                player={me}
                                 data-testid="zone-player-battlefield"
                             />
                         </div>
