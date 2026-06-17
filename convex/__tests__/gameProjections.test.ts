@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { projectFullState, projectPublicState } from "../gameProjections";
+import { computeSoloViewerId } from "../soloViewer";
 import type { CardInstanceState, GameState, PlayerState } from "../gre/state";
 
 function makeCard(
@@ -172,6 +173,97 @@ describe("projectFullState (CR: debug contract)", () => {
         for (const item of result.stack) {
             expect(Object.keys(item.card)).toEqual(["id"]);
         }
+    });
+});
+
+// Regression (issue #239): a `search-library` choice (CR 401.4 / 701.19)
+// exposes the chooser's library face-up via `librarySearch` so the picker pile
+// can open. Two failure modes are guarded here:
+//  1. In solo mode the projection's viewer must be the choice owner, not the
+//     priority/active player. When they diverge (mid-resolution choice — no one
+//     holds priority), keying exposure off the priority holder leaves the
+//     chooser without its library and the dialog opens empty until a refresh.
+//  2. The full/debug projection never populated `librarySearch` at all, so the
+//     picker was broken in "show all cards" mode regardless of timing.
+describe("search-library library exposure (issue #239, CR 401.4 / 701.19)", () => {
+    function stateWithSearch(): GameState {
+        // p2 is the chooser; priority still reads as p1 (the active player) —
+        // the mid-resolution divergence that the solo viewer must resolve.
+        return makeState({
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            pendingChoices: [
+                {
+                    stackItemId: "s1",
+                    step: 0,
+                    choiceId: "p2",
+                    playerId: "p2",
+                    kind: "search-library",
+                    zone: "library",
+                    count: 1,
+                    prompt: "Search your library for a card.",
+                },
+            ],
+        });
+    }
+
+    it("projectPublicState exposes librarySearch only to the chooser viewer", () => {
+        const state = stateWithSearch();
+        const result = projectPublicState(state, 1, "p2");
+        const chooser = result.players.find((p) => p.id === "p2")!;
+        const other = result.players.find((p) => p.id === "p1")!;
+        expect(chooser.librarySearch).toBeDefined();
+        expect(chooser.librarySearch!.map((c) => c.id)).toEqual([
+            "p2-l1",
+            "p2-l2",
+        ]);
+        expect(other.librarySearch).toBeUndefined();
+    });
+
+    it("does NOT expose librarySearch when the viewer is the priority holder, not the chooser", () => {
+        // This is the bug: projecting for the priority/active player (p1) — as
+        // the old solo viewer did — leaves the real chooser (p2) without a
+        // face-up library, so the search dialog opens empty.
+        const state = stateWithSearch();
+        const result = projectPublicState(state, 1, "p1");
+        const chooser = result.players.find((p) => p.id === "p2")!;
+        expect(chooser.librarySearch).toBeUndefined();
+    });
+
+    it("solo viewer follows the chooser so the picker pile opens without a refresh", () => {
+        // Mirrors the composition getPublicState performs for a solo game:
+        // computeSoloViewerId(state) → projectPublicState(state, seq, viewerId).
+        const state = stateWithSearch();
+        const viewerId = computeSoloViewerId({
+            activePlayerId: state.activePlayerId,
+            priorityPlayerId: state.priorityPlayerId ?? state.activePlayerId,
+            phase: state.phase,
+            combat: state.combat,
+            pendingCast: state.pendingCast,
+            pendingActivation: state.pendingActivation,
+            pendingTarget: state.pendingTarget,
+            pendingChoices: state.pendingChoices,
+            playerIds: state.players.map((p) => p.id),
+        });
+        expect(viewerId).toBe("p2");
+        const result = projectPublicState(state, 1, viewerId);
+        const chooser = result.players.find((p) => p.id === "p2")!;
+        expect(chooser.librarySearch!.map((c) => c.id)).toEqual([
+            "p2-l1",
+            "p2-l2",
+        ]);
+    });
+
+    it("projectFullState exposes librarySearch to the chooser in show-all-cards mode", () => {
+        const state = stateWithSearch();
+        const result = projectFullState(state, 1);
+        const chooser = result.players.find((p) => p.id === "p2")!;
+        const other = result.players.find((p) => p.id === "p1")!;
+        expect(chooser.librarySearch!.map((c) => c.id)).toEqual([
+            "p2-l1",
+            "p2-l2",
+        ]);
+        expect(other.librarySearch).toBeUndefined();
     });
 });
 

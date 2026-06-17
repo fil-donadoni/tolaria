@@ -74,6 +74,11 @@ export type FullPlayer = Omit<
 > & {
     hand: SlimHandCard[];
     library: SlimCardInstance[];
+    /** Set only on the chooser's player while a `search-library` choice is
+     *  active (CR 401.4 / 701.19) — the library exposed face-up for the picker.
+     *  Mirrors `PublicPlayer.librarySearch` so the same UI gate works in the
+     *  full debug view. */
+    librarySearch?: SlimCardInstance[];
     graveyard: SlimCardInstance[];
     exile: SlimCardInstance[];
     battlefield: SlimCardInstance[];
@@ -252,6 +257,17 @@ export function projectFullState(
     seq: number,
     allActions: boolean = false
 ): FullGameState {
+    // CR 401.4 / 701.19: an active `search-library` choice exposes the chooser's
+    // library face-up via `librarySearch` so the picker pile can open. The full
+    // debug view shows every zone, but the library picker still keys off this
+    // field — mirror the public projection so search dialogs work in "show all
+    // cards" mode too, not only via getPublicState.
+    const head = state.pendingChoices?.[0];
+    const searchChooserId =
+        head?.kind === "search-library" && head.zone === "library"
+            ? head.playerId
+            : undefined;
+
     const players = state.players.map(
         (player): FullPlayer => ({
             ...player,
@@ -267,6 +283,10 @@ export function projectFullState(
                 })
             ),
             library: player.library.map(slimCard),
+            librarySearch:
+                player.id === searchChooserId
+                    ? player.library.map(slimCard)
+                    : undefined,
             graveyard: player.graveyard.map(slimCard),
             exile: player.exile.map(slimCard),
             battlefield: player.battlefield.map(slimCard),

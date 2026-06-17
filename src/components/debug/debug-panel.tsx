@@ -86,8 +86,40 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         // damage at end step while the idle one still pings you for 2.
         label: "ARN: end-step penalty (Erg Raiders)",
         cards: [
-            { name: "Erg Raiders", owner: "me" as const, count: 2 },
-            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Plains", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const, zone: "hand" as const },
+            {
+                name: "Mahamoti Djinn",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Air Elemental",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Air Elemental",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Air Elemental",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Air Elemental",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Counterspell",
+                owner: "opp" as const,
+                zone: "hand" as const,
+                count: 2,
+            },
+            { name: "Plains", owner: "me" as const, count: 3 },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,

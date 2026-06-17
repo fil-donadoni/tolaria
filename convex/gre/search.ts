@@ -365,7 +365,7 @@ function passInSearch(state: GameState, passerId: string): void {
  *  Documented simulation limits (server stays authoritative, so inexactness only
  *  costs move quality): coarse mana (tap-plan only), and `activate-ability`
  *  applies costs but does not put the ability's effect on the stack. */
-function applyMoveInSearch(
+export function applyMoveInSearch(
     state: GameState,
     playerId: string,
     move: Move

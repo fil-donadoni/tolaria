@@ -1,0 +1,252 @@
+// Headless bot-vs-bot game loop (ADR 0001 self-play harness). Plays a full game
+// to its natural end (life / decked) with NO Convex runtime: both seats are
+// driven by the SAME production decision stack the live bot uses —
+//
+//   * decision nodes (priority, land/spell/ability, attack/block, mulligan
+//     keep-or-mull) → `search` (ISMCTS), applied via `applyMoveInSearch`;
+//   * resolution nodes (discard / scry / sacrifice / may-pay / mulligan-bottom)
+//     → the SAME default policy as live play (`chooseResolution`, ADR 0016),
+//     applied via the engine-side resolvers `applyPendingChoiceSubmit` /
+//     `applyMayPaySubmit`.
+//
+// Fidelity: this is the same code the server would run, minus Convex
+// orchestration (scheduler / persistence). The harness measures the engine's
+// own play quality, so any divergence here would bias the metric. Documented v1
+// simplifications (flagged, not hidden):
+//   * may-pay: accept a COSTLESS "may" (always affordable), decline a costed one
+//     — the headless bot does not pre-tap lands, so accepting a costed may-pay
+//     can't be paid. Rare in the preset decks; revisit with real mana planning.
+//   * mid-cast target re-selection (`pendingTarget` from copy effects, Fork) is
+//     not driven — such a game aborts with reason `"resolution-error"`.
+
+import {
+    search,
+    applyMoveInSearch,
+    decidingPlayer,
+    enumerateMoves,
+    materialMargin,
+    cardValueById,
+    getPlayer,
+    matchesPermanentFilter,
+    getPendingChoiceMin,
+    getPendingChoiceMax,
+    makeRng,
+    type GameState,
+    type PendingChoice,
+    type CardInstanceState,
+    type SearchBudget,
+} from "@convex/gre";
+import {
+    applyPendingChoiceSubmit,
+    applyMayPaySubmit,
+    recordDeclaration,
+} from "@convex/gre";
+import { chooseResolution, type OwedChoice } from "../brain";
+
+/** Why a game ended. `stall` / `max-plies` / `resolution-error` are harness
+ *  guards, not real MTG outcomes — they surface a bug or an unsupported case
+ *  rather than a legitimate win, and are reported separately so they never
+ *  silently inflate a win-rate. */
+export type GameEndReason =
+    | "life"
+    | "decked"
+    | "concede"
+    | "stall"
+    | "max-plies"
+    | "resolution-error";
+
+export type GameResult = {
+    /** Seat id that won, or null for a non-terminal stop (guard reasons). */
+    winnerId: string | null;
+    loserId: string | null;
+    reason: GameEndReason;
+    /** Game turn number reached (CR 500-style turn counter). */
+    turns: number;
+    /** Total decision+resolution steps applied (work done). */
+    plies: number;
+    /** Final material margin from seat A's perspective (signed; + = A ahead).
+     *  Saturation-proof (`materialMargin`), so it stays informative even after a
+     *  terminal life swing. */
+    marginA: number;
+};
+
+export type SeatConfig = {
+    id: string;
+    budget: SearchBudget;
+};
+
+const MAX_PLIES = 4000;
+
+/** List the legal candidate instances for a zone-pick choice, honoring the
+ *  precomputed allow-list (`candidateIds`) when present, else the declared zone
+ *  (+ battlefield filter). Mirrors the zone-membership logic the resolver
+ *  validates against, so the picked ids are always legal. */
+function listCandidates(
+    state: GameState,
+    head: PendingChoice
+): CardInstanceState[] {
+    const zoneOwner = getPlayer(state, head.zoneOwnerId ?? head.playerId);
+
+    if (head.zone === "hand") {
+        const pool = zoneOwner.hand;
+        return head.candidateIds
+            ? pool.filter((c) => head.candidateIds!.includes(c.id))
+            : pool;
+    }
+    if (head.zone === "library") {
+        return zoneOwner.library;
+    }
+    if (head.zone === "battlefield") {
+        const pool = head.allControllers
+            ? state.players.flatMap((p) => p.battlefield)
+            : zoneOwner.battlefield;
+        const filtered = head.filter
+            ? pool.filter((c) => matchesPermanentFilter(c, head.filter!))
+            : pool;
+        return head.candidateIds
+            ? filtered.filter((c) => head.candidateIds!.includes(c.id))
+            : filtered;
+    }
+    // No zone (e.g. choose-damage-target): fall back to the permanent allow-list.
+    if (head.candidateIds) {
+        const all = state.players.flatMap((p) => p.battlefield);
+        return all.filter((c) => head.candidateIds!.includes(c.id));
+    }
+    return [];
+}
+
+/** The latent worth of an instance from its registry id (ADR 0018) — the SAME
+ *  primitive `buildBotView` projects onto choice candidates, so the harness
+ *  orders choices exactly as live play does. */
+function instanceValue(inst: CardInstanceState): number {
+    const id = (inst.card as { id?: string } | undefined)?.id;
+    return id ? cardValueById(id) : 0;
+}
+
+/** Resolve the head pending choice with the production default policy, applied
+ *  through the engine-side resolvers. Mutates `state`. Returns false if the
+ *  choice can't be driven headless (caller aborts the game). */
+function resolvePending(state: GameState): boolean {
+    const head = state.pendingChoices?.[0];
+    if (!head) return false;
+
+    if (head.kind === "may-pay") {
+        // v1: accept a costless "may", decline a costed one (see file header).
+        const accept = !head.cost;
+        applyMayPaySubmit(state, { playerId: head.playerId, accept });
+        return true;
+    }
+
+    const min = getPendingChoiceMin(head.count);
+    const max = getPendingChoiceMax(head.count);
+    const candidates = listCandidates(state, head).map((c) => ({
+        id: c.id,
+        value: instanceValue(c),
+    }));
+
+    let ids: string[];
+    if (head.kind === "mulligan-bottom") {
+        // Bottom the `min` lowest-value cards (keep the best) — the live bottom
+        // heuristic also sheds worst-first.
+        ids = [...candidates]
+            .sort((a, b) => a.value - b.value)
+            .slice(0, min)
+            .map((c) => c.id);
+    } else if (
+        head.kind === "choose-damage-target" &&
+        candidates.length === 0
+    ) {
+        // Players aren't zone cards: ping the first legal player (minimal).
+        const pid = head.candidatePlayerIds?.[0];
+        ids = pid ? [pid] : [];
+    } else {
+        const owed: OwedChoice = { kind: head.kind, min, max, candidates };
+        ids = chooseResolution(owed);
+    }
+
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds: ids,
+    });
+    return true;
+}
+
+/** Play one full game to completion. Seats play in `state.players` order;
+ *  `seatA` is the perspective for `marginA`. `seed` makes the whole game
+ *  reproducible (search determinization + tie-breaks). */
+export function runHeadlessGame(
+    state: GameState,
+    seatA: SeatConfig,
+    seatB: SeatConfig,
+    seed: number
+): GameResult {
+    const rng = makeRng(seed);
+    const nextSeed = () => Math.floor(rng() * 0x7fffffff);
+    const budgetFor = (pid: string): SearchBudget =>
+        pid === seatA.id ? seatA.budget : seatB.budget;
+
+    let plies = 0;
+    let reason: GameEndReason = "max-plies";
+
+    while (plies < MAX_PLIES) {
+        if (state.gameOver) {
+            reason = state.gameOver.reason;
+            break;
+        }
+
+        const pid = decidingPlayer(state);
+        if (pid) {
+            // A search-decided node.
+            const move = search(state, pid, budgetFor(pid), nextSeed());
+            if (move) {
+                // Mulligan keep/mull is a NO-OP in `applyMoveInSearch` (the
+                // search resolves it only at its own root, never mid-rollout);
+                // drive it through the real mulligan engine, as the live
+                // `declareMulligan` mutation does.
+                if (move.kind === "mulligan") {
+                    recordDeclaration(state, pid, move.decision);
+                } else {
+                    applyMoveInSearch(state, pid, move);
+                }
+            } else {
+                // No ranked move (forced window): take the first legal, else stall.
+                const legal = enumerateMoves(state, pid);
+                if (legal.length === 0) {
+                    reason = "stall";
+                    break;
+                }
+                applyMoveInSearch(state, pid, legal[0]);
+            }
+        } else if ((state.pendingChoices?.length ?? 0) > 0) {
+            // A resolution node — production default policy.
+            try {
+                if (!resolvePending(state)) {
+                    reason = "resolution-error";
+                    break;
+                }
+            } catch {
+                reason = "resolution-error";
+                break;
+            }
+        } else {
+            // Not game over, nobody owes a decision, no pending choice: the engine
+            // failed to settle to a stable point (mid-cast target / engine bug).
+            reason = "stall";
+            break;
+        }
+        plies++;
+    }
+
+    const over = state.gameOver;
+    return {
+        winnerId: over?.winnerId ?? null,
+        loserId: over?.loserId ?? null,
+        reason,
+        turns: state.turn,
+        plies,
+        marginA: materialMargin(state, seatA.id),
+    };
+}

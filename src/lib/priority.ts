@@ -3,9 +3,14 @@ import type {
     GameOver,
     PendingActivation,
     PendingCast,
-    PendingChoice,
     PendingTarget,
 } from "~/types/game";
+
+// Solo-mode viewer selection lives in convex/ as the single source of truth so
+// the server projection and the client board never diverge on "who is the solo
+// viewer" (see convex/soloViewer.ts). Re-exported here so existing
+// `~/lib/priority` consumers keep their import path.
+export { computeSoloViewerId, type SoloViewerCtx } from "@convex/soloViewer";
 
 export type HasPriorityCtx = {
     playerId: string;
@@ -156,58 +161,4 @@ export function computeAutoPassBlocked(ctx: AutoPassBlockedCtx): boolean {
     if (!computeHasPriority(ctx)) return true;
     if (ctx.stackCount > 0) return true;
     return false;
-}
-
-export type SoloViewerCtx = {
-    activePlayerId: string;
-    priorityPlayerId: string;
-    phase: string;
-    combat?: Combat;
-    pendingCast?: PendingCast;
-    pendingActivation?: PendingActivation;
-    pendingTarget?: PendingTarget;
-    pendingChoices?: PendingChoice[];
-    playerIds: readonly string[];
-};
-
-// CR 509.1 — defender declares blockers as a turn-based action before the
-// active player receives priority in DECLARE_BLOCKERS. priorityPlayerId still
-// reads as active during that window, so solo viewer must steer to the
-// defender (or any other player owning a pending action) explicitly.
-export function computeSoloViewerId(ctx: SoloViewerCtx): string {
-    const choiceOwner = ctx.pendingChoices?.[0]?.playerId;
-    if (choiceOwner) return choiceOwner;
-    if (ctx.pendingTarget?.playerId) return ctx.pendingTarget.playerId;
-    if (ctx.pendingCast?.playerId) return ctx.pendingCast.playerId;
-    if (ctx.pendingActivation?.playerId) return ctx.pendingActivation.playerId;
-
-    if (
-        ctx.phase === "DECLARE_BLOCKERS" &&
-        ctx.combat &&
-        !ctx.combat.blockersConfirmed
-    ) {
-        const defender = ctx.playerIds.find((id) => id !== ctx.activePlayerId);
-        if (defender) return defender;
-    }
-
-    // CR 702.21j-k: when banding hands damage-assignment authority to the
-    // defending player, steer the solo viewer to whoever still owes a choice.
-    if (
-        (ctx.phase === "COMBAT_DAMAGE" ||
-            ctx.phase === "FIRST_STRIKE_DAMAGE") &&
-        ctx.combat &&
-        ctx.combat.damageConfirmed === false
-    ) {
-        const assigners = ctx.combat.damageAssignerIds;
-        if (assigners) {
-            const confirmed = new Set(
-                ctx.combat.damageAssignmentConfirmedBy ?? []
-            );
-            for (const playerId of Object.values(assigners)) {
-                if (!confirmed.has(playerId)) return playerId;
-            }
-        }
-    }
-
-    return ctx.priorityPlayerId;
 }
