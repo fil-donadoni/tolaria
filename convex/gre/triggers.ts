@@ -31,6 +31,14 @@ function buildTriggerItem(
         triggeredAbilityId,
         triggerSourceId: self.id,
         triggerEvent: event,
+        // CR 603.3d — a triggered ability's targets are chosen when it is put
+        // on the stack, not inherited from the source permanent. The `...self`
+        // spread copies the source's stale `targets` (e.g. an Aura still
+        // carries the `graveyard-card` target from when it was cast); drop it
+        // so the resolution-time legality gate (CR 608.2b) doesn't fizzle the
+        // trigger against a target that was never its own. Targeted triggers
+        // set their own `targets` after this builder runs.
+        targets: undefined,
     };
 }
 
