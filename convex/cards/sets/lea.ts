@@ -4454,6 +4454,10 @@ export const lightningBolt: CardDefinition = {
     manaCost: { R: 1 },
     types: ["Instant"],
     targetRequirement: { type: "any", count: 1 },
+    // AI combat hint (ADR 0021, issue #229): instant-speed creature removal the
+    // bot models while held — a defender holding it can remove a blocker (or an
+    // attacker) in combat, so over-committing into it is discounted.
+    aiCombatHint: { removal: true },
     resolve: (ctx: SpellContext) => {
         ctx.dealDamage(ctx.targets[0], 3);
     },
@@ -5539,6 +5543,10 @@ export const giantGrowth: CardDefinition = {
     manaCost: { G: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
+    // AI combat hint (ADR 0021, issue #229): a +3/+3 combat trick the bot models
+    // while held — the attacker's ambush pump (a bait attacker is no longer
+    // pre-judged dead) and the threat a defender must respect.
+    aiCombatHint: { pump: { power: 3, toughness: 3 } },
     // CR 611.1 / 514.2: "+3/+3 until end of turn" is a temporary P/T buff that
     // must expire at the cleanup step — NOT a permanent base-stat mutation.
     // `addTemporaryPTBuff` records it in `temporaryPTMods` with an end-of-turn
