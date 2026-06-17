@@ -66,6 +66,9 @@ import {
     guardianBeast,
     abuJafar,
     jandorsRing,
+    bottleOfSuleiman,
+    mijaeDjinn,
+    ydwenEfreet,
 } from "../arn";
 import {
     grizzlyBears,
@@ -3150,5 +3153,218 @@ describe("Guardian Beast (permanent-guard while untapped, CR 611)", () => {
             (e) => e.kind === "permanent-guard"
         );
         expect(guards).toHaveLength(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Batch 4 (#191) — coin flip (CR 705). Seeds chosen so the FIRST flip is
+// deterministic: rngSeed 1 → randomInt(2) === 1 (heads / win), rngSeed 7 →
+// randomInt(2) === 0 (tails / lose). See rng.test.ts for the substrate proof.
+// ---------------------------------------------------------------------------
+
+const WIN_SEED = 1; // first flipCoin() → true
+const LOSE_SEED = 7; // first flipCoin() → false
+
+describe("Bottle of Suleiman (coin flip activated ability, CR 705)", () => {
+    it("definition snapshot: {4} Artifact, {1}+sacrifice flip ability", () => {
+        expect(bottleOfSuleiman.types).toEqual(["Artifact"]);
+        expect(bottleOfSuleiman.manaCost).toEqual({ X: 4 });
+        const ability = bottleOfSuleiman.activatedAbilities![0];
+        expect(ability.cost).toEqual({ mana: { X: 1 }, sacrifice: true });
+    });
+
+    it("win flip → creates a 5/5 flying Djinn artifact creature token", () => {
+        const bottle = makeInstance(bottleOfSuleiman.id, {
+            id: "bottle",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            rngSeed: WIN_SEED,
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [bottle] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, bottle, "bottle-of-suleiman-flip");
+        const tokens = state.players[0].battlefield.filter((c) => c.isToken);
+        expect(tokens).toHaveLength(1);
+        const djinn = tokens[0];
+        expect(djinn.types).toEqual(["Artifact", "Creature"]);
+        expect(djinn.subtypes).toContain("Djinn");
+        expect(djinn.power).toBe(5);
+        expect(djinn.toughness).toBe(5);
+        expect(djinn.staticAbilities).toContain("flying");
+        // No self-damage on a win.
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("lose flip → deals 5 damage to its controller, no token", () => {
+        const bottle = makeInstance(bottleOfSuleiman.id, {
+            id: "bottle",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            rngSeed: LOSE_SEED,
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [bottle] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, bottle, "bottle-of-suleiman-flip");
+        expect(state.players[0].life).toBe(15);
+        expect(state.players[0].battlefield.filter((c) => c.isToken)).toEqual(
+            []
+        );
+    });
+});
+
+describe("Mijae Djinn (attack flip, CR 705 + CR 508)", () => {
+    it("definition snapshot: 6/3 Djinn, {R}{R}{R}", () => {
+        expect(mijaeDjinn.power).toBe(6);
+        expect(mijaeDjinn.toughness).toBe(3);
+        expect(mijaeDjinn.subtypes).toContain("Djinn");
+        expect(mijaeDjinn.manaCost).toEqual({ R: 3 });
+    });
+
+    function attackingMijae(seed: number) {
+        const mijae = makeInstance(mijaeDjinn.id, {
+            id: "mijae",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const state = makeState({
+            rngSeed: seed,
+            players: [
+                makePlayer("p1", { battlefield: [mijae] }),
+                makePlayer("p2"),
+            ],
+            combat: {
+                attackerIds: ["mijae"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const event: StackItem["triggerEvent"] = {
+            type: "ATTACKERS_DECLARED",
+            attackingPlayerId: "p1",
+            attackerIds: ["mijae"],
+        };
+        resolveTrigger(state, mijae, "mijae-djinn-attack-flip", event);
+        return state;
+    }
+
+    it("won flip → stays attacking, untapped", () => {
+        const state = attackingMijae(WIN_SEED);
+        const m = state.players[0].battlefield.find((c) => c.id === "mijae")!;
+        expect(m.isAttacking).toBe(true);
+        expect(m.isTapped).toBe(false);
+        expect(state.combat!.attackerIds).toContain("mijae");
+    });
+
+    it("lost flip → removed from combat and tapped", () => {
+        const state = attackingMijae(LOSE_SEED);
+        const m = state.players[0].battlefield.find((c) => c.id === "mijae")!;
+        expect(m.isAttacking).toBeFalsy();
+        expect(m.isTapped).toBe(true);
+        expect(state.combat!.attackerIds).not.toContain("mijae");
+    });
+});
+
+describe("Ydwen Efreet (block flip, CR 705 + CR 509.1h)", () => {
+    it("definition snapshot: 3/6 Efreet, {R}{R}{R}", () => {
+        expect(ydwenEfreet.power).toBe(3);
+        expect(ydwenEfreet.toughness).toBe(6);
+        expect(ydwenEfreet.subtypes).toContain("Efreet");
+        expect(ydwenEfreet.manaCost).toEqual({ R: 3 });
+    });
+
+    function blockingYdwen(seed: number) {
+        // p1 attacks with a bear; p2's Ydwen is its only blocker.
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "atk",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const ydwen = makeInstance(ydwenEfreet.id, {
+            id: "ydwen",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const state = makeState({
+            rngSeed: seed,
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [attacker] }),
+                makePlayer("p2", { life: 20, battlefield: [ydwen] }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: { ydwen: ["atk"] },
+                blockedAttackerIds: ["atk"],
+                blockersConfirmed: true,
+            },
+        });
+        const event: StackItem["triggerEvent"] = {
+            type: "BLOCKERS_CONFIRMED",
+            attackerId: "atk",
+            attackerControllerId: "p1",
+            attackerTypes: ["Creature"],
+            attackerSubtypes: [],
+            blockerId: "ydwen",
+            blockerControllerId: "p2",
+            blockerTypes: ["Creature"],
+            blockerSubtypes: ["Efreet"],
+        };
+        resolveTrigger(state, ydwen, "ydwen-efreet-block-flip", event);
+        return state;
+    }
+
+    it("won flip → stays blocking, attacker stays blocked", () => {
+        const state = blockingYdwen(WIN_SEED);
+        const y = state.players[1].battlefield.find((c) => c.id === "ydwen")!;
+        expect(y.isBlocking).toBe(true);
+        expect(y.cantBlockThisTurn).toBeFalsy();
+        expect(state.combat!.blockedAttackerIds).toContain("atk");
+        expect(state.combat!.blockerAssignments.ydwen).toEqual(["atk"]);
+    });
+
+    it("lost flip → removed from combat, can't block, solely-blocked attacker becomes unblocked and hits defender", () => {
+        const state = blockingYdwen(LOSE_SEED);
+        const y = state.players[1].battlefield.find((c) => c.id === "ydwen")!;
+        expect(y.isBlocking).toBeFalsy();
+        expect(y.cantBlockThisTurn).toBe(true);
+        // The bear it solely blocked is unblocked again (CR 509.1h).
+        expect(state.combat!.blockedAttackerIds).not.toContain("atk");
+        expect(state.combat!.blockerAssignments.ydwen ?? []).not.toContain(
+            "atk"
+        );
+        // Damage step: the now-unblocked bear (2 power) hits the defender (p2).
+        applyAllCombatDamage(state, { atk: { p2: 2 } });
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("can't block this turn is enforced by validateBlockerEligibility (CR 509.1b)", () => {
+        const state = blockingYdwen(LOSE_SEED);
+        const y = state.players[1].battlefield.find((c) => c.id === "ydwen")!;
+        const newAttacker = makeInstance(grizzlyBears.id, {
+            id: "atk2",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const result = validateBlockerEligibility(
+            newAttacker,
+            y,
+            state.players[1].battlefield,
+            state
+        );
+        expect(result.eligible).toBe(false);
     });
 });

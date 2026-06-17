@@ -65,3 +65,44 @@ describe("PRNG determinism (CR 707, replay)", () => {
         expect(arr.sort((x, y) => x - y)).toEqual([1, 2, 3, 4, 5]);
     });
 });
+
+// Coin flips (CR 705) route through `randomInt(state, 2)` — the exact
+// substrate `SpellContext.flipCoin` wraps (1 = heads/win, 0 = tails/lose).
+// These assert that the flip stream is reproducible given the seed, which is
+// what replay safety for Bottle of Suleiman / Mijae / Ydwen depends on.
+describe("coin flip determinism (CR 705, replay)", () => {
+    // flipCoin() === randomInt(state, 2) === 1
+    const flip = (s: GameState): boolean => randomInt(s, 2) === 1;
+
+    it("produces an identical flip sequence for the same seed", () => {
+        const a = state(2024);
+        const b = state(2024);
+        const seqA = Array.from({ length: 20 }, () => flip(a));
+        const seqB = Array.from({ length: 20 }, () => flip(b));
+        expect(seqA).toEqual(seqB);
+    });
+
+    it("each flip is a boolean and the counter advances per flip", () => {
+        const s = state(55);
+        const first = flip(s);
+        expect(typeof first).toBe("boolean");
+        expect(s.rngCounter).toBe(1);
+        flip(s);
+        expect(s.rngCounter).toBe(2);
+    });
+
+    it("different seeds diverge across the flip stream", () => {
+        const a = state(1);
+        const b = state(987654);
+        const seqA = Array.from({ length: 20 }, () => flip(a));
+        const seqB = Array.from({ length: 20 }, () => flip(b));
+        expect(seqA).not.toEqual(seqB);
+    });
+
+    it("yields both outcomes over a run (not stuck on one face)", () => {
+        const s = state(31337);
+        const results = Array.from({ length: 40 }, () => flip(s));
+        expect(results).toContain(true);
+        expect(results).toContain(false);
+    });
+});

@@ -353,6 +353,10 @@ export type CardInstanceState = {
     /** Transient flag: this creature must block every attacker it can this
      *  turn (Blaze of Glory). Cleared at CLEANUP. */
     mustBlockAllThisTurn?: boolean;
+    /** Transient flag: this creature can't block this turn (CR 509.1b).
+     *  Twin of `mustBlockAllThisTurn`. Set by Ydwen Efreet's lost block
+     *  flip; enforced in `validateBlockerEligibility`. Cleared at CLEANUP. */
+    cantBlockThisTurn?: boolean;
     /** Layer 5 color override (CR 305.7, 613.1d). When set, getColors()
      *  returns this array instead of mana-cost-derived + grantedColors.
      *  Set by lace instants ("target spell or permanent becomes [color]"). */
@@ -2757,6 +2761,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             for (const p of state.players) fn(p.id);
         },
 
+        flipCoin(): boolean {
+            // CR 705.2 — flip a coin. Routed through the game's seeded PRNG
+            // (rngSeed/rngCounter) so the outcome is deterministic on replay,
+            // exactly like seeded shuffles and random discard. randomInt(2)
+            // returns 0 or 1; treat 1 as heads (the flipping player wins).
+            return randomInt(state, 2) === 1;
+        },
+
         dealDamage(target: TargetSelection, amount: number) {
             // CR 614 replacement effects run BEFORE CR 615 prevention. May
             // rewrite target (Simulacrum / Veteran Bodyguard / Personal
@@ -3764,6 +3776,13 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             found.card.mustBlockAllThisTurn = true;
+        },
+
+        setCantBlockThisTurn(target: TargetSelection): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.cantBlockThisTurn = true;
         },
 
         setColorOverride(target: TargetSelection, colors: Color[]): void {

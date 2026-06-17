@@ -909,6 +909,17 @@ export interface SpellContext {
     /** Marks a target permanent as "must block all attackers if able" this
      *  turn (Blaze of Glory). Cleared at CLEANUP. */
     setMustBlockAll: (target: TargetSelection) => void;
+    /** Marks a target permanent as unable to block this turn (CR 509.1b).
+     *  Twin of `setMustBlockAll`. Cleared at CLEANUP. Used by Ydwen Efreet's
+     *  lost block flip. No-op if target is not a permanent on the
+     *  battlefield. */
+    setCantBlockThisTurn: (target: TargetSelection) => void;
+    /** Flips a coin (CR 705) using the game's seeded PRNG, so flips are
+     *  replay-safe and reproducible given the seed. Returns true on "heads"
+     *  (the flipping player wins the flip), false on "tails". Available where
+     *  triggered and activated abilities resolve. Used by Bottle of Suleiman,
+     *  Mijae Djinn, and Ydwen Efreet. */
+    flipCoin: () => boolean;
     /** Sets colorOverride on a target permanent or spell (CR 305.7, layer 5).
      *  Replaces all color derivation — the target "becomes" the given colors.
      *  Used by lace instants. No-op if target has left play / stack. */

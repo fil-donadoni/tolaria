@@ -137,6 +137,15 @@ export function validateBlockerEligibility(
     defenderBattlefield: CardInstanceState[],
     state?: GameState
 ): BlockerValidation {
+    // Pass 0 — "can't block this turn" flag (CR 509.1b). Twin of
+    // mustBlockAllThisTurn; set by Ydwen Efreet's lost block flip.
+    if (blocker.cantBlockThisTurn) {
+        return {
+            eligible: false,
+            reason: "This creature can't block this turn",
+        };
+    }
+
     // Pass 1 — keyword-level evasion (registry-driven).
     // Covers: unblockable (509.1b), landwalk (702.13b), fear (702.36b),
     // flying (702.9b).

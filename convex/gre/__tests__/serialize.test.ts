@@ -193,6 +193,8 @@ describe("game_state serialize round-trip", () => {
             { kind: "land-type", from: "Forest", to: "Island" },
         ];
         lion.pileLabel = "left";
+        lion.mustBlockAllThisTurn = true;
+        lion.cantBlockThisTurn = true;
         lion.copiedFrom = "printed-clone-id";
 
         const expanded = expandState(compactState(state));
@@ -242,6 +244,8 @@ describe("game_state serialize round-trip", () => {
             { kind: "land-type", from: "Forest", to: "Island" },
         ]);
         expect(got.pileLabel).toBe("left");
+        expect(got.mustBlockAllThisTurn).toBe(true);
+        expect(got.cantBlockThisTurn).toBe(true);
         expect(got.copiedFrom).toBe("printed-clone-id");
     });
 

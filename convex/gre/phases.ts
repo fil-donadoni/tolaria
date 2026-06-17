@@ -1306,6 +1306,9 @@ export function finalizeCleanup(state: GameState): void {
             if (card.mustBlockAllThisTurn) {
                 card.mustBlockAllThisTurn = undefined;
             }
+            if (card.cantBlockThisTurn) {
+                card.cantBlockThisTurn = undefined;
+            }
         }
     }
 }
