@@ -38,6 +38,7 @@ vi.mock("../board-next-hand-card", () => ({
     ),
 }));
 vi.mock("../game-stack", () => ({ default: () => null }));
+vi.mock("../board-next-piles", () => ({ default: () => null }));
 vi.mock("../phase-tracker", () => ({ default: () => null }));
 vi.mock("../priority-indicator", () => ({ default: () => null }));
 vi.mock("../target-arrows-overlay", () => ({ default: () => null }));

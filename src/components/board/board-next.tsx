@@ -6,6 +6,7 @@ import { useGameContext } from "~/hooks/useGameContext";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
 import BoardNextCard from "./board-next-card";
 import BoardNextHandCard from "./board-next-hand-card";
+import BoardNextPiles from "./board-next-piles";
 import GameStack from "./game-stack";
 import PhaseTracker from "./phase-tracker";
 import PriorityIndicator from "./priority-indicator";
@@ -129,6 +130,11 @@ export default function BoardNext({
                         </div>
                     </>
                 )}
+
+                {/* Card piles (graveyard / library / exile) for both seats,
+                    reusing the existing pile components incl. their expanded
+                    reveal + inertial scroll (#255). */}
+                <BoardNextPiles orderedPlayers={orderedPlayers} />
 
                 {/* Spatial chrome shared with the classic board. */}
                 <PriorityIndicator />
