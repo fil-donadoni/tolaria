@@ -1670,6 +1670,66 @@ export const dropOfHoney: CardDefinition = {
     ],
 };
 
+// Metamorphosis (ARN) — "As an additional cost to cast this spell, sacrifice a
+// creature. Add X mana of any one color, where X is 1 plus the sacrificed
+// creature's mana value. Spend this mana only to cast creature spells."
+//
+// CR 117.9 / 601.2f: the sacrifice is an additional cost paid at announcement;
+// the engine snapshots the sacrificed creature's mana value, read here via
+// getAdditionalSacrificeMv(). CR 106.6: the produced mana carries a
+// "creature-spell" spend restriction enforced at later spell-cast sites.
+//
+// "Any one color" is modelled as five modes (one per color) picked at
+// announcement. CR 700.2 puts a modal choice at announcement; the printed card
+// chooses the color on resolution. Choosing at announcement is a deliberate,
+// invisible simplification — all five colors are always legal and nothing
+// between announcement and resolution can change that — and it reuses the
+// engine's existing, fully-wired modal cast flow (incl. the UI mode picker)
+// instead of a bespoke resolution-time color picker.
+const METAMORPHOSIS_COLORS: {
+    id: string;
+    color: "W" | "U" | "B" | "R" | "G";
+    label: string;
+}[] = [
+    { id: "white", color: "W", label: "Add white mana" },
+    { id: "blue", color: "U", label: "Add blue mana" },
+    { id: "black", color: "B", label: "Add black mana" },
+    { id: "red", color: "R", label: "Add red mana" },
+    { id: "green", color: "G", label: "Add green mana" },
+];
+
+export const metamorphosis: CardDefinition = {
+    id: "fbc6cfc3-b232-40bf-bc0c-4618f6f5c9a5",
+    name: "Metamorphosis",
+    oracleText:
+        "As an additional cost to cast this spell, sacrifice a creature.\nAdd X mana of any one color, where X is 1 plus the sacrificed creature's mana value. Spend this mana only to cast creature spells.",
+    manaCost: { G: 1 },
+    types: ["Sorcery"],
+    additionalCosts: { sacrificeFilter: { types: "Creature" } },
+    modes: METAMORPHOSIS_COLORS.map((m) => ({
+        id: m.id,
+        label: m.label,
+        oracleText:
+            "Add X mana of any one color, where X is 1 plus the sacrificed creature's mana value. Spend this mana only to cast creature spells.",
+        resolve: (ctx: SpellContext) => {
+            // X = 1 + sacrificed creature's mana value (CR 202.3).
+            const mv = ctx.getAdditionalSacrificeMv();
+            if (mv === undefined) return;
+            const amount = 1 + mv;
+            if (amount <= 0) return;
+            const cost: {
+                W?: number;
+                U?: number;
+                B?: number;
+                R?: number;
+                G?: number;
+            } = {};
+            cost[m.color] = amount;
+            ctx.addRestrictedMana(ctx.controller, cost, "creature-spell");
+        },
+    })),
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Deferred to later batches — need engine work beyond existing primitives:
 //

@@ -428,6 +428,12 @@ export type PlayerState = {
     exile: CardInstanceState[];
     battlefield: CardInstanceState[];
     manaPool: Record<string, number>;
+    /** Floating mana carrying a spend restriction (CR 106.6 — e.g.
+     *  Metamorphosis's "spend only to cast creature spells"). Distinct from
+     *  the fungible `manaPool`; consumed first when a permitted spell is cast
+     *  (see `payManaCostForSpell`) and emptied with `manaPool` at end of
+     *  step/phase (CR 500.4). Absent when the player has no restricted mana. */
+    restrictedMana?: RestrictedMana[];
     /** Set when a player attempts to draw from an empty library (CR 704.5b). */
     hasDrawnFromEmpty?: boolean;
     /** Number of lands played by this player during the current turn
@@ -625,12 +631,25 @@ import type {
     YesNoChoiceKind,
     OrderChoiceKind,
     PendingChoiceKind,
+    ManaRestriction,
 } from "./types";
 export type {
     ZonePickKind,
     YesNoChoiceKind,
     OrderChoiceKind,
     PendingChoiceKind,
+    ManaRestriction,
+};
+
+/** A unit of restricted mana floating in a player's pool (CR 106.6). Produced
+ *  by effects like Metamorphosis ("Add X mana of any one color … Spend this
+ *  mana only to cast creature spells"). Kept separate from the fungible
+ *  `manaPool` so the spend restriction can be enforced at payment time; emptied
+ *  alongside `manaPool` at end of step/phase (CR 500.4). */
+export type RestrictedMana = {
+    color: string;
+    amount: number;
+    restriction: ManaRestriction;
 };
 
 /** Mid-resolution player choice requested by a spell/ability's resolve step
@@ -3144,6 +3163,18 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
             }
         },
+        addRestrictedMana(
+            playerId: string,
+            cost: CardManaCost,
+            restriction: ManaRestriction
+        ): void {
+            const player = getPlayer(state, playerId);
+            for (const [color, amount] of Object.entries(cost)) {
+                if (color === "X" || typeof amount !== "number" || amount <= 0)
+                    continue;
+                addRestrictedManaToPool(player, color, amount, restriction);
+            }
+        },
         getX(): number {
             return item.chosenX ?? 0;
         },
@@ -3909,6 +3940,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     player.manaPool[color] = 0;
                 }
             }
+            // CR 106.4: emptying the pool also clears restricted mana. The
+            // drained record returned to callers (Drain Power) reflects only
+            // fungible mana — restricted mana's spend restriction is dropped
+            // rather than transferred (rare interaction, documented deviation).
+            player.restrictedMana = undefined;
             return drained;
         },
         // CR 614.10: mark a player to skip their next turn (Time Vault).
@@ -4175,6 +4211,109 @@ export function payManaCost(
             }
         }
     }
+}
+
+/** True if restricted mana with `restriction` may pay for a spell with the
+ *  given creature-ness (CR 106.6). The only restriction modelled today is
+ *  `creature-spell`, spendable solely on creature spells (Metamorphosis). */
+export function restrictionAllowsSpell(
+    restriction: ManaRestriction,
+    isCreatureSpell: boolean
+): boolean {
+    switch (restriction) {
+        case "creature-spell":
+            return isCreatureSpell;
+    }
+}
+
+/** Adds `amount` restricted mana of `color` to a player's pool, merging into
+ *  an existing entry of the same color + restriction (CR 106.4 — mana of the
+ *  same kind is fungible). */
+export function addRestrictedManaToPool(
+    player: PlayerState,
+    color: string,
+    amount: number,
+    restriction: ManaRestriction
+): void {
+    if (amount <= 0) return;
+    const list = player.restrictedMana ?? [];
+    const existing = list.find(
+        (r) => r.color === color && r.restriction === restriction
+    );
+    if (existing) existing.amount += amount;
+    else list.push({ color, amount, restriction });
+    player.restrictedMana = list;
+}
+
+/** Builds the spendable pool for casting a spell: the base `manaPool` plus any
+ *  restricted mana whose restriction permits this spell (CR 106.6). Used for
+ *  the affordability check at spell-cast sites — callers pass whether the
+ *  spell being cast is a creature spell. */
+export function spendablePoolForSpell(
+    player: PlayerState,
+    isCreatureSpell: boolean
+): Record<string, number> {
+    const pool = { ...player.manaPool };
+    for (const r of player.restrictedMana ?? []) {
+        if (restrictionAllowsSpell(r.restriction, isCreatureSpell)) {
+            pool[r.color] = (pool[r.color] ?? 0) + r.amount;
+        }
+    }
+    return pool;
+}
+
+/** Pays a spell's mana cost drawing on permitted restricted mana FIRST, then
+ *  the fungible pool (CR 106.6). Spending restricted mana first is a settlement
+ *  policy — it maximises the flexible mana the caster keeps and can never make
+ *  a payment illegal, since coverage was already confirmed against the merged
+ *  pool. Reuses `payManaCost` semantics by paying a merged pool then
+ *  reassigning who paid each color. Caller must pass whether the spell is a
+ *  creature spell (drives which restricted mana is eligible). */
+export function payManaCostForSpell(
+    player: PlayerState,
+    cost: Record<string, number>,
+    isCreatureSpell: boolean,
+    substitutions: ManaSubstitution[] = []
+): void {
+    const eligible = (player.restrictedMana ?? []).filter((r) =>
+        restrictionAllowsSpell(r.restriction, isCreatureSpell)
+    );
+    if (eligible.length === 0) {
+        payManaCost(player.manaPool, cost, substitutions);
+        return;
+    }
+
+    // Merge eligible restricted mana into a working copy of the pool, pay
+    // against it, then settle the consumption restricted-first.
+    const merged = { ...player.manaPool };
+    const restrictedByColor: Record<string, number> = {};
+    for (const r of eligible) {
+        merged[r.color] = (merged[r.color] ?? 0) + r.amount;
+        restrictedByColor[r.color] =
+            (restrictedByColor[r.color] ?? 0) + r.amount;
+    }
+    const before = { ...merged };
+    payManaCost(merged, cost, substitutions);
+
+    for (const color of MANA_COLORS) {
+        const consumed = (before[color] ?? 0) - (merged[color] ?? 0);
+        if (consumed <= 0) continue;
+        // Drain from restricted mana of this color first.
+        let fromRestricted = Math.min(consumed, restrictedByColor[color] ?? 0);
+        const fromReal = consumed - fromRestricted;
+        for (const r of eligible) {
+            if (fromRestricted <= 0) break;
+            if (r.color !== color) continue;
+            const take = Math.min(r.amount, fromRestricted);
+            r.amount -= take;
+            fromRestricted -= take;
+        }
+        player.manaPool[color] = (player.manaPool[color] ?? 0) - fromReal;
+    }
+
+    // Drop emptied entries; clear the field entirely when nothing remains.
+    const remaining = (player.restrictedMana ?? []).filter((r) => r.amount > 0);
+    player.restrictedMana = remaining.length > 0 ? remaining : undefined;
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { Phase, ZonePickKind } from "../gre/types";
+import type { Phase, ZonePickKind, ManaRestriction } from "../gre/types";
 
 type CardId = string;
 
@@ -591,6 +591,15 @@ export interface SpellContext {
      *  Growth ("its controller adds an additional {G}") that target a player
      *  other than the trigger's controller. */
     addManaTo: (playerId: string, cost: ManaCost) => void;
+    /** Adds restricted mana to `playerId`'s pool (CR 106.6) — mana that can
+     *  only pay for costs the `restriction` permits (e.g. Metamorphosis:
+     *  "Spend this mana only to cast creature spells"). Empties at end of
+     *  step/phase like normal mana (CR 500.4). */
+    addRestrictedMana: (
+        playerId: string,
+        cost: ManaCost,
+        restriction: ManaRestriction
+    ) => void;
     /** Value chosen for X at cast-time (CR 107.3, 601.2b). 0 if the spell
      *  has no X in its cost. Read by spells like Fireball on resolution. */
     getX: () => number;

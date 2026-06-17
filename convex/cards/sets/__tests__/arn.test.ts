@@ -57,6 +57,7 @@ import {
     nafsAsp,
     cyclone,
     dropOfHoney,
+    metamorphosis,
 } from "../arn";
 import {
     grizzlyBears,
@@ -68,6 +69,7 @@ import {
     psionicBlast,
     stoneRain,
 } from "../lea";
+import { getInstanceManaCost, tryGetCardById } from "../../";
 import { checkStateBasedActions } from "../../../gre/sba";
 import { validateBlockerEligibility } from "../../../gre/combat";
 import { applyAllCombatDamage, fireDelayedTriggers } from "../../../gre/phases";
@@ -81,6 +83,12 @@ import {
 import {
     resolveTopOfStack,
     removePermanentTo,
+    spendablePoolForSpell,
+    payManaCostForSpell,
+    restrictionAllowsSpell,
+    isManaCostCovered,
+    getManaSubstitutions,
+    normalizeManaCost,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -1904,5 +1912,126 @@ describe("Drop of Honey (upkeep: destroy least-power; sac when no creatures)", (
             type: "STATE_CHECK",
         } as StackItem["triggerEvent"]);
         expect(state.players[0].battlefield).toHaveLength(0);
+    });
+});
+
+describe("Metamorphosis (CR 106.6 restricted mana / 117.9 additional cost)", () => {
+    // Push Metamorphosis as if cast: a color mode chosen at announcement
+    // (CR 700.2c) and the sacrificed creature's mana value snapshotted
+    // (CR 117.9), then resolve so the chosen mode's body runs.
+    function resolveMetamorphosis(
+        state: GameState,
+        modeId: string,
+        sacrificedMv: number
+    ): void {
+        const item = pushSpell(state, metamorphosis.id, "p1");
+        item.chosenModeId = modeId;
+        item.additionalSacrificeSnapshot = {
+            cardInstanceId: "sac",
+            mv: sacrificedMv,
+        };
+        resolveTopOfStack(state);
+    }
+
+    it("adds 1 + sacrificed mana value as restricted mana of the chosen color", () => {
+        const state = makeState();
+        resolveMetamorphosis(state, "red", 3); // X = 1 + 3
+        expect(state.players[0].restrictedMana).toEqual([
+            { color: "R", amount: 4, restriction: "creature-spell" },
+        ]);
+        // Nothing leaks into the fungible pool.
+        expect(state.players[0].manaPool.R).toBe(0);
+    });
+
+    it("maps each color mode to the matching mana color", () => {
+        const cases: [string, string][] = [
+            ["white", "W"],
+            ["blue", "U"],
+            ["black", "B"],
+            ["red", "R"],
+            ["green", "G"],
+        ];
+        for (const [modeId, color] of cases) {
+            const state = makeState();
+            resolveMetamorphosis(state, modeId, 0); // X = 1
+            expect(state.players[0].restrictedMana).toEqual([
+                { color, amount: 1, restriction: "creature-spell" },
+            ]);
+        }
+    });
+
+    it("restrictionAllowsSpell gates creature-spell mana correctly", () => {
+        expect(restrictionAllowsSpell("creature-spell", true)).toBe(true);
+        expect(restrictionAllowsSpell("creature-spell", false)).toBe(false);
+    });
+
+    // Integration across the GRE -> game.ts spell-cast boundary: mirror the
+    // affordability check + payment that the cast mutations perform for a
+    // creature vs a noncreature spell (CR 106.6).
+    it("pays a creature spell from restricted mana but rejects a noncreature spell", () => {
+        const subs = getManaSubstitutions(makeState(), "p1"); // [] — no Sunglasses
+        const creatureCost = normalizeManaCost(
+            getInstanceManaCost(
+                makeInstance(grizzlyBears.id, { zone: "hand" })
+            )!
+        ); // Grizzly Bears {1}{G} -> { X: 1, G: 1 }
+        const isCreature = tryGetCardById(grizzlyBears.id)!.types.includes(
+            "Creature"
+        );
+
+        const caster = makePlayer("p1", {
+            restrictedMana: [
+                { color: "G", amount: 4, restriction: "creature-spell" },
+            ],
+        });
+        expect(
+            isManaCostCovered(
+                spendablePoolForSpell(caster, isCreature),
+                creatureCost,
+                subs
+            )
+        ).toBe(true);
+        payManaCostForSpell(caster, creatureCost, isCreature, subs);
+        // Cost is 2 (one green pip + one generic), both drawn from restricted.
+        expect(caster.restrictedMana).toEqual([
+            { color: "G", amount: 2, restriction: "creature-spell" },
+        ]);
+        expect(caster.manaPool.G).toBe(0);
+
+        // Same pool, but the spell is NOT a creature spell -> not spendable.
+        const noncreature = makePlayer("p1", {
+            restrictedMana: [
+                { color: "G", amount: 4, restriction: "creature-spell" },
+            ],
+        });
+        expect(
+            isManaCostCovered(
+                spendablePoolForSpell(noncreature, false),
+                creatureCost,
+                subs
+            )
+        ).toBe(false);
+    });
+
+    it("drains restricted mana before the fungible pool (settlement policy)", () => {
+        const player = makePlayer("p1", {
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 3, C: 0 },
+            restrictedMana: [
+                { color: "G", amount: 2, restriction: "creature-spell" },
+            ],
+        });
+        payManaCostForSpell(player, { G: 2 }, true, []);
+        // Restricted mana emptied first; the fungible green is untouched.
+        expect(player.restrictedMana).toBeUndefined();
+        expect(player.manaPool.G).toBe(3);
+    });
+
+    it("restricted mana survives the wire projection (CR 106.6)", () => {
+        const state = makeState();
+        resolveMetamorphosis(state, "green", 1); // X = 2 green
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].restrictedMana).toEqual([
+            { color: "G", amount: 2, restriction: "creature-spell" },
+        ]);
     });
 });
