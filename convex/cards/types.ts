@@ -1,4 +1,9 @@
-import type { Phase, ZonePickKind } from "../gre/types";
+import type {
+    Phase,
+    ZonePickKind,
+    PhaseReturnCondition,
+    PhaseInRider,
+} from "../gre/types";
 
 type CardId = string;
 
@@ -574,6 +579,20 @@ export interface SpellContext {
         from: MovableZone,
         to: MovableZone
     ) => void;
+    /** CR 702.26 — phase `permanentId` out of existence along with every Aura
+     *  and Equipment attached to it. Silent: no enters/leaves events, no
+     *  triggers, no zone change. Counters and attachment links are preserved.
+     *  `returnOn` records when the bundle phases back in (Oubliette:
+     *  `source-leaves`). `onPhaseIn.tap` taps the host when it returns.
+     *  Returns the bundle id, or null if the permanent isn't on the
+     *  battlefield. */
+    phaseOut: (
+        permanentId: string,
+        opts: { returnOn: PhaseReturnCondition; onPhaseIn?: PhaseInRider }
+    ) => string | null;
+    /** CR 702.26 — phase a bundle (from `phaseOut`) back in. Silent. Returns
+     *  false if the bundle id is unknown. */
+    phaseIn: (bundleId: string) => boolean;
     /** Randomizes the order of a player's library using the seeded PRNG
      *  (CR 701.20). Deterministic under replay. */
     shuffleLibrary: (playerId: string) => void;
