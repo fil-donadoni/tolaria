@@ -193,6 +193,8 @@ describe("game_state serialize round-trip", () => {
             { kind: "land-type", from: "Forest", to: "Island" },
         ];
         lion.pileLabel = "left";
+        lion.mustBlockAllThisTurn = true;
+        lion.cantBlockThisTurn = true;
         lion.copiedFrom = "printed-clone-id";
 
         const expanded = expandState(compactState(state));
@@ -242,6 +244,8 @@ describe("game_state serialize round-trip", () => {
             { kind: "land-type", from: "Forest", to: "Island" },
         ]);
         expect(got.pileLabel).toBe("left");
+        expect(got.mustBlockAllThisTurn).toBe(true);
+        expect(got.cantBlockThisTurn).toBe(true);
         expect(got.copiedFrom).toBe("printed-clone-id");
     });
 
@@ -438,6 +442,7 @@ describe("schema drift guard", () => {
                 damagedBySources: [],
                 creaturePower: 2,
                 creatureToughness: 2,
+                combatPartnerIds: ["c2"],
             },
         ];
         state.deathsThisTurn = 1;
@@ -691,6 +696,7 @@ describe("optional field round-trip smoke tests", () => {
                 damagedBySources: [],
                 creaturePower: 2,
                 creatureToughness: 2,
+                combatPartnerIds: ["c2"],
             },
         ];
         expect(roundTrip(state).pendingEvents).toEqual(state.pendingEvents);
@@ -725,6 +731,14 @@ describe("optional field round-trip smoke tests", () => {
         const got = roundTrip(state);
         expect(got.players[0].maxHandSizeOverride).toBe("unlimited");
         expect(got.players[1].maxHandSizeOverride).toBe(10);
+    });
+
+    it("lastDrawnCardId on PlayerState (Jandor's Ring discard cost)", () => {
+        const state = freshState();
+        state.players[0].lastDrawnCardId = "drawn-instance-id";
+        const got = roundTrip(state);
+        expect(got.players[0].lastDrawnCardId).toBe("drawn-instance-id");
+        expect(got.players[1].lastDrawnCardId).toBeUndefined();
     });
 
     it("damageDealtToPlayerThisTurn", () => {

@@ -137,6 +137,7 @@ function compactCard(
         out.canBlockAdditional = card.canBlockAdditional;
     }
     if (card.mustBlockAllThisTurn) out.mustBlockAllThisTurn = true;
+    if (card.cantBlockThisTurn) out.cantBlockThisTurn = true;
     if (card.pileLabel) out.pileLabel = card.pileLabel;
     if (card.faceDown) out.faceDown = true;
     if (card.faceDownOf) out.faceDownOf = card.faceDownOf;
@@ -270,6 +271,7 @@ function expandCard(
         result.canBlockAdditional = compact.canBlockAdditional as number;
     }
     if (compact.mustBlockAllThisTurn) result.mustBlockAllThisTurn = true;
+    if (compact.cantBlockThisTurn) result.cantBlockThisTurn = true;
     if (compact.pileLabel) result.pileLabel = compact.pileLabel as string;
     if (compact.faceDown) result.faceDown = true;
     if (compact.faceDownOf) result.faceDownOf = compact.faceDownOf as string;
@@ -350,6 +352,7 @@ type CompactPlayer = {
     restrictedMana?: PlayerState["restrictedMana"];
     hasDrawnFromEmpty?: boolean;
     landsPlayedThisTurn?: number;
+    lastDrawnCardId?: string;
     turnsTaken?: number;
     grantedAbilities?: PlayerState["grantedAbilities"];
     skipNextTurn?: boolean;
@@ -379,6 +382,9 @@ function compactPlayer(player: PlayerState): CompactPlayer {
     if (player.hasDrawnFromEmpty) out.hasDrawnFromEmpty = true;
     if (player.landsPlayedThisTurn) {
         out.landsPlayedThisTurn = player.landsPlayedThisTurn;
+    }
+    if (player.lastDrawnCardId) {
+        out.lastDrawnCardId = player.lastDrawnCardId;
     }
     if (player.turnsTaken) out.turnsTaken = player.turnsTaken;
     if (player.grantedAbilities?.length) {
@@ -418,6 +424,9 @@ function expandPlayer(player: CompactPlayer): PlayerState {
     if (player.hasDrawnFromEmpty) result.hasDrawnFromEmpty = true;
     if (player.landsPlayedThisTurn !== undefined) {
         result.landsPlayedThisTurn = player.landsPlayedThisTurn;
+    }
+    if (player.lastDrawnCardId !== undefined) {
+        result.lastDrawnCardId = player.lastDrawnCardId;
     }
     if (player.turnsTaken !== undefined) {
         result.turnsTaken = player.turnsTaken;

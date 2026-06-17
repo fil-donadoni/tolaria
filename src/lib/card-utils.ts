@@ -258,7 +258,12 @@ export function matchesSpellTypeFilter(
  *  Jade Statue's animate outside of combat. */
 export function getStackAbilities(
     card: CardInstance,
-    phase?: Phase
+    phase?: Phase,
+    /** True iff the controller has a "last card drawn this turn" still in
+     *  hand. Gates the Jandor's Ring discard cost as a UI hint; the server
+     *  validation is authoritative. Defaults to true so callers that don't
+     *  pass it (and abilities without the cost) are unaffected. */
+    canDiscardLastDrawn: boolean = true
 ): { id: string; oracleText: string }[] {
     const cardDef = getCardById(card.card.id);
     const tapLocked = isTapLockedBySummoningSickness(card);
@@ -268,6 +273,7 @@ export function getStackAbilities(
         cost: {
             tap?: boolean;
             removeCounter?: { type: string; count: number };
+            discardLastDrawn?: boolean;
         };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
         canActivate?: (
@@ -292,6 +298,9 @@ export function getStackAbilities(
             const have = card.counters?.[a.cost.removeCounter.type] ?? 0;
             if (have < a.cost.removeCounter.count) return false;
         }
+        // CR 118.3 — "discard the last card you drew this turn" cost
+        // (Jandor's Ring) is unpayable when no such card is in hand.
+        if (a.cost.discardLastDrawn && !canDiscardLastDrawn) return false;
         // CR 602.5b — ability-specific activation precondition. Read against
         // the source's current state; an empty state view is sufficient for
         // predicates that only inspect the source (e.g. Clockwork Beast's

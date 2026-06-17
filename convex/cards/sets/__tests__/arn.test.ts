@@ -22,6 +22,7 @@ import {
     hasranOgress,
     elHajjaj,
     khabalGhoul,
+    ergRaiders,
     rukhEgg,
     dandan,
     islandFishJasconius,
@@ -62,6 +63,12 @@ import {
     magneticMountain,
     cuombajjWitches,
     ifhBiffEfreet,
+    guardianBeast,
+    abuJafar,
+    jandorsRing,
+    bottleOfSuleiman,
+    mijaeDjinn,
+    ydwenEfreet,
 } from "../arn";
 import {
     grizzlyBears,
@@ -73,9 +80,13 @@ import {
     psionicBlast,
     stoneRain,
     flight,
+    blackLotus,
+    shatter,
+    stealArtifact,
+    animateArtifact,
 } from "../lea";
 import { getInstanceManaCost, tryGetCardById } from "../../";
-import type { Color } from "../../types";
+import type { Color, PhaseBeginEvent } from "../../types";
 import { checkStateBasedActions } from "../../../gre/sba";
 import { validateBlockerEligibility } from "../../../gre/combat";
 import {
@@ -102,6 +113,13 @@ import {
     normalizeManaCost,
     phaseOutPermanent,
     phaseInBundle,
+    regenerateOrDestroy,
+    destroyWithReplacements,
+    applyControlChange,
+    combatPartnerIds,
+    drawCard,
+    canPayDiscardLastDrawn,
+    payDiscardLastDrawn,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -174,6 +192,12 @@ const upkeepEvent = (playerId: string) =>
         phase: "UPKEEP" as const,
         activePlayerId: playerId,
     }) as StackItem["triggerEvent"];
+
+const endStepEvent = (playerId: string): PhaseBeginEvent => ({
+    type: "PHASE_BEGIN",
+    phase: "END_STEP",
+    activePlayerId: playerId,
+});
 
 // ---------------------------------------------------------------------------
 // Vanilla / keyword creatures (CR 702)
@@ -442,6 +466,88 @@ describe("Aladdin's Ring ({8},{T}: 4 damage to any target)", () => {
     });
 });
 
+describe("Jandor's Ring ({2},{T}, discard last drawn: Draw a card)", () => {
+    // drawCard records the last-drawn card per player (CR — Jandor's Ring).
+    it("drawCard tracks the last card drawn this turn", () => {
+        const p1 = makePlayer("p1", {
+            library: [
+                makeInstance(grizzlyBears.id, { id: "a", zone: "library" }),
+                makeInstance(plains.id, { id: "b", zone: "library" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        const player = state.players[0];
+        expect(player.lastDrawnCardId).toBeUndefined();
+        const first = drawCard(player);
+        expect(first?.id).toBe("a");
+        expect(player.lastDrawnCardId).toBe("a");
+        drawCard(player);
+        expect(player.lastDrawnCardId).toBe("b");
+    });
+
+    it("can pay the discard cost only while the drawn card is still in hand", () => {
+        const p1 = makePlayer("p1", {
+            library: [
+                makeInstance(grizzlyBears.id, { id: "a", zone: "library" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        const player = state.players[0];
+        // No draw yet — cost unpayable.
+        expect(canPayDiscardLastDrawn(player)).toBe(false);
+        drawCard(player);
+        expect(canPayDiscardLastDrawn(player)).toBe(true);
+        // Card leaves hand (played/discarded elsewhere) — cost unpayable again.
+        player.hand = [];
+        expect(canPayDiscardLastDrawn(player)).toBe(false);
+    });
+
+    it("paying discards the last-drawn card and clears the tracker", () => {
+        const p1 = makePlayer("p1", {
+            library: [
+                makeInstance(grizzlyBears.id, { id: "a", zone: "library" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        const player = state.players[0];
+        drawCard(player);
+        expect(player.hand.map((c) => c.id)).toEqual(["a"]);
+        payDiscardLastDrawn(player);
+        expect(player.hand).toHaveLength(0);
+        expect(player.graveyard.map((c) => c.id)).toEqual(["a"]);
+        expect(player.lastDrawnCardId).toBeUndefined();
+        // Cost can no longer be paid — same draw can't fund a second use.
+        expect(canPayDiscardLastDrawn(player)).toBe(false);
+    });
+
+    it("resolving the ability draws a card", () => {
+        const ring = makeInstance(jandorsRing.id, { id: "ring" });
+        const p1 = makePlayer("p1", {
+            battlefield: [ring],
+            library: [makeInstance(plains.id, { id: "top", zone: "library" })],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        resolveActivated(state, ring, "jandors-ring-draw");
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["top"]);
+    });
+
+    it("wire format: lastDrawnCardId and the drawn hand card survive projection", () => {
+        const p1 = makePlayer("p1", {
+            library: [
+                makeInstance(grizzlyBears.id, { id: "a", zone: "library" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        drawCard(state.players[0]);
+        const projected = projectPublicState(state, 1, "p1");
+        const me = projected.players.find((p) => p.id === "p1")!;
+        expect(me.lastDrawnCardId).toBe("a");
+        // The viewer's own hand keeps the card id (slimmed but identifiable),
+        // so the UI can gate the discard cost on it.
+        expect(me.hand.some((c) => c !== null && c.id === "a")).toBe(true);
+    });
+});
+
 // ---------------------------------------------------------------------------
 // Upkeep / damage / death / state triggers
 // ---------------------------------------------------------------------------
@@ -631,6 +737,75 @@ describe("Khabál Ghoul (end step: +1/+1 per creature that died this turn)", () 
     });
 });
 
+describe("Erg Raiders (end step: 2 damage to you unless it attacked / just arrived, CR 603.3e/603.4)", () => {
+    const ability = ergRaiders.triggeredAbilities!.find(
+        (a) => a.id === "erg-raiders-end-step"
+    )!;
+
+    it("is a 2/3 Human Warrior costing {1}{B}", () => {
+        expect(ergRaiders.power).toBe(2);
+        expect(ergRaiders.toughness).toBe(3);
+        expect(ergRaiders.subtypes).toEqual(["Human", "Warrior"]);
+        expect(ergRaiders.manaCost).toEqual({ X: 1, B: 1 });
+    });
+
+    it("deals 2 damage to you at end step when it didn't attack", () => {
+        const erg = makeInstance(ergRaiders.id, { id: "erg" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [erg] }),
+                makePlayer("p2"),
+            ],
+        });
+        // It triggers (didn't attack, not summoning sick)...
+        expect(ability.matches(endStepEvent("p1"), erg, state)).toBe(true);
+        resolveTrigger(state, erg, "erg-raiders-end-step", endStepEvent("p1"));
+        expect(state.players[0].life).toBe(18);
+    });
+
+    it("deals no damage when it attacked this turn (CR 603.4 intervening-if)", () => {
+        const erg = makeInstance(ergRaiders.id, {
+            id: "erg",
+            hasAttackedThisTurn: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [erg] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Intervening-if blocks it both at trigger time and at resolve time.
+        expect(ability.matches(endStepEvent("p1"), erg, state)).toBe(false);
+        resolveTrigger(state, erg, "erg-raiders-end-step", endStepEvent("p1"));
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("does not trigger the turn it came under your control (CR 603.3e)", () => {
+        const erg = makeInstance(ergRaiders.id, {
+            id: "erg",
+            isSummoningSick: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [erg] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(ability.matches(endStepEvent("p1"), erg, state)).toBe(false);
+    });
+
+    it("only fires on its own controller's end step, not the opponent's", () => {
+        const erg = makeInstance(ergRaiders.id, { id: "erg" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [erg] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(ability.matches(endStepEvent("p2"), erg, state)).toBe(false);
+    });
+});
+
 describe("Rukh Egg (dies → 4/4 flying Bird at next end step)", () => {
     it("schedules a delayed token on death", () => {
         const egg = makeInstance(rukhEgg.id, { id: "egg" });
@@ -650,6 +825,161 @@ describe("Rukh Egg (dies → 4/4 flying Bird at next end step)", () => {
             creatureToughness: 3,
         } as StackItem["triggerEvent"]);
         expect((state.delayedTriggers ?? []).length).toBe(1);
+    });
+});
+
+describe("Abu Ja'far (dies → destroy combat partners; no regen; CR 603.2/603.10)", () => {
+    /** Build combat with Abu Ja'far in it and return the assembled state. When
+     *  `abuIsAttacker` is true Abu is the attacker and `partner` is its
+     *  blocker; otherwise Abu is a blocker and `partner` is the attacker it
+     *  blocks. `partnerRegen` gives the partner a regeneration shield. */
+    function combatState(opts: {
+        abuIsAttacker: boolean;
+        partnerRegen?: boolean;
+    }) {
+        const abu = makeInstance(abuJafar.id, {
+            id: "abu",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const partner = makeInstance(grizzlyBears.id, {
+            id: "partner",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        if (opts.partnerRegen) partner.regenerationShields = 1;
+        const blockerAssignments: Record<string, string[]> = opts.abuIsAttacker
+            ? { partner: ["abu"] }
+            : { abu: ["partner"] };
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [abu] }),
+                makePlayer("p2", { battlefield: [partner] }),
+            ],
+            combat: {
+                attackerIds: [opts.abuIsAttacker ? "abu" : "partner"],
+                confirmed: true,
+                blockerAssignments,
+                blockedAttackerIds: [opts.abuIsAttacker ? "abu" : "partner"],
+                blockersConfirmed: true,
+            },
+        });
+        return { state, abu, partner };
+    }
+
+    it("combatPartnerIds finds the creature blocking it (Abu attacking)", () => {
+        const { state } = combatState({ abuIsAttacker: true });
+        expect(combatPartnerIds(state, "abu")).toEqual(["partner"]);
+    });
+
+    it("combatPartnerIds finds the creature it blocks (Abu blocking)", () => {
+        const { state } = combatState({ abuIsAttacker: false });
+        expect(combatPartnerIds(state, "abu")).toEqual(["partner"]);
+    });
+
+    it("destroys the creature blocking Abu Ja'far when it dies", () => {
+        const { state, abu } = combatState({ abuIsAttacker: true });
+        // Death snapshots combatPartnerIds onto CREATURE_DIED.
+        removePermanentTo(state, "abu", "graveyard");
+        const died = (state.pendingEvents ?? []).find(
+            (e) => e.type === "CREATURE_DIED"
+        ) as { combatPartnerIds?: string[] } | undefined;
+        expect(died?.combatPartnerIds).toEqual(["partner"]);
+        // Resolve the death trigger with that captured event.
+        resolveTrigger(state, abu, "abu-jafar-death", {
+            type: "CREATURE_DIED",
+            creatureInstanceId: "abu",
+            creatureControllerId: "p1",
+            creatureTypes: ["Creature"],
+            damagedBySources: [],
+            creaturePower: 0,
+            creatureToughness: 1,
+            combatPartnerIds: ["partner"],
+        } as StackItem["triggerEvent"]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "partner")
+        ).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === "partner")).toBe(
+            true
+        );
+    });
+
+    it("destroys the attacker Abu Ja'far was blocking when it dies", () => {
+        const { state, abu } = combatState({ abuIsAttacker: false });
+        removePermanentTo(state, "abu", "graveyard");
+        resolveTrigger(state, abu, "abu-jafar-death", {
+            type: "CREATURE_DIED",
+            creatureInstanceId: "abu",
+            creatureControllerId: "p1",
+            creatureTypes: ["Creature"],
+            damagedBySources: [],
+            creaturePower: 0,
+            creatureToughness: 1,
+            combatPartnerIds: ["partner"],
+        } as StackItem["triggerEvent"]);
+        expect(state.players[1].graveyard.some((c) => c.id === "partner")).toBe(
+            true
+        );
+    });
+
+    it("partners can't be regenerated (regen shield does not save them)", () => {
+        const { state, abu, partner } = combatState({
+            abuIsAttacker: true,
+            partnerRegen: true,
+        });
+        expect(partner.regenerationShields).toBe(1);
+        removePermanentTo(state, "abu", "graveyard");
+        resolveTrigger(state, abu, "abu-jafar-death", {
+            type: "CREATURE_DIED",
+            creatureInstanceId: "abu",
+            creatureControllerId: "p1",
+            creatureTypes: ["Creature"],
+            damagedBySources: [],
+            creaturePower: 0,
+            creatureToughness: 1,
+            combatPartnerIds: ["partner"],
+        } as StackItem["triggerEvent"]);
+        // cantBeRegenerated suppressed the shield (CR 701.15c).
+        expect(state.players[1].graveyard.some((c) => c.id === "partner")).toBe(
+            true
+        );
+    });
+
+    it("does nothing when Abu Ja'far dies outside combat", () => {
+        const abu = makeInstance(abuJafar.id, {
+            id: "abu",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bystander = makeInstance(grizzlyBears.id, {
+            id: "by",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [abu] }),
+                makePlayer("p2", { battlefield: [bystander] }),
+            ],
+        });
+        removePermanentTo(state, "abu", "graveyard");
+        const died = (state.pendingEvents ?? []).find(
+            (e) => e.type === "CREATURE_DIED"
+        ) as { combatPartnerIds?: string[] } | undefined;
+        expect(died?.combatPartnerIds ?? []).toEqual([]);
+        resolveTrigger(state, abu, "abu-jafar-death", {
+            type: "CREATURE_DIED",
+            creatureInstanceId: "abu",
+            creatureControllerId: "p1",
+            creatureTypes: ["Creature"],
+            damagedBySources: [],
+            creaturePower: 0,
+            creatureToughness: 1,
+            combatPartnerIds: [],
+        } as StackItem["triggerEvent"]);
+        expect(state.players[1].battlefield.some((c) => c.id === "by")).toBe(
+            true
+        );
     });
 });
 
@@ -2633,5 +2963,408 @@ describe("Ifh-Bíff Efreet (any-player-activatable mass flyer damage, CR 113.3c 
         expect(projFlyer.damageMarked).toBe(1);
         expect(projGround.damageMarked).toBeUndefined();
         expect(projected.players[1].life).toBe(19);
+    });
+});
+
+// Guardian Beast — continuous `permanent-guard` (CR 611). While untapped, its
+// controller's noncreature artifacts can't be targeted (CR 702.16b-style),
+// can't be enchanted (CR 303.4), have indestructible (CR 702.12), and their
+// control can't change (CR 613.1b). All four gates read the guard live, so a
+// tap/untap transition flips the protections.
+describe("Guardian Beast (permanent-guard while untapped, CR 611)", () => {
+    /** p1 controls Guardian Beast + a noncreature artifact (Black Lotus). */
+    function setup(opts: { beastTapped?: boolean } = {}) {
+        const beast = makeInstance(guardianBeast.id, {
+            id: "beast",
+            controllerId: "p1",
+            isTapped: opts.beastTapped ?? false,
+        });
+        const lotus = makeInstance(blackLotus.id, {
+            id: "lotus",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [beast, lotus] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, beast, lotus };
+    }
+
+    const onBattlefield = (state: GameState, id: string) =>
+        state.players.some((p) => p.battlefield.some((c) => c.id === id));
+    const controllerOf = (state: GameState, id: string) =>
+        state.players.find((p) => p.battlefield.some((c) => c.id === id))?.id;
+
+    describe("indestructible (CR 702.12)", () => {
+        it("a guarded artifact survives 'destroy' while the Beast is untapped", () => {
+            const { state } = setup();
+            const destroyed = destroyWithReplacements(state, "lotus");
+            expect(destroyed).toBe(false);
+            expect(onBattlefield(state, "lotus")).toBe(true);
+        });
+
+        it("the artifact is destroyed once the Beast is tapped", () => {
+            const { state, beast } = setup();
+            beast.isTapped = true;
+            const destroyed = destroyWithReplacements(state, "lotus");
+            expect(destroyed).toBe(true);
+            expect(onBattlefield(state, "lotus")).toBe(false);
+        });
+
+        it("integration: resolving Shatter at the artifact is a no-op while untapped", () => {
+            const { state } = setup();
+            pushSpell(state, shatter.id, "p2", [
+                { type: "permanent", id: "lotus" },
+            ]);
+            resolveTopOfStack(state);
+            expect(onBattlefield(state, "lotus")).toBe(true);
+        });
+
+        it("integration: Shatter destroys the artifact once the Beast is tapped", () => {
+            const { state, beast } = setup();
+            beast.isTapped = true;
+            pushSpell(state, shatter.id, "p2", [
+                { type: "permanent", id: "lotus" },
+            ]);
+            resolveTopOfStack(state);
+            expect(onBattlefield(state, "lotus")).toBe(false);
+        });
+
+        it("does not protect the Beast's controller's OTHER creatures, nor artifacts of another player", () => {
+            // Only noncreature artifacts the Beast's controller controls are
+            // guarded. A regular creature p1 controls is still destructible,
+            // and an opponent's artifact is unguarded.
+            const { state } = setup();
+            const bear = makeInstance(grizzlyBears.id, {
+                id: "bear",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const oppLotus = makeInstance(blackLotus.id, {
+                id: "opp-lotus",
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+            state.players[0].battlefield.push(bear);
+            state.players[1].battlefield.push(oppLotus);
+            expect(regenerateOrDestroy(state, "bear")).toBe(true);
+            expect(destroyWithReplacements(state, "opp-lotus")).toBe(true);
+        });
+    });
+
+    describe("can't be targeted (CR 702.16b-style)", () => {
+        it("getLegalTargets excludes the guarded artifact while untapped", () => {
+            const { state } = setup();
+            const targets = getLegalTargets(state, shatter.targetRequirement!, [
+                "R",
+            ]);
+            expect(targets.some((t) => t.id === "lotus")).toBe(false);
+        });
+
+        it("getLegalTargets includes the artifact once the Beast is tapped", () => {
+            const { state, beast } = setup();
+            beast.isTapped = true;
+            const targets = getLegalTargets(state, shatter.targetRequirement!, [
+                "R",
+            ]);
+            expect(targets.some((t) => t.id === "lotus")).toBe(true);
+        });
+
+        it("wire format: the targeting ban survives projection", () => {
+            const { state } = setup();
+            const projected = projectPublicState(state, 1, "p1");
+            const targets = getLegalTargets(
+                projected as unknown as GameState,
+                shatter.targetRequirement!,
+                ["R"]
+            );
+            expect(targets.some((t) => t.id === "lotus")).toBe(false);
+        });
+    });
+
+    describe("can't be enchanted (CR 303.4)", () => {
+        it("an Aura cast at the guarded artifact fizzles to the graveyard while untapped", () => {
+            const { state } = setup();
+            // Animate Artifact targets a noncreature artifact.
+            pushSpell(state, animateArtifact.id, "p1", [
+                { type: "permanent", id: "lotus" },
+            ]);
+            resolveTopOfStack(state);
+            // Aura did not attach — it fizzled to its owner's graveyard.
+            const aura = state.players[0].graveyard.find(
+                (c) => (c.card as { id?: string }).id === animateArtifact.id
+            );
+            expect(aura).toBeDefined();
+            const lotus = state.players[0].battlefield.find(
+                (c) => c.id === "lotus"
+            )!;
+            expect(lotus.attachedTo).toBeUndefined();
+            // The artifact stays a noncreature (Animate Artifact never applied).
+            expect(lotus.types.includes("Creature")).toBe(false);
+        });
+
+        it("the Aura attaches once the Beast is tapped", () => {
+            const { state, beast } = setup();
+            beast.isTapped = true;
+            pushSpell(state, animateArtifact.id, "p1", [
+                { type: "permanent", id: "lotus" },
+            ]);
+            resolveTopOfStack(state);
+            const lotus = state.players[0].battlefield.find(
+                (c) => c.id === "lotus"
+            )!;
+            expect(lotus.types.includes("Creature")).toBe(true);
+        });
+    });
+
+    describe("control can't be changed (CR 613.1b)", () => {
+        it("applyControlChange is a no-op on the guarded artifact while untapped", () => {
+            const { state } = setup();
+            applyControlChange(state, "lotus", "p2", "src-1");
+            expect(controllerOf(state, "lotus")).toBe("p1");
+        });
+
+        it("control changes once the Beast is tapped", () => {
+            const { state, beast } = setup();
+            beast.isTapped = true;
+            applyControlChange(state, "lotus", "p2", "src-1");
+            expect(controllerOf(state, "lotus")).toBe("p2");
+        });
+
+        it("integration: Steal Artifact can't steal the guarded artifact while untapped", () => {
+            const { state } = setup();
+            pushSpell(state, stealArtifact.id, "p2", [
+                { type: "permanent", id: "lotus" },
+            ]);
+            resolveTopOfStack(state);
+            // The aura fizzles (can't enchant), so control never changes.
+            expect(controllerOf(state, "lotus")).toBe("p1");
+        });
+    });
+
+    it("definition snapshot: 2/4 Beast, {3}{B}, single permanent-guard", () => {
+        expect(guardianBeast.power).toBe(2);
+        expect(guardianBeast.toughness).toBe(4);
+        expect(guardianBeast.manaCost).toEqual({ X: 3, B: 1 });
+        const guards = (guardianBeast.staticEffects ?? []).filter(
+            (e) => e.kind === "permanent-guard"
+        );
+        expect(guards).toHaveLength(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Batch 4 (#191) — coin flip (CR 705). Seeds chosen so the FIRST flip is
+// deterministic: rngSeed 1 → randomInt(2) === 1 (heads / win), rngSeed 7 →
+// randomInt(2) === 0 (tails / lose). See rng.test.ts for the substrate proof.
+// ---------------------------------------------------------------------------
+
+const WIN_SEED = 1; // first flipCoin() → true
+const LOSE_SEED = 7; // first flipCoin() → false
+
+describe("Bottle of Suleiman (coin flip activated ability, CR 705)", () => {
+    it("definition snapshot: {4} Artifact, {1}+sacrifice flip ability", () => {
+        expect(bottleOfSuleiman.types).toEqual(["Artifact"]);
+        expect(bottleOfSuleiman.manaCost).toEqual({ X: 4 });
+        const ability = bottleOfSuleiman.activatedAbilities![0];
+        expect(ability.cost).toEqual({ mana: { X: 1 }, sacrifice: true });
+    });
+
+    it("win flip → creates a 5/5 flying Djinn artifact creature token", () => {
+        const bottle = makeInstance(bottleOfSuleiman.id, {
+            id: "bottle",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            rngSeed: WIN_SEED,
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [bottle] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, bottle, "bottle-of-suleiman-flip");
+        const tokens = state.players[0].battlefield.filter((c) => c.isToken);
+        expect(tokens).toHaveLength(1);
+        const djinn = tokens[0];
+        expect(djinn.types).toEqual(["Artifact", "Creature"]);
+        expect(djinn.subtypes).toContain("Djinn");
+        expect(djinn.power).toBe(5);
+        expect(djinn.toughness).toBe(5);
+        expect(djinn.staticAbilities).toContain("flying");
+        // No self-damage on a win.
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("lose flip → deals 5 damage to its controller, no token", () => {
+        const bottle = makeInstance(bottleOfSuleiman.id, {
+            id: "bottle",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            rngSeed: LOSE_SEED,
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [bottle] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, bottle, "bottle-of-suleiman-flip");
+        expect(state.players[0].life).toBe(15);
+        expect(state.players[0].battlefield.filter((c) => c.isToken)).toEqual(
+            []
+        );
+    });
+});
+
+describe("Mijae Djinn (attack flip, CR 705 + CR 508)", () => {
+    it("definition snapshot: 6/3 Djinn, {R}{R}{R}", () => {
+        expect(mijaeDjinn.power).toBe(6);
+        expect(mijaeDjinn.toughness).toBe(3);
+        expect(mijaeDjinn.subtypes).toContain("Djinn");
+        expect(mijaeDjinn.manaCost).toEqual({ R: 3 });
+    });
+
+    function attackingMijae(seed: number) {
+        const mijae = makeInstance(mijaeDjinn.id, {
+            id: "mijae",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const state = makeState({
+            rngSeed: seed,
+            players: [
+                makePlayer("p1", { battlefield: [mijae] }),
+                makePlayer("p2"),
+            ],
+            combat: {
+                attackerIds: ["mijae"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const event: StackItem["triggerEvent"] = {
+            type: "ATTACKERS_DECLARED",
+            attackingPlayerId: "p1",
+            attackerIds: ["mijae"],
+        };
+        resolveTrigger(state, mijae, "mijae-djinn-attack-flip", event);
+        return state;
+    }
+
+    it("won flip → stays attacking, untapped", () => {
+        const state = attackingMijae(WIN_SEED);
+        const m = state.players[0].battlefield.find((c) => c.id === "mijae")!;
+        expect(m.isAttacking).toBe(true);
+        expect(m.isTapped).toBe(false);
+        expect(state.combat!.attackerIds).toContain("mijae");
+    });
+
+    it("lost flip → removed from combat and tapped", () => {
+        const state = attackingMijae(LOSE_SEED);
+        const m = state.players[0].battlefield.find((c) => c.id === "mijae")!;
+        expect(m.isAttacking).toBeFalsy();
+        expect(m.isTapped).toBe(true);
+        expect(state.combat!.attackerIds).not.toContain("mijae");
+    });
+});
+
+describe("Ydwen Efreet (block flip, CR 705 + CR 509.1h)", () => {
+    it("definition snapshot: 3/6 Efreet, {R}{R}{R}", () => {
+        expect(ydwenEfreet.power).toBe(3);
+        expect(ydwenEfreet.toughness).toBe(6);
+        expect(ydwenEfreet.subtypes).toContain("Efreet");
+        expect(ydwenEfreet.manaCost).toEqual({ R: 3 });
+    });
+
+    function blockingYdwen(seed: number) {
+        // p1 attacks with a bear; p2's Ydwen is its only blocker.
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "atk",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const ydwen = makeInstance(ydwenEfreet.id, {
+            id: "ydwen",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const state = makeState({
+            rngSeed: seed,
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [attacker] }),
+                makePlayer("p2", { life: 20, battlefield: [ydwen] }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: { ydwen: ["atk"] },
+                blockedAttackerIds: ["atk"],
+                blockersConfirmed: true,
+            },
+        });
+        const event: StackItem["triggerEvent"] = {
+            type: "BLOCKERS_CONFIRMED",
+            attackerId: "atk",
+            attackerControllerId: "p1",
+            attackerTypes: ["Creature"],
+            attackerSubtypes: [],
+            blockerId: "ydwen",
+            blockerControllerId: "p2",
+            blockerTypes: ["Creature"],
+            blockerSubtypes: ["Efreet"],
+        };
+        resolveTrigger(state, ydwen, "ydwen-efreet-block-flip", event);
+        return state;
+    }
+
+    it("won flip → stays blocking, attacker stays blocked", () => {
+        const state = blockingYdwen(WIN_SEED);
+        const y = state.players[1].battlefield.find((c) => c.id === "ydwen")!;
+        expect(y.isBlocking).toBe(true);
+        expect(y.cantBlockThisTurn).toBeFalsy();
+        expect(state.combat!.blockedAttackerIds).toContain("atk");
+        expect(state.combat!.blockerAssignments.ydwen).toEqual(["atk"]);
+    });
+
+    it("lost flip → removed from combat, can't block, solely-blocked attacker becomes unblocked and hits defender", () => {
+        const state = blockingYdwen(LOSE_SEED);
+        const y = state.players[1].battlefield.find((c) => c.id === "ydwen")!;
+        expect(y.isBlocking).toBeFalsy();
+        expect(y.cantBlockThisTurn).toBe(true);
+        // The bear it solely blocked is unblocked again (CR 509.1h).
+        expect(state.combat!.blockedAttackerIds).not.toContain("atk");
+        expect(state.combat!.blockerAssignments.ydwen ?? []).not.toContain(
+            "atk"
+        );
+        // Damage step: the now-unblocked bear (2 power) hits the defender (p2).
+        applyAllCombatDamage(state, { atk: { p2: 2 } });
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("can't block this turn is enforced by validateBlockerEligibility (CR 509.1b)", () => {
+        const state = blockingYdwen(LOSE_SEED);
+        const y = state.players[1].battlefield.find((c) => c.id === "ydwen")!;
+        const newAttacker = makeInstance(grizzlyBears.id, {
+            id: "atk2",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const result = validateBlockerEligibility(
+            newAttacker,
+            y,
+            state.players[1].battlefield,
+            state
+        );
+        expect(result.eligible).toBe(false);
     });
 });

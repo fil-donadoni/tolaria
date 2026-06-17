@@ -151,7 +151,14 @@ function buildApplyCtx(
                     player.hasDrawnFromEmpty = true;
                     return;
                 }
-                moveCard(player, player.library[0].id, "library", "hand");
+                const drawn = moveCard(
+                    player,
+                    player.library[0].id,
+                    "library",
+                    "hand"
+                );
+                // Track the last card drawn this turn (CR — Jandor's Ring).
+                player.lastDrawnCardId = drawn.id;
             }
         },
         autoSacrifice: (playerId, count, filter) => {

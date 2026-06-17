@@ -46,69 +46,74 @@ type PresetScenario = {
     phase: string;
     landCount: number;
     libraryCount?: number;
+    /** Mark "me"'s last hand card as the card drawn this turn — enables
+     *  "discard the last card you drew this turn" costs (Jandor's Ring). */
+    markLastDrawn?: boolean;
 };
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        // AI — combat-trick ambush with a mana dork. The bot (opp) has a Birds of
-        // Paradise (0/1 flyer), an untapped Forest and Giant Growth ({G}: +3/+3)
-        // in hand. You (me) have an untapped Hypnotic Specter (2/2 flyer) that can
-        // block. The bait: if the bot swings the 0/1 and you block with your 2/2,
-        // the bot pumps the Birds to 3/4 in response — killing your Specter while
-        // surviving, trading a card + a tapped dork for your 2/2. END YOUR TURN
-        // and watch the bot: does it set up the ambush (swing the dork), and if
-        // you block, does it fire Giant Growth to trade up? (The mana-dork attack
-        // guardrail discourages the swing; the held trick should re-enable it as
-        // an ambush — this scenario is to observe that interplay.)
-        label: "AI: mana-dork ambush (Birds + Giant Growth vs Specter)",
+        // ARN Batch 4 (#191) — coin flip (CR 705). Flips route through the
+        // seeded PRNG so they are deterministic on replay.
+        //   • Bottle of Suleiman ({4} artifact): activate "{1}, Sacrifice this
+        //     artifact" — win the flip → a 5/5 flying Djinn token; lose → 5
+        //     damage to you.
+        //   • Mijae Djinn ({R}{R}{R}, 6/3): attack with it — lose the flip and
+        //     it is removed from combat and tapped.
+        //   • Ydwen Efreet ({R}{R}{R}, 3/6, opponent-controlled): attack into
+        //     it with your Grizzly Bears and let Ydwen block — lose the flip
+        //     and Ydwen leaves combat, can't block this turn, and the Bears
+        //     (solely blocked by it) become unblocked and hit the opponent.
+        label: "ARN: coin flip (Bottle / Mijae / Ydwen)",
         cards: [
-            { name: "Birds of Paradise", owner: "opp" as const },
-            { name: "Forest", owner: "opp" as const },
-            {
-                name: "Giant Growth",
-                owner: "opp" as const,
-                zone: "hand" as const,
-            },
-            { name: "Hypnotic Specter", owner: "me" as const },
+            { name: "Bottle of Suleiman", owner: "me" as const },
+            { name: "Mijae Djinn", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 2 },
+            { name: "Ydwen Efreet", owner: "opp" as const },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
     {
-        // AI — mana-screw land drop (search.ts land-drop tie-break). The bot
-        // (opp) is stuck on ONE Plains with a second Plains in hand and a fistful
-        // of spells it cannot afford (Mahamoti Djinn 6, Air Elemental 4, two
-        // Counterspells). Developing the land is the only sensible play, but `pass`
-        // out-rewards it by rollout noise (inside OUTCOME_EPS) and gets explored
-        // far more, so the land used to fall out of the visit band and the bot sat
-        // on its only land — then discarded it in cleanup. END YOUR TURN and watch
-        // the bot's precombat main: it must play the second Plains (and so never
-        // reach an over-7 discard). Regression guard for the land-drop tie-break
-        // pulling from the full pool on outcome-equality, not the visit band.
-        label: "AI: mana-screw land drop (1 Plains + uncastable hand)",
+        // ARN Batch 9 (#187) — Erg Raiders ({1}{B}, 2/3): "At the beginning of
+        // your end step, if it didn't attack this turn, it deals 2 damage to
+        // you. This ability doesn't trigger if it came under your control this
+        // turn." Two Raiders are already in play (not summoning sick, since
+        // the scenario starts mid-turn). Pass to your end step WITHOUT
+        // attacking: each Raiders deals 2 to you (you drop 4 total). To see
+        // the exemption, declare one as an attacker first — that one deals no
+        // damage at end step while the idle one still pings you for 2.
+        label: "ARN: end-step penalty (Erg Raiders)",
         cards: [
-            { name: "Plains", owner: "opp" as const },
-            { name: "Plains", owner: "opp" as const, zone: "hand" as const },
-            {
-                name: "Mahamoti Djinn",
-                owner: "opp" as const,
-                zone: "hand" as const,
-            },
-            {
-                name: "Air Elemental",
-                owner: "opp" as const,
-                zone: "hand" as const,
-            },
-            {
-                name: "Counterspell",
-                owner: "opp" as const,
-                zone: "hand" as const,
-                count: 2,
-            },
-            { name: "Plains", owner: "me" as const, count: 3 },
+            { name: "Erg Raiders", owner: "me" as const, count: 2 },
+            { name: "Swamp", owner: "me" as const, count: 2 },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
+    },
+    {
+        // ARN (#186) — Jandor's Ring ({2},{T}, discard the last card you drew
+        // this turn: Draw a card). The Ring is on your battlefield with two
+        // Islands for the {2}. A Grizzly Bears sits in hand and is marked as
+        // "the last card you drew this turn" (markLastDrawn), so the discard
+        // cost is payable immediately — activate the Ring to discard it and
+        // draw a fresh card. Once the marked card leaves your hand the ability
+        // becomes unactivatable until you draw again (e.g. next draw step).
+        label: "ARN: Jandor's Ring (discard last drawn → draw)",
+        cards: [
+            { name: "Jandor's Ring", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 2 },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 5,
+        markLastDrawn: true,
     },
     {
         // ARN Batch 9 (#181) — Magnetic Mountain ({1}{R}{R} enchantment): blue
@@ -132,6 +137,62 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Flying Men", owner: "opp" as const, tapped: true },
         ],
         phase: "UPKEEP",
+        landCount: 0,
+    },
+    {
+        // ARN Batch 9 (#185) — Abu Ja'far ({W}, 0/1 Human): "When this creature
+        // dies, destroy all creatures blocking or blocked by it. They can't be
+        // regenerated." (CR 603.2 death trigger / 603.10 last known info). You
+        // control Abu Ja'far; the opponent has Grizzly Bears (2/2). Attack with
+        // Abu Ja'far and let the Bears block: Abu (0 power) deals no damage but
+        // takes 2 and dies, and its death trigger destroys the blocking Bears —
+        // even though Abu is already in the graveyard when it resolves. Give the
+        // opponent's Bears a Regeneration shield in play (none here) and they
+        // still die: the destroy is "can't be regenerated". The opponent's
+        // second creature (Hill Giant) is left alone — only the combat partner
+        // is destroyed.
+        label: "ARN: dies-destroys-blocker (Abu Ja'far)",
+        cards: [
+            { name: "Abu Ja'far", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Hill Giant", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // ARN Batch 9 (#184) — Guardian Beast ({3}{B}, 2/4). While the Beast is
+        // UNTAPPED, your noncreature artifacts can't be enchanted, can't be the
+        // targets of spells or abilities, have indestructible, and their control
+        // can't be changed (CR 611 continuous `permanent-guard`). You control the
+        // Beast and a Black Lotus; the opponent holds Shatter (destroy), Steal
+        // Artifact (control-change aura) and Disenchant in hand. With the Beast
+        // untapped, none can touch the Lotus — Shatter/Disenchant fizzle on
+        // resolution and the Lotus isn't even a legal click; Steal Artifact can't
+        // attach. Tap the Beast (right-click → Tap, or attack with it) and every
+        // gate opens: the Lotus becomes destroyable, targetable, and stealable.
+        label: "ARN: artifact shield (Guardian Beast)",
+        cards: [
+            { name: "Guardian Beast", owner: "me" as const },
+            { name: "Black Lotus", owner: "me" as const },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Shatter", owner: "opp" as const, zone: "hand" as const },
+            {
+                name: "Steal Artifact",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Disenchant",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+            { name: "Island", owner: "opp" as const, count: 3 },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
     {
@@ -2383,6 +2444,8 @@ export default function DebugPanel({
                                                         scenario.landCount,
                                                     libraryCount:
                                                         scenario.libraryCount,
+                                                    markLastDrawn:
+                                                        scenario.markLastDrawn,
                                                 })
                                             }
                                         >

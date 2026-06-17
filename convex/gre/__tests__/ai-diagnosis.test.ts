@@ -429,13 +429,16 @@ describe("AI diagnosis harness (Forge comparison)", () => {
     // attacking the bait and waiting are not scored as walking into death), with
     // `declaredBlockDelta` on effective P/T letting the block-step pump be seen.
     //
-    // What it does NOT yet do: strictly out-score the precombat dump on MEAN
-    // reward at the budgets the bot plays. The ambush is one high-value branch
-    // among many noisy ε-greedy playouts of the hold line, so the line's mean
-    // stays just below a low-variance dump; a soft prior raises exploration, not
-    // the mean. Closing that gap needs a lower-variance / pump-aware rollout and
-    // is deferred (flagged in the PR). This episode therefore asserts the
-    // reachability + non-domination the lever genuinely buys.
+    // Scope of THIS episode: the slice-3 reachability deliverable in isolation —
+    // the soft prior drives real visits down the hold line and it is not a
+    // clearly-worse line (within the outcome band). The headline ROOT behaviour
+    // ("the bot HOLDS the trick at the root and the held line out-scores the
+    // precombat dump", #223 AC bullet 3) is pinned separately by episode #7,
+    // which the interaction-aware combat predictor (#229) lets pass: with the
+    // attacker's held pump modelled the bait is no longer pre-judged dead, so the
+    // dump no longer decisively wins and the hold-the-trick selection tie-break
+    // keeps the option — `trace.chosen === "pass"`. (Before #229 that last step
+    // was a high-variance, deferred gap; it is now closed.)
     // -----------------------------------------------------------------------
     it(
         "episode #5: canonical combat-trick ambush — hold line is reachable & competitive",

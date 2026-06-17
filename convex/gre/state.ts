@@ -37,6 +37,7 @@ import {
     getEffectiveToughness,
 } from "./layers";
 import { isProtectedFromSource } from "./protection";
+import { isGuardedAgainst } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
 import { colorWordsPresent, landTypesPresent } from "./textChanges";
 import { randomInt, seededShuffle } from "./rng";
@@ -352,6 +353,10 @@ export type CardInstanceState = {
     /** Transient flag: this creature must block every attacker it can this
      *  turn (Blaze of Glory). Cleared at CLEANUP. */
     mustBlockAllThisTurn?: boolean;
+    /** Transient flag: this creature can't block this turn (CR 509.1b).
+     *  Twin of `mustBlockAllThisTurn`. Set by Ydwen Efreet's lost block
+     *  flip; enforced in `validateBlockerEligibility`. Cleared at CLEANUP. */
+    cantBlockThisTurn?: boolean;
     /** Layer 5 color override (CR 305.7, 613.1d). When set, getColors()
      *  returns this array instead of mana-cost-derived + grantedColors.
      *  Set by lace instants ("target spell or permanent becomes [color]"). */
@@ -439,6 +444,13 @@ export type PlayerState = {
     /** Number of lands played by this player during the current turn
      *  (CR 305.2 / 117.2c). Reset to 0 at the start of each turn. */
     landsPlayedThisTurn?: number;
+    /** Instance id of the last card this player drew during the current turn
+     *  (the card most recently moved from library to hand by a draw). Set by
+     *  `drawCard`, cleared at the start of each turn (`advanceTurn`). Used as
+     *  the discard cost for Jandor's Ring ("discard the last card you drew
+     *  this turn"). Stale when that card has since left the hand — consumers
+     *  must re-check the card is still in hand before using it. */
+    lastDrawnCardId?: string;
     /** Count of turns this player has taken so far in the game (CR 500.1).
      *  Starting player begins at 1 once UNTAP begins; the non-starting player
      *  reaches 1 when their first turn starts. Extra turns (CR 500.7)
@@ -592,6 +604,9 @@ export type PendingActivation = {
     /** Counter-removal cost (CR 122.6 — "Remove a [type] counter from this
      *  creature"). Applied at commit. */
     removeCounterCost?: { type: string; count: number };
+    /** True iff the ability has a "discard the last card you drew this turn"
+     *  cost (Jandor's Ring). The card is discarded at commit. */
+    discardLastDrawnSource?: boolean;
     /** Value chosen for X at activation announcement (CR 107.3 / 601.2b).
      *  Forwarded to the stack item at commit so resolve reads it via
      *  SpellContext.getX(). */
@@ -1322,6 +1337,16 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     toughness: sourceCard.toughness,
                     attachedTo: sourceCard.attachedTo,
                     counters: sourceCard.counters,
+                    // Combat-history / summoning-sickness flags must survive
+                    // into the resolve-time intervening-if (CR 603.4d) so
+                    // "if it [didn't] attack this turn"-style predicates
+                    // (Clockwork Beast, Erg Raiders) read the real value
+                    // rather than undefined.
+                    isAttacking: sourceCard.isAttacking,
+                    isBlocking: sourceCard.isBlocking,
+                    hasAttackedThisTurn: sourceCard.hasAttackedThisTurn,
+                    hasBlockedThisTurn: sourceCard.hasBlockedThisTurn,
+                    isSummoningSick: sourceCard.isSummoningSick,
                     card: sourceCard.card as Record<string, unknown>,
                 };
                 if (!ability.interveningIf(top.triggerEvent, selfView, state)) {
@@ -1457,7 +1482,11 @@ function finalizeSpellResolution(
                 isLegalAuraHost(host, item) &&
                 // CR 702.16b: the target can't have acquired protection
                 // matching the aura's color between cast and resolution.
-                !isProtectedFromSource(host, item);
+                !isProtectedFromSource(host, item) &&
+                // CR 303.4 — the host can't have become "can't be enchanted"
+                // (Guardian Beast) between cast and resolution. Already-attached
+                // Auras are unaffected; this gate only blocks new attachment.
+                !isGuardedAgainst(state, host, "cantBeEnchanted");
             if (!isLegalHost || host === undefined) {
                 item.zone = "graveyard";
                 getPlayer(state, item.ownerId).graveyard.push(item);
@@ -1990,6 +2019,10 @@ export function applyControlChange(
     revertControlChange(state, hostId, sourceId);
     const found = findOnBattlefield(state, hostId);
     if (!found) return;
+    // CR 613.1b — a continuous `permanent-guard` may bar control change
+    // (Guardian Beast: "their control can't be changed" while it is untapped).
+    // Read live so the lock tracks the guarding source's tap state.
+    if (isGuardedAgainst(state, found.card, "controlCantChange")) return;
     if (found.card.controllerId === newControllerId) return;
     const stack = found.card.controlChanges ?? [];
     found.card.controlChanges = [
@@ -2175,6 +2208,10 @@ export function regenerateOrDestroy(
     // (A creature with indestructible and lethal damage marks survives — the
     // marked damage stays, but SBA 704.5g doesn't fire on it.)
     if (found.card.staticAbilities.includes("indestructible")) return false;
+    // CR 702.12 via a continuous `permanent-guard` (Guardian Beast — "your
+    // noncreature artifacts have indestructible as long as ~ is untapped").
+    // Read live so the grant tracks the source's current tap state.
+    if (isGuardedAgainst(state, found.card, "indestructible")) return false;
     // CR 614.1a (Disintegrate) — exileOnDeath suppresses regeneration and
     // routes death to exile instead of graveyard.
     const exileOnDeath = found.card.exileOnDeath === true;
@@ -2254,6 +2291,29 @@ export function isCombatDamageImmune(
     );
 }
 
+/** Last-known combat relationship (CR 603.10) for a creature about to leave
+ *  the battlefield: every creature that, at this instant, is blocking it or is
+ *  blocked by it. `blockerAssignments` maps blockerId → the attackers it
+ *  blocks, so a creature `id`'s partners are (a) blockers whose assignment
+ *  list contains `id` — i.e. creatures blocking `id` when `id` is an attacker —
+ *  plus (b) the assignment list of `id` itself when `id` is a blocker — i.e.
+ *  the attackers `id` is blocking. Abu Ja'far (ARN) reads this at death to
+ *  destroy "all creatures blocking or blocked by it". Returns deduped ids.
+ *  Empty when there is no combat or the creature was not in combat. */
+export function combatPartnerIds(state: GameState, id: string): string[] {
+    const ba = state.combat?.blockerAssignments;
+    if (!ba) return [];
+    const partners = new Set<string>();
+    // (b) `id` is a blocker → the attackers it is blocking are blocked by it.
+    for (const attackerId of ba[id] ?? []) partners.add(attackerId);
+    // (a) some other creature is blocking `id` (i.e. `id` is an attacker).
+    for (const [blockerId, attackerIds] of Object.entries(ba)) {
+        if (attackerIds.includes(id)) partners.add(blockerId);
+    }
+    partners.delete(id);
+    return [...partners];
+}
+
 /** Removes a permanent from battlefield and moves it to the target zone of its owner.
  *  When `toZone` is "hand" or "library", the card becomes a new object
  *  (CR 400.7) and battlefield-only transient state (tap, marked damage, regen
@@ -2306,6 +2366,13 @@ export function removePermanentTo(
     const snapshotToughness = wasCreature
         ? getEffectiveToughness(state, creature)
         : 0;
+    // CR 603.10 — capture the moment-of-death combat relationship before the
+    // card leaves play and combat is cleared, so a death trigger that resolves
+    // after the creature is in the graveyard (Abu Ja'far) still knows which
+    // creatures were blocking or blocked by it.
+    const snapshotCombatPartners = wasCreature
+        ? combatPartnerIds(state, cardId)
+        : [];
     creature.zone = toZone;
     creature.attachedTo = undefined;
     // CR 707.2 — a copy effect lasts only while the object is on the
@@ -2332,6 +2399,7 @@ export function removePermanentTo(
                 damagedBySources: snapshotDamagedBy,
                 creaturePower: snapshotPower,
                 creatureToughness: snapshotToughness,
+                combatPartnerIds: snapshotCombatPartners,
             },
         ];
         // Running tally of creatures that have died this turn. Read by
@@ -2691,6 +2759,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
 
         forEachPlayer(fn: (playerId: string) => void) {
             for (const p of state.players) fn(p.id);
+        },
+
+        flipCoin(): boolean {
+            // CR 705.2 — flip a coin. Routed through the game's seeded PRNG
+            // (rngSeed/rngCounter) so the outcome is deterministic on replay,
+            // exactly like seeded shuffles and random discard. randomInt(2)
+            // returns 0 or 1; treat 1 as heads (the flipping player wins).
+            return randomInt(state, 2) === 1;
         },
 
         dealDamage(target: TargetSelection, amount: number) {
@@ -3702,6 +3778,13 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             found.card.mustBlockAllThisTurn = true;
         },
 
+        setCantBlockThisTurn(target: TargetSelection): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.cantBlockThisTurn = true;
+        },
+
         setColorOverride(target: TargetSelection, colors: Color[]): void {
             if (target.type === "permanent") {
                 const found = findOnBattlefield(state, target.id);
@@ -4197,7 +4280,11 @@ export function drawCard(player: PlayerState): CardInstanceState | null {
         player.hasDrawnFromEmpty = true;
         return null;
     }
-    return moveCard(player, player.library[0].id, "library", "hand");
+    const drawn = moveCard(player, player.library[0].id, "library", "hand");
+    // Track the most recent draw this turn (CR — "the last card you drew this
+    // turn"). Reset at turn start in advanceTurn. Used by Jandor's Ring.
+    player.lastDrawnCardId = drawn.id;
+    return drawn;
 }
 
 /** Moves a card between player zones (not stack). Returns the moved card.
@@ -4295,6 +4382,28 @@ export function payRemoveCounterCost(
     if (remaining === 0) delete next[cost.type];
     else next[cost.type] = remaining;
     card.counters = Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** True iff `player` can pay a "discard the last card you drew this turn"
+ *  cost (Jandor's Ring) — they drew a card this turn and it is still in
+ *  their hand (CR 118.3 — additional cost; CR 701.8 — discard). */
+export function canPayDiscardLastDrawn(player: PlayerState): boolean {
+    const id = player.lastDrawnCardId;
+    if (!id) return false;
+    return player.hand.some((c) => c.id === id);
+}
+
+/** Pays a "discard the last card you drew this turn" cost by discarding that
+ *  exact card. Throws if the card is no longer in hand (callers must check
+ *  `canPayDiscardLastDrawn` first). Clears the tracker so the same draw can't
+ *  pay a second activation this turn. */
+export function payDiscardLastDrawn(player: PlayerState): void {
+    const id = player.lastDrawnCardId;
+    if (!id || !player.hand.some((c) => c.id === id)) {
+        throw new Error("No card drawn this turn left to discard");
+    }
+    moveCard(player, id, "hand", "graveyard");
+    player.lastDrawnCardId = undefined;
 }
 
 /** Active "spend X as though Y" mana-substitution rules for one player.

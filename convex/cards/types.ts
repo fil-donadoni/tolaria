@@ -259,6 +259,13 @@ export interface ActivatedAbility {
          *  the counters are removed at activation commit. Used by Scavenging
          *  Ghoul ("Remove a corpse counter from this creature: Regenerate ~"). */
         removeCounter?: { type: string; count: number };
+        /** "Discard the last card you drew this turn" cost (CR 118.3 — an
+         *  additional cost paid from a fixed card, not a chosen one). The
+         *  ability is only legal to activate while the activating player has a
+         *  card recorded in `lastDrawnCardId` that is still in their hand; that
+         *  exact card is discarded at activation commit. Used by Jandor's
+         *  Ring. */
+        discardLastDrawn?: boolean;
     };
     /** Oracle text for this ability (displayed in context menus and on the stack). */
     oracleText: string;
@@ -902,6 +909,17 @@ export interface SpellContext {
     /** Marks a target permanent as "must block all attackers if able" this
      *  turn (Blaze of Glory). Cleared at CLEANUP. */
     setMustBlockAll: (target: TargetSelection) => void;
+    /** Marks a target permanent as unable to block this turn (CR 509.1b).
+     *  Twin of `setMustBlockAll`. Cleared at CLEANUP. Used by Ydwen Efreet's
+     *  lost block flip. No-op if target is not a permanent on the
+     *  battlefield. */
+    setCantBlockThisTurn: (target: TargetSelection) => void;
+    /** Flips a coin (CR 705) using the game's seeded PRNG, so flips are
+     *  replay-safe and reproducible given the seed. Returns true on "heads"
+     *  (the flipping player wins the flip), false on "tails". Available where
+     *  triggered and activated abilities resolve. Used by Bottle of Suleiman,
+     *  Mijae Djinn, and Ydwen Efreet. */
+    flipCoin: () => boolean;
     /** Sets colorOverride on a target permanent or spell (CR 305.7, layer 5).
      *  Replaces all color derivation — the target "becomes" the given colors.
      *  Used by lace instants. No-op if target has left play / stack. */
@@ -1166,6 +1184,14 @@ export interface PermanentView {
     /** True if the creature was declared as a blocker this turn. Mirrors
      *  `hasAttackedThisTurn` for end-of-combat triggers like Clockwork Beast. */
     hasBlockedThisTurn?: boolean;
+    /** True while the creature still has summoning sickness (CR 302.6) — it
+     *  entered the battlefield or came under its current controller's control
+     *  since their most recent turn began, and is cleared at that controller's
+     *  untap step. Exposed so end-step / upkeep triggers can implement the
+     *  "unless it came under your control this turn" exemption (Erg Raiders).
+     *  The trigger system passes the raw `CardInstanceState` as `self`, so this
+     *  flag is populated for trigger predicates. */
+    isSummoningSick?: boolean;
     /** One-shot P/T modifications scoped to a phase boundary (CR 611.1, 611.2).
      *  Each entry adds to `power`/`toughness` at read time; the engine purges
      *  entries whose `duration` has expired during phase-boundary cleanup
@@ -1533,6 +1559,48 @@ export interface StaticManaSubstitution {
     to: Color;
 }
 
+/** Continuous protection bundle for matching permanents (CR 611 continuous
+ *  effect — evaluated live, never timestamp-applied). Unlike `keyword-grant`,
+ *  which mutates the target's `staticAbilities` once at apply time and reverts
+ *  at unapply time, this kind is read on demand at each gate (targeting,
+ *  enchant, destroy, control change), so its `applies` predicate may depend on
+ *  mutable source state that the imperative apply/unapply hooks never observe —
+ *  e.g. "as long as `source` is untapped" (Guardian Beast). Each flag selects
+ *  which protection clauses are barred for a permanent matched by `applies`.
+ *
+ *  This mirrors the live-query model already used by `isProtectedFromColors`
+ *  (CR 702.16b) and `isCombatDamageImmune` (Ebony Horse): the guard is a
+ *  battlefield-wide rule, queried at the moment the protected action is
+ *  attempted, not a per-permanent mutation. Future "while <condition>, these
+ *  permanents you control are protected" cards reuse the same kind. */
+export interface StaticPermanentGuard {
+    kind: "permanent-guard";
+    /** Stable id (for debugging / oracle tracing). */
+    id: string;
+    /** Predicate: is `target` guarded right now, given `source` and live board
+     *  state? The predicate is evaluated at each gate, so reading
+     *  `source.isTapped` (Guardian Beast's "as long as ~ is untapped") yields
+     *  the current tap state — no re-apply hook needed. */
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** CR 702.16b-style "can't be the target of spells or abilities". Gated in
+     *  `getLegalTargets` and `selectTarget`. */
+    cantBeTargeted?: boolean;
+    /** CR 303.4 "can't be enchanted" — an Aura can't be cast at, or attach to,
+     *  the guarded permanent. Already-attached Auras are unaffected (the gate
+     *  only blocks new attachment). */
+    cantBeEnchanted?: boolean;
+    /** CR 702.12-style indestructible — "destroy" effects and lethal-damage
+     *  SBA-by-destroy don't move the guarded permanent to the graveyard. */
+    indestructible?: boolean;
+    /** CR 613.1b layer 2 — the guarded permanent's controller can't be
+     *  changed. Gated in `applyControlChange`. */
+    controlCantChange?: boolean;
+}
+
 export type StaticEffect =
     | StaticPTBuff
     | StaticPTCDA
@@ -1550,6 +1618,7 @@ export type StaticEffect =
     | StaticHandSizeOverride
     | StaticCostModifier
     | StaticManaSubstitution
+    | StaticPermanentGuard
     | StaticKeywordRemove;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
@@ -1664,6 +1733,14 @@ export interface CreatureDiedEvent {
     /** Effective toughness snapshotted at the moment the creature left the
      *  battlefield (CR 603.10). Used by triggers like Creature Bond. */
     creatureToughness: number;
+    /** Instance ids of the creatures that, at the moment of death, were
+     *  blocking this creature or blocked by it (CR 603.10 last known
+     *  information). Read by death triggers that act on combat partners after
+     *  the dying creature has already left the battlefield (Abu Ja'far —
+     *  "destroy all creatures blocking or blocked by it"). Empty when the
+     *  creature was not in combat. Optional so older event fixtures and
+     *  serialized logs without the field deserialize as "no partners". */
+    combatPartnerIds?: readonly string[];
 }
 
 /** Enter-the-battlefield event emitted whenever a permanent enters play via

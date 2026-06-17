@@ -31,6 +31,9 @@ export interface DeadCreatureLKI {
     lastKnownPower: number;
     lastKnownToughness: number;
     damagedBySources: ReadonlyArray<string>;
+    /** Creatures blocking or blocked by the dead creature at the moment of
+     *  death (CR 603.10). Empty when it was not in combat. Read by Abu Ja'far. */
+    combatPartnerIds: ReadonlyArray<string>;
 }
 
 export interface DiedTriggerArgs {
@@ -126,6 +129,7 @@ export function diedTrigger(args: DiedTriggerArgs): TriggeredAbility {
                 lastKnownPower: event.creaturePower,
                 lastKnownToughness: event.creatureToughness,
                 damagedBySources: event.damagedBySources,
+                combatPartnerIds: event.combatPartnerIds ?? [],
             };
             args.resolve(ctx, event, deadCreature);
         },

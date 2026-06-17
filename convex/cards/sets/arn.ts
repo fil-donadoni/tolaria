@@ -434,6 +434,44 @@ export const khabalGhoul: CardDefinition = {
     ],
 };
 
+// Erg Raiders — end-step self-damage unless it attacked, with a
+// "came under your control this turn" exemption (CR 603.4 intervening-if for
+// the attack clause + CR 603.3e trigger gate for the control-change clause).
+// Reuses the existing `phaseTrigger` factory (END_STEP, scope "your") and the
+// `dealDamage` primitive (cf. Juzám Djinn upkeep self-damage). The exemption
+// reads `self.isSummoningSick`: that flag is set when a creature enters or
+// changes controller and is cleared at its controller's untap step, so it is
+// true for exactly the turn the creature came under your control.
+export const ergRaiders: CardDefinition = {
+    id: "35c73a97-531d-4dd5-8236-39b89c183c38",
+    name: "Erg Raiders",
+    oracleText:
+        "At the beginning of your end step, if Erg Raiders didn't attack this turn, Erg Raiders deals 2 damage to you. This ability doesn't trigger if Erg Raiders came under your control this turn.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Warrior"],
+    power: 2,
+    toughness: 3,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "erg-raiders-end-step",
+            oracleText:
+                "At the beginning of your end step, if Erg Raiders didn't attack this turn, Erg Raiders deals 2 damage to you. This ability doesn't trigger if Erg Raiders came under your control this turn.",
+            phase: "END_STEP",
+            scope: "your",
+            // CR 603.3e — the ability does not even trigger the turn Erg
+            // Raiders came under your control (summoning-sick this turn).
+            condition: (_event, self) => self.isSummoningSick !== true,
+            // CR 603.4 intervening-if — "if it didn't attack this turn".
+            // Re-checked at resolve; `hasAttackedThisTurn` persists to CLEANUP.
+            interveningIf: (_event, self) => self.hasAttackedThisTurn !== true,
+            resolve: (ctx, _event, scopedPlayerId) => {
+                ctx.dealDamage({ type: "player", id: scopedPlayerId }, 2);
+            },
+        }),
+    ],
+};
+
 export const rukhEgg: CardDefinition = {
     id: "b28f9e63-e5e4-44b5-a17e-8301ff17c623",
     name: "Rukh Egg",
@@ -769,6 +807,31 @@ export const aladdinsRing: CardDefinition = {
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target) ctx.dealDamage(target, 4);
+            },
+        },
+    ],
+};
+
+export const jandorsRing: CardDefinition = {
+    id: "71504078-a16f-4dc4-9626-0ecc42b1e93b",
+    name: "Jandor's Ring",
+    oracleText:
+        "{2}, {T}, Discard the last card you drew this turn: Draw a card.",
+    manaCost: { X: 6 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "jandors-ring-draw",
+            oracleText:
+                "{2}, {T}, Discard the last card you drew this turn: Draw a card.",
+            // CR 118.3 — `discardLastDrawn` is an additional cost paid from a
+            // fixed card (the last card drawn this turn). The engine validates
+            // the card is still in hand and discards it at activation commit;
+            // the ability is unactivatable when no such card exists.
+            cost: { mana: { X: 2 }, tap: true, discardLastDrawn: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.drawCards(ctx.controller, 1);
             },
         },
     ],
@@ -1990,6 +2053,225 @@ export const ifhBiffEfreet: CardDefinition = {
     ],
 };
 
+// Guardian Beast — "As long as Guardian Beast is untapped, noncreature
+// artifacts you control can't be enchanted, can't be the targets of spells or
+// abilities, have indestructible, and their control can't be changed. This
+// ability doesn't remove Auras already attached." (modern oracle, ADR 0004).
+//
+// A single continuous protection bundle (`permanent-guard`, CR 611), evaluated
+// LIVE at four gates — targeting (CR 702.16b-style), enchant (CR 303.4),
+// destroy (CR 702.12), and control change (CR 613.1b). It is NOT a
+// `keyword-grant`: that machinery applies/reverts on the source's
+// enter/leave-the-battlefield only, so a granted keyword would go stale on a
+// tap/untap transition. The `applies` predicate reads `source.isTapped` live,
+// so the four protections switch off the instant Guardian Beast taps and back
+// on when it untaps — correct by construction with no re-apply hook.
+//
+// Scope: noncreature ARTIFACTS the same controller controls (a creature that is
+// also an artifact is excluded by the `!isCreature` clause). "Doesn't remove
+// Auras already attached" is automatic — the enchant gate only blocks NEW
+// attachment; auras already on a guarded artifact are untouched.
+//
+// Simplification (flagged): the printed "if something would destroy Guardian
+// Beast and your artifacts simultaneously, only Guardian Beast is destroyed"
+// rider is handled implicitly — our engine resolves "destroy" effects
+// sequentially and the indestructible guard is read at each destroy, so a mass
+// destroy that hits Guardian Beast and a guarded artifact spares the artifact
+// as long as Guardian Beast has not yet left when the artifact's destroy is
+// processed. Strict CR 616 simultaneous-replacement ordering is out of scope.
+export const guardianBeast: CardDefinition = {
+    id: "9941f83b-2903-4eab-ac6d-5313e3978fa3",
+    name: "Guardian Beast",
+    oracleText:
+        "As long as Guardian Beast is untapped, noncreature artifacts you control can't be enchanted, can't be the targets of spells or abilities, have indestructible, and their control can't be changed. This ability doesn't remove Auras already attached.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Beast"],
+    power: 2,
+    toughness: 4,
+    staticEffects: [
+        {
+            kind: "permanent-guard",
+            id: "guardian-beast-protection",
+            applies: (target, source, ctx) =>
+                !source.isTapped &&
+                target.controllerId === source.controllerId &&
+                target.types.includes("Artifact") &&
+                !ctx.isCreature(target),
+            cantBeTargeted: true,
+            cantBeEnchanted: true,
+            indestructible: true,
+            controlCantChange: true,
+        },
+    ],
+};
+
+// Abu Ja'far — death trigger that destroys its combat partners (CR 603.2 /
+// 603.10). The trigger resolves after Abu Ja'far is already in the graveyard,
+// so the engine snapshots "creatures blocking or blocked by it" at the moment
+// of death onto the CREATURE_DIED event (`combatPartnerIds`, computed by
+// `combatPartnerIds()` in state.ts). The body re-checks each partner is still
+// on the battlefield (CR 608.2b) and destroys it with `cantBeRegenerated`
+// (CR 701.15c — the printed "they can't be regenerated").
+export const abuJafar: CardDefinition = {
+    id: "0e9ad288-d164-44a6-96ec-4185a1587f1a",
+    name: "Abu Ja'far",
+    oracleText:
+        "When this creature dies, destroy all creatures blocking or blocked by it. They can't be regenerated.",
+    manaCost: { W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human"],
+    power: 0,
+    toughness: 1,
+    triggeredAbilities: [
+        diedTrigger({
+            id: "abu-jafar-death",
+            oracleText:
+                "When this creature dies, destroy all creatures blocking or blocked by it. They can't be regenerated.",
+            scope: "self",
+            resolve: (ctx, _event, deadCreature) => {
+                for (const partnerId of deadCreature.combatPartnerIds) {
+                    ctx.destroy(
+                        { type: "permanent", id: partnerId },
+                        { cantBeRegenerated: true }
+                    );
+                }
+            },
+        }),
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Batch 4 (#191) — coin flip (CR 705). `ctx.flipCoin()` wraps the seeded PRNG
+// (rngSeed/rngCounter) so outcomes are deterministic on replay. Mijae/Ydwen
+// reuse the existing `removeFromCombat`; Ydwen reuses `becomeUnblocked` (#172)
+// and the new `setCantBlockThisTurn` (twin of `setMustBlockAll`).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const bottleOfSuleiman: CardDefinition = {
+    id: "c474cd6b-5610-49eb-ac98-918d900efe8b",
+    name: "Bottle of Suleiman",
+    oracleText:
+        "{1}, Sacrifice this artifact: Flip a coin. If you win the flip, create a 5/5 colorless Djinn artifact creature token with flying. If you lose the flip, this artifact deals 5 damage to you.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "bottle-of-suleiman-flip",
+            oracleText:
+                "{1}, Sacrifice this artifact: Flip a coin. If you win the flip, create a 5/5 colorless Djinn artifact creature token with flying. If you lose the flip, this artifact deals 5 damage to you.",
+            // Self-sacrifice paid at activation commit (CR 117.9); the source is
+            // already off the battlefield by resolution, so the win branch
+            // creates the token and the lose branch deals 5 to its controller.
+            cost: { mana: { X: 1 }, sacrifice: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                if (ctx.flipCoin()) {
+                    ctx.createToken(
+                        {
+                            name: "Djinn",
+                            types: ["Artifact", "Creature"],
+                            subtypes: ["Djinn"],
+                            power: 5,
+                            toughness: 5,
+                            staticAbilities: ["flying"],
+                        },
+                        ctx.controller
+                    );
+                } else {
+                    ctx.dealDamage({ type: "player", id: ctx.controller }, 5);
+                }
+            },
+        },
+    ],
+};
+
+export const mijaeDjinn: CardDefinition = {
+    id: "d3ddbe51-cd1a-4b2c-849a-7c82d622122a",
+    name: "Mijae Djinn",
+    oracleText:
+        "Whenever this creature attacks, flip a coin. If you lose the flip, remove this creature from combat and tap it.",
+    manaCost: { R: 3 },
+    types: ["Creature"],
+    subtypes: ["Djinn"],
+    power: 6,
+    toughness: 3,
+    triggeredAbilities: [
+        {
+            id: "mijae-djinn-attack-flip",
+            oracleText:
+                "Whenever this creature attacks, flip a coin. If you lose the flip, remove this creature from combat and tap it.",
+            event: "ATTACKERS_DECLARED",
+            matches: (event, self) =>
+                event.type === "ATTACKERS_DECLARED" &&
+                event.attackerIds.includes(self.id),
+            resolve: (ctx) => {
+                if (ctx.flipCoin()) return; // won: stays attacking
+                const self: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                ctx.removeFromCombat(self);
+                ctx.tap(self);
+            },
+        },
+    ],
+};
+
+export const ydwenEfreet: CardDefinition = {
+    id: "efdba2a9-d171-45ed-8dd4-9d0046128f68",
+    name: "Ydwen Efreet",
+    oracleText:
+        "Whenever this creature blocks, flip a coin. If you lose the flip, remove this creature from combat and it can't block this turn. Creatures it was blocking that had become blocked by only this creature this combat become unblocked.",
+    manaCost: { R: 3 },
+    types: ["Creature"],
+    subtypes: ["Efreet"],
+    power: 3,
+    toughness: 6,
+    triggeredAbilities: [
+        {
+            id: "ydwen-efreet-block-flip",
+            oracleText:
+                "Whenever this creature blocks, flip a coin. If you lose the flip, remove this creature from combat and it can't block this turn. Creatures it was blocking that had become blocked by only this creature this combat become unblocked.",
+            // BLOCKERS_CONFIRMED fires once per attacker-blocker pair; this
+            // trigger collapses to a single flip per block declaration by
+            // matching only the pair whose blocker is self and whose attacker
+            // is the first one Ydwen blocked (so the flip runs once even when
+            // Ydwen blocks a band).
+            event: "BLOCKERS_CONFIRMED",
+            matches: (event, self) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return false;
+                return event.blockerId === self.id;
+            },
+            resolve: (ctx) => {
+                const self: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                // Capture the attackers Ydwen is solely blocking BEFORE it
+                // leaves combat: any attacker whose only blocker is Ydwen
+                // becomes unblocked (CR 509.1h) and hits the defender.
+                const blockersByAttacker = ctx.getBlockersByAttacker();
+                if (ctx.flipCoin()) return; // won: stays blocking
+                const solelyBlocked = Object.keys(blockersByAttacker).filter(
+                    (attackerId) => {
+                        const blockers = blockersByAttacker[attackerId];
+                        return (
+                            blockers.length === 1 &&
+                            blockers[0] === ctx.sourceInstanceId
+                        );
+                    }
+                );
+                ctx.removeFromCombat(self);
+                ctx.setCantBlockThisTurn(self);
+                for (const attackerId of solelyBlocked) {
+                    ctx.becomeUnblocked(attackerId);
+                }
+            },
+        },
+    ],
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Deferred to later batches — need engine work beyond existing primitives:
 //
@@ -2011,10 +2293,9 @@ export const ifhBiffEfreet: CardDefinition = {
 //     resolveSteps support on activated abilities.
 //
 // Other batches (PRD #171):
-//   • Batch 4 (#191, coin flip): Bottle of Suleiman, Mijae Djinn, Ydwen Efreet.
 //   • Batch 9 (#180-187, misc): Metamorphosis, Jihad, Magnetic Mountain,
-//     Aladdin's Lamp, Cuombajj Witches, Ifh-Bíff Efreet, Guardian Beast,
-//     Abu Ja'far, Jandor's Ring, Erg Raiders, City in a Bottle, Aladdin's Ring
+//     Aladdin's Lamp, Cuombajj Witches, Ifh-Bíff Efreet,
+//     Jandor's Ring, Erg Raiders, City in a Bottle, Aladdin's Ring
 //     (charge-counter variant N/A), Flying Carpet variants N/A.
 //
 // Out of scope — ante / subgames depend on game modes the engine does not model
