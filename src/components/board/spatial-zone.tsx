@@ -6,6 +6,8 @@ import {
     mirrorVertical,
     type Placement,
 } from "~/lib/board-layout";
+import { useZoneAnchorPublisher } from "~/hooks/useZoneAnchorPublisher";
+import type { AnchorKind } from "~/hooks/arrowAnchorContext";
 import SpatialSlot from "./spatial-slot";
 
 /** One placeable card slot: a stable key and the node to render inside it. */
@@ -18,13 +20,18 @@ type SpatialZoneProps = {
     items: SpatialItem[];
     /** Produces one {@link Placement} per item from the measured container size.
      *  This is the single source of truth for card positions — the same data
-     *  later anchors target arrows (PRD #249). */
+     *  anchors target arrows (PRD #249, #257). */
     layout: (count: number, width: number, height: number) => Placement[];
     /** Mirror placements vertically (opponent's side reuses the viewer math). */
     mirror?: boolean;
     /** Base card width/height in px (defaults to the shared card footprint). */
     cardWidth?: number;
     cardHeight?: number;
+    /** When set, each item's placement center is published to the arrow-anchor
+     *  registry under this kind (keyed by the item id), so SVG target arrows
+     *  derive their endpoints from the same layout placements that position the
+     *  cards (#257). Battlefield zones pass `"permanent"`. */
+    anchorKind?: AnchorKind;
     className?: string;
     "data-testid"?: string;
 };
@@ -42,6 +49,7 @@ export default function SpatialZone({
     mirror = false,
     cardWidth = CARD_WIDTH,
     cardHeight = CARD_HEIGHT,
+    anchorKind,
     className,
     "data-testid": testId,
 }: SpatialZoneProps) {
@@ -53,6 +61,19 @@ export default function SpatialZone({
     if (mirror) {
         placements = placements.map((p) => mirrorVertical(p, height));
     }
+
+    // Publish each item's placement center (in board-root coordinates) to the
+    // arrow-anchor registry. Zone-local placements + the zone's static offset
+    // within the board = the same source of truth that positions the cards, so
+    // arrows never sample the moving DOM (#257).
+    useZoneAnchorPublisher({
+        kind: anchorKind,
+        zoneRef: ref,
+        items,
+        placements,
+        width,
+        height,
+    });
 
     return (
         <div
