@@ -4,9 +4,11 @@ import { describe, expect, it } from "vitest";
 import {
     chooseResolution,
     decideBotAction,
+    LAND_LIGHT_LANDS_IN_PLAY,
     MULLIGAN_FLOOR,
     type BotView,
     type ChoiceCandidate,
+    type ManaSituation,
     type OwedChoice,
 } from "../brain";
 
@@ -385,13 +387,20 @@ describe("chooseResolution remaining zone-pick policies (ADR 0016, issue #165)",
         }
     });
 
-    it("sacrifice-permanents / discard-hand shed the lowest-value `min`", () => {
-        for (const kind of ["sacrifice-permanents", "discard-hand"] as const) {
-            expect(chooseResolution(owed({ kind, min: 2, max: 2 }))).toEqual([
-                "land1",
-                "land2",
-            ]);
-        }
+    it("sacrifice-permanents sheds the lowest-value `min`", () => {
+        expect(
+            chooseResolution(
+                owed({ kind: "sacrifice-permanents", min: 2, max: 2 })
+            )
+        ).toEqual(["land1", "land2"]);
+    });
+
+    it("discard-hand without a mana situation falls back to lowest-value `min`", () => {
+        // No `manaSituation` (it always accompanies a real discard-hand choice
+        // from buildBotView; the policy stays total over its input).
+        expect(
+            chooseResolution(owed({ kind: "discard-hand", min: 2, max: 2 }))
+        ).toEqual(["land1", "land2"]);
     });
 
     it("neutral picks take exactly `min` candidates in zone order", () => {
@@ -453,6 +462,115 @@ describe("chooseResolution remaining zone-pick policies (ADR 0016, issue #165)",
                 })
             )
         ).toEqual(["p1"]);
+    });
+});
+
+describe("chooseResolution discard heuristic (issue #242, mana-aware)", () => {
+    // A land ranks LOWEST by raw card value (value 8); an expensive/uncastable
+    // spell ranks high. The pre-#242 worst-first policy therefore shed the land
+    // — the exact bug this heuristic fixes.
+    const LAND_VALUE = 8;
+    const land = (id: string): ChoiceCandidate => ({
+        id,
+        value: LAND_VALUE,
+        isLand: true,
+        manaValue: 0,
+        colors: [],
+    });
+    const spell = (
+        id: string,
+        manaValue: number,
+        colors: ChoiceCandidate["colors"] = [],
+        value = 150
+    ): ChoiceCandidate => ({ id, value, isLand: false, manaValue, colors });
+
+    const discard = (
+        candidates: ChoiceCandidate[],
+        manaSituation: ManaSituation,
+        min = 1
+    ): OwedChoice => ({
+        kind: "discard-hand",
+        min,
+        max: min,
+        candidates,
+        manaSituation,
+    });
+
+    it("reported case: 1 land in hand + 1 land in play → discards the spell, keeps the land", () => {
+        // The bot is land-light (1 land in play), so the land is the
+        // constraining resource. It must shed the (uncastable) spell instead.
+        const picks = chooseResolution(
+            discard([land("plains"), spell("serra", 5, ["W"])], {
+                landsInPlay: 1,
+                landsInHand: 1,
+                producibleColors: [], // a single untapped Plains still develops mana
+            })
+        );
+        expect(picks).toEqual(["serra"]);
+    });
+
+    it("ranks by castability: uncastable spell shed before a castable one of equal cost", () => {
+        // Both cost 3; only the off-color one is uncastable given the bot
+        // produces only R. Castability dominates raw mana value.
+        const picks = chooseResolution(
+            discard(
+                [spell("castable", 3, ["R"]), spell("uncastable", 3, ["U"])],
+                { landsInPlay: 2, landsInHand: 0, producibleColors: ["R"] }
+            )
+        );
+        expect(picks).toEqual(["uncastable"]);
+    });
+
+    it("ranks by mana value: among castable spells the most expensive is shed first", () => {
+        const picks = chooseResolution(
+            discard([spell("cheap", 1, ["R"]), spell("pricey", 6, ["R"])], {
+                landsInPlay: 3,
+                landsInHand: 0,
+                producibleColors: ["R"],
+            })
+        );
+        expect(picks).toEqual(["pricey"]);
+    });
+
+    it("keeps the land while land-light even against a cheap castable spell", () => {
+        // Land must never be auto-discarded while developing mana.
+        const picks = chooseResolution(
+            discard([land("mountain"), spell("bolt", 1, ["R"])], {
+                landsInPlay: LAND_LIGHT_LANDS_IN_PLAY,
+                landsInHand: 1,
+                producibleColors: ["R"],
+            })
+        );
+        expect(picks).toEqual(["bolt"]);
+    });
+
+    it("land-flooded counter-case: sheds the surplus land", () => {
+        // Mana-developed (lands in play above the land-light band) AND two lands
+        // in hand → an extra land is a fair pitch, kept ahead of a usable spell.
+        const picks = chooseResolution(
+            discard(
+                [land("extra1"), land("extra2"), spell("usable", 2, ["R"])],
+                {
+                    landsInPlay: LAND_LIGHT_LANDS_IN_PLAY + 2,
+                    landsInHand: 2,
+                    producibleColors: ["R"],
+                }
+            )
+        );
+        expect(picks).toEqual(["extra1"]);
+    });
+
+    it("mana-developed but a lone land in hand is still kept over a spell", () => {
+        // Above the land-light band but only one land in hand: a single land is
+        // not surplus, so a usable spell is shed first.
+        const picks = chooseResolution(
+            discard([land("only-land"), spell("usable", 2, ["R"])], {
+                landsInPlay: LAND_LIGHT_LANDS_IN_PLAY + 2,
+                landsInHand: 1,
+                producibleColors: ["R"],
+            })
+        );
+        expect(picks).toEqual(["usable"]);
     });
 });
 
