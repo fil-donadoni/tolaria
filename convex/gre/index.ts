@@ -23,6 +23,7 @@ export type {
 } from "./state";
 export { getPendingChoiceMin, getPendingChoiceMax } from "./state";
 export { normalizeManaCost, isManaCostCovered } from "./state";
+export { getPlayer, matchesPermanentFilter } from "./state";
 export type { Phase, Zone } from "./types";
 
 // Structural-sharing clone for search (issue #108).
@@ -43,16 +44,41 @@ export type { Move, ManaTap } from "./moves";
 // Position heuristic + greedy 1-ply selection (issue #111). The bot scores each
 // enumerated move one ply ahead and plays the best; `evaluate` is the leaf
 // estimate that ISMCTS rollouts (issue #112) will reuse.
-export { evaluate, WIN_SCORE, cardValueById } from "./evaluate";
+export { evaluate, WIN_SCORE, cardValueById, materialMargin } from "./evaluate";
 export { applyMoveForSearch } from "./applyMove";
 export { greedySelectMove } from "./greedy";
+
+// Headless game setup (shared by the create/join mutations and the self-play
+// harness) — pure initial-state assembly from two deck inputs, seeded.
+export {
+    createInitialGameState,
+    buildPlayerState,
+    STARTING_HAND_SIZE,
+} from "./setup";
+export type { PlayerInput, DeckInput } from "./setup";
+
+// Engine-side resolution-choice resolvers (drive the SAME primitives as the
+// submit mutations) — used by the self-play harness to apply the bot's
+// mid-resolution picks (discard / scry / sacrifice / may-pay) headless.
+export {
+    applyPendingChoiceSubmit,
+    applyMayPaySubmit,
+} from "./pendingChoiceSubmit";
+export type { SubmitChoiceArgs, SubmitMayPayArgs } from "./pendingChoiceSubmit";
+export { recordDeclaration } from "./mulligan";
 
 // ISMCTS + determinization — the searching Bot (issue #112). `search` replaces
 // greedy selection: it re-determinizes hidden zones each iteration, descends a
 // single information-set tree by UCB1, and runs truncated `evaluate`-scored
 // rollouts. Reuses the real GRE for move application (no second simulator).
 export { determinize } from "./determinize";
-export { search, searchWithTrace, DEFAULT_BUDGET } from "./search";
+export {
+    search,
+    searchWithTrace,
+    applyMoveInSearch,
+    decidingPlayer,
+    DEFAULT_BUDGET,
+} from "./search";
 export type { SearchBudget, DecisionTrace, CandidateTrace } from "./search";
 export { makeRng } from "./rng";
 

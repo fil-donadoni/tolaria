@@ -100,6 +100,21 @@ const PRESET_SCENARIOS: PresetScenario[] = [
                 zone: "hand" as const,
             },
             {
+                name: "Air Elemental",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Air Elemental",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Air Elemental",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
                 name: "Counterspell",
                 owner: "opp" as const,
                 zone: "hand" as const,

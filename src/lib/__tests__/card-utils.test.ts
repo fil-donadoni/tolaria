@@ -274,7 +274,7 @@ describe("getStackAbilities", () => {
 // ---------------------------------------------------------------------------
 
 describe("getAnyPlayerStackAbilities", () => {
-    const IFH_BIFF_ID = "e503a4f2-a785-4e7a-89a7-a9b24fb98831";
+    const IFH_BIFF_ID = "c0b10fb7-8667-42bf-aeb6-35767a82917b";
 
     it("returns Ifh-Bíff Efreet's {G} ability (flagged any-player)", () => {
         const card = makeCardInstance({
