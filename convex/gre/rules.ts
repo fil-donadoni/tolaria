@@ -17,6 +17,7 @@ import {
     getEffectiveToughness,
 } from "./layers";
 import { isProtectedFromColors } from "./protection";
+import { isGuardedAgainst } from "./permanentGuard";
 import { getInstanceManaCost, tryGetCardById } from "../cards";
 import { normalizeManaCost } from "./state";
 
@@ -630,6 +631,10 @@ export function getLegalTargets(
                 // CR 702.16b: protected permanents can't be targeted by
                 // spells/abilities of the stated quality.
                 if (isProtectedFromColors(card, sourceColors)) continue;
+                // CR 611 — a continuous `permanent-guard` may bar targeting
+                // entirely (Guardian Beast: "can't be the targets of spells or
+                // abilities" while it is untapped). Read live.
+                if (isGuardedAgainst(state, card, "cantBeTargeted")) continue;
                 targets.push({ type: "permanent", id: card.id });
             }
         }

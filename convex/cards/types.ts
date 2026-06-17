@@ -1533,6 +1533,48 @@ export interface StaticManaSubstitution {
     to: Color;
 }
 
+/** Continuous protection bundle for matching permanents (CR 611 continuous
+ *  effect — evaluated live, never timestamp-applied). Unlike `keyword-grant`,
+ *  which mutates the target's `staticAbilities` once at apply time and reverts
+ *  at unapply time, this kind is read on demand at each gate (targeting,
+ *  enchant, destroy, control change), so its `applies` predicate may depend on
+ *  mutable source state that the imperative apply/unapply hooks never observe —
+ *  e.g. "as long as `source` is untapped" (Guardian Beast). Each flag selects
+ *  which protection clauses are barred for a permanent matched by `applies`.
+ *
+ *  This mirrors the live-query model already used by `isProtectedFromColors`
+ *  (CR 702.16b) and `isCombatDamageImmune` (Ebony Horse): the guard is a
+ *  battlefield-wide rule, queried at the moment the protected action is
+ *  attempted, not a per-permanent mutation. Future "while <condition>, these
+ *  permanents you control are protected" cards reuse the same kind. */
+export interface StaticPermanentGuard {
+    kind: "permanent-guard";
+    /** Stable id (for debugging / oracle tracing). */
+    id: string;
+    /** Predicate: is `target` guarded right now, given `source` and live board
+     *  state? The predicate is evaluated at each gate, so reading
+     *  `source.isTapped` (Guardian Beast's "as long as ~ is untapped") yields
+     *  the current tap state — no re-apply hook needed. */
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** CR 702.16b-style "can't be the target of spells or abilities". Gated in
+     *  `getLegalTargets` and `selectTarget`. */
+    cantBeTargeted?: boolean;
+    /** CR 303.4 "can't be enchanted" — an Aura can't be cast at, or attach to,
+     *  the guarded permanent. Already-attached Auras are unaffected (the gate
+     *  only blocks new attachment). */
+    cantBeEnchanted?: boolean;
+    /** CR 702.12-style indestructible — "destroy" effects and lethal-damage
+     *  SBA-by-destroy don't move the guarded permanent to the graveyard. */
+    indestructible?: boolean;
+    /** CR 613.1b layer 2 — the guarded permanent's controller can't be
+     *  changed. Gated in `applyControlChange`. */
+    controlCantChange?: boolean;
+}
+
 export type StaticEffect =
     | StaticPTBuff
     | StaticPTCDA
@@ -1550,6 +1592,7 @@ export type StaticEffect =
     | StaticHandSizeOverride
     | StaticCostModifier
     | StaticManaSubstitution
+    | StaticPermanentGuard
     | StaticKeywordRemove;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared

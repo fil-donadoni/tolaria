@@ -74,6 +74,40 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // ARN Batch 9 (#184) — Guardian Beast ({3}{B}, 2/4). While the Beast is
+        // UNTAPPED, your noncreature artifacts can't be enchanted, can't be the
+        // targets of spells or abilities, have indestructible, and their control
+        // can't be changed (CR 611 continuous `permanent-guard`). You control the
+        // Beast and a Black Lotus; the opponent holds Shatter (destroy), Steal
+        // Artifact (control-change aura) and Disenchant in hand. With the Beast
+        // untapped, none can touch the Lotus — Shatter/Disenchant fizzle on
+        // resolution and the Lotus isn't even a legal click; Steal Artifact can't
+        // attach. Tap the Beast (right-click → Tap, or attack with it) and every
+        // gate opens: the Lotus becomes destroyable, targetable, and stealable.
+        label: "ARN: artifact shield (Guardian Beast)",
+        cards: [
+            { name: "Guardian Beast", owner: "me" as const },
+            { name: "Black Lotus", owner: "me" as const },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Shatter", owner: "opp" as const, zone: "hand" as const },
+            {
+                name: "Steal Artifact",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Disenchant",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+            { name: "Island", owner: "opp" as const, count: 3 },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 9 (#183) — Ifh-Bíff Efreet ({2}{G}{G}, 3/3 flyer):
         // "{G}: This creature deals 1 damage to each creature with flying and
         // each player. Any player may activate this ability." (CR 113.3c /

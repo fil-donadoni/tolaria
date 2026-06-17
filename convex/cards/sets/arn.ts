@@ -1990,6 +1990,59 @@ export const ifhBiffEfreet: CardDefinition = {
     ],
 };
 
+// Guardian Beast — "As long as Guardian Beast is untapped, noncreature
+// artifacts you control can't be enchanted, can't be the targets of spells or
+// abilities, have indestructible, and their control can't be changed. This
+// ability doesn't remove Auras already attached." (modern oracle, ADR 0004).
+//
+// A single continuous protection bundle (`permanent-guard`, CR 611), evaluated
+// LIVE at four gates — targeting (CR 702.16b-style), enchant (CR 303.4),
+// destroy (CR 702.12), and control change (CR 613.1b). It is NOT a
+// `keyword-grant`: that machinery applies/reverts on the source's
+// enter/leave-the-battlefield only, so a granted keyword would go stale on a
+// tap/untap transition. The `applies` predicate reads `source.isTapped` live,
+// so the four protections switch off the instant Guardian Beast taps and back
+// on when it untaps — correct by construction with no re-apply hook.
+//
+// Scope: noncreature ARTIFACTS the same controller controls (a creature that is
+// also an artifact is excluded by the `!isCreature` clause). "Doesn't remove
+// Auras already attached" is automatic — the enchant gate only blocks NEW
+// attachment; auras already on a guarded artifact are untouched.
+//
+// Simplification (flagged): the printed "if something would destroy Guardian
+// Beast and your artifacts simultaneously, only Guardian Beast is destroyed"
+// rider is handled implicitly — our engine resolves "destroy" effects
+// sequentially and the indestructible guard is read at each destroy, so a mass
+// destroy that hits Guardian Beast and a guarded artifact spares the artifact
+// as long as Guardian Beast has not yet left when the artifact's destroy is
+// processed. Strict CR 616 simultaneous-replacement ordering is out of scope.
+export const guardianBeast: CardDefinition = {
+    id: "9941f83b-2903-4eab-ac6d-5313e3978fa3",
+    name: "Guardian Beast",
+    oracleText:
+        "As long as Guardian Beast is untapped, noncreature artifacts you control can't be enchanted, can't be the targets of spells or abilities, have indestructible, and their control can't be changed. This ability doesn't remove Auras already attached.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Beast"],
+    power: 2,
+    toughness: 4,
+    staticEffects: [
+        {
+            kind: "permanent-guard",
+            id: "guardian-beast-protection",
+            applies: (target, source, ctx) =>
+                !source.isTapped &&
+                target.controllerId === source.controllerId &&
+                target.types.includes("Artifact") &&
+                !ctx.isCreature(target),
+            cantBeTargeted: true,
+            cantBeEnchanted: true,
+            indestructible: true,
+            controlCantChange: true,
+        },
+    ],
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Deferred to later batches — need engine work beyond existing primitives:
 //
@@ -2013,7 +2066,7 @@ export const ifhBiffEfreet: CardDefinition = {
 // Other batches (PRD #171):
 //   • Batch 4 (#191, coin flip): Bottle of Suleiman, Mijae Djinn, Ydwen Efreet.
 //   • Batch 9 (#180-187, misc): Metamorphosis, Jihad, Magnetic Mountain,
-//     Aladdin's Lamp, Cuombajj Witches, Ifh-Bíff Efreet, Guardian Beast,
+//     Aladdin's Lamp, Cuombajj Witches, Ifh-Bíff Efreet,
 //     Abu Ja'far, Jandor's Ring, Erg Raiders, City in a Bottle, Aladdin's Ring
 //     (charge-counter variant N/A), Flying Carpet variants N/A.
 //
