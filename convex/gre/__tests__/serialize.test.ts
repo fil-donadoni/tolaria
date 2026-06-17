@@ -729,6 +729,14 @@ describe("optional field round-trip smoke tests", () => {
         expect(got.players[1].maxHandSizeOverride).toBe(10);
     });
 
+    it("lastDrawnCardId on PlayerState (Jandor's Ring discard cost)", () => {
+        const state = freshState();
+        state.players[0].lastDrawnCardId = "drawn-instance-id";
+        const got = roundTrip(state);
+        expect(got.players[0].lastDrawnCardId).toBe("drawn-instance-id");
+        expect(got.players[1].lastDrawnCardId).toBeUndefined();
+    });
+
     it("damageDealtToPlayerThisTurn", () => {
         const state = freshState();
         state.damageDealtToPlayerThisTurn = { p1: 5, p2: 3 };

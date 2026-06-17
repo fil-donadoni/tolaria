@@ -664,7 +664,14 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         ) {
             return [];
         }
-        const stack = getStackAbilities(card, phase);
+        // Jandor's Ring discard cost (CR 118.3): payable only while the
+        // controller's last-drawn-this-turn card is still in hand.
+        const canDiscardLastDrawn =
+            player.lastDrawnCardId !== undefined &&
+            player.hand.some(
+                (c) => c !== null && c.id === player.lastDrawnCardId
+            );
+        const stack = getStackAbilities(card, phase, canDiscardLastDrawn);
         // When a card carries BOTH a mana ability and at least one stack
         // ability (Basalt Monolith, Mana Vault), surface the mana ability as
         // an explicit menu entry too — otherwise a left click would silently

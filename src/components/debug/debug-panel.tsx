@@ -46,9 +46,35 @@ type PresetScenario = {
     phase: string;
     landCount: number;
     libraryCount?: number;
+    /** Mark "me"'s last hand card as the card drawn this turn — enables
+     *  "discard the last card you drew this turn" costs (Jandor's Ring). */
+    markLastDrawn?: boolean;
 };
 
 const PRESET_SCENARIOS: PresetScenario[] = [
+    {
+        // ARN (#186) — Jandor's Ring ({2},{T}, discard the last card you drew
+        // this turn: Draw a card). The Ring is on your battlefield with two
+        // Islands for the {2}. A Grizzly Bears sits in hand and is marked as
+        // "the last card you drew this turn" (markLastDrawn), so the discard
+        // cost is payable immediately — activate the Ring to discard it and
+        // draw a fresh card. Once the marked card leaves your hand the ability
+        // becomes unactivatable until you draw again (e.g. next draw step).
+        label: "ARN: Jandor's Ring (discard last drawn → draw)",
+        cards: [
+            { name: "Jandor's Ring", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 2 },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 5,
+        markLastDrawn: true,
+    },
     {
         // ARN Batch 9 (#181) — Magnetic Mountain ({1}{R}{R} enchantment): blue
         // creatures don't untap during their controllers' untap steps (CR 502.1
@@ -2377,6 +2403,8 @@ export default function DebugPanel({
                                                         scenario.landCount,
                                                     libraryCount:
                                                         scenario.libraryCount,
+                                                    markLastDrawn:
+                                                        scenario.markLastDrawn,
                                                 })
                                             }
                                         >

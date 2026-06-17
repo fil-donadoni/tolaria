@@ -27,6 +27,9 @@ export interface Player {
     /** Number of turns this player has taken so far (CR 500.1). Extra turns
      *  (CR 500.7) increment this normally. */
     turnsTaken?: number;
+    /** Instance id of the last card this player drew this turn (Jandor's
+     *  Ring discard cost). Cleared at the start of each turn. */
+    lastDrawnCardId?: string;
     /** Abilities granted to this player by an effect (e.g. Channel). */
     grantedAbilities?: GrantedAbility[];
 }

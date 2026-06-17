@@ -30,6 +30,8 @@ import {
     payManaCostForSpell,
     spendablePoolForSpell,
     payRemoveCounterCost,
+    canPayDiscardLastDrawn,
+    payDiscardLastDrawn,
     commitLandsForCost,
     resolveTopOfStack,
     normalizeManaCost,
@@ -410,6 +412,16 @@ function tryAutoCommitPendingActivation(
     }
     if (pa.removeCounterCost) {
         payRemoveCounterCost(card, pa.removeCounterCost);
+    }
+    if (pa.discardLastDrawnSource) {
+        // CR 118.3 — re-check at commit: the recorded card may have left the
+        // hand while mana was being tapped. If so, drop the payment silently
+        // (lands stay tapped, same policy as a vanished source above).
+        if (!canPayDiscardLastDrawn(player)) {
+            state.pendingActivation = undefined;
+            return null;
+        }
+        payDiscardLastDrawn(player);
     }
     if (pa.sacrificeSource) {
         removePermanentTo(state, card.id, "graveyard");
@@ -3726,6 +3738,13 @@ export const activateAbility = mutation({
                 throw new Error("Not enough counters to pay activation cost");
             }
         }
+        // CR 118.3 — "discard the last card you drew this turn" additional
+        // cost (Jandor's Ring): the player must have drawn a card this turn
+        // that is still in hand. Validated up-front so we never enter a
+        // pendingActivation that can't be paid.
+        if (ability.cost.discardLastDrawn && !canPayDiscardLastDrawn(player)) {
+            throw new Error("No card drawn this turn left to discard");
+        }
         // CR 602.5 — activated abilities may declare a custom precondition
         // (e.g. Clockwork Beast: "Activate only if it has fewer than seven
         // +1/+0 counters on it.") read against current source state.
@@ -3779,6 +3798,9 @@ export const activateAbility = mutation({
                 ...(ability.cost.removeCounter
                     ? { removeCounterCost: { ...ability.cost.removeCounter } }
                     : {}),
+                ...(ability.cost.discardLastDrawn
+                    ? { discardLastDrawnSource: true }
+                    : {}),
                 ...(chosenX !== undefined ? { chosenX } : {}),
                 keepPriority: args.keepPriority,
                 ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
@@ -3804,6 +3826,9 @@ export const activateAbility = mutation({
         }
         if (ability.cost.removeCounter) {
             payRemoveCounterCost(card, ability.cost.removeCounter);
+        }
+        if (ability.cost.discardLastDrawn) {
+            payDiscardLastDrawn(player);
         }
         if (ability.cost.sacrifice) {
             removePermanentTo(state, card.id, "graveyard");
@@ -4311,6 +4336,10 @@ export const debugSetupScenario = mutation({
         landCount: v.optional(v.number()),
         /** Fill each player's library with this many Plains. Default: unchanged. */
         libraryCount: v.optional(v.number()),
+        /** Mark "me"'s last placed hand card as the card drawn this turn
+         *  (`lastDrawnCardId`), so abilities with a "discard the last card you
+         *  drew this turn" cost (Jandor's Ring) are one-click activatable. */
+        markLastDrawn: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -4401,6 +4430,13 @@ export const debugSetupScenario = mutation({
                 p1.library.push(makeInstance("Plains", p1.id, "library"));
                 p2.library.push(makeInstance("Plains", p2.id, "library"));
             }
+        }
+
+        // Mark "me"'s last hand card as drawn this turn (Jandor's Ring's
+        // "discard the last card you drew this turn" cost). Cleared at the
+        // next turn start by advanceTurn.
+        if (args.markLastDrawn && p1.hand.length > 0) {
+            p1.lastDrawnCardId = p1.hand[p1.hand.length - 1].id;
         }
 
         // CR 611.2 — replay continuous keyword-grant / activated-grant static
