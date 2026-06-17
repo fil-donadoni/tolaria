@@ -43,17 +43,18 @@ import {
 } from "@convex/gre";
 import { chooseResolution, type OwedChoice } from "../brain";
 
-/** Why a game ended. `stall` / `max-plies` / `resolution-error` are harness
- *  guards, not real MTG outcomes — they surface a bug or an unsupported case
- *  rather than a legitimate win, and are reported separately so they never
- *  silently inflate a win-rate. */
+/** Why a game ended. `stall` / `max-plies` / `resolution-error` /
+ *  `search-error` are harness guards, not real MTG outcomes — they surface a
+ *  bug or an unsupported case rather than a legitimate win, and are reported
+ *  separately so they never silently inflate a win-rate. */
 export type GameEndReason =
     | "life"
     | "decked"
     | "concede"
     | "stall"
     | "max-plies"
-    | "resolution-error";
+    | "resolution-error"
+    | "search-error";
 
 export type GameResult = {
     /** Seat id that won, or null for a non-terminal stop (guard reasons). */
@@ -74,6 +75,11 @@ export type SeatConfig = {
     id: string;
     budget: SearchBudget;
 };
+
+/** The per-decision search entry point. Defaults to the production `search`;
+ *  injectable so a test can drive the `search-error` guard without a crashing
+ *  card (mirrors how `resolvePending` failures are exercised). */
+type SearchFn = typeof search;
 
 const MAX_PLIES = 4000;
 
@@ -181,7 +187,8 @@ export function runHeadlessGame(
     state: GameState,
     seatA: SeatConfig,
     seatB: SeatConfig,
-    seed: number
+    seed: number,
+    searchFn: SearchFn = search
 ): GameResult {
     const rng = makeRng(seed);
     const nextSeed = () => Math.floor(rng() * 0x7fffffff);
@@ -199,8 +206,18 @@ export function runHeadlessGame(
 
         const pid = decidingPlayer(state);
         if (pid) {
-            // A search-decided node.
-            const move = search(state, pid, budgetFor(pid), nextSeed());
+            // A search-decided node. Guard the rollout the same way
+            // `resolvePending` guards resolution nodes (ADR 0016): a crash inside
+            // ISMCTS (e.g. a buggy card resolution during a rollout) ends ONLY
+            // this game with `search-error` and never propagates, so a single
+            // crashing card can't wipe an N-game match's measurement.
+            let move;
+            try {
+                move = searchFn(state, pid, budgetFor(pid), nextSeed());
+            } catch {
+                reason = "search-error";
+                break;
+            }
             if (move) {
                 // Mulligan keep/mull is a NO-OP in `applyMoveInSearch` (the
                 // search resolves it only at its own root, never mid-rollout);
