@@ -21,7 +21,7 @@ import { registerTokenDefinition, tryGetCardById } from "../cards";
 import { turnFaceDown } from "./faceDown";
 import { getResolveFn } from "../cards/effectRegistry";
 import { matchesPermanentFilter } from "../cards/filters";
-import type { Phase, Zone } from "./types";
+import type { Phase, Zone, PhaseReturnCondition } from "./types";
 import {
     getActivatedManaColor,
     getBasicLandMana,
@@ -1008,6 +1008,12 @@ export type GameState = {
      *  shields (CR 615, Ebony Horse). Consumed in the combat damage step;
      *  unconsumed remainder purged at `duration` expiry. */
     combatDamageImmunity?: CombatDamageImmunity[];
+    /** CR 702.26 — permanents currently phased out, grouped into bundles
+     *  (host + attached Auras/Equipment). Phased permanents live here instead
+     *  of any battlefield array, so every battlefield reader treats them as
+     *  nonexistent for free. Bundles return via `removePermanentTo`'s
+     *  source-leaves hook (Oubliette). See ADR 0021. */
+    phasedOut?: PhasedOutBundle[];
 };
 
 /** Player-level replacement preferences. Each entry is opt-in: undefined
@@ -1087,6 +1093,27 @@ export type CombatDamageImmunity = {
     instanceId: string;
     duration: Duration;
 };
+
+/** CR 702.26 — a group of permanents silently pulled off the battlefield while
+ *  phased out. The host plus every Aura/Equipment attached to it phase as a
+ *  unit (CR 702.26d indirect phasing): they stay attached, keep their counters
+ *  and `attachedTo` links, and do NOT hit the graveyard (the aura-attachment
+ *  SBA never sees them because they're not in any battlefield array). Phased
+ *  permanents are "treated as though they don't exist" for free — every reader
+ *  iterates the battlefield arrays they've been removed from. */
+export interface PhasedOutBundle {
+    /** Stable bundle id (allocated via `allocInstanceId`). */
+    id: string;
+    /** Full fat state of each phased permanent, host first. Each card's
+     *  `controllerId` determines which battlefield it returns to on phase-in
+     *  (phasing never changes control, CR 702.26g). */
+    cards: CardInstanceState[];
+    /** When this bundle phases back in. */
+    returnOn: PhaseReturnCondition;
+    /** Applied to the HOST (cards[0]) on phase-in. Oubliette taps the
+     *  creature "as it phases in this way". */
+    onPhaseIn?: { tap?: boolean };
+}
 
 /** Returns true if a prevention effect matches (source, player) and consumes
  *  it. Called from every damage-dealing path (spell/ability, combat). */
@@ -2306,6 +2333,93 @@ export function removePermanentTo(
             toZone,
         },
     ];
+    // CR 702.26 — "until ~ leaves the battlefield" durations end here. Any
+    // bundle phased out by this source (Oubliette) phases back in immediately,
+    // before SBAs/triggers settle (the duration ending is a continuous effect,
+    // not a stack trigger). Runs after the move so the source is already gone.
+    phaseInBundlesForSource(state, cardId);
+}
+
+/** CR 702.26 — silently phase `permanentId` and everything attached to it out
+ *  of existence. Pulls the host plus every Aura/Equipment attached to it off
+ *  the battlefield into a `PhasedOutBundle`, with NO `PERMANENT_LEFT` event and
+ *  NO zone change (phasing is not leaving, CR 702.26h) — so no triggers fire
+ *  and the aura-attachment SBA never sees the detached auras. Counters and
+ *  `attachedTo` links ride along untouched. Returns the bundle id, or null if
+ *  the permanent isn't on the battlefield. */
+export function phaseOutPermanent(
+    state: GameState,
+    permanentId: string,
+    opts: { returnOn: PhaseReturnCondition; onPhaseIn?: { tap?: boolean } }
+): string | null {
+    const host = findOnBattlefield(state, permanentId);
+    if (!host) return null;
+    // CR 702.26d indirect phasing — collect every permanent attached to the
+    // host (Auras and Equipment) across all battlefields. They phase as a unit.
+    const attached: CardInstanceState[] = [];
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            if (card.id !== permanentId && card.attachedTo === permanentId) {
+                attached.push(card);
+            }
+        }
+    }
+    // Remove host + attachments from their battlefield arrays. Splice by id so
+    // we don't depend on stale indices as the arrays shrink.
+    const removeById = (id: string): CardInstanceState | undefined => {
+        for (const player of state.players) {
+            const idx = player.battlefield.findIndex((c) => c.id === id);
+            if (idx !== -1) return player.battlefield.splice(idx, 1)[0];
+        }
+        return undefined;
+    };
+    const cards: CardInstanceState[] = [];
+    const hostCard = removeById(permanentId);
+    if (hostCard) cards.push(hostCard);
+    for (const a of attached) {
+        const card = removeById(a.id);
+        if (card) cards.push(card);
+    }
+    const bundle: PhasedOutBundle = {
+        id: allocInstanceId(state),
+        cards,
+        returnOn: opts.returnOn,
+        ...(opts.onPhaseIn ? { onPhaseIn: opts.onPhaseIn } : {}),
+    };
+    state.phasedOut = [...(state.phasedOut ?? []), bundle];
+    return bundle.id;
+}
+
+/** CR 702.26 — silently phase a bundle back in: restore each permanent to its
+ *  controller's battlefield (phasing never changes control, CR 702.26g). No
+ *  events, so no enters triggers. The host taps if `onPhaseIn.tap` (Oubliette).
+ *  Returns false if the bundle id is unknown. */
+export function phaseInBundle(state: GameState, bundleId: string): boolean {
+    const bundles = state.phasedOut ?? [];
+    const idx = bundles.findIndex((b) => b.id === bundleId);
+    if (idx === -1) return false;
+    const [bundle] = bundles.splice(idx, 1);
+    state.phasedOut = bundles.length > 0 ? bundles : undefined;
+    for (const card of bundle.cards) {
+        getPlayer(state, card.controllerId).battlefield.push(card);
+    }
+    if (bundle.onPhaseIn?.tap && bundle.cards[0]) {
+        bundle.cards[0].isTapped = true;
+    }
+    return true;
+}
+
+/** Phases in every bundle whose `source-leaves` return condition names
+ *  `sourceId`. Called from `removePermanentTo` when any permanent leaves. */
+function phaseInBundlesForSource(state: GameState, sourceId: string): void {
+    for (const bundle of [...(state.phasedOut ?? [])]) {
+        if (
+            bundle.returnOn.kind === "source-leaves" &&
+            bundle.returnOn.sourceId === sourceId
+        ) {
+            phaseInBundle(state, bundle.id);
+        }
+    }
 }
 
 /** Emits a SPELL_CAST event for a freshly-pushed stack item (CR 601.2i).
@@ -3086,6 +3200,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             );
             if (!exists) return;
             moveCard(player, cardInstanceId, from, to);
+        },
+        // CR 702.26 — phase a permanent (and its Auras/Equipment) out of
+        // existence. See `phaseOutPermanent`.
+        phaseOut(permanentId, opts) {
+            return phaseOutPermanent(state, permanentId, opts);
+        },
+        // CR 702.26 — phase a bundle back in. See `phaseInBundle`.
+        phaseIn(bundleId) {
+            return phaseInBundle(state, bundleId);
         },
         // CR 701.20: randomize a player's library. Uses the seeded PRNG so
         // replays reproduce the same ordering.

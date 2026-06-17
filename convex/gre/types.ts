@@ -48,6 +48,20 @@ export type ZonePickKind =
     | "choose-permanents"
     | "partition"
     | "choose-hand-card";
+/** CR 702.26 — condition under which a phased-out bundle phases back in. A
+ *  discriminated union so future phasing variants stay expressible:
+ *   - `source-leaves` (Oubliette): phase in when the named source leaves the
+ *     battlefield (driven by `removePermanentTo`'s source-leaves hook).
+ *   - `untap-cycle` (keyword phasing — Teferi's Veil): the untap-step
+ *     phase-in/out loop. Expressible but unused — deferred (PRD #171). */
+export type PhaseReturnCondition =
+    | { kind: "source-leaves"; sourceId: string }
+    | { kind: "untap-cycle" };
+
+/** Per-host adjustments applied when a bundle phases back in. Oubliette taps
+ *  the creature "as it phases in this way" (CR 702.26 reminder). */
+export type PhaseInRider = { tap?: boolean };
+
 export type YesNoChoiceKind = "may-pay";
 export type OrderChoiceKind = "mulligan-bottom";
 export type PendingChoiceKind =

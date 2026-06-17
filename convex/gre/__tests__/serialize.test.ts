@@ -231,6 +231,50 @@ describe("game_state serialize round-trip", () => {
         expect(got.copiedFrom).toBe("printed-clone-id");
     });
 
+    it("preserves phasedOut bundles across the round trip (CR 702.26)", () => {
+        const state = freshState();
+        const host = makeInstance(savannahLions.id, {
+            id: "host",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            isTapped: true,
+            counters: { "+1/+1": 1 },
+        });
+        const aura = makeInstance(plains.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            attachedTo: "host",
+        });
+        state.phasedOut = [
+            {
+                id: "bundle-1",
+                cards: [host, aura],
+                returnOn: { kind: "source-leaves", sourceId: "oubl" },
+                onPhaseIn: { tap: true },
+            },
+        ];
+        const expanded = expandState(compactState(state));
+        expect(expanded.phasedOut).toHaveLength(1);
+        const b = expanded.phasedOut![0];
+        expect(b.id).toBe("bundle-1");
+        expect(b.returnOn).toEqual({ kind: "source-leaves", sourceId: "oubl" });
+        expect(b.onPhaseIn).toEqual({ tap: true });
+        expect(b.cards).toHaveLength(2);
+        const gotHost = b.cards.find((c) => c.id === "host")!;
+        expect(gotHost.ownerId).toBe("p2");
+        expect(gotHost.controllerId).toBe("p2");
+        expect(gotHost.isTapped).toBe(true);
+        expect(gotHost.counters).toEqual({ "+1/+1": 1 });
+        const gotAura = b.cards.find((c) => c.id === "aura")!;
+        expect(gotAura.ownerId).toBe("p1");
+        expect(gotAura.attachedTo).toBe("host");
+        // The fat definition is rehydrated from the slim `{ id }` reference.
+        expect((gotHost.card as { id: string }).id).toBe(savannahLions.id);
+    });
+
     it("preserves combatBlockRestrictions across the round trip", () => {
         const state = freshState();
         state.combatBlockRestrictions = [
