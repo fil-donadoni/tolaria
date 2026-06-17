@@ -76,12 +76,12 @@ export default function MultiCombobox({
                     <span>
                         {selected.length === 0
                             ? placeholder
-                            : `${selected.length} selected`}
+                            : `${placeholder}: ${selected.length} selected`}
                     </span>
                     <ChevronDownIcon className="size-3.5 opacity-60" />
                 </PopoverTrigger>
                 <PopoverContent
-                    className="w-[240px] border-border-subtle/40 bg-surface p-0"
+                    className="w-60 border-border-subtle/40 bg-surface p-0"
                     align="start"
                     side="bottom"
                     sideOffset={4}

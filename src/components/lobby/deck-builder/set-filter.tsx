@@ -26,7 +26,6 @@ export default function SetFilter({ selected, onToggle }: SetFilterProps) {
             placeholder="Set"
             searchPlaceholder="Search set…"
             emptyText="No matching set."
-            labelClassName="uppercase"
         />
     );
 }
