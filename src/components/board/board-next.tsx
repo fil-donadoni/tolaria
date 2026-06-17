@@ -1,3 +1,4 @@
+import { LayoutGroup } from "motion/react";
 import type { Player } from "~/types/game";
 import type { StackItem } from "~/types/game";
 import { rowLayout, fanLayout, type Placement } from "~/lib/board-layout";
@@ -64,55 +65,61 @@ export default function BoardNext({
     const [opponent, me] = orderedPlayers;
 
     return (
-        <div className="absolute inset-0" data-board-variant="next">
-            {/* Opponent: hand on the top edge, battlefield below it — same
-                layout math, mirrored to the top half. */}
-            {opponent && (
-                <>
-                    <div className="absolute left-0 right-0 top-0 h-[18%]">
-                        <SpatialZone
-                            items={handItems(opponent)}
-                            layout={handLayout}
-                            mirror
-                            data-testid="zone-opponent-hand"
-                        />
-                    </div>
-                    <div className="absolute left-0 right-0 top-[18%] h-[32%]">
-                        <SpatialZone
-                            items={battlefieldItems(opponent)}
-                            layout={battlefieldLayout}
-                            mirror
-                            data-testid="zone-opponent-battlefield"
-                        />
-                    </div>
-                </>
-            )}
+        // A single LayoutGroup spans every zone so a card's shared-layout
+        // element (keyed by instance id in SpatialSlot) is matched across zone
+        // boundaries — moving hand → battlefield animates the SAME element via a
+        // FLIP rather than unmount/remount (#252).
+        <LayoutGroup>
+            <div className="absolute inset-0" data-board-variant="next">
+                {/* Opponent: hand on the top edge, battlefield below it — same
+                    layout math, mirrored to the top half. */}
+                {opponent && (
+                    <>
+                        <div className="absolute left-0 right-0 top-0 h-[18%]">
+                            <SpatialZone
+                                items={handItems(opponent)}
+                                layout={handLayout}
+                                mirror
+                                data-testid="zone-opponent-hand"
+                            />
+                        </div>
+                        <div className="absolute left-0 right-0 top-[18%] h-[32%]">
+                            <SpatialZone
+                                items={battlefieldItems(opponent)}
+                                layout={battlefieldLayout}
+                                mirror
+                                data-testid="zone-opponent-battlefield"
+                            />
+                        </div>
+                    </>
+                )}
 
-            {/* Viewer: battlefield on the bottom half, hand on the bottom edge. */}
-            {me && (
-                <>
-                    <div className="absolute left-0 right-0 top-1/2 h-[32%]">
-                        <SpatialZone
-                            items={battlefieldItems(me)}
-                            layout={battlefieldLayout}
-                            data-testid="zone-player-battlefield"
-                        />
-                    </div>
-                    <div className="absolute left-0 right-0 bottom-0 h-[18%]">
-                        <SpatialZone
-                            items={handItems(me)}
-                            layout={handLayout}
-                            data-testid="zone-player-hand"
-                        />
-                    </div>
-                </>
-            )}
+                {/* Viewer: battlefield on the bottom half, hand on the bottom edge. */}
+                {me && (
+                    <>
+                        <div className="absolute left-0 right-0 top-1/2 h-[32%]">
+                            <SpatialZone
+                                items={battlefieldItems(me)}
+                                layout={battlefieldLayout}
+                                data-testid="zone-player-battlefield"
+                            />
+                        </div>
+                        <div className="absolute left-0 right-0 bottom-0 h-[18%]">
+                            <SpatialZone
+                                items={handItems(me)}
+                                layout={handLayout}
+                                data-testid="zone-player-hand"
+                            />
+                        </div>
+                    </>
+                )}
 
-            {/* Spatial chrome shared with the classic board. */}
-            <PriorityIndicator />
-            <PhaseTracker />
-            {stackItems.length > 0 && <GameStack stack={stackItems} />}
-            <TargetArrowsOverlay stack={stackItems} />
-        </div>
+                {/* Spatial chrome shared with the classic board. */}
+                <PriorityIndicator />
+                <PhaseTracker />
+                {stackItems.length > 0 && <GameStack stack={stackItems} />}
+                <TargetArrowsOverlay stack={stackItems} />
+            </div>
+        </LayoutGroup>
     );
 }
