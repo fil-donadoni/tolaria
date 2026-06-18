@@ -115,6 +115,50 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Board-next targeting + mid-resolution choice + additional cost (#279).
+        // The spatial board's selection click-paths now mirror the classic
+        // board — load this and switch the URL to ?board=next:
+        //   • Cast Lightning Bolt → "Choose target" starts; the legal creatures
+        //     ring up and clicking one dispatches selectTarget (illegal targets
+        //     stay inert). [target selection]
+        //   • Cast Metamorphosis ({G}, "As an additional cost, sacrifice a
+        //     creature") → pick one of your creatures on the battlefield to
+        //     dispatch selectAdditionalCost (CR 117.9). [additional cost]
+        //   • Cast Balance → mid-resolution it asks each player to keep some
+        //     of their permanents and then some hand cards (CR 608.2): click
+        //     your battlefield permanents to toggle the keep set, then click
+        //     your HAND cards to toggle the keep set — both highlight with the
+        //     choice ring and submit via Done. The hand pick proves spatial
+        //     hand cards become choice-selectable (not a cast). [battlefield +
+        //     hand choice]
+        // Every click dispatches the SAME mutation / toggles the SAME buffer as
+        // the classic board — both consume useBattlefieldInteraction /
+        // usePendingChoiceBuffer.
+        label: "Board next: target / additional cost / mid-resolution choice",
+        cards: [
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Metamorphosis",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Balance", owner: "me" as const, zone: "hand" as const },
+            { name: "Gray Ogre", owner: "me" as const, zone: "hand" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Gray Ogre", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 5 },
+            { name: "Mountain", owner: "me" as const, count: 3 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next hand UX (#271). A full, varied hand on the spatial board
         // (?board=next) to exercise the four hand fixes end-to-end:
         //   • Hover a hand card → the zoom preview appears (parity w/ the

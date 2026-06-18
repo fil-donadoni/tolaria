@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react";
 import type { CardInstance } from "~/types/game";
+import { useGameContext } from "~/hooks/useGameContext";
+import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { isSelectableHandChoiceCard } from "~/lib/hand-choice";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 import { useDragToCommit } from "~/hooks/useDragToCommit";
 import CardImage from "../cards/card-image";
@@ -53,10 +56,28 @@ export default function BoardNextHandCard({
     onDragMove,
     onDragEnd,
 }: BoardNextHandCardProps) {
+    const { playerId, pendingChoices } = useGameContext();
+    const bufferCtx = usePendingChoiceBuffer();
+
+    // Mid-resolution hand pick (CR 608.2, ADR 0007). When the active choice
+    // targets the hand zone and this is one of the viewer's own selectable
+    // cards, the card becomes a CHOICE toggle rather than a cast/play source:
+    // clicking toggles the local buffer (submitted atomically via the Done
+    // button), and the drag-to-cast pipeline is suppressed so the gesture can't
+    // announce a spell mid-resolution. Mirrors the classic `selectable-card`
+    // hand-choice branch so both boards toggle the SAME buffer.
+    const activeChoice = pendingChoices?.[0];
+    const isHandChoice = isSelectableHandChoiceCard(
+        activeChoice,
+        card,
+        playerId
+    );
+    const isChoiceSelected = isHandChoice && bufferCtx.buffer.includes(card.id);
+
     const legal = card.legalActions ?? [];
     const canPlay = legal.includes("play");
     const canCast = legal.includes("cast");
-    const commitEnabled = canPlay || canCast;
+    const commitEnabled = !isHandChoice && (canPlay || canCast);
 
     const { onPlayClick, onCastClick, modePickerOverlay } =
         useHandCardCommit(card);
@@ -87,6 +108,32 @@ export default function BoardNextHandCard({
             onDragEnd?.();
         }
     }, [state.dragging, state.pointerX, onDragMove, onDragEnd]);
+
+    // Choice-toggle variant (CR 608.2). Rendered AFTER every hook above runs so
+    // the rules-of-hooks contract holds; the drag pipeline is already inert
+    // (`commitEnabled` is false during a hand choice) so the card never casts.
+    // A click toggles the buffer; the ring mirrors `selectable-card`
+    // (emerald = picked, violet = pickable). Hover-zoom still rides along via
+    // the mounted CardImage. Keyed by the same `data-board-hand-card` handle so
+    // tests / arrows find the card on either path.
+    if (isHandChoice) {
+        const ringClass = isChoiceSelected
+            ? "ring-2 ring-emerald-400"
+            : "ring-2 ring-violet-400/60 cursor-pointer hover:ring-violet-300";
+        return (
+            <div
+                data-board-hand-card={card.id}
+                data-choice-selectable="true"
+                data-choice-selected={isChoiceSelected ? "true" : undefined}
+                className={`relative rounded-md ${ringClass}`}
+                onClick={() => {
+                    if (activeChoice) bufferCtx.toggle(card.id);
+                }}
+            >
+                <CardImage card={card} />
+            </div>
+        );
+    }
 
     const lift = state.dragging
         ? `translate(${state.offset.x}px, ${state.offset.y}px) scale(1.06)`
