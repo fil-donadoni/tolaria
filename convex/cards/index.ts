@@ -6,7 +6,9 @@ import type {
     CardType,
     Color,
     ManaCost,
+    StaticEffect,
 } from "./types";
+import { cantBeEnchantedSelfGuard } from "./types";
 import { setCardManaCostLookup } from "./manaCostLookup";
 import * as lea from "./sets/lea";
 import * as leb from "./sets/leb";
@@ -203,6 +205,11 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         colorsRaw,
         staticAbilitiesRaw,
         imagePrintIdRaw,
+        // CR 611 — static-effect kinds present on the token (see
+        // `tokenDefinitionId`). Trailing 10th segment; empty / absent for
+        // tokens without continuous effects (back-compat with the pre-Tetravus
+        // 9-segment ids, which have no trailing effects segment).
+        staticEffectsRaw,
     ] = parts;
     const types = typesRaw.split(",").filter(Boolean) as CardType[];
     const subtypes = subtypesRaw.split(",").filter(Boolean);
@@ -217,6 +224,19 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         imagePrintIdRaw && imagePrintIdRaw.length > 0
             ? imagePrintIdRaw
             : undefined;
+    // Rebuild any continuous static effects encoded in the id. Each closure
+    // predicate is reconstructed from a named factory (the closure can't ride
+    // the serialized id) — currently only Tetravite's "can't be enchanted"
+    // self-guard. Deterministic so server registration and post-round-trip
+    // rehydration produce an identical def (CR 611).
+    const staticEffectKinds = (staticEffectsRaw ?? "")
+        .split(",")
+        .filter(Boolean);
+    const staticEffects: StaticEffect[] = staticEffectKinds.includes(
+        "permanent-guard"
+    )
+        ? [cantBeEnchantedSelfGuard()]
+        : [];
     const manaCost: ManaCost = {};
     for (const c of colors) manaCost[c] = (manaCost[c] ?? 0) + 1;
     const def: CardDefinition = {
@@ -230,6 +250,7 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         toughness,
         ...(staticAbilities.length > 0 ? { staticAbilities } : {}),
         ...(imagePrintId ? { imagePrintId } : {}),
+        ...(staticEffects.length > 0 ? { staticEffects } : {}),
     };
     registry.set(cardId, def);
     return def;

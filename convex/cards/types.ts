@@ -435,6 +435,14 @@ export interface TokenSpec {
     colors?: Color[];
     /** Static abilities the token enters with (e.g. `["flying"]`). */
     staticAbilities?: string[];
+    /** Continuous static effects the token enters with (CR 611). Registered
+     *  onto the synthesized token CardDefinition so battlefield-wide readers
+     *  that key off the card def — e.g. `isGuardedAgainst` for a
+     *  `permanent-guard` — observe them. Used by Tetravite tokens ("This token
+     *  can't be enchanted", a self-targeting `cantBeEnchanted` guard). Folded
+     *  into the token's content-derived definition id so a token WITH a static
+     *  effect gets a distinct def from one without. */
+    staticEffects?: StaticEffect[];
     /** Optional Scryfall id of a printed token card. Used by the image layer
      *  to fetch real token art (e.g. The Hive's Wasp print from 10E:
      *  `09921372-126f-4c81-b6d8-ea50b1d0eb44`). When omitted, the renderer
@@ -806,11 +814,18 @@ export interface SpellContext {
      *  (resolution code can append events as needed). Tokens carry
      *  `isToken: true` and are wiped from any non-battlefield zone by the
      *  CR 704.5d state-based action. Returns the ids of the created tokens
-     *  so the caller can target / track them within the same resolve. */
+     *  so the caller can target / track them within the same resolve.
+     *
+     *  `createdBy` stamps the token-provenance link (CR 111): each created
+     *  token records this instance id in `CardInstanceState.createdBy`, so a
+     *  source can later filter "tokens created with this creature" (Tetravus
+     *  exiles its own Tetravites to put +1/+1 counters back on itself). Pass
+     *  `ctx.sourceInstanceId`. Omit for tokens with no provenance link. */
     createToken: (
         spec: TokenSpec,
         controllerId: string,
-        count?: number
+        count?: number,
+        createdBy?: string
     ) => string[];
     /** Records a one-shot prevention effect: the next time the given source
      *  would deal damage to `playerId`, that damage is prevented (CR 615.1,
@@ -1915,6 +1930,23 @@ export const EFFECT_AFFECTS_SELF: StaticKeywordGrant["applies"] = (
     target,
     source
 ) => target.id === source.id;
+
+/** "This token can't be enchanted" (CR 303.4 — Tetravite tokens). A
+ *  self-targeting `permanent-guard` with `cantBeEnchanted`, mirroring Guardian
+ *  Beast's clause but scoped to the source itself. Built as a named factory so
+ *  both `createToken` (server registration) and `maybeSynthesizeToken` (client
+ *  / post-DB-round-trip rehydration from the token id) reconstruct the SAME
+ *  effect — the guard predicate is a closure and can't ride the serialized
+ *  token id, so it must be rebuilt deterministically from the id's effect-kind
+ *  segment. */
+export function cantBeEnchantedSelfGuard(): StaticPermanentGuard {
+    return {
+        kind: "permanent-guard",
+        id: "token-cant-be-enchanted",
+        applies: EFFECT_AFFECTS_SELF,
+        cantBeEnchanted: true,
+    };
+}
 
 /** Canonical "tap target artifact, creature, or land" target shape (Twiddle,
  *  Icy Manipulator, Lifelace-style cards). Pre-Walls/Planeswalkers/Battles

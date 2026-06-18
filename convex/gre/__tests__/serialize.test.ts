@@ -66,12 +66,15 @@ describe("game_state serialize round-trip", () => {
         lion.isSummoningSick = true;
         lion.damageMarked = 1;
         lion.counters = { "+1/+1": 2 };
+        // CR 111 — token provenance link survives the DB round-trip.
+        lion.createdBy = "source-instance-7";
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
         expect(got.isTapped).toBe(true);
         expect(got.isSummoningSick).toBe(true);
         expect(got.damageMarked).toBe(1);
         expect(got.counters).toEqual({ "+1/+1": 2 });
+        expect(got.createdBy).toBe("source-instance-7");
     });
 
     it("preserves a non-zero mana pool", () => {

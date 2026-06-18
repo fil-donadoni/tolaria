@@ -84,6 +84,10 @@ export interface PermanentFilter {
      *  tapped permanents (Magnetic Mountain — "tapped blue creatures").
      *  Omitted = no constraint. */
     tapped?: boolean;
+    /** Token-provenance match (CR 111, 707.1). Keeps only tokens whose
+     *  `createdBy` equals this instance id — "tokens created with this
+     *  creature" (Tetravus). Omitted = no constraint. */
+    createdBy?: string;
 }
 
 // --- SpellFilter (applied to SpellCastEvent) ---
@@ -159,6 +163,10 @@ export interface MatchablePermanent {
     isAttacking?: boolean;
     isBlocking?: boolean;
     isTapped?: boolean;
+    /** Instance id of the permanent that created this token (CR 111). Read by
+     *  `PermanentFilter.createdBy`. Undefined for non-tokens and tokens with no
+     *  provenance link. */
+    createdBy?: string;
 }
 
 /** Structurally-typed view of a `SpellCastEvent` for `matchesSpellFilter`. */
@@ -241,6 +249,9 @@ export function matchesPermanentFilter(
     if (filter.tapped !== undefined) {
         const cardIsTapped = card.isTapped === true;
         if (filter.tapped !== cardIsTapped) return false;
+    }
+    if (filter.createdBy !== undefined && card.createdBy !== filter.createdBy) {
+        return false;
     }
     if (
         filter.excludeInstanceIds !== undefined &&

@@ -155,6 +155,7 @@ function compactCard(
     if (card.pileLabel) out.pileLabel = card.pileLabel;
     if (card.faceDown) out.faceDown = true;
     if (card.faceDownOf) out.faceDownOf = card.faceDownOf;
+    if (card.createdBy) out.createdBy = card.createdBy;
     return out;
 }
 
@@ -308,6 +309,7 @@ function expandCard(
     if (compact.pileLabel) result.pileLabel = compact.pileLabel as string;
     if (compact.faceDown) result.faceDown = true;
     if (compact.faceDownOf) result.faceDownOf = compact.faceDownOf as string;
+    if (compact.createdBy) result.createdBy = compact.createdBy as string;
     return result;
 }
 
