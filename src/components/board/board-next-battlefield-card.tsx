@@ -168,7 +168,7 @@ export default function BoardNextBattlefieldCard({
         <div
             data-arrow-anchor-permanent={card.id}
             data-tapped={card.isTapped ? "true" : undefined}
-            className={`w-full h-full ${vs.combatOffset} ${cursorClass} transition-[transform] duration-[250ms]`}
+            className={`w-full h-full ${vs.combatOffset} ${cursorClass} transition-transform duration-250`}
             style={{ transform: tapTransform }}
             {...clickHandlers}
         >
