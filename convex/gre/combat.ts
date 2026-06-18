@@ -146,6 +146,15 @@ export function validateBlockerEligibility(
         };
     }
 
+    // Pass 0b — attacker "can't be blocked this turn" flag (CR 509.1b). Set on
+    // the attacker by Tawnos's Wand; rejects every would-be blocker.
+    if (attacker.cantBeBlockedThisTurn) {
+        return {
+            eligible: false,
+            reason: "Attacker can't be blocked this turn",
+        };
+    }
+
     // Pass 1 — keyword-level evasion (registry-driven).
     // Covers: unblockable (509.1b), landwalk (702.13b), fear (702.36b),
     // flying (702.9b).

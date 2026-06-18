@@ -210,6 +210,8 @@ describe("game_state serialize round-trip", () => {
         lion.pileLabel = "left";
         lion.mustBlockAllThisTurn = true;
         lion.cantBlockThisTurn = true;
+        lion.cantBeBlockedThisTurn = true;
+        lion.chosenPlayerId = "p2";
         lion.copiedFrom = "printed-clone-id";
         // CR 613.1f — "loses all abilities" suppression source list
         // (Titania's Song, #288).
@@ -275,6 +277,8 @@ describe("game_state serialize round-trip", () => {
         expect(got.pileLabel).toBe("left");
         expect(got.mustBlockAllThisTurn).toBe(true);
         expect(got.cantBlockThisTurn).toBe(true);
+        expect(got.cantBeBlockedThisTurn).toBe(true);
+        expect(got.chosenPlayerId).toBe("p2");
         expect(got.copiedFrom).toBe("printed-clone-id");
         expect(got.abilitiesSuppressedBy).toEqual(["song-1", "song-2"]);
     });

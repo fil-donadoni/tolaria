@@ -1301,7 +1301,10 @@ function performPhaseEntry(state: GameState): void {
  *  cap applies. No state mutation — the cap is recomputed on every CLEANUP
  *  entry, so multiple copies / mid-turn enter-and-leave events need no
  *  bookkeeping. */
-export function effectiveMaxHandSize(player: PlayerState): number {
+export function effectiveMaxHandSize(
+    player: PlayerState,
+    state?: GameState
+): number {
     let bestNumeric: number | null = null;
     let unlimited = false;
 
@@ -1319,16 +1322,37 @@ export function effectiveMaxHandSize(player: PlayerState): number {
         return Infinity;
     }
 
+    // Default-scoped overrides on the player's own permanents (Library of Leng,
+    // Reliquary Tower) apply to their controller.
     for (const card of player.battlefield) {
         const cardId = (card.card as { id?: string }).id;
         if (!cardId) continue;
         const def = tryGetCardById(cardId);
         for (const effect of def?.staticEffects ?? []) {
-            if (
-                effect.kind === "hand-size-override" &&
-                consider(effect.value)
-            ) {
-                return Infinity;
+            if (effect.kind !== "hand-size-override") continue;
+            // `chosen-player` overrides are read from every battlefield below;
+            // skip them here so a Cursed Rack the player controls doesn't cap
+            // its own controller.
+            if (effect.appliesTo === "chosen-player") continue;
+            if (consider(effect.value)) return Infinity;
+        }
+    }
+
+    // Chosen-player overrides (Cursed Rack) live on a permanent ANY player may
+    // control; the override caps the instance's stored `chosenPlayerId`. Scan
+    // every battlefield and apply only the ones aimed at this player.
+    if (state) {
+        for (const owner of state.players) {
+            for (const card of owner.battlefield) {
+                if (card.chosenPlayerId !== player.id) continue;
+                const cardId = (card.card as { id?: string }).id;
+                if (!cardId) continue;
+                const def = tryGetCardById(cardId);
+                for (const effect of def?.staticEffects ?? []) {
+                    if (effect.kind !== "hand-size-override") continue;
+                    if (effect.appliesTo !== "chosen-player") continue;
+                    if (consider(effect.value)) return Infinity;
+                }
             }
         }
     }
@@ -1346,7 +1370,7 @@ export function effectiveMaxHandSize(player: PlayerState): number {
  *  required and CLEANUP can continue immediately. */
 function tryEnqueueCleanupDiscard(state: GameState): boolean {
     const active = getPlayer(state, state.activePlayerId);
-    const max = effectiveMaxHandSize(active);
+    const max = effectiveMaxHandSize(active, state);
     const excess = active.hand.length - max;
     if (excess <= 0) return false;
     state.pendingChoices = state.pendingChoices ?? [];
@@ -1462,6 +1486,11 @@ export function finalizeCleanup(state: GameState): void {
             }
             if (card.cantBlockThisTurn) {
                 card.cantBlockThisTurn = undefined;
+            }
+            // CR 509.1b — "can't be blocked this turn" (Tawnos's Wand) is
+            // turn-scoped.
+            if (card.cantBeBlockedThisTurn) {
+                card.cantBeBlockedThisTurn = undefined;
             }
         }
     }

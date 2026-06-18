@@ -33,6 +33,7 @@ import {
     payRemoveCounterCost,
     canPayDiscardLastDrawn,
     payDiscardLastDrawn,
+    payDiscardAtRandomCost,
     commitLandsForCost,
     resolveTopOfStack,
     normalizeManaCost,
@@ -474,8 +475,18 @@ function tryAutoCommitPendingActivation(
         }
         payDiscardLastDrawn(player);
     }
+    if (pa.discardAtRandomCount) {
+        // CR 118.3 — re-check at commit: the hand may have emptied while mana
+        // was being tapped. If so, drop the payment silently (lands stay
+        // tapped, mirroring the vanished-source / discardLastDrawn policy).
+        if (player.hand.length === 0) {
+            state.pendingActivation = undefined;
+            return null;
+        }
+        payDiscardAtRandomCost(state, playerId, pa.discardAtRandomCount);
+    }
     if (pa.sacrificeSource) {
-        removePermanentTo(state, card.id, "graveyard");
+        removePermanentTo(state, card.id, "graveyard", "sacrifice");
     }
     // CR 602.1 / 118.5 — sacrifice the chosen filtered permanent and snapshot
     // its pre-sacrifice mana value for the stack item (Priest of Yawgmoth).
@@ -497,7 +508,7 @@ function tryAutoCommitPendingActivation(
             cardInstanceId: sacrificed.id,
             mv: sacrificedManaValue(sacrificed),
         };
-        removePermanentTo(state, sacrificed.id, "graveyard");
+        removePermanentTo(state, sacrificed.id, "graveyard", "sacrifice");
     }
 
     const stackItem: StackItem = {
@@ -688,7 +699,7 @@ export function tryAutoCommitPendingCast(
             cardInstanceId: sacrificed.id,
             mv,
         };
-        removePermanentTo(state, sacrificed.id, "graveyard");
+        removePermanentTo(state, sacrificed.id, "graveyard", "sacrifice");
     }
 
     const spellCard = removeFromZone(
@@ -1334,6 +1345,12 @@ function finalizeTargetSelection(
                 throw new Error("No legal permanent to pay the sacrifice cost");
             }
         }
+        // CR 118.3 — "discard a card at random" cost (Coral Helm): illegal with
+        // an empty hand. Validated up-front so we never enter a pendingActivation
+        // that can't be paid.
+        if (ability.cost.discardAtRandom && player.hand.length === 0) {
+            throw new Error("No card in hand to discard");
+        }
         assertActivationTimingLegal(state, card, ability);
 
         const hasXInCost =
@@ -1386,6 +1403,9 @@ function finalizeTargetSelection(
                           },
                       }
                     : {}),
+                ...(ability.cost.discardAtRandom
+                    ? { discardAtRandomCount: ability.cost.discardAtRandom }
+                    : {}),
                 ...(abilityChosenX !== undefined
                     ? { chosenX: abilityChosenX }
                     : {}),
@@ -1412,8 +1432,15 @@ function finalizeTargetSelection(
         if (ability.cost.removeCounter) {
             payRemoveCounterCost(card, ability.cost.removeCounter);
         }
+        if (ability.cost.discardAtRandom) {
+            payDiscardAtRandomCost(
+                state,
+                playerId,
+                ability.cost.discardAtRandom
+            );
+        }
         if (ability.cost.sacrifice) {
-            removePermanentTo(state, card.id, "graveyard");
+            removePermanentTo(state, card.id, "graveyard", "sacrifice");
         }
 
         const stackItem: StackItem = {
@@ -4022,6 +4049,11 @@ export const activateAbility = mutation({
         if (ability.cost.discardLastDrawn && !canPayDiscardLastDrawn(player)) {
             throw new Error("No card drawn this turn left to discard");
         }
+        // CR 118.3 — "discard a card at random" cost (Coral Helm): illegal with
+        // an empty hand. Validated up-front.
+        if (ability.cost.discardAtRandom && player.hand.length === 0) {
+            throw new Error("No card in hand to discard");
+        }
         // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>": the
         // activation is illegal if no matching permanent is on the activating
         // player's battlefield. Validated up-front so we never enter a
@@ -4094,6 +4126,9 @@ export const activateAbility = mutation({
                 ...(ability.cost.discardLastDrawn
                     ? { discardLastDrawnSource: true }
                     : {}),
+                ...(ability.cost.discardAtRandom
+                    ? { discardAtRandomCount: ability.cost.discardAtRandom }
+                    : {}),
                 ...(ability.cost.sacrificeFilter
                     ? {
                           sacrificeChoice: {
@@ -4137,8 +4172,15 @@ export const activateAbility = mutation({
         if (ability.cost.discardLastDrawn) {
             payDiscardLastDrawn(player);
         }
+        if (ability.cost.discardAtRandom) {
+            payDiscardAtRandomCost(
+                state,
+                player.id,
+                ability.cost.discardAtRandom
+            );
+        }
         if (ability.cost.sacrifice) {
-            removePermanentTo(state, card.id, "graveyard");
+            removePermanentTo(state, card.id, "graveyard", "sacrifice");
         }
 
         // Put ability on stack (clone card state as a virtual stack item)
@@ -4832,6 +4874,27 @@ export const debugSetupScenario = mutation({
         for (const player of state.players) {
             for (const source of player.battlefield) {
                 applySourceStaticEffects(state, source);
+            }
+        }
+
+        // The placement loop bypasses ETB triggers, so "as ~ enters, choose an
+        // opponent" (Cursed Rack, The Rack — #292) never resolved. Auto-pick
+        // the controller's opponent so the scenario exercises the stored choice
+        // (2-player: a single opponent, so no ambiguity).
+        for (const player of state.players) {
+            for (const source of player.battlefield) {
+                if (source.chosenPlayerId !== undefined) continue;
+                const cardId = (source.card as { id?: string }).id;
+                const def = cardId ? tryGetCardById(cardId) : undefined;
+                const choosesOpponent = def?.triggeredAbilities?.some((t) =>
+                    t.id.endsWith("-choose-opponent")
+                );
+                if (choosesOpponent) {
+                    source.chosenPlayerId = getOpponentId(
+                        state,
+                        source.controllerId
+                    );
+                }
             }
         }
 

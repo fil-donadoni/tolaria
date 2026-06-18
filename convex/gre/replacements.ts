@@ -173,7 +173,7 @@ function buildApplyCtx(
                 if (candidateIds.length >= count) break;
             }
             for (const id of candidateIds) {
-                removePermanentTo(state, id, "graveyard");
+                removePermanentTo(state, id, "graveyard", "sacrifice");
             }
             return candidateIds.length;
         },
