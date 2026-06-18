@@ -88,6 +88,33 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Board-next activated abilities (#278). The spatial board's battlefield
+        // card now carries the same ability affordance as the classic board —
+        // load this and switch the URL to ?board=next:
+        //   • Right-click (or long-press) Prodigal Sorcerer → the ability menu /
+        //     action-sheet lists "{T}: deal 1 damage"; pick it → the target
+        //     selection starts. Hold Ctrl/Cmd while picking to keep priority.
+        //   • Right-click Basalt Monolith → both its mana entry ("{T}: Add
+        //     {C}{C}{C}") and its "{3}: Untap" stack ability appear. Tap for
+        //     mana, then the mana entry flips to "Untap and refund mana".
+        //   • Right-click the opponent's Ifh-Bíff Efreet while you hold priority
+        //     → only its "any player may activate" {G} ability is offered
+        //     (CR 113.3c); pass priority and the menu goes empty.
+        // Every entry dispatches the SAME activateAbility / tapUntap args as the
+        // classic board — both consume useBattlefieldInteraction.
+        label: "Board next: activate abilities (Tim / Basalt / any-player)",
+        cards: [
+            { name: "Prodigal Sorcerer", owner: "me" as const },
+            { name: "Basalt Monolith", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+            { name: "Forest", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Ifh-Bíff Efreet", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next hand UX (#271). A full, varied hand on the spatial board
         // (?board=next) to exercise the four hand fixes end-to-end:
         //   • Hover a hand card → the zoom preview appears (parity w/ the
