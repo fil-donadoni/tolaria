@@ -364,6 +364,12 @@ function tryAutoCommitPendingActivation(
     const pa = state.pendingActivation;
     if (!pa || pa.playerId !== playerId) return null;
 
+    // CR 602.2 — an activated ability may only be put on the stack while its
+    // controller has priority. Same defense as tryAutoCommitPendingCast: a
+    // payment left dangling after priority moves away must not auto-commit on
+    // the opponent's turn.
+    if (state.priorityPlayerId !== playerId) return null;
+
     const player = getPlayer(state, playerId);
     if (
         !isManaCostCovered(
@@ -465,11 +471,92 @@ function tryAutoCommitPendingActivation(
  *  spell to the stack, clear pendingCast, and swap priority — mirroring the
  *  tail of tapForPayment. Returns the card name on commit (for SPELL_CAST
  *  event logging), or null if nothing was committed. */
-function tryAutoCommitPendingCast(
+/** Roll back the in-progress spell payment: untap every land tapped so far,
+ *  return their mana to nothing, and clear `pendingCast`. Sacrificed sources
+ *  (Black Lotus) cannot be un-sacrificed, so their mana contribution is left in
+ *  the pool — the empty-pool step at phase end drains it. Mirrors the rollback
+ *  the player triggers explicitly via `cancelCast`. */
+function rollbackPendingCast(state: GameState): void {
+    if (!state.pendingCast) return;
+    const player = getPlayer(state, state.pendingCast.playerId);
+    for (const cardId of state.pendingCast.tappedLandIds) {
+        discardPermanentTappedEvent(state, cardId);
+        const card = player.battlefield.find((c) => c.id === cardId);
+        if (!card) continue;
+        card.isTapped = false;
+        if (card.chosenMana) {
+            for (const [color, amount] of Object.entries(card.chosenMana)) {
+                if (color !== "X" && typeof amount === "number" && amount > 0) {
+                    player.manaPool[color] = Math.max(
+                        0,
+                        (player.manaPool[color] ?? 0) - amount
+                    );
+                }
+            }
+            card.chosenMana = undefined;
+        } else {
+            const manaColor =
+                getBasicLandMana(card) ?? getActivatedManaColor(card);
+            if (manaColor) {
+                const amount = getFixedManaAmount(card, manaColor);
+                player.manaPool[manaColor] = Math.max(
+                    0,
+                    (player.manaPool[manaColor] ?? 0) - amount
+                );
+            }
+        }
+    }
+    state.pendingCast = undefined;
+}
+
+/** Roll back the in-progress activated-ability payment and clear
+ *  `pendingActivation`. Mirrors `cancelActivation`. */
+function rollbackPendingActivation(state: GameState): void {
+    const pa = state.pendingActivation;
+    if (!pa) return;
+    const player = getPlayer(state, pa.playerId);
+    for (const cardId of pa.tappedLandIds) {
+        const card = player.battlefield.find((c) => c.id === cardId);
+        if (!card) continue;
+        untapSourceFromPayment(state, player, card);
+    }
+    state.pendingActivation = undefined;
+}
+
+/** A player who surrenders priority (passes / ends the turn) while a mana
+ *  payment is still in progress abandons that payment: the spell/ability was
+ *  never put on the stack, so the tapped lands must be returned. Without this,
+ *  a stale pendingCast/pendingActivation lingers across the priority change —
+ *  the PaymentBanner stays up and a later auto-tap could try to commit at an
+ *  illegal time (the commit guards then reject it, but the lands would be
+ *  stuck tapped). CR 601.2 / 602.2. */
+export function abandonPendingPayment(
+    state: GameState,
+    playerId: string
+): void {
+    if (state.pendingCast?.playerId === playerId) {
+        rollbackPendingCast(state);
+    }
+    if (state.pendingActivation?.playerId === playerId) {
+        rollbackPendingActivation(state);
+    }
+}
+
+export function tryAutoCommitPendingCast(
     state: GameState,
     playerId: string
 ): { cardInstanceId: string; cardName: string | undefined } | null {
     if (!state.pendingCast || state.pendingCast.playerId !== playerId) {
+        return null;
+    }
+    // CR 601.2 / 601.2i — a spell may only be put on the stack while its caster
+    // has priority. Payment is a multi-step server interaction (tap each land);
+    // if priority moved away mid-payment (player passed / ended turn), the
+    // lingering pendingCast must NOT auto-commit. Without this guard a stale
+    // payment could be finalized on the opponent's turn, casting at an illegal
+    // time. The stale pendingCast is rolled back separately when priority is
+    // surrendered (see abandonPendingPayment).
+    if (state.priorityPlayerId !== playerId) {
         return null;
     }
     const player = getPlayer(state, playerId);
@@ -1821,44 +1908,7 @@ export const cancelCast = mutation({
             throw new Error("Not your pending cast");
         }
 
-        const player = getPlayer(state, args.playerId);
-
-        // Rollback all taps. Sacrificed sources (Black Lotus) cannot be
-        // un-sacrificed, so their mana contribution is left in the pool —
-        // the empty-pool step at phase end will drain it.
-        for (const cardId of state.pendingCast.tappedLandIds) {
-            discardPermanentTappedEvent(state, cardId);
-            const card = player.battlefield.find((c) => c.id === cardId);
-            if (!card) continue;
-            card.isTapped = false;
-            if (card.chosenMana) {
-                for (const [color, amount] of Object.entries(card.chosenMana)) {
-                    if (
-                        color !== "X" &&
-                        typeof amount === "number" &&
-                        amount > 0
-                    ) {
-                        player.manaPool[color] = Math.max(
-                            0,
-                            (player.manaPool[color] ?? 0) - amount
-                        );
-                    }
-                }
-                card.chosenMana = undefined;
-            } else {
-                const manaColor =
-                    getBasicLandMana(card) ?? getActivatedManaColor(card);
-                if (manaColor) {
-                    const amount = getFixedManaAmount(card, manaColor);
-                    player.manaPool[manaColor] = Math.max(
-                        0,
-                        (player.manaPool[manaColor] ?? 0) - amount
-                    );
-                }
-            }
-        }
-
-        state.pendingCast = undefined;
+        rollbackPendingCast(state);
 
         await saveGameState(
             ctx,
@@ -2053,14 +2103,7 @@ export const cancelActivation = mutation({
             throw new Error("Not your pending activation");
         }
 
-        const player = getPlayer(state, args.playerId);
-        for (const cardId of pa.tappedLandIds) {
-            const card = player.battlefield.find((c) => c.id === cardId);
-            if (!card) continue;
-            untapSourceFromPayment(state, player, card);
-        }
-
-        state.pendingActivation = undefined;
+        rollbackPendingActivation(state);
 
         await saveGameState(
             ctx,
@@ -3134,6 +3177,11 @@ export const passPriority = mutation({
             throw new Error("You don't have priority");
         }
 
+        // Passing priority while a mana payment is still open abandons it
+        // (CR 601.2 / 602.2): roll back the tapped lands and clear the banner
+        // before the priority change so no stale pendingCast lingers.
+        abandonPendingPayment(state, args.playerId);
+
         // Cannot pass priority before confirming attackers
         if (
             state.phase === "DECLARE_ATTACKERS" &&
@@ -3351,6 +3399,12 @@ export const endTurn = mutation({
         }
 
         assertNoPendingChoices(state);
+
+        // Ending the turn while a mana payment is still open abandons it
+        // (the exact bug this guards: pressing Enter with the PaymentBanner up
+        // must not leave a stale pendingCast that a later auto-tap commits on
+        // the opponent's turn). Roll back the taps before auto-passing.
+        abandonPendingPayment(state, args.playerId);
 
         // Add player to autoPass list
         const autoPassPlayers = state.autoPassPlayers ?? [];

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { SpellMode } from "@convex/cards/types";
 import GameDialog from "~/components/ui/game-dialog";
@@ -40,10 +41,24 @@ function ModePickerPortal({
     onSelect,
     onCancel,
 }: ModePickerProps & { position: { x: number; y: number } }) {
+    // ESC closes the picker (matches the dialog-wide "ESC dismisses the open
+    // overlay" UX). The `data-slot="dialog-content"` tag below lets the board's
+    // global ESC handler detect this portal and skip opening the pause menu.
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (e.key !== "Escape") return;
+            e.preventDefault();
+            onCancel();
+        };
+        window.addEventListener("keydown", handler);
+        return () => window.removeEventListener("keydown", handler);
+    }, [onCancel]);
+
     return createPortal(
         <>
             <div className="fixed inset-0 z-40" onMouseDown={onCancel} />
             <div
+                data-slot="dialog-content"
                 className="fixed z-50 flex min-w-64 flex-col gap-1 rounded-sm bg-[#0c0d12]/95 border border-zinc-800/80 backdrop-blur-md p-3 shadow-[0_0_50px_rgba(0,0,0,0.8)]"
                 style={{ left: position.x, top: position.y }}
             >

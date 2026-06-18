@@ -220,6 +220,11 @@ export default function BoardNextBattlefield({
                 layout={layout}
                 mirror={mirror}
                 anchorKind="permanent"
+                // Attacking creatures lift toward the midline (`-translate-y-8`
+                // / `translate-y-8`); without this the card top is clipped by
+                // the zone's `overflow-hidden` box. Let lifted cards paint
+                // outside the band instead (same fix the hand zone uses, #271).
+                overflowVisible
                 data-testid={testId}
                 className="mx-3"
             />

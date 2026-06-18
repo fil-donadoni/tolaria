@@ -185,7 +185,16 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
             }
             if (e.code === "Enter" && !e.repeat) {
                 e.preventDefault();
-                if (isAutoPass || isQueuedEndTurn) {
+                if (isPayingCast) {
+                    // PaymentBanner is up: Enter cancels the payment rather than
+                    // ending the turn. Ending mid-payment would otherwise leave
+                    // a stale cast the server later abandons — cancel cleanly
+                    // here so the banner clears and no turn is accidentally
+                    // passed in the same keystroke.
+                    cancelCast({ gameId, playerId });
+                } else if (isPayingActivation) {
+                    cancelActivation({ gameId, playerId });
+                } else if (isAutoPass || isQueuedEndTurn) {
                     handleCancelAutoPass();
                 } else {
                     handleEndTurn();

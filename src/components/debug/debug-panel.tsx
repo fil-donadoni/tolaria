@@ -61,6 +61,33 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Payment-timing guard (Enter mid-payment must not strand a cast).
+        // Repro for the priority-window bug: cast a creature, leave the
+        // PaymentBanner up, then surrender priority.
+        //   • Click Serra Angel in hand → the cost isn't auto-covered, so the
+        //     PaymentBanner opens (pendingCast).
+        //   • Press Enter while the banner is up → the cast is CANCELLED (lands
+        //     refunded, banner clears); the turn is NOT ended in the same
+        //     keystroke. Previously the banner lingered and a later Space on the
+        //     opponent's turn cast the creature at an illegal (sorcery) time.
+        //   • Alternatively press Space → Auto-tap commits normally while you
+        //     still hold priority. Passing priority / ending the turn mid-payment
+        //     now rolls the payment back server-side (autoTap can't commit it
+        //     later — CR 601.2).
+        label: "Payment timing: cancel-on-pass guard (Serra Angel + 5 Plains)",
+        cards: [
+            {
+                name: "Serra Angel",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "me" as const, count: 5 },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next battlefield tap/pay (#272). The spatial board's
         // battlefield is now interactive (?board=next) — load this and switch
         // the URL to ?board=next to exercise the foundational tap/pay slice:
