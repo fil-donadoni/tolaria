@@ -3,6 +3,7 @@ import { useBattlefieldInteraction } from "~/hooks/useBattlefieldInteraction";
 import { rowLayout, type Placement } from "~/lib/board-layout";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
 import BoardNextBattlefieldCard from "./board-next-battlefield-card";
+import CombatPanels from "./combat-panels";
 
 /** Battlefield row: full size + gap until overflow, then overlap, then scale.
  *  Vertically centered in its zone (`rowLayout`, #251). */
@@ -72,6 +73,12 @@ export default function BoardNextBattlefield({
                 anchorKind="permanent"
                 data-testid={testId}
             />
+            {/* Combat declaration / damage modals (#281). The per-card combat
+            clicks (toggleAttacker / selectBlocker / assignBlockerTarget) live
+            in the hook's handler above; these are the separate, non-click-driven
+            band-formation and damage-assignment panels, gated to the right
+            combat sub-step — the SAME panels the classic board mounts. */}
+            <CombatPanels player={player} />
             {overlays}
         </>
     );
