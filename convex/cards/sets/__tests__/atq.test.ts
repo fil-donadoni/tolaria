@@ -35,6 +35,21 @@ import {
     armageddonClock,
     triskelion,
     clockworkAvian,
+    mightstone,
+    weakstone,
+    gaeasAvenger,
+    staffOfZegon,
+    mishrasFactory,
+    batteringRam,
+    urzasAvenger,
+    amuletOfKroog,
+    argivianBlacksmith,
+    rakalite,
+    circleOfProtectionArtifacts,
+    ashnodsTransmogrant,
+    yawgmothDemon,
+    mishrasWarMachine,
+    goblinArtisans,
 } from "../atq";
 import { getCardById } from "../..";
 import {
@@ -57,7 +72,7 @@ import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { getLegalTargets } from "../../../gre/rules";
 import { advancePhase, untapStep } from "../../../gre/phases";
 import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
-import type { CardType } from "../../types";
+import type { CardType, BlockersConfirmedEvent } from "../../types";
 
 /** Submit the current head pending choice (zone-pick) with the given ordered
  *  ids. Auto-resumes the suspended resolution (mirrors the game.ts mutation). */
@@ -1587,6 +1602,27 @@ function fireTrigger(
     resolveTopOfStack(state);
 }
 
+/** Builds a full BLOCKERS_CONFIRMED event (CR 509.1h). Only the subtype/id
+ *  fields are scenario-relevant; the controller/type fields are filled with
+ *  defaults so the literal satisfies the GameEvent union. */
+function blockEvent(
+    attackerId: string,
+    blockerId: string,
+    blockerSubtypes: string[]
+): BlockersConfirmedEvent {
+    return {
+        type: "BLOCKERS_CONFIRMED",
+        attackerId,
+        attackerControllerId: "p1",
+        attackerTypes: ["Artifact", "Creature"],
+        attackerSubtypes: ["Construct"],
+        blockerId,
+        blockerControllerId: "p2",
+        blockerTypes: ["Creature"],
+        blockerSubtypes,
+    };
+}
+
 // Citanul Druid (CR 603.2 opponent-cast trigger, CR 122.1 +1/+1 counter)
 describe("Citanul Druid (+1/+1 on opponent artifact cast)", () => {
     const druidSelf = {
@@ -2177,5 +2213,783 @@ describe("Clockwork Avian (4 +1/+0 counters, end-of-combat decay)", () => {
         )!;
         expect(getEffectivePower(projected, slim)).toBe(4);
         expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+});
+
+// ===========================================================================
+// P/T statics, combat & one-shot prevention shields (#277)
+// ===========================================================================
+
+// Mightstone / Weakstone (CR 611 layer 7c anthem on attacking creatures)
+describe("Mightstone (attacking creatures get +1/+0, CR 611)", () => {
+    /** A 2/2 vanilla creature; `attacking` toggles the combat-role flag the
+     *  anthem reads. */
+    function setup(attacking: boolean) {
+        const stone = makeInstance(mightstone.id, {
+            id: "stone",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = vanilla("bear", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: attacking,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [stone] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        return { state, bear };
+    }
+
+    it("buffs an attacking creature (+1/+0) but not a non-attacking one", () => {
+        const idle = setup(false);
+        expect(getEffectivePower(idle.state, idle.bear)).toBe(2);
+        const atk = setup(true);
+        expect(getEffectivePower(atk.state, atk.bear)).toBe(3);
+        expect(getEffectiveToughness(atk.state, atk.bear)).toBe(2);
+    });
+
+    it("affects creatures of EITHER controller (no 'you control' clause)", () => {
+        const stone = makeInstance(mightstone.id, { id: "stone" });
+        const mine = vanilla("mine", 1, 1, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [stone, mine] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, mine)).toBe(2);
+    });
+
+    it("wire format: the +1/+0 survives projectPublicState", () => {
+        const { state, bear } = setup(true);
+        // Fat state.
+        expect(getEffectivePower(state, bear)).toBe(3);
+        // Projected state — the anthem must still apply.
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(2);
+    });
+});
+
+describe("Weakstone (attacking creatures get -1/-0, CR 611)", () => {
+    function setup(attacking: boolean) {
+        const stone = makeInstance(weakstone.id, { id: "stone" });
+        const bear = vanilla("bear", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: attacking,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [stone] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        return { state, bear };
+    }
+
+    it("debuffs an attacking creature (-1/-0) only", () => {
+        expect(getEffectivePower(setup(false).state, setup(false).bear)).toBe(
+            2
+        );
+        const atk = setup(true);
+        expect(getEffectivePower(atk.state, atk.bear)).toBe(1);
+        expect(getEffectiveToughness(atk.state, atk.bear)).toBe(2);
+    });
+
+    it("wire format: the -1/-0 survives projectPublicState", () => {
+        const { state, bear } = setup(true);
+        expect(getEffectivePower(state, bear)).toBe(1);
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(1);
+    });
+});
+
+// Gaea's Avenger (CR 604.3 characteristic-defining P/T)
+describe("Gaea's Avenger (P/T = 1 + opponents' artifacts, CR 604.3)", () => {
+    function setup(opponentArtifacts: number) {
+        const avenger = makeInstance(gaeasAvenger.id, {
+            id: "avenger",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const artifacts = Array.from({ length: opponentArtifacts }, (_, i) =>
+            makeInstance(amuletOfKroog.id, {
+                id: `art-${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [avenger] }),
+                makePlayer("p2", { battlefield: artifacts }),
+            ],
+        });
+        return { state, avenger };
+    }
+
+    it("is 1/1 with no opponent artifacts", () => {
+        const { state, avenger } = setup(0);
+        expect(getEffectivePower(state, avenger)).toBe(1);
+        expect(getEffectiveToughness(state, avenger)).toBe(1);
+    });
+
+    it("recomputes from the board: 3 opponent artifacts → 4/4", () => {
+        const { state, avenger } = setup(3);
+        expect(getEffectivePower(state, avenger)).toBe(4);
+        expect(getEffectiveToughness(state, avenger)).toBe(4);
+    });
+
+    it("ignores artifacts the controller owns (only opponents count)", () => {
+        const { state, avenger } = setup(2);
+        // Add an artifact controlled by p1 — must NOT raise the count.
+        state.players[0].battlefield.push(
+            makeInstance(amuletOfKroog.id, {
+                id: "my-art",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        expect(getEffectivePower(state, avenger)).toBe(3);
+    });
+
+    it("wire format: the CDA survives projectPublicState", () => {
+        const { state, avenger } = setup(2);
+        expect(getEffectivePower(state, avenger)).toBe(3);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "avenger"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+// Staff of Zegon (CR 611.1 temporary -2/-0)
+describe("Staff of Zegon ({3},{T}: target -2/-0 EOT, CR 611.1)", () => {
+    it("applies a -2/-0 temporary buff to the chosen creature", () => {
+        const staff = makeInstance(staffOfZegon.id, { id: "staff" });
+        const bear = vanilla("bear", 3, 3, { controllerId: "p1" });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [staff, bear] })],
+        });
+        resolveActivated(state, staff, "staff-of-zegon-weaken", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, live)).toBe(1);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+    });
+});
+
+// Mishra's Factory (CR 611.1 animate manland + Assembly-Worker pump)
+describe("Mishra's Factory (animate + Assembly-Worker pump, CR 611.1)", () => {
+    it("{T}: Add {C} is a non-stack mana ability", () => {
+        const mana = mishrasFactory.activatedAbilities!.find(
+            (a) => a.id === "mishras-factory-mana"
+        )!;
+        expect(mana.useStack).toBe(false);
+        expect(mana.manaProduced).toEqual({ C: 1 });
+    });
+
+    it("animates the land into a 2/2 Assembly-Worker creature (still a land)", () => {
+        const factory = makeInstance(mishrasFactory.id, {
+            id: "factory",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [factory] })],
+        });
+        resolveActivated(state, factory, "mishras-factory-animate");
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "factory"
+        )!;
+        expect(live.types).toEqual(
+            expect.arrayContaining(["Land", "Creature"])
+        );
+        expect(live.subtypes).toContain("Assembly-Worker");
+        expect(getEffectivePower(state, live)).toBe(2);
+        expect(getEffectiveToughness(state, live)).toBe(2);
+    });
+
+    it("pumps a targeted Assembly-Worker +1/+1 EOT", () => {
+        const factory = makeInstance(mishrasFactory.id, {
+            id: "factory",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const worker = vanilla("worker", 2, 2, {
+            controllerId: "p1",
+            subtypes: ["Assembly-Worker"],
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [factory, worker] })],
+        });
+        resolveActivated(state, factory, "mishras-factory-pump", [
+            { type: "permanent", id: "worker" },
+        ]);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "worker"
+        )!;
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+    });
+
+    it("the pump only lists Assembly-Worker creatures as legal targets", () => {
+        const factory = makeInstance(mishrasFactory.id, {
+            id: "factory",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const worker = vanilla("worker", 2, 2, {
+            controllerId: "p1",
+            subtypes: ["Assembly-Worker"],
+        });
+        const bear = vanilla("bear", 2, 2, { controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [factory, worker, bear] }),
+            ],
+        });
+        const ability = mishrasFactory.activatedAbilities!.find(
+            (a) => a.id === "mishras-factory-pump"
+        )!;
+        const legal = getLegalTargets(
+            state,
+            ability.targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(legal).toContain("worker");
+        expect(legal).not.toContain("bear");
+    });
+});
+
+// Battering Ram (CR 702.21 banding grant + blocked-by-Wall destroy)
+describe("Battering Ram (banding grant + destroy blocking Wall)", () => {
+    it("grants banding at the beginning of combat on your turn", () => {
+        const ram = makeInstance(batteringRam.id, {
+            id: "ram",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [ram] })],
+            phase: "BEGINNING_OF_COMBAT",
+        });
+        fireTrigger(state, ram, "battering-ram-banding", {
+            type: "PHASE_BEGIN",
+            phase: "BEGINNING_OF_COMBAT",
+            activePlayerId: "p1",
+        });
+        const live = state.players[0].battlefield.find((c) => c.id === "ram")!;
+        expect(live.staticAbilities).toContain("banding");
+    });
+
+    it("the wall trigger fires only when blocked BY a Wall", () => {
+        const trig = batteringRam.triggeredAbilities!.find(
+            (t) => t.id === "battering-ram-wall-destroy"
+        )!;
+        const ramSelf = { id: "ram" } as CardInstanceState;
+        const wallBlock = blockEvent("ram", "wall", ["Wall"]);
+        const nonWallBlock = blockEvent("ram", "wall", ["Bear"]);
+        expect(trig.matches(wallBlock, ramSelf)).toBe(true);
+        expect(trig.matches(nonWallBlock, ramSelf)).toBe(false);
+        // Does not fire when the Ram is the blocker (only when it's blocked).
+        expect(
+            trig.matches(
+                { ...wallBlock, attackerId: "other", blockerId: "ram" },
+                ramSelf
+            )
+        ).toBe(false);
+    });
+
+    it("schedules a next-end-of-combat destroy of the blocking Wall", () => {
+        const ram = makeInstance(batteringRam.id, {
+            id: "ram",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const wall = vanilla("wall", 0, 4, {
+            controllerId: "p2",
+            ownerId: "p2",
+            subtypes: ["Wall"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ram] }),
+                makePlayer("p2", { battlefield: [wall] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+        });
+        fireTrigger(
+            state,
+            ram,
+            "battering-ram-wall-destroy",
+            blockEvent("ram", "wall", ["Wall"])
+        );
+        // A delayed trigger should now be queued to destroy the Wall.
+        expect(
+            state.delayedTriggers?.some((d) => d.payload.targetId === "wall")
+        ).toBe(true);
+    });
+});
+
+// Urza's Avenger (CR 611.1 -1/-1 + chosen keyword, modeled as 4 abilities)
+describe("Urza's Avenger ({0}: -1/-1 + chosen keyword EOT)", () => {
+    it("exposes one ability per keyword (banding/flying/first strike/trample)", () => {
+        const ids = urzasAvenger.activatedAbilities!.map((a) => a.id);
+        expect(ids).toEqual([
+            "urzas-avenger-banding",
+            "urzas-avenger-flying",
+            "urzas-avenger-first-strike",
+            "urzas-avenger-trample",
+        ]);
+    });
+
+    it("activating flying gives -1/-1 and grants flying until EOT", () => {
+        const avenger = makeInstance(urzasAvenger.id, {
+            id: "avenger",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [avenger] })],
+        });
+        resolveActivated(state, avenger, "urzas-avenger-flying");
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "avenger"
+        )!;
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+        expect(live.staticAbilities).toContain("flying");
+    });
+
+    it("activating first strike grants first strike (not flying)", () => {
+        const avenger = makeInstance(urzasAvenger.id, {
+            id: "avenger",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [avenger] })],
+        });
+        resolveActivated(state, avenger, "urzas-avenger-first-strike");
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "avenger"
+        )!;
+        expect(live.staticAbilities).toContain("first strike");
+        expect(live.staticAbilities).not.toContain("flying");
+    });
+});
+
+// Amulet of Kroog / Argivian Blacksmith / Rakalite (CR 615.1 prevention shields)
+describe("Amulet of Kroog (prevent next 1 to any target, CR 615.1)", () => {
+    it("registers a 1-damage shield on the chosen target", () => {
+        const amulet = makeInstance(amuletOfKroog.id, { id: "amulet" });
+        const bear = vanilla("bear", 2, 2, { controllerId: "p1" });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [amulet, bear] })],
+        });
+        resolveActivated(state, amulet, "amulet-of-kroog-prevent", [
+            { type: "permanent", id: "bear" },
+        ]);
+        expect(state.targetPreventionShields).toEqual([
+            {
+                targetType: "permanent",
+                targetId: "bear",
+                remaining: 1,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+    });
+
+    it("can shield a player target too", () => {
+        const amulet = makeInstance(amuletOfKroog.id, { id: "amulet" });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [amulet] })],
+        });
+        resolveActivated(state, amulet, "amulet-of-kroog-prevent", [
+            { type: "player", id: "p1" },
+        ]);
+        expect(state.targetPreventionShields?.[0]).toMatchObject({
+            targetType: "player",
+            targetId: "p1",
+            remaining: 1,
+        });
+    });
+});
+
+describe("Argivian Blacksmith (prevent next 2 to target creature, CR 615.1)", () => {
+    it("registers a 2-damage shield on the targeted creature", () => {
+        const smith = makeInstance(argivianBlacksmith.id, { id: "smith" });
+        const robot = makeInstance(ornithopter.id, {
+            id: "robot",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [smith, robot] })],
+        });
+        resolveActivated(state, smith, "argivian-blacksmith-prevent", [
+            { type: "permanent", id: "robot" },
+        ]);
+        expect(state.targetPreventionShields?.[0]).toMatchObject({
+            targetId: "robot",
+            remaining: 2,
+        });
+    });
+});
+
+describe("Rakalite (prevent next 1, return self next end step, CR 615.1)", () => {
+    it("registers a 1-damage shield and schedules a next-end-step return", () => {
+        const rk = makeInstance(rakalite.id, {
+            id: "rk",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [rk] })],
+        });
+        resolveActivated(state, rk, "rakalite-prevent", [
+            { type: "player", id: "p1" },
+        ]);
+        expect(state.targetPreventionShields?.[0]).toMatchObject({
+            targetId: "p1",
+            remaining: 1,
+        });
+        expect(
+            state.delayedTriggers?.some((d) => d.payload.instanceId === "rk")
+        ).toBe(true);
+    });
+});
+
+// Circle of Protection: Artifacts (CR 615.1 source-prevention via COP factory)
+describe("Circle of Protection: Artifacts (CR 615.1)", () => {
+    it("is a {1}{W} enchantment built from the COP factory", () => {
+        expect(circleOfProtectionArtifacts.types).toEqual(["Enchantment"]);
+        expect(circleOfProtectionArtifacts.manaCost).toEqual({ X: 1, W: 1 });
+    });
+
+    it("registers an end-of-turn prevention against the chosen artifact source", () => {
+        const cop = makeInstance(circleOfProtectionArtifacts.id, { id: "cop" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cop] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Chosen source: an artifact permanent that would damage p1.
+        const robot = makeInstance(ornithopter.id, {
+            id: "robot",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(robot);
+        resolveActivated(state, cop, "cop-prevent", [
+            { type: "permanent", id: "robot" },
+        ]);
+        expect(state.preventionEffects).toEqual([
+            {
+                sourceInstanceId: "robot",
+                playerId: "p1",
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+    });
+
+    it("the COP ability lists artifact permanents as legal sources, not creatures", () => {
+        const cop = makeInstance(circleOfProtectionArtifacts.id, { id: "cop" });
+        const robot = makeInstance(ornithopter.id, {
+            id: "robot",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const bear = vanilla("bear", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cop] }),
+                makePlayer("p2", { battlefield: [robot, bear] }),
+            ],
+        });
+        const ability = circleOfProtectionArtifacts.activatedAbilities!.find(
+            (a) => a.id === "cop-prevent"
+        )!;
+        const legal = getLegalTargets(
+            state,
+            ability.targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(legal).toContain("robot");
+        expect(legal).not.toContain("bear");
+    });
+});
+
+// Ashnod's Transmogrant (CR 122.1 +1/+1 counter; artifact-type clause deferred)
+describe("Ashnod's Transmogrant ({T}, sac: +1/+1 on nonartifact creature)", () => {
+    it("puts a +1/+1 counter on the targeted nonartifact creature", () => {
+        const trans = makeInstance(ashnodsTransmogrant.id, {
+            id: "trans",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = vanilla("bear", 2, 2, { controllerId: "p1" });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [trans, bear] })],
+        });
+        resolveActivated(state, trans, "ashnods-transmogrant-counter", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(live.counters?.["+1/+1"]).toBe(1);
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+    });
+
+    it("excludes artifact creatures from legal targets (nonartifact only)", () => {
+        const trans = makeInstance(ashnodsTransmogrant.id, { id: "trans" });
+        const robot = makeInstance(ornithopter.id, {
+            id: "robot",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = vanilla("bear", 2, 2, { controllerId: "p1" });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [trans, robot, bear] })],
+        });
+        const ability = ashnodsTransmogrant.activatedAbilities![0];
+        const legal = getLegalTargets(
+            state,
+            ability.targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(legal).toContain("bear");
+        expect(legal).not.toContain("robot");
+    });
+});
+
+// Yawgmoth Demon (CR 603.6a upkeep may-sacrifice-or-else)
+describe("Yawgmoth Demon (upkeep may-sac artifact, else tap+2)", () => {
+    it("is a 6/6 with flying and first strike", () => {
+        expect(yawgmothDemon.power).toBe(6);
+        expect(yawgmothDemon.toughness).toBe(6);
+        expect(yawgmothDemon.staticAbilities).toEqual(
+            expect.arrayContaining(["flying", "first strike"])
+        );
+    });
+
+    it("with no artifact to sacrifice, taps itself and deals 2 to controller", () => {
+        const demon = makeInstance(yawgmothDemon.id, {
+            id: "demon",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [demon] })],
+            phase: "UPKEEP",
+        });
+        // No artifacts: the may is skipped, the else-branch runs immediately.
+        fireTrigger(state, demon, "yawgmoth-demon-upkeep", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        });
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "demon"
+        )!;
+        expect(live.isTapped).toBe(true);
+        expect(state.players[0].life).toBe(18);
+    });
+
+    it("declining the sacrifice taps itself and deals 2", () => {
+        const demon = makeInstance(yawgmothDemon.id, {
+            id: "demon",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const artifact = makeInstance(amuletOfKroog.id, {
+            id: "art",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [demon, artifact] })],
+            phase: "UPKEEP",
+        });
+        // Decline the may-pay → else-branch.
+        fireTrigger(
+            state,
+            demon,
+            "yawgmoth-demon-upkeep",
+            { type: "PHASE_BEGIN", phase: "UPKEEP", activePlayerId: "p1" },
+            false
+        );
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "demon"
+        )!;
+        expect(live.isTapped).toBe(true);
+        expect(state.players[0].life).toBe(18);
+        // Artifact NOT sacrificed.
+        expect(state.players[0].battlefield.some((c) => c.id === "art")).toBe(
+            true
+        );
+    });
+});
+
+// Mishra's War Machine (CR 603.6a upkeep discard-or-3+tap)
+describe("Mishra's War Machine (upkeep discard or 3 + tap)", () => {
+    it("has banding", () => {
+        expect(mishrasWarMachine.staticAbilities).toContain("banding");
+    });
+
+    it("with an empty hand, deals 3 to controller and taps itself", () => {
+        const machine = makeInstance(mishrasWarMachine.id, {
+            id: "machine",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [machine], hand: [] })],
+            phase: "UPKEEP",
+        });
+        fireTrigger(state, machine, "mishras-war-machine-upkeep", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        });
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "machine"
+        )!;
+        expect(state.players[0].life).toBe(17);
+        expect(live.isTapped).toBe(true);
+    });
+
+    it("declining the discard deals 3 and taps", () => {
+        const machine = makeInstance(mishrasWarMachine.id, {
+            id: "machine",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const card = makeInstance(ornithopter.id, {
+            id: "card",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [machine], hand: [card] }),
+            ],
+            phase: "UPKEEP",
+        });
+        fireTrigger(
+            state,
+            machine,
+            "mishras-war-machine-upkeep",
+            { type: "PHASE_BEGIN", phase: "UPKEEP", activePlayerId: "p1" },
+            false
+        );
+        expect(state.players[0].life).toBe(17);
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+});
+
+// Goblin Artisans (CR 705 coin flip → draw / counter own artifact spell)
+describe("Goblin Artisans ({T}: flip → draw / counter own artifact spell)", () => {
+    // Seeds verified in arn.test.ts: rngSeed 1 → first flip wins; 7 → loses.
+    it("on a winning flip, draws a card (no counter)", () => {
+        const artisans = makeInstance(goblinArtisans.id, {
+            id: "artisans",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const card = makeInstance(ornithopter.id, {
+            id: "lib-card",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        // An own artifact spell on the stack as the declared target.
+        const artifactSpell = makeInstance(amuletOfKroog.id, {
+            id: "art-spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "stack",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [artisans],
+                    library: [card],
+                    hand: [],
+                }),
+            ],
+            stack: [{ ...artifactSpell, castById: "p1", targets: [] }],
+            rngSeed: 1,
+        });
+        resolveActivated(state, artisans, "goblin-artisans-flip", [
+            { type: "spell", id: "art-spell" },
+        ]);
+        // Drew the card; the targeted spell is NOT countered (still on stack).
+        expect(state.players[0].hand).toHaveLength(1);
+        expect(state.stack.some((s) => s.id === "art-spell")).toBe(true);
+    });
+
+    it("on a losing flip, counters the targeted own artifact spell (no draw)", () => {
+        const artisans = makeInstance(goblinArtisans.id, {
+            id: "artisans",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const card = makeInstance(ornithopter.id, {
+            id: "lib-card",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const artifactSpell = makeInstance(amuletOfKroog.id, {
+            id: "art-spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "stack",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [artisans],
+                    library: [card],
+                    hand: [],
+                }),
+            ],
+            stack: [{ ...artifactSpell, castById: "p1", targets: [] }],
+            rngSeed: 7,
+        });
+        resolveActivated(state, artisans, "goblin-artisans-flip", [
+            { type: "spell", id: "art-spell" },
+        ]);
+        // Did NOT draw; the targeted artifact spell is countered (off stack).
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.stack.some((s) => s.id === "art-spell")).toBe(false);
     });
 });

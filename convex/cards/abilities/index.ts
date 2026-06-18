@@ -9,6 +9,7 @@ import type {
     Color,
     ManaCost,
     SpellContext,
+    TargetRequirement,
 } from "../types";
 
 /** Builds a `{T}: Add <mana>` mana ability (CR 605.1a, 605.3a — useStack false).
@@ -92,19 +93,52 @@ export function makeDualLand(args: {
     };
 }
 
-/** Builds a "Circle of Protection: <color>" enchantment (CR 615 prevention).
- *  `{1}: The next time a <color> source of your choice would deal damage to
- *  you this turn, prevent that damage.` Drives the LEA cycle (White/Blue/
- *  Black/Green/Red) and the Beta-original Circle of Protection: Black. The
- *  `colorFilter` restricts targets to sources of `color`; the resolve schedules
- *  a one-shot end-of-turn damage prevention against the chosen source. */
+/** Builds a "Circle of Protection: <X>" enchantment (CR 615 prevention).
+ *  `{1}: The next time a <X> source of your choice would deal damage to
+ *  you this turn, prevent that damage.` Drives the LEA color cycle (White/
+ *  Blue/Black/Green/Red), the Beta-original Circle of Protection: Black, and
+ *  ATQ's Circle of Protection: Artifacts.
+ *
+ *  The `source` filter selects what kind of damage source can be chosen:
+ *   - `{ kind: "color"; color; word }` — the LEA cycle. `colorFilter`
+ *     restricts targets to sources of `color`; players can't be chosen
+ *     (a player isn't a colored source).
+ *   - `{ kind: "artifact"; word }` — COP: Artifacts. The target filter
+ *     restricts to permanents/spells of the Artifact card type.
+ *
+ *  The resolve schedules a one-shot end-of-turn damage prevention against the
+ *  chosen source via `preventNextDamageFromSource` (CR 615.1, 615.6). */
+type CopSourceFilter =
+    | { kind: "color"; color: Color; word: string }
+    | { kind: "artifact"; word: string };
+
 export function makeCircleOfProtection(args: {
     id: string;
     name: string;
     oracleText?: string;
-    color: Color;
-    colorWord: string;
+    /** Back-compat color shorthand — equivalent to
+     *  `source: { kind: "color", color, word: colorWord }`. */
+    color?: Color;
+    colorWord?: string;
+    source?: CopSourceFilter;
 }): CardDefinition {
+    const source: CopSourceFilter =
+        args.source ??
+        ({ kind: "color", color: args.color!, word: args.colorWord! } as const);
+    // Artifact sources are matched by the Artifact card type (permanent or
+    // spell); color sources are matched by `colorFilter` (CR 202.2).
+    const targetRequirement: TargetRequirement =
+        source.kind === "artifact"
+            ? {
+                  type: ["Artifact", "spell"],
+                  count: 1,
+                  spellTypeFilter: "Artifact",
+              }
+            : {
+                  type: ["any", "spell"],
+                  count: 1,
+                  colorFilter: source.color,
+              };
     return {
         id: args.id,
         name: args.name,
@@ -114,18 +148,14 @@ export function makeCircleOfProtection(args: {
         activatedAbilities: [
             {
                 id: "cop-prevent",
-                oracleText: `{1}: The next time a ${args.colorWord.toLowerCase()} source of your choice would deal damage to you this turn, prevent that damage.`,
+                oracleText: `{1}: The next time a ${source.word.toLowerCase()} source of your choice would deal damage to you this turn, prevent that damage.`,
                 cost: { mana: { X: 1 } },
                 useStack: true,
-                targetRequirement: {
-                    type: ["any", "spell"],
-                    count: 1,
-                    colorFilter: args.color,
-                },
+                targetRequirement,
                 resolve: (ctx: SpellContext) => {
                     const [target] = ctx.targets;
                     if (!target) return;
-                    if (target.type === "player") return; // no color
+                    if (target.type === "player") return; // not a valid source
                     ctx.preventNextDamageFromSource(target.id, ctx.controller, {
                         phase: "end-of-turn",
                     });
