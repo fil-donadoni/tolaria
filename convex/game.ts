@@ -89,6 +89,7 @@ import {
     getActivatedManaAbility,
     getActivatedManaColor,
     getActivatedManaRestriction,
+    getDynamicManaProduced,
     getFixedManaAmount,
     hasManaAbility,
     isTapLockedBySummoningSickness,
@@ -319,7 +320,13 @@ function tapSourceIntoPayment(
     const manaColor = getBasicLandMana(card) ?? getActivatedManaColor(card);
     if (!manaColor) throw new Error("Card does not produce mana");
     card.isTapped = true;
-    const amount = getFixedManaAmount(card, manaColor);
+    // CR 106.1 / 605.1a — board-conditional output (Urza trio) is computed from
+    // the controller's battlefield now and snapshotted onto `chosenMana` so the
+    // untap/refund path returns the exact amount that was added.
+    const amount = getFixedManaAmount(card, manaColor, player.battlefield);
+    if (getDynamicManaProduced(card, player.battlefield)) {
+        card.chosenMana = { [manaColor]: amount } as ManaCost;
+    }
     player.manaPool[manaColor] = (player.manaPool[manaColor] ?? 0) + amount;
     emitPermanentTapped(state, card, true, { [manaColor]: amount } as ManaCost);
     tappedLandIds.push(card.id);
@@ -1739,7 +1746,17 @@ export const tapForPayment = mutation({
             if (!manaColor) throw new Error("Card does not produce mana");
 
             card.isTapped = true;
-            const amount = getFixedManaAmount(card, manaColor);
+            // CR 106.1 / 605.1a — board-conditional output (Urza trio) computed
+            // from the controller's battlefield and snapshotted onto
+            // `chosenMana` so untap refunds the exact amount added.
+            const amount = getFixedManaAmount(
+                card,
+                manaColor,
+                player.battlefield
+            );
+            if (getDynamicManaProduced(card, player.battlefield)) {
+                card.chosenMana = { [manaColor]: amount } as ManaCost;
+            }
             player.manaPool[manaColor] =
                 (player.manaPool[manaColor] ?? 0) + amount;
             emitPermanentTapped(state, card, true, {
@@ -4198,7 +4215,26 @@ export const tapUntap = mutation({
             const manaColor =
                 getBasicLandMana(card) ?? getActivatedManaColor(card);
             if (manaColor) {
-                const amount = getFixedManaAmount(card, manaColor);
+                // CR 106.1 / 605.1a — board-conditional output (Urza trio) is
+                // computed from the controller's battlefield at tap time. On
+                // untap we refund the exact snapshotted `chosenMana` amount
+                // (the board may have changed since the tap), falling back to a
+                // fresh computation only for legacy/untracked instances.
+                const isDynamic = !!getDynamicManaProduced(
+                    card,
+                    player.battlefield
+                );
+                const refundAmount =
+                    isDynamic && wasTapped && card.chosenMana
+                        ? (card.chosenMana[manaColor] ?? 0)
+                        : getFixedManaAmount(
+                              card,
+                              manaColor,
+                              player.battlefield
+                          );
+                const amount = wasTapped
+                    ? refundAmount
+                    : getFixedManaAmount(card, manaColor, player.battlefield);
                 // CR 106.6 — Mishra's Workshop produces mana spendable only on
                 // artifact spells; it floats in a parallel `restrictedMana`
                 // pool rather than the fungible pool. Refund (untap, blocked
@@ -4237,6 +4273,9 @@ export const tapUntap = mutation({
                             remaining.length > 0 ? remaining : undefined;
                     }
                 } else if (!wasTapped) {
+                    if (isDynamic) {
+                        card.chosenMana = { [manaColor]: amount } as ManaCost;
+                    }
                     player.manaPool[manaColor] =
                         (player.manaPool[manaColor] ?? 0) + amount;
                     producedThisActivation = {
@@ -4251,6 +4290,7 @@ export const tapUntap = mutation({
                 } else {
                     player.manaPool[manaColor] =
                         (player.manaPool[manaColor] ?? 0) - amount;
+                    if (isDynamic) card.chosenMana = undefined;
                 }
             }
         }

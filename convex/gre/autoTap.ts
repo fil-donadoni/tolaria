@@ -97,7 +97,9 @@ export function buildAutoTapSources(
 
         const color = getBasicLandMana(card) ?? getActivatedManaColor(card);
         if (!color) continue; // non-mana or multi-color fixed: leave manual
-        const amount = getFixedManaAmount(card, color);
+        // CR 106.1 — board-conditional output (Urza trio) computed from the
+        // controller's battlefield so the solver reasons over the real yield.
+        const amount = getFixedManaAmount(card, color, battlefield);
         sources.push({
             cardId: card.id,
             options: [{ mana: { [color]: amount } }],

@@ -58,6 +58,9 @@ import {
     dwarvenWeaponsmith,
     gateToPhyrexia,
     mishrasWorkshop,
+    urzasMine,
+    urzasPowerPlant,
+    urzasTower,
     urzasChalice as urzasChaliceDef,
 } from "../atq";
 import { getCardById, getInstanceManaCost } from "../..";
@@ -70,6 +73,8 @@ import {
 import {
     isCreature,
     getActivatedManaRestriction,
+    getFixedManaAmount,
+    getDynamicManaProduced,
 } from "../../../gre/constants";
 import { projectPublicState } from "../../../gameProjections";
 import {
@@ -3410,3 +3415,214 @@ describe("Mishra's Workshop (restricted mana 'artifact-spell', CR 106.6)", () =>
 function getManaSubstitutionsEmpty(): [] {
     return [];
 }
+
+// ---------------------------------------------------------------------------
+// Urza land trio — board-conditional mana (cluster I, #284)
+//   Mine / Power Plant each "{T}: Add {C}. If you control [the other two],
+//   add {C}{C} instead." Tower adds {C}{C}{C} when assembled.
+//   CR 106.1 (mana production), CR 605.1a (intrinsic mana ability), CR 205.3
+//   (subtype-keyed condition). Output recomputes from the controller's
+//   battlefield at activation time via the ability's `manaAmount` hook;
+//   `manaProduced` carries the representative assembled output (Mana Flare).
+// ---------------------------------------------------------------------------
+
+describe("Urza land trio (board-conditional mana, CR 106.1)", () => {
+    const TRIO = [
+        {
+            def: urzasMine,
+            name: "Urza's Mine",
+            subtype: "Urza's Mine",
+            assembled: 2,
+        },
+        {
+            def: urzasPowerPlant,
+            name: "Urza's Power Plant",
+            subtype: "Urza's Power-Plant",
+            assembled: 2,
+        },
+        {
+            def: urzasTower,
+            name: "Urza's Tower",
+            subtype: "Urza's Tower",
+            assembled: 3,
+        },
+    ] as const;
+
+    /** The controller's battlefield holding the named subset of the trio. */
+    function battlefieldWith(
+        subtypes: readonly (
+            | "Urza's Mine"
+            | "Urza's Power-Plant"
+            | "Urza's Tower"
+        )[]
+    ): CardInstanceState[] {
+        const bySubtype = {
+            "Urza's Mine": urzasMine.id,
+            "Urza's Power-Plant": urzasPowerPlant.id,
+            "Urza's Tower": urzasTower.id,
+        } as const;
+        return subtypes.map((s) => makeInstance(bySubtype[s]));
+    }
+
+    it("each land is a colorless mana Land carrying its Urza subtype", () => {
+        for (const { def, name, subtype } of TRIO) {
+            const looked = getCardById(def.id);
+            expect(looked.name).toBe(name);
+            expect(looked.types).toEqual(["Land"]);
+            expect(looked.subtypes).toEqual([subtype]);
+            const ability = looked.activatedAbilities?.[0];
+            expect(ability?.cost.tap).toBe(true);
+            expect(ability?.useStack).toBe(false);
+            expect(ability?.manaRestriction).toBeUndefined();
+            expect(typeof ability?.manaAmount).toBe("function");
+        }
+    });
+
+    it("a lone Urza land taps for exactly {C} (CR 106.1)", () => {
+        for (const { def } of TRIO) {
+            const land = makeInstance(def.id);
+            const battlefield = [land];
+            expect(getDynamicManaProduced(land, battlefield)).toEqual({ C: 1 });
+            expect(getFixedManaAmount(land, "C", battlefield)).toBe(1);
+        }
+    });
+
+    it("two of the trio still tap for only {C} (set not assembled)", () => {
+        // Mine + Tower in play, but no Power Plant: Mine and Tower each lone-tap.
+        const battlefield = battlefieldWith(["Urza's Mine", "Urza's Tower"]);
+        const mine = battlefield[0];
+        const tower = battlefield[1];
+        expect(getFixedManaAmount(mine, "C", battlefield)).toBe(1);
+        expect(getFixedManaAmount(tower, "C", battlefield)).toBe(1);
+    });
+
+    it("the assembled trio scales each land's output (2 / 2 / 3)", () => {
+        const battlefield = battlefieldWith([
+            "Urza's Mine",
+            "Urza's Power-Plant",
+            "Urza's Tower",
+        ]);
+        for (const { def, assembled } of TRIO) {
+            const land = battlefield.find(
+                (c) => (c.card as { id: string }).id === def.id
+            )!;
+            expect(getDynamicManaProduced(land, battlefield)).toEqual({
+                C: assembled,
+            });
+            expect(getFixedManaAmount(land, "C", battlefield)).toBe(assembled);
+        }
+        // Assembled, the whole set yields 2 + 2 + 3 = 7 colorless.
+        const total = battlefield.reduce(
+            (sum, land) => sum + getFixedManaAmount(land, "C", battlefield),
+            0
+        );
+        expect(total).toBe(7);
+    });
+
+    it("output recomputes from current board: losing one member drops the rest to {C}", () => {
+        const battlefield = battlefieldWith([
+            "Urza's Mine",
+            "Urza's Power-Plant",
+            "Urza's Tower",
+        ]);
+        const tower = battlefield[2];
+        expect(getFixedManaAmount(tower, "C", battlefield)).toBe(3);
+        // Power Plant leaves the battlefield → set disassembled.
+        const afterLoss = [battlefield[0], battlefield[2]];
+        expect(getFixedManaAmount(tower, "C", afterLoss)).toBe(1);
+    });
+
+    it("the condition is per-controller: opponent's Urza lands don't assemble yours", () => {
+        // p1 has only the Tower; p2 has Mine + Power Plant. The Tower keys off
+        // p1's own battlefield, so it stays at {C}.
+        const p1Battlefield = battlefieldWith(["Urza's Tower"]);
+        expect(getFixedManaAmount(p1Battlefield[0], "C", p1Battlefield)).toBe(
+            1
+        );
+    });
+
+    it("auto-tap solver reflects the assembled (not base) yield", () => {
+        const battlefield = battlefieldWith([
+            "Urza's Mine",
+            "Urza's Power-Plant",
+            "Urza's Tower",
+        ]);
+        const sources = buildAutoTapSources(battlefield);
+        // Every Urza land is solver-visible (unrestricted, single colorless).
+        expect(sources).toHaveLength(3);
+        const total = sources.reduce(
+            (sum, s) => sum + (s.options[0].mana.C ?? 0),
+            0
+        );
+        expect(total).toBe(7);
+    });
+
+    it("tap snapshots the assembled amount; untap refunds it even if the board changed", () => {
+        // Mirrors the tapUntap fixed-mana branch (game.ts): on tap the dynamic
+        // amount is snapshotted onto `chosenMana`; on untap the refund reads the
+        // snapshot, so a mid-float board change can't desync the pool.
+        const battlefield = battlefieldWith([
+            "Urza's Mine",
+            "Urza's Power-Plant",
+            "Urza's Tower",
+        ]);
+        const player = makePlayer("p1", { battlefield });
+        const tower = battlefield[2];
+
+        // Tap the assembled Tower for {C}{C}{C}, snapshotting onto chosenMana.
+        const amount = getFixedManaAmount(tower, "C", player.battlefield);
+        expect(amount).toBe(3);
+        tower.isTapped = true;
+        tower.chosenMana = { C: amount };
+        player.manaPool.C += amount;
+        expect(player.manaPool.C).toBe(3);
+
+        // The set is broken (Mine sacrificed) while the 3 mana is floating.
+        player.battlefield = [battlefield[1], battlefield[2]];
+
+        // Untap refunds the snapshot (3), not a fresh recomputation (would be 1).
+        const refund = tower.chosenMana?.C ?? 0;
+        expect(refund).toBe(3);
+        player.manaPool.C = Math.max(0, player.manaPool.C - refund);
+        tower.chosenMana = undefined;
+        tower.isTapped = false;
+        expect(player.manaPool.C).toBe(0);
+    });
+
+    it("wire format: assembled output survives projectPublicState (CR 106.1)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: battlefieldWith([
+                        "Urza's Mine",
+                        "Urza's Power-Plant",
+                        "Urza's Tower",
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const tower = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === urzasTower.id
+        )!;
+        // Fat state: assembled Tower yields 3.
+        expect(
+            getFixedManaAmount(tower, "C", state.players[0].battlefield)
+        ).toBe(3);
+
+        // Same assertion after projection (subtypes + card.id survive slimCard,
+        // so the dynamic computation re-reads the def from the registry).
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBattlefield = projected.players[0].battlefield;
+        const slimTower = slimBattlefield.find(
+            (c) => (c.card as { id: string }).id === urzasTower.id
+        )!;
+        expect(
+            getFixedManaAmount(
+                slimTower as unknown as CardInstanceState,
+                "C",
+                slimBattlefield as unknown as CardInstanceState[]
+            )
+        ).toBe(3);
+    });
+});
