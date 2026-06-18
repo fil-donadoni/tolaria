@@ -4,11 +4,9 @@ import type { StackItem } from "~/types/game";
 import { fanLayout, type Placement } from "~/lib/board-layout";
 import { useGameContext } from "~/hooks/useGameContext";
 import { ArrowAnchorProvider } from "~/hooks/useArrowAnchors";
-import SpatialZone, { type SpatialItem } from "./spatial-zone";
-import BoardNextCard from "./board-next-card";
 import BoardNextBattlefield from "./board-next-battlefield";
 import BoardNextPlayerAnchor from "./board-next-player-anchor";
-import BoardNextHandCard from "./board-next-hand-card";
+import BoardNextHand from "./board-next-hand";
 import BoardNextPiles from "./board-next-piles";
 import BoardNextArrows from "./board-next-arrows";
 import GameStack from "./game-stack";
@@ -25,22 +23,6 @@ type BoardNextProps = {
  *  lifts upward into view (`fanLayout`, #251). */
 function handLayout(count: number, width: number, height: number): Placement[] {
     return fanLayout({ count, width, baseY: height * 0.6 });
-}
-
-/** Maps a hand to placeable slots. Opponent slots are `null` (hidden) and
- *  render as backs; the viewer's own hand carries full instances. The viewer's
- *  cards are interactive ({@link BoardNextHandCard}: click + drag-to-cast, #254);
- *  the opponent's are presentational only. */
-function handItems(player: Player, interactive: boolean): SpatialItem[] {
-    return player.hand.map((card, i) => ({
-        key: card ? card.id : `hidden-${player.id}-${i}`,
-        node:
-            interactive && card ? (
-                <BoardNextHandCard card={card} />
-            ) : (
-                <BoardNextCard card={card} />
-            ),
-    }));
 }
 
 /** New spatial root — DOM-only board (PRD #249). Slice #251 makes the shared
@@ -80,11 +62,9 @@ export default function BoardNext({
                                 side="top"
                             />
                             <div className="absolute left-0 right-0 top-0 h-[18%]">
-                                <SpatialZone
-                                    items={handItems(
-                                        opponent,
-                                        opponent.id === viewerId
-                                    )}
+                                <BoardNextHand
+                                    player={opponent}
+                                    interactive={opponent.id === viewerId}
                                     layout={handLayout}
                                     mirror
                                     data-testid="zone-opponent-hand"
@@ -114,8 +94,9 @@ export default function BoardNext({
                                 />
                             </div>
                             <div className="absolute left-0 right-0 bottom-0 h-[18%]">
-                                <SpatialZone
-                                    items={handItems(me, me.id === viewerId)}
+                                <BoardNextHand
+                                    player={me}
+                                    interactive={me.id === viewerId}
                                     layout={handLayout}
                                     data-testid="zone-player-hand"
                                 />

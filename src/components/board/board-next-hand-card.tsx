@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { CardInstance } from "~/types/game";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 import { useDragToCommit } from "~/hooks/useDragToCommit";
@@ -8,9 +9,18 @@ type BoardNextHandCardProps = {
     /** The viewer's own hand card (never null — opponent/back slots render the
      *  presentational {@link BoardNextCard} instead). */
     card: CardInstance;
+    /** Called on every drag move with the live pointer x (client px) so the
+     *  hand container can reorder the presentation slots under the drop
+     *  position (#271, fix 2). Omitted when the hand can't reorder (single
+     *  card). */
+    onDragMove?: (pointerX: number) => void;
+    /** Called once the drag gesture ends (release or cancel) so the hand can
+     *  clear its drag-reorder bookkeeping. */
+    onDragEnd?: () => void;
 };
 
-/** Interactive hand card for the spatial board (PRD #249, slice #254).
+/** Interactive hand card for the spatial board (PRD #249, slice #254; UX fixes
+ *  #271).
  *
  * Adds drag-to-cast / play-land on top of the presentational board card without
  * touching the GRE boundary. Click and drag share ONE commit pipeline
@@ -25,11 +35,24 @@ type BoardNextHandCardProps = {
  * (land) plays it, otherwise a legal `cast` casts it. When neither is legal the
  * card is inert — drag still returns to hand, click does nothing.
  *
+ * Hover-zoom preview (#271, fix 1) rides along exactly as it does on the
+ * battlefield card: {@link CardImage} owns {@link CardPreview}, and it is
+ * mounted UNCONDITIONALLY (not swapped out while dragging) so a plain mouse
+ * hover always reaches the preview's `mouseenter`. The drag lift is applied to
+ * the OUTER wrapper while the same `CardImage` element stays mounted inside the
+ * tilt root, so the gesture never tears down the hover vehicle.
+ *
  * Drag is a distinct gesture from the hover tilt (#253): once a drag starts the
- * tilt is suppressed (the card lifts as a flat rigid object toward the cursor)
- * so the two effects never fight. The outer slot placement / spring FLIP (#252)
- * are untouched — the lift is applied to an inner wrapper. */
-export default function BoardNextHandCard({ card }: BoardNextHandCardProps) {
+ * tilt is held flat (the card lifts as a rigid object toward the cursor) so the
+ * two effects never fight. The outer slot placement / spring FLIP (#252) are
+ * untouched — the lift is applied to an inner wrapper. The rendered upward lift
+ * is clamped in {@link useDragToCommit} so the card never escapes into the
+ * clipped band above the hand (#271, fix 4). */
+export default function BoardNextHandCard({
+    card,
+    onDragMove,
+    onDragEnd,
+}: BoardNextHandCardProps) {
     const legal = card.legalActions ?? [];
     const canPlay = legal.includes("play");
     const canCast = legal.includes("cast");
@@ -50,6 +73,21 @@ export default function BoardNextHandCard({ card }: BoardNextHandCardProps) {
         onCommit: commit,
     });
 
+    // Drive the hand's drag-reorder from the live pointer x (#271, fix 2): the
+    // hand container snaps the dragged card to the slot under the drop position.
+    // Notifying via an effect keeps this card a pure consumer of the gesture
+    // state and avoids reordering during render.
+    const wasDragging = useRef(false);
+    useEffect(() => {
+        if (state.dragging && state.pointerX !== null) {
+            wasDragging.current = true;
+            onDragMove?.(state.pointerX);
+        } else if (wasDragging.current) {
+            wasDragging.current = false;
+            onDragEnd?.();
+        }
+    }, [state.dragging, state.pointerX, onDragMove, onDragEnd]);
+
     const lift = state.dragging
         ? `translate(${state.offset.x}px, ${state.offset.y}px) scale(1.06)`
         : undefined;
@@ -69,8 +107,9 @@ export default function BoardNextHandCard({ card }: BoardNextHandCardProps) {
             onClickCapture={handlers.onClickCapture}
             style={{
                 // While dragging the card follows the cursor as a rigid lifted
-                // object; the hover tilt is suppressed (no CardTilt3D) so the
-                // two gestures don't compose into a jitter.
+                // object; the hover tilt is held flat (CardTilt3D is kept
+                // mounted but the lift overrides it) so the two gestures don't
+                // compose into a jitter.
                 transform: lift,
                 transition: state.dragging
                     ? "none"
@@ -79,17 +118,22 @@ export default function BoardNextHandCard({ card }: BoardNextHandCardProps) {
                 position: "relative",
             }}
         >
-            {state.dragging ? (
-                <div className="w-full h-full rounded-sm overflow-hidden ring-1 ring-black/40 shadow-[0_18px_40px_rgba(0,0,0,0.6)]">
+            {/* CardImage (which owns the hover-zoom CardPreview) stays mounted
+                the whole time — only the drop-shadow strength changes while
+                dragging — so a plain hover always reaches the preview (#271,
+                fix 1), exactly like the battlefield card. */}
+            <CardTilt3D suppressTilt={state.dragging}>
+                <div
+                    className={
+                        "w-full h-full rounded-sm overflow-hidden ring-1 ring-black/40 " +
+                        (state.dragging
+                            ? "shadow-[0_18px_40px_rgba(0,0,0,0.6)]"
+                            : "shadow-[0_6px_16px_rgba(0,0,0,0.55)]")
+                    }
+                >
                     <CardImage card={card} />
                 </div>
-            ) : (
-                <CardTilt3D>
-                    <div className="w-full h-full rounded-sm overflow-hidden ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)]">
-                        <CardImage card={card} />
-                    </div>
-                </CardTilt3D>
-            )}
+            </CardTilt3D>
             {modePickerOverlay}
         </div>
     );

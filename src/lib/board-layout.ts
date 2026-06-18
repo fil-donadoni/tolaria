@@ -182,6 +182,90 @@ export function fanLayout(opts: FanOptions): Placement[] {
     });
 }
 
+/**
+ * Drag-reorder slot resolution for the hand (PRD #249, issue #271, fix 2).
+ *
+ * Given the fan placements (their center `x` positions are the slot anchors),
+ * the index of the card currently being dragged, and the pointer's `x` while
+ * dragging, returns the index the dragged card should snap INTO. View-only
+ * presentation reorder — it never touches the GRE/zone (the hand order on the
+ * server is unchanged); it only reshuffles how the viewer's own hand is laid
+ * out so dragging a card sideways slides it past its neighbours, Arena-style.
+ *
+ * The result is the destination index in the CURRENT array's frame: moving the
+ * card from `fromIndex` to the returned `toIndex` (via {@link moveItem}) yields
+ * the reordered hand. Snaps to the slot whose center is nearest the pointer, so
+ * the dragged card settles under the drop position.
+ */
+export function reorderIndexForDragX(
+    placements: Placement[],
+    fromIndex: number,
+    pointerX: number
+): number {
+    const count = placements.length;
+    if (count <= 1) return fromIndex;
+    if (fromIndex < 0 || fromIndex >= count) return fromIndex;
+
+    // Snap to the slot whose center x is closest to the pointer. Slot centers
+    // are monotonic left-to-right, so the nearest center is the slot the card
+    // is hovering over — that becomes its new index.
+    let nearest = 0;
+    let nearestDist = Infinity;
+    for (let i = 0; i < count; i++) {
+        const dist = Math.abs(placements[i].x - pointerX);
+        if (dist < nearestDist) {
+            nearestDist = dist;
+            nearest = i;
+        }
+    }
+    return nearest;
+}
+
+/** Move the item at `from` to index `to`, returning a new array. Out-of-range
+ *  or no-op moves return a shallow copy unchanged. Pure — used to apply a
+ *  {@link reorderIndexForDragX} result to the presentation hand order. */
+export function moveItem<T>(items: T[], from: number, to: number): T[] {
+    const next = items.slice();
+    if (
+        from < 0 ||
+        from >= next.length ||
+        to < 0 ||
+        to >= next.length ||
+        from === to
+    ) {
+        return next;
+    }
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    return next;
+}
+
+/**
+ * Reconcile a view-only hand permutation against the authoritative server hand
+ * (PRD #249, issue #271 fix 2).
+ *
+ * `viewOrder` is the presentation order the player produced by drag-reordering;
+ * `serverIds` is the current authoritative hand. Returns the order to actually
+ * render: the view-only permutation is honoured for ids that still exist, ids
+ * removed on the server (played / discarded) are dropped, and ids the server
+ * added (drawn) are appended in server order. This keeps a pure sideways drag
+ * stable while a real hand change folds in without resetting the whole hand — so
+ * existing card slots keep their identity (and their spring FLIP) rather than
+ * remounting.
+ */
+export function reconcileHandOrder(
+    viewOrder: string[],
+    serverIds: string[]
+): string[] {
+    const serverSet = new Set(serverIds);
+    // Honour the view-only order for ids the server still has.
+    const kept = viewOrder.filter((id) => serverSet.has(id));
+    const keptSet = new Set(kept);
+    // Append any server ids not already placed (newly drawn), in server order.
+    const added = serverIds.filter((id) => !keptSet.has(id));
+    return [...kept, ...added];
+}
+
 /** Mirror a placement vertically within a container of height `containerHeight`
  *  — used to project a viewer-side layout onto the opponent's (top) side so the
  *  same math drives both. Rotation is negated so the fan dome flips too. */

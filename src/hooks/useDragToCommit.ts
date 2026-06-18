@@ -2,19 +2,32 @@ import { useCallback, useRef, useState } from "react";
 
 /** Upward travel (px) past which a release commits. Lifting the card above this
  *  "line over the hand" and releasing fires the commit; releasing below it is a
- *  no-op return-to-hand. Tuned to clear an accidental nudge while staying within
- *  an easy flick of the hand zone. */
-const COMMIT_LIFT_PX = 64;
+ *  no-op return-to-hand. Lowered (issue #271, fix 3) from 64 so a modest upward
+ *  flick commits, while still clearing the {@link DRAG_START_PX} drag-start
+ *  deadzone so an accidental small nudge never commits. */
+export const COMMIT_LIFT_PX = 40;
 /** Total travel (px) before a press is treated as a drag rather than a click.
  *  Below this, pointerup is a plain click and the gesture stays inert. */
 const DRAG_START_PX = 6;
+/** Upward travel (px) the card is allowed to visually rise past the commit
+ *  line. The card stays armed for any lift ≥ {@link COMMIT_LIFT_PX}, but the
+ *  rendered lift is clamped here so a dragged card never escapes up into the
+ *  `overflow-hidden` band above the hand where it would be clipped / lost
+ *  (issue #271, fix 4). It stays visible for the whole gesture. */
+const MAX_LIFT_PX = COMMIT_LIFT_PX + 24;
 
 export type DragToCommitState = {
     /** True once the pointer has travelled past {@link DRAG_START_PX} — the card
      *  is being dragged (used to lift it visually and suppress hover tilt). */
     dragging: boolean;
-    /** Live pointer offset from the press origin, in px. `{0,0}` when idle. */
+    /** Live pointer offset from the press origin, in px. The upward component is
+     *  clamped to {@link MAX_LIFT_PX} so the lifted card never disappears into
+     *  the clipped band above the hand (#271, fix 4); the horizontal component
+     *  is unclamped. `{0,0}` when idle. */
     offset: { x: number; y: number };
+    /** Live pointer x in viewport (client) px, for drag-reorder snap (#271,
+     *  fix 2). `null` when idle. */
+    pointerX: number | null;
     /** True while dragging AND lifted past the commit threshold — the release
      *  will commit. Drives the "armed" affordance. */
     armed: boolean;
@@ -53,6 +66,7 @@ export function useDragToCommit(opts: {
     const [state, setState] = useState<DragToCommitState>({
         dragging: false,
         offset: { x: 0, y: 0 },
+        pointerX: null,
         armed: false,
     });
     const press = useRef<{
@@ -68,7 +82,12 @@ export function useDragToCommit(opts: {
 
     const reset = useCallback(() => {
         press.current = null;
-        setState({ dragging: false, offset: { x: 0, y: 0 }, armed: false });
+        setState({
+            dragging: false,
+            offset: { x: 0, y: 0 },
+            pointerX: null,
+            armed: false,
+        });
     }, []);
 
     const onPointerDown = useCallback((e: React.PointerEvent<HTMLElement>) => {
@@ -93,9 +112,19 @@ export function useDragToCommit(opts: {
             p.active = true;
             e.currentTarget.setPointerCapture(e.pointerId);
         }
-        // Upward lift is negative dy; arm when lifted past the commit line.
+        // Upward lift is negative dy; arm from the RAW lift so the commit
+        // threshold is unaffected by the visual clamp below.
         const armed = -dy >= COMMIT_LIFT_PX;
-        setState({ dragging: true, offset: { x: dx, y: dy }, armed });
+        // Clamp the RENDERED upward travel so the lifted card never rises into
+        // the clipped band above the hand and disappears (#271, fix 4). Downward
+        // travel and horizontal travel are unclamped.
+        const clampedY = dy < -MAX_LIFT_PX ? -MAX_LIFT_PX : dy;
+        setState({
+            dragging: true,
+            offset: { x: dx, y: clampedY },
+            pointerX: e.clientX,
+            armed,
+        });
     }, []);
 
     const onPointerUp = useCallback(

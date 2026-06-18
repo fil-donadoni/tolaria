@@ -103,8 +103,8 @@ function el() {
 }
 
 /** Simulate a drag that lifts the card UP by `lift` px (negative dy) and
- *  releases. >= 64px commits; below returns to hand. Mirrors the real pointer
- *  sequence: down → move (crosses drag-start) → up. */
+ *  releases. >= 40px commits (#271 fix 3); below returns to hand. Mirrors the
+ *  real pointer sequence: down → move (crosses drag-start) → up. */
 function drag(lift: number) {
     const target = el();
     fireEvent.pointerDown(target, { button: 0, clientX: 100, clientY: 400 });
@@ -256,5 +256,74 @@ describe("BoardNextHandCard drag-commit parity (seam 3, #254)", () => {
         fireEvent.click(el());
         expect(playCard).not.toHaveBeenCalled();
         expect(announceCast).not.toHaveBeenCalled();
+    });
+});
+
+describe("BoardNextHandCard commit threshold (#271 fix 3)", () => {
+    it("commits a modest upward flick at the lowered threshold (40px)", () => {
+        const card = makeCard("spell1", ["cast"]);
+        renderCard(card);
+        drag(45); // just past the new 40px line — used to be below the old 64
+        expect(announceCast).toHaveBeenCalledTimes(1);
+    });
+
+    it("does NOT commit an accidental small nudge below the threshold", () => {
+        const card = makeCard("spell1", ["cast"]);
+        renderCard(card);
+        drag(30); // past drag-start (6px) but below the 40px commit line
+        expect(announceCast).not.toHaveBeenCalled();
+        expect(playCard).not.toHaveBeenCalled();
+    });
+});
+
+describe("BoardNextHandCard hover-zoom preview (#271 fix 1)", () => {
+    it("mounts the CardImage (hover-zoom vehicle) when idle", () => {
+        renderCard(makeCard("spell1", ["cast"]));
+        // CardImage owns CardPreview; its presence is the hover vehicle, same
+        // as the battlefield card.
+        expect(screen.getByTestId("card-image")).toBeTruthy();
+    });
+
+    it("keeps the CardImage mounted DURING a drag (preview never torn down)", () => {
+        const card = makeCard("spell1", ["cast"]);
+        renderCard(card);
+        const target = el();
+        fireEvent.pointerDown(target, {
+            button: 0,
+            clientX: 100,
+            clientY: 400,
+        });
+        fireEvent.pointerMove(target, { clientX: 100, clientY: 350 });
+        // Mid-drag the same hover vehicle is still mounted (not swapped for a
+        // plain image), so hover keeps working after the gesture ends.
+        expect(screen.getByTestId("card-image")).toBeTruthy();
+        fireEvent.pointerUp(target, { clientX: 100, clientY: 350 });
+    });
+});
+
+describe("BoardNextHandCard drag containment (#271 fix 4)", () => {
+    it("clamps the rendered upward lift so the card stays visible", () => {
+        const card = makeCard("spell1", ["cast"]);
+        renderCard(card);
+        const target = el() as HTMLElement;
+        fireEvent.pointerDown(target, {
+            button: 0,
+            clientX: 100,
+            clientY: 400,
+        });
+        // Yank the card 400px up — far past the band above the hand.
+        fireEvent.pointerMove(target, { clientX: 100, clientY: 0 });
+        const transform = target.style.transform;
+        // Pull out the translate Y (px) from `translate(0px, -Npx) scale(...)`.
+        const match = transform.match(/translate\([^,]+,\s*(-?\d+)px\)/);
+        expect(match).toBeTruthy();
+        const renderedLiftPx = Math.abs(Number(match![1]));
+        // Clamped well below the raw 400px so it can't escape into the clipped
+        // band above the hand (MAX_LIFT_PX = COMMIT_LIFT_PX + 24 = 64).
+        expect(renderedLiftPx).toBeLessThanOrEqual(64);
+        // Still armed (the RAW lift past 40px arms the commit regardless of the
+        // visual clamp).
+        expect(target.getAttribute("data-drag-armed")).toBe("true");
+        fireEvent.pointerUp(target, { clientX: 100, clientY: 0 });
     });
 });

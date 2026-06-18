@@ -1,9 +1,13 @@
-import { useCallback, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { useReducedMotion } from "motion/react";
 import { CARD_TILT } from "~/lib/board-motion";
 
 type CardTilt3DProps = {
     children: ReactNode;
+    /** Hold the card flat and ignore pointer-driven tilt (e.g. while a hand card
+     *  is being dragged, #271). The element stays mounted so any hover-zoom
+     *  vehicle it wraps keeps its identity — only the tilt is suppressed. */
+    suppressTilt?: boolean;
 };
 
 /**
@@ -35,14 +39,32 @@ type CardTilt3DProps = {
  * Accessibility: when the user prefers reduced motion the tilt and glare are
  * disabled entirely — the card renders flat and the pointer handlers are no-ops.
  */
-export default function CardTilt3D({ children }: CardTilt3DProps) {
+export default function CardTilt3D({
+    children,
+    suppressTilt = false,
+}: CardTilt3DProps) {
     const reduceMotion = useReducedMotion();
+    const inert = reduceMotion || suppressTilt;
     const innerRef = useRef<HTMLDivElement>(null);
     const glareRef = useRef<HTMLDivElement>(null);
 
+    // While suppressed (e.g. mid-drag) snap the inner element back to flat so
+    // the rigid lift the parent applies isn't fighting a stale tilt transform.
+    useEffect(() => {
+        if (!suppressTilt) return;
+        const inner = innerRef.current;
+        if (inner) {
+            inner.style.transition = "none";
+            inner.style.transform =
+                "rotateX(0deg) rotateY(0deg) translateZ(0px) scale(1)";
+        }
+        const glare = glareRef.current;
+        if (glare) glare.style.opacity = "0";
+    }, [suppressTilt]);
+
     const handlePointerMove = useCallback(
         (e: React.PointerEvent<HTMLDivElement>) => {
-            if (reduceMotion) return;
+            if (inert) return;
             const inner = innerRef.current;
             if (!inner) return;
             const rect = e.currentTarget.getBoundingClientRect();
@@ -65,7 +87,7 @@ export default function CardTilt3D({ children }: CardTilt3DProps) {
                     `rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 55%)`;
             }
         },
-        [reduceMotion]
+        [inert]
     );
 
     const reset = useCallback(() => {
@@ -84,8 +106,8 @@ export default function CardTilt3D({ children }: CardTilt3DProps) {
             data-card-tilt-root
             className="relative w-full h-full"
             style={{ perspective: `${CARD_TILT.perspectivePx}px` }}
-            onPointerMove={reduceMotion ? undefined : handlePointerMove}
-            onPointerLeave={reduceMotion ? undefined : reset}
+            onPointerMove={inert ? undefined : handlePointerMove}
+            onPointerLeave={inert ? undefined : reset}
         >
             <div
                 ref={innerRef}

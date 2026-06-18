@@ -32,6 +32,11 @@ type SpatialZoneProps = {
      *  derive their endpoints from the same layout placements that position the
      *  cards (#257). Battlefield zones pass `"permanent"`. */
     anchorKind?: AnchorKind;
+    /** Let cards paint outside the zone box instead of clipping them. The hand
+     *  zone uses this so a card lifted during a drag-to-commit stays visible
+     *  above the band rather than being clipped by `overflow-hidden` (#271,
+     *  fix 4). Defaults to clipped. */
+    overflowVisible?: boolean;
     className?: string;
     "data-testid"?: string;
 };
@@ -50,6 +55,7 @@ export default function SpatialZone({
     cardWidth = CARD_WIDTH,
     cardHeight = CARD_HEIGHT,
     anchorKind,
+    overflowVisible = false,
     className,
     "data-testid": testId,
 }: SpatialZoneProps) {
@@ -78,7 +84,9 @@ export default function SpatialZone({
     return (
         <div
             ref={ref}
-            className={`absolute inset-0 overflow-hidden ${className ?? ""}`}
+            className={`absolute inset-0 ${
+                overflowVisible ? "overflow-visible" : "overflow-hidden"
+            } ${className ?? ""}`}
             data-testid={testId}
         >
             {items.map((item, i) => {
