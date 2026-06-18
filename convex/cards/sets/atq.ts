@@ -287,3 +287,131 @@ export const obeliskOfUndoing: CardDefinition = {
         },
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Artifact removal & bounce (free tranche, #274) — CR 701.7 destroy, CR
+// 701.10 return to hand, CR 701.5a counter, CR 202.3 mana value. Modern
+// Scryfall oracle text is authoritative (ADR 0004); mana costs / type lines
+// come from MTGJSON ATQ.json. All effects compose existing SpellContext
+// primitives (no new primitive, no engine change).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Crumble — {G} Instant. "Destroy target artifact. It can't be regenerated.
+// That artifact's controller gains life equal to its mana value." Order
+// matters: read the controller and the mana value BEFORE the destroy moves the
+// permanent off the battlefield (CR 608.2c — the effect uses last-known
+// information once the object has left). `cantBeRegenerated: true` suppresses
+// the regen-shield replacement (CR 701.15c); indestructible still protects.
+export const crumble: CardDefinition = {
+    id: "d2101f86-8d3c-4ba8-ac42-bd3df0644280",
+    name: "Crumble",
+    oracleText:
+        "Destroy target artifact. It can't be regenerated. That artifact's controller gains life equal to its mana value.",
+    manaCost: { G: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Artifact", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "permanent") return;
+        // Snapshot controller + mana value before the destroy (CR 608.2c).
+        const controllerId = ctx.getController(target);
+        const mv = ctx.getManaValue(target);
+        ctx.destroy(target, { cantBeRegenerated: true });
+        ctx.gainLife(controllerId, mv);
+    },
+};
+
+// Detonate — {X}{R} Sorcery. "Destroy target artifact with mana value X. It
+// can't be regenerated. Detonate deals X damage to that artifact's
+// controller." `mvFilter: { equals: "X" }` resolves X at announcement against
+// the chosen value and restricts legal targets to artifacts whose mana value
+// equals X (CR 107.3 / 202.3). Snapshot the controller before the destroy so
+// the X damage still lands on the right player via last-known information
+// (CR 608.2c).
+export const detonate: CardDefinition = {
+    id: "ffd7eb90-ae95-49df-898a-9510187bce1c",
+    name: "Detonate",
+    oracleText:
+        "Destroy target artifact with mana value X. It can't be regenerated. Detonate deals X damage to that artifact's controller.",
+    manaCost: { X: "X", R: 1 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "Artifact",
+        count: 1,
+        mvFilter: { equals: "X" },
+    },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "permanent") return;
+        const controllerId = ctx.getController(target);
+        const x = ctx.getX();
+        ctx.destroy(target, { cantBeRegenerated: true });
+        ctx.dealDamage({ type: "player", id: controllerId }, x);
+    },
+};
+
+// Shatterstorm — {2}{R}{R} Sorcery. "Destroy all artifacts. They can't be
+// regenerated." Mass destroy via `destroyAll("Artifact", { cantBeRegenerated:
+// true })` (CR 701.7, 701.15c); indestructible artifacts are still spared.
+export const shatterstorm: CardDefinition = {
+    id: "0987461a-45c0-4956-8627-cd27a7e038d0",
+    name: "Shatterstorm",
+    oracleText: "Destroy all artifacts. They can't be regenerated.",
+    manaCost: { X: 2, R: 2 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        ctx.destroyAll("Artifact", { cantBeRegenerated: true });
+    },
+};
+
+// Artifact Blast — {R} Instant. "Counter target artifact spell." Targets a
+// spell on the stack restricted to the Artifact card type via
+// `spellTypeFilter` (CR 114.1), then counters it (CR 701.5a). No-op if the
+// target has left the stack (CR 608.2b, handled by `counter`).
+export const artifactBlast: CardDefinition = {
+    id: "1506d99d-7b2e-4101-84a5-c950dadb263a",
+    name: "Artifact Blast",
+    oracleText: "Counter target artifact spell.",
+    manaCost: { R: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: "spell",
+        count: 1,
+        spellTypeFilter: "Artifact",
+    },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type === "spell") ctx.counter(target);
+    },
+};
+
+// Hurkyl's Recall — {1}{U} Instant. "Return all artifacts target player owns
+// to their hand." Targets a player, then bounces every artifact that player
+// owns (CR 701.10). `returnToHand` already routes each card to its OWNER's
+// hand. Implementation note / divergence: `getBattlefieldIds(playerId, …)`
+// enumerates artifacts on the TARGET PLAYER'S battlefield (i.e. those they
+// control). For artifacts the target player owns but does NOT control (e.g.
+// one stolen by an opponent via a control-change effect), this misses them,
+// and it would wrongly bounce an artifact the target controls but another
+// player owns. The current card pool has no artifact control-theft, so in
+// practice owner == controller for artifacts; a strict owner-scoped
+// enumeration would need a new engine query and is deferred (no engine change
+// in this tranche).
+export const hurkylsRecall: CardDefinition = {
+    id: "f32373dd-06d8-45d1-8777-3b1411bcb30a",
+    name: "Hurkyl's Recall",
+    oracleText: "Return all artifacts target player owns to their hand.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "player", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "player") return;
+        const artifactIds = ctx.getBattlefieldIds(target.id, {
+            types: "Artifact",
+        });
+        for (const id of artifactIds) {
+            ctx.returnToHand({ type: "permanent", id });
+        }
+    },
+};
