@@ -1895,6 +1895,69 @@ describe("Desert (mana + end-of-combat ping)", () => {
                 ?.damageMarked
         ).toBe(1);
     });
+
+    // CR 511.2 — attackers remain attacking until the END_OF_COMBAT step
+    // *ends*. Regression for #310: Desert can only be activated during
+    // END_OF_COMBAT and targets an attacking creature; clearing the attacking
+    // status on step entry made `getLegalTargets` return nothing and threw
+    // "No legal targets available".
+    it("an attacker is still a legal Desert target throughout END_OF_COMBAT", () => {
+        const pingAbility = desert.activatedAbilities!.find(
+            (a) => a.id === "desert-ping"
+        )!;
+        const des = makeInstance(desert.id, { id: "des" });
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "atk",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        // Active player p2 has the attacker; defending p1 controls the Desert.
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
+            players: [
+                makePlayer("p1", { battlefield: [des] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+        });
+
+        // COMBAT_DAMAGE → END_OF_COMBAT: the attacker must STILL be attacking.
+        advancePhase(state);
+        expect(state.phase).toBe("END_OF_COMBAT");
+        const atkInCombat = state.players[1].battlefield.find(
+            (c) => c.id === "atk"
+        )!;
+        expect(atkInCombat.isAttacking).toBe(true);
+
+        // ...and therefore a legal target for Desert's "target attacking
+        // creature" ability (caster = the Desert's controller, p1).
+        const legal = getLegalTargets(
+            state,
+            pingAbility.targetRequirement!,
+            [],
+            "p1"
+        );
+        expect(
+            legal.some((t) => t.type === "permanent" && t.id === "atk")
+        ).toBe(true);
+
+        // Leaving END_OF_COMBAT ends combat: the status clears (CR 511.2).
+        advancePhase(state);
+        expect(state.phase).toBe("POSTCOMBAT_MAIN");
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "atk")
+                ?.isAttacking
+        ).toBeUndefined();
+        expect(state.combat).toBeUndefined();
+    });
 });
 
 describe("Desert Nomads (desertwalk + prevent damage from Deserts)", () => {

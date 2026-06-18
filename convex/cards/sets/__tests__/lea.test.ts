@@ -20485,11 +20485,23 @@ describe("Raging River (pile combat — CR 509.2 variant, ADR 0012)", () => {
         submitHead(state, ["atkA"]);
         expect(state.combatBlockRestrictions).toHaveLength(2);
 
-        // Advance COMBAT_DAMAGE → END_OF_COMBAT runs the cleanup.
+        // CR 511.3 / CR 511.2 — pile labels and combat-scoped block
+        // restrictions are part of the combat and end as the END_OF_COMBAT
+        // step *ends*, not when it begins. They must still be present during
+        // END_OF_COMBAT (so e.g. Desert can target an attacker), and clear
+        // only on leaving the step.
         state.phase = "COMBAT_DAMAGE";
         state.combat!.blockersConfirmed = true;
         advancePhase(state);
         expect(state.phase).toBe("END_OF_COMBAT");
+        expect(state.combatBlockRestrictions).toHaveLength(2);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === g1.id)!.pileLabel
+        ).toBe("left");
+
+        // Leaving END_OF_COMBAT ends the combat → labels and restrictions lift.
+        advancePhase(state);
+        expect(state.phase).toBe("POSTCOMBAT_MAIN");
         expect(state.combatBlockRestrictions).toBeUndefined();
         expect(
             state.players[1].battlefield.find((c) => c.id === g1.id)!.pileLabel

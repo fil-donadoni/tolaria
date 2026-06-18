@@ -159,9 +159,12 @@ export type CardInstanceState = {
     manaCommitted?: boolean;
     /** Set when a creature enters the battlefield. Cleared at untap step. Prevents attacking. */
     isSummoningSick?: boolean;
-    /** Set during combat when this creature is declared as attacker. Cleared at END_OF_COMBAT. */
+    /** Set during combat when this creature is declared as attacker. Cleared
+     *  when the END_OF_COMBAT step ends (CR 511.2 — attackers remain attacking
+     *  until the end of combat step ends), not when it begins. */
     isAttacking?: boolean;
-    /** Set during combat when this creature is declared as blocker. Cleared at END_OF_COMBAT. */
+    /** Set during combat when this creature is declared as blocker. Cleared
+     *  when the END_OF_COMBAT step ends (CR 511.2), not when it begins. */
     isBlocking?: boolean;
     /** Set when the creature is declared as an attacker this turn (CR 506.2).
      *  Unlike isAttacking, this is not cleared at END_OF_COMBAT — it persists

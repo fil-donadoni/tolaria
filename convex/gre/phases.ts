@@ -1176,27 +1176,15 @@ function performPhaseEntry(state: GameState): void {
             break;
         }
         case "END_OF_COMBAT": {
+            // CR 511.1 — "at the beginning of the end of combat step" delayed
+            // triggers fire on ENTRY. The combat teardown (clearing
+            // isAttacking/isBlocking, ending the combat, "until end of combat"
+            // effects) is deliberately NOT done here: per CR 511.2 attackers
+            // and blockers remain attacking/blocking until the step *ends*, so
+            // abilities that target an attacking creature during END_OF_COMBAT
+            // (e.g. Desert) stay legal. That teardown runs in `endCombatStep`,
+            // invoked on phase EXIT from `advancePhase`.
             fireDelayedTriggers(state, "next-end-of-combat");
-
-            if (state.combat) {
-                const activePlayer = getPlayer(state, state.activePlayerId);
-                const defenderId = getOpponentId(state, state.activePlayerId);
-                const defender = getPlayer(state, defenderId);
-                for (const card of activePlayer.battlefield) {
-                    card.isAttacking = undefined;
-                    card.pileLabel = undefined;
-                }
-                for (const card of defender.battlefield) {
-                    card.isBlocking = undefined;
-                    card.pileLabel = undefined;
-                }
-                state.combat = undefined;
-            }
-            // ADR 0012 — combat-scoped pile block restrictions (Raging River)
-            // end with the combat.
-            state.combatBlockRestrictions = undefined;
-            // CR 511.3 — "until end of combat" effects end here.
-            tickAllDurations(state);
             break;
         }
         case "END_STEP": {
@@ -1691,11 +1679,39 @@ function defenderHasAnyLegalBlock(state: GameState): boolean {
     return hasAnyLegalBlock(attackers, defender.battlefield, state);
 }
 
+/** CR 511.2/511.3 — runs as the END_OF_COMBAT step *ends*. Creatures stop
+ *  being attacking/blocking, "until end of combat" effects end, combat-scoped
+ *  pile block restrictions (ADR 0012) lift, and the combat is torn down. This
+ *  must happen on phase EXIT, not entry, so that abilities targeting an
+ *  attacking creature (e.g. Desert) remain legal throughout the step. */
+function endCombatStep(state: GameState): void {
+    if (state.combat) {
+        const activePlayer = getPlayer(state, state.activePlayerId);
+        const defenderId = getOpponentId(state, state.activePlayerId);
+        const defender = getPlayer(state, defenderId);
+        for (const card of activePlayer.battlefield) {
+            card.isAttacking = undefined;
+            card.pileLabel = undefined;
+        }
+        for (const card of defender.battlefield) {
+            card.isBlocking = undefined;
+            card.pileLabel = undefined;
+        }
+        state.combat = undefined;
+    }
+    state.combatBlockRestrictions = undefined;
+    // CR 511.3 — "until end of combat" effects end as the step ends.
+    tickAllDurations(state);
+}
+
 export function advancePhase(state: GameState): Phase[] {
     const traversed: Phase[] = [];
 
     // CR 500.4: mana pools empty when a step or phase ends
     emptyManaPools(state);
+
+    // CR 511.2/511.3: combat teardown happens as the END_OF_COMBAT step ends.
+    if (state.phase === "END_OF_COMBAT") endCombatStep(state);
 
     const next = nextPhase(state.phase);
 
@@ -1709,7 +1725,10 @@ export function advancePhase(state: GameState): Phase[] {
 
     traversed.push(state.phase);
 
-    // Check combat state before entry actions (END_OF_COMBAT clears it)
+    // Snapshot combat state before entry actions. (The END_OF_COMBAT
+    // teardown now runs on exit via `endCombatStep`, so `state.combat` is
+    // still present when entering END_OF_COMBAT — attackers stay attacking
+    // through the step per CR 511.2.)
     const hadAttackers = !!state.combat && state.combat.attackerIds.length > 0;
     performPhaseEntry(state);
 
