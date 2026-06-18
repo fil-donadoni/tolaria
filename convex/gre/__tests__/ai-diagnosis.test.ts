@@ -40,6 +40,8 @@ const BOP = getCardByName("Birds of Paradise").id; // 0/1 flying mana dork
 const IRONROOT = getCardByName("Ironroot Treefolk").id; // 3/5
 const GIANT_SPIDER = getCardByName("Giant Spider").id; // 2/4 reach
 const HYPNOTIC = getCardByName("Hypnotic Specter").id; // 2/2 flying
+const TIME_WALK = getCardByName("Time Walk").id; // {1}{U}: take an extra turn
+const MOX_JET = getCardByName("Mox Jet").id; // {0} artifact, {T}: add {B}
 const SCRYB = getCardByName("Scryb Sprites").id; // 1/1 flying
 
 /** Iteration budgets, smallest → largest. medium (400) is what the bot plays at;
@@ -1433,6 +1435,150 @@ describe("AI diagnosis harness (Forge comparison)", () => {
             const blockerCount = (label: string) =>
                 (label.match(/↦/g) ?? []).length;
             expect(blockerCount(trace.chosen)).toBeLessThan(2);
+        }
+    );
+
+    // -----------------------------------------------------------------------
+    // Episode #11 — casts Time Walk (issue #244). An extra turn is washed out
+    // of the rollout: ADR 0015 stops the rollout at the START of the bot's next
+    // turn, and `extraTurns` (CR 500.7) is popped at that crossing, so the
+    // granted turn is never played out and its value never reaches the root
+    // edge's mean reward. Before the fix the bot passed (or developed a land)
+    // rather than spending {1}{U} on Time Walk. The structural extra-turn credit
+    // in `selectRootMove` (effect-keyed on the `extraTurns` grant, not per-card)
+    // lifts the cast above the do-nothing line, so the bot takes the turn.
+    // -----------------------------------------------------------------------
+    it(
+        "episode #11: casts Time Walk for the extra turn",
+        { timeout: DIAGNOSIS_TIMEOUT_MS },
+        () => {
+            const walk = makeInstance(TIME_WALK, {
+                id: "tw-walk",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+            // A board so the extra turn has obvious value (an attack + a land
+            // drop + a draw), though the credit fires regardless of board.
+            const beater = makeInstance(HILL_GIANT, {
+                id: "tw-beater",
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: false,
+            });
+            const island = (i: number) =>
+                makeInstance(ISLAND, {
+                    id: `tw-isl${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    isTapped: false,
+                });
+            const lib = (owner: string) =>
+                [0, 1, 2, 3, 4].map((i) =>
+                    makeInstance(ISLAND, {
+                        id: `tw-${owner}-lib${i}`,
+                        controllerId: owner,
+                        ownerId: owner,
+                        zone: "library",
+                    })
+                );
+            const state = makeState({
+                phase: "PRECOMBAT_MAIN",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                players: [
+                    makePlayer("p1", {
+                        hand: [walk],
+                        battlefield: [beater, island(0), island(1)],
+                        library: lib("p1"),
+                    }),
+                    makePlayer("p2", { library: lib("p2") }),
+                ],
+            });
+
+            const trace = diagnose(
+                "EP#11 Time Walk — cast vs pass",
+                state,
+                "p1"
+            );
+
+            const cast = trace.candidates.find(
+                (c) => c.move.kind === "cast-spell"
+            );
+            expect(cast).toBeDefined();
+            // The chosen root move is casting Time Walk — it ranks top, not pass
+            // or a land drop (acceptance criterion: bot casts it when correct).
+            expect(trace.chosen).toContain("Time Walk");
+        }
+    );
+
+    // -----------------------------------------------------------------------
+    // Episode #12 — casts a free mana source (Mox Jet). A 0-cost mana artifact
+    // develops mana that washes out of the rollout exactly like a land drop, so
+    // `pass` could win the material tie-break on noise (reported: the bot
+    // preferred `pass` over `cast Mox Jet`, the two outcome-equal). Like a land,
+    // a free mana source has no option cost — deferring it is never right — so
+    // the free-development tie-break in `selectRootMove` (effect-keyed: cost 0 +
+    // mana ability, NOT a per-card list) develops it instead of passing.
+    // -----------------------------------------------------------------------
+    it(
+        "episode #12: casts a free mana source (Mox Jet) rather than passing",
+        { timeout: DIAGNOSIS_TIMEOUT_MS },
+        () => {
+            const mox = makeInstance(MOX_JET, {
+                id: "mj-mox",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+            // A developed board (matching the reported trace: many permanents,
+            // lots of mana). The bigger the board, the more the Mox's +9 of
+            // development washes into rollout noise, so `pass` can edge it on
+            // accumulated material margin even though the two are outcome-equal —
+            // exactly the case the free-development tie-break must flip back.
+            const lands = (owner: string) =>
+                [0, 1, 2, 3, 4].map((i) =>
+                    makeInstance(ISLAND, {
+                        id: `mj-${owner}-land${i}`,
+                        controllerId: owner,
+                        ownerId: owner,
+                        isTapped: false,
+                    })
+                );
+            const lib = (owner: string) =>
+                [0, 1, 2, 3, 4].map((i) =>
+                    makeInstance(ISLAND, {
+                        id: `mj-${owner}-lib${i}`,
+                        controllerId: owner,
+                        ownerId: owner,
+                        zone: "library",
+                    })
+                );
+            const state = makeState({
+                phase: "PRECOMBAT_MAIN",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                players: [
+                    makePlayer("p1", {
+                        hand: [mox],
+                        battlefield: lands("p1"),
+                        library: lib("p1"),
+                    }),
+                    makePlayer("p2", {
+                        battlefield: lands("p2"),
+                        library: lib("p2"),
+                    }),
+                ],
+            });
+
+            const trace = diagnose("EP#12 Mox Jet — cast vs pass", state, "p1");
+
+            const cast = trace.candidates.find(
+                (c) => c.move.kind === "cast-spell"
+            );
+            expect(cast).toBeDefined();
+            // The bot develops the free mana source instead of passing.
+            expect(trace.chosen).toContain("Mox Jet");
         }
     );
 });

@@ -27,6 +27,7 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup";
+import type { GameState } from "../state";
 
 const GIANT = getCardByName("Hill Giant").id; // 3/3
 const BEARS = getCardByName("Grizzly Bears").id; // 2/2
@@ -497,6 +498,206 @@ describe("selectRootMove — land-drop tie-break (issue #206)", () => {
             { move: PASS, meanReward: 0.66, meanMargin: 350 },
         ]);
         expect(selectRootMove(root, [LAND, PASS]).kind).toBe("play-land");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Free-development tie-break, extended to FREE MANA SOURCES (issue #244). A
+// 0-cost mana artifact (Mox Jet) develops mana that washes out of the rollout
+// like a land drop, so `pass` can win the material tie-break on noise (reported:
+// the bot preferred `pass` over `cast Mox Jet`). Synthetic-edge tests so the
+// fire / no-fire conditions are deterministic, with a `rootState` carrying the
+// Mox in hand (the tie-break reads it to key on cost-0 + mana-ability).
+// ---------------------------------------------------------------------------
+describe("selectRootMove — free mana source tie-break (issue #244)", () => {
+    const MOX_JET = getCardByName("Mox Jet").id; // {0} artifact, {T}: add {B}
+    const BOLT_CARD = getCardByName("Lightning Bolt").id; // {R}: not free
+    const PASS: Move = { kind: "pass" };
+    const CAST_MOX = {
+        kind: "cast-spell",
+        cardInstanceId: "mox",
+        targets: [],
+        tapPlan: [],
+    } as unknown as Move;
+    const CAST_BOLT = {
+        kind: "cast-spell",
+        cardInstanceId: "bolt",
+        targets: [],
+        tapPlan: [],
+    } as unknown as Move;
+
+    /** A root state whose bot `p1` holds the Mox (id `mox`) and a Bolt (`bolt`)
+     *  so `isFreeManaSourceCast` can resolve the cast cards from hand. */
+    function rootState(): GameState {
+        return makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(MOX_JET, {
+                            id: "mox",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(BOLT_CARD, {
+                            id: "bolt",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {}),
+            ],
+        });
+    }
+
+    function rootOf(
+        edges: { move: Move; meanReward: number; meanMargin: number }[]
+    ): Node {
+        const children = new Map<string, Edge>();
+        edges.forEach((e, i) => {
+            const visits = 100;
+            children.set(`${e.move.kind}:${i}`, {
+                move: e.move,
+                mover: "p1",
+                node: { children: new Map() },
+                visits,
+                totalReward: e.meanReward * visits,
+                totalMargin: e.meanMargin * visits,
+                avail: visits,
+            });
+        });
+        return { children };
+    }
+
+    it("FIRE: casts the Mox when pass wins material on noise but is outcome-equal", () => {
+        // The reported trace: pass edged the Mox on accumulated margin (766 vs
+        // 753) at an equal mean reward. The tie-break must hand the develop move
+        // the pick anyway — a free mana source has no reason to be held.
+        const root = rootOf([
+            { move: PASS, meanReward: 0.75, meanMargin: 766 },
+            { move: CAST_MOX, meanReward: 0.75, meanMargin: 753 },
+        ]);
+        expect(
+            selectRootMove(root, [PASS, CAST_MOX], rootState(), "p1").kind
+        ).toBe("cast-spell");
+    });
+
+    it("NO-FIRE: does not rescue a non-free spell (Lightning Bolt) over pass", () => {
+        // A {R} Bolt is NOT a free mana source — holding it has option value, so
+        // the tie-break leaves the robust `pass` pick standing.
+        const root = rootOf([
+            { move: PASS, meanReward: 0.75, meanMargin: 766 },
+            { move: CAST_BOLT, meanReward: 0.75, meanMargin: 753 },
+        ]);
+        expect(
+            selectRootMove(root, [PASS, CAST_BOLT], rootState(), "p1").kind
+        ).toBe("pass");
+    });
+
+    it("NO-FIRE: keeps pass when the Mox is genuinely worse (not outcome-equal)", () => {
+        const root = rootOf([
+            { move: PASS, meanReward: 0.8, meanMargin: 766 },
+            { move: CAST_MOX, meanReward: 0.6, meanMargin: 900 },
+        ]);
+        expect(
+            selectRootMove(root, [PASS, CAST_MOX], rootState(), "p1").kind
+        ).toBe("pass");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Extra-turn structural credit (issue #244). A granted extra turn is washed out
+// of the rollout (ADR 0015 horizon + `extraTurns` popped at the turn crossing),
+// so the cast is both low-reward and under-visited. `selectRootMove` credits the
+// effect (keyed on the `extraTurns` grant, probed off `rootState`) and pulls it
+// from the full pool, so a washed Time Walk still beats `pass`.
+// ---------------------------------------------------------------------------
+describe("selectRootMove — extra-turn structural credit (issue #244)", () => {
+    const TIME_WALK = getCardByName("Time Walk").id; // {1}{U}: take an extra turn
+    const ISLAND = getCardByName("Island").id;
+    const PASS: Move = { kind: "pass" };
+    const CAST_WALK = {
+        kind: "cast-spell",
+        cardInstanceId: "walk",
+        targets: [],
+        tapPlan: [],
+    } as unknown as Move;
+
+    function rootState(): GameState {
+        return makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(TIME_WALK, {
+                            id: "walk",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                    battlefield: [0, 1].map((i) =>
+                        makeInstance(ISLAND, {
+                            id: `isl${i}`,
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        })
+                    ),
+                }),
+                makePlayer("p2", {}),
+            ],
+        });
+    }
+
+    function rootOf(
+        edges: { move: Move; meanReward: number; visits: number }[]
+    ): Node {
+        const children = new Map<string, Edge>();
+        edges.forEach((e, i) => {
+            children.set(`${e.move.kind}:${i}`, {
+                move: e.move,
+                mover: "p1",
+                node: { children: new Map() },
+                visits: e.visits,
+                totalReward: e.meanReward * e.visits,
+                totalMargin: 0,
+                avail: e.visits,
+            });
+        });
+        return { children };
+    }
+
+    it("FIRE: casts Time Walk though it is washed AND under-visited (out of the visit band)", () => {
+        // pass out-rewards the washed cast on raw mean and is far more visited, so
+        // the cast falls out of the VISIT_TOL band — exactly like the land-drop
+        // rescue. The structural extra-turn credit, pulled from the full pool,
+        // lifts the grant above pass.
+        const root = rootOf([
+            { move: PASS, meanReward: 0.66, visits: 760 },
+            { move: CAST_WALK, meanReward: 0.61, visits: 240 },
+        ]);
+        expect(
+            selectRootMove(root, [PASS, CAST_WALK], rootState(), "p1").kind
+        ).toBe("cast-spell");
+    });
+
+    it("NO-FIRE: a clearly-winning pass (beyond the credit) is not overridden", () => {
+        // The credit only tips otherwise-close lines; it must not override a line
+        // that wins by more than the credit (a near-lethal pass here).
+        const root = rootOf([
+            { move: PASS, meanReward: 0.99, visits: 500 },
+            { move: CAST_WALK, meanReward: 0.5, visits: 500 },
+        ]);
+        expect(
+            selectRootMove(root, [PASS, CAST_WALK], rootState(), "p1").kind
+        ).toBe("pass");
     });
 });
 

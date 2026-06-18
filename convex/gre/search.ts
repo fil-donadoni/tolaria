@@ -63,6 +63,8 @@ import { cloneGameState } from "./clone";
 import { predictCombatOutcome } from "./dangerClock";
 import { recordBlockedAttackers } from "./banding";
 import { enumerateMoves, type Move } from "./moves";
+import { manaValue } from "./constants";
+import { getInstanceManaCost } from "../cards";
 import {
     evaluate,
     evaluateBreakdown,
@@ -1068,6 +1070,101 @@ function blockDeltaOf(state: GameState, move: Move, botId: string): number {
     return declaredBlockDelta(probe, botId);
 }
 
+// --- Extra-turn structural credit (issue #244) -----------------------------
+// An extra turn's value is "washed out" of the rollout: ADR 0015 terminates
+// each rollout at the START of the bot's next turn, and the `extraTurns` queue
+// (CR 500.7) is popped at that very turn crossing (phases.ts) — so the granted
+// turn is never played out, and a leaf-eval term keyed on `extraTurns` would
+// read an already-emptied queue. The value therefore never reaches the root
+// edge's mean reward, and the move is BOTH low-reward and under-visited.
+//
+// Mirror the combat-eval-washed fix: encode the missing value as a STRUCTURAL
+// credit at root selection (like the wasteful-attack / hold-trick tie-breaks),
+// not a leaf-eval term. The credit is keyed on the EFFECT — a move whose
+// resolution adds the bot to `extraTurns` — NOT on a per-card list, so it
+// generalises to every legally-castable extra-turn source (Time Walk, Temporal
+// Manipulation, …) rather than being the Forge-style per-card valuation we
+// rejected. (Activated-ability extra turns, e.g. Time Vault, are out of reach
+// here: `applyMoveInSearch` does not put an activated ability's effect on the
+// stack, so the probe below sees no grant — a known search-model limit.)
+//
+// Magnitude is a material-units (ADR 0018) estimate of what an extra turn buys:
+// a drawn card + a fresh untap/main phase of tempo + an extra combat. Mapped
+// through the SAME open-band transform `rewardFromValue` uses, so the credit
+// adds to a stored mean reward (the [0,1] band) on a consistent scale. Tuned
+// with the self-play harness (issue #244).
+const EXTRA_TURN_VALUE = 350; // ≈ draw (150) + untap/main tempo (50) + combat (150)
+
+/** How many extra turns `move` grants `botId` once it resolves (0 if none).
+ *  Effect-keyed: clones `state`, applies the move, settles the stack (the same
+ *  proven probe `buildTrace` uses), and measures the growth of `botId`'s entries
+ *  in `extraTurns` (CR 500.7). Reads the resolved effect, not the card identity,
+ *  so it covers any extra-turn spell without a per-card table. */
+function botExtraTurnGrantDelta(
+    state: GameState,
+    move: Move,
+    botId: string
+): number {
+    // Only a resolving spell can add to `extraTurns` in the search effect model.
+    if (move.kind !== "cast-spell") return 0;
+    const before = (state.extraTurns ?? []).filter((id) => id === botId).length;
+    const probe = cloneGameState(state);
+    // Defensive: this probe runs on EVERY root edge during selection. Casting and
+    // resolving an arbitrary spell on the clone can throw (e.g. a targeted spell
+    // whose move carries no usable target). A throw means no extra-turn grant was
+    // realised — treat it as zero rather than letting it break root selection.
+    try {
+        applyMoveInSearch(probe, botId, move);
+        settleStackForBreakdown(probe);
+    } catch {
+        return 0;
+    }
+    const after = (probe.extraTurns ?? []).filter((id) => id === botId).length;
+    return after - before;
+}
+
+/** The structural reward credit (in stored-mean-reward [0,1] units) for a move
+ *  that grants the bot extra turns, or 0. Each granted turn is worth
+ *  `EXTRA_TURN_VALUE` material-units, mapped through the open band exactly as
+ *  `rewardFromValue` maps the material signal — so the credit is "as if the bot
+ *  had that much extra surviving material". */
+function extraTurnRewardCredit(
+    state: GameState,
+    move: Move,
+    botId: string
+): number {
+    const grants = botExtraTurnGrantDelta(state, move, botId);
+    if (grants <= 0) return 0;
+    return (
+        (1 - 2 * TERMINAL_BAND) *
+        0.5 *
+        materialSignal(grants * EXTRA_TURN_VALUE)
+    );
+}
+
+/** Whether `move` casts a FREE MANA SOURCE — a zero-mana-cost spell that is
+ *  itself a mana source (a Mox, Black Lotus, a 0-cost mana artifact). Like a
+ *  land (the land-drop tie-break, ADR 0020 §1), such a card has NO option cost
+ *  in this engine — there is no bluff or hidden-information value to holding it,
+ *  and it costs nothing to play — so deferring it is never right. Its board /
+ *  mana development washes out of the rollout exactly as a land drop does, so
+ *  `pass` can win the material tie-break on noise (issue: bot prefers `pass`
+ *  over `cast Mox Jet`). Effect-keyed (cost 0 + mana ability), NOT a per-card
+ *  list, so it covers every free mana source. `caster` is `botId` when known,
+ *  else the active player (a 0-cost artifact is cast at sorcery speed). Pure. */
+function isFreeManaSourceCast(
+    state: GameState,
+    move: Move,
+    botId?: string
+): boolean {
+    if (move.kind !== "cast-spell") return false;
+    const casterId = botId ?? state.activePlayerId;
+    const caster = state.players.find((p) => p.id === casterId);
+    const card = caster?.hand.find((c) => c.id === move.cardInstanceId);
+    if (!card) return false;
+    return manaValue(getInstanceManaCost(card)) === 0 && hasManaAbility(card);
+}
+
 export function selectRootMove(
     root: Node,
     moves: Move[],
@@ -1092,6 +1189,35 @@ export function selectRootMove(
     let best = contenders[0];
     for (const edge of contenders) {
         if (meanMargin(edge) > meanMargin(best)) best = edge;
+    }
+
+    // Extra-turn structural credit (issue #244). A granted extra turn is washed
+    // out of the rollout (ADR 0015 horizon + `extraTurns` popped at the turn
+    // crossing), so the move is BOTH low-reward and under-visited — it falls
+    // outside the visit band, exactly like the land-drop / hold-trick lines. So
+    // pull extra-turn grants from the FULL `pool` (not the visit band) and credit
+    // them. When a credited grant out-scores the robust pick on credited mean,
+    // cast it. Placed BEFORE the land-drop / hold-trick branches (which `return`
+    // early on a `pass`/dump robust pick) so a winning Time Walk pre-empts them —
+    // taking the extra turn beats developing a land or holding a trick.
+    if (rootState && botId) {
+        const creditCache = new Map<Edge, number>();
+        const creditOf = (e: Edge) => {
+            let c = creditCache.get(e);
+            if (c === undefined) {
+                c = extraTurnRewardCredit(rootState, e.move, botId);
+                creditCache.set(e, c);
+            }
+            return c;
+        };
+        const credited = (e: Edge) => mean(e) + creditOf(e);
+        const grants = pool.filter((e) => creditOf(e) > 0);
+        if (grants.length > 0) {
+            const bestGrant = grants.reduce((m, e) =>
+                credited(e) > credited(m) ? e : m
+            );
+            if (credited(bestGrant) > credited(best)) return bestGrant.move;
+        }
     }
 
     // Wasteful-attack tie-break. The material tie-break above can pick a purely
@@ -1150,29 +1276,37 @@ export function selectRootMove(
         }
     }
 
-    // Land-drop tie-break (ADR 0020 §1, issue #206). A land has no option cost
-    // in this engine — there is no bluff or hidden-information value to holding
-    // it — so deferring it is never right. When the robust pick is `pass` but an
-    // outcome-equal `play-land` exists (within `OUTCOME_EPS` of the best mean
-    // reward), develop the land instead. Fires ONLY on outcome-equality, so it
-    // can never override a genuine decision, and never overrides a non-`pass`
-    // robust pick. Generalizes the issue-#149 "land drop strictly positive"
-    // invariant to the tie-break (a strictly-better land already wins on mean
-    // reward and never reaches this branch).
+    // Free-development tie-break (ADR 0020 §1, issue #206; extended for free
+    // mana sources). A land — and likewise a FREE MANA SOURCE (a Mox, Black
+    // Lotus, a 0-cost mana artifact; `isFreeManaSourceCast`) — has no option cost
+    // in this engine: there is no bluff or hidden-information value to holding it,
+    // and it costs nothing to play, so deferring it is never right. Both develop
+    // board/mana that washes out of the rollout, so `pass` can win the material
+    // tie-break on noise (the bot sat on its only land; the bot preferred `pass`
+    // over `cast Mox Jet`). When the robust pick is `pass` but an outcome-equal
+    // land drop OR free-mana-source cast exists (within `OUTCOME_EPS` of the best
+    // mean reward), develop it instead. Fires ONLY on outcome-equality, so it can
+    // never override a genuine decision, and never overrides a non-`pass` robust
+    // pick. Generalizes the issue-#149 "land drop strictly positive" invariant to
+    // the tie-break (a strictly-better development already wins on mean reward and
+    // never reaches this branch).
     //
     // Pulled from the full `pool` on outcome-equality alone — NOT gated on the
     // `VISIT_TOL` visit band (same as the hold-trick rule below). When `pass`
-    // out-rewards the land by a hair (rollout noise inside `OUTCOME_EPS`), UCB
-    // explores `pass` more and the land falls out of the visit band even though
-    // the two are outcome-equal. Gating the land on `contenders` (visit-band)
+    // out-rewards the development by a hair (rollout noise inside `OUTCOME_EPS`),
+    // UCB explores `pass` more and the develop move falls out of the visit band
+    // even though the two are outcome-equal. Gating on `contenders` (visit-band)
     // would then silently drop it — exactly the mana-screwed case where the bot
     // sat on its only land rather than developing it.
     if (best.move.kind === "pass") {
-        const land = pool.find(
+        const develop = pool.find(
             (e) =>
-                e.move.kind === "play-land" && mean(e) >= bestMean - OUTCOME_EPS
+                mean(e) >= bestMean - OUTCOME_EPS &&
+                (e.move.kind === "play-land" ||
+                    (!!rootState &&
+                        isFreeManaSourceCast(rootState, e.move, botId)))
         );
-        if (land) return land.move;
+        if (develop) return develop.move;
     }
 
     // Hold-the-trick tie-break (ADR 0021, issue #229). The mirror image of the
