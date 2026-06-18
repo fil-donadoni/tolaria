@@ -21,7 +21,7 @@ Two facts constrain the design:
 
 1. **The result is decided server-side, deterministically.** The animation
    is cosmetic — it lands on the bit the engine already drew. "Before
-   applying" is therefore an *ordering* problem (reveal, then apply), not a
+   applying" is therefore an _ordering_ problem (reveal, then apply), not a
    "where does the result come from" problem.
 
 2. **A suspended resolution step is replayed from the start on resume.** The
@@ -36,7 +36,7 @@ Two facts constrain the design:
 Coin flips are also not the only forthcoming random reveal. Future cards roll
 dice (planar die, d6, d20). The resume/acknowledge path is identical for a
 die: generate an outcome, suspend, animate, acknowledge, apply. Only the
-*widget* and the *number of sides* differ.
+_widget_ and the _number of sides_ differ.
 
 ## Decision
 
@@ -50,12 +50,12 @@ applies the effect.**
 
 - A new **SpellContext primitive `requestCoinFlip`** modelled on
   `requestChoice`'s suspend pattern:
-  - **First call:** draw the bit via the existing `flipCoin()` **exactly
-    once**, build a `random-reveal` Pending Choice carrying the realized
-    outcome, enqueue it, return `undefined` → the step suspends before
-    applying.
-  - **Resume:** the stored outcome short-circuits the re-run (returns the
-    boolean, no re-roll), the step continues to the consequence.
+    - **First call:** draw the bit via the existing `flipCoin()` **exactly
+      once**, build a `random-reveal` Pending Choice carrying the realized
+      outcome, enqueue it, return `undefined` → the step suspends before
+      applying.
+    - **Resume:** the stored outcome short-circuits the re-run (returns the
+      boolean, no re-roll), the step continues to the consequence.
 - `requestCoinFlip` is a thin wrapper over a **generic `random-reveal`
   envelope** (`randomKind`, `sides`, `result` index, realized
   `{ face?, consequence }`). A future `requestDieRoll` reuses the same
@@ -65,16 +65,17 @@ applies the effect.**
   `face` is overridable only for non-win/lose flips (e.g. a future Puppet's
   Verdict-style HEADS/TAILS with asymmetric effects):
 
-  ```ts
-  const won = ctx.requestCoinFlip({
-    playerId: ctx.controller,
-    choiceId: "bottle-flip",
-    heads: { consequence: "Create a 5/5 Djinn" },                       // face → WIN
-    tails: { consequence: "Bottle of Suleiman deals 5 damage to you" }, // face → LOSE
-  });
-  if (won === undefined) return;            // suspended after the flip, before applying
-  if (won) ctx.createDjinn(); else ctx.dealDamage(ctx.controller, 5);
-  ```
+    ```ts
+    const won = ctx.requestCoinFlip({
+        playerId: ctx.controller,
+        choiceId: "bottle-flip",
+        heads: { consequence: "Create a 5/5 Djinn" }, // face → WIN
+        tails: { consequence: "Bottle of Suleiman deals 5 damage to you" }, // face → LOSE
+    });
+    if (won === undefined) return; // suspended after the flip, before applying
+    if (won) ctx.createDjinn();
+    else ctx.dealDamage(ctx.controller, 5);
+    ```
 
 ### Resume
 
@@ -129,7 +130,7 @@ applies the effect.**
 - **A new primitive on SpellContext.** Justified per the primitive-reuse rule:
   it is an orthogonal "suspend with an engine-generated, persisted random
   outcome" interaction. It cannot be composed from `requestChoice` (which
-  persists a *player* answer, not an engine draw) or from `flipCoin` (which
+  persists a _player_ answer, not an engine draw) or from `flipCoin` (which
   neither suspends nor persists across the resume boundary).
 
 ## Alternatives
