@@ -75,6 +75,8 @@ import {
     reversePolarity,
     titaniasSong,
     xenicPoltergeist,
+    primalClay,
+    shapeshifter,
 } from "../atq";
 import { grizzlyBears, hillGiant, solRing } from "../lea";
 import { getCardById, getInstanceManaCost } from "../..";
@@ -114,6 +116,7 @@ import {
     type StackItem,
 } from "../../../gre/state";
 import { buildAutoTapSources } from "../../../gre/autoTap";
+import { compactState, expandState } from "../../../gre/serialize";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import {
     getLegalTargets,
@@ -127,7 +130,10 @@ import {
     applyAllCombatDamage,
 } from "../../../gre/phases";
 import { checkStateBasedActions } from "../../../gre/sba";
-import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
+import {
+    applyPendingChoiceSubmit,
+    applyMayPaySubmit,
+} from "../../../gre/pendingChoiceSubmit";
 import type { CardType, BlockersConfirmedEvent, GameEvent } from "../../types";
 
 /** Submit the current head pending choice (zone-pick) with the given ordered
@@ -5133,5 +5139,284 @@ describe("Xenic Poltergeist ({1}{B}{B} 1/1 Spirit — {T}: animate target noncre
         expect(projRing.types).toContain("Artifact");
         expect(getEffectivePower(projected, projRing)).toBe(1);
         expect(getEffectiveToughness(projected, projRing)).toBe(1);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Choose-body-on-entry creatures (cluster G, #289). New engine capability:
+// `option-pick` PendingChoice (ctx.requestOptionChoice) + persistent
+// ctx.setSelfBody. Driven through the same resolveSteps suspend/replay path as
+// Vesuvan Doppelganger, and committed through applyPendingChoiceSubmit (the
+// `selectResolutionChoice` backend mutation entry point) for the integration
+// layer.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const UPKEEP_P1 = {
+    type: "PHASE_BEGIN" as const,
+    phase: "UPKEEP" as const,
+    activePlayerId: "p1",
+};
+
+describe("Primal Clay (choose-body-on-entry, CR 614.12 / 702.3 / 702.9)", () => {
+    function castPrimalClay() {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, primalClay.id, "p1");
+        item.id = "clay1";
+        return { state, item };
+    }
+
+    function bodyOf(state: ReturnType<typeof castPrimalClay>["state"]) {
+        return state.players[0].battlefield.find((c) => c.id === "clay1")!;
+    }
+
+    it("definition: 0/0 artifact creature with the entry-choice resolveStep", () => {
+        expect(primalClay.types).toEqual(["Artifact", "Creature"]);
+        expect(primalClay.power).toBe(0);
+        expect(primalClay.toughness).toBe(0);
+        expect(primalClay.resolveSteps).toHaveLength(1);
+    });
+
+    it("entry choice 3/3 sets base P/T, no extra subtype/keyword", () => {
+        const { state, item } = castPrimalClay();
+        // First resolve suspends on the option-pick.
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        expect(head.playerId).toBe("p1");
+        expect(head.options?.map((o) => o.id)).toEqual([
+            "3-3",
+            "2-2-flying",
+            "1-6-wall",
+        ]);
+        // Commit through the backend submit primitive (integration path).
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: item.id,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["3-3"],
+        });
+        const clay = bodyOf(state);
+        expect(getEffectivePower(state, clay)).toBe(3);
+        expect(getEffectiveToughness(state, clay)).toBe(3);
+        expect(clay.staticAbilities).not.toContain("flying");
+        expect(clay.staticAbilities).not.toContain("defender");
+        expect(clay.subtypes).not.toContain("Wall");
+        // Still an artifact creature in every mode (CR 301).
+        expect(clay.types).toContain("Artifact");
+        expect(clay.types).toContain("Creature");
+    });
+
+    it("entry choice 2/2 flying grants flying", () => {
+        const { state, item } = castPrimalClay();
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: item.id,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["2-2-flying"],
+        });
+        const clay = bodyOf(state);
+        expect(getEffectivePower(state, clay)).toBe(2);
+        expect(getEffectiveToughness(state, clay)).toBe(2);
+        expect(clay.staticAbilities).toContain("flying");
+    });
+
+    it("entry choice 1/6 Wall adds Wall subtype + defender keyword", () => {
+        const { state, item } = castPrimalClay();
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: item.id,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["1-6-wall"],
+        });
+        const clay = bodyOf(state);
+        expect(getEffectivePower(state, clay)).toBe(1);
+        expect(getEffectiveToughness(state, clay)).toBe(6);
+        expect(clay.subtypes).toContain("Wall");
+        expect(clay.staticAbilities).toContain("defender");
+    });
+
+    it("rejects an option id not in the offered list", () => {
+        const { state, item } = castPrimalClay();
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: item.id,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["9-9"],
+            })
+        ).toThrow(/legal choice/i);
+    });
+
+    it("wire format: chosen Wall body survives projectPublicState", () => {
+        const { state, item } = castPrimalClay();
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: item.id,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["1-6-wall"],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "clay1"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(1);
+        expect(getEffectiveToughness(projected, slim)).toBe(6);
+        expect(slim.subtypes).toContain("Wall");
+        expect(slim.staticAbilities).toContain("defender");
+    });
+});
+
+describe("Shapeshifter (choose-number-on-entry + upkeep, CR 614.12 / 603.6a)", () => {
+    function castShapeshifter() {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, shapeshifter.id, "p1");
+        item.id = "shift1";
+        return { state, item };
+    }
+
+    function enterWith(
+        state: ReturnType<typeof castShapeshifter>["state"],
+        item: ReturnType<typeof castShapeshifter>["item"],
+        n: number
+    ) {
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        expect(head.options).toHaveLength(8);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: item.id,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [String(n)],
+        });
+    }
+
+    function bodyOf(state: ReturnType<typeof castShapeshifter>["state"]) {
+        return state.players[0].battlefield.find((c) => c.id === "shift1")!;
+    }
+
+    it("definition: 0/0 with entry resolveStep + upkeep re-choice trigger", () => {
+        expect(shapeshifter.types).toEqual(["Artifact", "Creature"]);
+        expect(shapeshifter.subtypes).toEqual(["Shapeshifter"]);
+        expect(shapeshifter.resolveSteps).toHaveLength(1);
+        expect(
+            shapeshifter.triggeredAbilities?.some(
+                (t) => t.id === "shapeshifter-upkeep-renumber"
+            )
+        ).toBe(true);
+    });
+
+    it("entry choice 3 → 3/4 (power=N, toughness=7-N)", () => {
+        const { state, item } = castShapeshifter();
+        enterWith(state, item, 3);
+        const shift = bodyOf(state);
+        expect(getEffectivePower(state, shift)).toBe(3);
+        expect(getEffectiveToughness(state, shift)).toBe(4);
+    });
+
+    it("entry choice 0 → 0/7 (survives) and 6 → 6/1 (boundaries)", () => {
+        const a = castShapeshifter();
+        enterWith(a.state, a.item, 0);
+        expect(getEffectivePower(a.state, bodyOf(a.state))).toBe(0);
+        expect(getEffectiveToughness(a.state, bodyOf(a.state))).toBe(7);
+
+        const b = castShapeshifter();
+        enterWith(b.state, b.item, 6);
+        expect(getEffectivePower(b.state, bodyOf(b.state))).toBe(6);
+        expect(getEffectiveToughness(b.state, bodyOf(b.state))).toBe(1);
+    });
+
+    it("entry choice 7 → 7/0 dies to the 0-toughness SBA (CR 704.5f)", () => {
+        const { state, item } = castShapeshifter();
+        enterWith(state, item, 7);
+        // toughness 0 → the SBA fired by the submit path puts it in the
+        // graveyard; it never settles on the battlefield.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "shift1")
+        ).toBeUndefined();
+        expect(state.players[0].graveyard.some((c) => c.id === "shift1")).toBe(
+            true
+        );
+    });
+
+    it("upkeep re-choice (may) updates P/T to the new number", () => {
+        const { state, item } = castShapeshifter();
+        enterWith(state, item, 2);
+        expect(getEffectivePower(state, bodyOf(state))).toBe(2);
+
+        // Fire the controller's upkeep trigger.
+        state.stack.push(...collectTriggers(state, [UPKEEP_P1]));
+        const trigItem = state.stack[state.stack.length - 1];
+        // may-pay → yes
+        expect(resolveTopOfStack(state)).toBeNull();
+        let head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        // option-pick → 5
+        head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: trigItem.id,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["5"],
+        });
+        const shift = bodyOf(state);
+        expect(getEffectivePower(state, shift)).toBe(5);
+        expect(getEffectiveToughness(state, shift)).toBe(2);
+    });
+
+    it("upkeep re-choice declined (may → no) keeps the prior body", () => {
+        const { state, item } = castShapeshifter();
+        enterWith(state, item, 4);
+        state.stack.push(...collectTriggers(state, [UPKEEP_P1]));
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        const shift = bodyOf(state);
+        expect(getEffectivePower(state, shift)).toBe(4);
+        expect(getEffectiveToughness(state, shift)).toBe(3);
+    });
+
+    it("wire format: chosen number P/T survives projectPublicState", () => {
+        const { state, item } = castShapeshifter();
+        enterWith(state, item, 6);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "shift1"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(6);
+        expect(getEffectiveToughness(projected, slim)).toBe(1);
+    });
+
+    it("chosen P/T persists across a serialize round-trip (CR 614.12 lock-in)", () => {
+        const { state, item } = castShapeshifter();
+        enterWith(state, item, 3);
+        const round = expandState(compactState(state));
+        const shift = round.players[0].battlefield.find(
+            (c) => c.id === "shift1"
+        )!;
+        expect(getEffectivePower(round, shift)).toBe(3);
+        expect(getEffectiveToughness(round, shift)).toBe(4);
     });
 });

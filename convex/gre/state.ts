@@ -695,6 +695,7 @@ import type {
     ZonePickKind,
     YesNoChoiceKind,
     OrderChoiceKind,
+    OptionChoiceKind,
     PendingChoiceKind,
     ManaRestriction,
 } from "./types";
@@ -702,6 +703,7 @@ export type {
     ZonePickKind,
     YesNoChoiceKind,
     OrderChoiceKind,
+    OptionChoiceKind,
     PendingChoiceKind,
     ManaRestriction,
 };
@@ -781,6 +783,12 @@ export type PendingChoice = {
      *  or one of these player ids. The frontend routes player-life clicks for
      *  this kind; the backend validates the pick against this allow-list. */
     candidatePlayerIds?: string[];
+    /** For `kind: "option-pick"` only — the abstract options the chooser picks
+     *  exactly one of (CR 614.12 "as it enters, choose …"). Not zone members;
+     *  the submission carries the chosen option `id` verbatim and the backend
+     *  validates it against this list. The frontend renders one button per
+     *  option. Used by Primal Clay / Shapeshifter (choose-body-on-entry). */
+    options?: { id: string; label: string }[];
 };
 
 /** Reads the upper bound out of a `PendingChoice.count`, regardless of
@@ -3034,6 +3042,42 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             applyCopy(recipient, source, opts);
         },
 
+        setSelfBody(spec): void {
+            // CR 614.12 — "as it enters, [it becomes] …" body selection, and
+            // its on-battlefield re-choice (Shapeshifter upkeep). Recipient
+            // resolution mirrors `becomeCopyOf`: during a permanent spell's
+            // `resolveSteps` the recipient is the spell still on the stack
+            // (`item`, about to enter); during a triggered re-choice it is the
+            // source permanent on the battlefield (`triggerSourceId`).
+            const recipient =
+                findOnBattlefield(state, item.triggerSourceId ?? item.id)
+                    ?.card ?? item;
+            // Overwrite base P/T (set, not add) so the layer pipeline reads the
+            // chosen value as the pre-layer base; an upkeep re-set replaces the
+            // prior choice cleanly.
+            if (spec.power !== undefined) recipient.power = spec.power;
+            if (spec.toughness !== undefined) {
+                recipient.toughness = spec.toughness;
+            }
+            // CR 205.3 / 702 — append subtypes / keyword abilities without
+            // duplicating (an idempotent re-application leaves the array
+            // unchanged).
+            if (spec.addSubtypes?.length) {
+                const next = [...recipient.subtypes];
+                for (const s of spec.addSubtypes) {
+                    if (!next.includes(s)) next.push(s);
+                }
+                recipient.subtypes = next;
+            }
+            if (spec.addKeywords?.length) {
+                const next = [...recipient.staticAbilities];
+                for (const k of spec.addKeywords) {
+                    if (!next.includes(k)) next.push(k);
+                }
+                recipient.staticAbilities = next;
+            }
+        },
+
         forEachPlayer(fn: (playerId: string) => void) {
             for (const p of state.players) fn(p.id);
         },
@@ -4365,6 +4409,29 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 prompt: req.prompt,
             };
             if (req.cost) entry.cost = req.cost;
+            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            return undefined;
+        },
+        requestOptionChoice(req): string | undefined {
+            // CR 614.12 / 701.x "as it enters, choose …" — pick exactly one
+            // abstract option. Mirrors `requestChoice`'s suspend/replay
+            // contract: first call enqueues an `option-pick` PendingChoice and
+            // returns undefined (the step must return early to suspend); the
+            // replay after `selectResolutionChoice` reads the stored option id.
+            const step = item.resolutionStep ?? 0;
+            const key = `${step}:${req.choiceId}`;
+            const stored = item.collectedChoices?.[key];
+            if (stored) return stored[0];
+            const entry: PendingChoice = {
+                stackItemId: item.id,
+                step,
+                choiceId: req.choiceId,
+                playerId: req.playerId,
+                kind: "option-pick",
+                count: 1,
+                options: req.options,
+                prompt: req.prompt,
+            };
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },
