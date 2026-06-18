@@ -2419,7 +2419,7 @@ export const jihad: CardDefinition = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const aladdinsLamp: CardDefinition = {
-    id: "42e7cf40-c136-4fcb-a947-558b713b39f6",
+    id: "8fecc5d2-5298-4d47-b085-f160603f220e",
     name: "Aladdin's Lamp",
     oracleText:
         "{X}, {T}: The next time you would draw a card this turn, instead look at the top X cards of your library, put all but one of them on the bottom of your library in a random order, then draw a card. X can't be 0.",
