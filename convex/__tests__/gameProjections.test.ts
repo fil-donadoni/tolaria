@@ -267,6 +267,145 @@ describe("search-library library exposure (issue #239, CR 401.4 / 701.19)", () =
     });
 });
 
+// Regression (issue #262): the sibling mid-resolution choices that ride the
+// same peek/reveal exposure as search-library — `reorder-library` (Natural
+// Selection), `draw-look-keep` (Aladdin's Lamp) and `reveal-hand` — never
+// populated their fields in the full/debug "show all cards" projection, so the
+// picker piles opened empty there. The full projection must mirror the public
+// projection's `libraryPeek` / `revealedHand` exposure, honoring `zoneOwnerId`
+// (the looked-at zone may belong to a different player than the chooser) and
+// the looked-at count.
+describe("reorder/peek/reveal exposure (issue #262, CR 401.4)", () => {
+    // p1 (chooser) reorders the top 2 of p2's library — Natural Selection
+    // targeting an opponent: chooser ≠ zone owner.
+    function stateWithReorder(): GameState {
+        return makeState({
+            pendingChoices: [
+                {
+                    stackItemId: "s1",
+                    step: 0,
+                    choiceId: "p1",
+                    playerId: "p1",
+                    zoneOwnerId: "p2",
+                    kind: "reorder-library",
+                    zone: "library",
+                    count: 2,
+                    prompt: "Put these cards back in any order (first = top).",
+                },
+            ],
+        });
+    }
+
+    // p1 (chooser) looks at the top 2 of their own library and keeps one —
+    // Aladdin's Lamp. peekCount comes from candidateIds, not count.
+    function stateWithDrawLookKeep(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        makeCard("p1-l1", { zone: "library" }),
+                        makeCard("p1-l2", { zone: "library" }),
+                        makeCard("p1-l3", { zone: "library" }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            pendingChoices: [
+                {
+                    stackItemId: "s1",
+                    step: 0,
+                    choiceId: "p1",
+                    playerId: "p1",
+                    kind: "draw-look-keep",
+                    zone: "library",
+                    count: 1,
+                    candidateIds: ["p1-l1", "p1-l2"],
+                    prompt: "Keep one of the looked-at cards.",
+                },
+            ],
+        });
+    }
+
+    // p1 (chooser) reveals p2's hand — reveal-hand with a divergent zone owner.
+    function stateWithRevealHand(): GameState {
+        return makeState({
+            pendingChoices: [
+                {
+                    stackItemId: "s1",
+                    step: 0,
+                    choiceId: "p1",
+                    playerId: "p1",
+                    zoneOwnerId: "p2",
+                    kind: "reveal-hand",
+                    zone: "hand",
+                    count: 0,
+                    prompt: "Reveal target player's hand.",
+                },
+            ],
+        });
+    }
+
+    it("projectPublicState exposes libraryPeek (top N of the zone owner) to the chooser only", () => {
+        const result = projectPublicState(stateWithReorder(), 1, "p1");
+        const owner = result.players.find((p) => p.id === "p2")!;
+        const chooser = result.players.find((p) => p.id === "p1")!;
+        // Honors zoneOwnerId: the peek is the opponent's top 2, not p1's own.
+        expect(owner.libraryPeek!.map((c) => c.id)).toEqual(["p2-l1", "p2-l2"]);
+        expect(chooser.libraryPeek).toBeUndefined();
+    });
+
+    it("projectFullState exposes libraryPeek for reorder-library in show-all-cards mode", () => {
+        const result = projectFullState(stateWithReorder(), 1);
+        const owner = result.players.find((p) => p.id === "p2")!;
+        const chooser = result.players.find((p) => p.id === "p1")!;
+        expect(owner.libraryPeek!.map((c) => c.id)).toEqual(["p2-l1", "p2-l2"]);
+        expect(chooser.libraryPeek).toBeUndefined();
+    });
+
+    it("projectFullState exposes libraryPeek for draw-look-keep using candidateIds count", () => {
+        const result = projectFullState(stateWithDrawLookKeep(), 1);
+        const chooser = result.players.find((p) => p.id === "p1")!;
+        // candidateIds.length (2) drives the peek count, not `count` (1).
+        expect(chooser.libraryPeek!.map((c) => c.id)).toEqual([
+            "p1-l1",
+            "p1-l2",
+        ]);
+    });
+
+    it("projectPublicState matches projectFullState for draw-look-keep", () => {
+        const pub = projectPublicState(stateWithDrawLookKeep(), 1, "p1");
+        const full = projectFullState(stateWithDrawLookKeep(), 1);
+        const pubPeek = pub.players
+            .find((p) => p.id === "p1")!
+            .libraryPeek!.map((c) => c.id);
+        const fullPeek = full.players
+            .find((p) => p.id === "p1")!
+            .libraryPeek!.map((c) => c.id);
+        expect(fullPeek).toEqual(pubPeek);
+    });
+
+    it("projectFullState exposes revealedHand (zone owner's hand) for reveal-hand", () => {
+        const result = projectFullState(stateWithRevealHand(), 1);
+        const owner = result.players.find((p) => p.id === "p2")!;
+        const chooser = result.players.find((p) => p.id === "p1")!;
+        // zoneOwnerId p2: the revealed hand is p2's (3 cards), exposed to p1.
+        expect(owner.revealedHand!.map((c) => c.id)).toEqual([
+            "p2-h1",
+            "p2-h2",
+            "p2-h3",
+        ]);
+        expect(chooser.revealedHand).toBeUndefined();
+    });
+
+    it("does NOT expose peek/reveal fields when no exposing choice is active", () => {
+        const full = projectFullState(makeState(), 1);
+        for (const player of full.players) {
+            expect(player.libraryPeek).toBeUndefined();
+            expect(player.revealedHand).toBeUndefined();
+        }
+    });
+});
+
 // Wire-format invariant: every transient field on a battlefield permanent
 // must reach the client through projectPublicState / projectFullState.
 // `slimCard` uses spread, so this is also a regression guard against any

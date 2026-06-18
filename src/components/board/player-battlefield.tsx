@@ -8,24 +8,19 @@ import { getCardById } from "@convex/cards";
 import {
     isCreature,
     isLand,
-    isLandwalkUnblockable,
-    getLandManaColor,
-    getActivatedManaColor,
-    hasManaAbility,
     getManaChoices,
     getActivatedManaMenuEntry,
     canRefundManaTap,
     getStackAbilities,
     getAnyPlayerStackAbilities,
     wantsPermanentTarget,
-    matchesPermanentFilter,
     matchesTargetRequirement,
     groupByName,
     isTapLockedBySummoningSickness,
 } from "~/lib/card-utils";
-import { COMBAT_GROUP_RING, COMBAT_GROUP_BG } from "~/lib/combat-colors";
 import { outstandingDamageAssigner } from "~/lib/priority";
-import BattlefieldCard, { type CardVisualState } from "./battlefield-card";
+import { useBattlefieldVisualState } from "~/hooks/useBattlefieldVisualState";
+import BattlefieldCard from "./battlefield-card";
 import DamageAssignmentPanel from "./damage-assignment-panel";
 import BandFormationPanel from "./band-formation-panel";
 import ManaChoicePicker from "./mana-choice-picker";
@@ -69,6 +64,11 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     const selectAdditionalCost = useMutation(api.game.selectAdditionalCost);
     const activateAbility = useMutation(api.game.activateAbility);
     const bufferCtx = usePendingChoiceBuffer();
+
+    // Board-coupled visual state (combat rings, tap, damage, legal-target
+    // highlight) and the interaction predicate live in one shared hook so the
+    // classic board and the spatial board (#256) read identical state.
+    const { getVisualState, canInteract } = useBattlefieldVisualState(player);
 
     // Mana choice picker state. `inPayment` routes the selection to
     // tapForPayment (committing the cast) vs tapUntap (floating mana).
@@ -183,287 +183,8 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
     // --- Combat derived state ---
 
     const selectedAttackerIds = combat?.attackerIds ?? [];
-    const blockerAssignments = combat?.blockerAssignments ?? {};
-    const pendingBlockerId = combat?.pendingBlockerId;
-
-    const combatGroupColors = useMemo(() => {
-        const map: Record<string, number> = {};
-        if (!combat) return map;
-        const attackersWithBlockers = new Set(
-            Object.values(combat.blockerAssignments).flat()
-        );
-        let colorIdx = 0;
-        for (const attackerId of combat.attackerIds) {
-            if (attackersWithBlockers.has(attackerId)) {
-                map[attackerId] = colorIdx % COMBAT_GROUP_RING.length;
-                colorIdx++;
-            }
-        }
-        return map;
-    }, [combat]);
 
     // --- Card-level logic ---
-
-    function canBlockAnyAttacker(blocker: CardInstance): boolean {
-        if (!combat) return false;
-        const hasFlying = blocker.staticAbilities?.includes("flying") ?? false;
-        const hasReach = blocker.staticAbilities?.includes("reach") ?? false;
-        const attackingPlayer = allPlayers.find((p) => p.id === activePlayerId);
-        if (!attackingPlayer) return false;
-        for (const attackerId of combat.attackerIds) {
-            const attacker = attackingPlayer.battlefield.find(
-                (c) => c.id === attackerId
-            );
-            if (!attacker) continue;
-            // Landwalk (CR 702.13b): attacker is unblockable if defender
-            // controls a land of the matching subtype.
-            if (isLandwalkUnblockable(attacker, player.battlefield)) continue;
-            const attackerFlies =
-                attacker.staticAbilities?.includes("flying") ?? false;
-            if (!attackerFlies || hasFlying || hasReach) return true;
-        }
-        return false;
-    }
-
-    function canInteract(card: CardInstance): boolean {
-        // Mid-resolution choice (ADR 0007): only cards matching the filter
-        // are interactive. Already-picked ids stay clickable for toggle.
-        if (isSelectingChoice && activeChoice) {
-            if (bufferCtx.buffer.includes(card.id)) return true;
-            if (
-                activeChoice.filter &&
-                !matchesPermanentFilter(card, activeChoice.filter)
-            ) {
-                return false;
-            }
-            // Untap-pick (CR 502.1): only tapped permanents are eligible,
-            // and per-instance "does-not-untap" markers are excluded
-            // (Basalt Monolith / Mana Vault / Paralyze's grant).
-            if (activeChoice.kind === "untap-pick") {
-                if (!card.isTapped) return false;
-                if (card.staticAbilities?.includes("does-not-untap")) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        // CR 117.9 / 601.2f additional-cost picker: only the caster's own
-        // permanents matching the filter are interactive.
-        if (isPickingAdditionalCost && pendingCast?.additionalCost) {
-            return matchesPermanentFilter(
-                card,
-                pendingCast.additionalCost.filter
-            );
-        }
-
-        // During target selection, ONLY valid targets are interactive
-        if (isSelectingTarget) {
-            return (
-                !!pendingTarget &&
-                matchesTargetRequirement(card, pendingTarget.targetType)
-            );
-        }
-
-        if (isSelectingAttackers && isCreature(card)) {
-            if (selectedAttackerIds.includes(card.id)) return true;
-            if (card.staticAbilities?.includes("defender")) return false;
-            if (card.isTapped || card.isSummoningSick) return false;
-            // CR 508.1c — card-level attack restrictions from staticEffects[].
-            // Server enforces; UI mirrors so the option isn't even offered.
-            const attackDef = getCardById(card.card.id);
-            if (attackDef.staticEffects) {
-                const defender = allPlayers.find((p) => p.id !== player.id);
-                for (const eff of attackDef.staticEffects) {
-                    if (eff.kind !== "attack-restriction") continue;
-                    if (
-                        !eff.predicate(
-                            card as never,
-                            (defender?.battlefield ?? []) as never
-                        )
-                    )
-                        return false;
-                }
-            }
-            return true;
-        }
-
-        if (isSelectingBlockers && isCreature(card)) {
-            if ((blockerAssignments[card.id]?.length ?? 0) > 0) return true;
-            if (pendingBlockerId === card.id) return true;
-            return !card.isTapped && canBlockAnyAttacker(card);
-        }
-
-        if (isBlockerTarget && card.isAttacking) return true;
-
-        if (!isMe || !hasManaAbility(card)) return false;
-        // CR 302.1 — creatures with summoning sickness can't pay {T}, so
-        // their mana ability isn't activatable. Untapping (refunding floating
-        // mana) is still allowed — it reverses an earlier activation.
-        if (isTapLockedBySummoningSickness(card) && !card.isTapped) {
-            return false;
-        }
-        if (isInPayment) {
-            const tappedDuringPayment = isPayingCast
-                ? pendingCast!.tappedLandIds.includes(card.id)
-                : pendingActivation!.tappedLandIds.includes(card.id);
-            return card.isTapped
-                ? tappedDuringPayment
-                : getLandManaColor(card) !== null ||
-                      getActivatedManaColor(card) !== null ||
-                      getManaChoices(card) !== null;
-        }
-        // CR 605.3b: mana abilities require priority (outside payment).
-        if (!hasPriority) return false;
-        return card.isTapped ? !card.manaCommitted : true;
-    }
-
-    function getVisualState(card: CardInstance): CardVisualState {
-        const creature = isCreature(card);
-        const manaSource = hasManaAbility(card);
-
-        const isValidTarget =
-            isSelectingTarget &&
-            pendingTarget &&
-            matchesTargetRequirement(card, pendingTarget.targetType);
-
-        const isTargetSelected =
-            isSelectingTarget &&
-            !!pendingTarget &&
-            pendingTarget.selected.some(
-                (t) => t.type === "permanent" && t.id === card.id
-            );
-
-        const isValidChoice =
-            isSelectingChoice &&
-            !!activeChoice &&
-            (!activeChoice.filter ||
-                matchesPermanentFilter(card, activeChoice.filter));
-
-        const isChoiceSelected =
-            isSelectingChoice &&
-            !!activeChoice &&
-            bufferCtx.buffer.includes(card.id);
-
-        const interactive = isSelectingChoice
-            ? isValidChoice
-            : isSelectingTarget
-              ? !!isValidTarget
-              : (isMe &&
-                    (manaSource ||
-                        (isSelectingAttackers && creature) ||
-                        (isSelectingBlockers && creature))) ||
-                (isBlockerTarget && !!card.isAttacking);
-
-        const enabled = canInteract(card);
-
-        const dimmed: boolean =
-            !!(
-                isSelectingAttackers &&
-                creature &&
-                !selectedAttackerIds.includes(card.id) &&
-                (card.isTapped ||
-                    card.isSummoningSick ||
-                    card.staticAbilities?.includes("defender"))
-            ) ||
-            !!(
-                isSelectingBlockers &&
-                creature &&
-                !blockerAssignments[card.id]?.length &&
-                pendingBlockerId !== card.id &&
-                (card.isTapped || !canBlockAnyAttacker(card))
-            );
-
-        // Combat offset (translate toward center)
-        let combatOffset = "";
-        const towardCenter = isMe ? "-translate-y-8" : "translate-y-8";
-        if (
-            (combat &&
-                !combat.confirmed &&
-                selectedAttackerIds.includes(card.id)) ||
-            card.isAttacking ||
-            (blockerAssignments[card.id]?.length ?? 0) > 0 ||
-            card.isBlocking
-        ) {
-            combatOffset = towardCenter;
-        }
-
-        // Ring class
-        let ringClass = "";
-        if (pendingBlockerId === card.id) {
-            ringClass = "ring-2 ring-amber-400 rounded-sm";
-        } else if (
-            card.isAttacking &&
-            combatGroupColors[card.id] !== undefined
-        ) {
-            ringClass = `ring-2 ${COMBAT_GROUP_RING[combatGroupColors[card.id]]} rounded-sm`;
-        } else {
-            const targetAtkIds = blockerAssignments[card.id];
-            const firstAtkId = targetAtkIds?.[0];
-            if (firstAtkId && combatGroupColors[firstAtkId] !== undefined) {
-                ringClass = `ring-2 ${COMBAT_GROUP_RING[combatGroupColors[firstAtkId]]} rounded-sm`;
-            } else if (
-                selectedAttackerIds.includes(card.id) &&
-                !combat?.confirmed
-            ) {
-                ringClass = "ring-2 ring-[#a04040] rounded-sm";
-            }
-        }
-        if (!ringClass && isTargetSelected) {
-            ringClass = "ring-2 ring-[#c8a060] rounded-sm";
-        } else if (!ringClass && isValidTarget) {
-            ringClass = "ring-2 ring-[#c8a060]/50 rounded-sm";
-        }
-        if (!ringClass && isChoiceSelected) {
-            ringClass = "ring-2 ring-[#c8a060] rounded-sm";
-        } else if (!ringClass && isValidChoice) {
-            ringClass = "ring-2 ring-[#c8a060]/40 rounded-sm";
-        }
-
-        // Tooltip for ineligible creatures
-        let tooltip: string | undefined;
-        if (dimmed) {
-            if (isSelectingAttackers && creature) {
-                if (card.staticAbilities?.includes("defender"))
-                    tooltip = "Can't attack — has defender";
-                else if (card.isSummoningSick)
-                    tooltip = "Can't attack — summoning sick";
-                else if (card.isTapped) tooltip = "Can't attack — tapped";
-            } else if (isSelectingBlockers && creature) {
-                if (card.isTapped) tooltip = "Can't block — tapped";
-                else if (!canBlockAnyAttacker(card))
-                    tooltip = "Can't block — no valid target";
-            }
-        }
-
-        // Badge
-        let badge: { color: string; index: number } | null = null;
-        if (combatGroupColors[card.id] !== undefined) {
-            badge = {
-                color: COMBAT_GROUP_BG[combatGroupColors[card.id]],
-                index: combatGroupColors[card.id],
-            };
-        } else {
-            const targetAtkIds = blockerAssignments[card.id];
-            const firstAtkId = targetAtkIds?.[0];
-            if (firstAtkId && combatGroupColors[firstAtkId] !== undefined) {
-                badge = {
-                    color: COMBAT_GROUP_BG[combatGroupColors[firstAtkId]],
-                    index: combatGroupColors[firstAtkId],
-                };
-            }
-        }
-
-        return {
-            interactive,
-            enabled,
-            dimmed,
-            combatOffset,
-            ringClass,
-            badge,
-            tooltip,
-        };
-    }
 
     function handleClick(card: CardInstance) {
         if (!canInteract(card)) return;

@@ -11,6 +11,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import type { CardInstance, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
+import {
+    PendingChoiceBufferContext,
+    type PendingChoiceBuffer,
+} from "~/hooks/usePendingChoiceBuffer";
 import { CARD_WIDTH } from "~/lib/board-layout";
 
 const ZONE_W = 1000;
@@ -30,7 +34,45 @@ vi.mock("../board-next-card", () => ({
         <div data-testid="bn-card" data-card-id={card ? card.id : "back"} />
     ),
 }));
+// Interactive viewer-hand card (#254) pulls in Convex useMutation — stub inert;
+// slot identity for the FLIP comes from SpatialSlot, not this leaf.
+vi.mock("../board-next-hand-card", () => ({
+    default: ({ card }: { card: CardInstance }) => (
+        <div data-testid="bn-card" data-card-id={card.id} />
+    ),
+}));
+// The battlefield wrapper runs useBattlefieldVisualState (needs real card
+// defs); stub it to the SAME shared SpatialZone with inert nodes so slot
+// identity / reflow is still exercised through the real SpatialSlot path.
+vi.mock("../board-next-battlefield", async () => {
+    const { default: SpatialZone } = await import("../spatial-zone");
+    const { rowLayout } = await import("~/lib/board-layout");
+    return {
+        default: ({
+            player,
+            mirror,
+            "data-testid": testId,
+        }: {
+            player: Player;
+            mirror?: boolean;
+            "data-testid"?: string;
+        }) => (
+            <SpatialZone
+                items={player.battlefield.map((card) => ({
+                    key: card.id,
+                    node: <div data-testid="bn-card" data-card-id={card.id} />,
+                }))}
+                layout={(count, width, height) =>
+                    rowLayout({ count, width, centerY: height / 2 })
+                }
+                mirror={mirror}
+                data-testid={testId}
+            />
+        ),
+    };
+});
 vi.mock("../game-stack", () => ({ default: () => null }));
+vi.mock("../board-next-piles", () => ({ default: () => null }));
 vi.mock("../phase-tracker", () => ({ default: () => null }));
 vi.mock("../priority-indicator", () => ({ default: () => null }));
 vi.mock("../target-arrows-overlay", () => ({ default: () => null }));
@@ -79,12 +121,26 @@ function ctx(): React.ContextType<typeof GameContext> {
     } as React.ContextType<typeof GameContext>;
 }
 
-function renderBoard(me: Player, opp: Player) {
-    return render(
+const BUFFER: PendingChoiceBuffer = {
+    buffer: [],
+    toggle: () => {},
+    clear: () => {},
+    submit: () => {},
+    isSubmitting: false,
+} as unknown as PendingChoiceBuffer;
+
+function tree(opp: Player, me: Player) {
+    return (
         <GameContext value={ctx()}>
-            <BoardNext orderedPlayers={[opp, me]} stackItems={[]} />
+            <PendingChoiceBufferContext value={BUFFER}>
+                <BoardNext orderedPlayers={[opp, me]} stackItems={[]} />
+            </PendingChoiceBufferContext>
         </GameContext>
     );
+}
+
+function renderBoard(me: Player, opp: Player) {
+    return render(tree(opp, me));
 }
 
 function slot(id: string) {
@@ -126,18 +182,13 @@ describe("BoardNext zone-transition (#252)", () => {
 
         // Cast: the same card instance is now on the battlefield.
         rerender(
-            <GameContext value={ctx()}>
-                <BoardNext
-                    orderedPlayers={[
-                        makePlayer("opp"),
-                        makePlayer("me", {
-                            hand: [],
-                            battlefield: [makeCard("bolt")],
-                        }),
-                    ]}
-                    stackItems={[]}
-                />
-            </GameContext>
+            tree(
+                makePlayer("opp"),
+                makePlayer("me", {
+                    hand: [],
+                    battlefield: [makeCard("bolt")],
+                })
+            )
         );
 
         const onBf = slot("bolt");
@@ -168,17 +219,12 @@ describe("BoardNext zone-transition (#252)", () => {
 
         // Draw a third card — the hand re-flows.
         rerender(
-            <GameContext value={ctx()}>
-                <BoardNext
-                    orderedPlayers={[
-                        makePlayer("opp"),
-                        makePlayer("me", {
-                            hand: [makeCard("a"), makeCard("b"), makeCard("c")],
-                        }),
-                    ]}
-                    stackItems={[]}
-                />
-            </GameContext>
+            tree(
+                makePlayer("opp"),
+                makePlayer("me", {
+                    hand: [makeCard("a"), makeCard("b"), makeCard("c")],
+                })
+            )
         );
 
         // Existing cards keep their DOM node (no jump/remount) ...

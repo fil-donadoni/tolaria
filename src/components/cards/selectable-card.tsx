@@ -5,12 +5,10 @@ import {
     ContextMenuItem,
     ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { useMutation } from "convex/react";
-import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 import { isSelectableHandChoiceCard } from "~/lib/hand-choice";
-import { getCardById } from "@convex/cards";
 import ActionSheet, {
     type ActionSheetItem,
 } from "~/components/ui/action-sheet";
@@ -18,7 +16,6 @@ import ActionSheet, {
 import type { CardAction, CardInstance } from "~/types/game";
 
 import CardImage from "./card-image";
-import ModePicker from "./mode-picker";
 
 type SelectableCardProps = {
     cardInstance: CardInstance;
@@ -30,17 +27,18 @@ export default function SelectableCard({
     allowedActions = [],
 }: SelectableCardProps) {
     const {
-        gameId,
         playerId,
-        debugAllActions,
         pendingCast,
         pendingActivation,
         pendingTarget,
         pendingChoices,
     } = useGameContext();
-    const playCard = useMutation(api.game.playCard);
-    const announceCast = useMutation(api.game.announceCast);
     const bufferCtx = usePendingChoiceBuffer();
+    // Shared commit pipeline — click and drag-to-cast (#254) invoke the same
+    // handlers, so the X prompt, mode picker, keep-priority modifier and the
+    // dispatched mutation are provably identical across both gestures.
+    const { onPlayClick, onCastClick, modePickerOverlay } =
+        useHandCardCommit(cardInstance);
 
     // Mid-resolution hand pick (CR 608.2, ADR 0007). Clicks toggle the
     // local buffer; submit fires atomically via the Done button.
@@ -55,76 +53,6 @@ export default function SelectableCard({
     const onChoiceClick = () => {
         if (!activeChoice) return;
         bufferCtx.toggle(cardInstance.id);
-    };
-
-    const onPlayClick = () => {
-        playCard({
-            gameId,
-            playerId,
-            cardInstanceId: cardInstance.id,
-            skipValidation: debugAllActions || undefined,
-        });
-    };
-
-    const [modePickerState, setModePickerState] = useState<{
-        chosenX: number | undefined;
-        keepPriority: boolean | undefined;
-        position: { x: number; y: number };
-    } | null>(null);
-
-    function commitAnnounceCast(args: {
-        chosenX: number | undefined;
-        keepPriority: boolean | undefined;
-        chosenModeId: string | undefined;
-    }) {
-        announceCast({
-            gameId,
-            playerId,
-            cardInstanceId: cardInstance.id,
-            keepPriority: args.keepPriority,
-            chosenX: args.chosenX,
-            chosenModeId: args.chosenModeId,
-        });
-    }
-
-    const onCastClick = (e: React.MouseEvent) => {
-        const keepPriority = e.ctrlKey || e.metaKey || undefined;
-        // CR 107.3 / 601.2b: if the spell has X in its mana cost, the caster
-        // chooses X before announcement. Stay tiny: a native prompt is enough
-        // for the study-engine MVP.
-        const def = getCardById(cardInstance.card.id);
-        const hasX = typeof def.manaCost?.X === "string";
-        let chosenX: number | undefined;
-        if (hasX) {
-            const raw = window.prompt(`Choose X for ${def.name}`, "0");
-            if (raw === null) return;
-            const parsed = Number.parseInt(raw, 10);
-            if (!Number.isFinite(parsed) || parsed < 0) return;
-            chosenX = parsed;
-        }
-        // CR 700.2 — modal spell: pick a mode before announcement.
-        if (def.modes && def.modes.length > 0) {
-            // Anchor on currentTarget (the handler-bound element) — more
-            // stable than `e.target` which may be a nested child. Falls
-            // back to the click coords if the rect is degenerate.
-            const anchor = e.currentTarget as HTMLElement | null;
-            const rect = anchor?.getBoundingClientRect();
-            const position =
-                rect && rect.width > 0 && rect.height > 0
-                    ? { x: rect.right + 8, y: rect.top }
-                    : { x: e.clientX + 8, y: e.clientY + 8 };
-            setModePickerState({
-                chosenX,
-                keepPriority,
-                position,
-            });
-            return;
-        }
-        commitAnnounceCast({
-            chosenX,
-            keepPriority,
-            chosenModeId: undefined,
-        });
     };
 
     const onDiscardClick = () => {
@@ -144,27 +72,6 @@ export default function SelectableCard({
         !pendingActivation &&
         !pendingTarget &&
         !activeChoice;
-
-    const def = getCardById(cardInstance.card.id);
-    const modePickerOverlay =
-        modePickerState && def.modes ? (
-            <ModePicker
-                modes={def.modes}
-                cardName={def.name}
-                variant="portal"
-                position={modePickerState.position}
-                onSelect={(modeId) => {
-                    const { chosenX, keepPriority } = modePickerState;
-                    setModePickerState(null);
-                    commitAnnounceCast({
-                        chosenX,
-                        keepPriority,
-                        chosenModeId: modeId,
-                    });
-                }}
-                onCancel={() => setModePickerState(null)}
-            />
-        ) : null;
 
     if (isHandChoice) {
         const ringClass = isChoiceSelected

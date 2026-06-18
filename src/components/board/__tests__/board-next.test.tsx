@@ -9,6 +9,10 @@ import { render, screen, cleanup } from "@testing-library/react";
 import type { CardInstance, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import {
+    PendingChoiceBufferContext,
+    type PendingChoiceBuffer,
+} from "~/hooks/usePendingChoiceBuffer";
+import {
     rowLayout,
     fanLayout,
     mirrorVertical,
@@ -33,7 +37,49 @@ vi.mock("../board-next-card", () => ({
         <div data-testid="bn-card" data-card-id={card ? card.id : "back"} />
     ),
 }));
+// The battlefield wrapper runs `useBattlefieldVisualState` (calls getCardById
+// on real card defs). This placement test uses synthetic defs, so stub the
+// wrapper to render the SAME shared SpatialZone with inert nodes — slot
+// placement is still asserted; the visual-state computation + anchors are
+// exercised separately in board-next-battlefield-card.test.tsx.
+vi.mock("../board-next-battlefield", async () => {
+    const { default: SpatialZone } = await import("../spatial-zone");
+    const { rowLayout } = await import("~/lib/board-layout");
+    return {
+        default: ({
+            player,
+            mirror,
+            "data-testid": testId,
+        }: {
+            player: Player;
+            mirror?: boolean;
+            "data-testid"?: string;
+        }) => (
+            <SpatialZone
+                items={player.battlefield.map((card) => ({
+                    key: card.id,
+                    node: (
+                        <div data-testid="bn-bf-card" data-card-id={card.id} />
+                    ),
+                }))}
+                layout={(count, width, height) =>
+                    rowLayout({ count, width, centerY: height / 2 })
+                }
+                mirror={mirror}
+                data-testid={testId}
+            />
+        ),
+    };
+});
+// The viewer's own hand renders the interactive card (#254), which pulls in
+// Convex's useMutation. This is a layout-placement test, so stub it inert.
+vi.mock("../board-next-hand-card", () => ({
+    default: ({ card }: { card: CardInstance }) => (
+        <div data-testid="bn-hand-card" data-card-id={card.id} />
+    ),
+}));
 vi.mock("../game-stack", () => ({ default: () => null }));
+vi.mock("../board-next-piles", () => ({ default: () => null }));
 vi.mock("../phase-tracker", () => ({ default: () => null }));
 vi.mock("../priority-indicator", () => ({ default: () => null }));
 vi.mock("../target-arrows-overlay", () => ({ default: () => null }));
@@ -80,9 +126,18 @@ function renderBoard(opponent: Player, me: Player) {
         showAllCards: false,
         debugAllActions: false,
     } as React.ContextType<typeof GameContext>;
+    const buffer: PendingChoiceBuffer = {
+        buffer: [],
+        toggle: () => {},
+        clear: () => {},
+        submit: () => {},
+        isSubmitting: false,
+    } as unknown as PendingChoiceBuffer;
     return render(
         <GameContext value={value}>
-            <BoardNext orderedPlayers={[opponent, me]} stackItems={[]} />
+            <PendingChoiceBufferContext value={buffer}>
+                <BoardNext orderedPlayers={[opponent, me]} stackItems={[]} />
+            </PendingChoiceBufferContext>
         </GameContext>
     );
 }
@@ -197,5 +252,18 @@ describe("BoardNext spatial placement (seam 2, #251)", () => {
         const zone = screen.getByTestId("zone-opponent-hand");
         const slots = zone.querySelectorAll("[data-card-slot]");
         expect(slots).toHaveLength(3);
+    });
+
+    it("exposes a target-arrow player anchor per seat (#256)", () => {
+        cleanup();
+        const opp = makePlayer("opp");
+        const me = makePlayer("me");
+        const { container } = renderBoard(opp, me);
+        expect(
+            container.querySelector('[data-arrow-anchor-player="opp"]')
+        ).toBeTruthy();
+        expect(
+            container.querySelector('[data-arrow-anchor-player="me"]')
+        ).toBeTruthy();
     });
 });

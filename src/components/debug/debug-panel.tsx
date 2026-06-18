@@ -2296,6 +2296,50 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Board next: piles + stack (#255, PRD #249). Load with `?board=next`
+        // to exercise the spatial board's card piles and the stack. The
+        // graveyard is pre-filled so its collapsed stack shows a count; click it
+        // to open the expanded reveal and drag the strip to feel the inertial
+        // scroll. The library shows a face-down pile (right-click it with debug
+        // actions on to draw/mill/exile, which feeds the graveyard/exile piles).
+        // Cast Lightning Bolt from hand to put a clear ordered item on the
+        // stack; hold priority and cast a second to read LIFO order.
+        label: "Board next: piles + stack (graveyard reveal, inertial scroll)",
+        cards: [
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Mountain",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+                count: 3,
+            },
+            { name: "Mountain", owner: "me" as const, count: 3 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 30,
+    },
 ];
 
 type DebugPanelProps = {
