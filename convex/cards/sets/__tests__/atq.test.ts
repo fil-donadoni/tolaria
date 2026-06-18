@@ -65,7 +65,16 @@ import {
     hauntingWind,
     powerleech,
     artifactPossession,
+    ashnodsBattleGear,
+    tawnossWeaponry,
+    phyrexianGremlins,
+    argothianPixies,
+    argothianTreefolk,
+    artifactWard,
+    martyrsOfKorlis,
+    reversePolarity,
 } from "../atq";
+import { grizzlyBears, hillGiant } from "../lea";
 import { getCardById, getInstanceManaCost } from "../..";
 import {
     makeInstance,
@@ -90,14 +99,25 @@ import {
     payManaCostForSpell,
     isManaCostCovered,
     normalizeManaCost,
+    runDamageReplacement,
     type CardInstanceState,
     type GameState,
     type StackItem,
 } from "../../../gre/state";
 import { buildAutoTapSources } from "../../../gre/autoTap";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
-import { getLegalTargets } from "../../../gre/rules";
-import { advancePhase, untapStep } from "../../../gre/phases";
+import {
+    getLegalTargets,
+    getPendingTargetSourceTypes,
+} from "../../../gre/rules";
+import { isGuardedAgainst } from "../../../gre/permanentGuard";
+import { validateBlockerEligibility } from "../../../gre/combat";
+import {
+    advancePhase,
+    untapStep,
+    applyAllCombatDamage,
+} from "../../../gre/phases";
+import { checkStateBasedActions } from "../../../gre/sba";
 import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
 import type { CardType, BlockersConfirmedEvent, GameEvent } from "../../types";
 
@@ -3965,5 +3985,906 @@ describe("Artifact Possession (Aura: 2 dmg on enchanted artifact tap/ability)", 
         expect(state.players[1].life).toBe(18);
         const projected = projectPublicState(state, 1, "p2");
         expect(projected.players[1].life).toBe(18);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Cluster E (#286) — "for as long as this remains tapped" duration + tap-lock
+// (CR 611.2 state-tied duration; CR 502.1 optional untap). The buff/lock is
+// read live while the source stays tapped and pruned by the
+// `checkSourceTappedEffects` SBA once the source untaps or leaves.
+// ---------------------------------------------------------------------------
+
+describe("Ashnod's Battle Gear (+2/-2 while tapped, CR 611.2)", () => {
+    it("is a {2} Artifact with the optional-untap keyword", () => {
+        expect(ashnodsBattleGear.manaCost).toEqual({ X: 2 });
+        expect(ashnodsBattleGear.types).toEqual(["Artifact"]);
+        expect(ashnodsBattleGear.staticAbilities).toContain(
+            "may-choose-not-to-untap"
+        );
+    });
+
+    it("grants +2/-2 to a creature you control while the Gear stays tapped", () => {
+        const gear = makeInstance(ashnodsBattleGear.id, {
+            id: "gear",
+            isTapped: true, // {T} cost already paid (resolveActivated skips costs)
+        });
+        const bear = vanilla("bear", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gear, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, bear)).toBe(2);
+        expect(getEffectiveToughness(state, bear)).toBe(2);
+
+        resolveActivated(state, gear, "ashnods-battle-gear-pump", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, live)).toBe(4);
+        expect(getEffectiveToughness(state, live)).toBe(0);
+    });
+
+    it("the buff disappears the moment the Gear untaps (live read + SBA prune)", () => {
+        const gear = makeInstance(ashnodsBattleGear.id, {
+            id: "gear",
+            isTapped: true,
+        });
+        const bear = vanilla("bear", 2, 4, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gear, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, gear, "ashnods-battle-gear-pump", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const liveBear = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectiveToughness(state, liveBear)).toBe(2); // 4 - 2
+
+        // Untap the Gear: the buff ends immediately on the live layer read,
+        // even before the SBA splices the stale entry out.
+        state.players[0].battlefield.find((c) => c.id === "gear")!.isTapped =
+            false;
+        expect(getEffectiveToughness(state, liveBear)).toBe(4);
+
+        // SBA prunes the now-stale entry.
+        checkStateBasedActions(state);
+        expect(liveBear.sourceTappedPTMods).toBeUndefined();
+        expect(getEffectiveToughness(state, liveBear)).toBe(4);
+    });
+
+    it("the buff ends when the Gear leaves the battlefield", () => {
+        const gear = makeInstance(ashnodsBattleGear.id, {
+            id: "gear",
+            isTapped: true,
+        });
+        const bear = vanilla("bear", 2, 4, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gear, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, gear, "ashnods-battle-gear-pump", [
+            { type: "permanent", id: "bear" },
+        ]);
+        removePermanentTo(state, "gear", "graveyard");
+        const liveBear = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectiveToughness(state, liveBear)).toBe(4); // source gone
+        checkStateBasedActions(state);
+        expect(liveBear.sourceTappedPTMods).toBeUndefined();
+    });
+
+    it("wire format: the +2/-2 survives projectPublicState while the Gear is tapped", () => {
+        const gear = makeInstance(ashnodsBattleGear.id, {
+            id: "gear",
+            isTapped: true,
+        });
+        const bear = vanilla("bear", 2, 4, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gear, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, gear, "ashnods-battle-gear-pump", [
+            { type: "permanent", id: "bear" },
+        ]);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBear = projected.players
+            .find((p) => p.id === "p1")!
+            .battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(projected, slimBear)).toBe(4);
+        expect(getEffectiveToughness(projected, slimBear)).toBe(2);
+
+        // And the projected tapped state of the source still gates the buff:
+        // flipping the projected Gear's isTapped removes the contribution.
+        const slimGear = projected.players
+            .find((p) => p.id === "p1")!
+            .battlefield.find((c) => c.id === "gear")!;
+        (slimGear as { isTapped: boolean }).isTapped = false;
+        expect(getEffectiveToughness(projected, slimBear)).toBe(4);
+    });
+});
+
+describe("Tawnos's Weaponry (+1/+1 while tapped, CR 611.2)", () => {
+    it("is a {2} Artifact with the optional-untap keyword", () => {
+        expect(tawnossWeaponry.manaCost).toEqual({ X: 2 });
+        expect(tawnossWeaponry.staticAbilities).toContain(
+            "may-choose-not-to-untap"
+        );
+    });
+
+    it("grants +1/+1 to any creature while the Weaponry stays tapped", () => {
+        const weap = makeInstance(tawnossWeaponry.id, {
+            id: "weap",
+            isTapped: true,
+        });
+        const foe = vanilla("foe", 2, 2); // p2's creature — "any" target
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [weap] }),
+                makePlayer("p2", { battlefield: [foe] }),
+            ],
+        });
+        resolveActivated(state, weap, "tawnoss-weaponry-pump", [
+            { type: "permanent", id: "foe" },
+        ]);
+        const live = state.players[1].battlefield.find((c) => c.id === "foe")!;
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+
+        // Untap → buff gone.
+        state.players[0].battlefield.find((c) => c.id === "weap")!.isTapped =
+            false;
+        expect(getEffectivePower(state, live)).toBe(2);
+        expect(getEffectiveToughness(state, live)).toBe(2);
+    });
+
+    it("wire format: the +1/+1 survives projectPublicState", () => {
+        const weap = makeInstance(tawnossWeaponry.id, {
+            id: "weap",
+            isTapped: true,
+        });
+        const foe = vanilla("foe", 2, 2);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [weap] }),
+                makePlayer("p2", { battlefield: [foe] }),
+            ],
+        });
+        resolveActivated(state, weap, "tawnoss-weaponry-pump", [
+            { type: "permanent", id: "foe" },
+        ]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players
+            .find((p) => p.id === "p2")!
+            .battlefield.find((c) => c.id === "foe")!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+describe("Phyrexian Gremlins (tap-lock while tapped, CR 611.2 / 502.1)", () => {
+    it("is a 1/1 Phyrexian Gremlin with the optional-untap keyword", () => {
+        expect(phyrexianGremlins.power).toBe(1);
+        expect(phyrexianGremlins.toughness).toBe(1);
+        expect(phyrexianGremlins.subtypes).toEqual(["Phyrexian", "Gremlin"]);
+        expect(phyrexianGremlins.manaCost).toEqual({ X: 2, B: 1 });
+        expect(phyrexianGremlins.staticAbilities).toContain(
+            "may-choose-not-to-untap"
+        );
+    });
+
+    it("taps the target artifact and records the untap-lock", () => {
+        const grem = makeInstance(phyrexianGremlins.id, {
+            id: "grem",
+            isTapped: true, // {T} cost already paid
+        });
+        const rock = vanilla("rock", 0, 0, {
+            controllerId: "p2",
+            ownerId: "p2",
+            types: ["Artifact"] as CardType[],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [grem] }),
+                makePlayer("p2", { battlefield: [rock] }),
+            ],
+        });
+        resolveActivated(state, grem, "phyrexian-gremlins-tap-lock", [
+            { type: "permanent", id: "rock" },
+        ]);
+        const liveRock = state.players[1].battlefield.find(
+            (c) => c.id === "rock"
+        )!;
+        expect(liveRock.isTapped).toBe(true);
+        expect(liveRock.untapLockedBy).toEqual(["grem"]);
+    });
+
+    it("keeps the locked artifact tapped through its controller's untap step", () => {
+        const grem = makeInstance(phyrexianGremlins.id, {
+            id: "grem",
+            isTapped: true,
+        });
+        const rock = vanilla("rock", 0, 0, {
+            controllerId: "p2",
+            ownerId: "p2",
+            types: ["Artifact"] as CardType[],
+            isTapped: true,
+            untapLockedBy: ["grem"],
+        });
+        const state = makeState({
+            phase: "UNTAP",
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [grem] }),
+                makePlayer("p2", { battlefield: [rock] }),
+            ],
+        });
+        untapStep(state);
+        const liveRock = state.players[1].battlefield.find(
+            (c) => c.id === "rock"
+        )!;
+        expect(liveRock.isTapped).toBe(true); // lock holds — Gremlin still tapped
+    });
+
+    it("frees the artifact once the Gremlin untaps (SBA prunes the lock)", () => {
+        const grem = makeInstance(phyrexianGremlins.id, {
+            id: "grem",
+            isTapped: false, // Gremlin untapped on a prior turn
+        });
+        const rock = vanilla("rock", 0, 0, {
+            controllerId: "p2",
+            ownerId: "p2",
+            types: ["Artifact"] as CardType[],
+            isTapped: true,
+            untapLockedBy: ["grem"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [grem] }),
+                makePlayer("p2", { battlefield: [rock] }),
+            ],
+        });
+        checkStateBasedActions(state);
+        const liveRock = state.players[1].battlefield.find(
+            (c) => c.id === "rock"
+        )!;
+        expect(liveRock.untapLockedBy).toBeUndefined();
+
+        // Now the artifact's controller's untap step untaps it.
+        state.phase = "UNTAP";
+        state.activePlayerId = "p2";
+        untapStep(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "rock")!.isTapped
+        ).toBe(false);
+    });
+});
+
+describe("Optional untap (CR 502.1 — 'you may choose not to untap this')", () => {
+    function untapState(source: CardInstanceState): GameState {
+        return makeState({
+            phase: "UNTAP",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("prompts the controller before untapping a may-choose-not-to-untap permanent", () => {
+        const gear = makeInstance(ashnodsBattleGear.id, {
+            id: "gear",
+            isTapped: true,
+        });
+        const state = untapState(gear);
+        untapStep(state);
+        // The Gear is not auto-untapped; an untap-pick prompt is queued.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "gear")!.isTapped
+        ).toBe(true);
+        expect(state.pendingChoices?.[0]?.kind).toBe("untap-pick");
+        expect(state.pendingChoices?.[0]?.choiceId).toBe("untap-optional-gear");
+    });
+
+    it("untaps when the controller chooses to (selects the id)", () => {
+        const gear = makeInstance(ashnodsBattleGear.id, {
+            id: "gear",
+            isTapped: true,
+        });
+        const state = untapState(gear);
+        untapStep(state);
+        submitChoice(state, ["gear"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "gear")!.isTapped
+        ).toBe(false);
+        expect(state.pendingChoices).toBeUndefined();
+    });
+
+    it("keeps it tapped when the controller declines (selects nothing)", () => {
+        const gear = makeInstance(ashnodsBattleGear.id, {
+            id: "gear",
+            isTapped: true,
+        });
+        const state = untapState(gear);
+        untapStep(state);
+        submitChoice(state, []);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "gear")!.isTapped
+        ).toBe(true);
+        expect(state.pendingChoices).toBeUndefined();
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster C+D — continuous artifact-source prevention/redirection + artifact-
+// damage tracking (#287)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Argothian Pixies (block restriction + prevent from artifact creatures, CR 509.1b / 615)", () => {
+    it("can't be blocked by artifact creatures, but can by non-artifact creatures", () => {
+        const pixies = makeInstance(argothianPixies.id, {
+            id: "pixies",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const artifactBlocker = makeInstance(yotianSoldier.id, {
+            id: "yotian",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const fleshBlocker = makeInstance(grizzlyBears.id, {
+            id: "bears",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pixies] }),
+                makePlayer("p2", {
+                    battlefield: [artifactBlocker, fleshBlocker],
+                }),
+            ],
+        });
+        expect(
+            validateBlockerEligibility(
+                pixies,
+                artifactBlocker,
+                [artifactBlocker, fleshBlocker],
+                state
+            ).eligible
+        ).toBe(false);
+        expect(
+            validateBlockerEligibility(
+                pixies,
+                fleshBlocker,
+                [artifactBlocker, fleshBlocker],
+                state
+            ).eligible
+        ).toBe(true);
+    });
+
+    it("prevents combat damage from an artifact creature but takes damage from a non-artifact creature", () => {
+        // Artifact creature attacker (Colossus 9/9) vs Pixies blocking.
+        const colossus = makeInstance(colossusOfSardia.id, {
+            id: "colossus",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const pixies = makeInstance(argothianPixies.id, {
+            id: "pixies",
+            controllerId: "p1",
+            ownerId: "p1",
+            isBlocking: true,
+        });
+        const state = makeState({
+            activePlayerId: "p2",
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [pixies] }),
+                makePlayer("p2", { battlefield: [colossus] }),
+            ],
+            combat: {
+                attackerIds: ["colossus"],
+                confirmed: true,
+                blockerAssignments: { pixies: ["colossus"] },
+                blockersConfirmed: true,
+            },
+        });
+        applyAllCombatDamage(state, {}, "regular");
+        const pixiesAfter = state.players[0].battlefield.find(
+            (c) => c.id === "pixies"
+        );
+        // All 9 damage from the artifact creature is prevented.
+        expect(pixiesAfter?.damageMarked ?? 0).toBe(0);
+    });
+
+    it("does NOT prevent damage from a non-artifact creature (source filter)", () => {
+        const giant = makeInstance(hillGiant.id, {
+            id: "giant",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const pixies = makeInstance(argothianPixies.id, {
+            id: "pixies",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pixies] }),
+                makePlayer("p2", { battlefield: [giant] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "giant",
+            "p2",
+            { type: "permanent", id: "pixies" },
+            3,
+            false
+        );
+        // Not consumed — flesh source, damage proceeds.
+        expect(res).not.toBeNull();
+        expect(res?.amount).toBe(3);
+    });
+});
+
+describe("Argothian Treefolk (prevent all damage from artifact sources, CR 615)", () => {
+    it("prevents damage from an artifact source (any artifact, not just creatures)", () => {
+        const treefolk = makeInstance(argothianTreefolk.id, {
+            id: "treefolk",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Grapeshot Catapult is a noncreature Artifact damage source.
+        const catapult = makeInstance(grapeshotCatapult.id, {
+            id: "catapult",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [treefolk] }),
+                makePlayer("p2", { battlefield: [catapult] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "catapult",
+            "p2",
+            { type: "permanent", id: "treefolk" },
+            2,
+            false
+        );
+        expect(res).toBeNull(); // prevented (consumed)
+    });
+
+    it("takes damage from a non-artifact source", () => {
+        const treefolk = makeInstance(argothianTreefolk.id, {
+            id: "treefolk",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const giant = makeInstance(hillGiant.id, {
+            id: "giant",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [treefolk] }),
+                makePlayer("p2", { battlefield: [giant] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "giant",
+            "p2",
+            { type: "permanent", id: "treefolk" },
+            3,
+            false
+        );
+        expect(res?.amount).toBe(3);
+    });
+
+    it("wire format — prevention survives projectPublicState", () => {
+        const treefolk = makeInstance(argothianTreefolk.id, {
+            id: "treefolk",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const catapult = makeInstance(grapeshotCatapult.id, {
+            id: "catapult",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [treefolk] }),
+                makePlayer("p2", { battlefield: [catapult] }),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const res = runDamageReplacement(
+            projected as unknown as GameState,
+            "catapult",
+            "p2",
+            { type: "permanent", id: "treefolk" },
+            2,
+            false
+        );
+        expect(res).toBeNull();
+    });
+});
+
+describe("Artifact Ward (Aura: block restriction + prevention + targeting guard, CR 303.4 / 509.1b / 615 / 611)", () => {
+    function setup(opts: { tappedHost?: boolean } = {}) {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "host",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+            isTapped: opts.tappedHost,
+        });
+        const ward = makeInstance(artifactWard.id, {
+            id: "ward",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        return { host, ward };
+    }
+
+    it("enchanted creature can't be blocked by artifact creatures", () => {
+        const { host, ward } = setup();
+        const artifactBlocker = makeInstance(yotianSoldier.id, {
+            id: "yotian",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, ward] }),
+                makePlayer("p2", { battlefield: [artifactBlocker] }),
+            ],
+        });
+        expect(
+            validateBlockerEligibility(
+                host,
+                artifactBlocker,
+                [artifactBlocker],
+                state
+            ).eligible
+        ).toBe(false);
+    });
+
+    it("prevents damage to enchanted creature from artifact sources", () => {
+        const { host, ward } = setup();
+        const catapult = makeInstance(grapeshotCatapult.id, {
+            id: "catapult",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, ward] }),
+                makePlayer("p2", { battlefield: [catapult] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "catapult",
+            "p2",
+            { type: "permanent", id: "host" },
+            2,
+            false
+        );
+        expect(res).toBeNull();
+    });
+
+    it("enchanted creature can't be targeted by abilities from artifact sources, but can by non-artifact sources", () => {
+        const { host, ward } = setup();
+        // Triskelion is an artifact source with a targeted ability.
+        const trisk = makeInstance(triskelion.id, {
+            id: "trisk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        // Hill Giant is a non-artifact permanent (stands in for a flesh source).
+        const giant = makeInstance(hillGiant.id, {
+            id: "giant",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, ward] }),
+                makePlayer("p2", { battlefield: [trisk, giant] }),
+            ],
+        });
+        // Artifact source (Triskelion's types include "Artifact") — guarded.
+        expect(
+            isGuardedAgainst(state, host, "cantBeTargeted", trisk.types)
+        ).toBe(true);
+        // Non-artifact source — NOT guarded.
+        expect(
+            isGuardedAgainst(state, host, "cantBeTargeted", giant.types)
+        ).toBe(false);
+        // Unenchanted creature is never guarded by this Ward.
+        const other = makeInstance(grizzlyBears.id, {
+            id: "other",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        expect(
+            isGuardedAgainst(state, other, "cantBeTargeted", trisk.types)
+        ).toBe(false);
+    });
+
+    it("getPendingTargetSourceTypes reports an artifact source's types (ability path)", () => {
+        const trisk = makeInstance(triskelion.id, {
+            id: "trisk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [trisk] }),
+            ],
+        });
+        expect(
+            getPendingTargetSourceTypes(state, "trisk", "ability")
+        ).toContain("Artifact");
+    });
+
+    it("getLegalTargets excludes the warded creature for an artifact ability source", () => {
+        const { host, ward } = setup();
+        host.isAttacking = false;
+        const trisk = makeInstance(triskelion.id, {
+            id: "trisk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, ward] }),
+                makePlayer("p2", { battlefield: [trisk] }),
+            ],
+        });
+        const req = { type: "any" as CardType, count: 1 as const };
+        // Artifact source: warded host excluded.
+        const artifactLegal = getLegalTargets(state, req, [], "p2", undefined, [
+            "Artifact",
+        ]).map((t) => t.id);
+        expect(artifactLegal).not.toContain("host");
+        // No source-type info (non-artifact / default): host IS targetable.
+        const fleshLegal = getLegalTargets(state, req, [], "p2").map(
+            (t) => t.id
+        );
+        expect(fleshLegal).toContain("host");
+    });
+
+    it("wire format — prevention survives projectPublicState", () => {
+        const { host, ward } = setup();
+        host.isAttacking = false;
+        const catapult = makeInstance(grapeshotCatapult.id, {
+            id: "catapult",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, ward] }),
+                makePlayer("p2", { battlefield: [catapult] }),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const res = runDamageReplacement(
+            projected as unknown as GameState,
+            "catapult",
+            "p2",
+            { type: "permanent", id: "host" },
+            2,
+            false
+        );
+        expect(res).toBeNull();
+    });
+});
+
+describe("Martyrs of Korlis (redirect artifact damage to self while untapped, CR 614)", () => {
+    it("redirects player damage from an artifact source while untapped", () => {
+        const martyrs = makeInstance(martyrsOfKorlis.id, {
+            id: "martyrs",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const catapult = makeInstance(grapeshotCatapult.id, {
+            id: "catapult",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [martyrs], life: 20 }),
+                makePlayer("p2", { battlefield: [catapult] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "catapult",
+            "p2",
+            { type: "player", id: "p1" },
+            2,
+            false
+        );
+        expect(res?.target).toEqual({ type: "permanent", id: "martyrs" });
+    });
+
+    it("does NOT redirect while tapped (CR 614 condition)", () => {
+        const martyrs = makeInstance(martyrsOfKorlis.id, {
+            id: "martyrs",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const catapult = makeInstance(grapeshotCatapult.id, {
+            id: "catapult",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [martyrs], life: 20 }),
+                makePlayer("p2", { battlefield: [catapult] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "catapult",
+            "p2",
+            { type: "player", id: "p1" },
+            2,
+            false
+        );
+        expect(res?.target).toEqual({ type: "player", id: "p1" });
+    });
+
+    it("does NOT redirect damage from a non-artifact source", () => {
+        const martyrs = makeInstance(martyrsOfKorlis.id, {
+            id: "martyrs",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const giant = makeInstance(hillGiant.id, {
+            id: "giant",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [martyrs], life: 20 }),
+                makePlayer("p2", { battlefield: [giant] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "giant",
+            "p2",
+            { type: "player", id: "p1" },
+            3,
+            false
+        );
+        expect(res?.target).toEqual({ type: "player", id: "p1" });
+    });
+});
+
+describe("artifact-damage tracking + Reverse Polarity (CR 120.3 tally / 119 lifegain)", () => {
+    it("bumps artifactDamageToPlayerThisTurn only for artifact combat sources", () => {
+        // Artifact creature (Colossus 9/9) attacks unblocked.
+        const colossus = makeInstance(colossusOfSardia.id, {
+            id: "colossus",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            activePlayerId: "p2",
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { battlefield: [colossus] }),
+            ],
+            combat: {
+                attackerIds: ["colossus"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
+        });
+        applyAllCombatDamage(state, {}, "regular");
+        expect(state.players[0].life).toBe(11);
+        expect(state.artifactDamageToPlayerThisTurn?.["p1"]).toBe(9);
+        // The general damage tally also counts it.
+        expect(state.damageDealtToPlayerThisTurn?.["p1"]).toBe(9);
+    });
+
+    it("does NOT bump the artifact tally for a non-artifact combat source", () => {
+        const giant = makeInstance(hillGiant.id, {
+            id: "giant",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            activePlayerId: "p2",
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { battlefield: [giant] }),
+            ],
+            combat: {
+                attackerIds: ["giant"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
+        });
+        applyAllCombatDamage(state, {}, "regular");
+        expect(state.players[0].life).toBe(17);
+        expect(state.artifactDamageToPlayerThisTurn?.["p1"] ?? 0).toBe(0);
+        expect(state.damageDealtToPlayerThisTurn?.["p1"]).toBe(3);
+    });
+
+    it("Reverse Polarity gains twice the artifact damage dealt this turn", () => {
+        const state = makeState({
+            players: [makePlayer("p1", { life: 11 }), makePlayer("p2")],
+            artifactDamageToPlayerThisTurn: { p1: 9 },
+        });
+        const item = pushSpell(state, reversePolarity.id, "p1");
+        item.controllerId = "p1";
+        resolveTopOfStack(state);
+        // 9 artifact damage → gain 18.
+        expect(state.players[0].life).toBe(29);
+    });
+
+    it("Reverse Polarity gains 0 when no artifact damage was dealt", () => {
+        const state = makeState({
+            players: [makePlayer("p1", { life: 17 }), makePlayer("p2")],
+            damageDealtToPlayerThisTurn: { p1: 3 },
+        });
+        const item = pushSpell(state, reversePolarity.id, "p1");
+        item.controllerId = "p1";
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(17);
     });
 });

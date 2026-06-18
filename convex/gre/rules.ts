@@ -1,4 +1,9 @@
-import type { Color, TargetRequirement, TargetSelection } from "../cards/types";
+import type {
+    CardType,
+    Color,
+    TargetRequirement,
+    TargetSelection,
+} from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import type { CardAction } from "./types";
 import { isSorceryTiming } from "./phases";
@@ -424,7 +429,8 @@ export function getLegalTargets(
     requirement: TargetRequirement,
     sourceColors: readonly Color[] = [],
     casterId?: string,
-    chosenX?: number
+    chosenX?: number,
+    sourceTypes: readonly CardType[] = []
 ): TargetSelection[] {
     const targets: TargetSelection[] = [];
 
@@ -634,7 +640,10 @@ export function getLegalTargets(
                 // CR 611 — a continuous `permanent-guard` may bar targeting
                 // entirely (Guardian Beast: "can't be the targets of spells or
                 // abilities" while it is untapped). Read live.
-                if (isGuardedAgainst(state, card, "cantBeTargeted")) continue;
+                if (
+                    isGuardedAgainst(state, card, "cantBeTargeted", sourceTypes)
+                )
+                    continue;
                 targets.push({ type: "permanent", id: card.id });
             }
         }
@@ -703,6 +712,36 @@ export function getPendingTargetSourceColors(
         for (const p of state.players) {
             const c = p.hand.find((x) => x.id === cardInstanceId);
             if (c) return STATIC_EFFECT_CTX.getColors(c);
+        }
+    }
+    return [];
+}
+
+/** Card types of the source whose target-selection is in progress (CR 109.5).
+ *  Used to enforce source-type-filtered targeting guards (Artifact Ward's
+ *  "can't be the target of abilities from artifact sources"). Mirrors
+ *  `getPendingTargetSourceColors`: for spells the source is the hand card; for
+ *  activated abilities it's the battlefield permanent; for a copy-retarget the
+ *  source is the spell COPY on the stack. Returns an empty array if the source
+ *  card can't be located. */
+export function getPendingTargetSourceTypes(
+    state: GameState,
+    cardInstanceId: string,
+    kind: "cast" | "ability" | "copy-retarget"
+): CardType[] {
+    if (kind === "copy-retarget") {
+        const si = state.stack.find((x) => x.id === cardInstanceId);
+        return si ? [...si.types] : [];
+    }
+    if (kind === "ability") {
+        for (const p of state.players) {
+            const c = p.battlefield.find((x) => x.id === cardInstanceId);
+            if (c) return [...c.types];
+        }
+    } else {
+        for (const p of state.players) {
+            const c = p.hand.find((x) => x.id === cardInstanceId);
+            if (c) return [...c.types];
         }
     }
     return [];

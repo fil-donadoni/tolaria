@@ -202,6 +202,43 @@ function getTemporaryPTBuff(target: PermanentView): PTBuff {
     return { power, toughness };
 }
 
+/** Sum of conditional P/T modifications held "for as long as [the source]
+ *  remains tapped" (CR 611.2; ATQ Ashnod's Battle Gear, Tawnos's Weaponry).
+ *  Read live: an entry contributes only while its `sourceId` permanent is on
+ *  the battlefield AND tapped, so the buff disappears the instant the source
+ *  untaps even before the `checkSourceTappedEffects` SBA splices the stale
+ *  entry out. Independent from `temporaryPTMods` (phase-boundary one-shots). */
+function getSourceTappedPTBuff(
+    state: LayerStateView,
+    target: PermanentView
+): PTBuff {
+    const mods = target.sourceTappedPTMods;
+    if (!mods?.length) return ZERO;
+    let power = 0;
+    let toughness = 0;
+    for (const m of mods) {
+        if (!isSourceTappedLive(state, m.sourceId)) continue;
+        power += m.power;
+        toughness += m.toughness;
+    }
+    if (power === 0 && toughness === 0) return ZERO;
+    return { power, toughness };
+}
+
+/** True while `sourceId` is a permanent on some battlefield that is tapped
+ *  (CR 611.2 state-tied duration). A source that has left the battlefield
+ *  fails (the effect ends with its source). */
+export function isSourceTappedLive(
+    state: LayerStateView,
+    sourceId: string
+): boolean {
+    for (const player of state.players) {
+        const src = player.battlefield.find((c) => c.id === sourceId);
+        if (src) return Boolean((src as PermanentView).isTapped);
+    }
+    return false;
+}
+
 /** Per-counter-type contribution to layer 7d (CR 613.4d, 122.1d). Only the
  *  P/T-modifying built-in types are recognized here; other types (corpse,
  *  mire, charge, vitality) are inert to the layer system and are read by
@@ -283,20 +320,24 @@ function computeEffectivePT(
     const counter = getCounterPTBuff(target); // 7c
     const buff = getStaticPTBuff(state, target); // 7d static
     const temp = includeTemporary ? getTemporaryPTBuff(target) : ZERO; // 7d temp
+    // 7d source-tapped: held while the source stays tapped (Ashnod's Battle
+    // Gear, Tawnos's Weaponry). Persistent, not phase-bounded, so it survives
+    // `includeTemporary === false` (bot eval scores it as real material).
+    const tapped = getSourceTappedPTBuff(state, target); // 7d source-tapped
     return {
         power: evaluateLayer(
             basePower,
             cda.power,
             set.power,
             counter.power,
-            buff.power + temp.power
+            buff.power + temp.power + tapped.power
         ),
         toughness: evaluateLayer(
             baseToughness,
             cda.toughness,
             set.toughness,
             counter.toughness,
-            buff.toughness + temp.toughness
+            buff.toughness + temp.toughness + tapped.toughness
         ),
     };
 }

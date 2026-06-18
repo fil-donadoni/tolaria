@@ -135,6 +135,56 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Antiquities cluster C+D — continuous artifact-source prevention /
+        // redirection + artifact-damage tracking (#287, CR 615 / 614 / 611 /
+        // 120.3). Source-type-filtered protection from artifacts:
+        //   • You control Argothian Pixies, Argothian Treefolk, Martyrs of
+        //     Korlis, and Grizzly Bears wearing Artifact Ward; Reverse Polarity
+        //     sits in your hand.
+        //   • The opponent controls Triskelion (3 +1/+1 counters), an artifact
+        //     creature, and Grapeshot Catapult, a noncreature artifact source.
+        //   • Pass priority and ping with Triskelion / Grapeshot Catapult:
+        //     damage to the Pixies (artifact-creature filter), the Treefolk or
+        //     the warded Bears (artifact-source filter) is fully prevented;
+        //     direct damage to YOU is redirected onto the untapped Martyrs of
+        //     Korlis instead. Targeting the warded Bears with Triskelion's
+        //     ability is illegal (can't be targeted by abilities from artifact
+        //     sources).
+        //   • The redirected/landed artifact damage accrues to the per-turn
+        //     artifact tally; cast Reverse Polarity to gain twice that amount.
+        //   • Tap Martyrs (e.g. attack with it) to see redirection stop while
+        //     it's tapped.
+        label: "Antiquities C+D: artifact-source prevention / redirection + Reverse Polarity",
+        cards: [
+            { name: "Argothian Pixies", owner: "me" as const },
+            { name: "Argothian Treefolk", owner: "me" as const },
+            { name: "Martyrs of Korlis", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            // Artifact Ward sits in hand: cast it onto the Grizzly Bears to
+            // attach the Aura and enable its host protections.
+            {
+                name: "Artifact Ward",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Reverse Polarity",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "me" as const, count: 3 },
+            {
+                name: "Triskelion",
+                owner: "opp" as const,
+                counters: { "+1/+1": 3 },
+            },
+            { name: "Grapeshot Catapult", owner: "opp" as const },
+            { name: "Mountain", owner: "opp" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next battlefield tap/pay (#272). The spatial board's
         // battlefield is now interactive (?board=next) — load this and switch
         // the URL to ?board=next to exercise the foundational tap/pay slice:
@@ -726,6 +776,37 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Urza's Tower", owner: "me" as const },
             { name: "Urza's Mine", owner: "opp" as const },
             { name: "Urza's Power Plant", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Antiquities cluster E — "for as long as this remains tapped" duration
+        // + tap-lock (#286, CR 611.2 state-tied duration / CR 502.1 optional
+        // untap). The buff/lock persists exactly while its source stays tapped:
+        //   • Right-click Ashnod's Battle Gear → "{2},{T}: target creature you
+        //     control +2/-2 while tapped"; target your Grizzly Bears (becomes
+        //     4/0 → dies to the toughness SBA, so target the Yotian Soldier or a
+        //     bigger body to watch it sit at +2/-2 while the Gear stays tapped).
+        //   • Right-click Tawnos's Weaponry → "{2},{T}: target creature +1/+1
+        //     while tapped"; target any creature.
+        //   • Right-click Phyrexian Gremlins → "{T}: tap target artifact; it
+        //     doesn't untap while the Gremlin stays tapped"; tap the opponent's
+        //     Millstone to lock it down.
+        //   • Pass to your UNTAP step: each tapped source PROMPTS "you may
+        //     choose not to untap this" — decline to keep the buff/lock alive,
+        //     accept to untap and end it. The locked Millstone stays tapped
+        //     through its controller's untap step until the Gremlin untaps.
+        label: "Antiquities E: while-tapped buff + tap-lock (Battle Gear / Weaponry / Gremlins)",
+        cards: [
+            { name: "Ashnod's Battle Gear", owner: "me" as const },
+            { name: "Tawnos's Weaponry", owner: "me" as const },
+            { name: "Phyrexian Gremlins", owner: "me" as const },
+            { name: "Yotian Soldier", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Swamp", owner: "me" as const, count: 4 },
+            { name: "Millstone", owner: "opp" as const },
+            { name: "Triskelion", owner: "opp" as const },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
