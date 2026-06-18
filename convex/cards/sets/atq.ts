@@ -415,3 +415,283 @@ export const hurkylsRecall: CardDefinition = {
         }
     },
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Graveyard / library recursion & card-flow (free tranche, #275) — CR 400.7
+// zone changes, CR 401 library order, CR 701.20 shuffle, CR 121.1 draw, CR
+// 701.8 discard, CR 701.20b untap. Modern Scryfall oracle text is authoritative
+// (ADR 0004); mana costs / type lines come from MTGJSON ATQ.json. Every effect
+// composes existing SpellContext primitives (moveCardById, moveZone,
+// shuffleLibrary, reorderLibraryTop, peekLibraryTop, drawCards, discardCard,
+// untap) — no new primitive, no engine change.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Reconstruction — {U} Sorcery. "Return target artifact card from your
+// graveyard to your hand." Twin of Regrowth (lea.ts) narrowed to artifacts via
+// the graveyard-zone target filter (CR 400.7 — the graveyard card becomes a new
+// object on the zone change). `type: "Artifact"` + `zone: "graveyard"` +
+// `controller: "you"` scopes legal targets to artifact cards in the caster's
+// own graveyard (rules.ts graveyard branch). `moveCardById` routes the picked
+// card graveyard → hand.
+export const reconstruction: CardDefinition = {
+    id: "1aa2d27b-cc25-4baa-86f4-4db45b30e2a4",
+    name: "Reconstruction",
+    oracleText: "Return target artifact card from your graveyard to your hand.",
+    manaCost: { U: 1 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "Artifact",
+        count: 1,
+        zone: "graveyard",
+        controller: "you",
+    },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (!t || t.type !== "graveyard-card" || !t.playerId) return;
+        ctx.moveCardById(t.playerId, t.id, "graveyard", "hand");
+    },
+};
+
+// Argivian Archaeologist — {1}{W}{W} Artifact Creature — Human Artificer, 1/2
+// with "{W}{W}, {T}: Return target artifact card from your graveyard to your
+// hand." (CR 605 activated ability; CR 400.7 zone change). The repeatable
+// engine version of Reconstruction. Same graveyard-zone target filter; the
+// {W}{W} + tap cost is paid at activation and the move resolves from the stack
+// (useStack: true). MTGJSON ATQ.json: casting cost {1}{W}{W}, 1/2.
+export const argivianArchaeologist: CardDefinition = {
+    id: "ce83a3cb-467d-44f6-a051-4855c8cf52a6",
+    name: "Argivian Archaeologist",
+    oracleText:
+        "{W}{W}, {T}: Return target artifact card from your graveyard to your hand.",
+    manaCost: { X: 1, W: 2 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Human", "Artificer"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "argivian-archaeologist-return",
+            oracleText:
+                "{W}{W}, {T}: Return target artifact card from your graveyard to your hand.",
+            cost: { tap: true, mana: { W: 2 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Artifact",
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (!t || t.type !== "graveyard-card" || !t.playerId) return;
+                ctx.moveCardById(t.playerId, t.id, "graveyard", "hand");
+            },
+        },
+    ],
+};
+
+// Feldon's Cane — {1} Artifact. "{T}, Exile this artifact: Shuffle your
+// graveyard into your library." (CR 400.7 zone change + CR 701.20 shuffle.)
+// Composition: moveZone(graveyard → library) appends the graveyard cards to the
+// library, then shuffleLibrary randomizes — exactly "shuffle your graveyard
+// into your library".
+//
+// PRIMITIVE GAP / DIVERGENCE (flagged, no engine change): there is no `exile`
+// activation-cost kind on ActivatedAbility (only tap/mana/sacrifice/life/
+// counter/discard). "Exile this artifact" is a *cost*, so strictly it should be
+// paid at activation; here it's modeled inside resolve() via
+// `exile(sourceInstanceId)`. Practical effect is identical for this card — the
+// only observable difference is that, with the cost-vs-effect distinction, the
+// source would already be in exile while the ability is on the stack. Since the
+// ability shuffles the graveyard (not the source) and exiling self has no
+// stack-interactive payoff, the resolve-body model is behaviourally equivalent
+// for the current card pool. A general `exile`/`exileSelf` cost kind is
+// deferred to a feature tranche.
+export const feldonsCane: CardDefinition = {
+    id: "bb6af436-bcfd-4d47-a1aa-e84b587a725a",
+    name: "Feldon's Cane",
+    oracleText:
+        "{T}, Exile this artifact: Shuffle your graveyard into your library.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "feldons-cane-shuffle",
+            oracleText:
+                "{T}, Exile this artifact: Shuffle your graveyard into your library.",
+            cost: { tap: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                // Exile-as-cost modeled in the resolve body (no `exile` cost
+                // kind — see divergence note above). Exile self FIRST so the
+                // Cane is not among the cards shuffled into the library.
+                ctx.exile({ type: "permanent", id: ctx.sourceInstanceId });
+                ctx.moveZone(ctx.controller, "graveyard", "library");
+                ctx.shuffleLibrary(ctx.controller);
+            },
+        },
+    ],
+};
+
+// Drafna's Restoration — {U} Sorcery. "Put any number of target artifact cards
+// from target player's graveyard on top of their library in any order."
+// (CR 601.2c variable target count, CR 400.7 zone change, CR 401 library
+// order.) Targets one-or-more artifact graveyard cards (the engine's graveyard
+// target branch already scopes to one player per card, and Antiquities' oracle
+// reads "from a single graveyard"; `controller: "any"` lets the caster recur
+// from any player's bin).
+//
+// Composition for "on top in any order" using existing primitives only: move
+// every chosen card graveyard → library (they append to the BOTTOM, since
+// moveCard pushes and drawCard reads index 0), then let the player order just
+// those cards via a `reorder-library` choice gated by `candidateIds`, and
+// finally `reorderLibraryTop` over the FULL library with the chosen cards first
+// — placing them on top in the chosen order ahead of the pre-existing library.
+export const drafnasRestoration: CardDefinition = {
+    id: "4be2aa3b-207b-4d21-abfb-6788520c7676",
+    name: "Drafna's Restoration",
+    oracleText:
+        "Put any number of target artifact cards from target player's graveyard on top of their library in any order.",
+    manaCost: { U: 1 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "Artifact",
+        count: { min: 1 },
+        zone: "graveyard",
+        controller: "any",
+    },
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            const targets = ctx.targets.filter(
+                (t) => t.type === "graveyard-card" && t.playerId
+            );
+            if (targets.length === 0) return;
+            // All targeted cards come from a single graveyard (one owner).
+            const ownerId = targets[0].playerId!;
+            const movedIds: string[] = [];
+            for (const t of targets) {
+                if (t.playerId !== ownerId) continue;
+                ctx.moveCardById(ownerId, t.id, "graveyard", "library");
+                movedIds.push(t.id);
+            }
+            if (movedIds.length === 0) return;
+            // Player orders the moved cards (first = top). The allow-list pins
+            // the choice to exactly the cards just put into the library.
+            const ordered = ctx.requestChoice({
+                playerId: ctx.controller,
+                choiceId: "drafna-order",
+                kind: "reorder-library",
+                zone: "library",
+                count: movedIds.length,
+                zoneOwnerId: ownerId,
+                candidateIds: movedIds,
+                prompt: "Put these artifact cards on top in any order (first = top).",
+            });
+            if (!ordered) return;
+            // Build the full library order: chosen cards first (top), then the
+            // remainder of the library in its current order. peekLibraryTop with
+            // a large N returns every id (slice clamps).
+            const allIds = ctx.peekLibraryTop(ownerId, Number.MAX_SAFE_INTEGER);
+            const orderedSet = new Set(ordered);
+            const rest = allIds.filter((id) => !orderedSet.has(id));
+            ctx.reorderLibraryTop(ownerId, [...ordered, ...rest]);
+        },
+    ],
+};
+
+// Millstone — {2} Artifact. "{2}, {T}: Target player mills two cards." (CR
+// 701.13a mill — put the top N cards of a library into its owner's graveyard;
+// CR 400.7 zone change.) Composition: move the top card library → graveyard,
+// twice (moveCardById on the live top id each iteration), via the {2}+tap
+// activated ability. Mill stops naturally when the library empties.
+export const millstone: CardDefinition = {
+    id: "107646bc-2181-49f4-8821-1eaa46291855",
+    name: "Millstone",
+    oracleText: "{2}, {T}: Target player mills two cards.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "millstone-mill",
+            oracleText: "{2}, {T}: Target player mills two cards.",
+            cost: { tap: true, mana: { X: 2 } },
+            useStack: true,
+            targetRequirement: { type: "player", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type !== "player") return;
+                // Mill two: move the current top card to the graveyard twice
+                // (CR 701.13a). Re-read the top id each pass; no-op once empty.
+                for (let i = 0; i < 2; i++) {
+                    const top = ctx.peekLibraryTop(target.id, 1);
+                    if (top.length === 0) break;
+                    ctx.moveCardById(target.id, top[0], "library", "graveyard");
+                }
+            },
+        },
+    ],
+};
+
+// Jalum Tome — {3} Artifact — Book. "{2}, {T}: Draw a card, then discard a
+// card." (CR 121.1 draw, CR 701.8 discard; loot.) Composition: drawCards(1)
+// then a `choose-hand-card` choice to pick which card to discard (modern oracle
+// text: the player chooses). The discard happens "then" — sequenced via a
+// two-step resolve so the drawn card is in hand before the discard pick.
+export const jalumTome: CardDefinition = {
+    id: "5a5b7c5a-ee63-4a1b-9a0f-fb0a309168df",
+    name: "Jalum Tome",
+    oracleText: "{2}, {T}: Draw a card, then discard a card.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    subtypes: ["Book"],
+    activatedAbilities: [
+        {
+            id: "jalum-tome-loot",
+            oracleText: "{2}, {T}: Draw a card, then discard a card.",
+            cost: { tap: true, mana: { X: 2 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.drawCards(ctx.controller, 1);
+                const handIds = ctx.getHandIds(ctx.controller);
+                if (handIds.length === 0) return;
+                const picked = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: "jalum-discard",
+                    kind: "choose-hand-card",
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Discard a card.",
+                });
+                if (!picked || picked.length === 0) return;
+                ctx.discardCard(ctx.controller, picked[0]);
+            },
+        },
+    ],
+};
+
+// Candelabra of Tawnos — {1} Artifact. "{X}, {T}: Untap X target lands." (CR
+// 107.3 X chosen at activation, CR 601.2c X-bound target count, CR 701.20b
+// untap.) `count: "X"` resolves the number of land targets against the chosen
+// value of X at activation; resolve untaps each. A 0-X activation skips target
+// selection and untaps nothing.
+export const candelabraOfTawnos: CardDefinition = {
+    id: "35a335bf-7358-460f-b7c9-1e8bc4300f64",
+    name: "Candelabra of Tawnos",
+    oracleText: "{X}, {T}: Untap X target lands.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "candelabra-untap",
+            oracleText: "{X}, {T}: Untap X target lands.",
+            cost: { tap: true, mana: { X: "X" } },
+            useStack: true,
+            targetRequirement: { type: "Land", count: "X" },
+            resolve: (ctx: SpellContext) => {
+                for (const target of ctx.targets) {
+                    if (target.type === "permanent") ctx.untap(target);
+                }
+            },
+        },
+    ],
+};

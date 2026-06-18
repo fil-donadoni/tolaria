@@ -19,6 +19,13 @@ import {
     shatterstorm,
     artifactBlast,
     hurkylsRecall,
+    reconstruction,
+    argivianArchaeologist,
+    feldonsCane,
+    drafnasRestoration,
+    millstone,
+    jalumTome,
+    candelabraOfTawnos,
 } from "../atq";
 import { getCardById } from "../..";
 import {
@@ -38,7 +45,21 @@ import {
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { getLegalTargets } from "../../../gre/rules";
 import { advancePhase, untapStep } from "../../../gre/phases";
+import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
 import type { CardType } from "../../types";
+
+/** Submit the current head pending choice (zone-pick) with the given ordered
+ *  ids. Auto-resumes the suspended resolution (mirrors the game.ts mutation). */
+function submitChoice(state: GameState, cardInstanceIds: string[]): void {
+    const head = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds,
+    });
+}
 
 // --- helpers ---------------------------------------------------------------
 
@@ -1031,5 +1052,482 @@ describe("Hurkyl's Recall (return all artifacts target player owns to hand, CR 7
             type: "player",
             count: 1,
         });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Free tranche #275 — graveyard / library recursion & card-flow.
+// ---------------------------------------------------------------------------
+
+describe("ATQ free-tranche #275 registration", () => {
+    it.each([
+        ["Reconstruction", reconstruction],
+        ["Argivian Archaeologist", argivianArchaeologist],
+        ["Feldon's Cane", feldonsCane],
+        ["Drafna's Restoration", drafnasRestoration],
+        ["Millstone", millstone],
+        ["Jalum Tome", jalumTome],
+        ["Candelabra of Tawnos", candelabraOfTawnos],
+    ])("%s resolves from the registry by id", (name, card) => {
+        expect(getCardById(card.id).name).toBe(name);
+    });
+});
+
+describe("Reconstruction (return artifact card from your graveyard to hand, CR 400.7)", () => {
+    it("moves the targeted artifact card from graveyard to hand", () => {
+        const art = makeInstance(clayStatue.id, {
+            id: "art",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { graveyard: [art] }), makePlayer("p2")],
+        });
+        pushSpell(state, reconstruction.id, "p1", [
+            { type: "graveyard-card", id: "art", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].graveyard.some((c) => c.id === "art")).toBe(
+            false
+        );
+        expect(state.players[0].hand.some((c) => c.id === "art")).toBe(true);
+    });
+
+    it("getLegalTargets offers only artifact cards in the caster's graveyard", () => {
+        const art = makeInstance(clayStatue.id, {
+            id: "art",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        // A non-artifact card in the same graveyard must NOT be a legal target.
+        const spell = makeInstance(crumble.id, {
+            id: "spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        // An artifact in the OPPONENT's graveyard must NOT be legal (controller: you).
+        const oppArt = makeInstance(dragonEngine.id, {
+            id: "oppArt",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [art, spell] }),
+                makePlayer("p2", { graveyard: [oppArt] }),
+            ],
+        });
+        const ids = getLegalTargets(
+            state,
+            reconstruction.targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(ids).toContain("art");
+        expect(ids).not.toContain("spell");
+        expect(ids).not.toContain("oppArt");
+    });
+
+    it("wire format — the recovered card is in hand after projection", () => {
+        const art = makeInstance(clayStatue.id, {
+            id: "art",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { graveyard: [art] }), makePlayer("p2")],
+        });
+        pushSpell(state, reconstruction.id, "p1", [
+            { type: "graveyard-card", id: "art", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 0, "p1");
+        expect(projected.players[0].hand.some((c) => c?.id === "art")).toBe(
+            true
+        );
+    });
+});
+
+describe("Argivian Archaeologist ({W}{W},{T}: return artifact from graveyard, CR 605 / 400.7)", () => {
+    it("returns the targeted artifact card to the controller's hand", () => {
+        const art = makeInstance(clayStatue.id, {
+            id: "art",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const source = makeInstance(argivianArchaeologist.id, {
+            id: "arch",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [source],
+                    graveyard: [art],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, source, "argivian-archaeologist-return", [
+            { type: "graveyard-card", id: "art", playerId: "p1" },
+        ]);
+        expect(state.players[0].graveyard.some((c) => c.id === "art")).toBe(
+            false
+        );
+        expect(state.players[0].hand.some((c) => c.id === "art")).toBe(true);
+    });
+
+    it("is a 1/2 artifact creature costing {1}{W}{W}", () => {
+        expect(argivianArchaeologist.types).toEqual(
+            expect.arrayContaining(["Artifact", "Creature"])
+        );
+        expect(argivianArchaeologist.power).toBe(1);
+        expect(argivianArchaeologist.toughness).toBe(2);
+        expect(argivianArchaeologist.manaCost).toEqual({ X: 1, W: 2 });
+    });
+});
+
+describe("Feldon's Cane ({T}, exile self: shuffle graveyard into library, CR 400.7 / 701.20)", () => {
+    it("moves the controller's graveyard into the library and exiles itself", () => {
+        const g1 = makeInstance(clayStatue.id, {
+            id: "g1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const g2 = makeInstance(dragonEngine.id, {
+            id: "g2",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const cane = makeInstance(feldonsCane.id, {
+            id: "cane",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const libCard = makeInstance(yotianSoldier.id, {
+            id: "lib",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [cane],
+                    graveyard: [g1, g2],
+                    library: [libCard],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, cane, "feldons-cane-shuffle");
+        // Graveyard emptied into library (now 1 original + 2 = 3 cards).
+        expect(state.players[0].graveyard).toHaveLength(0);
+        expect(state.players[0].library).toHaveLength(3);
+        const libIds = state.players[0].library.map((c) => c.id);
+        expect(libIds).toContain("g1");
+        expect(libIds).toContain("g2");
+        // The Cane exiled itself — not in the library it shuffled.
+        expect(libIds).not.toContain("cane");
+        expect(state.players[0].battlefield.some((c) => c.id === "cane")).toBe(
+            false
+        );
+        expect(state.players[0].exile.some((c) => c.id === "cane")).toBe(true);
+    });
+});
+
+describe("Drafna's Restoration (artifact cards from graveyard to top of library, CR 401)", () => {
+    it("puts the chosen artifacts on top of the owner's library in the chosen order", () => {
+        const g1 = makeInstance(clayStatue.id, {
+            id: "g1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const g2 = makeInstance(dragonEngine.id, {
+            id: "g2",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const top = makeInstance(yotianSoldier.id, {
+            id: "top",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [g1, g2],
+                    library: [top],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, drafnasRestoration.id, "p1", [
+            { type: "graveyard-card", id: "g1", playerId: "p1" },
+            { type: "graveyard-card", id: "g2", playerId: "p1" },
+        ]);
+        // Suspends on the reorder choice.
+        resolveTopOfStack(state);
+        expect(state.pendingChoices?.length ?? 0).toBe(1);
+        // Order them g2 (top) then g1.
+        submitChoice(state, ["g2", "g1"]);
+        // Library top-to-bottom: g2, g1, then the pre-existing card.
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "g2",
+            "g1",
+            "top",
+        ]);
+        // The recurred cards left the graveyard (the resolved sorcery itself
+        // lands in the graveyard, so it isn't empty).
+        expect(state.players[0].graveyard.some((c) => c.id === "g1")).toBe(
+            false
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === "g2")).toBe(
+            false
+        );
+    });
+
+    it("takes a variable number of graveyard artifact targets (min 1)", () => {
+        expect(drafnasRestoration.targetRequirement?.count).toEqual({ min: 1 });
+        expect(drafnasRestoration.targetRequirement?.zone).toBe("graveyard");
+    });
+
+    it("getLegalTargets offers artifact cards from any player's graveyard", () => {
+        const g1 = makeInstance(clayStatue.id, {
+            id: "g1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const oppArt = makeInstance(dragonEngine.id, {
+            id: "oppArt",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+        const oppSpell = makeInstance(crumble.id, {
+            id: "oppSpell",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [g1] }),
+                makePlayer("p2", { graveyard: [oppArt, oppSpell] }),
+            ],
+        });
+        const ids = getLegalTargets(
+            state,
+            drafnasRestoration.targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(ids).toContain("g1");
+        expect(ids).toContain("oppArt");
+        expect(ids).not.toContain("oppSpell");
+    });
+});
+
+describe("Millstone ({2},{T}: target player mills two, CR 701.13a)", () => {
+    it("moves the top two cards of the target's library to their graveyard", () => {
+        const c1 = makeInstance(yotianSoldier.id, {
+            id: "c1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const c2 = makeInstance(dragonEngine.id, {
+            id: "c2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const c3 = makeInstance(clayStatue.id, {
+            id: "c3",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const mill = makeInstance(millstone.id, {
+            id: "mill",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mill] }),
+                makePlayer("p2", { library: [c1, c2, c3] }),
+            ],
+        });
+        resolveActivated(state, mill, "millstone-mill", [
+            { type: "player", id: "p2" },
+        ]);
+        // Top two (c1, c2) milled; c3 remains on top.
+        expect(state.players[1].library.map((c) => c.id)).toEqual(["c3"]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual([
+            "c1",
+            "c2",
+        ]);
+    });
+
+    it("mills only what's left when the library has fewer than two cards", () => {
+        const c1 = makeInstance(yotianSoldier.id, {
+            id: "c1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const mill = makeInstance(millstone.id, {
+            id: "mill",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mill] }),
+                makePlayer("p2", { library: [c1] }),
+            ],
+        });
+        resolveActivated(state, mill, "millstone-mill", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].library).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["c1"]);
+    });
+});
+
+describe("Jalum Tome ({2},{T}: draw then discard, CR 121.1 / 701.8)", () => {
+    it("draws a card, then discards the chosen card", () => {
+        const drawn = makeInstance(yotianSoldier.id, {
+            id: "drawn",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const inHand = makeInstance(dragonEngine.id, {
+            id: "inHand",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const tome = makeInstance(jalumTome.id, {
+            id: "tome",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [tome],
+                    hand: [inHand],
+                    library: [drawn],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, tome, "jalum-tome-loot");
+        // Suspends on the discard pick: drawn card is now in hand (2 cards).
+        expect(state.pendingChoices?.length ?? 0).toBe(1);
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "drawn",
+            "inHand",
+        ]);
+        // Discard the just-drawn card.
+        submitChoice(state, ["drawn"]);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["inHand"]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["drawn"]);
+        expect(state.players[0].library).toHaveLength(0);
+    });
+});
+
+describe("Candelabra of Tawnos ({X},{T}: untap X target lands, CR 107.3 / 601.2c / 701.20b)", () => {
+    it("untaps each of the X targeted lands", () => {
+        const l1 = makeInstance(stripMine.id, {
+            id: "l1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const l2 = makeInstance(stripMine.id, {
+            id: "l2",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const candelabra = makeInstance(candelabraOfTawnos.id, {
+            id: "cand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [candelabra, l1, l2] }),
+                makePlayer("p2"),
+            ],
+        });
+        // X = 2: untap both lands.
+        const item: StackItem = {
+            ...candelabra,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "candelabra-untap",
+            chosenX: 2,
+            targets: [
+                { type: "permanent", id: "l1" },
+                { type: "permanent", id: "l2" },
+            ],
+        };
+        state.stack.push(item);
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "l1")?.isTapped
+        ).toBe(false);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "l2")?.isTapped
+        ).toBe(false);
+    });
+
+    it("declares an X-bound land target count", () => {
+        const ability = candelabraOfTawnos.activatedAbilities![0];
+        expect(ability.targetRequirement).toEqual({ type: "Land", count: "X" });
+        expect(ability.cost.mana).toEqual({ X: "X" });
+    });
+
+    it("getLegalTargets offers lands (and X scales the count via the engine)", () => {
+        const l1 = makeInstance(stripMine.id, {
+            id: "l1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const creature = vanilla("creature", 2, 2, { controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [l1, creature] }),
+                makePlayer("p2"),
+            ],
+        });
+        const ids = getLegalTargets(
+            state,
+            candelabraOfTawnos.activatedAbilities![0].targetRequirement!,
+            [],
+            "p1",
+            1
+        ).map((t) => t.id);
+        expect(ids).toContain("l1");
+        expect(ids).not.toContain("creature");
     });
 });
