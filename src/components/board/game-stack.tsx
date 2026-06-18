@@ -76,7 +76,8 @@ export default function GameStack({ stack }: GameStackProps) {
                                 : abilityKind === "triggered"
                                   ? getTriggeredAbilityOracleText(
                                         item.card.id,
-                                        item.triggeredAbilityId!
+                                        item.triggeredAbilityId!,
+                                        item.grantedTriggeredAbilities
                                     )
                                   : null;
                         const isTargetable =

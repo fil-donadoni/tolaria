@@ -84,7 +84,7 @@ export default function CardPreviewAbilities({
                 <AbilityRow
                     key={`tr-${i}-${t.id}`}
                     text={t.oracleText}
-                    state="native"
+                    state={t.state}
                 />
             ))}
         </div>

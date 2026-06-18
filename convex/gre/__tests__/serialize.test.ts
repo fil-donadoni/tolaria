@@ -181,6 +181,14 @@ describe("game_state serialize round-trip", () => {
         lion.grantedActivatedAbilities = [
             { sourceCardId: "src", abilityId: "ability", auraId: "aura-1" },
         ];
+        // CR 113.1 — anthem-granted triggered ability reference (Energy Flux, #291).
+        lion.grantedTriggeredAbilities = [
+            {
+                sourceCardId: "energy-flux",
+                abilityId: "energy-flux-upkeep",
+                auraId: "flux-1",
+            },
+        ];
         lion.damagedBySources = ["bolt-1", "bolt-2"];
         lion.controlChanges = [
             { auraId: "aura-1", previousControllerId: "p1" },
@@ -238,6 +246,13 @@ describe("game_state serialize round-trip", () => {
         ]);
         expect(got.grantedActivatedAbilities).toEqual([
             { sourceCardId: "src", abilityId: "ability", auraId: "aura-1" },
+        ]);
+        expect(got.grantedTriggeredAbilities).toEqual([
+            {
+                sourceCardId: "energy-flux",
+                abilityId: "energy-flux-upkeep",
+                auraId: "flux-1",
+            },
         ]);
         expect(got.damagedBySources).toEqual(["bolt-1", "bolt-2"]);
         expect(got.controlChanges).toEqual([

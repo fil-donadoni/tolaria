@@ -93,6 +93,16 @@ export interface CardInstance {
         abilityId: string;
         auraId: string;
     }[];
+    /** Triggered abilities granted to this permanent by an anthem-style static
+     *  effect (CR 113.1, e.g. Energy Flux granting an upkeep sacrifice trigger
+     *  to every artifact). The template lives on the granting card's
+     *  `triggeredGrantTemplates` — UI resolves the oracle text via
+     *  `getCardById(grant.sourceCardId)`. */
+    grantedTriggeredAbilities?: {
+        sourceCardId: string;
+        abilityId: string;
+        auraId: string;
+    }[];
     /** Counters on this permanent (CR 122). Map of counter type → count.
      *  Layer 7d folds P/T-modifying types into effective stats; non-PT types
      *  (corpse, mire, vitality, ...) are inert to layers and read by

@@ -2870,3 +2870,79 @@ export const powerArtifact: CardDefinition = {
         },
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster N (#291) — grant a triggered ability to a filtered set. CR 113.1
+// (granted abilities) + CR 611 (continuous effects): an anthem grants a
+// triggered ability to every permanent matching a filter, continuously
+// recomputed as permanents enter and leave. Modeled with a new
+// `triggered-grant` static effect — the lord-style analogue of
+// `activated-grant` for triggers. The granted trigger's template lives on the
+// granting card's `triggeredGrantTemplates[]`; the grant is applied to current
+// and future matching permanents via `applySourceStaticEffects` /
+// `applyExistingGrantsTo` and reversed via `unapplySourceStaticEffects`, exactly
+// like the keyword/activated grants. `effectiveTriggeredAbilities` unions the
+// granted triggers into each recipient so the existing trigger collector and
+// resolution lookup observe them as if printed on the recipient — no change to
+// the scan loop itself. The granted trigger uses `scope: "your"`, whose
+// `self.controllerId` is the artifact's controller (CR 603.6a "your upkeep"),
+// and `ctx.sourceInstanceId` is the artifact ("sacrifice this artifact").
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** CR 205 — true if `target` is an Artifact (Energy Flux's affected set). Reads
+ *  the live `types` so an artifact animated by another effect still counts; the
+ *  set is recomputed as artifacts enter/leave. */
+const IS_ARTIFACT: (
+    target: PermanentView,
+    source: PermanentView,
+    ctx: import("../types").StaticEffectContext
+) => boolean = (target) => target.types.includes("Artifact");
+
+// Energy Flux — {2}{U} Enchantment. "All artifacts have 'At the beginning of
+// your upkeep, sacrifice this artifact unless you pay {2}.'" (CR 113.1 granted
+// ability + CR 611 continuous filtered set + CR 603.6a upkeep trigger + CR
+// 118 mana payment.) The granted trigger is attached to every artifact (either
+// player's) while Energy Flux is in play and detaches when it leaves; new
+// artifacts entering afterwards receive it too. Each artifact's controller, at
+// the start of their own upkeep, may pay {2} to keep it — otherwise it is
+// sacrificed. Each artifact gets its own trigger on the stack, so the
+// pay-or-sacrifice decision is independent per artifact (CR 603.3b).
+export const energyFlux: CardDefinition = {
+    id: "bd1f624b-e8f2-462f-838a-7cb9e8fda988",
+    name: "Energy Flux",
+    oracleText:
+        'All artifacts have "At the beginning of your upkeep, sacrifice this artifact unless you pay {2}."',
+    manaCost: { X: 2, U: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        // CR 113.1 / 611 — grant the upkeep trigger to every artifact.
+        {
+            kind: "triggered-grant",
+            applies: IS_ARTIFACT,
+            abilityId: "energy-flux-upkeep",
+        },
+    ],
+    // The granted template lives here, NOT on `triggeredAbilities`, so Energy
+    // Flux itself (an Enchantment, not an artifact) never fires it.
+    triggeredGrantTemplates: [
+        phaseTrigger({
+            id: "energy-flux-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice this artifact unless you pay {2}.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                // CR 118 — the artifact's controller may pay {2}; if they
+                // don't (or can't), the artifact is sacrificed (CR 701.16).
+                const paid = ctx.requestMayPay({
+                    playerId: scopedPlayerId,
+                    choiceId: `energy-flux-${ctx.sourceInstanceId}`,
+                    cost: { X: 2 },
+                    prompt: "Pay {2} or sacrifice this artifact?",
+                });
+                if (paid === undefined) return; // suspended for the choice
+                if (!paid) ctx.sacrifice(ctx.sourceInstanceId);
+            },
+        }),
+    ],
+};

@@ -89,17 +89,40 @@ export function effectiveTriggeredAbilities(
     card: CardInstanceState
 ): TriggeredAbility[] {
     // CR 613.1f — a permanent that "loses all abilities" (Titania's Song) has
-    // no triggered abilities while suppressed.
+    // no triggered abilities while suppressed (including granted ones).
     if (card.abilitiesSuppressedBy && card.abilitiesSuppressedBy.length > 0) {
         return [];
     }
     const presented = tryGetCardById(presentedDefId(card));
     const base = presented?.triggeredAbilities ?? [];
-    if (!card.copiedFrom) return [...base];
+    const granted = grantedTriggeredAbilities(card);
+    if (!card.copiedFrom) return [...base, ...granted];
     const printed = tryGetCardById(card.copiedFrom);
     const retained =
         printed?.triggeredAbilities?.filter((a) => a.retainedThroughCopy) ?? [];
-    return [...base, ...retained];
+    return [...base, ...retained, ...granted];
+}
+
+/** Triggered abilities granted to `card` by an anthem-style static effect
+ *  (CR 113.1, 611 — Energy Flux). Each `grantedTriggeredAbilities` entry
+ *  references a `triggeredGrantTemplates` template on the granting card's def;
+ *  resolved here so both the trigger collector and the resolution lookup
+ *  (`findTriggeredAbility`) observe the granted trigger as if it were printed
+ *  on the recipient. Templates that no longer exist (def changed) are skipped. */
+function grantedTriggeredAbilities(
+    card: CardInstanceState
+): TriggeredAbility[] {
+    const grants = card.grantedTriggeredAbilities;
+    if (!grants || grants.length === 0) return [];
+    const out: TriggeredAbility[] = [];
+    for (const grant of grants) {
+        const grantingDef = tryGetCardById(grant.sourceCardId);
+        const template = grantingDef?.triggeredGrantTemplates?.find(
+            (a) => a.id === grant.abilityId
+        );
+        if (template) out.push(template);
+    }
+    return out;
 }
 
 /** Resolves a single triggered ability by id for `card`, honoring abilities

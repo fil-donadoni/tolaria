@@ -215,6 +215,38 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Antiquities cluster N — grant a triggered ability to a filtered set
+        // (#291, CR 113.1 granted ability + CR 611 continuous filtered set +
+        // CR 603.6a your-upkeep trigger + CR 118 mana payment). Energy Flux:
+        // "All artifacts have 'At the beginning of your upkeep, sacrifice this
+        // artifact unless you pay {2}.'"
+        //   • Energy Flux is in play. EVERY artifact (yours and the opponent's:
+        //     Sol Ring, Ivory Tower, the opponent's Sol Ring) now shows the
+        //     granted upkeep trigger in its zoom panel. Ornithopter is also an
+        //     artifact, so it is taxed too; Grizzly Bears (not an artifact) is
+        //     untouched.
+        //   • Pass to YOUR upkeep: a separate "Pay {2} or sacrifice this
+        //     artifact?" trigger goes on the stack PER artifact you control.
+        //     Two Islands cover one {2} payment — pay to keep that artifact and
+        //     decline on the next to watch it hit the graveyard.
+        //   • The grant is recomputed continuously: cast a fresh artifact and
+        //     it gains the trigger; if Energy Flux leaves play the trigger
+        //     detaches from every artifact.
+        label: "Antiquities N: grant trigger to filtered set (Energy Flux)",
+        cards: [
+            { name: "Energy Flux", owner: "me" as const },
+            { name: "Sol Ring", owner: "me" as const },
+            { name: "Ivory Tower", owner: "me" as const },
+            { name: "Ornithopter", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 2 },
+            { name: "Sol Ring", owner: "opp" as const },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Antiquities cluster G — choose-body-on-entry creatures (#289, CR
         // 614.12). Both creatures pick their body "as they enter" via an
         // option-pick prompt; the chosen base P/T (and Primal Clay's keyword /
