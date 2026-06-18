@@ -42,6 +42,7 @@ import {
     applyCostIncrease,
     emitSpellCastEvent,
     emitPermanentTapped,
+    emitAbilityActivated,
     emitPermanentEntered,
     discardPermanentTappedEvent,
     processPendingActionTriggers,
@@ -507,7 +508,7 @@ function tryAutoCommitPendingActivation(
             : {}),
     };
     state.stack.push(stackItem);
-    recordActivation(card, pa.abilityId);
+    recordActivation(state, card, pa.abilityId, !!pa.tapSource);
 
     const keepPriority = pa.keepPriority;
     state.pendingActivation = undefined;
@@ -1105,12 +1106,32 @@ function assertActivationTimingLegal(
 }
 
 /** Records one activation of `abilityId` against `card` for the current turn
- *  (CR 602.5 — `oncePerTurn` enforcement). Initialises the counter map on
- *  first activation. Called at every activation commit site. */
-function recordActivation(card: CardInstanceState, abilityId: string): void {
+ *  (CR 602.5 — `oncePerTurn` enforcement) and emits the cluster-B
+ *  `ABILITY_ACTIVATED` event for non-{T} abilities (CR 602.1). Initialises the
+ *  counter map on first activation. Called at every activation commit site —
+ *  the single shared anchor, so every path (immediate, targeted, deferred
+ *  payment) fires the event exactly once.
+ *
+ *  The event is emitted only when the ability has NO {T} component: a {T}
+ *  ability already emitted `PERMANENT_TAPPED` from its tap, and the two events
+ *  are complements (see `AbilityActivatedEvent` doc). Passing `taps` makes the
+ *  gate explicit at every call site. */
+function recordActivation(
+    state: GameState,
+    card: CardInstanceState,
+    abilityId: string,
+    taps: boolean
+): void {
     const map: Record<string, number> = card.activationsThisTurn ?? {};
     map[abilityId] = (map[abilityId] ?? 0) + 1;
     card.activationsThisTurn = map;
+    // CR 602.1 — non-{T} activated abilities emit ABILITY_ACTIVATED so
+    // "tapped or non-tap ability activated" punishers (Haunting Wind,
+    // Powerleech, Artifact Possession) can react. {T} abilities are covered by
+    // PERMANENT_TAPPED instead, avoiding a double trigger.
+    if (!taps) {
+        emitAbilityActivated(state, card, abilityId);
+    }
 }
 
 /** Minimum number of targets required for a TargetRequirement.count value.
@@ -1314,11 +1335,15 @@ function finalizeTargetSelection(
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
         };
         state.stack.push(stackItem);
-        recordActivation(card, abilityId);
+        recordActivation(state, card, abilityId, !!ability.cost.tap);
         state.passCount = 0;
         state.priorityPlayerId = getOpponentId(state, playerId);
         state.singleShotAutoPass = keepPriority ? undefined : playerId;
         drainAutoPasses(state);
+        // CR 603.3 — flush ABILITY_ACTIVATED queued by recordActivation so the
+        // "non-tap ability activated" punisher lands on top of the freshly
+        // pushed ability (resolves first). No-op for {T} abilities.
+        processPendingActionTriggers(state);
         return;
     }
 
@@ -4050,13 +4075,17 @@ export const activateAbility = mutation({
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
         };
         state.stack.push(stackItem);
-        recordActivation(card, args.abilityId);
+        recordActivation(state, card, args.abilityId, !!ability.cost.tap);
         state.passCount = 0;
         state.priorityPlayerId = getOpponentId(state, args.playerId);
         state.singleShotAutoPass = args.keepPriority
             ? undefined
             : args.playerId;
         drainAutoPasses(state);
+        // CR 603.3 — flush ABILITY_ACTIVATED queued by recordActivation so the
+        // "non-tap ability activated" punisher lands on top of the freshly
+        // pushed ability (resolves first). No-op for {T} abilities.
+        processPendingActionTriggers(state);
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);

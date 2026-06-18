@@ -2683,6 +2683,32 @@ export function emitPermanentTapped(
     ];
 }
 
+/** Emits an ABILITY_ACTIVATED event for a non-mana activated ability that was
+ *  just committed to the stack (CR 602.1). This is the non-{T} complement of
+ *  `emitPermanentTapped`: callers gate on `!ability.cost.tap` so a {T} ability
+ *  (which already emits PERMANENT_TAPPED) is not double-counted. Together the
+ *  two events drive "whenever ~ is tapped or has a non-tap ability activated"
+ *  triggers (Antiquities cluster B — Haunting Wind, Powerleech, Artifact
+ *  Possession). Snapshots the source's controller/types/subtypes (CR 603.10
+ *  last-known information) so triggers can filter after the source leaves. */
+export function emitAbilityActivated(
+    state: GameState,
+    card: CardInstanceState,
+    abilityId: string
+): void {
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "ABILITY_ACTIVATED",
+            permanentId: card.id,
+            controllerId: card.controllerId,
+            permanentTypes: [...card.types],
+            permanentSubtypes: [...card.subtypes],
+            abilityId,
+        },
+    ];
+}
+
 /** Removes any queued PERMANENT_TAPPED event for `permanentId`. Called by
  *  payment-rollback paths (untapForPayment, cancelCast, cancelActivation) so
  *  a tap that was undone before commit doesn't fire its triggers. */

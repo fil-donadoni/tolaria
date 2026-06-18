@@ -97,6 +97,44 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Antiquities cluster B — "ability activated" trigger event (#285,
+        // CR 602.1 / 603.2). Three punishers react to BOTH halves of "an
+        // artifact is used": the artifact becoming tapped (PERMANENT_TAPPED)
+        // AND a non-{T} ability being activated (ABILITY_ACTIVATED):
+        //   • You control Haunting Wind ("1 dmg to that artifact's controller")
+        //     and Powerleech ("gain 1 when an OPPONENT'S artifact is used").
+        //   • The opponent controls Triskelion (3 +1/+1 counters). Pass to give
+        //     the opponent priority and right-click Triskelion → "Remove a +1/+1
+        //     counter: deal 1 damage". This is a NON-{T} ability, so it fires
+        //     ABILITY_ACTIVATED: Haunting Wind deals 1 to the opponent and
+        //     Powerleech gains you 1.
+        //   • Right-click the opponent's Millstone → "{T}, {2}: mill 2". That is
+        //     a {T} ability, so the TAP half (PERMANENT_TAPPED) fires the same
+        //     two triggers — no double count.
+        //   • Cast Artifact Possession (in your hand) onto the opponent's
+        //     Triskelion; now activating Triskelion ALSO deals 2 (the Aura).
+        label: "Antiquities B: ability-activated punishers (Haunting Wind / Powerleech / Artifact Possession)",
+        cards: [
+            { name: "Haunting Wind", owner: "me" as const },
+            { name: "Powerleech", owner: "me" as const },
+            {
+                name: "Artifact Possession",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 3 },
+            {
+                name: "Triskelion",
+                owner: "opp" as const,
+                counters: { "+1/+1": 3 },
+            },
+            { name: "Millstone", owner: "opp" as const },
+            { name: "Island", owner: "opp" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next battlefield tap/pay (#272). The spatial board's
         // battlefield is now interactive (?board=next) — load this and switch
         // the URL to ?board=next to exercise the foundational tap/pay slice:

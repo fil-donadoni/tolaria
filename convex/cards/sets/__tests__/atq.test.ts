@@ -62,6 +62,9 @@ import {
     urzasPowerPlant,
     urzasTower,
     urzasChalice as urzasChaliceDef,
+    hauntingWind,
+    powerleech,
+    artifactPossession,
 } from "../atq";
 import { getCardById, getInstanceManaCost } from "../..";
 import {
@@ -96,7 +99,7 @@ import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { getLegalTargets } from "../../../gre/rules";
 import { advancePhase, untapStep } from "../../../gre/phases";
 import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
-import type { CardType, BlockersConfirmedEvent } from "../../types";
+import type { CardType, BlockersConfirmedEvent, GameEvent } from "../../types";
 
 /** Submit the current head pending choice (zone-pick) with the given ordered
  *  ids. Auto-resumes the suspended resolution (mirrors the game.ts mutation). */
@@ -3624,5 +3627,343 @@ describe("Urza land trio (board-conditional mana, CR 106.1)", () => {
                 slimBattlefield as unknown as CardInstanceState[]
             )
         ).toBe(3);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Cluster B — "ability activated" trigger event (issue #285)
+// PERMANENT_TAPPED (CR 701.20a) + ABILITY_ACTIVATED (CR 602.1) punishers.
+// ---------------------------------------------------------------------------
+
+/** Synthetic ABILITY_ACTIVATED event over an artifact (CR 602.1). */
+function abilityActivatedEvent(overrides: {
+    permanentId: string;
+    controllerId: string;
+    permanentTypes?: CardType[];
+    abilityId?: string;
+}): GameEvent {
+    return {
+        type: "ABILITY_ACTIVATED" as const,
+        permanentId: overrides.permanentId,
+        controllerId: overrides.controllerId,
+        permanentTypes:
+            overrides.permanentTypes ?? (["Artifact"] as CardType[]),
+        permanentSubtypes: [],
+        abilityId: overrides.abilityId ?? "some-ability",
+    };
+}
+
+/** Synthetic PERMANENT_TAPPED event over an artifact (CR 701.20a). */
+function artifactTappedEvent(overrides: {
+    permanentId: string;
+    controllerId: string;
+    permanentTypes?: CardType[];
+}): GameEvent {
+    return {
+        type: "PERMANENT_TAPPED" as const,
+        permanentId: overrides.permanentId,
+        controllerId: overrides.controllerId,
+        permanentTypes:
+            overrides.permanentTypes ?? (["Artifact"] as CardType[]),
+        permanentSubtypes: [],
+        forMana: false,
+    };
+}
+
+describe("Haunting Wind (1 dmg on artifact tap or non-tap ability)", () => {
+    const self = {
+        id: "hw",
+        controllerId: "p1",
+        ownerId: "p1",
+        types: ["Enchantment"] as CardType[],
+        subtypes: [],
+        isTapped: false,
+        card: {},
+    };
+    const tappedTrig = hauntingWind.triggeredAbilities!.find(
+        (t) => t.id === "haunting-wind-tapped"
+    )!;
+    const abilityTrig = hauntingWind.triggeredAbilities!.find(
+        (t) => t.id === "haunting-wind-ability"
+    )!;
+
+    it("declares one PERMANENT_TAPPED and one ABILITY_ACTIVATED trigger", () => {
+        expect(tappedTrig.event).toBe("PERMANENT_TAPPED");
+        expect(abilityTrig.event).toBe("ABILITY_ACTIVATED");
+    });
+
+    it("tapped trigger fires for any artifact tap, ignores non-artifacts", () => {
+        expect(
+            tappedTrig.matches(
+                artifactTappedEvent({ permanentId: "a", controllerId: "p2" }),
+                self
+            )
+        ).toBe(true);
+        expect(
+            tappedTrig.matches(
+                artifactTappedEvent({
+                    permanentId: "a",
+                    controllerId: "p2",
+                    permanentTypes: ["Land"],
+                }),
+                self
+            )
+        ).toBe(false);
+    });
+
+    it("ability trigger fires for an artifact's non-tap ability, ignores non-artifacts", () => {
+        expect(
+            abilityTrig.matches(
+                abilityActivatedEvent({ permanentId: "a", controllerId: "p2" }),
+                self
+            )
+        ).toBe(true);
+        expect(
+            abilityTrig.matches(
+                abilityActivatedEvent({
+                    permanentId: "a",
+                    controllerId: "p2",
+                    permanentTypes: ["Creature"],
+                }),
+                self
+            )
+        ).toBe(false);
+        // Cross-wiring guard: the tapped trigger must NOT match the
+        // ABILITY_ACTIVATED event, and vice versa.
+        expect(
+            tappedTrig.matches(
+                abilityActivatedEvent({ permanentId: "a", controllerId: "p2" }),
+                self
+            )
+        ).toBe(false);
+        expect(
+            abilityTrig.matches(
+                artifactTappedEvent({ permanentId: "a", controllerId: "p2" }),
+                self
+            )
+        ).toBe(false);
+    });
+
+    it("resolves 1 damage to the artifact's controller on the ability event", () => {
+        const hw = makeInstance(hauntingWind.id, {
+            id: "hw",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hw], life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        fireTrigger(
+            state,
+            hw,
+            "haunting-wind-ability",
+            abilityActivatedEvent({ permanentId: "art", controllerId: "p2" })
+        );
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("wire format — damage to controller survives projection", () => {
+        const hw = makeInstance(hauntingWind.id, {
+            id: "hw",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hw], life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        fireTrigger(
+            state,
+            hw,
+            "haunting-wind-tapped",
+            artifactTappedEvent({ permanentId: "art", controllerId: "p2" })
+        );
+        expect(state.players[1].life).toBe(19);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[1].life).toBe(19);
+    });
+});
+
+describe("Powerleech (gain 1 on opponent artifact tap or non-tap ability)", () => {
+    const self = {
+        id: "pl",
+        controllerId: "p1",
+        ownerId: "p1",
+        types: ["Enchantment"] as CardType[],
+        subtypes: [],
+        isTapped: false,
+        card: {},
+    };
+    const tappedTrig = powerleech.triggeredAbilities!.find(
+        (t) => t.id === "powerleech-tapped"
+    )!;
+    const abilityTrig = powerleech.triggeredAbilities!.find(
+        (t) => t.id === "powerleech-ability"
+    )!;
+
+    it("fires only for an OPPONENT's artifact (scope: opponents)", () => {
+        // opponent (p2) artifact → both events match
+        expect(
+            tappedTrig.matches(
+                artifactTappedEvent({ permanentId: "a", controllerId: "p2" }),
+                self
+            )
+        ).toBe(true);
+        expect(
+            abilityTrig.matches(
+                abilityActivatedEvent({ permanentId: "a", controllerId: "p2" }),
+                self
+            )
+        ).toBe(true);
+        // own (p1) artifact → neither matches
+        expect(
+            tappedTrig.matches(
+                artifactTappedEvent({ permanentId: "a", controllerId: "p1" }),
+                self
+            )
+        ).toBe(false);
+        expect(
+            abilityTrig.matches(
+                abilityActivatedEvent({ permanentId: "a", controllerId: "p1" }),
+                self
+            )
+        ).toBe(false);
+    });
+
+    it("resolves +1 life to the enchantment's controller (both cases)", () => {
+        const make = () => {
+            const pl = makeInstance(powerleech.id, {
+                id: "pl",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            return {
+                pl,
+                state: makeState({
+                    players: [
+                        makePlayer("p1", { battlefield: [pl], life: 20 }),
+                        makePlayer("p2", { life: 20 }),
+                    ],
+                }),
+            };
+        };
+        const tap = make();
+        fireTrigger(
+            tap.state,
+            tap.pl,
+            "powerleech-tapped",
+            artifactTappedEvent({ permanentId: "art", controllerId: "p2" })
+        );
+        expect(tap.state.players[0].life).toBe(21);
+
+        const abil = make();
+        fireTrigger(
+            abil.state,
+            abil.pl,
+            "powerleech-ability",
+            abilityActivatedEvent({ permanentId: "art", controllerId: "p2" })
+        );
+        expect(abil.state.players[0].life).toBe(21);
+        // Wire format: life gain visible after projection.
+        const projected = projectPublicState(abil.state, 0, "p1");
+        expect(projected.players[0].life).toBe(21);
+    });
+});
+
+describe("Artifact Possession (Aura: 2 dmg on enchanted artifact tap/ability)", () => {
+    const tappedTrig = artifactPossession.triggeredAbilities!.find(
+        (t) => t.id === "artifact-possession-tapped"
+    )!;
+    const abilityTrig = artifactPossession.triggeredAbilities!.find(
+        (t) => t.id === "artifact-possession-ability"
+    )!;
+
+    it("is an Aura that enchants artifacts", () => {
+        expect(artifactPossession.subtypes).toContain("Aura");
+        expect(artifactPossession.targetRequirement).toEqual({
+            type: "Artifact",
+            count: 1,
+        });
+    });
+
+    it("fires only for the enchanted artifact (self.attachedTo host check)", () => {
+        const attached = {
+            id: "ap",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Enchantment"] as CardType[],
+            subtypes: ["Aura"],
+            isTapped: false,
+            attachedTo: "host",
+            card: {},
+        };
+        // enchanted artifact ("host") → matches
+        expect(
+            tappedTrig.matches(
+                artifactTappedEvent({
+                    permanentId: "host",
+                    controllerId: "p2",
+                }),
+                attached
+            )
+        ).toBe(true);
+        expect(
+            abilityTrig.matches(
+                abilityActivatedEvent({
+                    permanentId: "host",
+                    controllerId: "p2",
+                }),
+                attached
+            )
+        ).toBe(true);
+        // a DIFFERENT artifact → no match
+        expect(
+            abilityTrig.matches(
+                abilityActivatedEvent({
+                    permanentId: "other",
+                    controllerId: "p2",
+                }),
+                attached
+            )
+        ).toBe(false);
+        // unattached aura → no match
+        expect(
+            tappedTrig.matches(
+                artifactTappedEvent({
+                    permanentId: "host",
+                    controllerId: "p2",
+                }),
+                { ...attached, attachedTo: undefined }
+            )
+        ).toBe(false);
+    });
+
+    it("resolves 2 damage to the host artifact's controller", () => {
+        const ap = makeInstance(artifactPossession.id, {
+            id: "ap",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ap], life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        fireTrigger(
+            state,
+            ap,
+            "artifact-possession-ability",
+            abilityActivatedEvent({ permanentId: "host", controllerId: "p2" })
+        );
+        expect(state.players[1].life).toBe(18);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[1].life).toBe(18);
     });
 });
