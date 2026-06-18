@@ -24,7 +24,7 @@ import type { CardDefinition } from "../types";
 // Ornithopter — {0} Artifact Creature — Thopter, 0/2 with flying (CR 702.9).
 // The classic free flyer; a zero-cost evasive blocker/chump.
 export const ornithopter: CardDefinition = {
-    id: "8b4f1f8f-2d2e-4f1a-9a1c-0f1e4d3c2b1a",
+    id: "59cc9bdb-7cf2-4795-bac7-ffff605c9eb0",
     name: "Ornithopter",
     oracleText: "Flying",
     manaCost: {},
@@ -38,7 +38,7 @@ export const ornithopter: CardDefinition = {
 // Yotian Soldier — {3} Artifact Creature — Soldier, 1/4 with vigilance
 // (CR 702.21). A durable attacker that stays back to block.
 export const yotianSoldier: CardDefinition = {
-    id: "6c3e2a7b-9d4f-4c8a-b2e1-7a5d8c9b0e2f",
+    id: "27cf53e3-76f6-4831-800e-1259394d779d",
     name: "Yotian Soldier",
     oracleText: "Vigilance",
     manaCost: { X: 3 },

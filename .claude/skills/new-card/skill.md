@@ -23,13 +23,27 @@ Prefer `exact=` over `fuzzy=` to avoid ambiguity. Replace spaces with `+`.
 
 Extract: name, mana_cost, type_line, oracle_text, power, toughness, loyalty.
 
+**Card `id` (mandatory):** the `id` is NOT a fresh UUID. It is the card's
+`identifiers.scryfallId` from the set's MTGJSON file under `data/json/<SET>.json`
+(the Scryfall card object's own `id` field equals this value). The id is what
+maps a card to its art, so an invented UUID silently breaks the image. Pull it
+with:
+
+```sh
+jq -r '.data.cards[] | select(.name=="<Card Name>") | .identifiers.scryfallId' data/json/<SET>.json
+```
+
+A per-set test guard (`convex/cards/sets/__tests__/card-id-scryfall.test.ts`)
+fails the gate if any card `id` is not a real scryfallId from its set JSON —
+do not work around it, fix the id.
+
 ### Step 2 — Map to CardDefinition
 
 Use the interface from `convex/cards/types.ts`:
 
 ```typescript
 export interface CardDefinition {
-    id: CardId; // UUID — generate with crypto.randomUUID()
+    id: CardId; // = the card's `identifiers.scryfallId` from the set's MTGJSON file — NEVER generate a fresh UUID
     name: string;
     manaCost?: ManaCost; // { X?, W?, U?, B?, R?, G?, C? }
     types: CardType[];
@@ -115,7 +129,7 @@ Report clearly what works and what needs engine extensions.
 - [ ] Keywords mapped to staticAbilities
 - [ ] TargetRequirement set for targeted spells
 - [ ] resolve() uses only existing SpellContext methods
-- [ ] ID is a valid UUID
+- [ ] `id` == the card's `identifiers.scryfallId` from `data/json/<SET>.json` (NOT a generated UUID)
 - [ ] All matching `CardPrint` stubs in `convex/cards/sets/*.ts` uncommented (Step 5b)
 
 The deck builder's card list is computed in-memory from
