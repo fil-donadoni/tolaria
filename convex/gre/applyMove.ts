@@ -30,12 +30,14 @@ import type { CardInstanceState, GameState, StackItem } from "./state";
 import {
     moveCard,
     removeFromZone,
+    removePermanentTo,
     resolveTopOfStack,
     emitPermanentEntered,
     processPendingActionTriggers,
     getOpponentId,
     tapPermanent,
 } from "./state";
+import { matchesPermanentFilter } from "../cards/filters";
 import { checkStateBasedActions } from "./sba";
 import { applyAllCombatDamage, buildAutoDamageAssignments } from "./phases";
 import { recordBlockedAttackers } from "./banding";
@@ -227,6 +229,50 @@ export function applyMoveForSearch(
                         (a) => a.id === move.abilityId
                     );
                     if (ability?.cost.tap) src.isTapped = true;
+                    // CR 602.1 — sacrifice costs change the board materially, so
+                    // they're applied in the search slice (even though the
+                    // ability's effect resolves later) to keep the evaluated
+                    // position honest. Self-sacrifice removes the source; a
+                    // filtered sacrifice removes the lowest-mana-value matching
+                    // permanent (a conservative deterministic pick — the bot
+                    // doesn't model the human's free choice here).
+                    if (ability?.cost.sacrifice) {
+                        removePermanentTo(next, src.id, "graveyard");
+                    } else if (ability?.cost.sacrificeFilter) {
+                        const owner = next.players.find((p) =>
+                            p.battlefield.some((c) => c.id === src!.id)
+                        );
+                        const candidates = (owner?.battlefield ?? []).filter(
+                            (c) =>
+                                matchesPermanentFilter(
+                                    c,
+                                    ability.cost.sacrificeFilter!
+                                )
+                        );
+                        if (candidates.length > 0) {
+                            const pick = candidates.reduce((lo, c) => {
+                                const mv = (d: CardInstanceState) => {
+                                    const cd = tryGetCardById(
+                                        (d.card as { id?: string }).id ?? ""
+                                    );
+                                    return cd?.manaCost
+                                        ? Object.values(
+                                              cd.manaCost
+                                          ).reduce<number>(
+                                              (a, v) =>
+                                                  a +
+                                                  (typeof v === "number"
+                                                      ? v
+                                                      : 0),
+                                              0
+                                          )
+                                        : 0;
+                                };
+                                return mv(c) < mv(lo) ? c : lo;
+                            });
+                            removePermanentTo(next, pick.id, "graveyard");
+                        }
+                    }
                 }
             }
             checkStateBasedActions(next);

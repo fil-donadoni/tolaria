@@ -80,6 +80,14 @@ export function useBattlefieldVisualState(player: Player) {
         !!pendingCast.additionalCost &&
         !pendingCast.additionalCost.pickedId;
 
+    // Activated-ability sacrifice-cost picker (CR 602.1 / 118.5).
+    const isPickingActivationCost =
+        isMe &&
+        !!pendingActivation &&
+        pendingActivation.playerId === playerId &&
+        !!pendingActivation.sacrificeChoice &&
+        !pendingActivation.sacrificeChoice.pickedId;
+
     const isSelectingAttackers =
         phase === "DECLARE_ATTACKERS" &&
         !!combat &&
@@ -165,6 +173,13 @@ export function useBattlefieldVisualState(player: Player) {
             return matchesPermanentFilter(
                 card,
                 pendingCast.additionalCost.filter
+            );
+        }
+
+        if (isPickingActivationCost && pendingActivation?.sacrificeChoice) {
+            return matchesPermanentFilter(
+                card,
+                pendingActivation.sacrificeChoice.filter
             );
         }
 
@@ -325,6 +340,26 @@ export function useBattlefieldVisualState(player: Player) {
         if (!ringClass && isChoiceSelected) {
             ringClass = "ring-2 ring-[#c8a060] rounded-sm";
         } else if (!ringClass && isValidChoice) {
+            ringClass = "ring-2 ring-[#c8a060]/40 rounded-sm";
+        }
+
+        // Sacrifice-cost picker highlight (CR 117.9 spell additional cost /
+        // CR 602.1 activated-ability sacrifice cost). Same gold ring as a
+        // resolution choice so eligible permanents read as clickable.
+        const isValidSacrificePick =
+            (isPickingAdditionalCost &&
+                !!pendingCast?.additionalCost &&
+                matchesPermanentFilter(
+                    card,
+                    pendingCast.additionalCost.filter
+                )) ||
+            (isPickingActivationCost &&
+                !!pendingActivation?.sacrificeChoice &&
+                matchesPermanentFilter(
+                    card,
+                    pendingActivation.sacrificeChoice.filter
+                ));
+        if (!ringClass && isValidSacrificePick) {
             ringClass = "ring-2 ring-[#c8a060]/40 rounded-sm";
         }
 

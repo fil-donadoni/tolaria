@@ -89,6 +89,7 @@ export function useBattlefieldInteraction(player: Player) {
     const assignBlockerTarget = useMutation(api.game.assignBlockerTarget);
     const selectTarget = useMutation(api.game.selectTarget);
     const selectAdditionalCost = useMutation(api.game.selectAdditionalCost);
+    const selectActivationCost = useMutation(api.game.selectActivationCost);
     const activateAbility = useMutation(api.game.activateAbility);
     const bufferCtx = usePendingChoiceBuffer();
 
@@ -171,6 +172,16 @@ export function useBattlefieldInteraction(player: Player) {
         !!pendingCast.additionalCost &&
         !pendingCast.additionalCost.pickedId;
 
+    // Activated-ability sacrifice-cost picker (CR 602.1 / 118.5). Active when
+    // this player's pendingActivation is waiting for them to pick a permanent
+    // to sacrifice. Routes clicks to selectActivationCost.
+    const isPickingActivationCost =
+        isMe &&
+        !!pendingActivation &&
+        pendingActivation.playerId === playerId &&
+        !!pendingActivation.sacrificeChoice &&
+        !pendingActivation.sacrificeChoice.pickedId;
+
     const isSelectingAttackers =
         phase === "DECLARE_ATTACKERS" &&
         !!combat &&
@@ -226,6 +237,17 @@ export function useBattlefieldInteraction(player: Player) {
         if (isPickingAdditionalCost) {
             guardMutation(
                 selectAdditionalCost({
+                    gameId,
+                    playerId,
+                    cardInstanceId: card.id,
+                })
+            );
+            return;
+        }
+
+        if (isPickingActivationCost) {
+            guardMutation(
+                selectActivationCost({
                     gameId,
                     playerId,
                     cardInstanceId: card.id,

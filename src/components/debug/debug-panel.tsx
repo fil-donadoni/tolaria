@@ -61,6 +61,42 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Antiquities cluster A — sacrifice-as-activation-cost (#282, CR 602.1 /
+        // 118.5). The activated-ability cost can require sacrificing a CHOSEN
+        // permanent matching a filter:
+        //   • Right-click Atog → "Sacrifice an artifact: +2/+2". The sacrifice
+        //     picker opens (your artifacts ring up); click one to sacrifice it
+        //     and resolve the pump (the spent artifact goes to the graveyard).
+        //   • Right-click Priest of Yawgmoth (during a main phase) → "{T}, Sac
+        //     an artifact: Add {B} = sacrificed mv". Sacrifice the {3} Yotian
+        //     Soldier and three black mana enter your pool.
+        //   • Right-click Orcish Mechanics → "{T}, Sac an artifact: 2 damage any
+        //     target"; pick the sacrifice, then a target. Ashnod's Altar adds
+        //     {C}{C} by sacrificing a creature.
+        //   • Advance to your UPKEEP and right-click Gate to Phyrexia (once per
+        //     turn) or Dwarven Weaponsmith for the upkeep-restricted abilities.
+        // Trying to activate with no matching permanent is rejected.
+        label: "Antiquities A: sacrifice-as-cost engines (Atog / Altar / Priest)",
+        cards: [
+            { name: "Atog", owner: "me" as const },
+            { name: "Ashnod's Altar", owner: "me" as const },
+            { name: "Orcish Mechanics", owner: "me" as const },
+            { name: "Sage of Lat-Nam", owner: "me" as const },
+            { name: "Priest of Yawgmoth", owner: "me" as const },
+            { name: "Dwarven Weaponsmith", owner: "me" as const },
+            { name: "Gate to Phyrexia", owner: "me" as const },
+            { name: "Ornithopter", owner: "me" as const, count: 2 },
+            { name: "Yotian Soldier", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            { name: "Triskelion", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next battlefield tap/pay (#272). The spatial board's
         // battlefield is now interactive (?board=next) — load this and switch
         // the URL to ?board=next to exercise the foundational tap/pay slice:
