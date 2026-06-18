@@ -1,0 +1,476 @@
+// Targeting + mid-resolution choice + additional-cost parity (PRD #249, issue
+// #279). The spatial board's battlefield card (`BoardNextBattlefieldCard`, wired
+// by `BoardNextBattlefield`) and the classic board (`PlayerBattlefield`) BOTH
+// consume the extracted `useBattlefieldInteraction` hook, so the selection
+// click-paths dispatch the SAME GRE-boundary mutation / toggle the SAME buffer
+// on either board:
+//  (a) target selection  → selectTarget (gated by matchesTargetRequirement)
+//  (b) additional cost    → selectAdditionalCost (CR 117.9)
+//  (c) battlefield choice → buffer.toggle (CR 608.2): own / cross-player
+//      (zoneOwnerId) / all-controllers
+//  (d) hand choice        → buffer.toggle on the viewer's own spatial hand card,
+//      matching the classic `selectable-card` hand-choice path
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, fireEvent, cleanup } from "@testing-library/react";
+import type { CardInstance, Player } from "~/types/game";
+import { GameContext } from "~/hooks/useGameContext";
+import {
+    PendingChoiceBufferContext,
+    type PendingChoiceBuffer,
+} from "~/hooks/usePendingChoiceBuffer";
+
+// --- Mutation capture: each api.game.* ref resolves to its own spy ---
+type MutArgs = Record<string, unknown>;
+type MutFn = (args?: MutArgs) => Promise<void>;
+const selectTarget = vi.fn<MutFn>(() => Promise.resolve());
+const selectAdditionalCost = vi.fn<MutFn>(() => Promise.resolve());
+const tapUntap = vi.fn<MutFn>(() => Promise.resolve());
+const playCard = vi.fn<MutFn>(() => Promise.resolve());
+const announceCast = vi.fn<MutFn>(() => Promise.resolve());
+const noop = vi.fn<MutFn>(() => Promise.resolve());
+
+const MUTATIONS: Record<string, ReturnType<typeof vi.fn>> = {
+    selectTarget,
+    selectAdditionalCost,
+    tapUntap,
+    playCard,
+    announceCast,
+};
+
+vi.mock("convex/react", () => ({
+    useMutation: (ref: { _name: string }) => MUTATIONS[ref._name] ?? noop,
+}));
+
+vi.mock("@convex/_generated/api", () => {
+    const names = [
+        "tapUntap",
+        "tapForPayment",
+        "untapForPayment",
+        "tapForActivationPayment",
+        "untapForActivationPayment",
+        "toggleAttacker",
+        "selectBlocker",
+        "assignBlockerTarget",
+        "selectTarget",
+        "selectAdditionalCost",
+        "activateAbility",
+        "playCard",
+        "announceCast",
+    ];
+    const game: Record<string, { _name: string }> = {};
+    for (const n of names) game[n] = { _name: n };
+    return { api: { game } };
+});
+
+// A plain creature def (no mana / activated abilities) so a click during
+// targeting / choice routes straight to the selection branch.
+const CREATURE_DEF = { id: "creature-def", name: "Grizzly Bears" };
+vi.mock("@convex/cards", () => ({
+    getCardById: () => CREATURE_DEF,
+    tryGetCardById: () => CREATURE_DEF,
+}));
+
+// Inert visuals so the test sees only the gesture + dispatch.
+vi.mock("../../cards/card-image", () => ({
+    default: () => <div data-testid="card-image" />,
+}));
+vi.mock("../card-tilt-3d", () => ({
+    default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+// SpatialZone measures its box via ResizeObserver; stub it so layout doesn't
+// matter — we only need the card node mounted and clickable.
+vi.mock("../spatial-zone", () => ({
+    default: ({
+        items,
+    }: {
+        items: { key: string; node: React.ReactNode }[];
+    }) => (
+        <div data-testid="spatial-zone">
+            {items.map((it) => (
+                <div key={it.key}>{it.node}</div>
+            ))}
+        </div>
+    ),
+}));
+// Classic board renders BattlefieldCard; keep its click wiring but strip the
+// heavy chrome to a thin clickable shell. Reflect interactivity so we can also
+// assert the legal-target / legal-choice enablement matches the spatial card.
+vi.mock("../battlefield-card", () => ({
+    default: ({
+        card,
+        vs,
+        onClick,
+    }: {
+        card: CardInstance;
+        vs: { interactive: boolean; enabled: boolean };
+        onClick: (e: React.MouseEvent) => void;
+    }) => (
+        <div
+            data-classic-card={card.id}
+            data-interactive={vs.interactive ? "true" : "false"}
+            data-enabled={vs.enabled ? "true" : "false"}
+            onClick={(e) => onClick(e)}
+        />
+    ),
+}));
+
+import BoardNextBattlefield from "../board-next-battlefield";
+import PlayerBattlefield from "../player-battlefield";
+import BoardNextHandCard from "../board-next-hand-card";
+import SelectableCard from "../../cards/selectable-card";
+
+function creature(id: string, ownerId = "me"): CardInstance {
+    return {
+        id,
+        card: { id: "creature-def" },
+        controllerId: ownerId,
+        ownerId,
+        zone: "battlefield",
+        isTapped: false,
+        types: ["Creature"],
+    } as CardInstance;
+}
+
+function handCard(id: string, ownerId = "me"): CardInstance {
+    return {
+        id,
+        card: { id: "creature-def" },
+        controllerId: ownerId,
+        ownerId,
+        zone: "hand",
+        isTapped: false,
+        types: ["Creature"],
+        legalActions: ["cast"],
+    } as CardInstance;
+}
+
+function makePlayer(id: string, battlefield: CardInstance[]): Player {
+    return {
+        id,
+        name: id,
+        bgColor: "#000",
+        life: 20,
+        hand: [],
+        library: { count: 0 },
+        graveyard: [],
+        exile: [],
+        battlefield,
+        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+    };
+}
+
+// A controllable buffer spy shared between renders so we can assert toggle()
+// is called with the clicked id on either board.
+let bufferToggle: ReturnType<typeof vi.fn<(id: string) => void>>;
+let bufferState: string[];
+function makeBuffer(): PendingChoiceBuffer {
+    return {
+        buffer: bufferState,
+        toggle: bufferToggle,
+        clear: vi.fn(),
+        submit: vi.fn(() => Promise.resolve()),
+        isPending: false,
+        lastError: null,
+        dismissError: vi.fn(),
+    };
+}
+
+function makeContext(
+    players: Player[],
+    overrides: Partial<React.ContextType<typeof GameContext>> = {}
+): React.ContextType<typeof GameContext> {
+    return {
+        gameId: "game-id" as never,
+        playerId: "me",
+        activePlayerId: "me",
+        priorityPlayerId: "me",
+        phase: "PRECOMBAT_MAIN",
+        turn: 1,
+        stackCount: 0,
+        allPlayers: players,
+        showAllCards: false,
+        debugAllActions: false,
+        ...overrides,
+    } as React.ContextType<typeof GameContext>;
+}
+
+function renderSpatialBf(
+    player: Player,
+    players: Player[],
+    ctx?: Partial<React.ContextType<typeof GameContext>>
+) {
+    return render(
+        <GameContext value={makeContext(players, ctx)}>
+            <PendingChoiceBufferContext value={makeBuffer()}>
+                <BoardNextBattlefield player={player} />
+            </PendingChoiceBufferContext>
+        </GameContext>
+    );
+}
+
+function renderClassicBf(
+    player: Player,
+    players: Player[],
+    ctx?: Partial<React.ContextType<typeof GameContext>>
+) {
+    return render(
+        <GameContext value={makeContext(players, ctx)}>
+            <PendingChoiceBufferContext value={makeBuffer()}>
+                <PlayerBattlefield player={player} />
+            </PendingChoiceBufferContext>
+        </GameContext>
+    );
+}
+
+function clearAll() {
+    for (const m of Object.values(MUTATIONS)) m.mockClear();
+    bufferToggle.mockClear();
+}
+
+beforeEach(() => {
+    bufferToggle = vi.fn<(id: string) => void>();
+    bufferState = [];
+    clearAll();
+    cleanup();
+});
+
+const spatialCard = (root: ParentNode, id: string) =>
+    root.querySelector(`[data-arrow-anchor-permanent="${id}"]`)!;
+const classicCard = (id: string) =>
+    document.querySelector(`[data-classic-card="${id}"]`)!;
+
+describe("board-next targeting parity (#279)", () => {
+    it("(a) clicking a legal permanent dispatches the SAME selectTarget args on both boards", () => {
+        const me = makePlayer("me", [creature("bear1")]);
+        const targetCtx: Partial<React.ContextType<typeof GameContext>> = {
+            pendingTarget: {
+                playerId: "me",
+                targetType: "Creature",
+                selected: [],
+            } as never,
+        };
+
+        renderClassicBf(me, [me], targetCtx);
+        fireEvent.click(classicCard("bear1"));
+        const classicArgs = selectTarget.mock.calls[0][0];
+
+        clearAll();
+        cleanup();
+
+        const { container } = renderSpatialBf(me, [me], targetCtx);
+        fireEvent.click(spatialCard(container, "bear1"));
+        const spatialArgs = selectTarget.mock.calls[0][0];
+
+        expect(spatialArgs).toEqual(classicArgs);
+        expect(spatialArgs).toMatchObject({
+            gameId: "game-id",
+            playerId: "me",
+            targetType: "permanent",
+            targetId: "bear1",
+        });
+    });
+
+    it("an illegal target (wrong type) is inert on the spatial board", () => {
+        const me = makePlayer("me", [creature("bear1")]);
+        const targetCtx: Partial<React.ContextType<typeof GameContext>> = {
+            // "Land" doesn't match a creature → matchesTargetRequirement false.
+            pendingTarget: {
+                playerId: "me",
+                targetType: "Land",
+                selected: [],
+            } as never,
+        };
+        const { container } = renderSpatialBf(me, [me], targetCtx);
+        fireEvent.click(spatialCard(container, "bear1"));
+        expect(selectTarget).not.toHaveBeenCalled();
+    });
+});
+
+describe("board-next additional-cost parity (#279, CR 117.9)", () => {
+    it("(b) clicking a battlefield permanent dispatches the SAME selectAdditionalCost args on both boards", () => {
+        const me = makePlayer("me", [creature("bear1")]);
+        const costCtx: Partial<React.ContextType<typeof GameContext>> = {
+            pendingCast: {
+                playerId: "me",
+                tappedLandIds: [],
+                additionalCost: {
+                    filter: { types: "Creature" },
+                    pickedId: undefined,
+                },
+            } as never,
+        };
+
+        renderClassicBf(me, [me], costCtx);
+        fireEvent.click(classicCard("bear1"));
+        const classicArgs = selectAdditionalCost.mock.calls[0][0];
+
+        clearAll();
+        cleanup();
+
+        const { container } = renderSpatialBf(me, [me], costCtx);
+        fireEvent.click(spatialCard(container, "bear1"));
+        const spatialArgs = selectAdditionalCost.mock.calls[0][0];
+
+        expect(spatialArgs).toEqual(classicArgs);
+        expect(spatialArgs).toMatchObject({
+            gameId: "game-id",
+            playerId: "me",
+            cardInstanceId: "bear1",
+        });
+    });
+});
+
+describe("board-next battlefield choice parity (#279, CR 608.2)", () => {
+    function choiceCtx(
+        extra: Record<string, unknown> = {}
+    ): Partial<React.ContextType<typeof GameContext>> {
+        return {
+            pendingChoices: [
+                {
+                    playerId: "me",
+                    zone: "battlefield",
+                    kind: "choose-permanents",
+                    stackItemId: "s1",
+                    step: 0,
+                    choiceId: "c1",
+                    ...extra,
+                },
+            ] as never,
+        };
+    }
+
+    it("(c-own) toggles the buffer with the clicked id on both boards (own battlefield)", () => {
+        const me = makePlayer("me", [creature("bear1")]);
+
+        renderClassicBf(me, [me], choiceCtx());
+        fireEvent.click(classicCard("bear1"));
+        expect(bufferToggle).toHaveBeenCalledWith("bear1");
+
+        bufferToggle.mockClear();
+        cleanup();
+
+        const { container } = renderSpatialBf(me, [me], choiceCtx());
+        fireEvent.click(spatialCard(container, "bear1"));
+        expect(bufferToggle).toHaveBeenCalledWith("bear1");
+    });
+
+    it("(c-cross) a cross-player pick (zoneOwnerId) toggles on the zone owner's spatial battlefield", () => {
+        // "me" is the chooser; the choice picks from "opp"'s battlefield.
+        const me = makePlayer("me", []);
+        const opp = makePlayer("opp", [creature("oppbear", "opp")]);
+        const ctx = choiceCtx({ zoneOwnerId: "opp" });
+
+        // Classic: render the OPPONENT's battlefield (the zone owner) — the
+        // chooser is still "me" via context.playerId.
+        renderClassicBf(opp, [me, opp], ctx);
+        fireEvent.click(classicCard("oppbear"));
+        expect(bufferToggle).toHaveBeenCalledWith("oppbear");
+
+        bufferToggle.mockClear();
+        cleanup();
+
+        const { container } = renderSpatialBf(opp, [me, opp], ctx);
+        fireEvent.click(spatialCard(container, "oppbear"));
+        expect(bufferToggle).toHaveBeenCalledWith("oppbear");
+    });
+
+    it("(c-all) an all-controllers pick is interactive on every battlefield", () => {
+        const me = makePlayer("me", [creature("mybear")]);
+        const opp = makePlayer("opp", [creature("oppbear", "opp")]);
+        const ctx = choiceCtx({ allControllers: true });
+
+        // The chooser can pick from the opponent's battlefield too.
+        const { container } = renderSpatialBf(opp, [me, opp], ctx);
+        fireEvent.click(spatialCard(container, "oppbear"));
+        expect(bufferToggle).toHaveBeenCalledWith("oppbear");
+
+        bufferToggle.mockClear();
+        cleanup();
+
+        // ...and from their own.
+        const own = renderSpatialBf(me, [me, opp], ctx);
+        fireEvent.click(spatialCard(own.container, "mybear"));
+        expect(bufferToggle).toHaveBeenCalledWith("mybear");
+    });
+});
+
+describe("board-next hand choice parity (#279, CR 608.2)", () => {
+    function handChoiceCtx(): Partial<React.ContextType<typeof GameContext>> {
+        return {
+            pendingChoices: [
+                {
+                    playerId: "me",
+                    zone: "hand",
+                    kind: "discard-hand",
+                    stackItemId: "s1",
+                    step: 0,
+                    choiceId: "c1",
+                },
+            ] as never,
+        };
+    }
+
+    function renderSpatialHand(card: CardInstance) {
+        return render(
+            <GameContext
+                value={makeContext([makePlayer("me", [])], handChoiceCtx())}
+            >
+                <PendingChoiceBufferContext value={makeBuffer()}>
+                    <BoardNextHandCard card={card} />
+                </PendingChoiceBufferContext>
+            </GameContext>
+        );
+    }
+
+    function renderClassicHand(card: CardInstance) {
+        return render(
+            <GameContext
+                value={makeContext([makePlayer("me", [])], handChoiceCtx())}
+            >
+                <PendingChoiceBufferContext value={makeBuffer()}>
+                    <SelectableCard cardInstance={card} />
+                </PendingChoiceBufferContext>
+            </GameContext>
+        );
+    }
+
+    it("(d) clicking the viewer's own spatial hand card toggles the buffer — NOT a cast", () => {
+        const card = handCard("h1");
+        const { container } = renderSpatialHand(card);
+        const el = container.querySelector('[data-board-hand-card="h1"]')!;
+        expect(el.getAttribute("data-choice-selectable")).toBe("true");
+        fireEvent.click(el);
+        expect(bufferToggle).toHaveBeenCalledWith("h1");
+        // The drag-to-cast pipeline is suppressed during a hand choice.
+        expect(announceCast).not.toHaveBeenCalled();
+        expect(playCard).not.toHaveBeenCalled();
+    });
+
+    it("parity: both boards toggle the SAME id for a hand choice", () => {
+        const card = handCard("h1");
+
+        renderClassicHand(card);
+        // Classic selectable-card renders a clickable choice wrapper around the
+        // card image; click it.
+        fireEvent.click(document.querySelector('[class*="ring-violet"]')!);
+        expect(bufferToggle).toHaveBeenCalledWith("h1");
+
+        bufferToggle.mockClear();
+        cleanup();
+
+        const { container } = renderSpatialHand(card);
+        fireEvent.click(
+            container.querySelector('[data-board-hand-card="h1"]')!
+        );
+        expect(bufferToggle).toHaveBeenCalledWith("h1");
+    });
+
+    it("an opponent's hand card is NOT choice-selectable (ownerId mismatch)", () => {
+        const card = handCard("oh1", "opp");
+        // Spatial board only ever renders BoardNextHandCard for the viewer's own
+        // hand, but the guard must still hold defensively.
+        const { container } = renderSpatialHand(card);
+        const el = container.querySelector('[data-board-hand-card="oh1"]')!;
+        expect(el.getAttribute("data-choice-selectable")).toBeNull();
+    });
+});

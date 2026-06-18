@@ -8,6 +8,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import type { CardInstance } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
+import {
+    PendingChoiceBufferContext,
+    type PendingChoiceBuffer,
+} from "~/hooks/usePendingChoiceBuffer";
+
+// A no-op buffer so the hand card's unconditional `usePendingChoiceBuffer()`
+// has a provider in these drag/cast tests (no choice is active here).
+const noopBuffer: PendingChoiceBuffer = {
+    buffer: [],
+    toggle: vi.fn(),
+    clear: vi.fn(),
+    submit: vi.fn(() => Promise.resolve()),
+    isPending: false,
+    lastError: null,
+    dismissError: vi.fn(),
+};
 
 // Capture mutation dispatches. useMutation(api.game.playCard / announceCast)
 // returns one of these spies keyed by the function reference's marker.
@@ -93,7 +109,9 @@ function renderCard(card: CardInstance) {
     } as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>
-            <BoardNextHandCard card={card} />
+            <PendingChoiceBufferContext value={noopBuffer}>
+                <BoardNextHandCard card={card} />
+            </PendingChoiceBufferContext>
         </GameContext>
     );
 }
