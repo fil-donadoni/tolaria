@@ -2389,6 +2389,44 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // ATQ free tranche (#273) — keyword artifact creatures & simple
+        // permanents, all expressed with existing primitives. Starts in your
+        // UPKEEP with a tapped Colossus so every activated ability is live:
+        //   • Colossus of Sardia ({9}, 9/9 trample, does-not-untap): tapped —
+        //     activate "{9}: Untap this creature" (only legal in your upkeep)
+        //     to stand it back up.
+        //   • Dragon Engine ({3}, 1/3): "{2}: +1/+0 until end of turn" — pump it.
+        //   • Clay Statue ({4}, 3/1): "{2}: Regenerate this creature."
+        //   • Grapeshot Catapult ({4}, 2/3): "{T}: 1 damage to target creature
+        //     with flying" — aim at the opponent's Ornithopter.
+        //   • Wall of Spears ({3}, 2/3 defender + first strike) — block to see
+        //     first strike kill an attacker before it swings back.
+        //   • Strip Mine (land): "{T}: Add {C}" and "{T}, Sacrifice: Destroy
+        //     target land" — blow up the opponent's Mountain.
+        //   • Obelisk of Undoing: "{6}, {T}: Return target permanent you both
+        //     own and control to your hand" — bounce one of your own permanents.
+        // A pile of Mountains pays the activated costs.
+        label: "ATQ: free tranche (Colossus / Dragon Engine / Strip Mine / Obelisk)",
+        cards: [
+            {
+                name: "Colossus of Sardia",
+                owner: "me" as const,
+                tapped: true,
+            },
+            { name: "Dragon Engine", owner: "me" as const },
+            { name: "Clay Statue", owner: "me" as const },
+            { name: "Grapeshot Catapult", owner: "me" as const },
+            { name: "Wall of Spears", owner: "me" as const },
+            { name: "Strip Mine", owner: "me" as const },
+            { name: "Obelisk of Undoing", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 9 },
+            { name: "Ornithopter", owner: "opp" as const },
+            { name: "Mountain", owner: "opp" as const },
+        ],
+        phase: "UPKEEP",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
