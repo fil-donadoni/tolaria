@@ -4345,6 +4345,10 @@ export const debugSetupScenario = mutation({
                  *  colourless vanilla creature whose real identity is hidden
                  *  from the opponent. Battlefield only. */
                 faceDown: v.optional(v.boolean()),
+                /** Pre-seed counters (CR 122) on a battlefield permanent —
+                 *  e.g. `{ "+1/+1": 3 }` for Triskelion or `{ doom: 2 }` for
+                 *  Armageddon Clock. Keyed by counter type. Battlefield only. */
+                counters: v.optional(v.record(v.string(), v.number())),
             })
         ),
         phase: v.optional(v.string()),
@@ -4428,6 +4432,11 @@ export const debugSetupScenario = mutation({
                     }
                     if (entry.faceDown) {
                         turnFaceDown(instance as CardInstanceState);
+                    }
+                    if (entry.counters) {
+                        (instance as CardInstanceState).counters = {
+                            ...entry.counters,
+                        };
                     }
                     player.battlefield.push(instance);
                 }

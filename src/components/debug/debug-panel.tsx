@@ -42,6 +42,9 @@ type PresetScenario = {
         /** Place face down (CR 708.2): a 2/2 colourless vanilla creature whose
          *  real identity is hidden from the opponent. Battlefield only. */
         faceDown?: boolean;
+        /** Pre-seed counters (CR 122) on a battlefield permanent — e.g.
+         *  `{ "+1/+1": 3 }` (Triskelion) or `{ doom: 2 }` (Armageddon Clock). */
+        counters?: Record<string, number>;
     }[];
     phase: string;
     landCount: number;
@@ -2697,6 +2700,86 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
         libraryCount: 8,
+    },
+    {
+        // ATQ free tranche (#276) — value triggers & counter creatures. Loads
+        // at UPKEEP so the upkeep triggers fire immediately on the first
+        // trigger scan, and seeds counters / hand size for the golden paths:
+        //   • Ivory Tower (battlefield): at your upkeep, gain (hand − 4) life —
+        //     the 6-card hand makes this +2 on entry.
+        //   • Armageddon Clock (battlefield, 2 doom counters): your upkeep adds
+        //     a third doom counter; your draw step pings each player for the
+        //     doom count. {4}: any player may remove a doom counter during any
+        //     upkeep.
+        //   • Triskelion (battlefield, 3 +1/+1 counters → 4/4): "Remove a +1/+1
+        //     counter: deal 1 damage to any target" — click the ability, pick
+        //     any target.
+        //   • Clockwork Avian (battlefield, 4 +1/+0 counters → 4/4 flyer):
+        //     {X},{T} recharge during your upkeep (capped at four); decays a
+        //     counter at end of combat if it attacked or blocked.
+        //   • Citanul Druid (battlefield, 1/1): grows a +1/+1 counter whenever
+        //     the OPPONENT casts an artifact spell — cast the opp Onulet to
+        //     watch it tick to 2/2.
+        //   • Urza's Chalice (battlefield): may pay {1} → gain 1 life whenever
+        //     ANY player casts an artifact spell.
+        //   • Onulet / Su-Chi (battlefield): die → gain 2 life / add {C}{C}{C}{C}.
+        //   • Tablet of Epityr (battlefield): may pay {1} → gain 1 when one of
+        //     your artifacts goes to the graveyard (sacrifice Onulet to test).
+        label: "ATQ: value triggers & counter creatures (Triskelion / Armageddon Clock / Ivory Tower)",
+        cards: [
+            { name: "Ivory Tower", owner: "me" as const },
+            {
+                name: "Armageddon Clock",
+                owner: "me" as const,
+                counters: { doom: 2 },
+            },
+            {
+                name: "Triskelion",
+                owner: "me" as const,
+                counters: { "+1/+1": 3 },
+            },
+            {
+                name: "Clockwork Avian",
+                owner: "me" as const,
+                counters: { "+1/+0": 4 },
+            },
+            { name: "Citanul Druid", owner: "me" as const },
+            { name: "Urza's Chalice", owner: "me" as const },
+            { name: "Onulet", owner: "me" as const },
+            { name: "Su-Chi", owner: "me" as const },
+            { name: "Tablet of Epityr", owner: "me" as const },
+            // An opponent artifact creature to cast (triggers Citanul Druid +
+            // Urza's Chalice on an opponent's artifact cast).
+            { name: "Onulet", owner: "opp" as const, zone: "hand" as const },
+            // Fill the hand to 6 so Ivory Tower nets +2 on upkeep.
+            {
+                name: "Ornithopter",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Su-Chi", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Yotian Soldier",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Dragon Engine",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Onulet", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Clay Statue",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 4 },
+            { name: "Forest", owner: "me" as const, count: 2 },
+            { name: "Plains", owner: "opp" as const, count: 3 },
+        ],
+        phase: "UPKEEP",
+        landCount: 0,
     },
 ];
 

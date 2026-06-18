@@ -26,6 +26,15 @@ import {
     millstone,
     jalumTome,
     candelabraOfTawnos,
+    citanulDruid,
+    urzasChalice,
+    onulet,
+    suChi,
+    tabletOfEpityr,
+    ivoryTower,
+    armageddonClock,
+    triskelion,
+    clockworkAvian,
 } from "../atq";
 import { getCardById } from "../..";
 import {
@@ -38,6 +47,8 @@ import { isCreature } from "../../../gre/constants";
 import { projectPublicState } from "../../../gameProjections";
 import {
     resolveTopOfStack,
+    removePermanentTo,
+    processPendingActionTriggers,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -1529,5 +1540,642 @@ describe("Candelabra of Tawnos ({X},{T}: untap X target lands, CR 107.3 / 601.2c
         ).map((t) => t.id);
         expect(ids).toContain("l1");
         expect(ids).not.toContain("creature");
+    });
+});
+
+// ===========================================================================
+// Value triggers & counter creatures (#276)
+// ===========================================================================
+
+/** Pushes a triggered ability onto the stack with the same shape
+ *  `collectTriggers` builds (triggeredAbilityId + triggerEvent), then resolves
+ *  it. For may-pay triggers that suspend, accepts the prompt by writing
+ *  `collectedChoices` and re-invoking — mirroring the verified Soul Net /
+ *  Ivory Cup flow in lea.test.ts. */
+function fireTrigger(
+    state: GameState,
+    source: CardInstanceState,
+    triggeredAbilityId: string,
+    triggerEvent: StackItem["triggerEvent"],
+    mayPayAccept?: boolean
+): void {
+    const item: StackItem = {
+        ...source,
+        id: `trig-${triggeredAbilityId}`,
+        castById: source.controllerId,
+        zone: "stack",
+        triggeredAbilityId,
+        // The engine reads `ctx.sourceInstanceId` from `triggerSourceId`
+        // (state.ts:resolveTopOfStack) — the source permanent on the
+        // battlefield, not the synthetic stack-item id.
+        triggerSourceId: source.id,
+        triggerEvent,
+        targets: [],
+    };
+    state.stack.push(item);
+    const first = resolveTopOfStack(state);
+    if (mayPayAccept === undefined) return;
+    // Suspended on a may-pay pending choice. Answer it and resume.
+    expect(first).toBeNull();
+    const pending = state.pendingChoices![0];
+    const stackItem = state.stack.find((s) => s.id === pending.stackItemId)!;
+    const key = `${pending.step}:${pending.choiceId}`;
+    stackItem.collectedChoices = {
+        [key]: [mayPayAccept ? "yes" : "no"],
+    };
+    state.pendingChoices = undefined;
+    resolveTopOfStack(state);
+}
+
+// Citanul Druid (CR 603.2 opponent-cast trigger, CR 122.1 +1/+1 counter)
+describe("Citanul Druid (+1/+1 on opponent artifact cast)", () => {
+    const druidSelf = {
+        id: "druid",
+        controllerId: "p1",
+        ownerId: "p1",
+        types: ["Creature"] as CardType[],
+        subtypes: ["Human", "Druid"],
+        isTapped: false,
+        card: {},
+    };
+    const artifactCast = (casterId: string) => ({
+        type: "SPELL_CAST" as const,
+        casterId,
+        spellInstanceId: "x",
+        spellCardId: "y",
+        spellTypes: ["Artifact"] as CardType[],
+        spellSubtypes: [],
+        spellColors: [],
+    });
+
+    it("fires on an opponent's artifact spell, not the controller's", () => {
+        const trig = citanulDruid.triggeredAbilities![0];
+        expect(trig.matches(artifactCast("p2"), druidSelf)).toBe(true);
+        expect(trig.matches(artifactCast("p1"), druidSelf)).toBe(false);
+    });
+
+    it("does not fire on a non-artifact opponent spell", () => {
+        const trig = citanulDruid.triggeredAbilities![0];
+        const nonArtifact = {
+            ...artifactCast("p2"),
+            spellTypes: ["Instant"] as CardType[],
+        };
+        expect(trig.matches(nonArtifact, druidSelf)).toBe(false);
+    });
+
+    it("resolving the trigger adds a +1/+1 counter → 2/2 effective", () => {
+        const druid = makeInstance(citanulDruid.id, {
+            id: "druid",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [druid] }),
+                makePlayer("p2"),
+            ],
+        });
+        fireTrigger(state, druid, "citanul-druid-grow", artifactCast("p2"));
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "druid"
+        )!;
+        expect(after.counters?.["+1/+1"]).toBe(1);
+        expect(getEffectivePower(state, after)).toBe(2);
+        expect(getEffectiveToughness(state, after)).toBe(2);
+    });
+
+    it("wire format: counter-driven 2/2 survives projectPublicState", () => {
+        const druid = makeInstance(citanulDruid.id, {
+            id: "druid",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+1": 1 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [druid] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "druid"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(2);
+    });
+});
+
+// Urza's Chalice (CR 603.2 any-player artifact-cast trigger, CR 117.3a may-pay)
+describe("Urza's Chalice (may pay {1} → gain 1 life on artifact cast)", () => {
+    const setup = () => {
+        const chalice = makeInstance(urzasChalice.id, {
+            id: "chalice",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [chalice], life: 20 }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, chalice };
+    };
+    const artifactCast = {
+        type: "SPELL_CAST" as const,
+        casterId: "p2",
+        spellInstanceId: "x",
+        spellCardId: "y",
+        spellTypes: ["Artifact"] as CardType[],
+        spellSubtypes: [],
+        spellColors: [],
+    };
+
+    it("fires on any player's artifact spell, not a non-artifact spell", () => {
+        const trig = urzasChalice.triggeredAbilities![0];
+        const self = {
+            id: "chalice",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Artifact"] as CardType[],
+            subtypes: [],
+            isTapped: false,
+            card: {},
+        };
+        expect(trig.matches(artifactCast, self)).toBe(true);
+        expect(trig.matches({ ...artifactCast, casterId: "p1" }, self)).toBe(
+            true
+        );
+        expect(
+            trig.matches(
+                { ...artifactCast, spellTypes: ["Sorcery"] as CardType[] },
+                self
+            )
+        ).toBe(false);
+    });
+
+    it("accept → gain 1 life", () => {
+        const { state, chalice } = setup();
+        fireTrigger(state, chalice, "urzas-chalice-life", artifactCast, true);
+        expect(state.players[0].life).toBe(21);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("decline → no life gain", () => {
+        const { state, chalice } = setup();
+        fireTrigger(state, chalice, "urzas-chalice-life", artifactCast, false);
+        expect(state.players[0].life).toBe(20);
+    });
+});
+
+// Onulet (CR 603.2 self-death trigger, gain 2 life)
+describe("Onulet (dies → gain 2 life)", () => {
+    it("death trigger collected on the stack, resolves to +2 life", () => {
+        const onuletInst = makeInstance(onulet.id, {
+            id: "onulet",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [onuletInst], life: 20 }),
+                makePlayer("p2"),
+            ],
+        });
+        removePermanentTo(state, "onulet", "graveyard");
+        processPendingActionTriggers(state);
+        // The self-death trigger is now on the stack.
+        const trig = state.stack.find(
+            (s) => s.triggeredAbilityId === "onulet-life"
+        );
+        expect(trig).toBeDefined();
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(22);
+    });
+
+    it("trigger matches only this creature's death", () => {
+        const trig = onulet.triggeredAbilities![0];
+        const self = {
+            id: "onulet",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Artifact", "Creature"] as CardType[],
+            subtypes: [],
+            isTapped: false,
+            card: {},
+        };
+        const ownDeath = {
+            type: "CREATURE_DIED" as const,
+            creatureInstanceId: "onulet",
+            creatureControllerId: "p1",
+            creatureTypes: ["Artifact", "Creature"] as CardType[],
+            damagedBySources: [],
+            creaturePower: 2,
+            creatureToughness: 2,
+        };
+        expect(trig.matches(ownDeath, self)).toBe(true);
+        expect(
+            trig.matches({ ...ownDeath, creatureInstanceId: "other" }, self)
+        ).toBe(false);
+    });
+});
+
+// Su-Chi (CR 603.2 self-death trigger, add {C}{C}{C}{C})
+describe("Su-Chi (dies → add {C}{C}{C}{C})", () => {
+    it("death trigger adds four colorless mana to controller's pool", () => {
+        const suChiInst = makeInstance(suChi.id, {
+            id: "suchi",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [suChiInst] }),
+                makePlayer("p2"),
+            ],
+        });
+        removePermanentTo(state, "suchi", "graveyard");
+        processPendingActionTriggers(state);
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.C).toBe(4);
+    });
+});
+
+// Tablet of Epityr (CR 603.10 your-artifact-to-graveyard trigger, may-pay)
+describe("Tablet of Epityr (may pay {1} → gain 1 on your artifact to graveyard)", () => {
+    const setup = () => {
+        const tablet = makeInstance(tabletOfEpityr.id, {
+            id: "tablet",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const otherArtifact = makeInstance(onulet.id, {
+            id: "art",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [tablet, otherArtifact],
+                    life: 20,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, tablet };
+    };
+
+    it("trigger fires when a controlled artifact is put into the graveyard, then accept → +1 life", () => {
+        const { state } = setup();
+        removePermanentTo(state, "art", "graveyard");
+        processPendingActionTriggers(state);
+        // Tablet's may-pay trigger is on the stack (a CREATURE_DIED trigger
+        // for Onulet may also be present; resolve the Tablet trigger).
+        const tabletTrig = state.stack.find(
+            (s) => s.triggeredAbilityId === "tablet-of-epityr-life"
+        );
+        expect(tabletTrig).toBeDefined();
+        // Bring the Tablet trigger to the top of the stack and resolve it.
+        const idx = state.stack.indexOf(tabletTrig!);
+        state.stack.splice(idx, 1);
+        state.stack.push(tabletTrig!);
+        const first = resolveTopOfStack(state);
+        expect(first).toBeNull();
+        const pending = state.pendingChoices![0];
+        const item = state.stack.find((s) => s.id === pending.stackItemId)!;
+        item.collectedChoices = {
+            [`${pending.step}:${pending.choiceId}`]: ["yes"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(21);
+    });
+
+    it("trigger does not fire for an opponent's artifact", () => {
+        const trig = tabletOfEpityr.triggeredAbilities![0];
+        const self = {
+            id: "tablet",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Artifact"] as CardType[],
+            subtypes: [],
+            isTapped: false,
+            card: {},
+        };
+        const oppArtifactLeft = {
+            type: "PERMANENT_LEFT" as const,
+            instanceId: "opp-art",
+            controllerId: "p2",
+            ownerId: "p2",
+            types: ["Artifact"] as CardType[],
+            wasAura: false,
+            toZone: "graveyard" as const,
+        };
+        expect(trig.matches(oppArtifactLeft, self)).toBe(false);
+    });
+});
+
+// Ivory Tower (CR 603.6a upkeep trigger, hand-size life)
+describe("Ivory Tower (upkeep: gain hand − 4 life)", () => {
+    const fireUpkeep = (handCount: number, life = 20) => {
+        const tower = makeInstance(ivoryTower.id, {
+            id: "tower",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const hand = Array.from({ length: handCount }, (_, i) =>
+            makeInstance(onulet.id, {
+                id: `h${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tower], hand, life }),
+                makePlayer("p2"),
+            ],
+        });
+        fireTrigger(state, tower, "ivory-tower-life", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        });
+        return state.players[0].life;
+    };
+
+    it("gains hand − 4 when hand > 4", () => {
+        expect(fireUpkeep(7)).toBe(23);
+    });
+
+    it("gains nothing (no life loss) when hand <= 4", () => {
+        expect(fireUpkeep(3)).toBe(20);
+        expect(fireUpkeep(4)).toBe(20);
+    });
+
+    it("trigger fires only on the controller's upkeep", () => {
+        const trig = ivoryTower.triggeredAbilities![0];
+        const self = {
+            id: "tower",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Artifact"] as CardType[],
+            subtypes: [],
+            isTapped: false,
+            card: {},
+        };
+        const ev = (active: string) => ({
+            type: "PHASE_BEGIN" as const,
+            phase: "UPKEEP" as const,
+            activePlayerId: active,
+        });
+        expect(trig.matches(ev("p1"), self)).toBe(true);
+        expect(trig.matches(ev("p2"), self)).toBe(false);
+    });
+});
+
+// Armageddon Clock (doom counters: add on upkeep, ping on draw, any-player remove)
+describe("Armageddon Clock (doom-counter time bomb)", () => {
+    const makeClock = (doom = 0) =>
+        makeInstance(armageddonClock.id, {
+            id: "clock",
+            controllerId: "p1",
+            ownerId: "p1",
+            ...(doom > 0 ? { counters: { doom } } : {}),
+        });
+
+    it("upkeep trigger adds a doom counter", () => {
+        const clock = makeClock(0);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [clock] }),
+                makePlayer("p2"),
+            ],
+        });
+        fireTrigger(state, clock, "armageddon-clock-add-doom", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        });
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "clock"
+        )!;
+        expect(after.counters?.doom).toBe(1);
+    });
+
+    it("draw-step trigger deals damage equal to doom counters to each player", () => {
+        const clock = makeClock(3);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [clock], life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        fireTrigger(state, clock, "armageddon-clock-ping", {
+            type: "PHASE_BEGIN",
+            phase: "DRAW",
+            activePlayerId: "p1",
+        });
+        expect(state.players[0].life).toBe(17);
+        expect(state.players[1].life).toBe(17);
+    });
+
+    it("{4} remove-doom ability is activatable by any player during any upkeep", () => {
+        const ability = armageddonClock.activatedAbilities!.find(
+            (a) => a.id === "armageddon-clock-remove-doom"
+        )!;
+        expect(ability.activatableByAnyPlayer).toBe(true);
+        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
+        expect(ability.controllerTurnOnly).toBeUndefined();
+    });
+
+    it("remove-doom ability resolves: removes one doom counter", () => {
+        const clock = makeClock(3);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [clock] }),
+                makePlayer("p2"),
+            ],
+            phase: "UPKEEP",
+            activePlayerId: "p2",
+        });
+        // Activated by the opponent (p2) during p2's upkeep.
+        state.stack.push({
+            ...clock,
+            zone: "stack",
+            castById: "p2",
+            abilityId: "armageddon-clock-remove-doom",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "clock"
+        )!;
+        expect(after.counters?.doom).toBe(2);
+    });
+});
+
+// Triskelion (CR 122.1 ETB counters, CR 122.6 removal cost, any-target ping)
+describe("Triskelion (3 +1/+1 counters, remove-counter → 1 damage)", () => {
+    it("ETB applies three +1/+1 counters → 4/4 effective", () => {
+        const state = makeState();
+        pushSpell(state, triskelion.id, "p1");
+        resolveTopOfStack(state);
+        const tris = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === triskelion.id
+        )!;
+        expect(tris.counters?.["+1/+1"]).toBe(3);
+        expect(getEffectivePower(state, tris)).toBe(4);
+        expect(getEffectiveToughness(state, tris)).toBe(4);
+    });
+
+    it("activated ability deals 1 damage to a player (any target)", () => {
+        const tris = makeInstance(triskelion.id, {
+            id: "tris",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+1": 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tris] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        state.stack.push({
+            ...tris,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "triskelion-bolt",
+            targets: [{ type: "player", id: "p2" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("removal cost is declared as a +1/+1 counter cost; target is any", () => {
+        const ability = triskelion.activatedAbilities![0];
+        expect(ability.cost.removeCounter).toEqual({
+            type: "+1/+1",
+            count: 1,
+        });
+        expect(ability.targetRequirement).toEqual({ type: "any", count: 1 });
+    });
+
+    it("wire format: counter-driven 4/4 survives projectPublicState", () => {
+        const tris = makeInstance(triskelion.id, {
+            id: "tris",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+1": 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tris] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "tris"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(4);
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+});
+
+// Clockwork Avian (CR 122.1 ETB counters, end-of-combat decay, recharge)
+describe("Clockwork Avian (4 +1/+0 counters, end-of-combat decay)", () => {
+    it("ETB applies four +1/+0 counters → 4/4 effective with flying", () => {
+        const state = makeState();
+        pushSpell(state, clockworkAvian.id, "p1");
+        resolveTopOfStack(state);
+        const avian = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === clockworkAvian.id
+        )!;
+        expect(avian.counters?.["+1/+0"]).toBe(4);
+        expect(getEffectivePower(state, avian)).toBe(4);
+        expect(getEffectiveToughness(state, avian)).toBe(4);
+        expect(clockworkAvian.staticAbilities).toContain("flying");
+    });
+
+    it("end-of-combat trigger fires only if it attacked or blocked this combat", () => {
+        const state = makeState();
+        pushSpell(state, clockworkAvian.id, "p1");
+        resolveTopOfStack(state);
+        const avian = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === clockworkAvian.id
+        )!;
+        const trig = clockworkAvian.triggeredAbilities![0];
+        const event = {
+            type: "PHASE_BEGIN" as const,
+            phase: "END_OF_COMBAT" as const,
+            activePlayerId: "p1",
+        };
+        expect(trig.matches(event, avian, state)).toBe(false);
+        avian.hasAttackedThisTurn = true;
+        expect(trig.matches(event, avian, state)).toBe(true);
+    });
+
+    it("recharge ability adds up to X +1/+0 counters, capped at 4 total", () => {
+        const avian = makeInstance(clockworkAvian.id, {
+            id: "avian",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+0": 1 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [avian] }),
+                makePlayer("p2"),
+            ],
+            phase: "UPKEEP",
+        });
+        state.stack.push({
+            ...avian,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "clockwork-avian-recharge",
+            chosenX: 5,
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "avian"
+        )!;
+        // 1 existing + min(5, room=3) = 4, capped at four.
+        expect(after.counters?.["+1/+0"]).toBe(4);
+    });
+
+    it("recharge ability is restricted to the controller's upkeep", () => {
+        const ability = clockworkAvian.activatedAbilities!.find(
+            (a) => a.id === "clockwork-avian-recharge"
+        )!;
+        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
+        expect(ability.controllerTurnOnly).toBe(true);
+    });
+
+    it("wire format: counter-driven 4/4 survives projectPublicState", () => {
+        const avian = makeInstance(clockworkAvian.id, {
+            id: "avian",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+0": 4 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [avian] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "avian"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(4);
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
     });
 });
