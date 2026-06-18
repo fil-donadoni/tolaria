@@ -38,14 +38,14 @@ export default function PlayerGraveyard({ player }: { player: Player }) {
     return (
         <div
             data-arrow-anchor-graveyard={player.id}
-            className="w-[var(--card-w-sm)] aspect-5/7"
+            className="w-(--card-w-sm) aspect-5/7"
         >
             <div className="relative">
                 <CardsPile
                     cards={player.graveyard}
                     emptyLabel="Graveyard"
                     title="Graveyard"
-                    zoneIcon={<GraveyardIcon className="w-8 h-8" />}
+                    zoneIcon={<GraveyardIcon className="w-8 h-8 opacity-60" />}
                     onCardClick={onCardClick}
                 />
             </div>
