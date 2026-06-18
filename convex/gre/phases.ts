@@ -1175,6 +1175,14 @@ function performPhaseEntry(state: GameState): void {
         case "UNTAP":
             untapStep(state);
             break;
+        case "UPKEEP":
+            // CR 500.2 — "until your next upkeep" effects expire as the active
+            // player's upkeep begins (Xenic Poltergeist's animation). The tick
+            // is keyed to the UPKEEP boundary + the effect's controller via
+            // `tickDuration`; entries scoped to end-of-turn / end-of-combat are
+            // left untouched here.
+            tickAllDurations(state);
+            break;
         case "DRAW":
             drawStep(state);
             // CR 504.2 — "at the beginning of the draw step" delayed triggers

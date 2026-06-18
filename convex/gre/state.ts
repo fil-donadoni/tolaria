@@ -68,7 +68,7 @@ import {
  *  match with `skip > 0`, skip decrements. On a match with `skip === 0`,
  *  the effect expires. */
 export type Duration = {
-    phase: "end-of-turn" | "end-of-combat";
+    phase: "end-of-turn" | "end-of-combat" | "upkeep";
     /** Number of matching boundaries still to skip. Undefined = 0. */
     skip?: number;
     /** Resolved at creation time. Undefined = any active player's boundary. */
@@ -101,7 +101,11 @@ export function tickDuration(
     view: { phase: Phase; activePlayerId: string }
 ): Duration | null {
     const boundary: Phase =
-        duration.phase === "end-of-turn" ? "CLEANUP" : "END_OF_COMBAT";
+        duration.phase === "end-of-turn"
+            ? "CLEANUP"
+            : duration.phase === "upkeep"
+              ? "UPKEEP"
+              : "END_OF_COMBAT";
     if (view.phase !== boundary) return duration;
     if (
         duration.playerId !== undefined &&
@@ -206,6 +210,15 @@ export type CardInstanceState = {
      *  layer 6). Each entry records the removed keyword and the source that
      *  removed it so `unapplySourceStaticEffects` can restore it. */
     removedKeywords?: { keyword: string; sourceId: string }[];
+    /** Instance ids of `ability-loss` static-effect sources that have stripped
+     *  this permanent of ALL its abilities (CR 613.1f — "loses all abilities",
+     *  Titania's Song). While non-empty: native activated abilities don't
+     *  resolve, triggered abilities are excluded from the trigger scan, and the
+     *  intrinsic mana ability is unavailable. Keyword abilities are stripped
+     *  imperatively into `removedKeywords` (so the existing restore path
+     *  rebuilds them). Multiple sources stack; the last source to unapply
+     *  clears the suppression. */
+    abilitiesSuppressedBy?: string[];
     /** Damage marked on the creature this turn (CR 120.3). Accumulates across
      *  damage events; checked against effective toughness for lethal damage
      *  (CR 704.5g). Removed at CLEANUP (CR 514.2). */
@@ -682,6 +695,7 @@ import type {
     ZonePickKind,
     YesNoChoiceKind,
     OrderChoiceKind,
+    OptionChoiceKind,
     PendingChoiceKind,
     ManaRestriction,
 } from "./types";
@@ -689,6 +703,7 @@ export type {
     ZonePickKind,
     YesNoChoiceKind,
     OrderChoiceKind,
+    OptionChoiceKind,
     PendingChoiceKind,
     ManaRestriction,
 };
@@ -768,6 +783,12 @@ export type PendingChoice = {
      *  or one of these player ids. The frontend routes player-life clicks for
      *  this kind; the backend validates the pick against this allow-list. */
     candidatePlayerIds?: string[];
+    /** For `kind: "option-pick"` only — the abstract options the chooser picks
+     *  exactly one of (CR 614.12 "as it enters, choose …"). Not zone members;
+     *  the submission carries the chosen option `id` verbatim and the backend
+     *  validates it against this list. The frontend renders one button per
+     *  option. Used by Primal Clay / Shapeshifter (choose-body-on-entry). */
+    options?: { id: string; label: string }[];
 };
 
 /** Reads the upper bound out of a `PendingChoice.count`, regardless of
@@ -1867,6 +1888,30 @@ export function applySourceStaticEffects(
                             { keyword: effect.keyword, sourceId: source.id },
                         ];
                     }
+                } else if (effect.kind === "ability-loss") {
+                    // CR 613.1f layer-6 ability removal (Titania's Song).
+                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                        continue;
+                    }
+                    const already = (
+                        target.abilitiesSuppressedBy ?? []
+                    ).includes(source.id);
+                    if (already) continue;
+                    // Strip every keyword into `removedKeywords` (source-keyed),
+                    // reusing the keyword-remove restore path on unapply.
+                    const removed = target.removedKeywords ?? [];
+                    for (const kw of target.staticAbilities) {
+                        removed.push({ keyword: kw, sourceId: source.id });
+                    }
+                    if (target.staticAbilities.length > 0) {
+                        target.staticAbilities = [];
+                    }
+                    target.removedKeywords =
+                        removed.length > 0 ? removed : undefined;
+                    target.abilitiesSuppressedBy = [
+                        ...(target.abilitiesSuppressedBy ?? []),
+                        source.id,
+                    ];
                 }
             }
         }
@@ -1972,6 +2017,16 @@ export function unapplySourceStaticEffects(
                     ];
                 }
                 target.removedKeywords = kept.length > 0 ? kept : undefined;
+            }
+            // CR 613.1f — release this source's "loses all abilities" hold.
+            // Keyword restoration is handled by the `removedKeywords` block
+            // above (source-keyed); here we just drop the suppression marker so
+            // activated/triggered/mana abilities function once no source holds.
+            const suppressors = target.abilitiesSuppressedBy;
+            if (suppressors && suppressors.length > 0) {
+                const keptS = suppressors.filter((id) => id !== source.id);
+                target.abilitiesSuppressedBy =
+                    keptS.length > 0 ? keptS : undefined;
             }
         }
     }
@@ -2096,6 +2151,31 @@ export function applyExistingGrantsTo(
                     newPermanent.grantedSubtypes =
                         grants.length > 0 ? grants : undefined;
                     newPermanent.subtypes = [...effect.subtypes];
+                } else if (effect.kind === "ability-loss") {
+                    // CR 613.1f — a noncreature artifact entering under
+                    // Titania's Song loses all its abilities too.
+                    if (
+                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
+                    ) {
+                        continue;
+                    }
+                    const already = (
+                        newPermanent.abilitiesSuppressedBy ?? []
+                    ).includes(source.id);
+                    if (already) continue;
+                    const removed = newPermanent.removedKeywords ?? [];
+                    for (const kw of newPermanent.staticAbilities) {
+                        removed.push({ keyword: kw, sourceId: source.id });
+                    }
+                    if (newPermanent.staticAbilities.length > 0) {
+                        newPermanent.staticAbilities = [];
+                    }
+                    newPermanent.removedKeywords =
+                        removed.length > 0 ? removed : undefined;
+                    newPermanent.abilitiesSuppressedBy = [
+                        ...(newPermanent.abilitiesSuppressedBy ?? []),
+                        source.id,
+                    ];
                 }
             }
         }
@@ -2960,6 +3040,42 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 findOnBattlefield(state, item.triggerSourceId ?? item.id)
                     ?.card ?? item;
             applyCopy(recipient, source, opts);
+        },
+
+        setSelfBody(spec): void {
+            // CR 614.12 — "as it enters, [it becomes] …" body selection, and
+            // its on-battlefield re-choice (Shapeshifter upkeep). Recipient
+            // resolution mirrors `becomeCopyOf`: during a permanent spell's
+            // `resolveSteps` the recipient is the spell still on the stack
+            // (`item`, about to enter); during a triggered re-choice it is the
+            // source permanent on the battlefield (`triggerSourceId`).
+            const recipient =
+                findOnBattlefield(state, item.triggerSourceId ?? item.id)
+                    ?.card ?? item;
+            // Overwrite base P/T (set, not add) so the layer pipeline reads the
+            // chosen value as the pre-layer base; an upkeep re-set replaces the
+            // prior choice cleanly.
+            if (spec.power !== undefined) recipient.power = spec.power;
+            if (spec.toughness !== undefined) {
+                recipient.toughness = spec.toughness;
+            }
+            // CR 205.3 / 702 — append subtypes / keyword abilities without
+            // duplicating (an idempotent re-application leaves the array
+            // unchanged).
+            if (spec.addSubtypes?.length) {
+                const next = [...recipient.subtypes];
+                for (const s of spec.addSubtypes) {
+                    if (!next.includes(s)) next.push(s);
+                }
+                recipient.subtypes = next;
+            }
+            if (spec.addKeywords?.length) {
+                const next = [...recipient.staticAbilities];
+                for (const k of spec.addKeywords) {
+                    if (!next.includes(k)) next.push(k);
+                }
+                recipient.staticAbilities = next;
+            }
         },
 
         forEachPlayer(fn: (playerId: string) => void) {
@@ -4296,6 +4412,29 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },
+        requestOptionChoice(req): string | undefined {
+            // CR 614.12 / 701.x "as it enters, choose …" — pick exactly one
+            // abstract option. Mirrors `requestChoice`'s suspend/replay
+            // contract: first call enqueues an `option-pick` PendingChoice and
+            // returns undefined (the step must return early to suspend); the
+            // replay after `selectResolutionChoice` reads the stored option id.
+            const step = item.resolutionStep ?? 0;
+            const key = `${step}:${req.choiceId}`;
+            const stored = item.collectedChoices?.[key];
+            if (stored) return stored[0];
+            const entry: PendingChoice = {
+                stackItemId: item.id,
+                step,
+                choiceId: req.choiceId,
+                playerId: req.playerId,
+                kind: "option-pick",
+                count: 1,
+                options: req.options,
+                prompt: req.prompt,
+            };
+            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            return undefined;
+        },
         apNapOrder(): string[] {
             const order = [state.activePlayerId];
             for (const p of state.players) {
@@ -4925,15 +5064,30 @@ export function normalizeManaCost(
     return result;
 }
 
-/** Scan the battlefield for `cost-modifier` static effects that apply to
- *  the given spell or ability source and return the accumulated cost increase
- *  as a normalized mana cost record (CR 601.2f). */
+/** Accumulated cost modification for a spell/ability (CR 601.2f): generic and
+ *  colored increases, generic-only reductions, and the highest declared
+ *  total-mana floor among the matching reduction effects. */
+export interface CostModifiers {
+    increase: Record<string, number>;
+    /** Generic-mana reduction (sum of matching `costReduction` generic). */
+    reductionGeneric: number;
+    /** Largest `minTotalMana` among matching reduction effects (CR 601.2f /
+     *  118.7 — the cost can't drop below this many total mana). 0 = no floor. */
+    minTotalMana: number;
+}
+
+/** Scan the battlefield for `cost-modifier` static effects that apply to the
+ *  given spell or ability source and return the accumulated modifiers (CR
+ *  601.2f). Each effect's own carrier permanent is passed to its `appliesTo*`
+ *  predicate so an Aura can scope its modifier to its host (Power Artifact). */
 export function getCostModifiers(
     state: GameState,
     card: PermanentView,
     kind: "spell" | "ability"
-): Record<string, number> {
+): CostModifiers {
     const increase: Record<string, number> = {};
+    let reductionGeneric = 0;
+    let minTotalMana = 0;
     for (const player of state.players) {
         for (const source of player.battlefield) {
             const cardId = (source.card as { id?: string }).id;
@@ -4945,15 +5099,29 @@ export function getCostModifiers(
                     kind === "spell"
                         ? effect.appliesToSpell
                         : effect.appliesToAbility;
-                if (!pred || !pred(card, STATIC_EFFECT_CTX)) continue;
-                const norm = normalizeManaCost(effect.costIncrease);
-                for (const [k, v] of Object.entries(norm)) {
-                    increase[k] = (increase[k] ?? 0) + v;
+                if (!pred || !pred(card, STATIC_EFFECT_CTX, source)) continue;
+                if (effect.costIncrease) {
+                    const norm = normalizeManaCost(effect.costIncrease);
+                    for (const [k, v] of Object.entries(norm)) {
+                        increase[k] = (increase[k] ?? 0) + v;
+                    }
+                }
+                if (effect.costReduction) {
+                    // Only the generic portion is reducible (CR 601.2f — a
+                    // generic-mana reduction can't remove colored pips).
+                    const norm = normalizeManaCost(effect.costReduction);
+                    reductionGeneric += norm.X ?? 0;
+                    if (
+                        effect.minTotalMana !== undefined &&
+                        effect.minTotalMana > minTotalMana
+                    ) {
+                        minTotalMana = effect.minTotalMana;
+                    }
                 }
             }
         }
     }
-    return increase;
+    return { increase, reductionGeneric, minTotalMana };
 }
 
 /** Scan the battlefield for `mana-substitution` static effects whose source
@@ -4980,13 +5148,43 @@ export function getManaSubstitutions(
     return out;
 }
 
-/** Merge a cost-modifier increase into a base normalized cost (mutates). */
-export function applyCostIncrease(
+/** Apply accumulated cost modifiers to a base normalized cost (mutates),
+ *  CR 601.2f. Order: increases first, then generic reductions, then the
+ *  total-mana floor. Only the generic portion (`X`) is reducible — colored
+ *  pips are never removed by a generic reduction. The floor guarantees the
+ *  post-reduction total mana (generic + every colored pip) is at least
+ *  `minTotalMana`, so Power Artifact's "can't reduce below one mana" holds
+ *  even when the colored pips alone already meet the floor (then generic
+ *  drops all the way to 0) and when they don't (generic stops at the floor).
+ *  A reduction never RAISES a cost: a cost already at or below the floor is
+ *  left untouched (Strip Mine's {T}-only mana ability stays free). */
+export function applyCostModifiers(
     baseCost: Record<string, number>,
-    increase: Record<string, number>
+    modifiers: CostModifiers
 ): void {
-    for (const [k, v] of Object.entries(increase)) {
+    for (const [k, v] of Object.entries(modifiers.increase)) {
         baseCost[k] = (baseCost[k] ?? 0) + v;
+    }
+    if (modifiers.reductionGeneric > 0) {
+        const generic = baseCost.X ?? 0;
+        let reduced = Math.max(0, generic - modifiers.reductionGeneric);
+        // Total-mana floor (CR 601.2f / 118.7): colored pips are immovable, so
+        // the generic portion can only be reduced to the point where the total
+        // still meets the floor. The floor never raises the generic above its
+        // original value — a cost already below the floor is simply unaffected.
+        if (modifiers.minTotalMana > 0) {
+            const colored = Object.entries(baseCost).reduce(
+                (sum, [k, v]) => (k === "X" ? sum : sum + v),
+                0
+            );
+            const minGeneric = Math.min(
+                generic,
+                Math.max(0, modifiers.minTotalMana - colored)
+            );
+            if (reduced < minGeneric) reduced = minGeneric;
+        }
+        if (reduced > 0) baseCost.X = reduced;
+        else delete baseCost.X;
     }
 }
 

@@ -203,6 +203,9 @@ describe("game_state serialize round-trip", () => {
         lion.mustBlockAllThisTurn = true;
         lion.cantBlockThisTurn = true;
         lion.copiedFrom = "printed-clone-id";
+        // CR 613.1f — "loses all abilities" suppression source list
+        // (Titania's Song, #288).
+        lion.abilitiesSuppressedBy = ["song-1", "song-2"];
 
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
@@ -258,6 +261,7 @@ describe("game_state serialize round-trip", () => {
         expect(got.mustBlockAllThisTurn).toBe(true);
         expect(got.cantBlockThisTurn).toBe(true);
         expect(got.copiedFrom).toBe("printed-clone-id");
+        expect(got.abilitiesSuppressedBy).toEqual(["song-1", "song-2"]);
     });
 
     it("preserves phasedOut bundles across the round trip (CR 702.26)", () => {
@@ -564,6 +568,27 @@ describe("optional field round-trip smoke tests", () => {
                 zone: "battlefield",
                 count: { min: 0, max: 1 },
                 prompt: "test",
+            },
+        ];
+        expect(roundTrip(state).pendingChoices).toEqual(state.pendingChoices);
+    });
+
+    it("pendingChoices with option-pick options (#289)", () => {
+        const state = freshState();
+        state.pendingChoices = [
+            {
+                stackItemId: "s1",
+                step: 0,
+                choiceId: "shapeshifter-entry-number",
+                playerId: "p1",
+                kind: "option-pick",
+                count: 1,
+                options: [
+                    { id: "0", label: "0/7" },
+                    { id: "3", label: "3/4" },
+                    { id: "7", label: "7/0" },
+                ],
+                prompt: "Choose a number between 0 and 7.",
             },
         ];
         expect(roundTrip(state).pendingChoices).toEqual(state.pendingChoices);

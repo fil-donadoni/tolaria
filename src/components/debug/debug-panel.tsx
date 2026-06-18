@@ -185,6 +185,99 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Antiquities cluster F — animate noncreature artifact (#288, CR 613.1f
+        // ability-loss + CR 205 type-add + CR 604.3 mana-value P/T + CR 500.2
+        // "until your next upkeep").
+        //   • Titania's Song is in play: every NONCREATURE artifact you control
+        //     (Sol Ring, Ivory Tower) is now an artifact creature with P/T equal
+        //     to its mana value AND has lost all abilities — the Sol Ring no
+        //     longer taps for mana and Ivory Tower's upkeep trigger is gone. The
+        //     opponent's Sol Ring is animated/silenced too. Ornithopter (a
+        //     PRINTED artifact creature) is untouched — it keeps flying / 0/2.
+        //   • Xenic Poltergeist (a 1/1 Spirit) is untapped: right-click it →
+        //     "{T}: animate target noncreature artifact until your next upkeep".
+        //     Target the opponent's Sol Ring — it becomes a 1/1 creature but
+        //     KEEPS its mana ability (Xenic does not strip abilities). The
+        //     animation ends as your next upkeep begins.
+        label: "Antiquities F: animate noncreature artifact (Titania's Song / Xenic Poltergeist)",
+        cards: [
+            { name: "Titania's Song", owner: "me" as const },
+            { name: "Xenic Poltergeist", owner: "me" as const },
+            { name: "Sol Ring", owner: "me" as const },
+            { name: "Ivory Tower", owner: "me" as const },
+            { name: "Ornithopter", owner: "me" as const },
+            { name: "Swamp", owner: "me" as const, count: 3 },
+            { name: "Sol Ring", owner: "opp" as const },
+            { name: "Triskelion", owner: "opp" as const },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Antiquities cluster G — choose-body-on-entry creatures (#289, CR
+        // 614.12). Both creatures pick their body "as they enter" via an
+        // option-pick prompt; the chosen base P/T (and Primal Clay's keyword /
+        // subtype) persists.
+        //   • Cast Primal Clay from hand (5 Mountains cover {4}). As it
+        //     resolves, the option prompt offers "3/3", "2/2 flying", and
+        //     "1/6 Wall (defender)". Pick one and watch the body settle on the
+        //     battlefield with the right P/T / keyword.
+        //   • Cast Shapeshifter ({6}) — the prompt offers numbers 0–7
+        //     (label "N/(7−N)"). Pick e.g. 3 → it enters as a 3/4. Picking 7
+        //     (7/0) makes it die to the 0-toughness SBA.
+        //   • After Shapeshifter is on the board, pass to your next upkeep: the
+        //     "may re-choose a number" prompt appears (Yes → pick a new number
+        //     to re-set its P/T; No keeps the current body).
+        label: "Antiquities G: choose body on entry (Primal Clay / Shapeshifter)",
+        cards: [
+            {
+                name: "Primal Clay",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Shapeshifter",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 7 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Antiquities cluster J — activated-ability cost reduction (#290, CR
+        // 601.2f / 118.7). Power Artifact (Aura) reduces the enchanted
+        // artifact's activated-ability mana costs by {2}, floored at one mana.
+        //   • Cast Power Artifact from hand ({U}{U}, covered by the two
+        //     Islands) targeting Dragon Engine.
+        //   • Activate Dragon Engine's "{2}: +1/+0 until end of turn": with the
+        //     aura attached the payment site now asks for only {1} (the
+        //     two-generic reduction clamps to the one-mana floor), so a single
+        //     land covers it instead of two.
+        //   • Compare: detach (e.g. destroy the aura) or use the second,
+        //     unenchanted Dragon Engine — its ability still costs the full {2}.
+        label: "Antiquities J: activated-ability cost reduction (Power Artifact)",
+        cards: [
+            {
+                name: "Power Artifact",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Dragon Engine", owner: "me" as const },
+            { name: "Dragon Engine", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            { name: "Triskelion", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next battlefield tap/pay (#272). The spatial board's
         // battlefield is now interactive (?board=next) — load this and switch
         // the URL to ?board=next to exercise the foundational tap/pay slice:

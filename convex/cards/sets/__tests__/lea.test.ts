@@ -282,7 +282,7 @@ import {
     applyExistingGrantsTo,
     normalizeManaCost,
     getCostModifiers,
-    applyCostIncrease,
+    applyCostModifiers,
     payManaCost,
     isManaCostCovered,
     getManaSubstitutions,
@@ -17872,11 +17872,11 @@ describe("Gloom (CR 601.2f — cost-modifier: white spells + white enchantment a
         const p2 = makePlayer("p2", { hand: [whiteSpell] });
         const state = makeState({ players: [p1, p2] });
 
-        const increase = getCostModifiers(state, whiteSpell, "spell");
-        expect(increase).toEqual({ X: 3 });
+        const mods = getCostModifiers(state, whiteSpell, "spell");
+        expect(mods.increase).toEqual({ X: 3 });
 
         const baseCost = normalizeManaCost(savannahLions.manaCost!);
-        applyCostIncrease(baseCost, increase);
+        applyCostModifiers(baseCost, mods);
         // Savannah Lions = {W}, +3 generic = {W} + {3}
         expect(baseCost).toEqual({ W: 1, X: 3 });
     });
@@ -17896,8 +17896,8 @@ describe("Gloom (CR 601.2f — cost-modifier: white spells + white enchantment a
         const p2 = makePlayer("p2", { hand: [redSpell] });
         const state = makeState({ players: [p1, p2] });
 
-        const increase = getCostModifiers(state, redSpell, "spell");
-        expect(increase).toEqual({});
+        const mods = getCostModifiers(state, redSpell, "spell");
+        expect(mods.increase).toEqual({});
     });
 
     it("white enchantment activations cost {3} more", () => {
@@ -17916,8 +17916,8 @@ describe("Gloom (CR 601.2f — cost-modifier: white spells + white enchantment a
         const p2 = makePlayer("p2", { battlefield: [copW] });
         const state = makeState({ players: [p1, p2] });
 
-        const increase = getCostModifiers(state, copW, "ability");
-        expect(increase).toEqual({ X: 3 });
+        const mods = getCostModifiers(state, copW, "ability");
+        expect(mods.increase).toEqual({ X: 3 });
     });
 
     it("removal of gloom reverts cost increase", () => {
@@ -17935,12 +17935,16 @@ describe("Gloom (CR 601.2f — cost-modifier: white spells + white enchantment a
         const p2 = makePlayer("p2", { hand: [whiteSpell] });
         const state = makeState({ players: [p1, p2] });
 
-        expect(getCostModifiers(state, whiteSpell, "spell")).toEqual({ X: 3 });
+        expect(getCostModifiers(state, whiteSpell, "spell").increase).toEqual({
+            X: 3,
+        });
 
         // Remove gloom from battlefield
         state.players[0].battlefield = [];
 
-        expect(getCostModifiers(state, whiteSpell, "spell")).toEqual({});
+        expect(getCostModifiers(state, whiteSpell, "spell").increase).toEqual(
+            {}
+        );
     });
 });
 

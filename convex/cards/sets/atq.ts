@@ -2560,3 +2560,313 @@ export const reversePolarity: CardDefinition = {
         }
     },
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster F — animate noncreature artifact (#288). CR 613.1f (layer-6 ability
+// removal), CR 205 (layer-4 type-add via the `type-add`/animate surrogate),
+// CR 604.3 / 613.4a (P/T characteristic-defining ability = mana value), CR
+// 500.2 (the "until your next upkeep" duration boundary). A noncreature
+// artifact becomes an artifact creature with power and toughness each equal to
+// its mana value; Titania's Song additionally strips all abilities and applies
+// continuously to the whole filtered set (current + future entrants); Xenic
+// Poltergeist is a single-target {T} animation that ends at the controller's
+// next upkeep. `getPrintedTypes` discriminates a printed noncreature artifact
+// from a printed artifact creature (Ornithopter) so the Song never animates an
+// already-creature artifact and keeps matching its own targets after it has
+// added Creature to them.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** CR 205 — true if `card` is a printed noncreature Artifact (Titania's Song's
+ *  affected set). Reads the PRINTED type line so the predicate is stable after
+ *  the Song adds the Creature type to its targets, and never matches a printed
+ *  artifact creature. */
+const IS_NONCREATURE_ARTIFACT: (
+    target: PermanentView,
+    source: PermanentView,
+    ctx: import("../types").StaticEffectContext
+) => boolean = (target, _source, ctx) => {
+    const printed = ctx.getPrintedTypes(target);
+    return printed.includes("Artifact") && !printed.includes("Creature");
+};
+
+// Titania's Song — {3}{G} Enchantment. "Each noncreature artifact loses all
+// abilities and becomes an artifact creature with power and toughness each
+// equal to its mana value. If this enchantment leaves the battlefield, this
+// effect continues until end of turn." (CR 613.1f ability removal + CR 205
+// type-add + CR 604.3 mana-value CDA, applied continuously to every printed
+// noncreature artifact on the battlefield — including ones that enter after
+// the Song resolves, via `applyExistingGrantsTo`.)
+//
+// DIVERGENCE (flagged, no engine change): "becomes an artifact creature" only
+// needs to ADD Creature — the affected permanents are already artifacts, so no
+// Artifact type-add is required. The leave-the-battlefield "continues until end
+// of turn" linger clause is NOT modeled: when the Song leaves play the engine
+// reverts the type/ability changes immediately (the standard
+// `unapplySourceStaticEffects` path). This is observable only in the window
+// between the Song leaving and the cleanup step; the common play pattern keeps
+// the Song in play, so the simplification is acceptable for ATQ scope. A
+// general "linger this continuous effect until EOT on source-leave" duration is
+// deferred to a later tranche.
+export const titaniasSong: CardDefinition = {
+    id: "583a53af-2e2a-4f3f-8eab-bd874c6ed80a",
+    name: "Titania's Song",
+    oracleText:
+        "Each noncreature artifact loses all abilities and becomes an artifact creature with power and toughness each equal to its mana value. If this enchantment leaves the battlefield, this effect continues until end of turn.",
+    manaCost: { X: 3, G: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        // CR 613.1f — strip all abilities BEFORE the type/P-T changes.
+        {
+            kind: "ability-loss",
+            applies: IS_NONCREATURE_ARTIFACT,
+        },
+        // CR 205 — add the Creature type (already an Artifact).
+        {
+            kind: "type-add",
+            applies: IS_NONCREATURE_ARTIFACT,
+            types: ["Creature"],
+        },
+        // CR 604.3 / 613.4a — power and toughness each equal to mana value.
+        {
+            kind: "pt-cda",
+            applies: IS_NONCREATURE_ARTIFACT,
+            compute: (_source, _state, ctx, target) => {
+                const mv = ctx.getManaValue(target);
+                return { power: mv, toughness: mv };
+            },
+        },
+    ],
+};
+
+// Xenic Poltergeist — {1}{B}{B} Creature — Spirit, 1/1. "{T}: Until your next
+// upkeep, target noncreature artifact becomes an artifact creature with power
+// and toughness each equal to its mana value." (CR 605 activated ability + CR
+// 205 animate + CR 604.3 mana-value P/T + CR 500.2 "until your next upkeep"
+// duration.) Single-target one-shot animation that ends as the controller's
+// upkeep begins. Does NOT strip abilities (unlike Titania's Song). The animated
+// artifact's P/T is its mana value, snapshotted at resolution via
+// `ctx.getManaValue` and stored as the animation's base P/T.
+//
+// DIVERGENCE (flagged, no engine change): `animateAsCreature` adds the Creature
+// type only — the target is already an artifact, so the resulting "artifact
+// creature" type line is correct without an Artifact type-add.
+export const xenicPoltergeist: CardDefinition = {
+    id: "5149ffff-d38f-458e-bcfa-a4b6b332a0b4",
+    name: "Xenic Poltergeist",
+    oracleText:
+        "{T}: Until your next upkeep, target noncreature artifact becomes an artifact creature with power and toughness each equal to its mana value.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Spirit"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "xenic-poltergeist-animate",
+            oracleText:
+                "{T}: Until your next upkeep, target noncreature artifact becomes an artifact creature with power and toughness each equal to its mana value.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Artifact",
+                count: 1,
+                excludeTypes: "Creature",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type !== "permanent") return;
+                const mv = ctx.getManaValue(target);
+                ctx.animateAsCreature(target, {
+                    power: mv,
+                    toughness: mv,
+                    // CR 500.2 — ends as the controller's next upkeep begins.
+                    duration: { phase: "upkeep", player: "controller" },
+                });
+            },
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Choose-body-on-entry creatures (ATQ cluster G, issue #289). These pick their
+// body "as they enter" (CR 614.12 replacement-style self-modification, resolved
+// during the creature spell's own `resolveSteps` while it is still on the
+// stack). The pick is an abstract `option-pick` PendingChoice (8 numbers for
+// Shapeshifter, 3 modes for Primal Clay) and the resulting base P/T / subtypes /
+// keywords are written onto the entering permanent via `ctx.setSelfBody`, which
+// persists indefinitely (NOT a layer-7b temporary set). Shapeshifter re-chooses
+// at each of its controller's upkeeps (CR 603.6a "may"), overwriting its base
+// P/T. New engine capabilities introduced for this cluster: the `option-pick`
+// PendingChoice kind (`ctx.requestOptionChoice`) and the persistent
+// `ctx.setSelfBody` self-body primitive.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Primal Clay — {4} Artifact Creature — Shapeshifter, 0/0. "As this creature
+// enters, it becomes your choice of a 3/3 artifact creature, a 2/2 artifact
+// creature with flying, or a 1/6 Wall artifact creature with defender in
+// addition to its other types." (CR 614.12 — the body choice is made as it
+// enters; CR 702.3 defender; CR 702.9 flying. It is always an artifact
+// creature; only the Wall mode adds subtype "Wall" + keyword "defender".)
+export const primalClay: CardDefinition = {
+    id: "ab9d0e3f-cf7c-41f8-bcd7-bb08ea8cc2f8",
+    name: "Primal Clay",
+    oracleText:
+        "As this creature enters, it becomes your choice of a 3/3 artifact creature, a 2/2 artifact creature with flying, or a 1/6 Wall artifact creature with defender in addition to its other types.",
+    manaCost: { X: 4 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Shapeshifter"],
+    power: 0,
+    toughness: 0,
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            // CR 614.12 — choose the body as the permanent enters. The pick is
+            // made by the spell's controller during resolution; the resulting
+            // base characteristics are written onto the still-on-stack
+            // permanent and carry to the battlefield on `finalizeSpellResolution`.
+            const mode = ctx.requestOptionChoice({
+                playerId: ctx.controller,
+                choiceId: "primal-clay-body",
+                options: [
+                    { id: "3-3", label: "3/3" },
+                    { id: "2-2-flying", label: "2/2 flying" },
+                    { id: "1-6-wall", label: "1/6 Wall (defender)" },
+                ],
+                prompt: "Choose Primal Clay's body.",
+            });
+            if (mode === undefined) return; // suspended — wait for the pick
+            if (mode === "3-3") {
+                ctx.setSelfBody({ power: 3, toughness: 3 });
+            } else if (mode === "2-2-flying") {
+                ctx.setSelfBody({
+                    power: 2,
+                    toughness: 2,
+                    addKeywords: ["flying"],
+                });
+            } else if (mode === "1-6-wall") {
+                ctx.setSelfBody({
+                    power: 1,
+                    toughness: 6,
+                    addSubtypes: ["Wall"],
+                    addKeywords: ["defender"],
+                });
+            }
+        },
+    ],
+};
+
+// Shapeshifter — {6} Artifact Creature — Shapeshifter, */7-*. "As this creature
+// enters, choose a number between 0 and 7. At the beginning of your upkeep, you
+// may choose a number between 0 and 7. Shapeshifter's power is equal to the last
+// chosen number and its toughness is equal to 7 minus that number." (CR 614.12 —
+// entry choice; CR 603.6a — optional upkeep re-choice. We model "power = N,
+// toughness = 7 − N" by writing the chosen base P/T directly via `setSelfBody`,
+// overwriting on each re-choice. The entry choice is mandatory; the upkeep
+// re-choice is a "may".)
+const SHAPESHIFTER_NUMBER_OPTIONS = Array.from({ length: 8 }, (_, n) => ({
+    id: String(n),
+    label: `${n}/${7 - n}`,
+}));
+
+export const shapeshifter: CardDefinition = {
+    id: "cc278af4-b60d-41b7-b9d7-36c8aefca1a7",
+    name: "Shapeshifter",
+    oracleText:
+        "As this creature enters, choose a number between 0 and 7.\nAt the beginning of your upkeep, you may choose a number between 0 and 7.\nShapeshifter's power is equal to the last chosen number and its toughness is equal to 7 minus that number.",
+    manaCost: { X: 6 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Shapeshifter"],
+    power: 0,
+    toughness: 0,
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            // CR 614.12 — mandatory entry choice. Power = N, toughness = 7 − N.
+            const choice = ctx.requestOptionChoice({
+                playerId: ctx.controller,
+                choiceId: "shapeshifter-entry-number",
+                options: SHAPESHIFTER_NUMBER_OPTIONS,
+                prompt: "Choose a number between 0 and 7.",
+            });
+            if (choice === undefined) return; // suspended — wait for the pick
+            const n = Number(choice);
+            ctx.setSelfBody({ power: n, toughness: 7 - n });
+        },
+    ],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "shapeshifter-upkeep-renumber",
+            oracleText:
+                "At the beginning of your upkeep, you may choose a number between 0 and 7. Shapeshifter's power becomes equal to the chosen number and its toughness becomes equal to 7 minus that number.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                // CR 603.6a — optional ("may") re-choice. requestMayPay with no
+                // cost is the project's yes/no primitive; on accept, pick a new
+                // number and overwrite the base P/T via setSelfBody (recipient
+                // resolves to the source permanent on the battlefield).
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: `shapeshifter-renumber-may-${ctx.sourceInstanceId}`,
+                    prompt: "Choose a new number for Shapeshifter?",
+                });
+                if (accept === undefined) return; // suspended
+                if (!accept) return;
+                const choice = ctx.requestOptionChoice({
+                    playerId: ctx.controller,
+                    choiceId: `shapeshifter-renumber-${ctx.sourceInstanceId}`,
+                    options: SHAPESHIFTER_NUMBER_OPTIONS,
+                    prompt: "Choose a number between 0 and 7.",
+                });
+                if (choice === undefined) return; // suspended
+                const n = Number(choice);
+                ctx.setSelfBody({ power: n, toughness: 7 - n });
+            },
+        }),
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster J (#290) — activated-ability cost reduction. CR 601.2f models cost
+// modification (reductions and increases) applied as the cost is calculated;
+// 118.7 forbids a reduction from taking a cost below the floor its source
+// declares. The `cost-modifier` static effect (originally increase-only, for
+// Gloom) is extended with `costReduction` + `minTotalMana`: the engine reduces
+// only the generic portion of a matching cost and clamps the post-reduction
+// TOTAL mana up to the floor (colored pips are immovable). The effect's carrier
+// permanent is passed to `appliesToAbility`, letting an Aura scope the modifier
+// to its host. Modern Scryfall oracle text is authoritative (ADR 0004).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Power Artifact — {1}{U} Enchantment — Aura. "Enchant artifact. Enchanted
+// artifact's activated abilities cost {2} less to activate. This effect can't
+// reduce the mana in that cost to less than one mana." (CR 303.4 aura
+// attachment, 601.2f cost reduction, 118.7 floor.) As with the other ATQ auras
+// there is no `host` scope (ADR 0002): the `cost-modifier`'s `appliesToAbility`
+// receives the Aura itself as `effectSource` and matches only abilities whose
+// source is `effectSource.attachedTo`. The {2} reduction is generic-only and
+// floored at one total mana, so a {T} mana ability like Mana Vault's
+// "{T}: Add {C}{C}{C}" (no mana in its cost) is unaffected, "{3}: Untap" drops
+// to {1}, and "{2}, {T}" drops to "{T}" only down to the one-mana floor.
+export const powerArtifact: CardDefinition = {
+    id: "e48bc89e-6da5-43da-b4e0-60d5f850199c",
+    name: "Power Artifact",
+    oracleText:
+        "Enchant artifact\nEnchanted artifact's activated abilities cost {2} less to activate. This effect can't reduce the mana in that cost to less than one mana.",
+    manaCost: { U: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Artifact", count: 1 },
+    staticEffects: [
+        {
+            kind: "cost-modifier",
+            appliesToAbility: (
+                source: PermanentView,
+                _ctx,
+                effectSource?: PermanentView
+            ) =>
+                !!effectSource?.attachedTo &&
+                effectSource.attachedTo === source.id,
+            costReduction: { X: 2 },
+            minTotalMana: 1,
+        },
+    ],
+};

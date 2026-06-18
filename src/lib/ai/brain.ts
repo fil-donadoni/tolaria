@@ -376,6 +376,14 @@ export function chooseResolution(choice: OwedChoice): string[] {
                 .slice(0, min)
                 .map((c) => c.id);
 
+        // "As it enters, choose …" body selection (CR 614.12 — Primal Clay,
+        // Shapeshifter). The options are appended to `candidates` as neutral-
+        // value picks in `buildOwedChoice`; a minimal-legal default (ADR 0016)
+        // takes the first `min` (=1) in author order — the engine never
+        // freezes on the choice. Smart body selection is deferred.
+        case "option-pick":
+            return candidates.slice(0, min).map((c) => c.id);
+
         // `may-pay` is a yes/no answer routed through `submitMayPay`
         // (`decideBotAction` handles it before reaching here), and
         // `mulligan-bottom` has its own pre-game branch. Reaching either via

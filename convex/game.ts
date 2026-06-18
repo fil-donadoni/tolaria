@@ -39,7 +39,7 @@ import {
     isManaCostCovered,
     getManaSubstitutions,
     getCostModifiers,
-    applyCostIncrease,
+    applyCostModifiers,
     emitSpellCastEvent,
     emitPermanentTapped,
     emitAbilityActivated,
@@ -1150,7 +1150,12 @@ function resolveActivatedAbility(
     grantedSourceCardId?: string;
 } | null {
     const cardId = (card.card as { id?: string }).id;
-    if (cardId) {
+    // CR 613.1f — a permanent that "loses all abilities" (Titania's Song) has
+    // no native activated abilities while suppressed. Abilities granted by
+    // another source (`grantedActivatedAbilities`) are not the permanent's own
+    // and are unaffected.
+    const suppressed = (card.abilitiesSuppressedBy?.length ?? 0) > 0;
+    if (cardId && !suppressed) {
         const native = getCardById(cardId).activatedAbilities?.find(
             (a) => a.id === abilityId
         );
@@ -1344,7 +1349,7 @@ function finalizeTargetSelection(
               })
             : undefined;
         if (manaCost) {
-            applyCostIncrease(
+            applyCostModifiers(
                 manaCost,
                 getCostModifiers(state, card, "ability")
             );
@@ -1447,7 +1452,7 @@ function finalizeTargetSelection(
     const manaCost = rawCost
         ? normalizeManaCost(rawCost, { chosenX, additionalGeneric })
         : {};
-    applyCostIncrease(manaCost, getCostModifiers(state, cardInHand, "spell"));
+    applyCostModifiers(manaCost, getCostModifiers(state, cardInHand, "spell"));
 
     // CR 106.6: a spell may also spend restriction-permitting mana —
     // creature mana (Metamorphosis) or artifact mana (Mishra's Workshop) —
@@ -1687,7 +1692,7 @@ export const announceCast = mutation({
         const rawCost = getInstanceManaCost(cardInHand);
 
         const manaCost = rawCost ? normalizeManaCost(rawCost, { chosenX }) : {};
-        applyCostIncrease(
+        applyCostModifiers(
             manaCost,
             getCostModifiers(state, cardInHand, "spell")
         );
@@ -4053,7 +4058,7 @@ export const activateAbility = mutation({
             ? normalizeManaCost(ability.cost.mana, { chosenX })
             : undefined;
         if (manaCost) {
-            applyCostIncrease(
+            applyCostModifiers(
                 manaCost,
                 getCostModifiers(state, card, "ability")
             );

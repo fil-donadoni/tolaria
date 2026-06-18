@@ -70,6 +70,18 @@ export type PhaseInRider = { tap?: boolean };
 
 export type YesNoChoiceKind = "may-pay";
 export type OrderChoiceKind = "mulligan-bottom";
+/** Pick exactly one abstract option from a precomputed list (CR 614.12 /
+ *  701.x "as it enters, choose …" body selection). Unlike `ZonePickKind` the
+ *  candidates are NOT zone members — they are author-supplied `{id,label}`
+ *  options carried on `PendingChoice.options`. Validates against that
+ *  allow-list (like `choose-damage-target` validates against
+ *  `candidatePlayerIds`) rather than zone membership, then writes the chosen
+ *  option id verbatim into `collectedChoices`. Used by the Antiquities
+ *  choose-body-on-entry creatures: Primal Clay (3/3 vs 2/2 flyer vs 1/6 Wall)
+ *  and Shapeshifter (a number 0–7 fixing power = N, toughness = 7 − N). Flows
+ *  through the same `selectResolutionChoice` submit path — no dedicated
+ *  mutation. */
+export type OptionChoiceKind = "option-pick";
 
 /** Spend restriction on a unit of mana (CR 106.6). Mana carrying a
  *  restriction can only pay for costs the restriction permits; it still
@@ -82,4 +94,5 @@ export type ManaRestriction = "creature-spell" | "artifact-spell";
 export type PendingChoiceKind =
     | ZonePickKind
     | YesNoChoiceKind
-    | OrderChoiceKind;
+    | OrderChoiceKind
+    | OptionChoiceKind;

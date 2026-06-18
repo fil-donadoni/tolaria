@@ -368,8 +368,11 @@ export interface ActivatedAbility {
  */
 export interface DurationSpec {
     /** Which phase boundary triggers expiry. end-of-turn = CLEANUP (CR 514.2);
-     *  end-of-combat = END_OF_COMBAT step (CR 511.3). */
-    phase: "end-of-turn" | "end-of-combat";
+     *  end-of-combat = END_OF_COMBAT step (CR 511.3); upkeep = the UPKEEP step
+     *  (CR 500.2 — "until your next upkeep" effects end as the upkeep begins,
+     *  combined with `player: "controller"` to scope to the controller's
+     *  upkeep, e.g. Xenic Poltergeist). */
+    phase: "end-of-turn" | "end-of-combat" | "upkeep";
     /** Number of matching boundaries to skip before the effect expires. 0 =
      *  next occurrence (default, "this turn/combat"). 1 = one after. */
     skip?: number;
@@ -1096,6 +1099,41 @@ export interface SpellContext {
         prompt: string;
     }) => boolean | undefined;
 
+    /** Requests a single pick from a list of abstract options (CR 614.12 /
+     *  701.x "as it enters, choose …"). On first call, enqueues an
+     *  `option-pick` `PendingChoice` and returns `undefined` — the caller must
+     *  return early to suspend. On resume (after the player submits via
+     *  `selectResolutionChoice`) the call returns the chosen option `id`.
+     *  `choiceId` disambiguates multiple enqueues within a step and must be
+     *  stable across replays. Used by the choose-body-on-entry creatures
+     *  Primal Clay (3 body modes) and Shapeshifter (a number 0–7). */
+    requestOptionChoice: (req: {
+        playerId: string;
+        choiceId: string;
+        options: { id: string; label: string }[];
+        prompt: string;
+    }) => string | undefined;
+
+    /** Sets the resolving permanent's BASE characteristics in place (CR 614.12
+     *  "as it enters" body selection / a re-choice on the battlefield). Unlike
+     *  `setBasePT` (a timestamped layer-7b set that the cleanup step purges),
+     *  this mutates the printed-equivalent base `power`/`toughness` and the
+     *  `subtypes`/`staticAbilities` arrays directly, so the choice persists
+     *  indefinitely and feeds the layer pipeline as the pre-layer base.
+     *  Resolves the recipient like `becomeCopyOf`: the spell still on the stack
+     *  during `resolveSteps` (Primal Clay / Shapeshifter entry), or the source
+     *  permanent on the battlefield during an upkeep re-choice (Shapeshifter).
+     *  `power`/`toughness` overwrite (set, not add). `addSubtypes`/`addKeywords`
+     *  append without duplicating. Used by Primal Clay (Wall mode adds subtype
+     *  "Wall" + keyword "defender") and Shapeshifter (power = N, toughness =
+     *  7 − N, re-set each upkeep). */
+    setSelfBody: (spec: {
+        power?: number;
+        toughness?: number;
+        addSubtypes?: string[];
+        addKeywords?: string[];
+    }) => void;
+
     /** Active-player-then-non-active-player order (CR 101.4). In 2-player
      *  games, returns [activePlayerId, opponentId]. Used by spells like
      *  Balance where each player makes a choice in APNAP order. */
@@ -1317,6 +1355,14 @@ export interface StaticEffectContext {
      *  preserved). Used by characteristic-defining abilities that key off
      *  the host's mana value (Animate Artifact). */
     getManaValue: (card: PermanentView) => number;
+    /** Printed card type line (CR 205.2, from the card definition), unaffected
+     *  by type-add / animate effects that mutate the live `types`. Used by
+     *  predicates that must distinguish a printed noncreature permanent from
+     *  one whose Creature type was added by another effect — e.g. Titania's
+     *  Song's "Each NONCREATURE artifact" set, which must keep matching its own
+     *  targets after it has made them creatures, and must never match a printed
+     *  artifact creature (Ornithopter). */
+    getPrintedTypes: (card: PermanentView) => CardType[];
 }
 
 export interface StaticPTBuff {
@@ -1465,6 +1511,30 @@ export interface StaticTypeAdd {
     /** Types to add to the target. Duplicates against printed `types` or
      *  other concurrent grants are deduplicated by the engine. */
     types: CardType[];
+}
+
+/** Continuous "loses all abilities" static effect (CR 613.1f layer 6 —
+ *  ability-removing effects). Suppresses ALL of the affected permanent's
+ *  abilities: keyword abilities (stripped from `staticAbilities`, tracked via
+ *  `removedKeywords` for restore), activated abilities (native lookups return
+ *  null while suppressed), triggered abilities (excluded from the trigger
+ *  scan), and intrinsic mana abilities. Used by Titania's Song ("Each
+ *  noncreature artifact loses all abilities and becomes an artifact
+ *  creature ..."). Applied/reversed imperatively like `type-add` and
+ *  `keyword-remove` — the `applies` predicate is read at apply time and when a
+ *  matching permanent enters (`applyExistingGrantsTo`); for ATQ's scope this
+ *  is sufficient (no card revokes the loss mid-life while the source stays in
+ *  play). Per CR 613, ability-removal here precedes the layer-7 P/T pipeline,
+ *  so a card whose P/T comes from a separate static effect on the same source
+ *  (Titania's Song's mana-value CDA) still has its P/T set. */
+export interface StaticAbilityLoss {
+    kind: "ability-loss";
+    /** Predicate: does this loss apply to `target` given `source`? */
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
 }
 
 /** Continuous untap-step restriction (CR 502.1) — caps how many permanents
@@ -1617,15 +1687,41 @@ export interface StaticColorGrant {
 }
 
 /** Cost-modification static effect (CR 601.2f). Scanned at cast-announcement
- *  time; matching increases are added to the spell/ability base cost. */
+ *  time; matching `costIncrease` is added to and matching `costReduction` is
+ *  subtracted from the spell/ability base cost.
+ *
+ *  The optional third `effectSource` argument given to the `appliesTo*`
+ *  predicates is the permanent that carries THIS effect (e.g. the Aura),
+ *  distinct from `card`/`source` which is the spell/ability being modified.
+ *  It lets an Aura scope its modifier to its host — Power Artifact's
+ *  `appliesToAbility` checks `effectSource.attachedTo === source.id` so only
+ *  the enchanted artifact's abilities are reduced. Board-wide modifiers
+ *  (Gloom) ignore it. */
 export interface StaticCostModifier {
     kind: "cost-modifier";
-    appliesToSpell?: (card: PermanentView, ctx: StaticEffectContext) => boolean;
+    appliesToSpell?: (
+        card: PermanentView,
+        ctx: StaticEffectContext,
+        effectSource?: PermanentView
+    ) => boolean;
     appliesToAbility?: (
         source: PermanentView,
-        ctx: StaticEffectContext
+        ctx: StaticEffectContext,
+        effectSource?: PermanentView
     ) => boolean;
-    costIncrease: ManaCost;
+    /** Mana added to the base cost (CR 601.2f). Defaults to nothing. */
+    costIncrease?: ManaCost;
+    /** Mana removed from the base cost (CR 601.2f reductions). Only the generic
+     *  portion is reduced — colored pips can't be reduced by a generic
+     *  reduction. Defaults to nothing. */
+    costReduction?: ManaCost;
+    /** Floor on the post-reduction TOTAL mana of the cost (sum of all pips),
+     *  CR 601.2f / 118.7. Power Artifact's reminder text: "This effect can't
+     *  reduce the cost to less than one mana", i.e. `minTotalMana: 1`. A
+     *  reduction never takes the total below this; colored pips are never
+     *  touched, so the floor only ever protects generic mana. Ignored when no
+     *  `costReduction` is present. */
+    minTotalMana?: number;
 }
 
 /** Keyword-removal static effect (CR 613.1a layer 6). Suppresses a keyword
@@ -1720,7 +1816,8 @@ export type StaticEffect =
     | StaticCostModifier
     | StaticManaSubstitution
     | StaticPermanentGuard
-    | StaticKeywordRemove;
+    | StaticKeywordRemove
+    | StaticAbilityLoss;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
  *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted

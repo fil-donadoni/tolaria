@@ -88,6 +88,11 @@ export function revertCopy(card: CardInstanceState): void {
 export function effectiveTriggeredAbilities(
     card: CardInstanceState
 ): TriggeredAbility[] {
+    // CR 613.1f — a permanent that "loses all abilities" (Titania's Song) has
+    // no triggered abilities while suppressed.
+    if (card.abilitiesSuppressedBy && card.abilitiesSuppressedBy.length > 0) {
+        return [];
+    }
     const presented = tryGetCardById(presentedDefId(card));
     const base = presented?.triggeredAbilities ?? [];
     if (!card.copiedFrom) return [...base];

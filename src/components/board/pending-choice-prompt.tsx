@@ -10,6 +10,7 @@ import { usePendingChoicePrimaryAction } from "~/hooks/usePendingChoicePrimaryAc
 import { manaCostToString } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
 import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
+import PendingChoiceOptions from "~/components/board/pending-choice-options";
 
 function getCountMin(count: PendingChoice["count"]): number {
     return typeof count === "number" ? count : count.min;
@@ -43,6 +44,7 @@ export default function PendingChoicePrompt({
     const { allPlayers } = useGameContext();
     const { offset, dragHandlers } = useDraggable();
     const submitMayPay = useMutation(api.game.submitMayPay);
+    const submitResolutionChoice = useMutation(api.game.submitResolutionChoice);
     const [isBusy, setIsBusy] = useState(false);
     const bufferCtx = usePendingChoiceBuffer();
     // Primary (affirmative) action — shared with the Space hotkey so the button
@@ -53,6 +55,7 @@ export default function PendingChoicePrompt({
     const min = getCountMin(choice.count);
     const max = getCountMax(choice.count);
     const isMayPay = choice.kind === "may-pay";
+    const isOptionPick = choice.kind === "option-pick";
 
     // All zone-pick kinds use the client-side buffer (ADR 0007).
     const selected = bufferCtx.buffer.length;
@@ -103,7 +106,32 @@ export default function PendingChoicePrompt({
                                 {choice.prompt}
                             </p>
                         </div>
-                        {isMayPay ? (
+                        {isOptionPick ? (
+                            <PendingChoiceOptions
+                                options={choice.options ?? []}
+                                disabled={isBusy}
+                                onPick={async (id) => {
+                                    if (isBusy) return;
+                                    setIsBusy(true);
+                                    try {
+                                        // Single-select: submit the chosen
+                                        // option id directly (one id), bypassing
+                                        // the multi-pick buffer — no stale
+                                        // closure on the buffer contents.
+                                        await submitResolutionChoice({
+                                            gameId,
+                                            playerId,
+                                            stackItemId: choice.stackItemId,
+                                            step: choice.step,
+                                            choiceId: choice.choiceId,
+                                            cardInstanceIds: [id],
+                                        });
+                                    } finally {
+                                        setIsBusy(false);
+                                    }
+                                }}
+                            />
+                        ) : isMayPay ? (
                             <div className="flex gap-2 mt-1">
                                 <button
                                     type="button"
