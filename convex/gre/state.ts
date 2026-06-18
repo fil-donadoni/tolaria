@@ -5064,15 +5064,30 @@ export function normalizeManaCost(
     return result;
 }
 
-/** Scan the battlefield for `cost-modifier` static effects that apply to
- *  the given spell or ability source and return the accumulated cost increase
- *  as a normalized mana cost record (CR 601.2f). */
+/** Accumulated cost modification for a spell/ability (CR 601.2f): generic and
+ *  colored increases, generic-only reductions, and the highest declared
+ *  total-mana floor among the matching reduction effects. */
+export interface CostModifiers {
+    increase: Record<string, number>;
+    /** Generic-mana reduction (sum of matching `costReduction` generic). */
+    reductionGeneric: number;
+    /** Largest `minTotalMana` among matching reduction effects (CR 601.2f /
+     *  118.7 — the cost can't drop below this many total mana). 0 = no floor. */
+    minTotalMana: number;
+}
+
+/** Scan the battlefield for `cost-modifier` static effects that apply to the
+ *  given spell or ability source and return the accumulated modifiers (CR
+ *  601.2f). Each effect's own carrier permanent is passed to its `appliesTo*`
+ *  predicate so an Aura can scope its modifier to its host (Power Artifact). */
 export function getCostModifiers(
     state: GameState,
     card: PermanentView,
     kind: "spell" | "ability"
-): Record<string, number> {
+): CostModifiers {
     const increase: Record<string, number> = {};
+    let reductionGeneric = 0;
+    let minTotalMana = 0;
     for (const player of state.players) {
         for (const source of player.battlefield) {
             const cardId = (source.card as { id?: string }).id;
@@ -5084,15 +5099,29 @@ export function getCostModifiers(
                     kind === "spell"
                         ? effect.appliesToSpell
                         : effect.appliesToAbility;
-                if (!pred || !pred(card, STATIC_EFFECT_CTX)) continue;
-                const norm = normalizeManaCost(effect.costIncrease);
-                for (const [k, v] of Object.entries(norm)) {
-                    increase[k] = (increase[k] ?? 0) + v;
+                if (!pred || !pred(card, STATIC_EFFECT_CTX, source)) continue;
+                if (effect.costIncrease) {
+                    const norm = normalizeManaCost(effect.costIncrease);
+                    for (const [k, v] of Object.entries(norm)) {
+                        increase[k] = (increase[k] ?? 0) + v;
+                    }
+                }
+                if (effect.costReduction) {
+                    // Only the generic portion is reducible (CR 601.2f — a
+                    // generic-mana reduction can't remove colored pips).
+                    const norm = normalizeManaCost(effect.costReduction);
+                    reductionGeneric += norm.X ?? 0;
+                    if (
+                        effect.minTotalMana !== undefined &&
+                        effect.minTotalMana > minTotalMana
+                    ) {
+                        minTotalMana = effect.minTotalMana;
+                    }
                 }
             }
         }
     }
-    return increase;
+    return { increase, reductionGeneric, minTotalMana };
 }
 
 /** Scan the battlefield for `mana-substitution` static effects whose source
@@ -5119,13 +5148,43 @@ export function getManaSubstitutions(
     return out;
 }
 
-/** Merge a cost-modifier increase into a base normalized cost (mutates). */
-export function applyCostIncrease(
+/** Apply accumulated cost modifiers to a base normalized cost (mutates),
+ *  CR 601.2f. Order: increases first, then generic reductions, then the
+ *  total-mana floor. Only the generic portion (`X`) is reducible — colored
+ *  pips are never removed by a generic reduction. The floor guarantees the
+ *  post-reduction total mana (generic + every colored pip) is at least
+ *  `minTotalMana`, so Power Artifact's "can't reduce below one mana" holds
+ *  even when the colored pips alone already meet the floor (then generic
+ *  drops all the way to 0) and when they don't (generic stops at the floor).
+ *  A reduction never RAISES a cost: a cost already at or below the floor is
+ *  left untouched (Strip Mine's {T}-only mana ability stays free). */
+export function applyCostModifiers(
     baseCost: Record<string, number>,
-    increase: Record<string, number>
+    modifiers: CostModifiers
 ): void {
-    for (const [k, v] of Object.entries(increase)) {
+    for (const [k, v] of Object.entries(modifiers.increase)) {
         baseCost[k] = (baseCost[k] ?? 0) + v;
+    }
+    if (modifiers.reductionGeneric > 0) {
+        const generic = baseCost.X ?? 0;
+        let reduced = Math.max(0, generic - modifiers.reductionGeneric);
+        // Total-mana floor (CR 601.2f / 118.7): colored pips are immovable, so
+        // the generic portion can only be reduced to the point where the total
+        // still meets the floor. The floor never raises the generic above its
+        // original value — a cost already below the floor is simply unaffected.
+        if (modifiers.minTotalMana > 0) {
+            const colored = Object.entries(baseCost).reduce(
+                (sum, [k, v]) => (k === "X" ? sum : sum + v),
+                0
+            );
+            const minGeneric = Math.min(
+                generic,
+                Math.max(0, modifiers.minTotalMana - colored)
+            );
+            if (reduced < minGeneric) reduced = minGeneric;
+        }
+        if (reduced > 0) baseCost.X = reduced;
+        else delete baseCost.X;
     }
 }
 

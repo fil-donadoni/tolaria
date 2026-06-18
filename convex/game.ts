@@ -39,7 +39,7 @@ import {
     isManaCostCovered,
     getManaSubstitutions,
     getCostModifiers,
-    applyCostIncrease,
+    applyCostModifiers,
     emitSpellCastEvent,
     emitPermanentTapped,
     emitAbilityActivated,
@@ -1349,7 +1349,7 @@ function finalizeTargetSelection(
               })
             : undefined;
         if (manaCost) {
-            applyCostIncrease(
+            applyCostModifiers(
                 manaCost,
                 getCostModifiers(state, card, "ability")
             );
@@ -1452,7 +1452,7 @@ function finalizeTargetSelection(
     const manaCost = rawCost
         ? normalizeManaCost(rawCost, { chosenX, additionalGeneric })
         : {};
-    applyCostIncrease(manaCost, getCostModifiers(state, cardInHand, "spell"));
+    applyCostModifiers(manaCost, getCostModifiers(state, cardInHand, "spell"));
 
     // CR 106.6: a spell may also spend restriction-permitting mana —
     // creature mana (Metamorphosis) or artifact mana (Mishra's Workshop) —
@@ -1692,7 +1692,7 @@ export const announceCast = mutation({
         const rawCost = getInstanceManaCost(cardInHand);
 
         const manaCost = rawCost ? normalizeManaCost(rawCost, { chosenX }) : {};
-        applyCostIncrease(
+        applyCostModifiers(
             manaCost,
             getCostModifiers(state, cardInHand, "spell")
         );
@@ -4058,7 +4058,7 @@ export const activateAbility = mutation({
             ? normalizeManaCost(ability.cost.mana, { chosenX })
             : undefined;
         if (manaCost) {
-            applyCostIncrease(
+            applyCostModifiers(
                 manaCost,
                 getCostModifiers(state, card, "ability")
             );

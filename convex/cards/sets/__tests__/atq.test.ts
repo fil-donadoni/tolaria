@@ -77,6 +77,7 @@ import {
     xenicPoltergeist,
     primalClay,
     shapeshifter,
+    powerArtifact,
 } from "../atq";
 import { grizzlyBears, hillGiant, solRing } from "../lea";
 import { getCardById, getInstanceManaCost } from "../..";
@@ -110,6 +111,8 @@ import {
     payManaCostForSpell,
     isManaCostCovered,
     normalizeManaCost,
+    getCostModifiers,
+    applyCostModifiers,
     runDamageReplacement,
     type CardInstanceState,
     type GameState,
@@ -5418,5 +5421,200 @@ describe("Shapeshifter (choose-number-on-entry + upkeep, CR 614.12 / 603.6a)", (
         )!;
         expect(getEffectivePower(round, shift)).toBe(3);
         expect(getEffectiveToughness(round, shift)).toBe(4);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster J (#290) — Power Artifact: activated-ability cost reduction.
+// CR 601.2f (cost modification) + 118.7 (floor). The aura's `cost-modifier`
+// effect reduces the generic portion of the enchanted artifact's activated
+// abilities by {2}, clamped so the post-reduction TOTAL mana never drops below
+// one. The reduction is scoped to the host via the effect-source `attachedTo`
+// check, applies only while attached, and is computed at the activation/payment
+// site by `getCostModifiers` + `applyCostModifiers` — the exact functions
+// game.ts calls in `activateAbility`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Power Artifact (enchanted artifact's abilities cost {2} less, min 1 mana, CR 601.2f / 118.7)", () => {
+    /** Mirror game.ts's `activateAbility` cost calculation: normalize the
+     *  ability's printed mana cost, then fold in the battlefield cost
+     *  modifiers. Returns the effective normalized cost the player must pay. */
+    function effectiveAbilityCost(
+        state: GameState,
+        host: CardInstanceState,
+        abilityId: string
+    ): Record<string, number> {
+        const def = getCardById((host.card as { id: string }).id);
+        const ability = def.activatedAbilities!.find(
+            (a) => a.id === abilityId
+        )!;
+        const cost = ability.cost.mana
+            ? normalizeManaCost(ability.cost.mana)
+            : {};
+        applyCostModifiers(cost, getCostModifiers(state, host, "ability"));
+        return cost;
+    }
+
+    /** Dragon Engine ({2}: +1/+0) enchanted by Power Artifact, on one board. */
+    function enchantedDragonEngine(attached = true) {
+        const engine = makeInstance(dragonEngine.id, { id: "engine" });
+        const aura = makeInstance(powerArtifact.id, {
+            id: "aura",
+            ...(attached ? { attachedTo: "engine" } : {}),
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [engine, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, engine, aura };
+    }
+
+    it("definition: {U}{U} Aura that enchants an artifact", () => {
+        expect(powerArtifact.manaCost).toEqual({ U: 2 });
+        expect(powerArtifact.types).toEqual(["Enchantment"]);
+        expect(powerArtifact.subtypes).toEqual(["Aura"]);
+        expect(powerArtifact.targetRequirement).toEqual({
+            type: "Artifact",
+            count: 1,
+        });
+        const mod = powerArtifact.staticEffects!.find(
+            (e) => e.kind === "cost-modifier"
+        );
+        expect(mod).toBeDefined();
+    });
+
+    it("reduces the host's {2} ability to the {1} floor (CR 118.7)", () => {
+        const { state, engine } = enchantedDragonEngine();
+        // {2} - {2} = {0}, clamped up to the one-mana floor → {1}.
+        expect(
+            effectiveAbilityCost(state, engine, "dragon-engine-pump")
+        ).toEqual({ X: 1 });
+    });
+
+    it("does not affect an unenchanted artifact's ability cost", () => {
+        const { state, engine } = enchantedDragonEngine(false);
+        expect(
+            effectiveAbilityCost(state, engine, "dragon-engine-pump")
+        ).toEqual({ X: 2 });
+    });
+
+    it("reverts the moment the aura detaches (CR 704.5n)", () => {
+        const { state, engine, aura } = enchantedDragonEngine();
+        expect(
+            effectiveAbilityCost(state, engine, "dragon-engine-pump")
+        ).toEqual({ X: 1 });
+        // SBA-style detach: clear the link; the reduction is read live, so the
+        // very next calculation reverts to the printed {2}.
+        const liveAura = state.players[0].battlefield.find(
+            (c) => c.id === aura.id
+        )!;
+        delete liveAura.attachedTo;
+        expect(
+            effectiveAbilityCost(state, engine, "dragon-engine-pump")
+        ).toEqual({ X: 2 });
+    });
+
+    it("scopes the reduction to its own host, not every artifact", () => {
+        const { state, aura } = enchantedDragonEngine();
+        // A second, unenchanted Dragon Engine on the same board is untouched.
+        const other = makeInstance(dragonEngine.id, { id: "other" });
+        state.players[0].battlefield.push(other);
+        expect(aura.attachedTo).toBe("engine");
+        expect(
+            effectiveAbilityCost(state, other, "dragon-engine-pump")
+        ).toEqual({ X: 2 });
+    });
+
+    it("reduces a {2},{T} ability to {1} and leaves the tap intact", () => {
+        const gear = makeInstance(ashnodsBattleGear.id, { id: "gear" });
+        const aura = makeInstance(powerArtifact.id, {
+            id: "aura",
+            attachedTo: "gear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gear, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Mana portion {2} → {1}; the {T} portion is not a mana cost and is
+        // untouched by a generic reduction.
+        expect(
+            effectiveAbilityCost(state, gear, "ashnods-battle-gear-pump")
+        ).toEqual({ X: 1 });
+    });
+
+    it("does not touch a {T}-only mana ability (no mana in the cost)", () => {
+        const strip = makeInstance(stripMine.id, { id: "strip" });
+        const aura = makeInstance(powerArtifact.id, {
+            id: "aura",
+            attachedTo: "strip",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [strip, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        // No mana in the cost → empty normalized cost, nothing to reduce.
+        expect(effectiveAbilityCost(state, strip, "strip-mine-mana")).toEqual(
+            {}
+        );
+    });
+
+    it("a reduction well above the floor is applied in full (arithmetic)", () => {
+        // applyCostModifiers semantics on a synthetic {3}{U} cost: generic
+        // 3 - 2 = 1 (above the one-mana floor once the {U} pip is counted),
+        // colored pip preserved → {1}{U}.
+        const cost = normalizeManaCost({ X: 3, U: 1 });
+        applyCostModifiers(cost, {
+            increase: {},
+            reductionGeneric: 2,
+            minTotalMana: 1,
+        });
+        expect(cost).toEqual({ X: 1, U: 1 });
+    });
+
+    it("the floor protects total mana, dropping generic to 0 when colored pips already meet it", () => {
+        // {2}{U}: generic 2 - 2 = 0; the {U} pip alone already meets the
+        // one-mana floor, so generic is allowed to drop all the way to 0.
+        const cost = normalizeManaCost({ X: 2, U: 1 });
+        applyCostModifiers(cost, {
+            increase: {},
+            reductionGeneric: 2,
+            minTotalMana: 1,
+        });
+        expect(cost).toEqual({ U: 1 });
+    });
+
+    it("an enchanted artifact's {2} ability becomes payable with a single mana", () => {
+        const { state, engine } = enchantedDragonEngine();
+        const cost = effectiveAbilityCost(state, engine, "dragon-engine-pump");
+        // One generic mana now covers it (it did not before the aura).
+        expect(isManaCostCovered({ C: 1 }, cost)).toBe(true);
+        expect(isManaCostCovered({}, cost)).toBe(false);
+    });
+
+    it("wire format: attachment + reduction survive projectPublicState", () => {
+        const { state } = enchantedDragonEngine();
+        const projected = projectPublicState(state, 1, "p1");
+        const slimEngine = projected.players
+            .find((p) => p.id === "p1")!
+            .battlefield.find((c) => c.id === "engine")!;
+        const slimAura = projected.players
+            .find((p) => p.id === "p1")!
+            .battlefield.find((c) => c.id === "aura")!;
+        // The aura's host link survives the projection…
+        expect(slimAura.attachedTo).toBe("engine");
+        // …and the reduction re-computes against the projected state.
+        expect(
+            effectiveAbilityCost(
+                projected as unknown as GameState,
+                slimEngine as unknown as CardInstanceState,
+                "dragon-engine-pump"
+            )
+        ).toEqual({ X: 1 });
     });
 });

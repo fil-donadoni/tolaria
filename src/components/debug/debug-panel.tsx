@@ -249,6 +249,35 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Antiquities cluster J — activated-ability cost reduction (#290, CR
+        // 601.2f / 118.7). Power Artifact (Aura) reduces the enchanted
+        // artifact's activated-ability mana costs by {2}, floored at one mana.
+        //   • Cast Power Artifact from hand ({U}{U}, covered by the two
+        //     Islands) targeting Dragon Engine.
+        //   • Activate Dragon Engine's "{2}: +1/+0 until end of turn": with the
+        //     aura attached the payment site now asks for only {1} (the
+        //     two-generic reduction clamps to the one-mana floor), so a single
+        //     land covers it instead of two.
+        //   • Compare: detach (e.g. destroy the aura) or use the second,
+        //     unenchanted Dragon Engine — its ability still costs the full {2}.
+        label: "Antiquities J: activated-ability cost reduction (Power Artifact)",
+        cards: [
+            {
+                name: "Power Artifact",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Dragon Engine", owner: "me" as const },
+            { name: "Dragon Engine", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            { name: "Triskelion", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next battlefield tap/pay (#272). The spatial board's
         // battlefield is now interactive (?board=next) — load this and switch
         // the URL to ?board=next to exercise the foundational tap/pay slice:
