@@ -2458,6 +2458,55 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "UPKEEP",
         landCount: 0,
     },
+    {
+        // ATQ free tranche (#274) — artifact removal & bounce, all expressed
+        // with existing primitives (destroy/destroyAll no-regen, returnToHand,
+        // counter, gainLife/dealDamage = mv/X). Your hand holds the five
+        // spells; the opponent fields several artifacts to point them at.
+        //   • Crumble ({G} instant): destroy the opponent's Clay Statue (mv 4)
+        //     — it can't be regenerated and ITS controller (the opponent)
+        //     gains 4 life.
+        //   • Detonate ({X}{R} sorcery): choose X = 3 to destroy Dragon Engine
+        //     (mv 3) and deal 3 damage to its controller. Only mv-3 artifacts
+        //     are legal at X = 3.
+        //   • Shatterstorm ({2}{R}{R} sorcery): wipe every artifact on both
+        //     sides at once (your Ornithopter dies too).
+        //   • Artifact Blast ({R} instant): hold priority and counter an
+        //     artifact spell the opponent casts (only artifact spells are
+        //     legal targets).
+        //   • Hurkyl's Recall ({1}{U} instant): target the opponent and bounce
+        //     every artifact they own back to their hand at once.
+        // Forest + Island + a pile of Mountains pay every cost.
+        label: "ATQ: removal & bounce (Crumble / Detonate / Shatterstorm / Hurkyl's Recall)",
+        cards: [
+            { name: "Crumble", owner: "me" as const, zone: "hand" as const },
+            { name: "Detonate", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Shatterstorm",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Artifact Blast",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Hurkyl's Recall",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Forest", owner: "me" as const, count: 1 },
+            { name: "Island", owner: "me" as const, count: 1 },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+            { name: "Ornithopter", owner: "me" as const },
+            { name: "Clay Statue", owner: "opp" as const },
+            { name: "Dragon Engine", owner: "opp" as const },
+            { name: "Grapeshot Catapult", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

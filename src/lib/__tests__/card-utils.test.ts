@@ -395,6 +395,28 @@ describe("matchesSpellTypeFilter", () => {
         );
         expect(matchesSpellTypeFilter({ types: ["Instant"] }, [])).toBe(true);
     });
+
+    // Artifact Blast (#274): "counter target artifact spell". game.ts
+    // normalizes the card's string `spellTypeFilter: "Artifact"` to
+    // ["Artifact"] before it reaches the client, so the UI sees an array.
+    it("matches an Artifact spell but not other spell types (Artifact Blast)", () => {
+        const artifactFilter = ["Artifact"];
+        expect(
+            matchesSpellTypeFilter({ types: ["Artifact"] }, artifactFilter)
+        ).toBe(true);
+        expect(
+            matchesSpellTypeFilter(
+                { types: ["Artifact", "Creature"] },
+                artifactFilter
+            )
+        ).toBe(true);
+        expect(
+            matchesSpellTypeFilter({ types: ["Instant"] }, artifactFilter)
+        ).toBe(false);
+        expect(
+            matchesSpellTypeFilter({ types: ["Sorcery"] }, artifactFilter)
+        ).toBe(false);
+    });
 });
 
 // ---------------------------------------------------------------------------

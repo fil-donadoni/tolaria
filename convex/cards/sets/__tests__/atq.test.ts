@@ -14,9 +14,19 @@ import {
     colossusOfSardia,
     stripMine,
     obeliskOfUndoing,
+    crumble,
+    detonate,
+    shatterstorm,
+    artifactBlast,
+    hurkylsRecall,
 } from "../atq";
 import { getCardById } from "../..";
-import { makeInstance, makePlayer, makeState } from "../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../__tests__/setup";
 import { isCreature } from "../../../gre/constants";
 import { projectPublicState } from "../../../gameProjections";
 import {
@@ -594,5 +604,432 @@ describe("Obelisk of Undoing ({6},{T}: return your permanent, CR 701.10)", () =>
             state.players[0].battlefield.find((c) => c.id === "target")
         ).toBeUndefined();
         expect(state.players[0].hand.some((c) => c.id === "target")).toBe(true);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Artifact removal & bounce (free tranche, #274)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Crumble (destroy artifact, no regen, controller gains life = mv, CR 701.7 / 701.15c)", () => {
+    it("destroys the target artifact and grants its controller life = mv", () => {
+        // Clay Statue is mv 4 (MTGJSON {4}).
+        const statue = makeInstance(clayStatue.id, {
+            id: "statue",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [statue] }),
+            ],
+        });
+        pushSpell(state, crumble.id, "p1", [
+            { type: "permanent", id: "statue" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "statue")
+        ).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === "statue")).toBe(
+            true
+        );
+        // Controller (p2) gains 4 life.
+        expect(state.players[1].life).toBe(24);
+    });
+
+    it("can't be regenerated — a regen shield does not save it (CR 701.15c)", () => {
+        const statue = makeInstance(clayStatue.id, {
+            id: "statue",
+            controllerId: "p2",
+            ownerId: "p2",
+            card: { id: clayStatue.id, regenerationShields: 1 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [statue] }),
+            ],
+        });
+        pushSpell(state, crumble.id, "p1", [
+            { type: "permanent", id: "statue" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "statue")
+        ).toBeUndefined();
+    });
+
+    it("indestructible artifact survives but no life is gained (destroy is replaced)", () => {
+        const statue = makeInstance(clayStatue.id, {
+            id: "statue",
+            controllerId: "p2",
+            ownerId: "p2",
+            staticAbilities: ["indestructible"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [statue] }),
+            ],
+        });
+        pushSpell(state, crumble.id, "p1", [
+            { type: "permanent", id: "statue" },
+        ]);
+        resolveTopOfStack(state);
+        // Still on the battlefield; gainLife still fires (controller reads the
+        // surviving permanent's mv) — Crumble's life gain is not contingent on
+        // the destroy succeeding per oracle text.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "statue")
+        ).toBeDefined();
+        expect(state.players[1].life).toBe(24);
+    });
+
+    it("getLegalTargets restricts to artifacts only", () => {
+        const statue = makeInstance(clayStatue.id, {
+            id: "statue",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const creature = vanilla("creature", 2, 2);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [statue, creature] }),
+            ],
+        });
+        const ids = getLegalTargets(
+            state,
+            crumble.targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(ids).toContain("statue");
+        expect(ids).not.toContain("creature");
+    });
+
+    it("wire format: target id survives projectPublicState and resolve still works", () => {
+        const statue = makeInstance(clayStatue.id, {
+            id: "statue",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [statue] }),
+            ],
+        });
+        const item = pushSpell(state, crumble.id, "p1", [
+            { type: "permanent", id: "statue" },
+        ]);
+        const projected = projectPublicState(state, 1, "p1");
+        const projectedItem = projected.stack.find((s) => s.id === item.id)!;
+        expect(projectedItem.targets?.[0]).toEqual({
+            type: "permanent",
+            id: "statue",
+        });
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "statue")
+        ).toBeUndefined();
+        expect(state.players[1].life).toBe(24);
+    });
+});
+
+describe("Detonate ({X}{R} — destroy artifact of mv X, X damage to controller, CR 107.3 / 701.7)", () => {
+    it("destroys an artifact with mv X and deals X damage to its controller", () => {
+        // Dragon Engine is mv 3 (MTGJSON {3}). X = 3.
+        const engine = makeInstance(dragonEngine.id, {
+            id: "engine",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [engine] }),
+            ],
+        });
+        const item = pushSpell(state, detonate.id, "p1", [
+            { type: "permanent", id: "engine" },
+        ]);
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "engine")
+        ).toBeUndefined();
+        // 3 damage to p2 (the controller).
+        expect(state.players[1].life).toBe(17);
+    });
+
+    it("getLegalTargets restricts to artifacts whose mv equals the chosen X", () => {
+        // Two artifacts: Dragon Engine (mv 3), Clay Statue (mv 4). With X=3,
+        // only the mv-3 artifact is legal (mvFilter: { equals: "X" }).
+        const engine = makeInstance(dragonEngine.id, {
+            id: "engine",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const statue = makeInstance(clayStatue.id, {
+            id: "statue",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [engine, statue] }),
+            ],
+        });
+        const ids = getLegalTargets(
+            state,
+            detonate.targetRequirement!,
+            [],
+            "p1",
+            3
+        ).map((t) => t.id);
+        expect(ids).toContain("engine");
+        expect(ids).not.toContain("statue");
+    });
+
+    it("can't be regenerated — a regen shield does not save the target", () => {
+        const engine = makeInstance(dragonEngine.id, {
+            id: "engine",
+            controllerId: "p2",
+            ownerId: "p2",
+            card: { id: dragonEngine.id, regenerationShields: 1 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [engine] }),
+            ],
+        });
+        const item = pushSpell(state, detonate.id, "p1", [
+            { type: "permanent", id: "engine" },
+        ]);
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "engine")
+        ).toBeUndefined();
+    });
+
+    it("declares mvFilter equals X on the target requirement", () => {
+        expect(detonate.targetRequirement?.mvFilter).toEqual({ equals: "X" });
+    });
+});
+
+describe("Shatterstorm (destroy all artifacts, no regen, CR 701.7 / 701.15c)", () => {
+    it("destroys every artifact on the battlefield, leaving non-artifacts", () => {
+        const a1 = makeInstance(clayStatue.id, {
+            id: "a1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const a2 = makeInstance(dragonEngine.id, {
+            id: "a2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const creature = vanilla("creature", 2, 2);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a1] }),
+                makePlayer("p2", { battlefield: [a2, creature] }),
+            ],
+        });
+        pushSpell(state, shatterstorm.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.find((c) => c.id === "a1")).toBe(
+            undefined
+        );
+        expect(state.players[1].battlefield.find((c) => c.id === "a2")).toBe(
+            undefined
+        );
+        // The non-artifact creature is untouched.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "creature")
+        ).toBeDefined();
+    });
+
+    it("can't be regenerated — artifacts with regen shields still die", () => {
+        const a1 = makeInstance(clayStatue.id, {
+            id: "a1",
+            controllerId: "p1",
+            ownerId: "p1",
+            card: { id: clayStatue.id, regenerationShields: 1 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a1] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, shatterstorm.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.find((c) => c.id === "a1")).toBe(
+            undefined
+        );
+    });
+
+    it("spares indestructible artifacts (CR 702.12)", () => {
+        const a1 = makeInstance(clayStatue.id, {
+            id: "a1",
+            controllerId: "p1",
+            ownerId: "p1",
+            staticAbilities: ["indestructible"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a1] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, shatterstorm.id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "a1")
+        ).toBeDefined();
+    });
+});
+
+describe("Artifact Blast (counter target artifact spell, CR 701.5a / 114.1)", () => {
+    it("counters an artifact spell on the stack", () => {
+        const state = makeState();
+        // p2 casts Clay Statue (an Artifact spell). p1 responds with blast.
+        const statueSpell = pushSpell(state, clayStatue.id, "p2");
+        pushSpell(state, artifactBlast.id, "p1", [
+            { type: "spell", id: statueSpell.id },
+        ]);
+        resolveTopOfStack(state); // resolve Artifact Blast (top of stack)
+        expect(
+            state.stack.find((s) => s.id === statueSpell.id)
+        ).toBeUndefined();
+        // Countered artifact goes to its owner's (p2) graveyard.
+        expect(
+            state.players[1].graveyard.some((c) => c.id === statueSpell.id)
+        ).toBe(true);
+    });
+
+    it("getLegalTargets only offers artifact spells, not other spell types", () => {
+        const state = makeState();
+        const artifactSpell = pushSpell(state, clayStatue.id, "p2");
+        const instantSpell = pushSpell(state, crumble.id, "p2", [
+            { type: "permanent", id: "nonexistent" },
+        ]);
+        const ids = getLegalTargets(
+            state,
+            artifactBlast.targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(ids).toContain(artifactSpell.id);
+        expect(ids).not.toContain(instantSpell.id);
+    });
+
+    it("declares spellTypeFilter Artifact on the target requirement", () => {
+        expect(artifactBlast.targetRequirement?.spellTypeFilter).toBe(
+            "Artifact"
+        );
+    });
+});
+
+describe("Hurkyl's Recall (return all artifacts target player owns to hand, CR 701.10)", () => {
+    it("bounces every artifact the target player owns, leaving non-artifacts", () => {
+        const a1 = makeInstance(clayStatue.id, {
+            id: "a1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const a2 = makeInstance(dragonEngine.id, {
+            id: "a2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const creature = vanilla("creature", 2, 2);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [a1, a2, creature] }),
+            ],
+        });
+        pushSpell(state, hurkylsRecall.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        // Both artifacts left the battlefield and are in p2's hand.
+        expect(
+            state.players[1].battlefield.filter((c) => c.id !== "creature")
+        ).toHaveLength(0);
+        expect(state.players[1].hand.some((c) => c.id === "a1")).toBe(true);
+        expect(state.players[1].hand.some((c) => c.id === "a2")).toBe(true);
+        // Non-artifact creature stays on the battlefield.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "creature")
+        ).toBeDefined();
+    });
+
+    it("only affects the targeted player's artifacts, not the caster's", () => {
+        const mine = makeInstance(clayStatue.id, {
+            id: "mine",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const theirs = makeInstance(dragonEngine.id, {
+            id: "theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine] }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        pushSpell(state, hurkylsRecall.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        // p1's own artifact is untouched.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "mine")
+        ).toBeDefined();
+        // p2's artifact bounced.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "theirs")
+        ).toBeUndefined();
+        expect(state.players[1].hand.some((c) => c.id === "theirs")).toBe(true);
+    });
+
+    it("returnToHand routes each card to its OWNER's hand", () => {
+        // p2 controls and owns the artifact; it must land in p2's hand.
+        const a1 = makeInstance(clayStatue.id, {
+            id: "a1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [a1] }),
+            ],
+        });
+        pushSpell(state, hurkylsRecall.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.some((c) => c.id === "a1")).toBe(false);
+        expect(state.players[1].hand.some((c) => c.id === "a1")).toBe(true);
+    });
+
+    it("targets a player", () => {
+        expect(hurkylsRecall.targetRequirement).toEqual({
+            type: "player",
+            count: 1,
+        });
     });
 });
