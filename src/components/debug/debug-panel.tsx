@@ -215,6 +215,40 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Antiquities cluster G — choose-body-on-entry creatures (#289, CR
+        // 614.12). Both creatures pick their body "as they enter" via an
+        // option-pick prompt; the chosen base P/T (and Primal Clay's keyword /
+        // subtype) persists.
+        //   • Cast Primal Clay from hand (5 Mountains cover {4}). As it
+        //     resolves, the option prompt offers "3/3", "2/2 flying", and
+        //     "1/6 Wall (defender)". Pick one and watch the body settle on the
+        //     battlefield with the right P/T / keyword.
+        //   • Cast Shapeshifter ({6}) — the prompt offers numbers 0–7
+        //     (label "N/(7−N)"). Pick e.g. 3 → it enters as a 3/4. Picking 7
+        //     (7/0) makes it die to the 0-toughness SBA.
+        //   • After Shapeshifter is on the board, pass to your next upkeep: the
+        //     "may re-choose a number" prompt appears (Yes → pick a new number
+        //     to re-set its P/T; No keeps the current body).
+        label: "Antiquities G: choose body on entry (Primal Clay / Shapeshifter)",
+        cards: [
+            {
+                name: "Primal Clay",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Shapeshifter",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 7 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next battlefield tap/pay (#272). The spatial board's
         // battlefield is now interactive (?board=next) — load this and switch
         // the URL to ?board=next to exercise the foundational tap/pay slice:

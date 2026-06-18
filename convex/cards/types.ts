@@ -1099,6 +1099,41 @@ export interface SpellContext {
         prompt: string;
     }) => boolean | undefined;
 
+    /** Requests a single pick from a list of abstract options (CR 614.12 /
+     *  701.x "as it enters, choose …"). On first call, enqueues an
+     *  `option-pick` `PendingChoice` and returns `undefined` — the caller must
+     *  return early to suspend. On resume (after the player submits via
+     *  `selectResolutionChoice`) the call returns the chosen option `id`.
+     *  `choiceId` disambiguates multiple enqueues within a step and must be
+     *  stable across replays. Used by the choose-body-on-entry creatures
+     *  Primal Clay (3 body modes) and Shapeshifter (a number 0–7). */
+    requestOptionChoice: (req: {
+        playerId: string;
+        choiceId: string;
+        options: { id: string; label: string }[];
+        prompt: string;
+    }) => string | undefined;
+
+    /** Sets the resolving permanent's BASE characteristics in place (CR 614.12
+     *  "as it enters" body selection / a re-choice on the battlefield). Unlike
+     *  `setBasePT` (a timestamped layer-7b set that the cleanup step purges),
+     *  this mutates the printed-equivalent base `power`/`toughness` and the
+     *  `subtypes`/`staticAbilities` arrays directly, so the choice persists
+     *  indefinitely and feeds the layer pipeline as the pre-layer base.
+     *  Resolves the recipient like `becomeCopyOf`: the spell still on the stack
+     *  during `resolveSteps` (Primal Clay / Shapeshifter entry), or the source
+     *  permanent on the battlefield during an upkeep re-choice (Shapeshifter).
+     *  `power`/`toughness` overwrite (set, not add). `addSubtypes`/`addKeywords`
+     *  append without duplicating. Used by Primal Clay (Wall mode adds subtype
+     *  "Wall" + keyword "defender") and Shapeshifter (power = N, toughness =
+     *  7 − N, re-set each upkeep). */
+    setSelfBody: (spec: {
+        power?: number;
+        toughness?: number;
+        addSubtypes?: string[];
+        addKeywords?: string[];
+    }) => void;
+
     /** Active-player-then-non-active-player order (CR 101.4). In 2-player
      *  games, returns [activePlayerId, opponentId]. Used by spells like
      *  Balance where each player makes a choice in APNAP order. */

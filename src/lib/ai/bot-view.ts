@@ -228,6 +228,15 @@ function buildOwedChoice(
             candidates.push({ id: pid, value: 0 });
         }
     }
+    // CR 614.12 — an `option-pick` choice (Primal Clay / Shapeshifter) picks
+    // an abstract option id, not a zone member. The options aren't in any zone,
+    // so append them from the choice's `options` list with a neutral value;
+    // the bot's minimal-legal default (ADR 0016) takes the first.
+    if (head.kind === "option-pick" && head.options) {
+        for (const opt of head.options) {
+            candidates.push({ id: opt.id, value: 0 });
+        }
+    }
     return {
         kind: head.kind,
         min: getPendingChoiceMin(head.count),

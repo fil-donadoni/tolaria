@@ -2686,3 +2686,140 @@ export const xenicPoltergeist: CardDefinition = {
         },
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Choose-body-on-entry creatures (ATQ cluster G, issue #289). These pick their
+// body "as they enter" (CR 614.12 replacement-style self-modification, resolved
+// during the creature spell's own `resolveSteps` while it is still on the
+// stack). The pick is an abstract `option-pick` PendingChoice (8 numbers for
+// Shapeshifter, 3 modes for Primal Clay) and the resulting base P/T / subtypes /
+// keywords are written onto the entering permanent via `ctx.setSelfBody`, which
+// persists indefinitely (NOT a layer-7b temporary set). Shapeshifter re-chooses
+// at each of its controller's upkeeps (CR 603.6a "may"), overwriting its base
+// P/T. New engine capabilities introduced for this cluster: the `option-pick`
+// PendingChoice kind (`ctx.requestOptionChoice`) and the persistent
+// `ctx.setSelfBody` self-body primitive.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Primal Clay — {4} Artifact Creature — Shapeshifter, 0/0. "As this creature
+// enters, it becomes your choice of a 3/3 artifact creature, a 2/2 artifact
+// creature with flying, or a 1/6 Wall artifact creature with defender in
+// addition to its other types." (CR 614.12 — the body choice is made as it
+// enters; CR 702.3 defender; CR 702.9 flying. It is always an artifact
+// creature; only the Wall mode adds subtype "Wall" + keyword "defender".)
+export const primalClay: CardDefinition = {
+    id: "ab9d0e3f-cf7c-41f8-bcd7-bb08ea8cc2f8",
+    name: "Primal Clay",
+    oracleText:
+        "As this creature enters, it becomes your choice of a 3/3 artifact creature, a 2/2 artifact creature with flying, or a 1/6 Wall artifact creature with defender in addition to its other types.",
+    manaCost: { X: 4 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Shapeshifter"],
+    power: 0,
+    toughness: 0,
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            // CR 614.12 — choose the body as the permanent enters. The pick is
+            // made by the spell's controller during resolution; the resulting
+            // base characteristics are written onto the still-on-stack
+            // permanent and carry to the battlefield on `finalizeSpellResolution`.
+            const mode = ctx.requestOptionChoice({
+                playerId: ctx.controller,
+                choiceId: "primal-clay-body",
+                options: [
+                    { id: "3-3", label: "3/3" },
+                    { id: "2-2-flying", label: "2/2 flying" },
+                    { id: "1-6-wall", label: "1/6 Wall (defender)" },
+                ],
+                prompt: "Choose Primal Clay's body.",
+            });
+            if (mode === undefined) return; // suspended — wait for the pick
+            if (mode === "3-3") {
+                ctx.setSelfBody({ power: 3, toughness: 3 });
+            } else if (mode === "2-2-flying") {
+                ctx.setSelfBody({
+                    power: 2,
+                    toughness: 2,
+                    addKeywords: ["flying"],
+                });
+            } else if (mode === "1-6-wall") {
+                ctx.setSelfBody({
+                    power: 1,
+                    toughness: 6,
+                    addSubtypes: ["Wall"],
+                    addKeywords: ["defender"],
+                });
+            }
+        },
+    ],
+};
+
+// Shapeshifter — {6} Artifact Creature — Shapeshifter, */7-*. "As this creature
+// enters, choose a number between 0 and 7. At the beginning of your upkeep, you
+// may choose a number between 0 and 7. Shapeshifter's power is equal to the last
+// chosen number and its toughness is equal to 7 minus that number." (CR 614.12 —
+// entry choice; CR 603.6a — optional upkeep re-choice. We model "power = N,
+// toughness = 7 − N" by writing the chosen base P/T directly via `setSelfBody`,
+// overwriting on each re-choice. The entry choice is mandatory; the upkeep
+// re-choice is a "may".)
+const SHAPESHIFTER_NUMBER_OPTIONS = Array.from({ length: 8 }, (_, n) => ({
+    id: String(n),
+    label: `${n}/${7 - n}`,
+}));
+
+export const shapeshifter: CardDefinition = {
+    id: "cc278af4-b60d-41b7-b9d7-36c8aefca1a7",
+    name: "Shapeshifter",
+    oracleText:
+        "As this creature enters, choose a number between 0 and 7.\nAt the beginning of your upkeep, you may choose a number between 0 and 7.\nShapeshifter's power is equal to the last chosen number and its toughness is equal to 7 minus that number.",
+    manaCost: { X: 6 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Shapeshifter"],
+    power: 0,
+    toughness: 0,
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            // CR 614.12 — mandatory entry choice. Power = N, toughness = 7 − N.
+            const choice = ctx.requestOptionChoice({
+                playerId: ctx.controller,
+                choiceId: "shapeshifter-entry-number",
+                options: SHAPESHIFTER_NUMBER_OPTIONS,
+                prompt: "Choose a number between 0 and 7.",
+            });
+            if (choice === undefined) return; // suspended — wait for the pick
+            const n = Number(choice);
+            ctx.setSelfBody({ power: n, toughness: 7 - n });
+        },
+    ],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "shapeshifter-upkeep-renumber",
+            oracleText:
+                "At the beginning of your upkeep, you may choose a number between 0 and 7. Shapeshifter's power becomes equal to the chosen number and its toughness becomes equal to 7 minus that number.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                // CR 603.6a — optional ("may") re-choice. requestMayPay with no
+                // cost is the project's yes/no primitive; on accept, pick a new
+                // number and overwrite the base P/T via setSelfBody (recipient
+                // resolves to the source permanent on the battlefield).
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: `shapeshifter-renumber-may-${ctx.sourceInstanceId}`,
+                    prompt: "Choose a new number for Shapeshifter?",
+                });
+                if (accept === undefined) return; // suspended
+                if (!accept) return;
+                const choice = ctx.requestOptionChoice({
+                    playerId: ctx.controller,
+                    choiceId: `shapeshifter-renumber-${ctx.sourceInstanceId}`,
+                    options: SHAPESHIFTER_NUMBER_OPTIONS,
+                    prompt: "Choose a number between 0 and 7.",
+                });
+                if (choice === undefined) return; // suspended
+                const n = Number(choice);
+                ctx.setSelfBody({ power: n, toughness: 7 - n });
+            },
+        }),
+    ],
+};

@@ -26,6 +26,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "may-pay": "Optional",
     // order family
     "mulligan-bottom": "Mulligan",
+    // option family
+    "option-pick": "Choose",
 };
 
 export function pendingChoiceLabel(kind: PendingChoiceKind): string {

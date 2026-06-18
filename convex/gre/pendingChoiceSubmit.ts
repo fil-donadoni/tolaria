@@ -189,6 +189,41 @@ export function applyPendingChoiceSubmit(
         return;
     }
 
+    // --- Abstract option pick (CR 614.12 "as it enters, choose …"): the pick
+    // is one author-supplied option id, not a zone member. Validates against
+    // `head.options` (like `choose-damage-target` validates against its
+    // allow-lists) and writes the chosen id verbatim into `collectedChoices`;
+    // the card's resolve step reads it back via `requestOptionChoice`. ---
+    if (head.kind === "option-pick") {
+        const id = args.cardInstanceIds[0];
+        if (!head.options?.some((o) => o.id === id)) {
+            throw new Error("Not a legal choice");
+        }
+        const stackItem = state.stack.find((s) => s.id === head.stackItemId);
+        if (!stackItem) throw new Error("Stack item not found");
+        const key = `${head.step}:${head.choiceId}`;
+        stackItem.collectedChoices = {
+            ...(stackItem.collectedChoices ?? {}),
+            [key]: args.cardInstanceIds,
+        };
+        queue.shift();
+        state.pendingChoices = queue.length > 0 ? queue : undefined;
+        if ((state.pendingChoices?.length ?? 0) === 0) {
+            resolveTopOfStack(state);
+            if ((state.pendingChoices?.length ?? 0) > 0) {
+                state.priorityPlayerId = state.pendingChoices![0].playerId;
+            } else {
+                state.priorityPlayerId = state.activePlayerId;
+                state.passCount = 0;
+                drainAutoPasses(state);
+            }
+            checkStateBasedActions(state);
+        } else {
+            state.priorityPlayerId = state.pendingChoices![0].playerId;
+        }
+        return;
+    }
+
     const zoneOwner = getPlayer(state, head.zoneOwnerId ?? args.playerId);
 
     // --- Zone-level validation: verify every id exists in the declared zone ---

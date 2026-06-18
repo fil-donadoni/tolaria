@@ -105,6 +105,8 @@ describe("isClientBufferedKind", () => {
         expect(isClientBufferedKind("choose-permanents")).toBe(true);
         // Cuombajj Witches — opponent's "any target" pick (toggle then Done).
         expect(isClientBufferedKind("choose-damage-target")).toBe(true);
+        // #289 — Primal Clay / Shapeshifter choose-body-on-entry option pick.
+        expect(isClientBufferedKind("option-pick")).toBe(true);
     });
 
     it("returns false for kinds not yet migrated", () => {

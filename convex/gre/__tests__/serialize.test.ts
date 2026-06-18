@@ -573,6 +573,27 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).pendingChoices).toEqual(state.pendingChoices);
     });
 
+    it("pendingChoices with option-pick options (#289)", () => {
+        const state = freshState();
+        state.pendingChoices = [
+            {
+                stackItemId: "s1",
+                step: 0,
+                choiceId: "shapeshifter-entry-number",
+                playerId: "p1",
+                kind: "option-pick",
+                count: 1,
+                options: [
+                    { id: "0", label: "0/7" },
+                    { id: "3", label: "3/4" },
+                    { id: "7", label: "7/0" },
+                ],
+                prompt: "Choose a number between 0 and 7.",
+            },
+        ];
+        expect(roundTrip(state).pendingChoices).toEqual(state.pendingChoices);
+    });
+
     it("autoPassPlayers", () => {
         const state = freshState();
         state.autoPassPlayers = ["p1", "p2"];
