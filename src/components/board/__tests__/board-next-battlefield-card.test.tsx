@@ -210,3 +210,113 @@ describe("BoardNextBattlefieldCard visual state + anchors (#256)", () => {
         expect(ringed).toBeTruthy();
     });
 });
+
+describe("BoardNextBattlefieldCard click wiring (#272)", () => {
+    beforeEach(() => cleanup());
+
+    it("invokes onClick with the mouse event when the permanent is clicked", () => {
+        const card = makeCreature();
+        const onClick = vi.fn();
+        const me = makePlayer([card]);
+        const value = {
+            gameId: "game-id" as never,
+            playerId: "me",
+            activePlayerId: "me",
+            priorityPlayerId: "me",
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            stackCount: 0,
+            allPlayers: [me],
+            showAllCards: false,
+            debugAllActions: false,
+        } as React.ContextType<typeof GameContext>;
+        const { container } = render(
+            <GameContext value={value}>
+                <BoardNextBattlefieldCard
+                    card={card}
+                    vs={NEUTRAL_VS}
+                    onClick={onClick}
+                />
+            </GameContext>
+        );
+        const anchor = container.querySelector(
+            `[data-arrow-anchor-permanent="${card.id}"]`
+        )!;
+        anchor.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        expect(onClick).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows a pointer cursor when interactive+enabled, not-allowed when blocked", () => {
+        const card = makeCreature();
+        const onClick = vi.fn();
+        const enabledVs: CardVisualState = {
+            ...NEUTRAL_VS,
+            interactive: true,
+            enabled: true,
+        };
+        const { container, rerender } = render(
+            <GameContext
+                value={
+                    {
+                        gameId: "g" as never,
+                        playerId: "me",
+                        activePlayerId: "me",
+                        priorityPlayerId: "me",
+                        phase: "PRECOMBAT_MAIN",
+                        turn: 1,
+                        stackCount: 0,
+                        allPlayers: [makePlayer([card])],
+                        showAllCards: false,
+                        debugAllActions: false,
+                    } as React.ContextType<typeof GameContext>
+                }
+            >
+                <BoardNextBattlefieldCard
+                    card={card}
+                    vs={enabledVs}
+                    onClick={onClick}
+                />
+            </GameContext>
+        );
+        expect(
+            container.querySelector(
+                `[data-arrow-anchor-permanent="${card.id}"]`
+            )?.className
+        ).toContain("cursor-pointer");
+
+        const blockedVs: CardVisualState = {
+            ...NEUTRAL_VS,
+            interactive: true,
+            enabled: false,
+        };
+        rerender(
+            <GameContext
+                value={
+                    {
+                        gameId: "g" as never,
+                        playerId: "me",
+                        activePlayerId: "me",
+                        priorityPlayerId: "me",
+                        phase: "PRECOMBAT_MAIN",
+                        turn: 1,
+                        stackCount: 0,
+                        allPlayers: [makePlayer([card])],
+                        showAllCards: false,
+                        debugAllActions: false,
+                    } as React.ContextType<typeof GameContext>
+                }
+            >
+                <BoardNextBattlefieldCard
+                    card={card}
+                    vs={blockedVs}
+                    onClick={onClick}
+                />
+            </GameContext>
+        );
+        expect(
+            container.querySelector(
+                `[data-arrow-anchor-permanent="${card.id}"]`
+            )?.className
+        ).toContain("cursor-not-allowed");
+    });
+});
