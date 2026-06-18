@@ -71,6 +71,9 @@ vi.mock("../board-next-battlefield", async () => {
         ),
     };
 });
+// Player nameplate (#280) runs useMutation; this transition test is concerned
+// only with card slot identity, so stub it inert.
+vi.mock("../board-next-player", () => ({ default: () => null }));
 vi.mock("../game-stack", () => ({ default: () => null }));
 vi.mock("../board-next-piles", () => ({ default: () => null }));
 vi.mock("../phase-tracker", () => ({ default: () => null }));

@@ -159,6 +159,38 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Board-next player target + life totals + priority ring (#280). The
+        // spatial board now mounts the player nameplate (life + name) at each
+        // seat's edge — load this and switch the URL to ?board=next:
+        //   • Both players' life totals + names are visible, anchored top
+        //     (opponent) and bottom (you); the priority holder shows the
+        //     seat-coloured ring (emerald = you, amber = opponent).
+        //   • Cast Lightning Bolt ("3 damage to any target") → during targeting
+        //     the players ring up; click a player's nameplate to dispatch
+        //     selectTarget with targetType "player" (burn to the face).
+        //   • Tap Cuombajj Witches ("1 damage to any target — opponent's
+        //     choice") → mid-resolution the opponent picks the target; an
+        //     eligible player's nameplate toggles the pending-choice buffer
+        //     (CR 115.4 / 608.2) rather than selectTarget.
+        // Same dispatch / toggle as the classic player-life chrome — both
+        // consume usePlayerInteraction.
+        label: "Board next: player target + life totals + priority ring",
+        cards: [
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Cuombajj Witches", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 3 },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next hand UX (#271). A full, varied hand on the spatial board
         // (?board=next) to exercise the four hand fixes end-to-end:
         //   • Hover a hand card → the zoom preview appears (parity w/ the
