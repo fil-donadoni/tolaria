@@ -17,6 +17,8 @@ import type {
     ActivatedAbilityContext,
     CardDefinition,
     DelayedTriggerDef,
+    ManaCost,
+    PermanentView,
     SpellContext,
     TargetSelection,
     TriggeredAbility,
@@ -1971,6 +1973,121 @@ export const mishrasWorkshop: CardDefinition = {
             },
             manaProduced: { C: 3 },
             manaRestriction: "artifact-spell",
+        },
+    ],
+};
+
+// Urza land trio — board-conditional mana (CR 106.1, 605.1a). Each taps for
+// {C}, but adds extra colorless when the controller also controls the other
+// two members of the set. The condition keys off the land *subtypes* (Urza's
+// Mine / Urza's Power-Plant / Urza's Tower), matching the oracle text and the
+// canonical CR treatment — not the card names. Output is recomputed from the
+// controller's battlefield at activation time via the ability's `manaAmount`
+// hook; `manaProduced` carries the {C}{C}... representative output (read by
+// Mana Flare and by best-effort display callers without a battlefield view).
+//
+// Each land's base output is {C}; the assembled bonus differs by member:
+//   Mine        → {C}{C}    (2)
+//   Power Plant → {C}{C}    (2)
+//   Tower       → {C}{C}{C} (3)
+const URZA_MINE = "Urza's Mine";
+const URZA_POWER_PLANT = "Urza's Power-Plant";
+const URZA_TOWER = "Urza's Tower";
+
+/** True when the controller's battlefield contains a land with the given Urza
+ *  subtype (CR 205.3, 106.1). Reads the controller's own battlefield only —
+ *  "you control" scopes to the activating player's permanents. */
+function controlsUrzaSubtype(
+    battlefield: ReadonlyArray<PermanentView>,
+    subtype: string
+): boolean {
+    return battlefield.some((p) => p.subtypes.includes(subtype));
+}
+
+/** Builds an Urza land's `manaAmount`: {C}{C}... `assembled` colorless when the
+ *  controller also controls both `others` subtypes, otherwise {C}. */
+function urzaManaAmount(
+    others: [string, string],
+    assembled: number
+): (
+    source: PermanentView,
+    battlefield: ReadonlyArray<PermanentView>
+) => ManaCost {
+    return (_source, battlefield) =>
+        controlsUrzaSubtype(battlefield, others[0]) &&
+        controlsUrzaSubtype(battlefield, others[1])
+            ? ({ C: assembled } as ManaCost)
+            : ({ C: 1 } as ManaCost);
+}
+
+export const urzasMine: CardDefinition = {
+    id: "ddf85792-470b-4b42-99ac-9cb43a575523",
+    name: "Urza's Mine",
+    oracleText:
+        "{T}: Add {C}. If you control an Urza's Power-Plant and an Urza's Tower, add {C}{C} instead.",
+    manaCost: {},
+    types: ["Land"],
+    subtypes: [URZA_MINE],
+    activatedAbilities: [
+        {
+            id: "urzas-mine-mana",
+            oracleText:
+                "{T}: Add {C}. If you control an Urza's Power-Plant and an Urza's Tower, add {C}{C} instead.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ C: 1 });
+            },
+            manaProduced: { C: 2 },
+            manaAmount: urzaManaAmount([URZA_POWER_PLANT, URZA_TOWER], 2),
+        },
+    ],
+};
+
+export const urzasPowerPlant: CardDefinition = {
+    id: "94896e0b-859c-47e4-bf27-35ed37b841e0",
+    name: "Urza's Power Plant",
+    oracleText:
+        "{T}: Add {C}. If you control an Urza's Mine and an Urza's Tower, add {C}{C} instead.",
+    manaCost: {},
+    types: ["Land"],
+    subtypes: [URZA_POWER_PLANT],
+    activatedAbilities: [
+        {
+            id: "urzas-power-plant-mana",
+            oracleText:
+                "{T}: Add {C}. If you control an Urza's Mine and an Urza's Tower, add {C}{C} instead.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ C: 1 });
+            },
+            manaProduced: { C: 2 },
+            manaAmount: urzaManaAmount([URZA_MINE, URZA_TOWER], 2),
+        },
+    ],
+};
+
+export const urzasTower: CardDefinition = {
+    id: "8ed85655-fc59-4a57-bcf9-75e1899dff78",
+    name: "Urza's Tower",
+    oracleText:
+        "{T}: Add {C}. If you control an Urza's Mine and an Urza's Power-Plant, add {C}{C}{C} instead.",
+    manaCost: {},
+    types: ["Land"],
+    subtypes: [URZA_TOWER],
+    activatedAbilities: [
+        {
+            id: "urzas-tower-mana",
+            oracleText:
+                "{T}: Add {C}. If you control an Urza's Mine and an Urza's Power-Plant, add {C}{C}{C} instead.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ C: 1 });
+            },
+            manaProduced: { C: 3 },
+            manaAmount: urzaManaAmount([URZA_MINE, URZA_POWER_PLANT], 3),
         },
     ],
 };

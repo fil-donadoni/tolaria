@@ -1,4 +1,4 @@
-import type { Color, ManaCost } from "../cards/types";
+import type { Color, ManaCost, PermanentView } from "../cards/types";
 import type { ManaRestriction } from "./types";
 import { getCardById } from "../cards";
 import type { CardInstanceState } from "./state";
@@ -148,13 +148,43 @@ export function getActivatedManaProduced(
 
 /** Amount of a single color produced by a card's fixed (non-choice) tap mana
  *  ability. Basic lands and abilities without an explicit count default to 1;
- *  abilities like Sol Ring ({T}: Add {C}{C}) return 2. */
+ *  abilities like Sol Ring ({T}: Add {C}{C}) return 2.
+ *
+ *  CR 106.1 / 605.1a — when the ability declares a board-conditional
+ *  `manaAmount` (the Urza land trio) and `controllerBattlefield` is supplied,
+ *  the output is recomputed from the current board; otherwise the static
+ *  `manaProduced` is used as the representative / fallback amount. */
 export function getFixedManaAmount(
     card: CardInstanceState,
-    color: Color
+    color: Color,
+    controllerBattlefield?: readonly CardInstanceState[]
 ): number {
+    if (controllerBattlefield) {
+        const dynamic = getDynamicManaProduced(card, controllerBattlefield);
+        if (dynamic) return dynamic[color] ?? 0;
+    }
     const produced = getActivatedManaProduced(card);
     return produced?.[color] ?? 1;
+}
+
+/** Board-conditional mana output for a card's fixed tap mana ability (CR 106.1),
+ *  computed against the controller's battlefield, or null when the ability has
+ *  no `manaAmount` hook. The Urza land trio uses this to scale colorless output
+ *  with the assembled set. The raw `CardInstanceState`s are structurally valid
+ *  `PermanentView`s (the engine passes instances as views everywhere). */
+export function getDynamicManaProduced(
+    card: CardInstanceState,
+    controllerBattlefield: readonly CardInstanceState[]
+): ManaCost | null {
+    const cardDef = getCardById(card.card.id as string);
+    const ability = cardDef.activatedAbilities?.find(
+        (a) => a.cost.tap && !a.useStack && a.manaAmount
+    );
+    if (!ability?.manaAmount) return null;
+    return ability.manaAmount(
+        card as unknown as PermanentView,
+        controllerBattlefield as unknown as readonly PermanentView[]
+    );
 }
 
 /** Spend restriction (CR 106.6) carried by a card's fixed tap mana ability, or

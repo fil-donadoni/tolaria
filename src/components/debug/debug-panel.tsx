@@ -608,6 +608,28 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Antiquities cluster I (#284) — board-conditional mana (Urza land
+        // trio; CR 106.1). Each land taps for {C}, but adds more when the
+        // controller also controls the other two:
+        //   • Tap a single Urza land → {C} (the set isn't assembled).
+        //   • With Mine + Power Plant + Tower all in play, tap each:
+        //     Mine → {C}{C}, Power Plant → {C}{C}, Tower → {C}{C}{C}
+        //     (the assembled set yields seven colorless total).
+        //   • The condition is per-controller and recomputes live: the
+        //     opponent's lone Mine + Power Plant taps for only {C} each.
+        //     Sacrifice/destroy a member and the others drop back to {C}.
+        label: "Antiquities I: board-conditional mana (Urza land trio)",
+        cards: [
+            { name: "Urza's Mine", owner: "me" as const },
+            { name: "Urza's Power Plant", owner: "me" as const },
+            { name: "Urza's Tower", owner: "me" as const },
+            { name: "Urza's Mine", owner: "opp" as const },
+            { name: "Urza's Power Plant", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 8 (#179) — phasing (CR 702.26, ADR 0021). Cast Oubliette
         // ({1}{B}{B}) and choose the opponent's Serendib Efreet: it phases out
         // (treated as though it doesn't exist — gone from the board, fires no

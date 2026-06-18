@@ -292,6 +292,19 @@ export interface ActivatedAbility {
     resolve?: (ctx: SpellContext) => void;
     /** Fixed mana output — used by the engine to track pool changes without executing the effect. */
     manaProduced?: ManaCost;
+    /** Board-conditional mana output (CR 106.1, 605.1a). When present, the
+     *  engine computes the actual mana this single-color fixed ability produces
+     *  from the controller's battlefield at activation time, instead of reading
+     *  the static `manaProduced`. `manaProduced` remains the representative /
+     *  fallback output (used by Mana Flare and by best-effort callers without a
+     *  battlefield snapshot). Receives the source permanent and the controller's
+     *  battlefield view. Used by the Urza land trio (Mine / Power Plant / Tower),
+     *  whose colorless output grows when the controller also controls the other
+     *  two named lands. Must produce the same single color as `manaProduced`. */
+    manaAmount?: (
+        source: PermanentView,
+        controllerBattlefield: ReadonlyArray<PermanentView>
+    ) => ManaCost;
     /** Spend restriction carried by the mana this ability produces (CR 106.6).
      *  When set, the produced mana lands in the controller's `restrictedMana`
      *  pool instead of the fungible pool and may pay only for spells the
