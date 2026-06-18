@@ -50,6 +50,13 @@ import {
     yawgmothDemon,
     mishrasWarMachine,
     goblinArtisans,
+    atog,
+    ashnodsAltar,
+    orcishMechanics,
+    sageOfLatNam,
+    priestOfYawgmoth,
+    dwarvenWeaponsmith,
+    gateToPhyrexia,
 } from "../atq";
 import { getCardById } from "../..";
 import {
@@ -2991,5 +2998,225 @@ describe("Goblin Artisans ({T}: flip → draw / counter own artifact spell)", ()
         // Did NOT draw; the targeted artifact spell is countered (off stack).
         expect(state.players[0].hand).toHaveLength(0);
         expect(state.stack.some((s) => s.id === "art-spell")).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Cluster A — sacrifice-as-activation-cost (filtered, non-self).
+// CR 602.1 / 118.5. These tests exercise the ability RESOLUTION on fat state
+// (and the wire format where the effect is visible). The cost/choice flow
+// (picking + sacrificing + mv snapshot) is exercised end-to-end through the
+// mutations in convex/__tests__/sacrifice-cost-activation.test.ts.
+// ---------------------------------------------------------------------------
+
+describe("Atog (CR 602.1 — sacrifice an artifact: +2/+2)", () => {
+    it("declares the filtered sacrifice cost", () => {
+        const ability = atog.activatedAbilities![0];
+        expect(ability.cost.sacrificeFilter).toEqual({ types: "Artifact" });
+        expect(ability.cost.sacrifice).toBeUndefined();
+    });
+
+    it("pumps the source +2/+2 until end of turn on resolution", () => {
+        const at = makeInstance(atog.id, { id: "atog-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [at] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, at, "atog-pump");
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "atog-1"
+        )!;
+        expect(getEffectivePower(state, after)).toBe(3);
+        expect(getEffectiveToughness(state, after)).toBe(4);
+    });
+
+    it("wire format — pump survives projection", () => {
+        const at = makeInstance(atog.id, { id: "atog-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [at] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, at, "atog-pump");
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "atog-1"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+});
+
+describe("Ashnod's Altar (CR 602.1 — sacrifice a creature: add {C}{C})", () => {
+    it("declares a creature sacrifice cost and no tap", () => {
+        const ability = ashnodsAltar.activatedAbilities![0];
+        expect(ability.cost.sacrificeFilter).toEqual({ types: "Creature" });
+        expect(ability.cost.tap).toBeUndefined();
+    });
+
+    it("adds {C}{C} on resolution", () => {
+        const altar = makeInstance(ashnodsAltar.id, { id: "altar-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [altar] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, altar, "ashnods-altar-mana");
+        expect(state.players[0].manaPool.C).toBe(2);
+    });
+});
+
+describe("Orcish Mechanics (CR 602.1 — {T}, sac artifact: 2 dmg any target)", () => {
+    it("declares tap + artifact sacrifice cost", () => {
+        const ability = orcishMechanics.activatedAbilities![0];
+        expect(ability.cost.tap).toBe(true);
+        expect(ability.cost.sacrificeFilter).toEqual({ types: "Artifact" });
+    });
+
+    it("deals 2 damage to a target player on resolution", () => {
+        const mech = makeInstance(orcishMechanics.id, { id: "mech-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mech] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, mech, "orcish-mechanics-bolt", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].life).toBe(18);
+    });
+});
+
+describe("Sage of Lat-Nam (CR 602.1 — {T}, sac artifact: draw)", () => {
+    it("draws a card on resolution", () => {
+        const sage = makeInstance(sageOfLatNam.id, { id: "sage-1" });
+        const libCard = makeInstance(ornithopter.id, {
+            id: "lib-1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [sage],
+                    library: [libCard],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, sage, "sage-of-lat-nam-draw");
+        expect(state.players[0].hand.map((c) => c.id)).toContain("lib-1");
+    });
+});
+
+describe("Priest of Yawgmoth (CR 602.1 — add {B} = sacrificed artifact mv)", () => {
+    it("adds {B} equal to the snapshotted sacrificed mana value", () => {
+        const priest = makeInstance(priestOfYawgmoth.id, { id: "priest-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [priest] }),
+                makePlayer("p2"),
+            ],
+        });
+        // The cost flow snapshots the sacrificed permanent's mv onto the stack
+        // item; resolve() reads it via getAdditionalSacrificeMv. Simulate a
+        // mv-3 artifact (e.g. Yotian Soldier) having been sacrificed.
+        state.stack.push({
+            ...priest,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "priest-of-yawgmoth-mana",
+            targets: [],
+            additionalSacrificeSnapshot: { cardInstanceId: "sac-x", mv: 3 },
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.B).toBe(3);
+    });
+
+    it("adds no mana when the sacrificed permanent's mv is 0", () => {
+        const priest = makeInstance(priestOfYawgmoth.id, { id: "priest-2" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [priest] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...priest,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "priest-of-yawgmoth-mana",
+            targets: [],
+            additionalSacrificeSnapshot: { cardInstanceId: "sac-y", mv: 0 },
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.B).toBe(0);
+    });
+});
+
+describe("Dwarven Weaponsmith (CR 602.5b — upkeep-only +1/+1 counter)", () => {
+    it("declares upkeep timing + controller-turn + tap/sac cost", () => {
+        const ability = dwarvenWeaponsmith.activatedAbilities![0];
+        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
+        expect(ability.controllerTurnOnly).toBe(true);
+        expect(ability.cost.tap).toBe(true);
+        expect(ability.cost.sacrificeFilter).toEqual({ types: "Artifact" });
+    });
+
+    it("puts a +1/+1 counter on a target creature on resolution", () => {
+        const smith = makeInstance(dwarvenWeaponsmith.id, { id: "smith-1" });
+        const target = makeInstance(ornithopter.id, { id: "orn-tgt" });
+        const state = makeState({
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { battlefield: [smith, target] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, smith, "dwarven-weaponsmith-counter", [
+            { type: "permanent", id: "orn-tgt" },
+        ]);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "orn-tgt"
+        )!;
+        expect(after.counters?.["+1/+1"]).toBe(1);
+    });
+});
+
+describe("Gate to Phyrexia (CR 602.5 — upkeep, once/turn, sac creature)", () => {
+    it("declares once-per-turn + upkeep timing + creature sac cost", () => {
+        const ability = gateToPhyrexia.activatedAbilities![0];
+        expect(ability.oncePerTurn).toBe(true);
+        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
+        expect(ability.cost.sacrificeFilter).toEqual({ types: "Creature" });
+    });
+
+    it("destroys a target artifact on resolution", () => {
+        const gate = makeInstance(gateToPhyrexia.id, { id: "gate-1" });
+        const artifact = makeInstance(ornithopter.id, {
+            id: "art-tgt",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { battlefield: [gate] }),
+                makePlayer("p2", { battlefield: [artifact] }),
+            ],
+        });
+        resolveActivated(state, gate, "gate-to-phyrexia-destroy", [
+            { type: "permanent", id: "art-tgt" },
+        ]);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "art-tgt")
+        ).toBe(false);
+        expect(state.players[1].graveyard.some((c) => c.id === "art-tgt")).toBe(
+            true
+        );
     });
 });

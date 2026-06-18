@@ -604,6 +604,18 @@ export type PendingActivation = {
     tapSource: boolean;
     /** True iff the ability has a sacrifice cost — applied at commit. */
     sacrificeSource: boolean;
+    /** In-progress "sacrifice a permanent matching <filter>" cost picker
+     *  (CR 602.1, 118.5 — Antiquities sacrifice-for-value engines). Set when
+     *  the ability has `cost.sacrificeFilter`. `pickedId` is undefined until
+     *  the player calls `selectActivationCost`; commit is blocked while it is
+     *  undefined regardless of mana coverage. On commit the picked permanent
+     *  is sacrificed and its mana value is snapshotted onto the resulting
+     *  stack item (read at resolve via getAdditionalSacrificeMv — Priest of
+     *  Yawgmoth). Mirrors PendingCast.additionalCost. */
+    sacrificeChoice?: {
+        filter: PermanentFilter;
+        pickedId?: string;
+    };
     /** Counter-removal cost (CR 122.6 — "Remove a [type] counter from this
      *  creature"). Applied at commit. */
     removeCounterCost?: { type: string; count: number };

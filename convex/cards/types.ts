@@ -251,6 +251,18 @@ export interface ActivatedAbility {
         tap?: boolean;
         mana?: ManaCost;
         sacrifice?: boolean;
+        /** "Sacrifice a permanent matching <filter>" as an activation cost
+         *  (CR 602.1, 118.5). The activating player chooses which matching
+         *  permanent to sacrifice while paying the cost; the activation is
+         *  illegal if no permanent on their battlefield matches the filter.
+         *  Distinct from `sacrifice` (which sacrifices THIS source). The
+         *  chosen permanent's pre-sacrifice mana value is snapshotted onto the
+         *  stack item so `SpellContext.getAdditionalSacrificeMv()` can read it
+         *  at resolve (Priest of Yawgmoth — "add {B} equal to the sacrificed
+         *  artifact's mana value"). Used by the Antiquities sacrifice-for-value
+         *  engines (Atog, Ashnod's Altar, Orcish Mechanics, Sage of Lat-Nam,
+         *  Priest of Yawgmoth, Dwarven Weaponsmith, Gate to Phyrexia). */
+        sacrificeFilter?: PermanentFilter;
         /** Life payment (CR 118.4). Legal while `player.life >= life`; SBA
          *  handles the loss if payment takes life to 0 or below. */
         life?: number;

@@ -24,6 +24,7 @@ type MutArgs = Record<string, unknown>;
 type MutFn = (args?: MutArgs) => Promise<void>;
 const selectTarget = vi.fn<MutFn>(() => Promise.resolve());
 const selectAdditionalCost = vi.fn<MutFn>(() => Promise.resolve());
+const selectActivationCost = vi.fn<MutFn>(() => Promise.resolve());
 const tapUntap = vi.fn<MutFn>(() => Promise.resolve());
 const playCard = vi.fn<MutFn>(() => Promise.resolve());
 const announceCast = vi.fn<MutFn>(() => Promise.resolve());
@@ -32,6 +33,7 @@ const noop = vi.fn<MutFn>(() => Promise.resolve());
 const MUTATIONS: Record<string, ReturnType<typeof vi.fn>> = {
     selectTarget,
     selectAdditionalCost,
+    selectActivationCost,
     tapUntap,
     playCard,
     announceCast,
@@ -54,6 +56,7 @@ vi.mock("@convex/_generated/api", () => {
         "assignBlockerTarget",
         "selectTarget",
         "selectAdditionalCost",
+        "selectActivationCost",
         "activateAbility",
         "playCard",
         "announceCast",
@@ -473,5 +476,68 @@ describe("board-next hand choice parity (#279, CR 608.2)", () => {
         const { container } = renderSpatialHand(card);
         const el = container.querySelector('[data-board-hand-card="oh1"]')!;
         expect(el.getAttribute("data-choice-selectable")).toBeNull();
+    });
+});
+
+describe("board-next activation sacrifice-cost picker (#282, CR 602.1)", () => {
+    it("clicking a matching battlefield permanent dispatches the SAME selectActivationCost args on both boards", () => {
+        const me = makePlayer("me", [creature("bear1")]);
+        const costCtx: Partial<React.ContextType<typeof GameContext>> = {
+            pendingActivation: {
+                playerId: "me",
+                cardInstanceId: "some-source",
+                abilityId: "atog-pump",
+                manaCost: {},
+                tappedLandIds: [],
+                tapSource: false,
+                sacrificeSource: false,
+                sacrificeChoice: {
+                    filter: { types: "Creature" },
+                    pickedId: undefined,
+                },
+            } as never,
+        };
+
+        renderClassicBf(me, [me], costCtx);
+        fireEvent.click(classicCard("bear1"));
+        const classicArgs = selectActivationCost.mock.calls[0][0];
+
+        clearAll();
+        cleanup();
+
+        const { container } = renderSpatialBf(me, [me], costCtx);
+        fireEvent.click(spatialCard(container, "bear1"));
+        const spatialArgs = selectActivationCost.mock.calls[0][0];
+
+        expect(spatialArgs).toEqual(classicArgs);
+        expect(spatialArgs).toMatchObject({
+            gameId: "game-id",
+            playerId: "me",
+            cardInstanceId: "bear1",
+        });
+    });
+
+    it("a non-matching permanent is NOT clickable for the sacrifice cost", () => {
+        // The picker filter requires an Artifact; the mocked def is a plain
+        // Creature, so the card must not route to selectActivationCost.
+        const me = makePlayer("me", [creature("bear1")]);
+        const costCtx: Partial<React.ContextType<typeof GameContext>> = {
+            pendingActivation: {
+                playerId: "me",
+                cardInstanceId: "some-source",
+                abilityId: "atog-pump",
+                manaCost: {},
+                tappedLandIds: [],
+                tapSource: false,
+                sacrificeSource: false,
+                sacrificeChoice: {
+                    filter: { types: "Artifact" },
+                    pickedId: undefined,
+                },
+            } as never,
+        };
+        renderClassicBf(me, [me], costCtx);
+        fireEvent.click(classicCard("bear1"));
+        expect(selectActivationCost).not.toHaveBeenCalled();
     });
 });

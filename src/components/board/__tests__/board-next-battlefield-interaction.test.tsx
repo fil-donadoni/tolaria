@@ -53,6 +53,7 @@ vi.mock("@convex/_generated/api", () => {
         "assignBlockerTarget",
         "selectTarget",
         "selectAdditionalCost",
+        "selectActivationCost",
         "activateAbility",
         "getFullState",
     ];

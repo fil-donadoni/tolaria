@@ -1726,3 +1726,217 @@ export const goblinArtisans: CardDefinition = {
         },
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster A — sacrifice-as-activation-cost on a filtered, non-self permanent
+// (CR 602.1 / 118.5). The activated-ability cost gains `sacrificeFilter`: the
+// player chooses which matching permanent to sacrifice while paying the cost,
+// and the activation is illegal if no matching permanent is on their
+// battlefield. The chosen permanent's pre-sacrifice mana value is snapshotted
+// onto the stack item so `getAdditionalSacrificeMv()` reads it at resolve
+// (Priest of Yawgmoth). See PRD #269 cluster A, issue #282.
+//
+// NOTE (CR 605.1a deviation): Ashnod's Altar and Priest of Yawgmoth are
+// technically mana abilities (no target, can add mana). They are modeled here
+// as `useStack: true` activated abilities because their cost requires a player
+// CHOICE of which permanent to sacrifice, and the engine's instant mana-ability
+// path (`tapUntap`) has no choice step. Routing them through the stack reuses
+// the sacrifice-choice machinery wholesale. The practical cost is that their
+// mana isn't available to pay for a spell mid-cast — acceptable within this
+// card pool, where they are used as standalone value/ramp engines.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Atog — {1}{R} 1/2. "Sacrifice an artifact: This creature gets +2/+2 until
+// end of turn." Self-pump (CR 611.1) funded by sacrificing a chosen artifact.
+export const atog: CardDefinition = {
+    id: "f77fda65-f70d-44b1-89db-910d2761b81c",
+    name: "Atog",
+    oracleText:
+        "Sacrifice an artifact: This creature gets +2/+2 until end of turn.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Atog"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "atog-pump",
+            oracleText:
+                "Sacrifice an artifact: This creature gets +2/+2 until end of turn.",
+            cost: { sacrificeFilter: { types: "Artifact" } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    2,
+                    2,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+
+// Ashnod's Altar — {3} Artifact. "Sacrifice a creature: Add {C}{C}." A
+// creature-to-colorless mana converter. Modeled as a stack ability (see the
+// CR 605.1a note above) so the sacrifice choice can be made.
+export const ashnodsAltar: CardDefinition = {
+    id: "cdcccb0f-ce96-453b-9e82-41d87f52e58b",
+    name: "Ashnod's Altar",
+    oracleText: "Sacrifice a creature: Add {C}{C}.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "ashnods-altar-mana",
+            oracleText: "Sacrifice a creature: Add {C}{C}.",
+            cost: { sacrificeFilter: { types: "Creature" } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addManaTo(ctx.controller, { C: 2 });
+            },
+        },
+    ],
+};
+
+// Orcish Mechanics — {2}{R} 1/1. "{T}, Sacrifice an artifact: This creature
+// deals 2 damage to any target." Tap + filtered-sacrifice cost, targeted ping.
+export const orcishMechanics: CardDefinition = {
+    id: "5e34fc6b-5f00-4a22-9ee2-afc1caf99961",
+    name: "Orcish Mechanics",
+    oracleText:
+        "{T}, Sacrifice an artifact: This creature deals 2 damage to any target.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Orc"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "orcish-mechanics-bolt",
+            oracleText:
+                "{T}, Sacrifice an artifact: This creature deals 2 damage to any target.",
+            cost: { tap: true, sacrificeFilter: { types: "Artifact" } },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target) ctx.dealDamage(target, 2);
+            },
+        },
+    ],
+};
+
+// Sage of Lat-Nam — {1}{U} 1/2. "{T}, Sacrifice an artifact: Draw a card."
+export const sageOfLatNam: CardDefinition = {
+    id: "b4ff60ce-073c-46b8-807c-8b40467b960c",
+    name: "Sage of Lat-Nam",
+    oracleText: "{T}, Sacrifice an artifact: Draw a card.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Artificer"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "sage-of-lat-nam-draw",
+            oracleText: "{T}, Sacrifice an artifact: Draw a card.",
+            cost: { tap: true, sacrificeFilter: { types: "Artifact" } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.drawCards(ctx.controller, 1);
+            },
+        },
+    ],
+};
+
+// Priest of Yawgmoth — {1}{B} 1/2. "{T}, Sacrifice an artifact: Add an amount
+// of {B} equal to the sacrificed artifact's mana value." The mana-value-derived
+// effect reads the sacrificed permanent's mv via getAdditionalSacrificeMv
+// (snapshotted at commit). Modeled as a stack ability (see CR 605.1a note).
+export const priestOfYawgmoth: CardDefinition = {
+    id: "c9fd4054-42fc-4f95-a6f7-369a5da43dd5",
+    name: "Priest of Yawgmoth",
+    oracleText:
+        "{T}, Sacrifice an artifact: Add an amount of {B} equal to the sacrificed artifact's mana value.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Phyrexian", "Human", "Cleric"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "priest-of-yawgmoth-mana",
+            oracleText:
+                "{T}, Sacrifice an artifact: Add an amount of {B} equal to the sacrificed artifact's mana value.",
+            cost: { tap: true, sacrificeFilter: { types: "Artifact" } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                const mv = ctx.getAdditionalSacrificeMv() ?? 0;
+                if (mv > 0) ctx.addManaTo(ctx.controller, { B: mv });
+            },
+        },
+    ],
+};
+
+// Dwarven Weaponsmith — {1}{R} 1/1. "{T}, Sacrifice an artifact: Put a +1/+1
+// counter on target creature. Activate only during your upkeep." (CR 602.5b
+// timing via activationPhaseRestriction + controllerTurnOnly.)
+export const dwarvenWeaponsmith: CardDefinition = {
+    id: "0848d94a-2704-460f-986b-b192dd6d26b7",
+    name: "Dwarven Weaponsmith",
+    oracleText:
+        "{T}, Sacrifice an artifact: Put a +1/+1 counter on target creature. Activate only during your upkeep.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Dwarf", "Artificer"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "dwarven-weaponsmith-counter",
+            oracleText:
+                "{T}, Sacrifice an artifact: Put a +1/+1 counter on target creature. Activate only during your upkeep.",
+            cost: { tap: true, sacrificeFilter: { types: "Artifact" } },
+            useStack: true,
+            activationPhaseRestriction: ["UPKEEP"],
+            controllerTurnOnly: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.addCounter(target, "+1/+1", 1);
+                }
+            },
+        },
+    ],
+};
+
+// Gate to Phyrexia — {B}{B} Enchantment. "Sacrifice a creature: Destroy target
+// artifact. Activate only during your upkeep and only once each turn."
+// (CR 602.5 once-per-turn + upkeep timing.)
+export const gateToPhyrexia: CardDefinition = {
+    id: "1f372950-6693-4838-80ef-8fd9aa3e0349",
+    name: "Gate to Phyrexia",
+    oracleText:
+        "Sacrifice a creature: Destroy target artifact. Activate only during your upkeep and only once each turn.",
+    manaCost: { B: 2 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "gate-to-phyrexia-destroy",
+            oracleText:
+                "Sacrifice a creature: Destroy target artifact. Activate only during your upkeep and only once each turn.",
+            cost: { sacrificeFilter: { types: "Creature" } },
+            useStack: true,
+            activationPhaseRestriction: ["UPKEEP"],
+            controllerTurnOnly: true,
+            oncePerTurn: true,
+            targetRequirement: { type: "Artifact", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") ctx.destroy(target);
+            },
+        },
+    ],
+};

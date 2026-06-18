@@ -21,10 +21,7 @@ import { useLongPress } from "~/hooks/useLongPress";
 import type { CardInstance } from "~/types/game";
 import { getColorOverrideDisplay } from "~/lib/color-override";
 import CardPreviewAbilities from "./card-preview-abilities";
-import {
-    releasePreview,
-    requestOpenPreview,
-} from "./card-preview-singleton";
+import { releasePreview, requestOpenPreview } from "./card-preview-singleton";
 
 const ZOOM_WIDTH = 128 * 2;
 const GAP = 8;
