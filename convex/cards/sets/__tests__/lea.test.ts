@@ -10982,11 +10982,14 @@ describe("The Hive ({5}, {T}: create a 1/1 colorless flying Wasp Insect artifact
         const def = tryGetCardById(defId);
         expect(def).not.toBeNull();
         expect(def!.imagePrintId).toBe("09921372-126f-4c81-b6d8-ea50b1d0eb44");
-        // The id encoding includes the print id as the trailing segment so
-        // the client lazy-synthesizer recovers it without server registration.
-        expect(defId.endsWith("|09921372-126f-4c81-b6d8-ea50b1d0eb44")).toBe(
-            true
-        );
+        // The id encoding includes the print id as a delimited `|`-segment
+        // (index 8) so the client lazy-synthesizer recovers it without server
+        // registration. A trailing empty static-effects segment (#293) now
+        // follows it, so it's no longer the LAST segment — assert it's present
+        // as its own segment instead.
+        expect(
+            defId.split("|").includes("09921372-126f-4c81-b6d8-ea50b1d0eb44")
+        ).toBe(true);
     });
 });
 

@@ -3289,6 +3289,41 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Antiquities cluster L — token provenance link (#293, CR 111 / 707.1 /
+        // 122 / 303.4). Tetravus converts +1/+1 counters into linked Tetravite
+        // tokens and back:
+        //   • You control Tetravus with three +1/+1 counters (effective 4/4
+        //     flier). It loads in your UPKEEP so both optional triggers are on
+        //     the stack.
+        //   • Resolve "remove any number of +1/+1 counters": pick a number 0..3
+        //     to mint that many 1/1 flying Tetravite tokens. Each token records
+        //     Tetravus as its creator (the provenance link).
+        //   • Resolve "exile any number of tokens created with this creature":
+        //     ONLY the Tetravites Tetravus made are offered — exile them to put
+        //     that many +1/+1 counters back on Tetravus.
+        //   • Try casting Holy Strength (in your hand) on a Tetravite: the
+        //     attachment is illegal — Tetravite tokens "can't be enchanted".
+        //     Holy Strength on Tetravus itself works.
+        label: "Antiquities L: token provenance link (Tetravus)",
+        cards: [
+            {
+                name: "Tetravus",
+                owner: "me" as const,
+                counters: { "+1/+1": 3 },
+            },
+            {
+                name: "Holy Strength",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 4 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "UPKEEP",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

@@ -86,6 +86,7 @@ import {
     golgothianSylex,
     rocketLauncher,
     tawnossWand,
+    tetravus,
 } from "../atq";
 import { grizzlyBears, hillGiant, solRing } from "../lea";
 import { getCardById, getInstanceManaCost } from "../..";
@@ -6251,5 +6252,293 @@ describe("Tawnos's Wand ({2},{T}: target power ≤ 2 can't be blocked)", () => {
             round.players[0].battlefield.find((c) => c.id === "attacker")!
                 .cantBeBlockedThisTurn
         ).toBe(true);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tetravus (cluster L #293) — token provenance link. CR 111 / 707.1
+// (`createdBy` link), 122.1/122.6 (counter add/remove), 303.4 (Tetravite
+// "can't be enchanted" guard), 603.6a (optional upkeep abilities).
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Tetravus (token provenance link, CR 111 / 122 / 303.4)", () => {
+    /** Fire one named UPKEEP trigger on Tetravus and resolve it once. Returns
+     *  the resolution result (null when it suspends on a pending choice). */
+    function fireUpkeep(
+        state: GameState,
+        source: CardInstanceState,
+        abilityId: string
+    ): ReturnType<typeof resolveTopOfStack> {
+        const item: StackItem = {
+            ...source,
+            id: `trig-${abilityId}`,
+            castById: source.controllerId,
+            zone: "stack",
+            triggeredAbilityId: abilityId,
+            triggerSourceId: source.id,
+            triggerEvent: UPKEEP_P1,
+            targets: [],
+        };
+        state.stack.push(item);
+        return resolveTopOfStack(state);
+    }
+
+    function tetravusOnBattlefield(counters = 3) {
+        const tet = makeInstance(tetravus.id, {
+            id: "tet1",
+            controllerId: "p1",
+            counters: { "+1/+1": counters },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tet] }),
+                makePlayer("p2"),
+            ],
+            phase: "UPKEEP",
+        });
+        return {
+            state,
+            tet: () =>
+                state.players[0].battlefield.find((c) => c.id === "tet1")!,
+        };
+    }
+
+    function tetravites(state: GameState) {
+        return state.players[0].battlefield.filter(
+            (c) => c.createdBy === "tet1"
+        );
+    }
+
+    it("definition: 1/1 flying artifact Construct, enters with three +1/+1", () => {
+        expect(tetravus.types).toEqual(["Artifact", "Creature"]);
+        expect(tetravus.subtypes).toEqual(["Construct"]);
+        expect(tetravus.power).toBe(1);
+        expect(tetravus.toughness).toBe(1);
+        expect(tetravus.staticAbilities).toContain("flying");
+        expect(tetravus.entersWith).toEqual({
+            counters: [{ type: "+1/+1", count: 3 }],
+        });
+        expect(tetravus.triggeredAbilities?.map((t) => t.id)).toEqual([
+            "tetravus-counters-to-tokens",
+            "tetravus-tokens-to-counters",
+        ]);
+    });
+
+    it("ETB counters make it effectively 4/4 (1/1 + three +1/+1)", () => {
+        const { state, tet } = tetravusOnBattlefield(3);
+        expect(getEffectivePower(state, tet())).toBe(4);
+        expect(getEffectiveToughness(state, tet())).toBe(4);
+    });
+
+    it("counters→tokens: removing 2 creates 2 linked Tetravites and shrinks Tetravus", () => {
+        const { state, tet } = tetravusOnBattlefield(3);
+        expect(
+            fireUpkeep(state, tet(), "tetravus-counters-to-tokens")
+        ).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        expect(head.options).toHaveLength(4); // 0..3
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["2"],
+        });
+        expect(tet().counters?.["+1/+1"]).toBe(1);
+        expect(getEffectivePower(state, tet())).toBe(2);
+        const toks = tetravites(state);
+        expect(toks).toHaveLength(2);
+        for (const t of toks) {
+            expect(t.isToken).toBe(true);
+            expect(t.types).toEqual(["Artifact", "Creature"]);
+            expect(t.subtypes).toContain("Tetravite");
+            expect(t.power).toBe(1);
+            expect(t.toughness).toBe(1);
+            expect(t.staticAbilities).toContain("flying");
+        }
+    });
+
+    it("counters→tokens: choosing 0 creates no tokens and keeps counters", () => {
+        const { state, tet } = tetravusOnBattlefield(3);
+        fireUpkeep(state, tet(), "tetravus-counters-to-tokens");
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["0"],
+        });
+        expect(tet().counters?.["+1/+1"]).toBe(3);
+        expect(tetravites(state)).toHaveLength(0);
+    });
+
+    it("counters→tokens: with zero counters the trigger auto-resolves (no prompt)", () => {
+        const { state, tet } = tetravusOnBattlefield(0);
+        const res = fireUpkeep(state, tet(), "tetravus-counters-to-tokens");
+        expect(res).not.toBeNull();
+        expect(state.pendingChoices?.length ?? 0).toBe(0);
+        expect(tetravites(state)).toHaveLength(0);
+    });
+
+    it("tokens→counters: exiles linked tokens to put back that many +1/+1 counters", () => {
+        const { state, tet } = tetravusOnBattlefield(2);
+        fireUpkeep(state, tet(), "tetravus-counters-to-tokens");
+        let head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["2"],
+        });
+        const minted = tetravites(state).map((t) => t.id);
+        expect(minted).toHaveLength(2);
+
+        // A foreign token must NOT be offered to Tetravus's exile ability.
+        state.players[0].battlefield.push(
+            makeInstance(grizzlyBears.id, {
+                id: "foreign-token",
+                controllerId: "p1",
+                isToken: true,
+                createdBy: "someone-else",
+            })
+        );
+
+        expect(tet().counters?.["+1/+1"] ?? 0).toBe(0);
+        expect(
+            fireUpkeep(state, tet(), "tetravus-tokens-to-counters")
+        ).toBeNull();
+        head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-permanents");
+        expect(head.filter?.createdBy).toBe("tet1");
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: minted,
+        });
+        expect(tet().counters?.["+1/+1"]).toBe(2);
+        expect(getEffectivePower(state, tet())).toBe(3); // 1 + 2
+        expect(tetravites(state)).toHaveLength(0);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "foreign-token")
+        ).toBe(true);
+        expect(
+            state.players[0].exile.filter((c) => minted.includes(c.id))
+        ).toHaveLength(2);
+    });
+
+    it("tokens→counters: submitting a foreign token is rejected by the filter", () => {
+        const { state, tet } = tetravusOnBattlefield(1);
+        fireUpkeep(state, tet(), "tetravus-counters-to-tokens");
+        let head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["1"],
+        });
+        state.players[0].battlefield.push(
+            makeInstance(grizzlyBears.id, {
+                id: "foreign-token",
+                controllerId: "p1",
+                isToken: true,
+                createdBy: "someone-else",
+            })
+        );
+        fireUpkeep(state, tet(), "tetravus-tokens-to-counters");
+        head = state.pendingChoices![0];
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["foreign-token"],
+            })
+        ).toThrow();
+    });
+
+    it("tokens→counters: with no linked tokens the trigger auto-resolves (no prompt)", () => {
+        const { state, tet } = tetravusOnBattlefield(3);
+        const res = fireUpkeep(state, tet(), "tetravus-tokens-to-counters");
+        expect(res).not.toBeNull();
+        expect(state.pendingChoices?.length ?? 0).toBe(0);
+        expect(tet().counters?.["+1/+1"]).toBe(3);
+    });
+
+    it("Tetravite tokens can't be enchanted (CR 303.4 self-guard)", () => {
+        const { state, tet } = tetravusOnBattlefield(1);
+        fireUpkeep(state, tet(), "tetravus-counters-to-tokens");
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["1"],
+        });
+        const token = tetravites(state)[0]!;
+        expect(getCardById(token.card.id as string).staticEffects).toEqual([
+            expect.objectContaining({
+                kind: "permanent-guard",
+                cantBeEnchanted: true,
+            }),
+        ]);
+        expect(isGuardedAgainst(state, token, "cantBeEnchanted")).toBe(true);
+        // Tetravus itself is enchantable.
+        expect(isGuardedAgainst(state, tet(), "cantBeEnchanted")).toBe(false);
+    });
+
+    it("wire format: provenance link, token flag, and guard survive projection", () => {
+        const { state, tet } = tetravusOnBattlefield(1);
+        fireUpkeep(state, tet(), "tetravus-counters-to-tokens");
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["1"],
+        });
+        const tokenId = tetravites(state)[0]!.id;
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimTok = projected.players[0].battlefield.find(
+            (c) => c.id === tokenId
+        )!;
+        expect(slimTok.createdBy).toBe("tet1");
+        expect(slimTok.isToken).toBe(true);
+        expect(isGuardedAgainst(projected, slimTok, "cantBeEnchanted")).toBe(
+            true
+        );
+    });
+
+    it("DB round-trip: createdBy link + token guard survive serialize/expand", () => {
+        const { state, tet } = tetravusOnBattlefield(1);
+        fireUpkeep(state, tet(), "tetravus-counters-to-tokens");
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["1"],
+        });
+        const tokenId = tetravites(state)[0]!.id;
+
+        const restored = expandState(compactState(state));
+        const restoredTok = restored.players[0].battlefield.find(
+            (c) => c.id === tokenId
+        )!;
+        expect(restoredTok.createdBy).toBe("tet1");
+        expect(restoredTok.isToken).toBe(true);
+        expect(isGuardedAgainst(restored, restoredTok, "cantBeEnchanted")).toBe(
+            true
+        );
     });
 });
