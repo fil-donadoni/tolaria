@@ -4,9 +4,8 @@ import { outstandingDamageAssigner } from "~/lib/priority";
 import DamageAssignmentPanel from "./damage-assignment-panel";
 import BandFormationPanel from "./band-formation-panel";
 
-/** Combat declaration / damage modals for one player's battlefield, shared by
- *  the classic board ({@link PlayerBattlefield}) and the spatial board
- *  ({@link BoardNextBattlefield}, PRD #249 / slice #281).
+/** Combat declaration / damage modals for one player's battlefield on the
+ *  spatial board ({@link BoardNextBattlefield}, PRD #249 / slice #281).
  *
  *  These are NOT card-click driven (those branches live in
  *  {@link useBattlefieldInteraction}). They are separate modals gated by the
@@ -17,10 +16,9 @@ import BandFormationPanel from "./band-formation-panel";
  *    outstanding damage assigner during a combat-damage step (CR 510.1c/d,
  *    702.21j-k), which under banding may be the defender.
  *
- *  Extracted so the gating is computed once and both boards mount the identical
- *  panels at the identical combat steps — they were previously inlined in
- *  `player-battlefield.tsx` and absent from the spatial board. Reads ONLY
- *  projected game-context fields (no GRE import). */
+ *  Extracted so the gating is computed once and the board mounts the panels at
+ *  the correct combat steps. Reads ONLY projected game-context fields (no GRE
+ *  import). */
 export default function CombatPanels({ player }: { player: Player }) {
     const { gameId, playerId, activePlayerId, phase, combat, allPlayers } =
         useGameContext();

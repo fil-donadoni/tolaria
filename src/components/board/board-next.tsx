@@ -54,66 +54,68 @@ export default function BoardNext({
         <ArrowAnchorProvider>
             <ArrowHighlightProvider>
                 <LayoutGroup>
-                <div className="absolute inset-0" data-board-variant="next">
-                    {/* Opponent: hand on the top edge, battlefield below it — same
+                    <div className="absolute inset-0" data-board-variant="next">
+                        {/* Opponent: hand on the top edge, battlefield below it — same
                     layout math, mirrored to the top half. */}
-                    {opponent && (
-                        <>
-                            <BoardNextPlayer player={opponent} side="top" />
-                            <div className="absolute left-0 right-0 top-0 h-[18%]">
-                                <BoardNextHand
-                                    player={opponent}
-                                    interactive={opponent.id === viewerId}
-                                    layout={handLayout}
-                                    mirror
-                                    data-testid="zone-opponent-hand"
-                                />
-                            </div>
-                            <div className="absolute left-0 right-0 top-[18%] h-[32%]">
-                                <BoardNextBattlefield
-                                    player={opponent}
-                                    mirror
-                                    data-testid="zone-opponent-battlefield"
-                                />
-                            </div>
-                        </>
-                    )}
+                        {opponent && (
+                            <>
+                                <BoardNextPlayer player={opponent} side="top" />
+                                <div className="absolute left-0 right-0 top-0 h-[18%]">
+                                    <BoardNextHand
+                                        player={opponent}
+                                        interactive={opponent.id === viewerId}
+                                        layout={handLayout}
+                                        mirror
+                                        data-testid="zone-opponent-hand"
+                                    />
+                                </div>
+                                <div className="absolute left-0 right-0 top-[18%] h-[32%]">
+                                    <BoardNextBattlefield
+                                        player={opponent}
+                                        mirror
+                                        data-testid="zone-opponent-battlefield"
+                                    />
+                                </div>
+                            </>
+                        )}
 
-                    {/* Viewer: battlefield on the bottom half, hand on the bottom edge. */}
-                    {me && (
-                        <>
-                            <BoardNextPlayer player={me} side="bottom" />
-                            <div className="absolute left-0 right-0 top-1/2 h-[32%]">
-                                <BoardNextBattlefield
-                                    player={me}
-                                    data-testid="zone-player-battlefield"
-                                />
-                            </div>
-                            <div className="absolute left-0 right-0 bottom-0 h-[18%]">
-                                <BoardNextHand
-                                    player={me}
-                                    interactive={me.id === viewerId}
-                                    layout={handLayout}
-                                    data-testid="zone-player-hand"
-                                />
-                            </div>
-                        </>
-                    )}
+                        {/* Viewer: battlefield on the bottom half, hand on the bottom edge. */}
+                        {me && (
+                            <>
+                                <BoardNextPlayer player={me} side="bottom" />
+                                <div className="absolute left-0 right-0 top-1/2 h-[32%]">
+                                    <BoardNextBattlefield
+                                        player={me}
+                                        data-testid="zone-player-battlefield"
+                                    />
+                                </div>
+                                <div className="absolute left-0 right-0 bottom-0 h-[18%]">
+                                    <BoardNextHand
+                                        player={me}
+                                        interactive={me.id === viewerId}
+                                        layout={handLayout}
+                                        data-testid="zone-player-hand"
+                                    />
+                                </div>
+                            </>
+                        )}
 
-                    {/* Card piles (graveyard / library / exile) for both seats,
+                        {/* Card piles (graveyard / library / exile) for both seats,
                     reusing the existing pile components incl. their expanded
                     reveal + inertial scroll (#255). */}
-                    <BoardNextPiles orderedPlayers={orderedPlayers} />
+                        <BoardNextPiles orderedPlayers={orderedPlayers} />
 
-                    {/* Spatial chrome shared with the classic board. */}
-                    <PriorityIndicator />
-                    <PhaseTracker />
-                    {stackItems.length > 0 && <GameStack stack={stackItems} />}
-                    {/* Our own SVG target arrows (replaces leader-line on the new
+                        {/* Spatial chrome shared with the classic board. */}
+                        <PriorityIndicator />
+                        <PhaseTracker />
+                        {stackItems.length > 0 && (
+                            <GameStack stack={stackItems} />
+                        )}
+                        {/* Our own SVG target arrows (replaces leader-line on the new
                     board, #257): endpoints derive from the shared layout
                     placements via the arrow-anchor registry, so arrows stay
                     glued through the spring/tilt motion. */}
-                    <BoardNextArrows stack={stackItems} combat={combat} />
+                        <BoardNextArrows stack={stackItems} combat={combat} />
                     </div>
                 </LayoutGroup>
             </ArrowHighlightProvider>

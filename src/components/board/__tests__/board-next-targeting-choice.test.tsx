@@ -96,30 +96,7 @@ vi.mock("../spatial-zone", () => ({
         </div>
     ),
 }));
-// Classic board renders BattlefieldCard; keep its click wiring but strip the
-// heavy chrome to a thin clickable shell. Reflect interactivity so we can also
-// assert the legal-target / legal-choice enablement matches the spatial card.
-vi.mock("../battlefield-card", () => ({
-    default: ({
-        card,
-        vs,
-        onClick,
-    }: {
-        card: CardInstance;
-        vs: { interactive: boolean; enabled: boolean };
-        onClick: (e: React.MouseEvent) => void;
-    }) => (
-        <div
-            data-classic-card={card.id}
-            data-interactive={vs.interactive ? "true" : "false"}
-            data-enabled={vs.enabled ? "true" : "false"}
-            onClick={(e) => onClick(e)}
-        />
-    ),
-}));
-
 import BoardNextBattlefield from "../board-next-battlefield";
-import PlayerBattlefield from "../player-battlefield";
 import BoardNextHandCard from "../board-next-hand-card";
 import SelectableCard from "../../cards/selectable-card";
 
@@ -212,20 +189,6 @@ function renderSpatialBf(
     );
 }
 
-function renderClassicBf(
-    player: Player,
-    players: Player[],
-    ctx?: Partial<React.ContextType<typeof GameContext>>
-) {
-    return render(
-        <GameContext value={makeContext(players, ctx)}>
-            <PendingChoiceBufferContext value={makeBuffer()}>
-                <PlayerBattlefield player={player} />
-            </PendingChoiceBufferContext>
-        </GameContext>
-    );
-}
-
 function clearAll() {
     for (const m of Object.values(MUTATIONS)) m.mockClear();
     bufferToggle.mockClear();
@@ -240,8 +203,6 @@ beforeEach(() => {
 
 const spatialCard = (root: ParentNode, id: string) =>
     root.querySelector(`[data-arrow-anchor-permanent="${id}"]`)!;
-const classicCard = (id: string) =>
-    document.querySelector(`[data-classic-card="${id}"]`)!;
 
 describe("board-next targeting parity (#279)", () => {
     it("(a) clicking a legal permanent dispatches the SAME selectTarget args on both boards", () => {
@@ -254,18 +215,10 @@ describe("board-next targeting parity (#279)", () => {
             } as never,
         };
 
-        renderClassicBf(me, [me], targetCtx);
-        fireEvent.click(classicCard("bear1"));
-        const classicArgs = selectTarget.mock.calls[0][0];
-
-        clearAll();
-        cleanup();
-
         const { container } = renderSpatialBf(me, [me], targetCtx);
         fireEvent.click(spatialCard(container, "bear1"));
         const spatialArgs = selectTarget.mock.calls[0][0];
 
-        expect(spatialArgs).toEqual(classicArgs);
         expect(spatialArgs).toMatchObject({
             gameId: "game-id",
             playerId: "me",
@@ -304,18 +257,10 @@ describe("board-next additional-cost parity (#279, CR 117.9)", () => {
             } as never,
         };
 
-        renderClassicBf(me, [me], costCtx);
-        fireEvent.click(classicCard("bear1"));
-        const classicArgs = selectAdditionalCost.mock.calls[0][0];
-
-        clearAll();
-        cleanup();
-
         const { container } = renderSpatialBf(me, [me], costCtx);
         fireEvent.click(spatialCard(container, "bear1"));
         const spatialArgs = selectAdditionalCost.mock.calls[0][0];
 
-        expect(spatialArgs).toEqual(classicArgs);
         expect(spatialArgs).toMatchObject({
             gameId: "game-id",
             playerId: "me",
@@ -346,13 +291,6 @@ describe("board-next battlefield choice parity (#279, CR 608.2)", () => {
     it("(c-own) toggles the buffer with the clicked id on both boards (own battlefield)", () => {
         const me = makePlayer("me", [creature("bear1")]);
 
-        renderClassicBf(me, [me], choiceCtx());
-        fireEvent.click(classicCard("bear1"));
-        expect(bufferToggle).toHaveBeenCalledWith("bear1");
-
-        bufferToggle.mockClear();
-        cleanup();
-
         const { container } = renderSpatialBf(me, [me], choiceCtx());
         fireEvent.click(spatialCard(container, "bear1"));
         expect(bufferToggle).toHaveBeenCalledWith("bear1");
@@ -364,15 +302,8 @@ describe("board-next battlefield choice parity (#279, CR 608.2)", () => {
         const opp = makePlayer("opp", [creature("oppbear", "opp")]);
         const ctx = choiceCtx({ zoneOwnerId: "opp" });
 
-        // Classic: render the OPPONENT's battlefield (the zone owner) — the
-        // chooser is still "me" via context.playerId.
-        renderClassicBf(opp, [me, opp], ctx);
-        fireEvent.click(classicCard("oppbear"));
-        expect(bufferToggle).toHaveBeenCalledWith("oppbear");
-
-        bufferToggle.mockClear();
-        cleanup();
-
+        // The chooser is "me" via context.playerId; the pick comes from the
+        // zone owner ("opp")'s battlefield.
         const { container } = renderSpatialBf(opp, [me, opp], ctx);
         fireEvent.click(spatialCard(container, "oppbear"));
         expect(bufferToggle).toHaveBeenCalledWith("oppbear");
@@ -498,18 +429,10 @@ describe("board-next activation sacrifice-cost picker (#282, CR 602.1)", () => {
             } as never,
         };
 
-        renderClassicBf(me, [me], costCtx);
-        fireEvent.click(classicCard("bear1"));
-        const classicArgs = selectActivationCost.mock.calls[0][0];
-
-        clearAll();
-        cleanup();
-
         const { container } = renderSpatialBf(me, [me], costCtx);
         fireEvent.click(spatialCard(container, "bear1"));
         const spatialArgs = selectActivationCost.mock.calls[0][0];
 
-        expect(spatialArgs).toEqual(classicArgs);
         expect(spatialArgs).toMatchObject({
             gameId: "game-id",
             playerId: "me",
@@ -536,8 +459,8 @@ describe("board-next activation sacrifice-cost picker (#282, CR 602.1)", () => {
                 },
             } as never,
         };
-        renderClassicBf(me, [me], costCtx);
-        fireEvent.click(classicCard("bear1"));
+        const { container } = renderSpatialBf(me, [me], costCtx);
+        fireEvent.click(spatialCard(container, "bear1"));
         expect(selectActivationCost).not.toHaveBeenCalled();
     });
 });

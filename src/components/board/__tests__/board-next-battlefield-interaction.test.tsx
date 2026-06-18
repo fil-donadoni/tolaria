@@ -116,26 +116,7 @@ vi.mock("../spatial-zone", () => ({
         </div>
     ),
 }));
-// The classic board renders BattlefieldCard; keep its click wiring but strip
-// the heavy chrome (tooltip / context menu) to a thin clickable shell.
-vi.mock("../battlefield-card", () => ({
-    default: ({
-        card,
-        onClick,
-    }: {
-        card: CardInstance;
-        onClick: (e: React.MouseEvent) => void;
-    }) => (
-        <div
-            data-classic-card={card.id}
-            onClick={(e) => onClick(e)}
-            data-testid="classic-card"
-        />
-    ),
-}));
-
 import BoardNextBattlefield from "../board-next-battlefield";
-import PlayerBattlefield from "../player-battlefield";
 
 function land(id: string): CardInstance {
     return {
@@ -209,17 +190,6 @@ function renderSpatial(
     );
 }
 
-function renderClassic(
-    me: Player,
-    ctx?: Partial<React.ContextType<typeof GameContext>>
-) {
-    return render(
-        <GameContext value={makeContext(me, ctx)}>
-            <PlayerBattlefield player={me} />
-        </GameContext>
-    );
-}
-
 function clearAll() {
     for (const m of Object.values(MUTATIONS)) m.mockClear();
 }
@@ -233,22 +203,12 @@ describe("board-next battlefield tap/pay parity with the classic board (#272)", 
     it("(a) a plain tap dispatches the SAME tapUntap args on both boards", () => {
         const me = makePlayer([land("forest1")]);
 
-        renderClassic(me);
-        fireEvent.click(
-            document.querySelector('[data-classic-card="forest1"]')!
-        );
-        const classicArgs = tapUntap.mock.calls[0][0];
-
-        clearAll();
-        cleanup();
-
         const { container } = renderSpatial(me);
         fireEvent.click(
             container.querySelector('[data-arrow-anchor-permanent="forest1"]')!
         );
         const spatialArgs = tapUntap.mock.calls[0][0];
 
-        expect(spatialArgs).toEqual(classicArgs);
         expect(spatialArgs).toMatchObject({
             gameId: "game-id",
             playerId: "me",
@@ -268,22 +228,12 @@ describe("board-next battlefield tap/pay parity with the classic board (#272)", 
             } as never,
         };
 
-        renderClassic(me, payCtx);
-        fireEvent.click(
-            document.querySelector('[data-classic-card="forest1"]')!
-        );
-        const classicArgs = tapForPayment.mock.calls[0][0];
-
-        clearAll();
-        cleanup();
-
         const { container } = renderSpatial(me, payCtx);
         fireEvent.click(
             container.querySelector('[data-arrow-anchor-permanent="forest1"]')!
         );
         const spatialArgs = tapForPayment.mock.calls[0][0];
 
-        expect(spatialArgs).toEqual(classicArgs);
         expect(spatialArgs).toMatchObject({
             gameId: "game-id",
             playerId: "me",
@@ -295,22 +245,7 @@ describe("board-next battlefield tap/pay parity with the classic board (#272)", 
     it("(c) a mana-choice pick dispatches the SAME tapUntap(index) args on both boards", () => {
         const me = makePlayer([manaChoiceSource("birds1")]);
 
-        // Classic: click opens the mana picker → pick the 4th color (R, index 3).
-        const classic = renderClassic(me);
-        fireEvent.click(
-            document.querySelector('[data-classic-card="birds1"]')!
-        );
-        // Picker buttons carry a title `Add 1{<color>}`.
-        const classicPick = within(classic.container.ownerDocument.body)
-            .getAllByRole("button")
-            .find((b) => b.getAttribute("title")?.includes("{R}"))!;
-        fireEvent.click(classicPick);
-        const classicArgs = tapUntap.mock.calls[0][0];
-
-        clearAll();
-        cleanup();
-
-        // Spatial: same gesture through the same hook.
+        // Click opens the mana picker → pick the 4th color (R, index 3).
         const spatial = renderSpatial(me);
         fireEvent.click(
             spatial.container.querySelector(
@@ -323,7 +258,6 @@ describe("board-next battlefield tap/pay parity with the classic board (#272)", 
         fireEvent.click(spatialPick);
         const spatialArgs = tapUntap.mock.calls[0][0];
 
-        expect(spatialArgs).toEqual(classicArgs);
         expect(spatialArgs).toMatchObject({
             gameId: "game-id",
             playerId: "me",

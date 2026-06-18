@@ -158,7 +158,6 @@ vi.mock("../spatial-zone", () => ({
 }));
 
 import BoardNextBattlefield from "../board-next-battlefield";
-import PlayerBattlefield from "../player-battlefield";
 
 function permanent(
     id: string,
@@ -223,18 +222,6 @@ function renderSpatial(
     );
 }
 
-function renderClassic(
-    player: Player,
-    players: Player[],
-    ctx?: Partial<React.ContextType<typeof GameContext>>
-) {
-    return render(
-        <GameContext value={makeContext(players, ctx)}>
-            <PlayerBattlefield player={player} />
-        </GameContext>
-    );
-}
-
 function clearAll() {
     for (const m of Object.values(MUTATIONS)) m.mockClear();
 }
@@ -277,18 +264,10 @@ describe("board-next battlefield activated-ability parity with the classic board
     it("(a) a plain stack ability dispatches identical activateAbility args on both boards", () => {
         const me = makePlayer("me", [permanent("tim1", "stack-def")]);
 
-        renderClassic(me, [me]);
-        openMenuAndClick(document.body, "tim1", "deals 1 damage");
-        const classicArgs = activateAbility.mock.calls[0][0];
-
-        clearAll();
-        cleanup();
-
         const { container } = renderSpatial(me, [me]);
         openMenuAndClick(container, "tim1", "deals 1 damage");
         const spatialArgs = activateAbility.mock.calls[0][0];
 
-        expect(spatialArgs).toEqual(classicArgs);
         expect(spatialArgs).toMatchObject({
             gameId: "game-id",
             playerId: "me",
@@ -303,18 +282,10 @@ describe("board-next battlefield activated-ability parity with the classic board
         vi.spyOn(window, "prompt").mockReturnValue("3");
         const me = makePlayer("me", [permanent("rl1", "x-def")]);
 
-        renderClassic(me, [me]);
-        openMenuAndClick(document.body, "rl1", "deal X damage");
-        const classicArgs = activateAbility.mock.calls[0][0];
-
-        clearAll();
-        cleanup();
-
         const { container } = renderSpatial(me, [me]);
         openMenuAndClick(container, "rl1", "deal X damage");
         const spatialArgs = activateAbility.mock.calls[0][0];
 
-        expect(spatialArgs).toEqual(classicArgs);
         expect(spatialArgs).toMatchObject({
             cardInstanceId: "rl1",
             abilityId: "rl-x",
@@ -325,18 +296,10 @@ describe("board-next battlefield activated-ability parity with the classic board
     it("(c) a dual mana+stack card's mana entry routes to tapUntap on both boards", () => {
         const me = makePlayer("me", [permanent("bm1", "dual-def")]);
 
-        renderClassic(me, [me]);
-        openMenuAndClick(document.body, "bm1", "Add");
-        const classicArgs = tapUntap.mock.calls[0][0];
-
-        clearAll();
-        cleanup();
-
         const { container } = renderSpatial(me, [me]);
         openMenuAndClick(container, "bm1", "Add");
         const spatialArgs = tapUntap.mock.calls[0][0];
 
-        expect(spatialArgs).toEqual(classicArgs);
         expect(spatialArgs).toMatchObject({
             gameId: "game-id",
             playerId: "me",
@@ -349,18 +312,10 @@ describe("board-next battlefield activated-ability parity with the classic board
     it("(d) the keep-priority modifier (Ctrl/Cmd) dispatches identically on both boards", () => {
         const me = makePlayer("me", [permanent("tim1", "stack-def")]);
 
-        renderClassic(me, [me]);
-        openMenuAndClick(document.body, "tim1", "deals 1 damage", true);
-        const classicArgs = activateAbility.mock.calls[0][0];
-
-        clearAll();
-        cleanup();
-
         const { container } = renderSpatial(me, [me]);
         openMenuAndClick(container, "tim1", "deals 1 damage", true);
         const spatialArgs = activateAbility.mock.calls[0][0];
 
-        expect(spatialArgs).toEqual(classicArgs);
         expect(spatialArgs).toMatchObject({
             cardInstanceId: "tim1",
             abilityId: "tim-ping",
@@ -422,18 +377,10 @@ describe("board-next battlefield activated-ability parity with the classic board
             fireEvent.click(el);
         };
 
-        renderClassic(me, [me]);
-        tapCard(document.body);
-        const classicArgs = activateAbility.mock.calls[0][0];
-
-        clearAll();
-        cleanup();
-
         const { container } = renderSpatial(me, [me]);
         tapCard(container);
         const spatialArgs = activateAbility.mock.calls[0][0];
 
-        expect(spatialArgs).toEqual(classicArgs);
         expect(spatialArgs).toMatchObject({
             cardInstanceId: "tim1",
             abilityId: "tim-ping",

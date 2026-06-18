@@ -23,9 +23,8 @@ import type { CardVisualState } from "~/components/board/battlefield-card";
  *  board: combat grouping rings, tap state, marked damage badges, and
  *  legal-target / legal-choice highlighting during selection.
  *
- *  Both the classic battlefield (`player-battlefield.tsx`) and the new spatial
- *  board (`board-next-battlefield-card.tsx`) consume the SAME `getVisualState`
- *  produced here — the computation is reused as-is; only the rendering differs.
+ *  The spatial battlefield (`board-next-battlefield-card.tsx`) consumes the
+ *  `getVisualState` produced here.
  *
  *  Reads ONLY projected (`PublicGameState` / `FullGameState`) fields exposed
  *  through `useGameContext()` — no GRE engine import, consistent with the
@@ -46,7 +45,7 @@ export function useBattlefieldVisualState(player: Player) {
     const bufferCtx = usePendingChoiceBuffer();
     const isMe = player.id === playerId;
 
-    // --- Interaction modes (mirrors player-battlefield.tsx) ---
+    // --- Interaction modes ---
 
     const isPayingCast =
         isMe && !!pendingCast && pendingCast.playerId === playerId;

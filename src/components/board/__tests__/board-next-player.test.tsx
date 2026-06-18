@@ -267,15 +267,17 @@ describe("board-next player life totals (#280)", () => {
     });
 
     it("shows a priority ring on the player who holds priority", () => {
-        // p1 has priority (default ctx), viewer is p2 → opponent amber ring.
+        // p1 has priority (default ctx), viewer is p2. The priority ring is a
+        // token-based box-shadow (teal `secondary-accent` for both seats),
+        // not a chromatic Tailwind ring class (ADR 0007).
         const { container } = renderSpatial(
             makePlayer("p1"),
             { playerId: "p2", priorityPlayerId: "p1" },
             "top"
         );
-        const plate = container.querySelector(
+        const plate = container.querySelector<HTMLElement>(
             '[data-arrow-anchor-player="p1"]'
         );
-        expect(plate?.className).toContain("ring-amber-400");
+        expect(plate?.style.boxShadow).toContain("--color-secondary-accent");
     });
 });

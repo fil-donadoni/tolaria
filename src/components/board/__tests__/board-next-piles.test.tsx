@@ -129,9 +129,10 @@ describe("BoardNextPiles (slice #255)", () => {
         renderPiles(opp, me);
 
         const playerPiles = screen.getByTestId("piles-player");
-        // Collapsed empty piles render their label, not a reveal dialog.
-        expect(within(playerPiles).getByText("Graveyard")).toBeTruthy();
-        expect(within(playerPiles).getByText("Exile")).toBeTruthy();
+        // Collapsed empty piles render their zone icon (labelled for a11y) in
+        // place of the text label, not a reveal dialog.
+        expect(within(playerPiles).getByLabelText("Graveyard")).toBeTruthy();
+        expect(within(playerPiles).getByLabelText("Exile")).toBeTruthy();
         expect(screen.queryByRole("dialog")).toBeNull();
     });
 

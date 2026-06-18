@@ -1,5 +1,6 @@
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
+import GraveyardIcon from "../icons/graveyard-icon";
 import type { Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import CardsPile from "./cards-pile";
@@ -44,6 +45,7 @@ export default function PlayerGraveyard({ player }: { player: Player }) {
                     cards={player.graveyard}
                     emptyLabel="Graveyard"
                     title="Graveyard"
+                    zoneIcon={<GraveyardIcon className="w-8 h-8" />}
                     onCardClick={onCardClick}
                 />
             </div>

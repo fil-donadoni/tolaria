@@ -98,7 +98,13 @@ export default function BoardNextArrows({
             data-testid="board-next-arrows"
         >
             <defs>
-                <linearGradient id="board-next-arrow-grad" x1="0" y1="0" x2="1" y2="1">
+                <linearGradient
+                    id="board-next-arrow-grad"
+                    x1="0"
+                    y1="0"
+                    x2="1"
+                    y2="1"
+                >
                     <stop offset="0%" stopColor={ACCENT} />
                     <stop offset="100%" stopColor={STRONG} />
                 </linearGradient>
@@ -151,9 +157,7 @@ export default function BoardNextArrows({
                             stroke="transparent"
                             strokeWidth={18}
                             className="pointer-events-auto cursor-pointer"
-                            onPointerEnter={() =>
-                                setSeed?.({ key: arrow.key })
-                            }
+                            onPointerEnter={() => setSeed?.({ key: arrow.key })}
                             onPointerLeave={() => setSeed?.(null)}
                         />
                         {/* Soft gold aura (no dark channel, no heavy glow). */}

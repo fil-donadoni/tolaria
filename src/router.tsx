@@ -10,11 +10,6 @@ import LobbyRoute from "./routes/lobby.route";
 import DeckBuilderRoute from "./routes/deck-builder.route";
 import DeckDetailRoute from "./routes/deck-detail.route";
 import GameRoute from "./routes/game.route";
-import PrototypeButtonsRoute from "./routes/prototype-buttons.route";
-import PrototypeActionButtonsRoute from "./routes/prototype-action-buttons.route";
-import PrototypeBoardRoute from "./routes/prototype-board.route";
-import PrototypeBoardFullRoute from "./routes/prototype-board-full.route";
-import PrototypeArrowsRoute from "./routes/prototype-arrows.route";
 
 const rootRoute = createRootRoute({
     component: () => (
@@ -52,41 +47,6 @@ const gameRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/game",
     component: GameRoute,
-    // `?board=next` selects the DOM-only spatial board (PRD #249); absent or
-    // any other value falls back to the current board.
-    validateSearch: (search: Record<string, unknown>): { board?: "next" } => ({
-        board: search.board === "next" ? "next" : undefined,
-    }),
-});
-
-const prototypeButtonsRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/prototype/buttons",
-    component: PrototypeButtonsRoute,
-});
-
-const prototypeActionButtonsRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/prototype/action-buttons",
-    component: PrototypeActionButtonsRoute,
-});
-
-const prototypeBoardRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/prototype/board",
-    component: PrototypeBoardRoute,
-});
-
-const prototypeBoardFullRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/prototype/board-full",
-    component: PrototypeBoardFullRoute,
-});
-
-const prototypeArrowsRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/prototype/arrows",
-    component: PrototypeArrowsRoute,
 });
 
 const routeTree = rootRoute.addChildren([
@@ -95,11 +55,6 @@ const routeTree = rootRoute.addChildren([
     deckDetailRoute,
     deckEditRoute,
     gameRoute,
-    prototypeButtonsRoute,
-    prototypeActionButtonsRoute,
-    prototypeBoardRoute,
-    prototypeBoardFullRoute,
-    prototypeArrowsRoute,
 ]);
 
 const router = createRouter({ routeTree });

@@ -124,22 +124,6 @@ vi.mock("../spatial-zone", () => ({
         </div>
     ),
 }));
-vi.mock("../battlefield-card", () => ({
-    default: ({
-        card,
-        onClick,
-    }: {
-        card: CardInstance;
-        onClick: (e: React.MouseEvent) => void;
-    }) => (
-        <div
-            data-classic-card={card.id}
-            onClick={(e) => onClick(e)}
-            data-testid="classic-card"
-        />
-    ),
-}));
-
 // Thin panel shells: assert that the parent mounts the right panel at the right
 // combat step without fighting each panel's internal early-return.
 vi.mock("../band-formation-panel", () => ({
@@ -150,7 +134,6 @@ vi.mock("../damage-assignment-panel", () => ({
 }));
 
 import BoardNextBattlefield from "../board-next-battlefield";
-import PlayerBattlefield from "../player-battlefield";
 
 function creature(id: string, defId: string): CardInstance {
     return {
@@ -214,17 +197,6 @@ function renderSpatial(
     );
 }
 
-function renderClassic(
-    me: Player,
-    ctx?: Partial<React.ContextType<typeof GameContext>>
-) {
-    return render(
-        <GameContext value={makeContext(me, ctx)}>
-            <PlayerBattlefield player={me} />
-        </GameContext>
-    );
-}
-
 function clearAll() {
     for (const m of Object.values(MUTATIONS)) m.mockClear();
 }
@@ -251,20 +223,12 @@ describe("board-next combat declaration parity with the classic board (#281)", (
             combat: attackCombat([]),
         };
 
-        renderClassic(me, ctx);
-        fireEvent.click(document.querySelector('[data-classic-card="bear1"]')!);
-        const classicArgs = toggleAttacker.mock.calls[0][0];
-
-        clearAll();
-        cleanup();
-
         const { container } = renderSpatial(me, ctx);
         fireEvent.click(
             container.querySelector('[data-arrow-anchor-permanent="bear1"]')!
         );
         const spatialArgs = toggleAttacker.mock.calls[0][0];
 
-        expect(spatialArgs).toEqual(classicArgs);
         expect(spatialArgs).toMatchObject({
             gameId: "game-id",
             playerId: "me",
@@ -282,12 +246,6 @@ describe("board-next combat declaration parity with the classic board (#281)", (
             activePlayerId: "me",
             combat: attackCombat(["jugg1"]),
         };
-
-        renderClassic(me, ctx);
-        fireEvent.click(document.querySelector('[data-classic-card="jugg1"]')!);
-        expect(toggleAttacker).not.toHaveBeenCalled();
-
-        cleanup();
 
         const { container } = renderSpatial(me, ctx);
         fireEvent.click(
@@ -316,20 +274,12 @@ describe("board-next combat declaration parity with the classic board (#281)", (
             allPlayers: [opp, me],
         };
 
-        renderClassic(me, ctx);
-        fireEvent.click(document.querySelector('[data-classic-card="blk1"]')!);
-        const classicArgs = selectBlocker.mock.calls[0][0];
-
-        clearAll();
-        cleanup();
-
         const { container } = renderSpatial(me, ctx);
         fireEvent.click(
             container.querySelector('[data-arrow-anchor-permanent="blk1"]')!
         );
         const spatialArgs = selectBlocker.mock.calls[0][0];
 
-        expect(spatialArgs).toEqual(classicArgs);
         expect(spatialArgs).toMatchObject({
             gameId: "game-id",
             playerId: "me",
@@ -361,19 +311,6 @@ describe("board-next combat declaration parity with the classic board (#281)", (
             allPlayers: [opp, me],
         };
 
-        // Classic: render the OPPONENT's battlefield (where the attacker lives)
-        // from the viewer's seat.
-        render(
-            <GameContext value={makeContext(me, ctx)}>
-                <PlayerBattlefield player={opp} />
-            </GameContext>
-        );
-        fireEvent.click(document.querySelector('[data-classic-card="atk1"]')!);
-        const classicArgs = assignBlockerTarget.mock.calls[0][0];
-
-        clearAll();
-        cleanup();
-
         const spatial = render(
             <GameContext value={makeContext(me, ctx)}>
                 <BoardNextBattlefield player={opp} />
@@ -386,7 +323,6 @@ describe("board-next combat declaration parity with the classic board (#281)", (
         );
         const spatialArgs = assignBlockerTarget.mock.calls[0][0];
 
-        expect(spatialArgs).toEqual(classicArgs);
         expect(spatialArgs).toMatchObject({
             gameId: "game-id",
             playerId: "me",

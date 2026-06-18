@@ -1,5 +1,6 @@
 import type { Player } from "~/types/game";
 import CardsPile from "./cards-pile";
+import ExileIcon from "../icons/exile-icon";
 
 export default function PlayerExile({ player }: { player: Player }) {
     return (
@@ -12,6 +13,7 @@ export default function PlayerExile({ player }: { player: Player }) {
                     cards={player.exile}
                     emptyLabel="Exile"
                     title="Exile"
+                    zoneIcon={<ExileIcon className="w-8 h-8" />}
                 />
             </div>
         </div>

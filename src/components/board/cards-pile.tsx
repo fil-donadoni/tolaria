@@ -15,6 +15,11 @@ type CardsPileProps = {
     cards: CardInstance[];
     isFaceDown?: boolean;
     emptyLabel?: string;
+    /** Zone glyph shown (centered) in place of the text label when the pile is
+     *  empty — e.g. a `Skull` for the graveyard, `Sparkles` for exile. Falls
+     *  back to `emptyLabel` text when absent. `emptyLabel` is kept as the
+     *  accessible label. */
+    zoneIcon?: React.ReactNode;
     title?: string;
     layout?: "fan" | "grid";
     onCardClick?: (card: CardInstance) => void;
@@ -169,6 +174,7 @@ export default function CardsPile({
     cards,
     isFaceDown = false,
     emptyLabel,
+    zoneIcon,
     title,
     layout = "fan",
     onCardClick,
@@ -190,8 +196,19 @@ export default function CardsPile({
 
     if (!cards.length) {
         return (
-            <div className="w-(--card-w-sm) aspect-5/7 mb-2 flex justify-center items-center text-center p-2 border border-white/20 rounded-sm text-white/85 text-xs">
-                {emptyLabel || "No cards"}
+            <div className="group w-(--card-w-sm) aspect-5/7 mb-2 flex justify-center items-center text-center p-2 border border-white/15 rounded-sm">
+                {zoneIcon ? (
+                    <span
+                        aria-label={emptyLabel}
+                        className="opacity-90 transition duration-200 group-hover:opacity-100 group-hover:scale-110"
+                    >
+                        {zoneIcon}
+                    </span>
+                ) : (
+                    <span className="text-white/85 text-xs">
+                        {emptyLabel || "No cards"}
+                    </span>
+                )}
             </div>
         );
     }

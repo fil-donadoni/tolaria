@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
-import { useSearch } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { Player } from "~/types/game";
-import { resolveBoardVariant } from "~/lib/board-variant";
 import { GameContext } from "~/hooks/useGameContext";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import {
@@ -17,7 +15,6 @@ import {
 } from "~/hooks/usePendingChoiceBuffer";
 import { preloadCardImages } from "~/lib/image-preload";
 import { computeSoloViewerId } from "~/lib/priority";
-import BoardClassic from "./board-classic";
 import BoardNext from "./board-next";
 import ActionBar from "./action-bar";
 import AutoPassController from "./auto-pass-controller";
@@ -59,10 +56,6 @@ export default function Board({
     const pageVisible = usePageVisible();
     const skipPhasePrefs = useSkipPhasePrefsState();
     const [pauseMenuOpen, setPauseMenuOpen] = useState(false);
-    // `?board=next` selects the DOM-only spatial root (PRD #249); anything else
-    // keeps the current board. View-layer only — no effect on GRE/mutations.
-    const search = useSearch({ strict: false }) as Record<string, unknown>;
-    const boardVariant = resolveBoardVariant(search);
     const publicState = useQuery(
         api.game.getPublicState,
         pageVisible && !showAllCards
@@ -215,20 +208,13 @@ export default function Board({
         >
             <SkipPhasePrefsContext value={skipPhasePrefs}>
                 <PendingChoiceBufferContext value={pendingChoiceBuffer}>
-                    <main className="flex h-full w-full flex-col relative">
+                    <main className="flex h-full w-full flex-col relative overflow-hidden">
                         <AutoPassController solo={solo} />
                         {vsAi && <VsAiDriver gameId={gameId} botId={botId} />}
-                        {boardVariant === "next" ? (
-                            <BoardNext
-                                orderedPlayers={orderedPlayers}
-                                stackItems={stackItems}
-                            />
-                        ) : (
-                            <BoardClassic
-                                orderedPlayers={orderedPlayers}
-                                stackItems={stackItems}
-                            />
-                        )}
+                        <BoardNext
+                            orderedPlayers={orderedPlayers}
+                            stackItems={stackItems}
+                        />
                         {pendingTarget &&
                             pendingTarget.playerId === viewerId && (
                                 <TargetSelectionBanner

@@ -259,8 +259,7 @@ export function resolveArrowHighlight(
     const id = hovered.nodeId;
     // A node sitting in a combat knot lights the whole cluster.
     const inCombat = arrows.find(
-        (x) =>
-            x.kind === "combat" && (x.fromId === id || x.toId === id)
+        (x) => x.kind === "combat" && (x.fromId === id || x.toId === id)
     );
     if (inCombat?.clusterId !== undefined) {
         return combatCluster(arrows, inCombat.clusterId);
@@ -269,9 +268,7 @@ export function resolveArrowHighlight(
     // Directional over the target graph. A node that is a source (the `fromId`
     // of any target arrow — i.e. a stack item with targets) shows its OUTGOING
     // arrows; any other node shows its INCOMING arrows.
-    const isSource = arrows.some(
-        (a) => a.kind === "target" && a.fromId === id
-    );
+    const isSource = arrows.some((a) => a.kind === "target" && a.fromId === id);
     const keys = new Set<string>();
     const nodes = new Set<string>([id]);
     for (const a of arrows) {
