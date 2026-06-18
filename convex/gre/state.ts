@@ -449,6 +449,15 @@ export type CardInstanceState = {
      *  the battlefield (`revertCopy`). Its presence marks the instance as an
      *  active copy and survives Vesuvan's upkeep re-copy unchanged. */
     copiedFrom?: string;
+    /** Token provenance link (CR 111, 707.1). Instance id of the permanent
+     *  that created this token via `createToken(..., createdBy)`. Lets a
+     *  source later identify the tokens it made — Tetravus exiles "tokens
+     *  created with this creature" to put +1/+1 counters back on itself. Only
+     *  set on tokens whose creator passed its own instance id; undefined for
+     *  every other permanent. Persisted (serialize) so the link survives a DB
+     *  round-trip; cleared with the rest of the instance when the token leaves
+     *  the battlefield (a new object, CR 400.7). */
+    createdBy?: string;
 };
 
 /** A one-shot damage prevention effect (CR 615.1, 615.6). The next time the
@@ -3074,7 +3083,19 @@ function tokenDefinitionId(spec: TokenSpec): string {
         spec.toughness ?? "",
         (spec.colors ?? []).join(""),
         (spec.staticAbilities ?? []).join(","),
+        // 9th segment (index 8): the printed-token Scryfall id, kept in place so
+        // existing decoders that read `parts[8]` as the image print id are
+        // unaffected.
         spec.imagePrintId ?? "",
+        // 10th segment (index 9): CR 611 static-effect kinds present on the
+        // token (Tetravite's "can't be enchanted" guard). A token carrying a
+        // static effect is a distinct definition shape, so its presence must
+        // feed the content hash — keyed by the effect kinds (the guard
+        // predicates are closures and can't be serialized, but the kind set
+        // uniquely distinguishes the token shapes in the current catalog).
+        // Empty when the token has no continuous effects (back-compat: a 9-
+        // segment id without this trailing segment decodes as "no effects").
+        (spec.staticEffects ?? []).map((e) => e.kind).join(","),
     ];
     return `token:${parts.join("|")}`;
 }
@@ -3980,7 +4001,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         // sources' lord-style grants reach the new token via
         // `applyExistingGrantsTo` (CR 611). CR 704.5d cleanup is handled by
         // `checkTokenExistenceSBA` if the token ever leaves the battlefield.
-        createToken(spec, controllerId, count = 1): string[] {
+        createToken(spec, controllerId, count = 1, createdBy): string[] {
             const owner = getPlayer(state, controllerId);
             const ids: string[] = [];
             const manaCost: CardManaCost = {};
@@ -4010,6 +4031,12 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 ...(spec.imagePrintId
                     ? { imagePrintId: spec.imagePrintId }
                     : {}),
+                // CR 611 — register the token's continuous static effects on its
+                // synthesized definition so def-keyed readers (isGuardedAgainst
+                // for the Tetravite "can't be enchanted" guard) observe them.
+                ...(spec.staticEffects && spec.staticEffects.length > 0
+                    ? { staticEffects: [...spec.staticEffects] }
+                    : {}),
             });
             for (let i = 0; i < count; i++) {
                 state.nextTokenSeq = (state.nextTokenSeq ?? 0) + 1;
@@ -4032,6 +4059,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     isSummoningSick: spec.types.includes("Creature")
                         ? true
                         : undefined,
+                    // CR 111 / 707.1 — token provenance link. Records the
+                    // creating permanent so a source can later identify the
+                    // tokens it made (Tetravus exiles its own Tetravites to
+                    // recover +1/+1 counters).
+                    ...(createdBy ? { createdBy } : {}),
                 };
                 owner.battlefield.push(token);
                 applyExistingGrantsTo(state, token);

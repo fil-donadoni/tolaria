@@ -21,9 +21,10 @@ import type {
     PermanentView,
     SpellContext,
     TargetSelection,
+    TokenSpec,
     TriggeredAbility,
 } from "../types";
-import { EFFECT_AFFECTS_SELF } from "../types";
+import { cantBeEnchantedSelfGuard, EFFECT_AFFECTS_SELF } from "../types";
 import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
 import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
@@ -3251,5 +3252,142 @@ export const tawnossWand: CardDefinition = {
                 }
             },
         },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster L (#293) — token provenance link. CR 111 / 707.1: a token records
+// the permanent that created it (`createToken(..., ctx.sourceInstanceId)` →
+// `CardInstanceState.createdBy`), so a source can later identify "tokens
+// created with this creature" via the `PermanentFilter.createdBy` clause. The
+// Tetravite token also carries a self-targeting `cantBeEnchanted`
+// `permanent-guard` (CR 303.4 — reusing Guardian Beast's clause), registered on
+// the synthesized token definition and rebuilt from the token id after a DB
+// round-trip (`maybeSynthesizeToken`). Both upkeep abilities are optional
+// ("may") choices over an arbitrary number (CR 603.6a): the counter→token
+// direction picks a number 0..N via `requestOptionChoice`; the token→counter
+// direction picks any subset of the linked tokens via a `choose-permanents`
+// `requestChoice` scoped by `createdBy`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// The Tetravite token spec (CR 707.2). 1/1 colorless flying artifact creature
+// that "can't be enchanted". The provenance link is stamped per-creation by
+// `createToken`'s `createdBy` argument, not by the spec.
+const TETRAVITE_TOKEN: TokenSpec = {
+    name: "Tetravite",
+    types: ["Artifact", "Creature"],
+    subtypes: ["Tetravite"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flying"],
+    // CR 303.4 — "This token can't be enchanted." Self-targeting guard,
+    // reconstructed deterministically from the token id (closures can't ride
+    // the serialized id).
+    staticEffects: [cantBeEnchantedSelfGuard()],
+};
+
+// Tetravus — {6} Artifact Creature — Construct, 1/1 flying, enters with three
+// +1/+1 counters. Two optional upkeep abilities convert between counters and
+// linked Tetravite tokens in either direction (modern Scryfall oracle, ADR
+// 0004).
+export const tetravus: CardDefinition = {
+    id: "23eb19f9-2e8f-4bf0-9bf8-868e6da70e2d",
+    name: "Tetravus",
+    oracleText:
+        'Flying\nThis creature enters with three +1/+1 counters on it.\nAt the beginning of your upkeep, you may remove any number of +1/+1 counters from this creature. If you do, create that many 1/1 colorless Tetravite artifact creature tokens. They each have flying and "This token can\'t be enchanted."\nAt the beginning of your upkeep, you may exile any number of tokens created with this creature. If you do, put that many +1/+1 counters on this creature.',
+    manaCost: { X: 6 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Construct"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flying"],
+    // CR 122.1 / 614.1c — ETB counters applied by finalizeSpellResolution.
+    entersWith: { counters: [{ type: "+1/+1", count: 3 }] },
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "tetravus-counters-to-tokens",
+            oracleText:
+                'At the beginning of your upkeep, you may remove any number of +1/+1 counters from this creature. If you do, create that many 1/1 colorless Tetravite artifact creature tokens. They each have flying and "This token can\'t be enchanted."',
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                const self = {
+                    type: "permanent" as const,
+                    id: ctx.sourceInstanceId,
+                };
+                const available = ctx.getCounterCount(self, "+1/+1");
+                // CR 608.2b — nothing to remove; no real choice, no prompt.
+                if (available <= 0) return;
+                // CR 603.6a "you may remove any number" — pick a count 0..N
+                // (0 = remove none / decline). One prompt covers the "may" and
+                // the "how many" together.
+                const choice = ctx.requestOptionChoice({
+                    playerId: ctx.controller,
+                    choiceId: `tetravus-make-${ctx.sourceInstanceId}`,
+                    options: Array.from({ length: available + 1 }, (_, n) => ({
+                        id: String(n),
+                        label:
+                            n === 0
+                                ? "Remove none"
+                                : `Remove ${n} (create ${n} Tetravite${n === 1 ? "" : "s"})`,
+                    })),
+                    prompt: "Remove any number of +1/+1 counters to create that many Tetravite tokens.",
+                });
+                if (choice === undefined) return; // suspended — await the pick
+                const n = Number(choice);
+                if (n <= 0) return;
+                // CR 122.6 — remove the counters, then create that many linked
+                // tokens (CR 111 / 707.1). The provenance link (`createdBy`)
+                // lets the second ability find them later.
+                const removed = ctx.removeCounter(self, "+1/+1", n);
+                if (removed <= 0) return;
+                ctx.createToken(
+                    TETRAVITE_TOKEN,
+                    ctx.controller,
+                    removed,
+                    ctx.sourceInstanceId
+                );
+            },
+        }),
+        phaseTrigger({
+            id: "tetravus-tokens-to-counters",
+            oracleText:
+                "At the beginning of your upkeep, you may exile any number of tokens created with this creature. If you do, put that many +1/+1 counters on this creature.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                // CR 111 — "tokens created with this creature": tokens on the
+                // controller's battlefield whose provenance link points here.
+                const linked = ctx.getBattlefieldIds(ctx.controller, {
+                    isToken: true,
+                    createdBy: ctx.sourceInstanceId,
+                });
+                // CR 608.2b — no eligible tokens; no real choice, no prompt.
+                if (linked.length === 0) return;
+                const chosen = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: `tetravus-exile-${ctx.sourceInstanceId}`,
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    filter: {
+                        isToken: true,
+                        createdBy: ctx.sourceInstanceId,
+                    },
+                    count: { min: 0, max: linked.length },
+                    prompt: "Exile any number of tokens created with Tetravus to put that many +1/+1 counters on it.",
+                });
+                if (chosen === undefined) return; // suspended — await the pick
+                if (chosen.length === 0) return; // chose none
+                // CR 701.18 exile, then CR 122.1 put back that many counters.
+                for (const id of chosen) {
+                    ctx.exile({ type: "permanent", id });
+                }
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "+1/+1",
+                    chosen.length
+                );
+            },
+        }),
     ],
 };
