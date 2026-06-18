@@ -319,6 +319,14 @@ _Avoid_: Start casting, begin cast
 A mid-resolution decision point where a **Spell** or **Ability** requires a **Player** to make a selection (choose targets, divide damage, search library). **Priority** is frozen until the choice is submitted.
 _Avoid_: Prompt, dialog, selection
 
+**Random Reveal**:
+A special **Pending Choice** where the engine — not a **Player** — produces the value: it draws a random outcome from the seeded PRNG, persists it, and suspends the resolving step **before the consequence is applied**, so both clients can animate the outcome first. The chooser's client auto-acknowledges when the animation ends; the engine then resumes and applies the effect. Generalizes over **Coin Flips** and future die rolls.
+_Avoid_: Random prompt, RNG dialog
+
+**Coin Flip**:
+A **Random Reveal** with two faces (CR 705.2), defaulting to WIN / LOSE relative to the flipping **Player**. The drawn bit is generated once and read back on replay — never re-rolled. Used by Bottle of Suleiman, Mijae Djinn, Ydwen Efreet.
+_Avoid_: Heads-or-tails (unless a card overrides the face labels), toss
+
 **Auto-Pass**:
 A client preference where a **Player** automatically passes **Priority** during specified **Phases** when they have no legal actions. Can be cancelled.
 _Avoid_: Auto-skip, fast-forward
