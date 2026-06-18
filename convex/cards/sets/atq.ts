@@ -17,7 +17,12 @@ import type {
     ActivatedAbilityContext,
     CardDefinition,
     SpellContext,
+    TargetSelection,
 } from "../types";
+import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
+import { diedTrigger } from "../abilities/triggers/diedTrigger";
+import { leftTrigger } from "../abilities/triggers/leftTrigger";
+import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vanilla / keyword artifact creatures (CR 702 — keywords map to
@@ -691,6 +696,362 @@ export const candelabraOfTawnos: CardDefinition = {
                 for (const target of ctx.targets) {
                     if (target.type === "permanent") ctx.untap(target);
                 }
+            },
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Value triggers & counter creatures (free tranche, #276) — CR 603.2 triggered
+// abilities (SPELL_CAST / CREATURE_DIED / PERMANENT_LEFT / PHASE_BEGIN), CR
+// 117.3a optional may-pay, CR 122 counters (entersWith + removal cost), CR
+// 113.3c any-player activation. Modern Scryfall oracle text is authoritative
+// (ADR 0004); mana costs / type lines come from MTGJSON ATQ.json. Every effect
+// reuses existing trigger factories and SpellContext primitives — no new
+// primitive, no engine change.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Citanul Druid — {1}{G} Creature — Human Druid, 1/1. "Whenever an opponent
+// casts an artifact spell, put a +1/+1 counter on this creature." (CR 603.2
+// SPELL_CAST trigger scoped to opponents + filtered to Artifact spells; CR
+// 122.1 +1/+1 counter feeding layer 7d P/T.)
+export const citanulDruid: CardDefinition = {
+    id: "f8a130dc-3b1f-4fae-8459-b26bb5647fec",
+    name: "Citanul Druid",
+    oracleText:
+        "Whenever an opponent casts an artifact spell, put a +1/+1 counter on this creature.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Druid"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "citanul-druid-grow",
+            oracleText:
+                "Whenever an opponent casts an artifact spell, put a +1/+1 counter on this creature.",
+            scope: "opponents",
+            filter: { types: "Artifact" },
+            resolve: (ctx) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "+1/+1",
+                    1
+                );
+            },
+        }),
+    ],
+};
+
+// Urza's Chalice — {1} Artifact. "Whenever a player casts an artifact spell,
+// you may pay {1}. If you do, you gain 1 life." (CR 603.2 SPELL_CAST trigger,
+// scope "any"; CR 117.3a optional may-pay → gainLife.) Same shape as the LEA
+// color-sphere cycle, filtered to artifact spells instead of a color.
+export const urzasChalice: CardDefinition = {
+    id: "f3728537-86d3-42be-9046-90bba1bfafc1",
+    name: "Urza's Chalice",
+    oracleText:
+        "Whenever a player casts an artifact spell, you may pay {1}. If you do, you gain 1 life.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "urzas-chalice-life",
+            oracleText:
+                "Whenever a player casts an artifact spell, you may pay {1}. If you do, you gain 1 life.",
+            scope: "any",
+            filter: { types: "Artifact" },
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: ctx.controller,
+                    cost: { X: 1 },
+                    prompt: "Pay {1} to gain 1 life from Urza's Chalice?",
+                });
+                if (accept === undefined) return;
+                if (accept) ctx.gainLife(ctx.controller, 1);
+            },
+        }),
+    ],
+};
+
+// Onulet — {3} Artifact Creature — Construct, 2/2. "When this creature dies,
+// you gain 2 life." (CR 700.4 death = battlefield→graveyard; CR 603.2 death
+// trigger scoped to self.)
+export const onulet: CardDefinition = {
+    id: "d77fe8e2-8438-473e-ace5-01baddd2c4ed",
+    name: "Onulet",
+    oracleText: "When this creature dies, you gain 2 life.",
+    manaCost: { X: 3 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Construct"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        diedTrigger({
+            id: "onulet-life",
+            oracleText: "When this creature dies, you gain 2 life.",
+            scope: "self",
+            resolve: (ctx) => {
+                ctx.gainLife(ctx.controller, 2);
+            },
+        }),
+    ],
+};
+
+// Su-Chi — {4} Artifact Creature — Construct, 4/4. "When this creature dies,
+// add {C}{C}{C}{C}." (CR 603.2 death trigger scoped to self; CR 106.1 the
+// added mana goes to the trigger's controller's pool via addManaTo.) The mana
+// is added on resolution — it empties at end of the step/phase like any mana.
+export const suChi: CardDefinition = {
+    id: "a64d4f93-0c04-4078-aec0-7e9de92f260f",
+    name: "Su-Chi",
+    oracleText: "When this creature dies, add {C}{C}{C}{C}.",
+    manaCost: { X: 4 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Construct"],
+    power: 4,
+    toughness: 4,
+    triggeredAbilities: [
+        diedTrigger({
+            id: "su-chi-mana",
+            oracleText: "When this creature dies, add {C}{C}{C}{C}.",
+            scope: "self",
+            resolve: (ctx) => {
+                ctx.addManaTo(ctx.controller, { C: 4 });
+            },
+        }),
+    ],
+};
+
+// Tablet of Epityr — {1} Artifact. "Whenever an artifact you control is put
+// into a graveyard from the battlefield, you may pay {1}. If you do, you gain
+// 1 life." (CR 603.2 PERMANENT_LEFT trigger, toZone graveyard + scope "yours"
+// + Artifact filter; CR 117.3a optional may-pay.)
+export const tabletOfEpityr: CardDefinition = {
+    id: "6d7a2718-301f-4191-b348-0c44c7c07d43",
+    name: "Tablet of Epityr",
+    oracleText:
+        "Whenever an artifact you control is put into a graveyard from the battlefield, you may pay {1}. If you do, you gain 1 life.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        leftTrigger({
+            id: "tablet-of-epityr-life",
+            oracleText:
+                "Whenever an artifact you control is put into a graveyard from the battlefield, you may pay {1}. If you do, you gain 1 life.",
+            scope: "yours",
+            toZone: "graveyard",
+            filter: { types: "Artifact" },
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: ctx.controller,
+                    cost: { X: 1 },
+                    prompt: "Pay {1} to gain 1 life from Tablet of Epityr?",
+                });
+                if (accept === undefined) return;
+                if (accept) ctx.gainLife(ctx.controller, 1);
+            },
+        }),
+    ],
+};
+
+// Ivory Tower — {1} Artifact. "At the beginning of your upkeep, you gain X
+// life, where X is the number of cards in your hand minus 4." (CR 603.6a
+// upkeep trigger scoped to "your"; gain is clamped at 0 — you never lose life
+// when hand < 4.)
+export const ivoryTower: CardDefinition = {
+    id: "a5f23039-45ca-4c15-af50-bfd40ea26453",
+    name: "Ivory Tower",
+    oracleText:
+        "At the beginning of your upkeep, you gain X life, where X is the number of cards in your hand minus 4.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "ivory-tower-life",
+            oracleText:
+                "At the beginning of your upkeep, you gain X life, where X is the number of cards in your hand minus 4.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx, _event, playerId) => {
+                const x = ctx.getHandSize(playerId) - 4;
+                if (x > 0) ctx.gainLife(playerId, x);
+            },
+        }),
+    ],
+};
+
+// Armageddon Clock — {6} Artifact. Doom-counter time bomb:
+//  • "At the beginning of your upkeep, put a doom counter on this artifact."
+//  • "At the beginning of your draw step, this artifact deals damage equal to
+//    the number of doom counters on it to each player."
+//  • "{4}: Remove a doom counter from this artifact. Any player may activate
+//    this ability but only during any upkeep step."
+// (CR 603.6a phase triggers; CR 122.1 doom counter — inert to P/T; CR 113.3c
+// any-player activation via activatableByAnyPlayer + UPKEEP phase
+// restriction.) The draw-step ping reads the live counter count and damages
+// each player in APNAP order.
+export const armageddonClock: CardDefinition = {
+    id: "44a31889-6a8d-450c-a73d-381a7ff28bf9",
+    name: "Armageddon Clock",
+    oracleText:
+        "At the beginning of your upkeep, put a doom counter on this artifact.\nAt the beginning of your draw step, this artifact deals damage equal to the number of doom counters on it to each player.\n{4}: Remove a doom counter from this artifact. Any player may activate this ability but only during any upkeep step.",
+    manaCost: { X: 6 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "armageddon-clock-add-doom",
+            oracleText:
+                "At the beginning of your upkeep, put a doom counter on this artifact.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "doom",
+                    1
+                );
+            },
+        }),
+        phaseTrigger({
+            id: "armageddon-clock-ping",
+            oracleText:
+                "At the beginning of your draw step, this artifact deals damage equal to the number of doom counters on it to each player.",
+            phase: "DRAW",
+            scope: "your",
+            resolve: (ctx) => {
+                const doom = ctx.getCounterCount(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "doom"
+                );
+                if (doom <= 0) return;
+                for (const playerId of ctx.apNapOrder()) {
+                    ctx.dealDamage({ type: "player", id: playerId }, doom);
+                }
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "armageddon-clock-remove-doom",
+            oracleText:
+                "{4}: Remove a doom counter from this artifact. Any player may activate this ability but only during any upkeep step.",
+            cost: { mana: { X: 4 } },
+            useStack: true,
+            // "only during any upkeep step" — any player's upkeep, so phase
+            // restriction without controllerTurnOnly. "Any player may
+            // activate" — CR 113.3c.
+            activationPhaseRestriction: ["UPKEEP"],
+            activatableByAnyPlayer: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.removeCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "doom",
+                    1
+                );
+            },
+        },
+    ],
+};
+
+// Triskelion — {6} Artifact Creature — Construct, 1/1, enters with three +1/+1
+// counters. "Remove a +1/+1 counter from this creature: It deals 1 damage to
+// any target." (CR 122.1 ETB counters via entersWith; CR 122.6 counter-removal
+// cost; CR 115.4 "any target" = damageable permanent or player.)
+export const triskelion: CardDefinition = {
+    id: "a79c99e1-722a-44b6-8fa3-2be3f0c193d8",
+    name: "Triskelion",
+    oracleText:
+        "This creature enters with three +1/+1 counters on it.\nRemove a +1/+1 counter from this creature: It deals 1 damage to any target.",
+    manaCost: { X: 6 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Construct"],
+    power: 1,
+    toughness: 1,
+    entersWith: { counters: [{ type: "+1/+1", count: 3 }] },
+    activatedAbilities: [
+        {
+            id: "triskelion-bolt",
+            oracleText:
+                "Remove a +1/+1 counter from this creature: It deals 1 damage to any target.",
+            cost: { removeCounter: { type: "+1/+1", count: 1 } },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent" || target?.type === "player") {
+                    ctx.dealDamage(target, 1);
+                }
+            },
+        },
+    ],
+};
+
+// Clockwork Avian — {5} Artifact Creature — Bird, 0/4 with flying, enters with
+// four +1/+0 counters. (Twin of Clockwork Beast in lea.ts, capped at four
+// instead of seven and with flying.)
+//  • "At end of combat, if this creature attacked or blocked this combat,
+//    remove a +1/+0 counter from it." (CR 603.6a END_OF_COMBAT + CR 603.4d
+//    intervening-if on the attacked/blocked markers.)
+//  • "{X}, {T}: Put up to X +1/+0 counters on this creature. This ability
+//    can't cause the total ... to be greater than four. Activate only during
+//    your upkeep." (CR 122.1; the {X} pipeline + add-capped-to-four resolve +
+//    UPKEEP/your-turn activation restriction.)
+export const clockworkAvian: CardDefinition = {
+    id: "1dea8c2f-4aea-478d-aee7-cba1f74edd6c",
+    name: "Clockwork Avian",
+    oracleText:
+        "Flying\nThis creature enters with four +1/+0 counters on it.\nAt end of combat, if this creature attacked or blocked this combat, remove a +1/+0 counter from it.\n{X}, {T}: Put up to X +1/+0 counters on this creature. This ability can't cause the total number of +1/+0 counters on this creature to be greater than four. Activate only during your upkeep.",
+    manaCost: { X: 5 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Bird"],
+    power: 0,
+    toughness: 4,
+    staticAbilities: ["flying"],
+    entersWith: { counters: [{ type: "+1/+0", count: 4 }] },
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "clockwork-avian-decay",
+            oracleText:
+                "At end of combat, if this creature attacked or blocked this combat, remove a +1/+0 counter from it.",
+            phase: "END_OF_COMBAT",
+            scope: "each",
+            // CR 603.4d intervening-if — the "attacked or blocked this combat"
+            // markers persist past END_OF_COMBAT, so the resolve-time re-check
+            // sees the same values (mirrors Clockwork Beast).
+            interveningIf: (_event, self) =>
+                self.hasAttackedThisTurn === true ||
+                self.hasBlockedThisTurn === true,
+            resolve: (ctx) => {
+                ctx.removeCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "+1/+0",
+                    1
+                );
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "clockwork-avian-recharge",
+            oracleText:
+                "{X}, {T}: Put up to X +1/+0 counters on this creature. This ability can't cause the total number of +1/+0 counters on this creature to be greater than four. Activate only during your upkeep.",
+            cost: { mana: { X: "X" }, tap: true },
+            useStack: true,
+            activationPhaseRestriction: ["UPKEEP"],
+            controllerTurnOnly: true,
+            resolve: (ctx: SpellContext) => {
+                const self: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                const current = ctx.getCounterCount(self, "+1/+0");
+                // Up to X counters, capped so the total never exceeds four.
+                const room = Math.max(0, 4 - current);
+                const add = Math.min(ctx.getX(), room);
+                if (add > 0) ctx.addCounter(self, "+1/+0", add);
             },
         },
     ],
