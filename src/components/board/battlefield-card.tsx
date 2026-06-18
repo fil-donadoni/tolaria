@@ -10,6 +10,7 @@ import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { isCreature } from "~/lib/card-utils";
 import { getColorOverrideDisplay } from "~/lib/color-override";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
+import CounterBadges from "./counter-badges";
 import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
 
 export type CardVisualState = {
@@ -148,6 +149,7 @@ export default function BattlefieldCard({
             {colorOverrideOverlay}
             {darkenOverlay}
             {badgeEl}
+            <CounterBadges card={card} />
             {ptDamageStack}
         </div>
     );

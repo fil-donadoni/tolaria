@@ -68,6 +68,13 @@ export default function ActivatableAbilityMenu({
                     {abilities.map((a) => (
                         <ContextMenuItem
                             key={a.id}
+                            // Override the shadcn default `flex items-center`:
+                            // it splits the cost symbols and the effect text
+                            // into separate flex children, pushing the cost
+                            // into its own left column. `block` keeps the cost
+                            // inline in the text flow (the mana symbols are
+                            // 1em inline images), so it reads as one paragraph.
+                            className="block leading-snug whitespace-normal"
                             onClick={(e) =>
                                 onActivate(a.id, e.ctrlKey || e.metaKey)
                             }

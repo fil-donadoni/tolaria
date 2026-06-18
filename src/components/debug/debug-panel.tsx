@@ -61,6 +61,32 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Counter display (CR 122) — verify counters render on the board and in
+        // the card preview:
+        //   • Grizzly Bears carries two +1/+1 counters (folds to 4/4 — the
+        //     P/T stack shows the buffed value, a green "+1/+1 ×2" badge sits
+        //     top-left).
+        //   • Triskelion shows its three +1/+1 counters.
+        //   • Hover/long-press any of them: the preview lists a "Counters"
+        //     section. Named (non-P/T) counters render with a neutral tone.
+        label: "Counters: +1/+1 and named counter display",
+        cards: [
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                counters: { "+1/+1": 2 },
+            },
+            {
+                name: "Triskelion",
+                owner: "me" as const,
+                counters: { "+1/+1": 3 },
+            },
+            { name: "Forest", owner: "me" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Antiquities cluster A — sacrifice-as-activation-cost (#282, CR 602.1 /
         // 118.5). The activated-ability cost can require sacrificing a CHOSEN
         // permanent matching a filter:

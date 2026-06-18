@@ -21,6 +21,8 @@ import { useLongPress } from "~/hooks/useLongPress";
 import type { CardInstance } from "~/types/game";
 import { getColorOverrideDisplay } from "~/lib/color-override";
 import CardPreviewAbilities from "./card-preview-abilities";
+import CardPreviewCounters from "./card-preview-counters";
+import { getCounterDisplays } from "~/lib/counters";
 import { releasePreview, requestOpenPreview } from "./card-preview-singleton";
 
 const ZOOM_WIDTH = 128 * 2;
@@ -334,6 +336,10 @@ export default function CardPreview({
         ? getColorOverrideDisplay(cardInstance.colorOverride)
         : null;
 
+    const counterDisplays = cardInstance
+        ? getCounterDisplays(cardInstance)
+        : [];
+
     const dismissOverlay = useCallback(() => {
         longPress.dismiss();
     }, [longPress]);
@@ -482,6 +488,9 @@ export default function CardPreview({
                                         )}
                                     </div>
                                 )}
+                                <CardPreviewCounters
+                                    counters={counterDisplays}
+                                />
                                 {colorDisplay && (
                                     <div className="border-t border-zinc-700 pt-2 text-sm font-semibold text-[var(--color-accent-strong)]">
                                         Color: {colorDisplay.name}
@@ -592,6 +601,7 @@ export default function CardPreview({
                                     )}
                                 </div>
                             )}
+                            <CardPreviewCounters counters={counterDisplays} />
                             {colorDisplay && (
                                 <div className="border-t border-zinc-700 pt-2 text-xs font-semibold text-[var(--color-accent-strong)]">
                                     Color: {colorDisplay.name}
