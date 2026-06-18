@@ -504,6 +504,29 @@ export interface SpellContext {
         toughness: number,
         duration: DurationSpec
     ) => void;
+    /** Adds a conditional P/T modification to `target` held "for as long as
+     *  [the source] remains tapped" (CR 611.2 — a duration tied to a
+     *  continuously re-evaluated game state, not a phase boundary). The source
+     *  is the resolving ability's permanent (`sourceInstanceId`); the buff
+     *  contributes additively at layer 7d while the source is on the
+     *  battlefield AND tapped, and the `checkSourceTappedEffects` SBA splices
+     *  it out the instant the source untaps or leaves. Stacks with static and
+     *  one-shot temporary mods. No-op if the target has left the battlefield.
+     *  Used by Ashnod's Battle Gear (+2/-2) and Tawnos's Weaponry (+1/+1). */
+    addSourceTappedPTBuff: (
+        target: TargetSelection,
+        power: number,
+        toughness: number
+    ) => void;
+    /** Locks `target` so it doesn't untap during its controller's untap step
+     *  "for as long as [the source] remains tapped" (CR 611.2 untap-prevention
+     *  with a state-tied duration). The source is the resolving ability's
+     *  permanent (`sourceInstanceId`); the lock is read by the untap step and
+     *  cleared by `checkSourceTappedEffects` once the source untaps or leaves.
+     *  No-op if the target has left the battlefield. Used by Phyrexian Gremlins
+     *  ("Tap target artifact. It doesn't untap ... for as long as this remains
+     *  tapped"). */
+    lockUntapWhileSourceTapped: (target: TargetSelection) => void;
     /** Sets the target's base power and/or toughness to a fixed value until
      *  `duration` expires (CR 613.4b layer 7b, ADR 0017). Pass `undefined` for
      *  a characteristic to leave it untouched ("base power 0" sets power only).
@@ -1242,6 +1265,16 @@ export interface PermanentView {
      *  `temporaryPTMods`. Used by Singing Tree / Island of Wak-Wak (set power
      *  0) and Sorceress Queen (set 0/2). */
     temporaryPTSet?: ReadonlyArray<{ power?: number; toughness?: number }>;
+    /** Conditional P/T modifications held "for as long as [the source] remains
+     *  tapped" (CR 611.2; ATQ Ashnod's Battle Gear, Tawnos's Weaponry). Each
+     *  entry adds to `power`/`toughness` at read time (layer 7d) while its
+     *  `sourceId` permanent stays on the battlefield and tapped. Mirrors the
+     *  `CardInstanceState` field so the layer system reads it through the view. */
+    sourceTappedPTMods?: ReadonlyArray<{
+        power: number;
+        toughness: number;
+        sourceId: string;
+    }>;
     /** Counters on this permanent (CR 122). Map of counter type → count.
      *  Layer 7d (P/T-modifying counters: +1/+1, +1/+0, +0/+1, -1/-1, -0/-1,
      *  -1/-0) contributes at stat-read time. Other types are inert to layers

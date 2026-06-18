@@ -289,6 +289,28 @@ export type CardInstanceState = {
         toughness?: number;
         duration: Duration;
     }[];
+    /** Conditional P/T modifications held "for as long as [the source] remains
+     *  tapped" (CR 611.2 — duration tied to a continuously re-evaluated game
+     *  state rather than a phase boundary; ATQ cluster E — Ashnod's Battle Gear,
+     *  Tawnos's Weaponry). Each entry adds to effective power/toughness at read
+     *  time (layer 7d, alongside `temporaryPTMods`) while its `sourceId`
+     *  permanent is on the battlefield AND tapped; `checkSourceTappedEffects`
+     *  (SBA) splices out entries whose source has left or untapped. Pushed by
+     *  `SpellContext.addSourceTappedPTBuff`. */
+    sourceTappedPTMods?: {
+        power: number;
+        toughness: number;
+        /** Instance id of the permanent whose tapped state gates this entry. */
+        sourceId: string;
+    }[];
+    /** Source ids that prevent this permanent from untapping during its
+     *  controller's untap step "for as long as [each source] remains tapped"
+     *  (CR 302.6 / 502.1 untap-prevention with a state-tied duration; ATQ
+     *  cluster E — Phyrexian Gremlins). The untap step skips this permanent
+     *  while the array is non-empty; `checkSourceTappedEffects` (SBA) removes
+     *  ids whose source has left or untapped. Pushed by
+     *  `SpellContext.lockUntapWhileSourceTapped`. */
+    untapLockedBy?: string[];
     /** Counters on this permanent (CR 122). Map of counter type → count.
      *  Layer 7d folds P/T-modifying types (+1/+1, +1/+0, ...) into effective
      *  stat reads. Mutated by `addCounter`/`removeCounter`. Cleared on
@@ -1029,7 +1051,15 @@ export type GameState = {
      *  when the choice is committed, the engine re-enters `untapStep` and
      *  resumes from `restrictionCursor`. Cleared once every restriction is
      *  processed and the post-step untap+flag cleanup has run. */
-    pendingUntapStep?: { restrictionCursor: number };
+    pendingUntapStep?: {
+        restrictionCursor: number;
+        /** Cursor into the optional-untap pass ("you may choose not to untap
+         *  this", CR 502.1; ATQ cluster E). Set once all data-driven
+         *  restrictions are resolved; keys into the active player's
+         *  `may-choose-not-to-untap` permanents in battlefield order so the
+         *  per-permanent prompts suspend/resume deterministically. */
+        optionalCursor?: number;
+    };
     /** Suspension marker for the cleanup-step mandatory discard (CR 514.1).
      *  Set when the active player's hand exceeds their maximum hand size at
      *  CLEANUP entry: the dispatcher enqueues a `discard-hand` `PendingChoice`
@@ -2774,6 +2804,8 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.manaCommitted;
     delete card.counters;
     delete card.temporaryPTMods;
+    delete card.sourceTappedPTMods;
+    delete card.untapLockedBy;
     delete card.exileOnDeath;
     delete card.colorOverride;
     // CR 612.7 — a text-changing effect ends when the object changes zones
@@ -3217,6 +3249,38 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     duration: resolveDuration(duration, item.castById, state),
                 },
             ];
+        },
+        // CR 611.2 (ATQ Ashnod's Battle Gear, Tawnos's Weaponry): a P/T
+        // modification whose lifetime is tied to the source staying tapped,
+        // not to a phase boundary. Stored on the target keyed by the source's
+        // instance id; read live at layer 7d while the source is tapped and
+        // pruned by the `checkSourceTappedEffects` SBA when it untaps/leaves.
+        addSourceTappedPTBuff(
+            target: TargetSelection,
+            power: number,
+            toughness: number
+        ): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            const sourceId = item.triggerSourceId ?? item.id;
+            found.card.sourceTappedPTMods = [
+                ...(found.card.sourceTappedPTMods ?? []),
+                { power, toughness, sourceId },
+            ];
+        },
+        // CR 611.2 (ATQ Phyrexian Gremlins): untap-lock tied to the source
+        // staying tapped. Recorded on the target; the untap step skips a
+        // permanent with a non-empty `untapLockedBy`, and the SBA clears the
+        // source id once it untaps/leaves.
+        lockUntapWhileSourceTapped(target: TargetSelection): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            const sourceId = item.triggerSourceId ?? item.id;
+            const existing = found.card.untapLockedBy ?? [];
+            if (existing.includes(sourceId)) return;
+            found.card.untapLockedBy = [...existing, sourceId];
         },
         setBasePT(
             target: TargetSelection,

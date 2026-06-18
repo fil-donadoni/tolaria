@@ -49,6 +49,11 @@ export interface PermanentFilter {
      *  permanent's own id when an effect specifies "another permanent"
      *  (CR 109.2) or "permanents other than ~". */
     excludeInstanceIds?: ReadonlyArray<string>;
+    /** Restrict the match set to exactly these instance ids (AND with every
+     *  other field). Used to scope a choice to a single named permanent —
+     *  e.g. the per-permanent optional-untap prompt (ATQ cluster E "you may
+     *  choose not to untap this"). Omitted = no id constraint. */
+    instanceIds?: ReadonlyArray<string>;
     /** Filter by derived colors (CR 202.2). Single color or set; match
      *  requires the permanent has AT LEAST ONE of the listed colors (OR
      *  semantics within the field, AND with other fields). Used by triggers
@@ -240,6 +245,12 @@ export function matchesPermanentFilter(
     if (
         filter.excludeInstanceIds !== undefined &&
         filter.excludeInstanceIds.includes(card.id)
+    ) {
+        return false;
+    }
+    if (
+        filter.instanceIds !== undefined &&
+        !filter.instanceIds.includes(card.id)
     ) {
         return false;
     }

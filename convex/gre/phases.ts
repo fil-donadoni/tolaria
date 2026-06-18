@@ -270,6 +270,31 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 continue;
             }
+            // ATQ cluster E (Phyrexian Gremlins, CR 611.2): a permanent locked
+            // by a still-tapped source doesn't untap during its controller's
+            // untap step. `checkSourceTappedEffects` (SBA) has already pruned
+            // ids whose source left or untapped, so a non-empty array means at
+            // least one source still holds the lock. Per-turn cleanup still
+            // runs (mirrors the `does-not-untap` branch).
+            if (card.untapLockedBy?.length) {
+                card.manaCommitted = undefined;
+                card.isSummoningSick = undefined;
+                card.chosenMana = undefined;
+                continue;
+            }
+            // ATQ cluster E (Ashnod's Battle Gear, Tawnos's Weaponry, Phyrexian
+            // Gremlins, CR 502.1): "you may choose not to untap this" — defer
+            // this permanent to the optional-untap pass after the data-driven
+            // restrictions resolve. It stays tapped here; the player picks.
+            if (
+                card.isTapped &&
+                card.staticAbilities.includes("may-choose-not-to-untap")
+            ) {
+                card.manaCommitted = undefined;
+                card.isSummoningSick = undefined;
+                card.chosenMana = undefined;
+                continue;
+            }
             const view = effectivePermanentView(state, card);
             if (hardSkipFilters.some((f) => matchesPermanentFilter(view, f))) {
                 // Stasis-style hard skip (CR 502.1) — permanent cannot
@@ -358,7 +383,48 @@ export function untapStep(state: GameState): void {
 
             prompt: r.oracleText,
         });
-        state.pendingUntapStep = { restrictionCursor: i + 1 };
+        state.pendingUntapStep = {
+            restrictionCursor: i + 1,
+            optionalCursor: state.pendingUntapStep?.optionalCursor,
+        };
+        state.priorityPlayerId = state.activePlayerId;
+        return;
+    }
+
+    // Optional-untap pass (CR 502.1; ATQ cluster E "you may choose not to
+    // untap this"). Runs once all data-driven restrictions are resolved. Each
+    // `may-choose-not-to-untap` permanent that is still tapped gets its own
+    // `untap-pick` prompt (count 0..1) in battlefield order; the cursor on
+    // `pendingUntapStep.optionalCursor` resumes the walk after each commit.
+    // This is a genuine tactical choice (keep a buff / tap-lock alive vs free
+    // the source), so the prompt is never auto-resolved (ADR 0003).
+    const optionals = player.battlefield.filter(
+        (c) =>
+            c.isTapped &&
+            c.staticAbilities.includes("may-choose-not-to-untap") &&
+            !c.staticAbilities.includes("does-not-untap") &&
+            !c.untapLockedBy?.length
+    );
+    const optionalStart = state.pendingUntapStep?.optionalCursor ?? 0;
+    for (let j = optionalStart; j < optionals.length; j++) {
+        const card = optionals[j];
+        state.pendingChoices = state.pendingChoices ?? [];
+        state.pendingChoices.push({
+            stackItemId: "",
+            step: 0,
+            choiceId: `untap-optional-${card.id}`,
+            playerId: state.activePlayerId,
+            zoneOwnerId: state.activePlayerId,
+            kind: "untap-pick",
+            zone: "battlefield",
+            filter: { instanceIds: [card.id] },
+            count: { min: 0, max: 1 },
+            prompt: "You may choose not to untap this during your untap step.",
+        });
+        state.pendingUntapStep = {
+            restrictionCursor: restrictions.length,
+            optionalCursor: j + 1,
+        };
         state.priorityPlayerId = state.activePlayerId;
         return;
     }
