@@ -1020,6 +1020,13 @@ export type GameState = {
      *  Read by Simulacrum's "equal to the damage dealt to you this turn"
      *  clause. Reset at turn start. */
     damageDealtToPlayerThisTurn?: Record<string, number>;
+    /** Cumulative damage dealt to each player this turn BY ARTIFACT SOURCES
+     *  (CR 120.3 tally, narrowed to artifact sources). Map
+     *  `playerId → total artifact damage`. Incremented only when the damage
+     *  source is an Artifact, after replacement / prevention / protection have
+     *  reduced the amount. Read by Reverse Polarity's "twice the damage dealt
+     *  to you so far this turn by artifacts" clause. Reset at turn start. */
+    artifactDamageToPlayerThisTurn?: Record<string, number>;
     /** Transient one-shot damage redirections (CR 614). Distinct from
      *  permanent-bound `replacementEffects` (CardDefinition) — these are
      *  state-level shields produced by spells / activated abilities
@@ -2283,6 +2290,24 @@ export function bumpDamageDealtToPlayer(
     state.damageDealtToPlayerThisTurn = tally;
 }
 
+/** Increments the per-turn ARTIFACT-source damage tally for `playerId`
+ *  (CR 120.3, narrowed to artifact sources). Called by player-damage paths
+ *  immediately after `bumpDamageDealtToPlayer`, but only when the source is an
+ *  Artifact (`sourceTypes` includes "Artifact"). Read by Reverse Polarity's
+ *  "twice the damage dealt to you so far this turn by artifacts" clause. */
+export function bumpArtifactDamageToPlayer(
+    state: GameState,
+    playerId: string,
+    amount: number,
+    sourceTypes: ReadonlyArray<string>
+): void {
+    if (amount <= 0) return;
+    if (!sourceTypes.includes("Artifact")) return;
+    const tally = { ...(state.artifactDamageToPlayerThisTurn ?? {}) };
+    tally[playerId] = (tally[playerId] ?? 0) + amount;
+    state.artifactDamageToPlayerThisTurn = tally;
+}
+
 /** Runs the CR 614 replacement layer for a damage event. Returns the
  *  rewritten target/amount (after every applicable replacement has been
  *  consulted in CR 616 order) or null if a replacement consumed the event.
@@ -2982,6 +3007,13 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 getPlayer(state, target.id).life -= reduced;
                 bumpDamageDealtToPlayer(state, target.id, reduced);
                 const desc = describeDamageSource(state, item.id);
+                // CR 120.3 (artifact-narrowed) — Reverse Polarity tally.
+                bumpArtifactDamageToPlayer(
+                    state,
+                    target.id,
+                    reduced,
+                    desc.types
+                );
                 state.pendingEvents = [
                     ...(state.pendingEvents ?? []),
                     {
@@ -3727,6 +3759,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         },
         getDamageDealtThisTurn(playerId: string): number {
             return state.damageDealtToPlayerThisTurn?.[playerId] ?? 0;
+        },
+        getArtifactDamageDealtThisTurn(playerId: string): number {
+            return state.artifactDamageToPlayerThisTurn?.[playerId] ?? 0;
         },
         // CR 111 / 707.1: token creation. The token enters as a brand-new
         // permanent under `controllerId`, owner = controller (CR 111.2 — token

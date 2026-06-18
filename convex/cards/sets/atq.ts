@@ -2339,3 +2339,224 @@ export const phyrexianGremlins: CardDefinition = {
         },
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster C+D — continuous prevention/redirection of damage from artifact
+// sources + per-turn artifact-damage tracking (PRD #269, issue #287)
+//
+// CR 615.1 — a prevention effect replaces a would-be damage event with
+// nothing. The engine has no dedicated "prevention" event layer; instead a
+// continuous prevention is expressed as a CR 614 damage replacement that
+// `consumed`s the event when the source matches the filter. (Both layers run
+// at the same damage sites via `runDamageReplacement`; consuming the event
+// before the original action is observationally identical to prevention for a
+// total "prevent all" effect.)
+//
+// CR 109.5 / 202.2 — the damage source's characteristics (`sourceTypes`) are
+// snapshotted onto the `DamageReplacementEvent` by `runDamageReplacement`, so
+// an "artifact source" filter is `event.sourceTypes.includes("Artifact")` and
+// an "artifact creature" filter additionally requires `"Creature"`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Builds a continuous CR 614/615 damage-prevention replacement. `appliesToId`
+ *  resolves which permanent's incoming damage is protected (self, or an aura's
+ *  host). `isArtifactCreatureOnly` narrows the source filter from "artifact
+ *  source" to "artifact creature" (Argothian Pixies). The effect consumes the
+ *  whole event (prevent all). */
+function artifactSourcePreventionEffect(opts: {
+    id: string;
+    oracleText: string;
+    appliesToId: (self: PermanentView) => string | undefined;
+    isArtifactCreatureOnly?: boolean;
+}): import("../types").ReplacementEffect {
+    return {
+        id: opts.id,
+        oracleText: opts.oracleText,
+        eventKind: "damage",
+        appliesTo: (event, self) => {
+            if (event.kind !== "damage") return false;
+            if (event.target.type !== "permanent") return false;
+            if (event.target.id !== opts.appliesToId(self)) return false;
+            const types = event.sourceTypes;
+            if (!types.includes("Artifact")) return false;
+            if (opts.isArtifactCreatureOnly && !types.includes("Creature")) {
+                return false;
+            }
+            return true;
+        },
+        // CR 615 — prevent all damage from the matching source.
+        replace: () => ({ kind: "consumed" }),
+    };
+}
+
+// Argothian Pixies — {1}{G} Creature — Faerie, 2/1. "This creature can't be
+// blocked by artifact creatures. Prevent all damage that would be dealt to
+// this creature by artifact creatures." (CR 509.1b block restriction reusing
+// the existing predicate machinery; CR 615 continuous prevention narrowed to
+// artifact creatures.)
+export const argothianPixies: CardDefinition = {
+    id: "5712e87a-2381-4f5b-a853-6973841f9bf1",
+    name: "Argothian Pixies",
+    oracleText:
+        "This creature can't be blocked by artifact creatures.\nPrevent all damage that would be dealt to this creature by artifact creatures.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Faerie"],
+    power: 2,
+    toughness: 1,
+    staticEffects: [
+        {
+            kind: "block-restriction",
+            id: "argothian-pixies-no-artifact-creatures",
+            side: "attacker" as const,
+            // CR 509.1b — can't be blocked by artifact creatures.
+            predicate: (_self, opponent) =>
+                !opponent.types.includes("Artifact"),
+            oracleText:
+                "Argothian Pixies can't be blocked by artifact creatures.",
+        },
+    ],
+    replacementEffects: [
+        artifactSourcePreventionEffect({
+            id: "argothian-pixies-prevent",
+            oracleText:
+                "Prevent all damage that would be dealt to Argothian Pixies by artifact creatures.",
+            appliesToId: (self) => self.id,
+            isArtifactCreatureOnly: true,
+        }),
+    ],
+};
+
+// Argothian Treefolk — {3}{G}{G} Creature — Treefolk, 3/5. "Prevent all damage
+// that would be dealt to this creature by artifact sources." (CR 615
+// continuous prevention narrowed to artifact sources.)
+export const argothianTreefolk: CardDefinition = {
+    id: "8db8882e-4db6-4e3c-9e9e-8c71d557a071",
+    name: "Argothian Treefolk",
+    oracleText:
+        "Prevent all damage that would be dealt to this creature by artifact sources.",
+    manaCost: { X: 3, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Treefolk"],
+    power: 3,
+    toughness: 5,
+    replacementEffects: [
+        artifactSourcePreventionEffect({
+            id: "argothian-treefolk-prevent",
+            oracleText:
+                "Prevent all damage that would be dealt to Argothian Treefolk by artifact sources.",
+            appliesToId: (self) => self.id,
+        }),
+    ],
+};
+
+// Artifact Ward — {W} Enchantment — Aura. "Enchant creature. Enchanted
+// creature can't be blocked by artifact creatures. Prevent all damage that
+// would be dealt to enchanted creature by artifact sources. Enchanted creature
+// can't be the target of abilities from artifact sources." (CR 303.4 aura;
+// CR 509.1b block restriction on the host; CR 615 continuous prevention on the
+// host; CR 611 source-type-filtered targeting guard.)
+export const artifactWard: CardDefinition = {
+    id: "b3a5101a-ec66-4658-950c-9ad49c29b836",
+    name: "Artifact Ward",
+    oracleText:
+        "Enchant creature\nEnchanted creature can't be blocked by artifact creatures.\nPrevent all damage that would be dealt to enchanted creature by artifact sources.\nEnchanted creature can't be the target of abilities from artifact sources.",
+    manaCost: { W: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "block-restriction",
+            id: "artifact-ward-no-artifact-creatures",
+            side: "attacker" as const,
+            // CR 509.1b — enchanted creature can't be blocked by artifact
+            // creatures (predicate runs against the host as the attacker).
+            predicate: (_self, opponent) =>
+                !opponent.types.includes("Artifact"),
+            oracleText:
+                "Enchanted creature can't be blocked by artifact creatures.",
+        },
+        {
+            kind: "permanent-guard",
+            id: "artifact-ward-cant-be-targeted-by-artifacts",
+            // CR 611 — guard the host (attachedTo). Source-type filter narrows
+            // it to artifact sources only (CR 109.5).
+            applies: (target, source) => target.id === source.attachedTo,
+            cantBeTargeted: true,
+            targetSourceTypeFilter: ["Artifact"],
+        },
+    ],
+    replacementEffects: [
+        artifactSourcePreventionEffect({
+            id: "artifact-ward-prevent",
+            oracleText:
+                "Prevent all damage that would be dealt to enchanted creature by artifact sources.",
+            // The aura's `self` carries `attachedTo` — protect the host.
+            appliesToId: (self) => self.attachedTo,
+        }),
+    ],
+};
+
+// Martyrs of Korlis — {3}{W}{W} Creature — Human, 1/6. "As long as this
+// creature is untapped, all damage that would be dealt to you by artifacts is
+// dealt to this creature instead." (CR 614 continuous redirection, gated on
+// self.isTapped and the source being an artifact.)
+export const martyrsOfKorlis: CardDefinition = {
+    id: "bde037b9-4947-4ff7-8ea4-e9f1a7e4ab88",
+    name: "Martyrs of Korlis",
+    oracleText:
+        "As long as this creature is untapped, all damage that would be dealt to you by artifacts is dealt to this creature instead.",
+    manaCost: { X: 3, W: 2 },
+    types: ["Creature"],
+    subtypes: ["Human"],
+    power: 1,
+    toughness: 6,
+    replacementEffects: [
+        {
+            id: "martyrs-of-korlis-redirect",
+            oracleText:
+                "All damage from artifacts that would be dealt to you is dealt to Martyrs of Korlis instead.",
+            eventKind: "damage",
+            appliesTo: (event, self) => {
+                if (event.kind !== "damage") return false;
+                // "Damage dealt to you" — the controller of Martyrs.
+                if (event.target.type !== "player") return false;
+                if (event.target.id !== self.controllerId) return false;
+                // "As long as this creature is untapped" (read live).
+                if (self.isTapped) return false;
+                // "by artifacts" (CR 109.5 source-type snapshot).
+                return event.sourceTypes.includes("Artifact");
+            },
+            replace: (event, ctx) => {
+                if (event.kind !== "damage") return { kind: "consumed" };
+                return {
+                    kind: "modified",
+                    event: {
+                        ...event,
+                        target: { type: "permanent", id: ctx.self.id },
+                    },
+                };
+            },
+        },
+    ],
+};
+
+// Reverse Polarity — {W}{W} Instant. "You gain X life, where X is twice the
+// damage dealt to you so far this turn by artifacts." (CR 119 lifegain; reads
+// the artifact-narrowed per-turn damage tally.)
+export const reversePolarity: CardDefinition = {
+    id: "da7ed8ba-3886-4779-a9b3-6892a7ed3527",
+    name: "Reverse Polarity",
+    oracleText:
+        "You gain X life, where X is twice the damage dealt to you so far this turn by artifacts.",
+    manaCost: { W: 2 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        const caster = ctx.controller;
+        const artifactDamage = ctx.getArtifactDamageDealtThisTurn(caster);
+        if (artifactDamage > 0) {
+            ctx.gainLife(caster, artifactDamage * 2);
+        }
+    },
+};

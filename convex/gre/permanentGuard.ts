@@ -47,11 +47,19 @@ type GuardClause = keyof Pick<
  *  definition's `staticEffects`, and evaluates each guard's `applies` predicate
  *  live (so e.g. a tapped Guardian Beast stops guarding without any re-apply
  *  hook). CR 611 — a continuous effect from a source applies only while that
- *  source is on the battlefield, which is exactly the iteration set here. */
+ *  source is on the battlefield, which is exactly the iteration set here.
+ *
+ *  `actionSourceTypes` — the card types of the spell/ability source attempting
+ *  the guarded action (CR 109.5). Only consulted by guards that carry a
+ *  `targetSourceTypeFilter` (Artifact Ward's "abilities from artifact
+ *  sources"): such a guard applies only when the source's types intersect the
+ *  filter. Unfiltered guards (Guardian Beast) ignore this argument and block
+ *  every source. */
 export function isGuardedAgainst(
     state: BattlefieldView,
     target: CardInstanceState,
-    clause: GuardClause
+    clause: GuardClause,
+    actionSourceTypes?: ReadonlyArray<string>
 ): boolean {
     for (const player of state.players) {
         for (const source of player.battlefield) {
@@ -62,6 +70,21 @@ export function isGuardedAgainst(
             for (const effect of effects) {
                 if (effect.kind !== "permanent-guard") continue;
                 if (!effect[clause]) continue;
+                // CR 109.5 source-type narrowing (Artifact Ward): a filtered
+                // `cantBeTargeted` guard applies only to sources whose types
+                // intersect the filter. With no source types provided (e.g.
+                // synthetic / non-targeting callers) a filtered guard can't
+                // match and is skipped.
+                if (
+                    clause === "cantBeTargeted" &&
+                    effect.targetSourceTypeFilter
+                ) {
+                    const types = actionSourceTypes ?? [];
+                    const intersects = effect.targetSourceTypeFilter.some((t) =>
+                        types.includes(t)
+                    );
+                    if (!intersects) continue;
+                }
                 if (effect.applies(target, source, STATIC_EFFECT_CTX)) {
                     return true;
                 }

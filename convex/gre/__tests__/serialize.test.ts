@@ -770,6 +770,15 @@ describe("optional field round-trip smoke tests", () => {
         });
     });
 
+    it("artifactDamageToPlayerThisTurn", () => {
+        const state = freshState();
+        state.artifactDamageToPlayerThisTurn = { p1: 4, p2: 2 };
+        expect(roundTrip(state).artifactDamageToPlayerThisTurn).toEqual({
+            p1: 4,
+            p2: 2,
+        });
+    });
+
     it("damageRedirections", () => {
         const state = freshState();
         state.damageRedirections = [

@@ -68,7 +68,13 @@ import {
     ashnodsBattleGear,
     tawnossWeaponry,
     phyrexianGremlins,
+    argothianPixies,
+    argothianTreefolk,
+    artifactWard,
+    martyrsOfKorlis,
+    reversePolarity,
 } from "../atq";
+import { grizzlyBears, hillGiant } from "../lea";
 import { getCardById, getInstanceManaCost } from "../..";
 import {
     makeInstance,
@@ -93,14 +99,24 @@ import {
     payManaCostForSpell,
     isManaCostCovered,
     normalizeManaCost,
+    runDamageReplacement,
     type CardInstanceState,
     type GameState,
     type StackItem,
 } from "../../../gre/state";
 import { buildAutoTapSources } from "../../../gre/autoTap";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
-import { getLegalTargets } from "../../../gre/rules";
-import { advancePhase, untapStep } from "../../../gre/phases";
+import {
+    getLegalTargets,
+    getPendingTargetSourceTypes,
+} from "../../../gre/rules";
+import { isGuardedAgainst } from "../../../gre/permanentGuard";
+import { validateBlockerEligibility } from "../../../gre/combat";
+import {
+    advancePhase,
+    untapStep,
+    applyAllCombatDamage,
+} from "../../../gre/phases";
 import { checkStateBasedActions } from "../../../gre/sba";
 import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
 import type { CardType, BlockersConfirmedEvent, GameEvent } from "../../types";
@@ -4323,5 +4339,552 @@ describe("Optional untap (CR 502.1 — 'you may choose not to untap this')", () 
             state.players[0].battlefield.find((c) => c.id === "gear")!.isTapped
         ).toBe(true);
         expect(state.pendingChoices).toBeUndefined();
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster C+D — continuous artifact-source prevention/redirection + artifact-
+// damage tracking (#287)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Argothian Pixies (block restriction + prevent from artifact creatures, CR 509.1b / 615)", () => {
+    it("can't be blocked by artifact creatures, but can by non-artifact creatures", () => {
+        const pixies = makeInstance(argothianPixies.id, {
+            id: "pixies",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const artifactBlocker = makeInstance(yotianSoldier.id, {
+            id: "yotian",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const fleshBlocker = makeInstance(grizzlyBears.id, {
+            id: "bears",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pixies] }),
+                makePlayer("p2", {
+                    battlefield: [artifactBlocker, fleshBlocker],
+                }),
+            ],
+        });
+        expect(
+            validateBlockerEligibility(
+                pixies,
+                artifactBlocker,
+                [artifactBlocker, fleshBlocker],
+                state
+            ).eligible
+        ).toBe(false);
+        expect(
+            validateBlockerEligibility(
+                pixies,
+                fleshBlocker,
+                [artifactBlocker, fleshBlocker],
+                state
+            ).eligible
+        ).toBe(true);
+    });
+
+    it("prevents combat damage from an artifact creature but takes damage from a non-artifact creature", () => {
+        // Artifact creature attacker (Colossus 9/9) vs Pixies blocking.
+        const colossus = makeInstance(colossusOfSardia.id, {
+            id: "colossus",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const pixies = makeInstance(argothianPixies.id, {
+            id: "pixies",
+            controllerId: "p1",
+            ownerId: "p1",
+            isBlocking: true,
+        });
+        const state = makeState({
+            activePlayerId: "p2",
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [pixies] }),
+                makePlayer("p2", { battlefield: [colossus] }),
+            ],
+            combat: {
+                attackerIds: ["colossus"],
+                confirmed: true,
+                blockerAssignments: { pixies: ["colossus"] },
+                blockersConfirmed: true,
+            },
+        });
+        applyAllCombatDamage(state, {}, "regular");
+        const pixiesAfter = state.players[0].battlefield.find(
+            (c) => c.id === "pixies"
+        );
+        // All 9 damage from the artifact creature is prevented.
+        expect(pixiesAfter?.damageMarked ?? 0).toBe(0);
+    });
+
+    it("does NOT prevent damage from a non-artifact creature (source filter)", () => {
+        const giant = makeInstance(hillGiant.id, {
+            id: "giant",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const pixies = makeInstance(argothianPixies.id, {
+            id: "pixies",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pixies] }),
+                makePlayer("p2", { battlefield: [giant] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "giant",
+            "p2",
+            { type: "permanent", id: "pixies" },
+            3,
+            false
+        );
+        // Not consumed — flesh source, damage proceeds.
+        expect(res).not.toBeNull();
+        expect(res?.amount).toBe(3);
+    });
+});
+
+describe("Argothian Treefolk (prevent all damage from artifact sources, CR 615)", () => {
+    it("prevents damage from an artifact source (any artifact, not just creatures)", () => {
+        const treefolk = makeInstance(argothianTreefolk.id, {
+            id: "treefolk",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Grapeshot Catapult is a noncreature Artifact damage source.
+        const catapult = makeInstance(grapeshotCatapult.id, {
+            id: "catapult",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [treefolk] }),
+                makePlayer("p2", { battlefield: [catapult] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "catapult",
+            "p2",
+            { type: "permanent", id: "treefolk" },
+            2,
+            false
+        );
+        expect(res).toBeNull(); // prevented (consumed)
+    });
+
+    it("takes damage from a non-artifact source", () => {
+        const treefolk = makeInstance(argothianTreefolk.id, {
+            id: "treefolk",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const giant = makeInstance(hillGiant.id, {
+            id: "giant",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [treefolk] }),
+                makePlayer("p2", { battlefield: [giant] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "giant",
+            "p2",
+            { type: "permanent", id: "treefolk" },
+            3,
+            false
+        );
+        expect(res?.amount).toBe(3);
+    });
+
+    it("wire format — prevention survives projectPublicState", () => {
+        const treefolk = makeInstance(argothianTreefolk.id, {
+            id: "treefolk",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const catapult = makeInstance(grapeshotCatapult.id, {
+            id: "catapult",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [treefolk] }),
+                makePlayer("p2", { battlefield: [catapult] }),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const res = runDamageReplacement(
+            projected as unknown as GameState,
+            "catapult",
+            "p2",
+            { type: "permanent", id: "treefolk" },
+            2,
+            false
+        );
+        expect(res).toBeNull();
+    });
+});
+
+describe("Artifact Ward (Aura: block restriction + prevention + targeting guard, CR 303.4 / 509.1b / 615 / 611)", () => {
+    function setup(opts: { tappedHost?: boolean } = {}) {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "host",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+            isTapped: opts.tappedHost,
+        });
+        const ward = makeInstance(artifactWard.id, {
+            id: "ward",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        return { host, ward };
+    }
+
+    it("enchanted creature can't be blocked by artifact creatures", () => {
+        const { host, ward } = setup();
+        const artifactBlocker = makeInstance(yotianSoldier.id, {
+            id: "yotian",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, ward] }),
+                makePlayer("p2", { battlefield: [artifactBlocker] }),
+            ],
+        });
+        expect(
+            validateBlockerEligibility(
+                host,
+                artifactBlocker,
+                [artifactBlocker],
+                state
+            ).eligible
+        ).toBe(false);
+    });
+
+    it("prevents damage to enchanted creature from artifact sources", () => {
+        const { host, ward } = setup();
+        const catapult = makeInstance(grapeshotCatapult.id, {
+            id: "catapult",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, ward] }),
+                makePlayer("p2", { battlefield: [catapult] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "catapult",
+            "p2",
+            { type: "permanent", id: "host" },
+            2,
+            false
+        );
+        expect(res).toBeNull();
+    });
+
+    it("enchanted creature can't be targeted by abilities from artifact sources, but can by non-artifact sources", () => {
+        const { host, ward } = setup();
+        // Triskelion is an artifact source with a targeted ability.
+        const trisk = makeInstance(triskelion.id, {
+            id: "trisk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        // Hill Giant is a non-artifact permanent (stands in for a flesh source).
+        const giant = makeInstance(hillGiant.id, {
+            id: "giant",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, ward] }),
+                makePlayer("p2", { battlefield: [trisk, giant] }),
+            ],
+        });
+        // Artifact source (Triskelion's types include "Artifact") — guarded.
+        expect(
+            isGuardedAgainst(state, host, "cantBeTargeted", trisk.types)
+        ).toBe(true);
+        // Non-artifact source — NOT guarded.
+        expect(
+            isGuardedAgainst(state, host, "cantBeTargeted", giant.types)
+        ).toBe(false);
+        // Unenchanted creature is never guarded by this Ward.
+        const other = makeInstance(grizzlyBears.id, {
+            id: "other",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        expect(
+            isGuardedAgainst(state, other, "cantBeTargeted", trisk.types)
+        ).toBe(false);
+    });
+
+    it("getPendingTargetSourceTypes reports an artifact source's types (ability path)", () => {
+        const trisk = makeInstance(triskelion.id, {
+            id: "trisk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [trisk] }),
+            ],
+        });
+        expect(
+            getPendingTargetSourceTypes(state, "trisk", "ability")
+        ).toContain("Artifact");
+    });
+
+    it("getLegalTargets excludes the warded creature for an artifact ability source", () => {
+        const { host, ward } = setup();
+        host.isAttacking = false;
+        const trisk = makeInstance(triskelion.id, {
+            id: "trisk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, ward] }),
+                makePlayer("p2", { battlefield: [trisk] }),
+            ],
+        });
+        const req = { type: "any" as CardType, count: 1 as const };
+        // Artifact source: warded host excluded.
+        const artifactLegal = getLegalTargets(state, req, [], "p2", undefined, [
+            "Artifact",
+        ]).map((t) => t.id);
+        expect(artifactLegal).not.toContain("host");
+        // No source-type info (non-artifact / default): host IS targetable.
+        const fleshLegal = getLegalTargets(state, req, [], "p2").map(
+            (t) => t.id
+        );
+        expect(fleshLegal).toContain("host");
+    });
+
+    it("wire format — prevention survives projectPublicState", () => {
+        const { host, ward } = setup();
+        host.isAttacking = false;
+        const catapult = makeInstance(grapeshotCatapult.id, {
+            id: "catapult",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, ward] }),
+                makePlayer("p2", { battlefield: [catapult] }),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const res = runDamageReplacement(
+            projected as unknown as GameState,
+            "catapult",
+            "p2",
+            { type: "permanent", id: "host" },
+            2,
+            false
+        );
+        expect(res).toBeNull();
+    });
+});
+
+describe("Martyrs of Korlis (redirect artifact damage to self while untapped, CR 614)", () => {
+    it("redirects player damage from an artifact source while untapped", () => {
+        const martyrs = makeInstance(martyrsOfKorlis.id, {
+            id: "martyrs",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const catapult = makeInstance(grapeshotCatapult.id, {
+            id: "catapult",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [martyrs], life: 20 }),
+                makePlayer("p2", { battlefield: [catapult] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "catapult",
+            "p2",
+            { type: "player", id: "p1" },
+            2,
+            false
+        );
+        expect(res?.target).toEqual({ type: "permanent", id: "martyrs" });
+    });
+
+    it("does NOT redirect while tapped (CR 614 condition)", () => {
+        const martyrs = makeInstance(martyrsOfKorlis.id, {
+            id: "martyrs",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const catapult = makeInstance(grapeshotCatapult.id, {
+            id: "catapult",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [martyrs], life: 20 }),
+                makePlayer("p2", { battlefield: [catapult] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "catapult",
+            "p2",
+            { type: "player", id: "p1" },
+            2,
+            false
+        );
+        expect(res?.target).toEqual({ type: "player", id: "p1" });
+    });
+
+    it("does NOT redirect damage from a non-artifact source", () => {
+        const martyrs = makeInstance(martyrsOfKorlis.id, {
+            id: "martyrs",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const giant = makeInstance(hillGiant.id, {
+            id: "giant",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [martyrs], life: 20 }),
+                makePlayer("p2", { battlefield: [giant] }),
+            ],
+        });
+        const res = runDamageReplacement(
+            state,
+            "giant",
+            "p2",
+            { type: "player", id: "p1" },
+            3,
+            false
+        );
+        expect(res?.target).toEqual({ type: "player", id: "p1" });
+    });
+});
+
+describe("artifact-damage tracking + Reverse Polarity (CR 120.3 tally / 119 lifegain)", () => {
+    it("bumps artifactDamageToPlayerThisTurn only for artifact combat sources", () => {
+        // Artifact creature (Colossus 9/9) attacks unblocked.
+        const colossus = makeInstance(colossusOfSardia.id, {
+            id: "colossus",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            activePlayerId: "p2",
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { battlefield: [colossus] }),
+            ],
+            combat: {
+                attackerIds: ["colossus"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
+        });
+        applyAllCombatDamage(state, {}, "regular");
+        expect(state.players[0].life).toBe(11);
+        expect(state.artifactDamageToPlayerThisTurn?.["p1"]).toBe(9);
+        // The general damage tally also counts it.
+        expect(state.damageDealtToPlayerThisTurn?.["p1"]).toBe(9);
+    });
+
+    it("does NOT bump the artifact tally for a non-artifact combat source", () => {
+        const giant = makeInstance(hillGiant.id, {
+            id: "giant",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            activePlayerId: "p2",
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { battlefield: [giant] }),
+            ],
+            combat: {
+                attackerIds: ["giant"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
+        });
+        applyAllCombatDamage(state, {}, "regular");
+        expect(state.players[0].life).toBe(17);
+        expect(state.artifactDamageToPlayerThisTurn?.["p1"] ?? 0).toBe(0);
+        expect(state.damageDealtToPlayerThisTurn?.["p1"]).toBe(3);
+    });
+
+    it("Reverse Polarity gains twice the artifact damage dealt this turn", () => {
+        const state = makeState({
+            players: [makePlayer("p1", { life: 11 }), makePlayer("p2")],
+            artifactDamageToPlayerThisTurn: { p1: 9 },
+        });
+        const item = pushSpell(state, reversePolarity.id, "p1");
+        item.controllerId = "p1";
+        resolveTopOfStack(state);
+        // 9 artifact damage → gain 18.
+        expect(state.players[0].life).toBe(29);
+    });
+
+    it("Reverse Polarity gains 0 when no artifact damage was dealt", () => {
+        const state = makeState({
+            players: [makePlayer("p1", { life: 17 }), makePlayer("p2")],
+            damageDealtToPlayerThisTurn: { p1: 3 },
+        });
+        const item = pushSpell(state, reversePolarity.id, "p1");
+        item.controllerId = "p1";
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(17);
     });
 });

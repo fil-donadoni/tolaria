@@ -11,6 +11,7 @@ import { MAX_HAND_SIZE } from "./constants";
 import {
     allocInstanceId,
     applyTargetPrevention,
+    bumpArtifactDamageToPlayer,
     bumpDamageDealtToPlayer,
     consumePreventionIfAny,
     destroyWithReplacements,
@@ -806,6 +807,13 @@ export function applyAllCombatDamage(
             getPlayer(state, finalTarget.id).life -= reduced;
             bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
             const desc = describeDamageSource(state, source.id);
+            // CR 120.3 (artifact-narrowed) — Reverse Polarity tally.
+            bumpArtifactDamageToPlayer(
+                state,
+                finalTarget.id,
+                reduced,
+                desc.types
+            );
             events.push({
                 type: "DAMAGE_DEALT",
                 sourceInstanceId: source.id,
@@ -1692,6 +1700,10 @@ function advanceTurn(state: GameState): void {
     // Reset per-turn player damage tally (CR 120.3) — Simulacrum scopes its
     // "damage dealt to you this turn" lookup to the current turn.
     state.damageDealtToPlayerThisTurn = undefined;
+    // Reset the per-turn artifact-source damage tally (CR 120.3, artifact-
+    // narrowed) — Reverse Polarity scopes "damage dealt to you so far this
+    // turn by artifacts" to the current turn.
+    state.artifactDamageToPlayerThisTurn = undefined;
     // CR 602.5 — `oncePerTurn` activation counts are per-source per-turn.
     // Clear them across every permanent at turn start so the next turn's
     // first activation isn't blocked by a stale tally.

@@ -771,6 +771,11 @@ export interface SpellContext {
      *  (CR 120.3 tally). Read by Simulacrum ("equal to the damage dealt to
      *  you this turn"). Resets at turn start. */
     getDamageDealtThisTurn: (playerId: string) => number;
+    /** Cumulative damage dealt to `playerId` this turn BY ARTIFACT SOURCES
+     *  (CR 120.3 tally, narrowed to artifacts). Read by Reverse Polarity
+     *  ("twice the damage dealt to you so far this turn by artifacts").
+     *  Resets at turn start. */
+    getArtifactDamageDealtThisTurn: (playerId: string) => number;
     /** Creates `count` token permanents (CR 111, 707.1) on `controllerId`'s
      *  battlefield from a structural spec. Tokens enter the battlefield
      *  tapped/sick rules normally — they're brand-new permanents (CR 111.5
@@ -1678,6 +1683,13 @@ export interface StaticPermanentGuard {
     /** CR 702.16b-style "can't be the target of spells or abilities". Gated in
      *  `getLegalTargets` and `selectTarget`. */
     cantBeTargeted?: boolean;
+    /** Narrows `cantBeTargeted` to sources whose card types intersect this
+     *  list (CR 109.5 — the source's characteristics). Used by Artifact Ward's
+     *  "can't be the target of abilities from artifact sources" (filter
+     *  `["Artifact"]`). When omitted, `cantBeTargeted` blocks targeting from
+     *  ANY source (Guardian Beast). Evaluated at the targeting gates, which
+     *  pass the source's types. */
+    targetSourceTypeFilter?: CardType[];
     /** CR 303.4 "can't be enchanted" — an Aura can't be cast at, or attach to,
      *  the guarded permanent. Already-attached Auras are unaffected (the gate
      *  only blocks new attachment). */

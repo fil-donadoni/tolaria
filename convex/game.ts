@@ -56,6 +56,7 @@ import {
     assertLegalAction,
     getLegalTargets,
     getPendingTargetSourceColors,
+    getPendingTargetSourceTypes,
     hasColor,
     isProtectedFromColors,
     matchesMvFilter,
@@ -1517,7 +1518,8 @@ export const announceCast = mutation({
                 activeTargetRequirement,
                 sourceColors,
                 args.playerId,
-                chosenX
+                chosenX,
+                cardInHand.types
             );
             if (legalTargets.length === 0) {
                 throw new Error("No legal targets available");
@@ -2475,8 +2477,22 @@ export const selectTarget = mutation({
                 throw new Error("Target has protection from this source");
             }
             // CR 611 — a continuous `permanent-guard` (Guardian Beast) may bar
-            // targeting entirely. Mirror of the getLegalTargets gate.
-            if (isGuardedAgainst(state, matchedCard, "cantBeTargeted")) {
+            // targeting entirely. Mirror of the getLegalTargets gate. The
+            // source's card types (CR 109.5) narrow source-type-filtered guards
+            // (Artifact Ward's "abilities from artifact sources").
+            const sourceTypes = getPendingTargetSourceTypes(
+                state,
+                pt.cardInstanceId,
+                pt.kind ?? "cast"
+            );
+            if (
+                isGuardedAgainst(
+                    state,
+                    matchedCard,
+                    "cantBeTargeted",
+                    sourceTypes
+                )
+            ) {
                 throw new Error(
                     "Target can't be the target of spells or abilities"
                 );
@@ -3857,7 +3873,8 @@ export const activateAbility = mutation({
                 effectiveTargetReq,
                 abilitySourceColors,
                 args.playerId,
-                targetChosenX
+                targetChosenX,
+                card.types
             );
             if (legal.length === 0) {
                 throw new Error("No legal targets available");
