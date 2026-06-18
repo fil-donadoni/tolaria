@@ -1687,15 +1687,41 @@ export interface StaticColorGrant {
 }
 
 /** Cost-modification static effect (CR 601.2f). Scanned at cast-announcement
- *  time; matching increases are added to the spell/ability base cost. */
+ *  time; matching `costIncrease` is added to and matching `costReduction` is
+ *  subtracted from the spell/ability base cost.
+ *
+ *  The optional third `effectSource` argument given to the `appliesTo*`
+ *  predicates is the permanent that carries THIS effect (e.g. the Aura),
+ *  distinct from `card`/`source` which is the spell/ability being modified.
+ *  It lets an Aura scope its modifier to its host — Power Artifact's
+ *  `appliesToAbility` checks `effectSource.attachedTo === source.id` so only
+ *  the enchanted artifact's abilities are reduced. Board-wide modifiers
+ *  (Gloom) ignore it. */
 export interface StaticCostModifier {
     kind: "cost-modifier";
-    appliesToSpell?: (card: PermanentView, ctx: StaticEffectContext) => boolean;
+    appliesToSpell?: (
+        card: PermanentView,
+        ctx: StaticEffectContext,
+        effectSource?: PermanentView
+    ) => boolean;
     appliesToAbility?: (
         source: PermanentView,
-        ctx: StaticEffectContext
+        ctx: StaticEffectContext,
+        effectSource?: PermanentView
     ) => boolean;
-    costIncrease: ManaCost;
+    /** Mana added to the base cost (CR 601.2f). Defaults to nothing. */
+    costIncrease?: ManaCost;
+    /** Mana removed from the base cost (CR 601.2f reductions). Only the generic
+     *  portion is reduced — colored pips can't be reduced by a generic
+     *  reduction. Defaults to nothing. */
+    costReduction?: ManaCost;
+    /** Floor on the post-reduction TOTAL mana of the cost (sum of all pips),
+     *  CR 601.2f / 118.7. Power Artifact's reminder text: "This effect can't
+     *  reduce the cost to less than one mana", i.e. `minTotalMana: 1`. A
+     *  reduction never takes the total below this; colored pips are never
+     *  touched, so the floor only ever protects generic mana. Ignored when no
+     *  `costReduction` is present. */
+    minTotalMana?: number;
 }
 
 /** Keyword-removal static effect (CR 613.1a layer 6). Suppresses a keyword

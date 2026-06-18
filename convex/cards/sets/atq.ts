@@ -2823,3 +2823,50 @@ export const shapeshifter: CardDefinition = {
         }),
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster J (#290) — activated-ability cost reduction. CR 601.2f models cost
+// modification (reductions and increases) applied as the cost is calculated;
+// 118.7 forbids a reduction from taking a cost below the floor its source
+// declares. The `cost-modifier` static effect (originally increase-only, for
+// Gloom) is extended with `costReduction` + `minTotalMana`: the engine reduces
+// only the generic portion of a matching cost and clamps the post-reduction
+// TOTAL mana up to the floor (colored pips are immovable). The effect's carrier
+// permanent is passed to `appliesToAbility`, letting an Aura scope the modifier
+// to its host. Modern Scryfall oracle text is authoritative (ADR 0004).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Power Artifact — {1}{U} Enchantment — Aura. "Enchant artifact. Enchanted
+// artifact's activated abilities cost {2} less to activate. This effect can't
+// reduce the mana in that cost to less than one mana." (CR 303.4 aura
+// attachment, 601.2f cost reduction, 118.7 floor.) As with the other ATQ auras
+// there is no `host` scope (ADR 0002): the `cost-modifier`'s `appliesToAbility`
+// receives the Aura itself as `effectSource` and matches only abilities whose
+// source is `effectSource.attachedTo`. The {2} reduction is generic-only and
+// floored at one total mana, so a {T} mana ability like Mana Vault's
+// "{T}: Add {C}{C}{C}" (no mana in its cost) is unaffected, "{3}: Untap" drops
+// to {1}, and "{2}, {T}" drops to "{T}" only down to the one-mana floor.
+export const powerArtifact: CardDefinition = {
+    id: "e48bc89e-6da5-43da-b4e0-60d5f850199c",
+    name: "Power Artifact",
+    oracleText:
+        "Enchant artifact\nEnchanted artifact's activated abilities cost {2} less to activate. This effect can't reduce the mana in that cost to less than one mana.",
+    manaCost: { U: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Artifact", count: 1 },
+    staticEffects: [
+        {
+            kind: "cost-modifier",
+            appliesToAbility: (
+                source: PermanentView,
+                _ctx,
+                effectSource?: PermanentView
+            ) =>
+                !!effectSource?.attachedTo &&
+                effectSource.attachedTo === source.id,
+            costReduction: { X: 2 },
+            minTotalMana: 1,
+        },
+    ],
+};
