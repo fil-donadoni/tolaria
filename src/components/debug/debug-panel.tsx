@@ -2640,6 +2640,64 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // ATQ free tranche #275 — graveyard / library recursion & card-flow.
+        //   • Reconstruction (hand): return a target artifact card from your
+        //     graveyard to hand — target Clay Statue / Ornithopter in the bin.
+        //   • Argivian Archaeologist (battlefield): {W}{W},{T} repeats that
+        //     recursion every turn.
+        //   • Feldon's Cane (battlefield): {T}, exile self → shuffle your
+        //     graveyard into your library.
+        //   • Drafna's Restoration (hand): put any number of target artifact
+        //     cards from a graveyard on top of its owner's library in any order
+        //     (the reorder choice fires mid-resolution).
+        //   • Millstone (battlefield): {2},{T} mills the opponent two cards
+        //     (set a libraryCount so there's something to mill).
+        //   • Jalum Tome (battlefield): {2},{T} draw then discard (loot).
+        //   • Candelabra of Tawnos (battlefield): {X},{T} untap X target lands —
+        //     a tapped Island is pre-placed to untap.
+        label: "ATQ: recursion & card-flow (Reconstruction / Drafna's / Millstone / Jalum / Candelabra)",
+        cards: [
+            {
+                name: "Reconstruction",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Drafna's Restoration",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Argivian Archaeologist", owner: "me" as const },
+            { name: "Feldon's Cane", owner: "me" as const },
+            { name: "Millstone", owner: "me" as const },
+            { name: "Jalum Tome", owner: "me" as const },
+            { name: "Candelabra of Tawnos", owner: "me" as const },
+            // Artifact cards in the graveyard to recur with Reconstruction /
+            // Argivian Archaeologist / Drafna's Restoration.
+            {
+                name: "Clay Statue",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Ornithopter",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            // A tapped land for Candelabra to untap.
+            {
+                name: "Island",
+                owner: "me" as const,
+                tapped: true,
+            },
+            { name: "Plains", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 8,
+    },
 ];
 
 type DebugPanelProps = {
