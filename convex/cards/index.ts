@@ -11,6 +11,7 @@ import { setCardManaCostLookup } from "./manaCostLookup";
 import * as lea from "./sets/lea";
 import * as leb from "./sets/leb";
 import * as arn from "./sets/arn";
+import * as atq from "./sets/atq";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -40,6 +41,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "lea", exports: lea },
     { code: "leb", exports: leb },
     { code: "arn", exports: arn },
+    { code: "atq", exports: atq },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
