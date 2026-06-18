@@ -2340,6 +2340,22 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
         libraryCount: 30,
     },
+    {
+        // ATQ walking skeleton (#270) — the first two Antiquities cards prove
+        // the registry → GRE → wire → UI pipeline end-to-end. Both are vanilla
+        // keyword artifact creatures on your battlefield:
+        //   • Ornithopter ({0}, 0/2 flying) — a free evasive blocker.
+        //   • Yotian Soldier ({3}, 1/4 vigilance) — attacks without tapping.
+        // Move to combat and attack to exercise flying evasion and vigilance.
+        label: "ATQ: walking skeleton (Ornithopter + Yotian Soldier)",
+        cards: [
+            { name: "Ornithopter", owner: "me" as const },
+            { name: "Yotian Soldier", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
