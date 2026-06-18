@@ -21,6 +21,10 @@ import { useLongPress } from "~/hooks/useLongPress";
 import type { CardInstance } from "~/types/game";
 import { getColorOverrideDisplay } from "~/lib/color-override";
 import CardPreviewAbilities from "./card-preview-abilities";
+import {
+    releasePreview,
+    requestOpenPreview,
+} from "./card-preview-singleton";
 
 const ZOOM_WIDTH = 128 * 2;
 const GAP = 8;
@@ -101,7 +105,12 @@ export default function CardPreview({
         longPress.phase === "longPressed" || longPress.phase === "locked";
     const sawTouchRef = useRef(false);
 
+    // Latest closePreview, read by the singleton from a stable identity so
+    // openZoom/cleanup don't need closePreview in their dep arrays.
+    const closeRef = useRef<() => void>(() => {});
+
     const openZoom = useCallback(() => {
+        requestOpenPreview(closeRef.current);
         setMeasured(false);
         setZoomImgLoaded(false);
         setShowZoom(true);
@@ -149,13 +158,11 @@ export default function CardPreview({
     // mouseleave fires spuriously (pointer still inside the moved rect) AND, once
     // ignored, never fires again — leaving stale previews that overlap. Sampling
     // the live geometry instead closes exactly when the cursor is truly outside.
-    const exitWatcherRef = useRef<((e: PointerEvent) => void) | null>(null);
+    const exitTeardownRef = useRef<(() => void) | null>(null);
 
     const stopExitWatch = useCallback(() => {
-        if (exitWatcherRef.current) {
-            document.removeEventListener("pointermove", exitWatcherRef.current);
-            exitWatcherRef.current = null;
-        }
+        exitTeardownRef.current?.();
+        exitTeardownRef.current = null;
     }, []);
 
     const closePreview = useCallback(() => {
@@ -163,11 +170,15 @@ export default function CardPreview({
         clearHoverTimeout();
         setShowZoom(false);
         stopExitWatch();
+        releasePreview(closeRef.current);
     }, [clearHoverTimeout, stopExitWatch]);
+    useEffect(() => {
+        closeRef.current = closePreview;
+    }, [closePreview]);
 
     const startExitWatch = useCallback(() => {
         stopExitWatch();
-        const fn = (e: PointerEvent) => {
+        const onMove = (e: PointerEvent) => {
             const r = containerRef.current?.getBoundingClientRect();
             if (
                 !r ||
@@ -179,8 +190,19 @@ export default function CardPreview({
                 closePreview();
             }
         };
-        exitWatcherRef.current = fn;
-        document.addEventListener("pointermove", fn);
+        // The pointer can leave the card WITHOUT a sampled move landing outside
+        // the rect: the cursor exits the window, the tab loses focus, or the
+        // tilt churn swallows the mouseleave. These backstops guarantee the
+        // preview never gets stuck open in those gaps.
+        const onWindowLeave = () => closePreview();
+        document.addEventListener("pointermove", onMove);
+        document.addEventListener("pointerleave", onWindowLeave);
+        window.addEventListener("blur", onWindowLeave);
+        exitTeardownRef.current = () => {
+            document.removeEventListener("pointermove", onMove);
+            document.removeEventListener("pointerleave", onWindowLeave);
+            window.removeEventListener("blur", onWindowLeave);
+        };
     }, [closePreview, stopExitWatch]);
 
     useEffect(() => {
@@ -189,6 +211,7 @@ export default function CardPreview({
                 clearTimeout(hoverTimeoutRef.current);
             }
             stopExitWatch();
+            releasePreview(closeRef.current);
         };
     }, [stopExitWatch]);
 
@@ -203,25 +226,6 @@ export default function CardPreview({
         };
     }, [showZoom, recomputePosition]);
 
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "z" && isHovered.current) {
-                openZoom();
-            }
-        };
-        const handleKeyUp = (e: KeyboardEvent) => {
-            if (e.key === "z") {
-                setShowZoom(false);
-            }
-        };
-        window.addEventListener("keydown", handleKeyDown);
-        window.addEventListener("keyup", handleKeyUp);
-        return () => {
-            window.removeEventListener("keydown", handleKeyDown);
-            window.removeEventListener("keyup", handleKeyUp);
-        };
-    }, [openZoom]);
-
     const handleMouseDown = useCallback(
         (e: React.MouseEvent) => {
             if (e.button !== 2) return;
@@ -229,7 +233,7 @@ export default function CardPreview({
             e.stopPropagation();
             openZoom();
             const onUp = () => {
-                setShowZoom(false);
+                closeRef.current();
                 window.removeEventListener("mouseup", onUp);
             };
             window.addEventListener("mouseup", onUp);
