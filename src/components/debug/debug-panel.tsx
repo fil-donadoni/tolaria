@@ -135,6 +135,56 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Antiquities cluster C+D — continuous artifact-source prevention /
+        // redirection + artifact-damage tracking (#287, CR 615 / 614 / 611 /
+        // 120.3). Source-type-filtered protection from artifacts:
+        //   • You control Argothian Pixies, Argothian Treefolk, Martyrs of
+        //     Korlis, and Grizzly Bears wearing Artifact Ward; Reverse Polarity
+        //     sits in your hand.
+        //   • The opponent controls Triskelion (3 +1/+1 counters), an artifact
+        //     creature, and Grapeshot Catapult, a noncreature artifact source.
+        //   • Pass priority and ping with Triskelion / Grapeshot Catapult:
+        //     damage to the Pixies (artifact-creature filter), the Treefolk or
+        //     the warded Bears (artifact-source filter) is fully prevented;
+        //     direct damage to YOU is redirected onto the untapped Martyrs of
+        //     Korlis instead. Targeting the warded Bears with Triskelion's
+        //     ability is illegal (can't be targeted by abilities from artifact
+        //     sources).
+        //   • The redirected/landed artifact damage accrues to the per-turn
+        //     artifact tally; cast Reverse Polarity to gain twice that amount.
+        //   • Tap Martyrs (e.g. attack with it) to see redirection stop while
+        //     it's tapped.
+        label: "Antiquities C+D: artifact-source prevention / redirection + Reverse Polarity",
+        cards: [
+            { name: "Argothian Pixies", owner: "me" as const },
+            { name: "Argothian Treefolk", owner: "me" as const },
+            { name: "Martyrs of Korlis", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            // Artifact Ward sits in hand: cast it onto the Grizzly Bears to
+            // attach the Aura and enable its host protections.
+            {
+                name: "Artifact Ward",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Reverse Polarity",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "me" as const, count: 3 },
+            {
+                name: "Triskelion",
+                owner: "opp" as const,
+                counters: { "+1/+1": 3 },
+            },
+            { name: "Grapeshot Catapult", owner: "opp" as const },
+            { name: "Mountain", owner: "opp" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next battlefield tap/pay (#272). The spatial board's
         // battlefield is now interactive (?board=next) — load this and switch
         // the URL to ?board=next to exercise the foundational tap/pay slice:

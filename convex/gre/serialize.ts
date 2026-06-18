@@ -560,6 +560,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "pendingUntapStep",
     "pendingCleanupDiscard",
     "damageDealtToPlayerThisTurn",
+    "artifactDamageToPlayerThisTurn",
     "damageRedirections",
     "combatBlockRestrictions",
     "playerPreferences",

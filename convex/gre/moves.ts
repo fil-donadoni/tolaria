@@ -325,7 +325,8 @@ function enumerateTargetTuples(
         effReq,
         sourceColors,
         player.id,
-        chosenX
+        chosenX,
+        card.types
     );
     const { min, max } = targetCount(effReq, chosenX);
     if (max === 0) return [[]];
