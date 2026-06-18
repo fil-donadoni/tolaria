@@ -610,6 +610,115 @@ describe("selectRootMove — free mana source tie-break (issue #244)", () => {
     });
 });
 
+// Free-development tie-break, extended to MANA DORKS. A mana-ability creature
+// (Birds of Paradise) develops a mana source / ramps and, being sorcery-speed,
+// has no instant-speed option value to holding — the creature analog of a Mox.
+// Its body + ramp washes out of the rollout, so `pass` can win the material
+// tie-break on noise (reported: the bot sat on Birds with a Mox down and an
+// empty board, 8 cards in hand, rather than casting it). Synthetic-edge tests
+// with a `rootState` carrying Birds in hand so `isManaDorkCast` resolves it.
+// ---------------------------------------------------------------------------
+describe("selectRootMove — mana dork tie-break", () => {
+    const BIRDS = getCardByName("Birds of Paradise").id; // {G} 0/1, {T}: add any
+    const SPECTER = getCardByName("Hypnotic Specter").id; // {1}{B}{B} 2/2: no mana
+    const PASS: Move = { kind: "pass" };
+    const CAST_BIRDS = {
+        kind: "cast-spell",
+        cardInstanceId: "birds",
+        targets: [],
+        tapPlan: [],
+    } as unknown as Move;
+    const CAST_SPECTER = {
+        kind: "cast-spell",
+        cardInstanceId: "specter",
+        targets: [],
+        tapPlan: [],
+    } as unknown as Move;
+
+    /** Bot `p1` holds Birds (a mana dork) and a non-mana creature so
+     *  `isManaDorkCast` can resolve the cast cards from hand. */
+    function rootState(): GameState {
+        return makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(BIRDS, {
+                            id: "birds",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(SPECTER, {
+                            id: "specter",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {}),
+            ],
+        });
+    }
+
+    function rootOf(
+        edges: { move: Move; meanReward: number; meanMargin: number }[]
+    ): Node {
+        const children = new Map<string, Edge>();
+        edges.forEach((e, i) => {
+            const visits = 100;
+            children.set(`${e.move.kind}:${i}`, {
+                move: e.move,
+                mover: "p1",
+                node: { children: new Map() },
+                visits,
+                totalReward: e.meanReward * visits,
+                totalMargin: e.meanMargin * visits,
+                avail: visits,
+            });
+        });
+        return { children };
+    }
+
+    it("FIRE: casts Birds when pass wins material on noise but is outcome-equal", () => {
+        // The reported trace: pass edged Birds on accumulated meanMargin (940 vs
+        // 853) at an equal mean reward (0.75). The leaf eval rated the cast +23
+        // higher, but that washes out of the rollout — the tie-break must develop.
+        const root = rootOf([
+            { move: PASS, meanReward: 0.75, meanMargin: 940 },
+            { move: CAST_BIRDS, meanReward: 0.75, meanMargin: 853 },
+        ]);
+        expect(
+            selectRootMove(root, [PASS, CAST_BIRDS], rootState(), "p1").kind
+        ).toBe("cast-spell");
+    });
+
+    it("NO-FIRE: does not rescue a non-mana creature (Hypnotic Specter) over pass", () => {
+        // A 2/2 with no mana ability is not a dork — holding a beater can carry
+        // sequencing value, so the tie-break leaves the robust `pass` standing.
+        const root = rootOf([
+            { move: PASS, meanReward: 0.75, meanMargin: 940 },
+            { move: CAST_SPECTER, meanReward: 0.75, meanMargin: 853 },
+        ]);
+        expect(
+            selectRootMove(root, [PASS, CAST_SPECTER], rootState(), "p1").kind
+        ).toBe("pass");
+    });
+
+    it("NO-FIRE: keeps pass when Birds is genuinely worse (not outcome-equal)", () => {
+        const root = rootOf([
+            { move: PASS, meanReward: 0.8, meanMargin: 940 },
+            { move: CAST_BIRDS, meanReward: 0.6, meanMargin: 999 },
+        ]);
+        expect(
+            selectRootMove(root, [PASS, CAST_BIRDS], rootState(), "p1").kind
+        ).toBe("pass");
+    });
+});
+
 // ---------------------------------------------------------------------------
 // Extra-turn structural credit (issue #244). A granted extra turn is washed out
 // of the rollout (ADR 0015 horizon + `extraTurns` popped at the turn crossing),

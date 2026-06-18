@@ -27,7 +27,7 @@ import TargetSelectionBanner from "./target-selection-banner";
 import PaymentBanner from "./payment-banner";
 import PendingChoicePrompt from "./pending-choice-prompt";
 import MulliganPrompt from "./mulligan-prompt";
-import ValidationToast from "./validation-toast";
+import ErrorToast from "./error-toast";
 import VsAiDriver from "./vs-ai-driver";
 
 const POPUP_SELECTORS = [
@@ -285,8 +285,9 @@ export default function Board({
                             gameId={gameId}
                             playerId={viewerId}
                         />
-                        <ValidationToast
-                            message={pendingChoiceBuffer.lastError}
+                        <ErrorToast
+                            error={pendingChoiceBuffer.lastError}
+                            gameId={gameId}
                             onDismiss={pendingChoiceBuffer.dismissError}
                         />
                     </main>

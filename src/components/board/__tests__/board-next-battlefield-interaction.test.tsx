@@ -36,6 +36,9 @@ const MUTATIONS: Record<string, ReturnType<typeof vi.fn>> = {
 
 vi.mock("convex/react", () => ({
     useMutation: (ref: { _name: string }) => MUTATIONS[ref._name] ?? noop,
+    // ErrorToast (shown on a rejected mutation) lazily queries the full state
+    // for its copy-to-clipboard payload; an inert stub is enough here.
+    useQuery: () => undefined,
 }));
 
 vi.mock("@convex/_generated/api", () => {
@@ -51,6 +54,7 @@ vi.mock("@convex/_generated/api", () => {
         "selectTarget",
         "selectAdditionalCost",
         "activateAbility",
+        "getFullState",
     ];
     const game: Record<string, { _name: string }> = {};
     for (const n of names) game[n] = { _name: n };
@@ -341,8 +345,8 @@ describe("board-next battlefield tap/pay parity with the classic board (#272)", 
             container.querySelector('[data-arrow-anchor-permanent="forest1"]')!
         );
         // The extracted hook's `overlays` (mounted by BoardNextBattlefield)
-        // includes the ValidationToast; the rejected mutation surfaces its
-        // inner message.
+        // includes the ErrorToast; the rejected mutation surfaces its inner
+        // message as the toast title.
         expect(await findByText("It's not your turn")).toBeTruthy();
     });
 });

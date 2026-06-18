@@ -242,9 +242,14 @@ describe("board-next player life totals (#280)", () => {
     });
 
     it("anchors the opponent to the top edge and the viewer to the bottom edge", () => {
+        // The edge-positioning class lives on the wrapper that pairs the
+        // nameplate with the (restored) mana-pool indicator; the player anchor
+        // is the nameplate inside it.
         const top = renderSpatial(makePlayer("p1"), { playerId: "p2" }, "top");
         expect(
-            top.container.querySelector('[data-arrow-anchor-player="p1"].top-1')
+            top.container.querySelector(
+                '.top-1 [data-arrow-anchor-player="p1"]'
+            )
         ).toBeTruthy();
 
         cleanup();
@@ -256,7 +261,7 @@ describe("board-next player life totals (#280)", () => {
         );
         expect(
             bottom.container.querySelector(
-                '[data-arrow-anchor-player="p2"].bottom-1'
+                '.bottom-1 [data-arrow-anchor-player="p2"]'
             )
         ).toBeTruthy();
     });

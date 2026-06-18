@@ -52,6 +52,13 @@ type RowOptions = {
     cardWidth?: number;
     /** Gap between full-size cards before overlap (defaults to {@link DEFAULT_GAP}). */
     gap?: number;
+    /** Hard upper bound on the row's `scale`, applied AFTER the horizontal fit
+     *  math (and below {@link MIN_SCALE} if needed). Used to shrink a row so its
+     *  cards fit a limited band HEIGHT — e.g. when the battlefield is split into
+     *  creature / other / land rows — so a tall card is never clipped vertically.
+     *  The inter-card step is recomputed at the capped scale so spacing stays
+     *  tight rather than leaving the cards sparse. */
+    maxScale?: number;
 };
 
 /**
@@ -73,6 +80,7 @@ export function rowLayout(opts: RowOptions): Placement[] {
         centerY,
         cardWidth = CARD_WIDTH,
         gap = DEFAULT_GAP,
+        maxScale,
     } = opts;
     if (count <= 0) return [];
 
@@ -90,8 +98,12 @@ export function rowLayout(opts: RowOptions): Placement[] {
     // If even the overlap floor overflows the zone, shrink scale to fit —
     // clamped at the floor so cards never become unreadably small.
     const naturalWidth = cardWidth + minStep * (count - 1);
-    const scale =
+    const fitScale =
         naturalWidth > width ? Math.max(MIN_SCALE, width / naturalWidth) : 1;
+    // A band-height cap trumps the readability floor — a clipped card is worse
+    // than a small one.
+    const scale =
+        maxScale !== undefined ? Math.min(fitScale, maxScale) : fitScale;
 
     // After clamping scale, the scaled overlap row may still overflow at truly
     // extreme counts. In that regime tighten the step below the overlap floor
@@ -112,6 +124,150 @@ export function rowLayout(opts: RowOptions): Placement[] {
         rotation: 0,
         scale,
     }));
+}
+
+/**
+ * Two packed blocks on one row, justified to opposite edges: the `left` cards
+ * cluster flush-left, the `right` cards cluster flush-right, with the empty gap
+ * between them (the back battlefield row — lands left, other noncreatures right).
+ * Both blocks share one scale (capped by `maxScale` for band-height fit). If the
+ * two blocks would collide (too many cards for the width), it falls back to a
+ * single centered, packed {@link rowLayout} so nothing is clipped. When either
+ * block is empty the present block is simply centered.
+ *
+ * Returns `left` placements first, then `right` — order the items the same way.
+ */
+export function splitRowLayout(opts: {
+    left: number;
+    right: number;
+    width: number;
+    centerY: number;
+    cardWidth?: number;
+    gap?: number;
+    maxScale?: number;
+}): Placement[] {
+    const {
+        left,
+        right,
+        width,
+        centerY,
+        cardWidth = CARD_WIDTH,
+        gap = DEFAULT_GAP,
+        maxScale,
+    } = opts;
+    const total = left + right;
+    if (total <= 0) return [];
+    // One block (or a single card) → just center it.
+    if (left === 0 || right === 0) {
+        return rowLayout({ count: total, width, centerY, cardWidth, maxScale });
+    }
+
+    const minStep = cardWidth * MIN_STEP_FRACTION;
+    const naturalWidth = cardWidth + minStep * (total - 1);
+    const fitScale =
+        naturalWidth > width ? Math.max(MIN_SCALE, width / naturalWidth) : 1;
+    const scale =
+        maxScale !== undefined ? Math.min(fitScale, maxScale) : fitScale;
+
+    const half = (cardWidth * scale) / 2;
+    const step = cardWidth * scale + gap;
+    const leftEdgeOfRightBlock = width - half - (right - 1) * step - half;
+    const rightEdgeOfLeftBlock = half + (left - 1) * step + half;
+    // Blocks collide → fall back to a single centered packed row.
+    if (rightEdgeOfLeftBlock + gap > leftEdgeOfRightBlock) {
+        return rowLayout({ count: total, width, centerY, cardWidth, maxScale });
+    }
+
+    const placements: Placement[] = [];
+    for (let i = 0; i < left; i++) {
+        placements.push({
+            x: half + i * step,
+            y: centerY,
+            rotation: 0,
+            scale,
+        });
+    }
+    for (let j = 0; j < right; j++) {
+        const fromRight = right - 1 - j;
+        placements.push({
+            x: width - half - fromRight * step,
+            y: centerY,
+            rotation: 0,
+            scale,
+        });
+    }
+    return placements;
+}
+
+/** A single band (row) for {@link bandedRowsLayout}, vertically centered at
+ *  `centerYFrac` (0..1) of the zone height. A band is EITHER a simple centered
+ *  row of `count` cards, OR a two-block `split` row (left/right justified to
+ *  opposite edges — the lands-left / noncreatures-right back row). */
+export type LayoutBand = {
+    /** Row center as a fraction of zone height (0 = top edge, 1 = bottom edge). */
+    centerYFrac: number;
+    /** Simple centered row of this many cards. Mutually exclusive with `split`. */
+    count?: number;
+    /** Two-block row: `left` cards flush-left, `right` cards flush-right. */
+    split?: { left: number; right: number };
+};
+
+/** Vertical padding (px) kept above+below each band's cards so adjacent rows
+ *  don't touch. */
+const BAND_V_PAD = 14;
+
+/**
+ * Stacks several rows inside ONE full-height zone — the battlefield split into a
+ * creature row and a lands+noncreature back row (Arena-style) without clipping.
+ * Every band shares the SAME zone height, so each row's cards are capped to a
+ * band-height-derived `maxScale` and never overflow their slice the way short
+ * `overflow-hidden` sub-zones would. A `count` band is a centered
+ * {@link rowLayout}; a `split` band is a {@link splitRowLayout}. Placements are
+ * returned concatenated in band order (and, within a split band, left then
+ * right), so the caller orders its items the same way.
+ */
+export function bandedRowsLayout(opts: {
+    bands: LayoutBand[];
+    width: number;
+    height: number;
+    cardWidth?: number;
+    cardHeight?: number;
+}): Placement[] {
+    const {
+        bands,
+        width,
+        height,
+        cardWidth = CARD_WIDTH,
+        cardHeight = CARD_HEIGHT,
+    } = opts;
+    if (bands.length === 0 || height <= 0) return [];
+    // Each band may use at most its even share of the height; cap the card scale
+    // so a full-height card fits that slice (minus padding).
+    const bandHeight = height / bands.length;
+    const maxScale = Math.max(
+        0.1,
+        Math.min(1, (bandHeight - BAND_V_PAD) / cardHeight)
+    );
+    return bands.flatMap((band) => {
+        const centerY = height * band.centerYFrac;
+        if (band.split) {
+            return splitRowLayout({
+                left: band.split.left,
+                right: band.split.right,
+                width,
+                centerY,
+                cardWidth,
+                maxScale,
+            });
+        }
+        return rowLayout({
+            count: band.count ?? 0,
+            width,
+            centerY,
+            cardWidth,
+            maxScale,
+        });
+    });
 }
 
 type FanOptions = {

@@ -19,10 +19,10 @@ import {
     isTapLockedBySummoningSickness,
 } from "~/lib/card-utils";
 import { outstandingDamageAssigner } from "~/lib/priority";
-import { extractMutationErrorMessage } from "~/lib/mutation-error";
+import { extractMutationError, type MutationError } from "~/lib/mutation-error";
 import type { ActivatableAbility } from "~/components/board/battlefield-card";
 import ManaChoicePicker from "~/components/board/mana-choice-picker";
-import ValidationToast from "~/components/board/validation-toast";
+import ErrorToast from "~/components/board/error-toast";
 
 /** Battlefield interaction controller for one player's battlefield (PRD #249,
  *  slice #272). Mirrors how {@link useBattlefieldVisualState} (#256) was
@@ -107,11 +107,12 @@ export function useBattlefieldInteraction(player: Player) {
         inPayment: boolean;
     } | null>(null);
 
-    const [validationError, setValidationError] = useState<string | null>(null);
+    const [validationError, setValidationError] =
+        useState<MutationError | null>(null);
 
     function guardMutation(promise: Promise<unknown>) {
         promise.catch((err) => {
-            setValidationError(extractMutationErrorMessage(err));
+            setValidationError(extractMutationError(err));
         });
     }
 
@@ -264,7 +265,8 @@ export function useBattlefieldInteraction(player: Player) {
                 !card.isSummoningSick;
             if (mustAttackClient) {
                 const name = getCardById(card.card.id).name;
-                setValidationError(`${name} must attack this combat if able`);
+                const msg = `${name} must attack this combat if able`;
+                setValidationError({ title: msg, detail: msg });
                 return;
             }
             guardMutation(
@@ -531,8 +533,9 @@ export function useBattlefieldInteraction(player: Player) {
                     onCancel={() => setManaChoiceState(null)}
                 />
             )}
-            <ValidationToast
-                message={validationError}
+            <ErrorToast
+                error={validationError}
+                gameId={gameId}
                 onDismiss={() => setValidationError(null)}
             />
         </>

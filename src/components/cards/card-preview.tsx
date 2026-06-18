@@ -142,13 +142,55 @@ export default function CardPreview({
         }
     }, []);
 
+    // While hovered, a document-level pointer watcher closes the preview the
+    // instant the pointer leaves the card's CURRENT (tilt-shifted) rect. This is
+    // the reliable close signal: a card under a live 3D tilt (board-next
+    // CardTilt3D) rewrites its transform on every move, so the element's own
+    // mouseleave fires spuriously (pointer still inside the moved rect) AND, once
+    // ignored, never fires again — leaving stale previews that overlap. Sampling
+    // the live geometry instead closes exactly when the cursor is truly outside.
+    const exitWatcherRef = useRef<((e: PointerEvent) => void) | null>(null);
+
+    const stopExitWatch = useCallback(() => {
+        if (exitWatcherRef.current) {
+            document.removeEventListener("pointermove", exitWatcherRef.current);
+            exitWatcherRef.current = null;
+        }
+    }, []);
+
+    const closePreview = useCallback(() => {
+        isHovered.current = false;
+        clearHoverTimeout();
+        setShowZoom(false);
+        stopExitWatch();
+    }, [clearHoverTimeout, stopExitWatch]);
+
+    const startExitWatch = useCallback(() => {
+        stopExitWatch();
+        const fn = (e: PointerEvent) => {
+            const r = containerRef.current?.getBoundingClientRect();
+            if (
+                !r ||
+                e.clientX < r.left ||
+                e.clientX > r.right ||
+                e.clientY < r.top ||
+                e.clientY > r.bottom
+            ) {
+                closePreview();
+            }
+        };
+        exitWatcherRef.current = fn;
+        document.addEventListener("pointermove", fn);
+    }, [closePreview, stopExitWatch]);
+
     useEffect(() => {
         return () => {
             if (hoverTimeoutRef.current !== null) {
                 clearTimeout(hoverTimeoutRef.current);
             }
+            stopExitWatch();
         };
-    }, []);
+    }, [stopExitWatch]);
 
     useEffect(() => {
         if (!showZoom) return;
@@ -302,18 +344,37 @@ export default function CardPreview({
             style={longPress.scaleStyle}
             onMouseEnter={() => {
                 if (sawTouchRef.current) return;
+                // Already hovering (a re-enter from tilt-transform churn) — do
+                // NOT restart the open timer, or the churn would forever defer
+                // the zoom past HOVER_DELAY_MS.
+                if (isHovered.current) return;
                 isHovered.current = true;
                 clearHoverTimeout();
                 hoverTimeoutRef.current = setTimeout(() => {
                     if (!isHovered.current) return;
                     openZoom();
                 }, HOVER_DELAY_MS);
+                // The document watcher owns the close — it samples live geometry
+                // and is immune to the tilt's spurious mouseleave churn.
+                startExitWatch();
             }}
-            onMouseLeave={() => {
+            onMouseLeave={(e) => {
                 if (sawTouchRef.current) return;
-                isHovered.current = false;
-                clearHoverTimeout();
-                setShowZoom(false);
+                // Backstop for the pointer leaving the window (no further
+                // pointermove for the watcher to sample): close only when the
+                // pointer is genuinely outside the card's current rect; otherwise
+                // a spurious tilt-churn leave is left to the watcher.
+                const r = containerRef.current?.getBoundingClientRect();
+                if (
+                    r &&
+                    e.clientX >= r.left &&
+                    e.clientX <= r.right &&
+                    e.clientY >= r.top &&
+                    e.clientY <= r.bottom
+                ) {
+                    return;
+                }
+                closePreview();
             }}
             onMouseDown={handleMouseDown}
             onContextMenu={handleContextMenu}

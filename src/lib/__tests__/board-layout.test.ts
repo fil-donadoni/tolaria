@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
     rowLayout,
+    bandedRowsLayout,
+    splitRowLayout,
     fanLayout,
     mirrorVertical,
     reorderIndexForDragX,
@@ -114,6 +116,130 @@ describe("rowLayout (auto-sizing battlefield row)", () => {
         const placements = rowLayout({ count: 5, width: WIDTH, centerY: 250 });
         expect(placements.every((p) => p.y === 250)).toBe(true);
         expect(placements.every((p) => p.rotation === 0)).toBe(true);
+    });
+});
+
+describe("rowLayout maxScale cap (band-height fit)", () => {
+    it("caps the row scale below the horizontal-fit scale", () => {
+        // A small count would otherwise place at scale 1; the cap forces it down
+        // so the row fits a limited band height.
+        const placed = rowLayout({
+            count: 2,
+            width: WIDTH,
+            centerY: 50,
+            maxScale: 0.5,
+        });
+        expect(placed.every((p) => p.scale === 0.5)).toBe(true);
+    });
+
+    it("the cap wins even below the readability floor (no vertical clip)", () => {
+        const placed = rowLayout({
+            count: 10,
+            width: 300, // forces horizontal shrink toward MIN_SCALE (0.7)
+            centerY: 50,
+            maxScale: 0.4,
+        });
+        expect(placed.every((p) => p.scale <= 0.4 + 1e-9)).toBe(true);
+    });
+});
+
+describe("splitRowLayout (two-block back row: lands left, others right)", () => {
+    it("clusters the left block flush-left and the right block flush-right", () => {
+        const placed = splitRowLayout({
+            left: 2,
+            right: 2,
+            width: WIDTH,
+            centerY: 0,
+        });
+        expect(placed).toHaveLength(4);
+        const half = CARD_WIDTH / 2;
+        expect(placed[0].x).toBeCloseTo(half, 4);
+        expect(placed[3].x).toBeCloseTo(WIDTH - half, 4);
+        // A gap separates the two blocks.
+        expect(placed[1].x).toBeLessThan(placed[2].x);
+    });
+
+    it("centers the present block when the other is empty", () => {
+        const onlyLands = splitRowLayout({
+            left: 3,
+            right: 0,
+            width: WIDTH,
+            centerY: 0,
+        });
+        const centered = rowLayout({ count: 3, width: WIDTH, centerY: 0 });
+        expect(onlyLands.map((p) => p.x)).toEqual(centered.map((p) => p.x));
+    });
+
+    it("falls back to a single centered packed row when the blocks collide", () => {
+        const placed = splitRowLayout({
+            left: 20,
+            right: 20,
+            width: WIDTH,
+            centerY: 0,
+        });
+        const centered = rowLayout({ count: 40, width: WIDTH, centerY: 0 });
+        expect(placed.map((p) => p.x)).toEqual(centered.map((p) => p.x));
+    });
+
+    it("returns nothing for an empty row", () => {
+        expect(
+            splitRowLayout({ left: 0, right: 0, width: WIDTH, centerY: 0 })
+        ).toEqual([]);
+    });
+});
+
+describe("bandedRowsLayout (creatures row over a split back row)", () => {
+    const WIDTH_BF = 1000;
+    const HEIGHT_BF = 360;
+
+    it("places a count band over a split band at their centerY fractions", () => {
+        const placed = bandedRowsLayout({
+            bands: [
+                { count: 2, centerYFrac: 0.28 }, // creatures
+                { split: { left: 2, right: 1 }, centerYFrac: 0.74 }, // back
+            ],
+            width: WIDTH_BF,
+            height: HEIGHT_BF,
+        });
+        expect(placed).toHaveLength(5);
+        expect(placed.slice(0, 2).every((p) => p.y === HEIGHT_BF * 0.28)).toBe(
+            true
+        );
+        expect(placed.slice(2).every((p) => p.y === HEIGHT_BF * 0.74)).toBe(
+            true
+        );
+        // Back-row lands flush-left, the single other flush-right.
+        const half = CARD_WIDTH * placed[2].scale * 0.5;
+        expect(placed[2].x).toBeCloseTo(half, 4);
+        expect(placed[4].x).toBeCloseTo(WIDTH_BF - half, 4);
+    });
+
+    it("caps every card so a full-height card fits its band slice (no clip)", () => {
+        const placed = bandedRowsLayout({
+            bands: [
+                { count: 1, centerYFrac: 0.28 },
+                { split: { left: 1, right: 1 }, centerYFrac: 0.74 },
+            ],
+            width: WIDTH_BF,
+            height: HEIGHT_BF,
+        });
+        const bandHeight = HEIGHT_BF / 2;
+        expect(placed.every((p) => CARD_HEIGHT * p.scale <= bandHeight)).toBe(
+            true
+        );
+    });
+
+    it("returns nothing for an empty board", () => {
+        expect(
+            bandedRowsLayout({
+                bands: [
+                    { count: 0, centerYFrac: 0.28 },
+                    { split: { left: 0, right: 0 }, centerYFrac: 0.74 },
+                ],
+                width: WIDTH_BF,
+                height: HEIGHT_BF,
+            })
+        ).toEqual([]);
     });
 });
 

@@ -70,7 +70,7 @@ vi.mock("../target-selection-banner", () => ({ default: () => null }));
 vi.mock("../payment-banner", () => ({ default: () => null }));
 vi.mock("../pending-choice-prompt", () => ({ default: () => null }));
 vi.mock("../mulligan-prompt", () => ({ default: () => null }));
-vi.mock("../validation-toast", () => ({ default: () => null }));
+vi.mock("../error-toast", () => ({ default: () => null }));
 vi.mock("../vs-ai-driver", () => ({ default: () => null }));
 
 vi.mock("~/lib/image-preload", () => ({ preloadCardImages: () => {} }));

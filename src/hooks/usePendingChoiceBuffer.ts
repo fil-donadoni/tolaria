@@ -3,6 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingChoice, PendingChoiceKind } from "~/types/game";
+import { extractMutationError, type MutationError } from "~/lib/mutation-error";
 
 /** Pending choice kinds that have migrated to the client-buffered submit
  *  model (ADR 0007). Used by the UI to decide whether to route a click
@@ -63,9 +64,9 @@ export type PendingChoiceBuffer = {
      *  must gate on this to prevent double-clicks (see
      *  `feedback-disable-while-pending`). */
     isPending: boolean;
-    /** Last submission error message (server-side rejection), shown via
-     *  the validation toast. `null` when there's nothing to surface. */
-    lastError: string | null;
+    /** Last submission error (server-side rejection), shown via the error
+     *  toast. `null` when there's nothing to surface. */
+    lastError: MutationError | null;
     /** Clear the error after the toast dismisses. */
     dismissError: () => void;
 };
@@ -84,7 +85,7 @@ export function usePendingChoiceBufferState(args: {
     const { gameId, playerId, activeChoice } = args;
     const [buffer, setBuffer] = useState<string[]>([]);
     const [isPending, setIsPending] = useState(false);
-    const [lastError, setLastError] = useState<string | null>(null);
+    const [lastError, setLastError] = useState<MutationError | null>(null);
     const submitMutation = useMutation(api.game.submitResolutionChoice);
 
     const choiceKey = deriveChoiceKey(activeChoice);
@@ -122,9 +123,7 @@ export function usePendingChoiceBufferState(args: {
                 cardInstanceIds: buffer,
             });
         } catch (e) {
-            setLastError(
-                e instanceof Error ? e.message : "Submission rejected"
-            );
+            setLastError(extractMutationError(e));
         } finally {
             setIsPending(false);
         }

@@ -151,6 +151,7 @@ export default function BoardNextHandCard({
             onPointerMove={handlers.onPointerMove}
             onPointerUp={handlers.onPointerUp}
             onPointerCancel={handlers.onPointerCancel}
+            onLostPointerCapture={handlers.onLostPointerCapture}
             onClickCapture={handlers.onClickCapture}
             style={{
                 // While dragging the card follows the cursor as a rigid lifted

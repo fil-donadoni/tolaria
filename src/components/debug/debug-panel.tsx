@@ -6,6 +6,7 @@ import { JSONTree } from "react-json-tree";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { storeSession } from "~/lib/session";
+import { copyMinified } from "~/lib/clipboard";
 import DebugButton from "./debug-button";
 
 const theme = {
@@ -2864,9 +2865,7 @@ export default function DebugPanel({
                             <DebugButton
                                 onClick={() => {
                                     if (state) {
-                                        navigator.clipboard.writeText(
-                                            JSON.stringify(state, null, 2)
-                                        );
+                                        copyMinified(state);
                                         setCopyFeedback(true);
                                         setTimeout(
                                             () => setCopyFeedback(false),

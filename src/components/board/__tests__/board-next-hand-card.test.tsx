@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import type { CardInstance } from "~/types/game";
+import { COMMIT_LIFT_PX } from "~/hooks/useDragToCommit";
 import { GameContext } from "~/hooks/useGameContext";
 import {
     PendingChoiceBufferContext,
@@ -121,7 +122,7 @@ function el() {
 }
 
 /** Simulate a drag that lifts the card UP by `lift` px (negative dy) and
- *  releases. >= 40px commits (#271 fix 3); below returns to hand. Mirrors the
+ *  releases. past COMMIT_LIFT_PX commits (#271/#294 fix 3); below returns to hand. Mirrors the
  *  real pointer sequence: down → move (crosses drag-start) → up. */
 function drag(lift: number) {
     const target = el();
@@ -156,7 +157,7 @@ describe("BoardNextHandCard drag-commit parity (seam 3, #254)", () => {
         cleanup();
 
         renderCard(card);
-        drag(120); // well past the 64px commit line
+        drag(120); // well past the commit line
         const dragArgs = playCard.mock.calls[0][0];
 
         expect(announceCast).not.toHaveBeenCalled();
@@ -194,7 +195,7 @@ describe("BoardNextHandCard drag-commit parity (seam 3, #254)", () => {
     it("a sub-threshold release dispatches nothing (returns to hand)", () => {
         const card = makeCard("spell1", ["cast"]);
         renderCard(card);
-        drag(20); // below the 64px commit line
+        drag(20); // below the commit line
         expect(playCard).not.toHaveBeenCalled();
         expect(announceCast).not.toHaveBeenCalled();
     });
@@ -277,18 +278,61 @@ describe("BoardNextHandCard drag-commit parity (seam 3, #254)", () => {
     });
 });
 
-describe("BoardNextHandCard commit threshold (#271 fix 3)", () => {
-    it("commits a modest upward flick at the lowered threshold (40px)", () => {
+describe("BoardNextHandCard commit threshold (#271 fix 3, #294 fix 3)", () => {
+    it("commits a modest upward flick just past the lowered threshold", () => {
         const card = makeCard("spell1", ["cast"]);
         renderCard(card);
-        drag(45); // just past the new 40px line — used to be below the old 64
+        drag(COMMIT_LIFT_PX + 6); // just past the (lowered) commit line
         expect(announceCast).toHaveBeenCalledTimes(1);
     });
 
     it("does NOT commit an accidental small nudge below the threshold", () => {
         const card = makeCard("spell1", ["cast"]);
         renderCard(card);
-        drag(30); // past drag-start (6px) but below the 40px commit line
+        drag(COMMIT_LIFT_PX - 6); // past drag-start (6px) but below commit line
+        expect(announceCast).not.toHaveBeenCalled();
+        expect(playCard).not.toHaveBeenCalled();
+    });
+});
+
+describe("BoardNextHandCard drag is up-only / gated (#294 fix 2-3)", () => {
+    it("pins downward drag to 0 — the card never floats below its slot", () => {
+        const card = makeCard("spell1", ["cast"]);
+        renderCard(card);
+        const target = el() as HTMLElement;
+        fireEvent.pointerDown(target, {
+            button: 0,
+            clientX: 100,
+            clientY: 400,
+        });
+        // Drag DOWN 120px and sideways 40px.
+        fireEvent.pointerMove(target, { clientX: 140, clientY: 520 });
+        const m = target.style.transform.match(
+            /translate\(([^,]+),\s*(-?\d+(?:\.\d+)?)px\)/
+        );
+        expect(m).toBeTruthy();
+        // Horizontal tracks the pointer (reorder), vertical is pinned to 0.
+        expect(Number(m![2])).toBe(0);
+        fireEvent.pointerUp(target, { clientX: 140, clientY: 520 });
+    });
+
+    it("an unplayable card gets no lift and never arms", () => {
+        const card = makeCard("dead1", []); // no legal play/cast
+        renderCard(card);
+        const target = el() as HTMLElement;
+        fireEvent.pointerDown(target, {
+            button: 0,
+            clientX: 100,
+            clientY: 400,
+        });
+        fireEvent.pointerMove(target, { clientX: 100, clientY: 400 - 200 });
+        const m = target.style.transform?.match(
+            /translate\([^,]+,\s*(-?\d+(?:\.\d+)?)px\)/
+        );
+        // No vertical lift even when yanked far up.
+        if (m) expect(Number(m![1])).toBe(0);
+        expect(target.getAttribute("data-drag-armed")).toBeNull();
+        fireEvent.pointerUp(target, { clientX: 100, clientY: 200 });
         expect(announceCast).not.toHaveBeenCalled();
         expect(playCard).not.toHaveBeenCalled();
     });
@@ -337,10 +381,10 @@ describe("BoardNextHandCard drag containment (#271 fix 4)", () => {
         expect(match).toBeTruthy();
         const renderedLiftPx = Math.abs(Number(match![1]));
         // Clamped well below the raw 400px so it can't escape into the clipped
-        // band above the hand (MAX_LIFT_PX = COMMIT_LIFT_PX + 24 = 64).
-        expect(renderedLiftPx).toBeLessThanOrEqual(64);
-        // Still armed (the RAW lift past 40px arms the commit regardless of the
-        // visual clamp).
+        // band above the hand (MAX_LIFT_PX = COMMIT_LIFT_PX + 18).
+        expect(renderedLiftPx).toBeLessThanOrEqual(COMMIT_LIFT_PX + 18);
+        // Still armed (the RAW lift past the commit line arms the commit
+        // regardless of the visual clamp).
         expect(target.getAttribute("data-drag-armed")).toBe("true");
         fireEvent.pointerUp(target, { clientX: 100, clientY: 0 });
     });

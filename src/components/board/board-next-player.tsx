@@ -1,6 +1,7 @@
 import type { Player } from "~/types/game";
 import { usePlayerInteraction } from "~/hooks/usePlayerInteraction";
 import PlayerNameplate from "./player-nameplate";
+import PlayerManaPool from "./player-mana-pool";
 
 type BoardNextPlayerProps = {
     player: Player;
@@ -25,13 +26,19 @@ export default function BoardNextPlayer({
     side,
 }: BoardNextPlayerProps) {
     const interaction = usePlayerInteraction(player);
+    // Relative wrapper so the floating mana-pool indicator anchors to the
+    // nameplate (its absolute `bottom-full` / `top-full` need a positioned
+    // ancestor), mirroring how the classic `player-side-row` pairs the pool with
+    // the life cell. Without it the pool — restored here — has nothing to hang
+    // off and would be clipped to the viewport edge.
     return (
-        <PlayerNameplate
-            player={player}
-            interaction={interaction}
+        <div
             className={`absolute left-1/2 -translate-x-1/2 z-10 ${
                 side === "top" ? "top-1" : "bottom-1"
             }`}
-        />
+        >
+            <PlayerManaPool player={player} />
+            <PlayerNameplate player={player} interaction={interaction} />
+        </div>
     );
 }

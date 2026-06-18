@@ -1,19 +1,25 @@
-import type { Player } from "~/types/game";
+import { useMemo } from "react";
+import type { CardInstance, Player } from "~/types/game";
+import { useGameContext } from "~/hooks/useGameContext";
 import { useBattlefieldInteraction } from "~/hooks/useBattlefieldInteraction";
-import { rowLayout, type Placement } from "~/lib/board-layout";
+import { isCreature, isLand } from "~/lib/card-utils";
+import { bandedRowsLayout } from "~/lib/board-layout";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
 import BoardNextBattlefieldCard from "./board-next-battlefield-card";
 import CombatPanels from "./combat-panels";
 
-/** Battlefield row: full size + gap until overflow, then overlap, then scale.
- *  Vertically centered in its zone (`rowLayout`, #251). */
-function battlefieldLayout(
-    count: number,
-    width: number,
-    height: number
-): Placement[] {
-    return rowLayout({ count, width, centerY: height / 2 });
-}
+/** Two battlefield rows: creatures hold the combat line in FRONT (toward the
+ *  midline), and everything noncreature — lands plus other permanents (artifacts
+ *  / enchantments / planeswalkers) — sits in the BACK row as two blocks: lands
+ *  flush-left, other noncreatures flush-right. Both rows live in ONE full-height
+ *  zone (no `overflow-hidden` sub-bands that would clip tall cards): {@link
+ *  bandedRowsLayout} caps each row's scale to its height slice. `centerYFrac` is
+ *  the VIEWER orientation (creatures nearest the top/midline); `SpatialZone`'s
+ *  `mirror` flips it for the opponent so both players' creatures sit nearest the
+ *  midline. */
+const CREATURES_CENTER_Y_FRAC = 0.28;
+const BACK_CENTER_Y_FRAC = 0.74;
+type BandKey = "creatures" | "back";
 
 type BoardNextBattlefieldProps = {
     player: Player;
@@ -21,6 +27,19 @@ type BoardNextBattlefieldProps = {
     mirror?: boolean;
     "data-testid"?: string;
 };
+
+/** Classify a permanent into its battlefield band. Creature-lands (e.g. Dryad
+ *  Arbor, animated lands) sit with the creatures, matching the classic board;
+ *  everything else (lands + other noncreature permanents) goes to the back row. */
+function bandOf(card: CardInstance): BandKey {
+    return isCreature(card) ? "creatures" : "back";
+}
+
+/** Order within the back row: lands first, then other noncreature permanents,
+ *  so "terre + noncreature" read left-to-right consistently. */
+function backRowRank(card: CardInstance): number {
+    return isLand(card) ? 0 : 1;
+}
 
 /** One player's battlefield on the spatial board (PRD #249, slice #256).
  *
@@ -34,13 +53,26 @@ type BoardNextBattlefieldProps = {
  *  mana-choice picker + validation toast) is mounted here so the spatial board
  *  surfaces them. Isolating the hook in this component (rather than inside
  *  `board-next.tsx`'s item builder) keeps the rules-of-hooks contract clean —
- *  the hook runs unconditionally per mounted battlefield. The cards are
- *  positioned by the shared layout math via {@link SpatialZone}. */
+ *  the hook runs unconditionally per mounted battlefield.
+ *
+ *  Cards are split into the {@link BANDS} rows (creatures / others / lands) and
+ *  each band is positioned by the shared layout math via its own
+ *  {@link SpatialZone}; all bands live in the same `LayoutGroup` so a permanent
+ *  that changes band (an animated land, a creature that loses its types) still
+ *  FLIP-animates by `slotId` rather than teleporting. */
 export default function BoardNextBattlefield({
     player,
     mirror,
     "data-testid": testId,
 }: BoardNextBattlefieldProps) {
+    // Scan every battlefield for cross-controlled auras (CR 303.4). Falls back
+    // to this player alone when the context has no roster (minimal test
+    // contexts) so own-battlefield auras still resolve and nothing crashes.
+    const ctx = useGameContext();
+    const allPlayers = useMemo(
+        () => (ctx.allPlayers?.length ? ctx.allPlayers : [player]),
+        [ctx.allPlayers, player]
+    );
     const {
         getVisualState,
         handleClickWithEvent,
@@ -49,9 +81,38 @@ export default function BoardNextBattlefield({
         overlays,
     } = useBattlefieldInteraction(player);
 
-    const items: SpatialItem[] = player.battlefield.map((card) => ({
-        key: card.id,
-        node: (
+    // Attached auras (CR 303.4) are NOT placed as their own slot in the row —
+    // they ride ON their host, overlapping up-and-left, exactly as the classic
+    // board renders them. The aura's controller may differ from the host's, so
+    // scan every battlefield for auras whose host sits on this side (matches
+    // `player-battlefield.tsx`'s `attachedAurasByHost`).
+    const attachedAurasByHost = useMemo(() => {
+        const map = new Map<string, CardInstance[]>();
+        const hostsOnThisSide = new Set(player.battlefield.map((c) => c.id));
+        for (const p of allPlayers) {
+            for (const c of p.battlefield) {
+                if (!c.attachedTo) continue;
+                if (!hostsOnThisSide.has(c.attachedTo)) continue;
+                const bucket = map.get(c.attachedTo);
+                if (bucket) bucket.push(c);
+                else map.set(c.attachedTo, [c]);
+            }
+        }
+        return map;
+    }, [player.battlefield, allPlayers]);
+
+    // Auras whose host exists on the board fold into that host's slot (above);
+    // ungrouped leftovers (host gone / attachedTo unset) still get their own slot
+    // so they never vanish.
+    const hostExistsAnywhere = useMemo(() => {
+        const ids = new Set<string>();
+        for (const p of allPlayers)
+            for (const c of p.battlefield) ids.add(c.id);
+        return ids;
+    }, [allPlayers]);
+
+    function renderCard(card: CardInstance) {
+        return (
             <BoardNextBattlefieldCard
                 card={card}
                 vs={getVisualState(card)}
@@ -61,17 +122,106 @@ export default function BoardNextBattlefield({
                     handleActivateAbility(card.id, abilityId, keepPriority)
                 }
             />
-        ),
-    }));
+        );
+    }
+
+    function toItem(card: CardInstance): SpatialItem {
+        const auras = attachedAurasByHost.get(card.id);
+        return {
+            key: card.id,
+            node: auras?.length ? (
+                // Host slot carries its auras as overlays pinned up-and-left, so
+                // they track the host through the spring/tilt motion. The host
+                // paints last (on top); each extra aura fans further out.
+                <div className="relative w-full h-full">
+                    {auras.map((aura, i) => (
+                        <div
+                            key={aura.id}
+                            className="absolute w-full h-full"
+                            style={{
+                                top: `-${22 * (i + 1)}%`,
+                                left: `-${22 * (i + 1)}%`,
+                            }}
+                        >
+                            {renderCard(aura)}
+                        </div>
+                    ))}
+                    {renderCard(card)}
+                </div>
+            ) : (
+                renderCard(card)
+            ),
+        };
+    }
+
+    // Hosts that get their own slot (auras fold into their host above), grouped
+    // into the creature row and the back row, concatenated front-to-back so the
+    // layout closure below can place each row. The back row is ordered lands
+    // first, then other noncreature permanents — lands cluster left, others
+    // right (a two-block split row).
+    const { orderedItems, creatureCount, landCount, otherCount } =
+        useMemo(() => {
+            const creatures: CardInstance[] = [];
+            const lands: CardInstance[] = [];
+            const others: CardInstance[] = [];
+            for (const card of player.battlefield) {
+                if (
+                    card.attachedTo &&
+                    hostExistsAnywhere.has(card.attachedTo)
+                ) {
+                    continue;
+                }
+                if (bandOf(card) === "creatures") creatures.push(card);
+                else if (backRowRank(card) === 0) lands.push(card);
+                else others.push(card);
+            }
+            // Order: creatures, then back row = lands (left block) then others (right).
+            const ordered: SpatialItem[] = [
+                ...creatures,
+                ...lands,
+                ...others,
+            ].map(toItem);
+            return {
+                orderedItems: ordered,
+                creatureCount: creatures.length,
+                landCount: lands.length,
+                otherCount: others.length,
+            };
+            // `toItem`/`renderCard` close over the per-render interaction handlers;
+            // they are intentionally recomputed each render (cheap) — the heavy
+            // grouping deps are the battlefield and host set.
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [player.battlefield, hostExistsAnywhere, attachedAurasByHost]);
+
+    // One full-height zone; the layout stacks the creature row (centered) over
+    // the back row (lands flush-left, other noncreatures flush-right) so nothing
+    // is clipped vertically (see BANDS doc).
+    function layout(_count: number, width: number, height: number) {
+        return bandedRowsLayout({
+            bands: [
+                {
+                    count: creatureCount,
+                    centerYFrac: CREATURES_CENTER_Y_FRAC,
+                },
+                {
+                    split: { left: landCount, right: otherCount },
+                    centerYFrac: BACK_CENTER_Y_FRAC,
+                },
+            ],
+            width,
+            height,
+        });
+    }
 
     return (
         <>
             <SpatialZone
-                items={items}
-                layout={battlefieldLayout}
+                items={orderedItems}
+                layout={layout}
                 mirror={mirror}
                 anchorKind="permanent"
                 data-testid={testId}
+                className="mx-3"
             />
             {/* Combat declaration / damage modals (#281). The per-card combat
             clicks (toggleAttacker / selectBlocker / assignBlockerTarget) live

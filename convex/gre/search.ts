@@ -1165,6 +1165,27 @@ function isFreeManaSourceCast(
     return manaValue(getInstanceManaCost(card)) === 0 && hasManaAbility(card);
 }
 
+/** Whether `move` casts a MANA DORK — a creature with a mana ability (Birds of
+ *  Paradise, Llanowar Elves, a Mox-on-legs). The creature analog of the free
+ *  mana source above: it develops a mana source / ramps, and a sorcery-speed
+ *  creature carries NO instant-speed option value to holding (unlike a held
+ *  trick), so deferring it when outcome-equal is never right. Its body + ramp
+ *  is realized material that washes out of the rollout horizon, so `pass` can
+ *  win the material tie-break on noise (issue: bot sat on Birds of Paradise on
+ *  an empty board with a Mox down rather than casting it). Unlike
+ *  `isFreeManaSourceCast` the dork costs mana (MV ≥ 1), so it joins the
+ *  free-development tie-break only — it is NOT "free" in the literal sense, but
+ *  shares the no-option-cost-to-holding rationale. `caster` is `botId` when
+ *  known, else the active player. Pure. */
+function isManaDorkCast(state: GameState, move: Move, botId?: string): boolean {
+    if (move.kind !== "cast-spell") return false;
+    const casterId = botId ?? state.activePlayerId;
+    const caster = state.players.find((p) => p.id === casterId);
+    const card = caster?.hand.find((c) => c.id === move.cardInstanceId);
+    if (!card) return false;
+    return isCreature(card) && hasManaAbility(card);
+}
+
 export function selectRootMove(
     root: Node,
     moves: Move[],
@@ -1277,15 +1298,18 @@ export function selectRootMove(
     }
 
     // Free-development tie-break (ADR 0020 §1, issue #206; extended for free
-    // mana sources). A land — and likewise a FREE MANA SOURCE (a Mox, Black
-    // Lotus, a 0-cost mana artifact; `isFreeManaSourceCast`) — has no option cost
-    // in this engine: there is no bluff or hidden-information value to holding it,
-    // and it costs nothing to play, so deferring it is never right. Both develop
-    // board/mana that washes out of the rollout, so `pass` can win the material
-    // tie-break on noise (the bot sat on its only land; the bot preferred `pass`
-    // over `cast Mox Jet`). When the robust pick is `pass` but an outcome-equal
-    // land drop OR free-mana-source cast exists (within `OUTCOME_EPS` of the best
-    // mean reward), develop it instead. Fires ONLY on outcome-equality, so it can
+    // mana sources and mana dorks). A land — and likewise a FREE MANA SOURCE (a
+    // Mox, Black Lotus, a 0-cost mana artifact; `isFreeManaSourceCast`) or a MANA
+    // DORK (Birds of Paradise, Llanowar Elves; `isManaDorkCast`) — has no option
+    // cost in this engine: there is no bluff or hidden-information value to
+    // holding it, a sorcery-speed permanent carries no instant-speed option to
+    // defer, so deferring it is never right. All develop board/mana that washes
+    // out of the rollout, so `pass` can win the material tie-break on noise (the
+    // bot sat on its only land; preferred `pass` over `cast Mox Jet`; sat on
+    // Birds of Paradise on an empty board with a Mox down). When the robust pick
+    // is `pass` but an outcome-equal land drop, free-mana-source cast OR mana-dork
+    // cast exists (within `OUTCOME_EPS` of the best mean reward), develop it
+    // instead. Fires ONLY on outcome-equality, so it can
     // never override a genuine decision, and never overrides a non-`pass` robust
     // pick. Generalizes the issue-#149 "land drop strictly positive" invariant to
     // the tie-break (a strictly-better development already wins on mean reward and
@@ -1304,7 +1328,8 @@ export function selectRootMove(
                 mean(e) >= bestMean - OUTCOME_EPS &&
                 (e.move.kind === "play-land" ||
                     (!!rootState &&
-                        isFreeManaSourceCast(rootState, e.move, botId)))
+                        (isFreeManaSourceCast(rootState, e.move, botId) ||
+                            isManaDorkCast(rootState, e.move, botId))))
         );
         if (develop) return develop.move;
     }

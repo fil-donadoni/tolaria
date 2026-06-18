@@ -39,6 +39,7 @@ const MUTATIONS: Record<string, ReturnType<typeof vi.fn>> = {
 
 vi.mock("convex/react", () => ({
     useMutation: (ref: { _name: string }) => MUTATIONS[ref._name] ?? noop,
+    useQuery: () => undefined,
 }));
 
 vi.mock("@convex/_generated/api", () => {
