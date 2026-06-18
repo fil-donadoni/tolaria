@@ -286,6 +286,7 @@ function Lobby() {
                     onJoin={handleJoin}
                     onChangeDeck={handleChangeDeck}
                     busy={isBusy}
+                    hasActiveGame={!!activeGame}
                 />
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

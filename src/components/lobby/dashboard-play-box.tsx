@@ -24,6 +24,9 @@ interface DashboardPlayBoxProps {
     onJoin: (gameId: Id<"games">) => void;
     onChangeDeck: () => void;
     busy?: boolean;
+    /** #155: a user holds at most one active game. While one exists, creating
+     *  or joining is blocked client-side (the server rejects it anyway). */
+    hasActiveGame?: boolean;
 }
 
 export default function DashboardPlayBox({
@@ -40,8 +43,9 @@ export default function DashboardPlayBox({
     onJoin,
     onChangeDeck,
     busy = false,
+    hasActiveGame = false,
 }: DashboardPlayBoxProps) {
-    const canPlay = !!selectedDeck && !busy;
+    const canPlay = !!selectedDeck && !busy && !hasActiveGame;
 
     return (
         <Panel tone="accent">
