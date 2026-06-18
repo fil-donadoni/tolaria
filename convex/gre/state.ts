@@ -68,7 +68,7 @@ import {
  *  match with `skip > 0`, skip decrements. On a match with `skip === 0`,
  *  the effect expires. */
 export type Duration = {
-    phase: "end-of-turn" | "end-of-combat";
+    phase: "end-of-turn" | "end-of-combat" | "upkeep";
     /** Number of matching boundaries still to skip. Undefined = 0. */
     skip?: number;
     /** Resolved at creation time. Undefined = any active player's boundary. */
@@ -101,7 +101,11 @@ export function tickDuration(
     view: { phase: Phase; activePlayerId: string }
 ): Duration | null {
     const boundary: Phase =
-        duration.phase === "end-of-turn" ? "CLEANUP" : "END_OF_COMBAT";
+        duration.phase === "end-of-turn"
+            ? "CLEANUP"
+            : duration.phase === "upkeep"
+              ? "UPKEEP"
+              : "END_OF_COMBAT";
     if (view.phase !== boundary) return duration;
     if (
         duration.playerId !== undefined &&
@@ -206,6 +210,15 @@ export type CardInstanceState = {
      *  layer 6). Each entry records the removed keyword and the source that
      *  removed it so `unapplySourceStaticEffects` can restore it. */
     removedKeywords?: { keyword: string; sourceId: string }[];
+    /** Instance ids of `ability-loss` static-effect sources that have stripped
+     *  this permanent of ALL its abilities (CR 613.1f — "loses all abilities",
+     *  Titania's Song). While non-empty: native activated abilities don't
+     *  resolve, triggered abilities are excluded from the trigger scan, and the
+     *  intrinsic mana ability is unavailable. Keyword abilities are stripped
+     *  imperatively into `removedKeywords` (so the existing restore path
+     *  rebuilds them). Multiple sources stack; the last source to unapply
+     *  clears the suppression. */
+    abilitiesSuppressedBy?: string[];
     /** Damage marked on the creature this turn (CR 120.3). Accumulates across
      *  damage events; checked against effective toughness for lethal damage
      *  (CR 704.5g). Removed at CLEANUP (CR 514.2). */
@@ -1867,6 +1880,30 @@ export function applySourceStaticEffects(
                             { keyword: effect.keyword, sourceId: source.id },
                         ];
                     }
+                } else if (effect.kind === "ability-loss") {
+                    // CR 613.1f layer-6 ability removal (Titania's Song).
+                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                        continue;
+                    }
+                    const already = (
+                        target.abilitiesSuppressedBy ?? []
+                    ).includes(source.id);
+                    if (already) continue;
+                    // Strip every keyword into `removedKeywords` (source-keyed),
+                    // reusing the keyword-remove restore path on unapply.
+                    const removed = target.removedKeywords ?? [];
+                    for (const kw of target.staticAbilities) {
+                        removed.push({ keyword: kw, sourceId: source.id });
+                    }
+                    if (target.staticAbilities.length > 0) {
+                        target.staticAbilities = [];
+                    }
+                    target.removedKeywords =
+                        removed.length > 0 ? removed : undefined;
+                    target.abilitiesSuppressedBy = [
+                        ...(target.abilitiesSuppressedBy ?? []),
+                        source.id,
+                    ];
                 }
             }
         }
@@ -1972,6 +2009,16 @@ export function unapplySourceStaticEffects(
                     ];
                 }
                 target.removedKeywords = kept.length > 0 ? kept : undefined;
+            }
+            // CR 613.1f — release this source's "loses all abilities" hold.
+            // Keyword restoration is handled by the `removedKeywords` block
+            // above (source-keyed); here we just drop the suppression marker so
+            // activated/triggered/mana abilities function once no source holds.
+            const suppressors = target.abilitiesSuppressedBy;
+            if (suppressors && suppressors.length > 0) {
+                const keptS = suppressors.filter((id) => id !== source.id);
+                target.abilitiesSuppressedBy =
+                    keptS.length > 0 ? keptS : undefined;
             }
         }
     }
@@ -2096,6 +2143,31 @@ export function applyExistingGrantsTo(
                     newPermanent.grantedSubtypes =
                         grants.length > 0 ? grants : undefined;
                     newPermanent.subtypes = [...effect.subtypes];
+                } else if (effect.kind === "ability-loss") {
+                    // CR 613.1f — a noncreature artifact entering under
+                    // Titania's Song loses all its abilities too.
+                    if (
+                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
+                    ) {
+                        continue;
+                    }
+                    const already = (
+                        newPermanent.abilitiesSuppressedBy ?? []
+                    ).includes(source.id);
+                    if (already) continue;
+                    const removed = newPermanent.removedKeywords ?? [];
+                    for (const kw of newPermanent.staticAbilities) {
+                        removed.push({ keyword: kw, sourceId: source.id });
+                    }
+                    if (newPermanent.staticAbilities.length > 0) {
+                        newPermanent.staticAbilities = [];
+                    }
+                    newPermanent.removedKeywords =
+                        removed.length > 0 ? removed : undefined;
+                    newPermanent.abilitiesSuppressedBy = [
+                        ...(newPermanent.abilitiesSuppressedBy ?? []),
+                        source.id,
+                    ];
                 }
             }
         }

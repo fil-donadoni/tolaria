@@ -419,6 +419,9 @@ function enumerateAbilityMoves(
     const cardId = (perm.card as { id?: string }).id;
     const def = cardId ? tryGetCardById(cardId) : undefined;
     if (!def?.activatedAbilities) return [];
+    // CR 613.1f — a permanent that has lost all abilities (Titania's Song)
+    // exposes none of its native activated abilities to the bot enumerator.
+    if ((perm.abilitiesSuppressedBy?.length ?? 0) > 0) return [];
 
     const moves: Move[] = [];
     for (const ability of def.activatedAbilities) {

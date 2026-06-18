@@ -2560,3 +2560,129 @@ export const reversePolarity: CardDefinition = {
         }
     },
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster F — animate noncreature artifact (#288). CR 613.1f (layer-6 ability
+// removal), CR 205 (layer-4 type-add via the `type-add`/animate surrogate),
+// CR 604.3 / 613.4a (P/T characteristic-defining ability = mana value), CR
+// 500.2 (the "until your next upkeep" duration boundary). A noncreature
+// artifact becomes an artifact creature with power and toughness each equal to
+// its mana value; Titania's Song additionally strips all abilities and applies
+// continuously to the whole filtered set (current + future entrants); Xenic
+// Poltergeist is a single-target {T} animation that ends at the controller's
+// next upkeep. `getPrintedTypes` discriminates a printed noncreature artifact
+// from a printed artifact creature (Ornithopter) so the Song never animates an
+// already-creature artifact and keeps matching its own targets after it has
+// added Creature to them.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** CR 205 — true if `card` is a printed noncreature Artifact (Titania's Song's
+ *  affected set). Reads the PRINTED type line so the predicate is stable after
+ *  the Song adds the Creature type to its targets, and never matches a printed
+ *  artifact creature. */
+const IS_NONCREATURE_ARTIFACT: (
+    target: PermanentView,
+    source: PermanentView,
+    ctx: import("../types").StaticEffectContext
+) => boolean = (target, _source, ctx) => {
+    const printed = ctx.getPrintedTypes(target);
+    return printed.includes("Artifact") && !printed.includes("Creature");
+};
+
+// Titania's Song — {3}{G} Enchantment. "Each noncreature artifact loses all
+// abilities and becomes an artifact creature with power and toughness each
+// equal to its mana value. If this enchantment leaves the battlefield, this
+// effect continues until end of turn." (CR 613.1f ability removal + CR 205
+// type-add + CR 604.3 mana-value CDA, applied continuously to every printed
+// noncreature artifact on the battlefield — including ones that enter after
+// the Song resolves, via `applyExistingGrantsTo`.)
+//
+// DIVERGENCE (flagged, no engine change): "becomes an artifact creature" only
+// needs to ADD Creature — the affected permanents are already artifacts, so no
+// Artifact type-add is required. The leave-the-battlefield "continues until end
+// of turn" linger clause is NOT modeled: when the Song leaves play the engine
+// reverts the type/ability changes immediately (the standard
+// `unapplySourceStaticEffects` path). This is observable only in the window
+// between the Song leaving and the cleanup step; the common play pattern keeps
+// the Song in play, so the simplification is acceptable for ATQ scope. A
+// general "linger this continuous effect until EOT on source-leave" duration is
+// deferred to a later tranche.
+export const titaniasSong: CardDefinition = {
+    id: "583a53af-2e2a-4f3f-8eab-bd874c6ed80a",
+    name: "Titania's Song",
+    oracleText:
+        "Each noncreature artifact loses all abilities and becomes an artifact creature with power and toughness each equal to its mana value. If this enchantment leaves the battlefield, this effect continues until end of turn.",
+    manaCost: { X: 3, G: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        // CR 613.1f — strip all abilities BEFORE the type/P-T changes.
+        {
+            kind: "ability-loss",
+            applies: IS_NONCREATURE_ARTIFACT,
+        },
+        // CR 205 — add the Creature type (already an Artifact).
+        {
+            kind: "type-add",
+            applies: IS_NONCREATURE_ARTIFACT,
+            types: ["Creature"],
+        },
+        // CR 604.3 / 613.4a — power and toughness each equal to mana value.
+        {
+            kind: "pt-cda",
+            applies: IS_NONCREATURE_ARTIFACT,
+            compute: (_source, _state, ctx, target) => {
+                const mv = ctx.getManaValue(target);
+                return { power: mv, toughness: mv };
+            },
+        },
+    ],
+};
+
+// Xenic Poltergeist — {1}{B}{B} Creature — Spirit, 1/1. "{T}: Until your next
+// upkeep, target noncreature artifact becomes an artifact creature with power
+// and toughness each equal to its mana value." (CR 605 activated ability + CR
+// 205 animate + CR 604.3 mana-value P/T + CR 500.2 "until your next upkeep"
+// duration.) Single-target one-shot animation that ends as the controller's
+// upkeep begins. Does NOT strip abilities (unlike Titania's Song). The animated
+// artifact's P/T is its mana value, snapshotted at resolution via
+// `ctx.getManaValue` and stored as the animation's base P/T.
+//
+// DIVERGENCE (flagged, no engine change): `animateAsCreature` adds the Creature
+// type only — the target is already an artifact, so the resulting "artifact
+// creature" type line is correct without an Artifact type-add.
+export const xenicPoltergeist: CardDefinition = {
+    id: "5149ffff-d38f-458e-bcfa-a4b6b332a0b4",
+    name: "Xenic Poltergeist",
+    oracleText:
+        "{T}: Until your next upkeep, target noncreature artifact becomes an artifact creature with power and toughness each equal to its mana value.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Spirit"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "xenic-poltergeist-animate",
+            oracleText:
+                "{T}: Until your next upkeep, target noncreature artifact becomes an artifact creature with power and toughness each equal to its mana value.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Artifact",
+                count: 1,
+                excludeTypes: "Creature",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type !== "permanent") return;
+                const mv = ctx.getManaValue(target);
+                ctx.animateAsCreature(target, {
+                    power: mv,
+                    toughness: mv,
+                    // CR 500.2 — ends as the controller's next upkeep begins.
+                    duration: { phase: "upkeep", player: "controller" },
+                });
+            },
+        },
+    ],
+};

@@ -89,6 +89,9 @@ function compactCard(
     if (card.removedKeywords?.length) {
         out.removedKeywords = card.removedKeywords;
     }
+    if (card.abilitiesSuppressedBy?.length) {
+        out.abilitiesSuppressedBy = card.abilitiesSuppressedBy;
+    }
     if (card.damagedBySources?.length) {
         out.damagedBySources = card.damagedBySources;
     }
@@ -218,6 +221,10 @@ function expandCard(
     if (compact.removedKeywords) {
         result.removedKeywords =
             compact.removedKeywords as CardInstanceState["removedKeywords"];
+    }
+    if (compact.abilitiesSuppressedBy) {
+        result.abilitiesSuppressedBy =
+            compact.abilitiesSuppressedBy as CardInstanceState["abilitiesSuppressedBy"];
     }
     if (compact.damagedBySources) {
         result.damagedBySources = compact.damagedBySources as string[];
