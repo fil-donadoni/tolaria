@@ -5,7 +5,7 @@ import { fanLayout, type Placement } from "~/lib/board-layout";
 import { useGameContext } from "~/hooks/useGameContext";
 import { ArrowAnchorProvider } from "~/hooks/useArrowAnchors";
 import BoardNextBattlefield from "./board-next-battlefield";
-import BoardNextPlayerAnchor from "./board-next-player-anchor";
+import BoardNextPlayer from "./board-next-player";
 import BoardNextHand from "./board-next-hand";
 import BoardNextPiles from "./board-next-piles";
 import BoardNextArrows from "./board-next-arrows";
@@ -57,10 +57,7 @@ export default function BoardNext({
                     layout math, mirrored to the top half. */}
                     {opponent && (
                         <>
-                            <BoardNextPlayerAnchor
-                                playerId={opponent.id}
-                                side="top"
-                            />
+                            <BoardNextPlayer player={opponent} side="top" />
                             <div className="absolute left-0 right-0 top-0 h-[18%]">
                                 <BoardNextHand
                                     player={opponent}
@@ -83,10 +80,7 @@ export default function BoardNext({
                     {/* Viewer: battlefield on the bottom half, hand on the bottom edge. */}
                     {me && (
                         <>
-                            <BoardNextPlayerAnchor
-                                playerId={me.id}
-                                side="bottom"
-                            />
+                            <BoardNextPlayer player={me} side="bottom" />
                             <div className="absolute left-0 right-0 top-1/2 h-[32%]">
                                 <BoardNextBattlefield
                                     player={me}

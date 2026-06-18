@@ -78,6 +78,14 @@ vi.mock("../board-next-hand-card", () => ({
         <div data-testid="bn-hand-card" data-card-id={card.id} />
     ),
 }));
+// The player nameplate (#280) runs useMutation/usePendingChoiceBuffer; this is
+// a layout-placement test, so stub it to an inert node that still emits the
+// per-seat target-arrow anchor the seam-#256 assertion checks.
+vi.mock("../board-next-player", () => ({
+    default: ({ player }: { player: Player }) => (
+        <div data-arrow-anchor-player={player.id} />
+    ),
+}));
 vi.mock("../game-stack", () => ({ default: () => null }));
 vi.mock("../board-next-piles", () => ({ default: () => null }));
 vi.mock("../phase-tracker", () => ({ default: () => null }));
