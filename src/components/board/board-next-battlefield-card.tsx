@@ -1,11 +1,13 @@
 import type { CardInstance } from "~/types/game";
-import type { CardVisualState } from "./battlefield-card";
+import type { CardVisualState, ActivatableAbility } from "./battlefield-card";
 import { useGameContext } from "~/hooks/useGameContext";
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { isCreature } from "~/lib/card-utils";
 import { getColorOverrideDisplay } from "~/lib/color-override";
 import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
+import ActivatableAbilityMenu from "./activatable-ability-menu";
+import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
 
 type BoardNextBattlefieldCardProps = {
     card: CardInstance;
@@ -22,6 +24,15 @@ type BoardNextBattlefieldCardProps = {
      *  targeting / combat branches live in the same handler and ship in the
      *  follow-up slices (#278/#279/#281). */
     onClick?: (e: React.MouseEvent) => void;
+    /** Activated abilities the viewer may fire on this permanent, from the
+     *  shared `useBattlefieldInteraction` hook's `getActivatable` (#278). When
+     *  non-empty, the card gains the same right-click context menu / touch
+     *  action-sheet affordance as the classic board via the shared
+     *  {@link ActivatableAbilityMenu}. */
+    activatableAbilities?: ActivatableAbility[];
+    /** Dispatches the selected ability — wired to the hook's
+     *  `handleActivateAbility` (X prompt, keep-priority, mana entry). */
+    onActivateAbility?: (abilityId: string, keepPriority: boolean) => void;
 };
 
 /** Battlefield card for the new spatial board (PRD #249, slice #256).
@@ -48,9 +59,17 @@ export default function BoardNextBattlefieldCard({
     card,
     vs,
     onClick,
+    activatableAbilities,
+    onActivateAbility,
 }: BoardNextBattlefieldCardProps) {
     const { allPlayers } = useGameContext();
     const creature = isCreature(card);
+
+    const abilities = activatableAbilities ?? [];
+    const hasAbilities = abilities.length > 0;
+    const activate = (abilityId: string, keepPriority: boolean) =>
+        onActivateAbility?.(abilityId, keepPriority);
+    const ability = useAbilityCardClick(abilities, activate);
 
     const damage = card.damageMarked ?? 0;
 
@@ -115,25 +134,49 @@ export default function BoardNextBattlefieldCard({
             : "cursor-pointer"
         : "";
 
-    return (
+    const inner = (
+        <CardTilt3D>
+            <div
+                className={`relative w-full h-full rounded-sm overflow-hidden ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)] ${vs.ringClass}`}
+            >
+                <CardImage card={card} />
+                {colorOverrideOverlay}
+                {darkenOverlay}
+                {badgeEl}
+                {ptDamageStack}
+            </div>
+        </CardTilt3D>
+    );
+
+    // The clickable element binds tap/pay `onClick` normally; when the permanent
+    // has activatable abilities it instead binds the ability gesture handlers
+    // (touch → affordance, desktop → right-click menu) and the shared
+    // `ActivatableAbilityMenu` wraps it — identical affordance to the classic
+    // board (#278).
+    const clickHandlers = hasAbilities
+        ? { onClick: ability.onClick, onTouchStart: ability.onTouchStart }
+        : { onClick };
+
+    const cardContent = (
         <div
             data-arrow-anchor-permanent={card.id}
             data-tapped={card.isTapped ? "true" : undefined}
             className={`w-full h-full ${vs.combatOffset} ${cursorClass} transition-[transform] duration-[250ms]`}
             style={{ transform: tapTransform }}
-            onClick={onClick}
+            {...clickHandlers}
         >
-            <CardTilt3D>
-                <div
-                    className={`relative w-full h-full rounded-sm overflow-hidden ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)] ${vs.ringClass}`}
-                >
-                    <CardImage card={card} />
-                    {colorOverrideOverlay}
-                    {darkenOverlay}
-                    {badgeEl}
-                    {ptDamageStack}
-                </div>
-            </CardTilt3D>
+            {inner}
         </div>
+    );
+
+    return (
+        <ActivatableAbilityMenu
+            abilities={abilities}
+            onActivate={activate}
+            sheetOpen={ability.sheetOpen}
+            onSheetClose={ability.onSheetClose}
+        >
+            {cardContent}
+        </ActivatableAbilityMenu>
     );
 }

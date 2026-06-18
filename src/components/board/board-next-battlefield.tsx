@@ -40,8 +40,13 @@ export default function BoardNextBattlefield({
     mirror,
     "data-testid": testId,
 }: BoardNextBattlefieldProps) {
-    const { getVisualState, handleClickWithEvent, overlays } =
-        useBattlefieldInteraction(player);
+    const {
+        getVisualState,
+        handleClickWithEvent,
+        getActivatable,
+        handleActivateAbility,
+        overlays,
+    } = useBattlefieldInteraction(player);
 
     const items: SpatialItem[] = player.battlefield.map((card) => ({
         key: card.id,
@@ -50,6 +55,10 @@ export default function BoardNextBattlefield({
                 card={card}
                 vs={getVisualState(card)}
                 onClick={(e) => handleClickWithEvent(card, e)}
+                activatableAbilities={getActivatable(card)}
+                onActivateAbility={(abilityId, keepPriority) =>
+                    handleActivateAbility(card.id, abilityId, keepPriority)
+                }
             />
         ),
     }));

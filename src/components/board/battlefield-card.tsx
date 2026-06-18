@@ -1,4 +1,3 @@
-import { useRef, useState } from "react";
 import type { CardInstance } from "~/types/game";
 import CardImage from "../cards/card-image";
 import {
@@ -6,20 +5,12 @@ import {
     TooltipTrigger,
     TooltipContent,
 } from "~/components/ui/tooltip";
-import {
-    ContextMenu,
-    ContextMenuTrigger,
-    ContextMenuContent,
-    ContextMenuItem,
-} from "~/components/ui/context-menu";
-import ActionSheet, {
-    type ActionSheetItem,
-} from "~/components/ui/action-sheet";
 import { useGameContext } from "~/hooks/useGameContext";
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { isCreature } from "~/lib/card-utils";
-import { formatOracleText } from "~/lib/oracle-text";
 import { getColorOverrideDisplay } from "~/lib/color-override";
+import ActivatableAbilityMenu from "./activatable-ability-menu";
+import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
 
 export type CardVisualState = {
     interactive: boolean;
@@ -53,8 +44,11 @@ export default function BattlefieldCard({
 }) {
     const hasAbilities = !!activatableAbilities?.length;
     const { allPlayers } = useGameContext();
-    const [sheetOpen, setSheetOpen] = useState(false);
-    const isTouchRef = useRef(false);
+
+    const abilities = activatableAbilities ?? [];
+    const activate = (abilityId: string, keepPriority: boolean) =>
+        onActivateAbility?.(abilityId, keepPriority);
+    const ability = useAbilityCardClick(abilities, activate);
 
     // Scope transitions to transform+opacity only. `transition-all` kept the
     // layer in an "animating" state and Chrome's compositor served a downsampled
@@ -158,20 +152,13 @@ export default function BattlefieldCard({
         </div>
     );
 
-    const handleAbilityTap = hasAbilities
-        ? (e: React.MouseEvent) => {
-              if (!isTouchRef.current) return;
-              e.preventDefault();
-              e.stopPropagation();
-              if (activatableAbilities!.length === 1) {
-                  onActivateAbility?.(activatableAbilities![0].id, false);
-              } else {
-                  setSheetOpen(true);
-              }
-          }
-        : undefined;
-
-    const handleCardClick = hasAbilities ? handleAbilityTap : onClick;
+    // The clickable element binds tap/pay `onClick` normally; when the permanent
+    // has activatable abilities it instead binds the ability gesture handlers
+    // (touch → affordance, desktop → right-click menu) and the shared
+    // `ActivatableAbilityMenu` wraps it with the context menu + action-sheet.
+    const clickHandlers = hasAbilities
+        ? { onClick: ability.onClick, onTouchStart: ability.onTouchStart }
+        : { onClick };
 
     const cardContent = vs.tooltip ? (
         <Tooltip>
@@ -179,10 +166,7 @@ export default function BattlefieldCard({
                 render={<div data-arrow-anchor-permanent={card.id} />}
                 className={cardClassName}
                 style={boxStyle}
-                onClick={handleCardClick}
-                onTouchStart={() => {
-                    isTouchRef.current = true;
-                }}
+                {...clickHandlers}
             >
                 {inner}
             </TooltipTrigger>
@@ -193,52 +177,20 @@ export default function BattlefieldCard({
             data-arrow-anchor-permanent={card.id}
             className={cardClassName}
             style={boxStyle}
-            onClick={handleCardClick}
-            onTouchStart={() => {
-                isTouchRef.current = true;
-            }}
+            {...clickHandlers}
         >
             {inner}
         </div>
     );
 
-    if (!hasAbilities) return cardContent;
-
-    const sheetItems: ActionSheetItem[] = activatableAbilities!.map((a) => ({
-        key: a.id,
-        label: formatOracleText(a.oracleText),
-        onSelect: (e: React.MouseEvent | React.TouchEvent) => {
-            const keepPriority =
-                "ctrlKey" in e ? e.ctrlKey || e.metaKey : false;
-            onActivateAbility?.(a.id, keepPriority);
-        },
-    }));
-
     return (
-        <>
-            <ContextMenu>
-                <ContextMenuTrigger>{cardContent}</ContextMenuTrigger>
-                <ContextMenuContent className="w-72">
-                    {activatableAbilities!.map((a) => (
-                        <ContextMenuItem
-                            key={a.id}
-                            onClick={(e) =>
-                                onActivateAbility?.(
-                                    a.id,
-                                    e.ctrlKey || e.metaKey
-                                )
-                            }
-                        >
-                            {formatOracleText(a.oracleText)}
-                        </ContextMenuItem>
-                    ))}
-                </ContextMenuContent>
-            </ContextMenu>
-            <ActionSheet
-                open={sheetOpen}
-                onClose={() => setSheetOpen(false)}
-                items={sheetItems}
-            />
-        </>
+        <ActivatableAbilityMenu
+            abilities={abilities}
+            onActivate={activate}
+            sheetOpen={ability.sheetOpen}
+            onSheetClose={ability.onSheetClose}
+        >
+            {cardContent}
+        </ActivatableAbilityMenu>
     );
 }
