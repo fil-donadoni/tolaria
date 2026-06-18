@@ -4592,15 +4592,20 @@ export function payManaCost(
 }
 
 /** True if restricted mana with `restriction` may pay for a spell with the
- *  given creature-ness (CR 106.6). The only restriction modelled today is
- *  `creature-spell`, spendable solely on creature spells (Metamorphosis). */
+ *  given card types (CR 106.6). Modelled restrictions:
+ *  - `creature-spell` — spendable solely on creature spells (Metamorphosis).
+ *  - `artifact-spell` — spendable solely on artifact spells (Mishra's
+ *    Workshop). Exhaustive `switch` over the union: a new member must add a
+ *    case here (and the compiler enforces it). */
 export function restrictionAllowsSpell(
     restriction: ManaRestriction,
-    isCreatureSpell: boolean
+    spellTypes: readonly string[]
 ): boolean {
     switch (restriction) {
         case "creature-spell":
-            return isCreatureSpell;
+            return spellTypes.includes("Creature");
+        case "artifact-spell":
+            return spellTypes.includes("Artifact");
     }
 }
 
@@ -4629,11 +4634,11 @@ export function addRestrictedManaToPool(
  *  spell being cast is a creature spell. */
 export function spendablePoolForSpell(
     player: PlayerState,
-    isCreatureSpell: boolean
+    spellTypes: readonly string[]
 ): Record<string, number> {
     const pool = { ...player.manaPool };
     for (const r of player.restrictedMana ?? []) {
-        if (restrictionAllowsSpell(r.restriction, isCreatureSpell)) {
+        if (restrictionAllowsSpell(r.restriction, spellTypes)) {
             pool[r.color] = (pool[r.color] ?? 0) + r.amount;
         }
     }
@@ -4645,16 +4650,16 @@ export function spendablePoolForSpell(
  *  policy — it maximises the flexible mana the caster keeps and can never make
  *  a payment illegal, since coverage was already confirmed against the merged
  *  pool. Reuses `payManaCost` semantics by paying a merged pool then
- *  reassigning who paid each color. Caller must pass whether the spell is a
- *  creature spell (drives which restricted mana is eligible). */
+ *  reassigning who paid each color. Caller must pass the spell's card types
+ *  (drives which restricted mana is eligible). */
 export function payManaCostForSpell(
     player: PlayerState,
     cost: Record<string, number>,
-    isCreatureSpell: boolean,
+    spellTypes: readonly string[],
     substitutions: ManaSubstitution[] = []
 ): void {
     const eligible = (player.restrictedMana ?? []).filter((r) =>
-        restrictionAllowsSpell(r.restriction, isCreatureSpell)
+        restrictionAllowsSpell(r.restriction, spellTypes)
     );
     if (eligible.length === 0) {
         payManaCost(player.manaPool, cost, substitutions);

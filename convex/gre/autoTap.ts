@@ -2,6 +2,7 @@ import type { Color } from "../cards/types";
 import {
     getActivatedManaAbility,
     getActivatedManaColor,
+    getActivatedManaRestriction,
     getBasicLandMana,
     getFixedManaAmount,
     isTapLockedBySummoningSickness,
@@ -75,6 +76,11 @@ export function buildAutoTapSources(
 
         // Side-effect mana abilities stay manual (sacrifice, e.g. Black Lotus).
         if (ability?.cost.sacrifice === true) continue;
+        // Restricted mana (CR 106.6, e.g. Mishra's Workshop) can pay only for
+        // certain spells; the solver reasons over the fungible pool and can't
+        // model that constraint, so leave those sources manual (the player
+        // floats the restricted mana, then casts an eligible spell).
+        if (getActivatedManaRestriction(card)) continue;
         // Summoning-sick creature mana dorks can't pay a {T} cost (CR 302.1).
         if (ability && isTapLockedBySummoningSickness(card)) continue;
 

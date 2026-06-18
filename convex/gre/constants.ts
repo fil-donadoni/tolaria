@@ -1,4 +1,5 @@
 import type { Color, ManaCost } from "../cards/types";
+import type { ManaRestriction } from "./types";
 import { getCardById } from "../cards";
 import type { CardInstanceState } from "./state";
 import { applySubstitution } from "./textChanges";
@@ -154,6 +155,19 @@ export function getFixedManaAmount(
 ): number {
     const produced = getActivatedManaProduced(card);
     return produced?.[color] ?? 1;
+}
+
+/** Spend restriction (CR 106.6) carried by a card's fixed tap mana ability, or
+ *  null when the produced mana is unrestricted. Mishra's Workshop returns
+ *  `"artifact-spell"`; basic lands and ordinary mana rocks return null. */
+export function getActivatedManaRestriction(
+    card: CardInstanceState
+): ManaRestriction | null {
+    const cardDef = getCardById(card.card.id as string);
+    const ability = cardDef.activatedAbilities?.find(
+        (a) => a.cost.tap && !a.useStack && a.manaProduced
+    );
+    return ability?.manaRestriction ?? null;
 }
 
 /** Returns the activated mana ability definition for a card, or null. */

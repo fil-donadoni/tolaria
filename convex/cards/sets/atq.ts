@@ -1940,3 +1940,37 @@ export const gateToPhyrexia: CardDefinition = {
         },
     ],
 };
+
+// Mishra's Workshop — Land. "{T}: Add {C}{C}{C}. Spend this mana only to cast
+// artifact spells." (ATQ rare, modern oracle.)
+//
+// CR 106.6 — the produced mana carries an "artifact-spell" spend restriction.
+// It floats in the controller's parallel `restrictedMana` pool (declared via
+// the ability's `manaRestriction` field) instead of the fungible pool, empties
+// at end of step/phase like any mana (CR 500.4), and the spell-cast payment
+// sites accept it only for spells whose types include "Artifact"
+// (restrictionAllowsSpell). It can never pay for an activated ability or a
+// non-artifact spell. Per ADR 0022 this reuses the restricted-mana storage,
+// serialization, emptying, and settlement machinery as-is — no new subsystem.
+export const mishrasWorkshop: CardDefinition = {
+    id: "135de5c7-6ac9-4b68-8f1a-97f120a4b125",
+    name: "Mishra's Workshop",
+    oracleText:
+        "{T}: Add {C}{C}{C}. Spend this mana only to cast artifact spells.",
+    manaCost: {},
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "mishras-workshop-mana",
+            oracleText:
+                "{T}: Add {C}{C}{C}. Spend this mana only to cast artifact spells.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ C: 3 });
+            },
+            manaProduced: { C: 3 },
+            manaRestriction: "artifact-spell",
+        },
+    ],
+};
