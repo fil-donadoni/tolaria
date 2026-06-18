@@ -251,6 +251,18 @@ export interface ActivatedAbility {
         tap?: boolean;
         mana?: ManaCost;
         sacrifice?: boolean;
+        /** "Sacrifice a permanent matching <filter>" as an activation cost
+         *  (CR 602.1, 118.5). The activating player chooses which matching
+         *  permanent to sacrifice while paying the cost; the activation is
+         *  illegal if no permanent on their battlefield matches the filter.
+         *  Distinct from `sacrifice` (which sacrifices THIS source). The
+         *  chosen permanent's pre-sacrifice mana value is snapshotted onto the
+         *  stack item so `SpellContext.getAdditionalSacrificeMv()` can read it
+         *  at resolve (Priest of Yawgmoth — "add {B} equal to the sacrificed
+         *  artifact's mana value"). Used by the Antiquities sacrifice-for-value
+         *  engines (Atog, Ashnod's Altar, Orcish Mechanics, Sage of Lat-Nam,
+         *  Priest of Yawgmoth, Dwarven Weaponsmith, Gate to Phyrexia). */
+        sacrificeFilter?: PermanentFilter;
         /** Life payment (CR 118.4). Legal while `player.life >= life`; SBA
          *  handles the loss if payment takes life to 0 or below. */
         life?: number;
@@ -280,6 +292,25 @@ export interface ActivatedAbility {
     resolve?: (ctx: SpellContext) => void;
     /** Fixed mana output — used by the engine to track pool changes without executing the effect. */
     manaProduced?: ManaCost;
+    /** Board-conditional mana output (CR 106.1, 605.1a). When present, the
+     *  engine computes the actual mana this single-color fixed ability produces
+     *  from the controller's battlefield at activation time, instead of reading
+     *  the static `manaProduced`. `manaProduced` remains the representative /
+     *  fallback output (used by Mana Flare and by best-effort callers without a
+     *  battlefield snapshot). Receives the source permanent and the controller's
+     *  battlefield view. Used by the Urza land trio (Mine / Power Plant / Tower),
+     *  whose colorless output grows when the controller also controls the other
+     *  two named lands. Must produce the same single color as `manaProduced`. */
+    manaAmount?: (
+        source: PermanentView,
+        controllerBattlefield: ReadonlyArray<PermanentView>
+    ) => ManaCost;
+    /** Spend restriction carried by the mana this ability produces (CR 106.6).
+     *  When set, the produced mana lands in the controller's `restrictedMana`
+     *  pool instead of the fungible pool and may pay only for spells the
+     *  restriction permits (Mishra's Workshop — "Spend this mana only to cast
+     *  artifact spells"). Only meaningful on fixed `manaProduced` abilities. */
+    manaRestriction?: ManaRestriction;
     /** Multiple mana options the player can choose from (e.g. Talisman: "{T}: Add {U} or {B}"). */
     manaChoices?: ManaCost[];
     /** Restricts activation timing to a specific subset of phases (CR 602.5).
@@ -1688,6 +1719,7 @@ export type GameEventType =
     | "PERMANENT_LEFT"
     | "SPELL_CAST"
     | "PERMANENT_TAPPED"
+    | "ABILITY_ACTIVATED"
     | "STATE_CHECK"
     | "TRIGGER_FIZZLED"
     | "ATTACKERS_DECLARED"
@@ -1855,6 +1887,39 @@ export interface PermanentTappedEvent {
     manaProduced?: ManaCost;
 }
 
+/** Activated-ability-use event emitted when a permanent's activated ability
+ *  (non-mana, `useStack: true`) is put on the stack, paid for, and committed
+ *  (CR 602.1). This is the COMPLEMENT of `PERMANENT_TAPPED`: it fires only for
+ *  abilities that do NOT have a {T} component in their cost, so the two events
+ *  together let a card react to "tapped OR a non-tap ability activated"
+ *  (Haunting Wind, Powerleech, Artifact Possession — Antiquities cluster B).
+ *
+ *  An ability with a {T} cost already emits `PERMANENT_TAPPED` from the tap
+ *  itself, so emitting `ABILITY_ACTIVATED` there too would double-count; the
+ *  emit site gates on `!ability.cost.tap`. Mana abilities (`useStack: false`)
+ *  resolve immediately and never reach the commit site, so they never emit
+ *  this event (their {T} taps still emit `PERMANENT_TAPPED` for "tapped for
+ *  mana" triggers).
+ *
+ *  Carries the source permanent's controller/types/subtypes snapshotted at
+ *  activation time (CR 603.10 last-known information) so `matches()` can filter
+ *  on "your/an opponent's artifact" or "enchanted artifact" without re-reading
+ *  the registry — mirroring the `PermanentTappedEvent` payload shape. */
+export interface AbilityActivatedEvent {
+    type: "ABILITY_ACTIVATED";
+    /** Instance id of the permanent whose ability was activated. */
+    permanentId: string;
+    /** Controller of the source permanent at activation time. */
+    controllerId: string;
+    /** Card types of the source (CR 205), snapshotted at activation time. */
+    permanentTypes: ReadonlyArray<CardType>;
+    /** Card subtypes of the source (CR 205.3), snapshotted at activation. */
+    permanentSubtypes: ReadonlyArray<string>;
+    /** Id of the activated ability on the source's CardDefinition. Lets a
+     *  trigger distinguish multiple abilities on one source if ever needed. */
+    abilityId: string;
+}
+
 /** State trigger probe (CR 603.8) emitted at every stable checkpoint where a
  *  player would gain priority. Carries no payload — `matches()` reads
  *  `state` to decide whether the trigger condition is currently met. */
@@ -1915,6 +1980,7 @@ export type GameEvent =
     | PermanentLeftEvent
     | SpellCastEvent
     | PermanentTappedEvent
+    | AbilityActivatedEvent
     | StateCheckEvent
     | TriggerFizzledEvent
     | AttackersDeclaredEvent

@@ -61,28 +61,75 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        // Payment-timing guard (Enter mid-payment must not strand a cast).
-        // Repro for the priority-window bug: cast a creature, leave the
-        // PaymentBanner up, then surrender priority.
-        //   • Click Serra Angel in hand → the cost isn't auto-covered, so the
-        //     PaymentBanner opens (pendingCast).
-        //   • Press Enter while the banner is up → the cast is CANCELLED (lands
-        //     refunded, banner clears); the turn is NOT ended in the same
-        //     keystroke. Previously the banner lingered and a later Space on the
-        //     opponent's turn cast the creature at an illegal (sorcery) time.
-        //   • Alternatively press Space → Auto-tap commits normally while you
-        //     still hold priority. Passing priority / ending the turn mid-payment
-        //     now rolls the payment back server-side (autoTap can't commit it
-        //     later — CR 601.2).
-        label: "Payment timing: cancel-on-pass guard (Serra Angel + 5 Plains)",
+        // Antiquities cluster A — sacrifice-as-activation-cost (#282, CR 602.1 /
+        // 118.5). The activated-ability cost can require sacrificing a CHOSEN
+        // permanent matching a filter:
+        //   • Right-click Atog → "Sacrifice an artifact: +2/+2". The sacrifice
+        //     picker opens (your artifacts ring up); click one to sacrifice it
+        //     and resolve the pump (the spent artifact goes to the graveyard).
+        //   • Right-click Priest of Yawgmoth (during a main phase) → "{T}, Sac
+        //     an artifact: Add {B} = sacrificed mv". Sacrifice the {3} Yotian
+        //     Soldier and three black mana enter your pool.
+        //   • Right-click Orcish Mechanics → "{T}, Sac an artifact: 2 damage any
+        //     target"; pick the sacrifice, then a target. Ashnod's Altar adds
+        //     {C}{C} by sacrificing a creature.
+        //   • Advance to your UPKEEP and right-click Gate to Phyrexia (once per
+        //     turn) or Dwarven Weaponsmith for the upkeep-restricted abilities.
+        // Trying to activate with no matching permanent is rejected.
+        label: "Antiquities A: sacrifice-as-cost engines (Atog / Altar / Priest)",
         cards: [
+            { name: "Atog", owner: "me" as const },
+            { name: "Ashnod's Altar", owner: "me" as const },
+            { name: "Orcish Mechanics", owner: "me" as const },
+            { name: "Sage of Lat-Nam", owner: "me" as const },
+            { name: "Priest of Yawgmoth", owner: "me" as const },
+            { name: "Dwarven Weaponsmith", owner: "me" as const },
+            { name: "Gate to Phyrexia", owner: "me" as const },
+            { name: "Ornithopter", owner: "me" as const, count: 2 },
+            { name: "Yotian Soldier", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            { name: "Triskelion", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Antiquities cluster B — "ability activated" trigger event (#285,
+        // CR 602.1 / 603.2). Three punishers react to BOTH halves of "an
+        // artifact is used": the artifact becoming tapped (PERMANENT_TAPPED)
+        // AND a non-{T} ability being activated (ABILITY_ACTIVATED):
+        //   • You control Haunting Wind ("1 dmg to that artifact's controller")
+        //     and Powerleech ("gain 1 when an OPPONENT'S artifact is used").
+        //   • The opponent controls Triskelion (3 +1/+1 counters). Pass to give
+        //     the opponent priority and right-click Triskelion → "Remove a +1/+1
+        //     counter: deal 1 damage". This is a NON-{T} ability, so it fires
+        //     ABILITY_ACTIVATED: Haunting Wind deals 1 to the opponent and
+        //     Powerleech gains you 1.
+        //   • Right-click the opponent's Millstone → "{T}, {2}: mill 2". That is
+        //     a {T} ability, so the TAP half (PERMANENT_TAPPED) fires the same
+        //     two triggers — no double count.
+        //   • Cast Artifact Possession (in your hand) onto the opponent's
+        //     Triskelion; now activating Triskelion ALSO deals 2 (the Aura).
+        label: "Antiquities B: ability-activated punishers (Haunting Wind / Powerleech / Artifact Possession)",
+        cards: [
+            { name: "Haunting Wind", owner: "me" as const },
+            { name: "Powerleech", owner: "me" as const },
             {
-                name: "Serra Angel",
+                name: "Artifact Possession",
                 owner: "me" as const,
                 zone: "hand" as const,
             },
-            { name: "Plains", owner: "me" as const, count: 5 },
-            { name: "Plains", owner: "opp" as const, count: 2 },
+            { name: "Swamp", owner: "me" as const, count: 3 },
+            {
+                name: "Triskelion",
+                owner: "opp" as const,
+                counters: { "+1/+1": 3 },
+            },
+            { name: "Millstone", owner: "opp" as const },
+            { name: "Island", owner: "opp" as const, count: 3 },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
@@ -567,6 +614,55 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Grizzly Bears", owner: "me" as const },
             { name: "Forest", owner: "me" as const },
             { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Antiquities cluster M (#283) — Mishra's Workshop ({T}: Add {C}{C}{C},
+        // spend only to cast artifact spells; CR 106.6). Tap the Workshop to
+        // float three restricted colorless mana, then cast an artifact spell
+        // (Su-Chi {4} or Urza's Chalice) paying with it — the restricted mana
+        // is consumed first. Try casting the noncreature/non-artifact spell
+        // (Grizzly Bears is a creature, not an artifact): the restricted mana
+        // is NOT offered for it. The restricted mana empties at end of step.
+        label: "Antiquities M: restricted mana (Mishra's Workshop)",
+        cards: [
+            { name: "Mishra's Workshop", owner: "me" as const },
+            { name: "Su-Chi", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Urza's Chalice",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Su-Chi", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Antiquities cluster I (#284) — board-conditional mana (Urza land
+        // trio; CR 106.1). Each land taps for {C}, but adds more when the
+        // controller also controls the other two:
+        //   • Tap a single Urza land → {C} (the set isn't assembled).
+        //   • With Mine + Power Plant + Tower all in play, tap each:
+        //     Mine → {C}{C}, Power Plant → {C}{C}, Tower → {C}{C}{C}
+        //     (the assembled set yields seven colorless total).
+        //   • The condition is per-controller and recomputes live: the
+        //     opponent's lone Mine + Power Plant taps for only {C} each.
+        //     Sacrifice/destroy a member and the others drop back to {C}.
+        label: "Antiquities I: board-conditional mana (Urza land trio)",
+        cards: [
+            { name: "Urza's Mine", owner: "me" as const },
+            { name: "Urza's Power Plant", owner: "me" as const },
+            { name: "Urza's Tower", owner: "me" as const },
+            { name: "Urza's Mine", owner: "opp" as const },
+            { name: "Urza's Power Plant", owner: "opp" as const },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,

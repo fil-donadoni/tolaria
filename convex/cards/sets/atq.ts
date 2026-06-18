@@ -17,6 +17,8 @@ import type {
     ActivatedAbilityContext,
     CardDefinition,
     DelayedTriggerDef,
+    ManaCost,
+    PermanentView,
     SpellContext,
     TargetSelection,
     TriggeredAbility,
@@ -26,6 +28,8 @@ import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
 import { leftTrigger } from "../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
+import { tappedTrigger } from "../abilities/triggers/tappedTrigger";
+import { abilityActivatedTrigger } from "../abilities/triggers/abilityActivatedTrigger";
 import { makeCircleOfProtection } from "../abilities";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1724,5 +1728,501 @@ export const goblinArtisans: CardDefinition = {
                 }
             },
         },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster A — sacrifice-as-activation-cost on a filtered, non-self permanent
+// (CR 602.1 / 118.5). The activated-ability cost gains `sacrificeFilter`: the
+// player chooses which matching permanent to sacrifice while paying the cost,
+// and the activation is illegal if no matching permanent is on their
+// battlefield. The chosen permanent's pre-sacrifice mana value is snapshotted
+// onto the stack item so `getAdditionalSacrificeMv()` reads it at resolve
+// (Priest of Yawgmoth). See PRD #269 cluster A, issue #282.
+//
+// NOTE (CR 605.1a deviation): Ashnod's Altar and Priest of Yawgmoth are
+// technically mana abilities (no target, can add mana). They are modeled here
+// as `useStack: true` activated abilities because their cost requires a player
+// CHOICE of which permanent to sacrifice, and the engine's instant mana-ability
+// path (`tapUntap`) has no choice step. Routing them through the stack reuses
+// the sacrifice-choice machinery wholesale. The practical cost is that their
+// mana isn't available to pay for a spell mid-cast — acceptable within this
+// card pool, where they are used as standalone value/ramp engines.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Atog — {1}{R} 1/2. "Sacrifice an artifact: This creature gets +2/+2 until
+// end of turn." Self-pump (CR 611.1) funded by sacrificing a chosen artifact.
+export const atog: CardDefinition = {
+    id: "f77fda65-f70d-44b1-89db-910d2761b81c",
+    name: "Atog",
+    oracleText:
+        "Sacrifice an artifact: This creature gets +2/+2 until end of turn.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Atog"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "atog-pump",
+            oracleText:
+                "Sacrifice an artifact: This creature gets +2/+2 until end of turn.",
+            cost: { sacrificeFilter: { types: "Artifact" } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    2,
+                    2,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+
+// Ashnod's Altar — {3} Artifact. "Sacrifice a creature: Add {C}{C}." A
+// creature-to-colorless mana converter. Modeled as a stack ability (see the
+// CR 605.1a note above) so the sacrifice choice can be made.
+export const ashnodsAltar: CardDefinition = {
+    id: "cdcccb0f-ce96-453b-9e82-41d87f52e58b",
+    name: "Ashnod's Altar",
+    oracleText: "Sacrifice a creature: Add {C}{C}.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "ashnods-altar-mana",
+            oracleText: "Sacrifice a creature: Add {C}{C}.",
+            cost: { sacrificeFilter: { types: "Creature" } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addManaTo(ctx.controller, { C: 2 });
+            },
+        },
+    ],
+};
+
+// Orcish Mechanics — {2}{R} 1/1. "{T}, Sacrifice an artifact: This creature
+// deals 2 damage to any target." Tap + filtered-sacrifice cost, targeted ping.
+export const orcishMechanics: CardDefinition = {
+    id: "5e34fc6b-5f00-4a22-9ee2-afc1caf99961",
+    name: "Orcish Mechanics",
+    oracleText:
+        "{T}, Sacrifice an artifact: This creature deals 2 damage to any target.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Orc"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "orcish-mechanics-bolt",
+            oracleText:
+                "{T}, Sacrifice an artifact: This creature deals 2 damage to any target.",
+            cost: { tap: true, sacrificeFilter: { types: "Artifact" } },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target) ctx.dealDamage(target, 2);
+            },
+        },
+    ],
+};
+
+// Sage of Lat-Nam — {1}{U} 1/2. "{T}, Sacrifice an artifact: Draw a card."
+export const sageOfLatNam: CardDefinition = {
+    id: "b4ff60ce-073c-46b8-807c-8b40467b960c",
+    name: "Sage of Lat-Nam",
+    oracleText: "{T}, Sacrifice an artifact: Draw a card.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Artificer"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "sage-of-lat-nam-draw",
+            oracleText: "{T}, Sacrifice an artifact: Draw a card.",
+            cost: { tap: true, sacrificeFilter: { types: "Artifact" } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.drawCards(ctx.controller, 1);
+            },
+        },
+    ],
+};
+
+// Priest of Yawgmoth — {1}{B} 1/2. "{T}, Sacrifice an artifact: Add an amount
+// of {B} equal to the sacrificed artifact's mana value." The mana-value-derived
+// effect reads the sacrificed permanent's mv via getAdditionalSacrificeMv
+// (snapshotted at commit). Modeled as a stack ability (see CR 605.1a note).
+export const priestOfYawgmoth: CardDefinition = {
+    id: "c9fd4054-42fc-4f95-a6f7-369a5da43dd5",
+    name: "Priest of Yawgmoth",
+    oracleText:
+        "{T}, Sacrifice an artifact: Add an amount of {B} equal to the sacrificed artifact's mana value.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Phyrexian", "Human", "Cleric"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "priest-of-yawgmoth-mana",
+            oracleText:
+                "{T}, Sacrifice an artifact: Add an amount of {B} equal to the sacrificed artifact's mana value.",
+            cost: { tap: true, sacrificeFilter: { types: "Artifact" } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                const mv = ctx.getAdditionalSacrificeMv() ?? 0;
+                if (mv > 0) ctx.addManaTo(ctx.controller, { B: mv });
+            },
+        },
+    ],
+};
+
+// Dwarven Weaponsmith — {1}{R} 1/1. "{T}, Sacrifice an artifact: Put a +1/+1
+// counter on target creature. Activate only during your upkeep." (CR 602.5b
+// timing via activationPhaseRestriction + controllerTurnOnly.)
+export const dwarvenWeaponsmith: CardDefinition = {
+    id: "0848d94a-2704-460f-986b-b192dd6d26b7",
+    name: "Dwarven Weaponsmith",
+    oracleText:
+        "{T}, Sacrifice an artifact: Put a +1/+1 counter on target creature. Activate only during your upkeep.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Dwarf", "Artificer"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "dwarven-weaponsmith-counter",
+            oracleText:
+                "{T}, Sacrifice an artifact: Put a +1/+1 counter on target creature. Activate only during your upkeep.",
+            cost: { tap: true, sacrificeFilter: { types: "Artifact" } },
+            useStack: true,
+            activationPhaseRestriction: ["UPKEEP"],
+            controllerTurnOnly: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.addCounter(target, "+1/+1", 1);
+                }
+            },
+        },
+    ],
+};
+
+// Gate to Phyrexia — {B}{B} Enchantment. "Sacrifice a creature: Destroy target
+// artifact. Activate only during your upkeep and only once each turn."
+// (CR 602.5 once-per-turn + upkeep timing.)
+export const gateToPhyrexia: CardDefinition = {
+    id: "1f372950-6693-4838-80ef-8fd9aa3e0349",
+    name: "Gate to Phyrexia",
+    oracleText:
+        "Sacrifice a creature: Destroy target artifact. Activate only during your upkeep and only once each turn.",
+    manaCost: { B: 2 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "gate-to-phyrexia-destroy",
+            oracleText:
+                "Sacrifice a creature: Destroy target artifact. Activate only during your upkeep and only once each turn.",
+            cost: { sacrificeFilter: { types: "Creature" } },
+            useStack: true,
+            activationPhaseRestriction: ["UPKEEP"],
+            controllerTurnOnly: true,
+            oncePerTurn: true,
+            targetRequirement: { type: "Artifact", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") ctx.destroy(target);
+            },
+        },
+    ],
+};
+
+// Mishra's Workshop — Land. "{T}: Add {C}{C}{C}. Spend this mana only to cast
+// artifact spells." (ATQ rare, modern oracle.)
+//
+// CR 106.6 — the produced mana carries an "artifact-spell" spend restriction.
+// It floats in the controller's parallel `restrictedMana` pool (declared via
+// the ability's `manaRestriction` field) instead of the fungible pool, empties
+// at end of step/phase like any mana (CR 500.4), and the spell-cast payment
+// sites accept it only for spells whose types include "Artifact"
+// (restrictionAllowsSpell). It can never pay for an activated ability or a
+// non-artifact spell. Per ADR 0022 this reuses the restricted-mana storage,
+// serialization, emptying, and settlement machinery as-is — no new subsystem.
+export const mishrasWorkshop: CardDefinition = {
+    id: "135de5c7-6ac9-4b68-8f1a-97f120a4b125",
+    name: "Mishra's Workshop",
+    oracleText:
+        "{T}: Add {C}{C}{C}. Spend this mana only to cast artifact spells.",
+    manaCost: {},
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "mishras-workshop-mana",
+            oracleText:
+                "{T}: Add {C}{C}{C}. Spend this mana only to cast artifact spells.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ C: 3 });
+            },
+            manaProduced: { C: 3 },
+            manaRestriction: "artifact-spell",
+        },
+    ],
+};
+
+// Urza land trio — board-conditional mana (CR 106.1, 605.1a). Each taps for
+// {C}, but adds extra colorless when the controller also controls the other
+// two members of the set. The condition keys off the land *subtypes* (Urza's
+// Mine / Urza's Power-Plant / Urza's Tower), matching the oracle text and the
+// canonical CR treatment — not the card names. Output is recomputed from the
+// controller's battlefield at activation time via the ability's `manaAmount`
+// hook; `manaProduced` carries the {C}{C}... representative output (read by
+// Mana Flare and by best-effort display callers without a battlefield view).
+//
+// Each land's base output is {C}; the assembled bonus differs by member:
+//   Mine        → {C}{C}    (2)
+//   Power Plant → {C}{C}    (2)
+//   Tower       → {C}{C}{C} (3)
+const URZA_MINE = "Urza's Mine";
+const URZA_POWER_PLANT = "Urza's Power-Plant";
+const URZA_TOWER = "Urza's Tower";
+
+/** True when the controller's battlefield contains a land with the given Urza
+ *  subtype (CR 205.3, 106.1). Reads the controller's own battlefield only —
+ *  "you control" scopes to the activating player's permanents. */
+function controlsUrzaSubtype(
+    battlefield: ReadonlyArray<PermanentView>,
+    subtype: string
+): boolean {
+    return battlefield.some((p) => p.subtypes.includes(subtype));
+}
+
+/** Builds an Urza land's `manaAmount`: {C}{C}... `assembled` colorless when the
+ *  controller also controls both `others` subtypes, otherwise {C}. */
+function urzaManaAmount(
+    others: [string, string],
+    assembled: number
+): (
+    source: PermanentView,
+    battlefield: ReadonlyArray<PermanentView>
+) => ManaCost {
+    return (_source, battlefield) =>
+        controlsUrzaSubtype(battlefield, others[0]) &&
+        controlsUrzaSubtype(battlefield, others[1])
+            ? ({ C: assembled } as ManaCost)
+            : ({ C: 1 } as ManaCost);
+}
+
+export const urzasMine: CardDefinition = {
+    id: "ddf85792-470b-4b42-99ac-9cb43a575523",
+    name: "Urza's Mine",
+    oracleText:
+        "{T}: Add {C}. If you control an Urza's Power-Plant and an Urza's Tower, add {C}{C} instead.",
+    manaCost: {},
+    types: ["Land"],
+    subtypes: [URZA_MINE],
+    activatedAbilities: [
+        {
+            id: "urzas-mine-mana",
+            oracleText:
+                "{T}: Add {C}. If you control an Urza's Power-Plant and an Urza's Tower, add {C}{C} instead.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ C: 1 });
+            },
+            manaProduced: { C: 2 },
+            manaAmount: urzaManaAmount([URZA_POWER_PLANT, URZA_TOWER], 2),
+        },
+    ],
+};
+
+export const urzasPowerPlant: CardDefinition = {
+    id: "94896e0b-859c-47e4-bf27-35ed37b841e0",
+    name: "Urza's Power Plant",
+    oracleText:
+        "{T}: Add {C}. If you control an Urza's Mine and an Urza's Tower, add {C}{C} instead.",
+    manaCost: {},
+    types: ["Land"],
+    subtypes: [URZA_POWER_PLANT],
+    activatedAbilities: [
+        {
+            id: "urzas-power-plant-mana",
+            oracleText:
+                "{T}: Add {C}. If you control an Urza's Mine and an Urza's Tower, add {C}{C} instead.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ C: 1 });
+            },
+            manaProduced: { C: 2 },
+            manaAmount: urzaManaAmount([URZA_MINE, URZA_TOWER], 2),
+        },
+    ],
+};
+
+export const urzasTower: CardDefinition = {
+    id: "8ed85655-fc59-4a57-bcf9-75e1899dff78",
+    name: "Urza's Tower",
+    oracleText:
+        "{T}: Add {C}. If you control an Urza's Mine and an Urza's Power-Plant, add {C}{C}{C} instead.",
+    manaCost: {},
+    types: ["Land"],
+    subtypes: [URZA_TOWER],
+    activatedAbilities: [
+        {
+            id: "urzas-tower-mana",
+            oracleText:
+                "{T}: Add {C}. If you control an Urza's Mine and an Urza's Power-Plant, add {C}{C}{C} instead.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ C: 1 });
+            },
+            manaProduced: { C: 3 },
+            manaAmount: urzaManaAmount([URZA_MINE, URZA_POWER_PLANT], 3),
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster B — "ability activated" trigger event (PRD #269 / issue #285)
+//
+// These three punishers react to BOTH halves of "an artifact is used":
+//   • the artifact becomes tapped → PERMANENT_TAPPED (CR 701.20a), and
+//   • a non-{T} activated ability of the artifact is used → ABILITY_ACTIVATED
+//     (CR 602.1), the complement event emitted by the engine only when the
+//     ability has no {T} component (so {T}-cost abilities aren't double-counted).
+// Each card therefore declares two triggered abilities — one per event — that
+// share an identical resolve body. `tappedTrigger`'s `forMana` is left
+// undefined so both mana taps and non-mana taps (Twiddle, combat) count, per
+// the oracle wording "becomes tapped".
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Haunting Wind — {3}{B} Enchantment. "Whenever an artifact becomes tapped or a
+// player activates an artifact's ability without {T} in its activation cost,
+// this enchantment deals 1 damage to that artifact's controller." (CR 603.2.)
+// `scope: "any"` + an Artifact type filter; damage goes to the artifact's
+// controller (carried on each event payload).
+export const hauntingWind: CardDefinition = {
+    id: "a2f6ef2f-a3a2-4e1f-b7eb-59abc8414114",
+    name: "Haunting Wind",
+    oracleText:
+        "Whenever an artifact becomes tapped or a player activates an artifact's ability without {T} in its activation cost, this enchantment deals 1 damage to that artifact's controller.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "haunting-wind-tapped",
+            oracleText:
+                "Whenever an artifact becomes tapped, this enchantment deals 1 damage to that artifact's controller.",
+            scope: "any",
+            filter: { types: "Artifact" },
+            resolve: (ctx, _event, tapped) => {
+                ctx.dealDamage({ type: "player", id: tapped.controllerId }, 1);
+            },
+        }),
+        abilityActivatedTrigger({
+            id: "haunting-wind-ability",
+            oracleText:
+                "Whenever a player activates an artifact's ability without {T} in its activation cost, this enchantment deals 1 damage to that artifact's controller.",
+            scope: "any",
+            filter: { types: "Artifact" },
+            resolve: (ctx, _event, activated) => {
+                ctx.dealDamage(
+                    { type: "player", id: activated.controllerId },
+                    1
+                );
+            },
+        }),
+    ],
+};
+
+// Powerleech — {G}{G} Enchantment. "Whenever an artifact an opponent controls
+// becomes tapped or an opponent activates an artifact's ability without {T} in
+// its activation cost, you gain 1 life." (CR 603.2.) `scope: "opponents"`
+// encodes "an opponent controls"; the life goes to the enchantment's
+// controller (`ctx.controller`).
+export const powerleech: CardDefinition = {
+    id: "ae1d7b09-3a1f-410f-b330-04ae768b0455",
+    name: "Powerleech",
+    oracleText:
+        "Whenever an artifact an opponent controls becomes tapped or an opponent activates an artifact's ability without {T} in its activation cost, you gain 1 life.",
+    manaCost: { G: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "powerleech-tapped",
+            oracleText:
+                "Whenever an artifact an opponent controls becomes tapped, you gain 1 life.",
+            scope: "opponents",
+            filter: { types: "Artifact" },
+            resolve: (ctx) => {
+                ctx.gainLife(ctx.controller, 1);
+            },
+        }),
+        abilityActivatedTrigger({
+            id: "powerleech-ability",
+            oracleText:
+                "Whenever an opponent activates an artifact's ability without {T} in its activation cost, you gain 1 life.",
+            scope: "opponents",
+            filter: { types: "Artifact" },
+            resolve: (ctx) => {
+                ctx.gainLife(ctx.controller, 1);
+            },
+        }),
+    ],
+};
+
+// Artifact Possession — {2}{B} Enchantment — Aura. "Enchant artifact. Whenever
+// enchanted artifact becomes tapped or a player activates an ability of
+// enchanted artifact without {T} in its activation cost, this Aura deals 2
+// damage to that artifact's controller." (CR 303.4 aura attachment, 603.2.)
+// As with Psychic Venom, there is no `host` scope (ADR 0002) — `scope: "any"`
+// plus a `self.attachedTo` host-check condition is the idiomatic expression.
+export const artifactPossession: CardDefinition = {
+    id: "587d6ac8-fad8-49e0-862e-636e06628ff9",
+    name: "Artifact Possession",
+    oracleText:
+        "Enchant artifact\nWhenever enchanted artifact becomes tapped or a player activates an ability of enchanted artifact without {T} in its activation cost, this Aura deals 2 damage to that artifact's controller.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Artifact", count: 1 },
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "artifact-possession-tapped",
+            oracleText:
+                "Whenever enchanted artifact becomes tapped, this Aura deals 2 damage to that artifact's controller.",
+            scope: "any",
+            condition: (event, self) =>
+                !!self.attachedTo && event.permanentId === self.attachedTo,
+            resolve: (ctx, _event, tapped) => {
+                ctx.dealDamage({ type: "player", id: tapped.controllerId }, 2);
+            },
+        }),
+        abilityActivatedTrigger({
+            id: "artifact-possession-ability",
+            oracleText:
+                "Whenever a player activates an ability of enchanted artifact without {T} in its activation cost, this Aura deals 2 damage to that artifact's controller.",
+            scope: "any",
+            condition: (event, self) =>
+                !!self.attachedTo && event.permanentId === self.attachedTo,
+            resolve: (ctx, _event, activated) => {
+                ctx.dealDamage(
+                    { type: "player", id: activated.controllerId },
+                    2
+                );
+            },
+        }),
     ],
 };

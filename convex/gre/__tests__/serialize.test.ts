@@ -92,10 +92,13 @@ describe("game_state serialize round-trip", () => {
         const state = freshState();
         state.players[0].restrictedMana = [
             { color: "G", amount: 2, restriction: "creature-spell" },
+            // artifact-spell restriction (Mishra's Workshop, #283).
+            { color: "C", amount: 3, restriction: "artifact-spell" },
         ];
         const expanded = expandState(compactState(state));
         expect(expanded.players[0].restrictedMana).toEqual([
             { color: "G", amount: 2, restriction: "creature-spell" },
+            { color: "C", amount: 3, restriction: "artifact-spell" },
         ]);
         // Absent when empty (omitted rather than serialized as []).
         const empty = expandState(compactState(freshState()));

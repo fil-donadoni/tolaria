@@ -50,29 +50,56 @@ import {
     yawgmothDemon,
     mishrasWarMachine,
     goblinArtisans,
+    atog,
+    ashnodsAltar,
+    orcishMechanics,
+    sageOfLatNam,
+    priestOfYawgmoth,
+    dwarvenWeaponsmith,
+    gateToPhyrexia,
+    mishrasWorkshop,
+    urzasMine,
+    urzasPowerPlant,
+    urzasTower,
+    urzasChalice as urzasChaliceDef,
+    hauntingWind,
+    powerleech,
+    artifactPossession,
 } from "../atq";
-import { getCardById } from "../..";
+import { getCardById, getInstanceManaCost } from "../..";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
 } from "../../__tests__/setup";
-import { isCreature } from "../../../gre/constants";
+import {
+    isCreature,
+    getActivatedManaRestriction,
+    getFixedManaAmount,
+    getDynamicManaProduced,
+} from "../../../gre/constants";
 import { projectPublicState } from "../../../gameProjections";
 import {
     resolveTopOfStack,
     removePermanentTo,
     processPendingActionTriggers,
+    addRestrictedManaToPool,
+    restrictionAllowsSpell,
+    spendablePoolForSpell,
+    payManaCostForSpell,
+    isManaCostCovered,
+    normalizeManaCost,
     type CardInstanceState,
     type GameState,
     type StackItem,
 } from "../../../gre/state";
+import { buildAutoTapSources } from "../../../gre/autoTap";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { getLegalTargets } from "../../../gre/rules";
 import { advancePhase, untapStep } from "../../../gre/phases";
 import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
-import type { CardType, BlockersConfirmedEvent } from "../../types";
+import type { CardType, BlockersConfirmedEvent, GameEvent } from "../../types";
 
 /** Submit the current head pending choice (zone-pick) with the given ordered
  *  ids. Auto-resumes the suspended resolution (mirrors the game.ts mutation). */
@@ -2991,5 +3018,952 @@ describe("Goblin Artisans ({T}: flip → draw / counter own artifact spell)", ()
         // Did NOT draw; the targeted artifact spell is countered (off stack).
         expect(state.players[0].hand).toHaveLength(0);
         expect(state.stack.some((s) => s.id === "art-spell")).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Cluster A — sacrifice-as-activation-cost (filtered, non-self).
+// CR 602.1 / 118.5. These tests exercise the ability RESOLUTION on fat state
+// (and the wire format where the effect is visible). The cost/choice flow
+// (picking + sacrificing + mv snapshot) is exercised end-to-end through the
+// mutations in convex/__tests__/sacrifice-cost-activation.test.ts.
+// ---------------------------------------------------------------------------
+
+describe("Atog (CR 602.1 — sacrifice an artifact: +2/+2)", () => {
+    it("declares the filtered sacrifice cost", () => {
+        const ability = atog.activatedAbilities![0];
+        expect(ability.cost.sacrificeFilter).toEqual({ types: "Artifact" });
+        expect(ability.cost.sacrifice).toBeUndefined();
+    });
+
+    it("pumps the source +2/+2 until end of turn on resolution", () => {
+        const at = makeInstance(atog.id, { id: "atog-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [at] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, at, "atog-pump");
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "atog-1"
+        )!;
+        expect(getEffectivePower(state, after)).toBe(3);
+        expect(getEffectiveToughness(state, after)).toBe(4);
+    });
+
+    it("wire format — pump survives projection", () => {
+        const at = makeInstance(atog.id, { id: "atog-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [at] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, at, "atog-pump");
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "atog-1"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+});
+
+describe("Ashnod's Altar (CR 602.1 — sacrifice a creature: add {C}{C})", () => {
+    it("declares a creature sacrifice cost and no tap", () => {
+        const ability = ashnodsAltar.activatedAbilities![0];
+        expect(ability.cost.sacrificeFilter).toEqual({ types: "Creature" });
+        expect(ability.cost.tap).toBeUndefined();
+    });
+
+    it("adds {C}{C} on resolution", () => {
+        const altar = makeInstance(ashnodsAltar.id, { id: "altar-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [altar] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, altar, "ashnods-altar-mana");
+        expect(state.players[0].manaPool.C).toBe(2);
+    });
+});
+
+describe("Orcish Mechanics (CR 602.1 — {T}, sac artifact: 2 dmg any target)", () => {
+    it("declares tap + artifact sacrifice cost", () => {
+        const ability = orcishMechanics.activatedAbilities![0];
+        expect(ability.cost.tap).toBe(true);
+        expect(ability.cost.sacrificeFilter).toEqual({ types: "Artifact" });
+    });
+
+    it("deals 2 damage to a target player on resolution", () => {
+        const mech = makeInstance(orcishMechanics.id, { id: "mech-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mech] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, mech, "orcish-mechanics-bolt", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].life).toBe(18);
+    });
+});
+
+describe("Sage of Lat-Nam (CR 602.1 — {T}, sac artifact: draw)", () => {
+    it("draws a card on resolution", () => {
+        const sage = makeInstance(sageOfLatNam.id, { id: "sage-1" });
+        const libCard = makeInstance(ornithopter.id, {
+            id: "lib-1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [sage],
+                    library: [libCard],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, sage, "sage-of-lat-nam-draw");
+        expect(state.players[0].hand.map((c) => c.id)).toContain("lib-1");
+    });
+});
+
+describe("Priest of Yawgmoth (CR 602.1 — add {B} = sacrificed artifact mv)", () => {
+    it("adds {B} equal to the snapshotted sacrificed mana value", () => {
+        const priest = makeInstance(priestOfYawgmoth.id, { id: "priest-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [priest] }),
+                makePlayer("p2"),
+            ],
+        });
+        // The cost flow snapshots the sacrificed permanent's mv onto the stack
+        // item; resolve() reads it via getAdditionalSacrificeMv. Simulate a
+        // mv-3 artifact (e.g. Yotian Soldier) having been sacrificed.
+        state.stack.push({
+            ...priest,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "priest-of-yawgmoth-mana",
+            targets: [],
+            additionalSacrificeSnapshot: { cardInstanceId: "sac-x", mv: 3 },
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.B).toBe(3);
+    });
+
+    it("adds no mana when the sacrificed permanent's mv is 0", () => {
+        const priest = makeInstance(priestOfYawgmoth.id, { id: "priest-2" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [priest] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...priest,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "priest-of-yawgmoth-mana",
+            targets: [],
+            additionalSacrificeSnapshot: { cardInstanceId: "sac-y", mv: 0 },
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.B).toBe(0);
+    });
+});
+
+describe("Dwarven Weaponsmith (CR 602.5b — upkeep-only +1/+1 counter)", () => {
+    it("declares upkeep timing + controller-turn + tap/sac cost", () => {
+        const ability = dwarvenWeaponsmith.activatedAbilities![0];
+        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
+        expect(ability.controllerTurnOnly).toBe(true);
+        expect(ability.cost.tap).toBe(true);
+        expect(ability.cost.sacrificeFilter).toEqual({ types: "Artifact" });
+    });
+
+    it("puts a +1/+1 counter on a target creature on resolution", () => {
+        const smith = makeInstance(dwarvenWeaponsmith.id, { id: "smith-1" });
+        const target = makeInstance(ornithopter.id, { id: "orn-tgt" });
+        const state = makeState({
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { battlefield: [smith, target] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, smith, "dwarven-weaponsmith-counter", [
+            { type: "permanent", id: "orn-tgt" },
+        ]);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "orn-tgt"
+        )!;
+        expect(after.counters?.["+1/+1"]).toBe(1);
+    });
+});
+
+describe("Gate to Phyrexia (CR 602.5 — upkeep, once/turn, sac creature)", () => {
+    it("declares once-per-turn + upkeep timing + creature sac cost", () => {
+        const ability = gateToPhyrexia.activatedAbilities![0];
+        expect(ability.oncePerTurn).toBe(true);
+        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
+        expect(ability.cost.sacrificeFilter).toEqual({ types: "Creature" });
+    });
+
+    it("destroys a target artifact on resolution", () => {
+        const gate = makeInstance(gateToPhyrexia.id, { id: "gate-1" });
+        const artifact = makeInstance(ornithopter.id, {
+            id: "art-tgt",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { battlefield: [gate] }),
+                makePlayer("p2", { battlefield: [artifact] }),
+            ],
+        });
+        resolveActivated(state, gate, "gate-to-phyrexia-destroy", [
+            { type: "permanent", id: "art-tgt" },
+        ]);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "art-tgt")
+        ).toBe(false);
+        expect(state.players[1].graveyard.some((c) => c.id === "art-tgt")).toBe(
+            true
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Mishra's Workshop — restricted mana "artifact-spell" (cluster M, #283)
+//   "{T}: Add {C}{C}{C}. Spend this mana only to cast artifact spells."
+//   CR 106.6 (restricted mana) / CR 500.4 (empties at end of step/phase).
+//   ADR 0022 — reuses the restricted-mana storage/serialization/emptying/
+//   settlement machinery; only a new union member + ability field.
+// ---------------------------------------------------------------------------
+
+describe("Mishra's Workshop (restricted mana 'artifact-spell', CR 106.6)", () => {
+    /** Tap a Mishra's Workshop into the controller's pool exactly as the
+     *  tapUntap mutation's fixed-mana branch does: route the produced mana
+     *  into `restrictedMana` (not the fungible pool) under the ability's
+     *  declared restriction. */
+    function tapWorkshop(state: GameState): void {
+        const ws = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === mishrasWorkshop.id
+        )!;
+        ws.isTapped = true;
+        const restriction = getActivatedManaRestriction(ws)!;
+        addRestrictedManaToPool(state.players[0], "C", 3, restriction);
+    }
+
+    it("is a Land whose mana ability declares the artifact-spell restriction", () => {
+        const def = getCardById(mishrasWorkshop.id);
+        expect(def.name).toBe("Mishra's Workshop");
+        expect(def.types).toEqual(["Land"]);
+        const ability = def.activatedAbilities?.[0];
+        expect(ability?.cost.tap).toBe(true);
+        expect(ability?.useStack).toBe(false);
+        expect(ability?.manaProduced).toEqual({ C: 3 });
+        expect(ability?.manaRestriction).toBe("artifact-spell");
+    });
+
+    it("getActivatedManaRestriction reads the restriction off the instance", () => {
+        const ws = makeInstance(mishrasWorkshop.id);
+        expect(getActivatedManaRestriction(ws)).toBe("artifact-spell");
+        // A plain land mana ability carries no restriction.
+        const factory = makeInstance(mishrasFactory.id);
+        expect(getActivatedManaRestriction(factory)).toBeNull();
+    });
+
+    it("restrictionAllowsSpell gates artifact spells only", () => {
+        expect(restrictionAllowsSpell("artifact-spell", ["Artifact"])).toBe(
+            true
+        );
+        expect(
+            restrictionAllowsSpell("artifact-spell", ["Artifact", "Creature"])
+        ).toBe(true);
+        expect(restrictionAllowsSpell("artifact-spell", ["Creature"])).toBe(
+            false
+        );
+        expect(restrictionAllowsSpell("artifact-spell", ["Sorcery"])).toBe(
+            false
+        );
+    });
+
+    it("tapping produces three colorless mana in the restricted pool, not the fungible pool", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [makeInstance(mishrasWorkshop.id)],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        tapWorkshop(state);
+        expect(state.players[0].restrictedMana).toEqual([
+            { color: "C", amount: 3, restriction: "artifact-spell" },
+        ]);
+        // Nothing leaks into the fungible pool.
+        expect(state.players[0].manaPool.C).toBe(0);
+    });
+
+    // Integration across the GRE -> game.ts spell-cast boundary: mirror the
+    // affordability check + payment the cast mutations perform (CR 106.6).
+    it("pays an artifact spell from restricted mana but rejects a noncreature non-artifact spell and an ability", () => {
+        const subs = getManaSubstitutionsEmpty();
+        // Urza's Chalice — {1} Artifact. Restricted {C} pays the generic pip.
+        const artifactCost = normalizeManaCost(
+            getInstanceManaCost(
+                makeInstance(urzasChaliceDef.id, { zone: "hand" })
+            )!,
+            { chosenX: 1 }
+        );
+        const artifactTypes = getCardById(urzasChaliceDef.id).types;
+
+        const caster = makePlayer("p1", {
+            restrictedMana: [
+                { color: "C", amount: 3, restriction: "artifact-spell" },
+            ],
+        });
+        expect(
+            isManaCostCovered(
+                spendablePoolForSpell(caster, artifactTypes),
+                artifactCost,
+                subs
+            )
+        ).toBe(true);
+        payManaCostForSpell(caster, artifactCost, artifactTypes, subs);
+        expect(caster.restrictedMana).toEqual([
+            { color: "C", amount: 2, restriction: "artifact-spell" },
+        ]);
+        expect(caster.manaPool.C).toBe(0);
+
+        // The same pool can NOT pay a non-artifact spell (e.g. a Sorcery).
+        const sorcererPlayer = makePlayer("p1", {
+            restrictedMana: [
+                { color: "C", amount: 3, restriction: "artifact-spell" },
+            ],
+        });
+        expect(
+            isManaCostCovered(
+                spendablePoolForSpell(sorcererPlayer, ["Sorcery"]),
+                { X: 1 },
+                subs
+            )
+        ).toBe(false);
+
+        // ...nor an activated ability: those payment sites never consult
+        // restrictedMana (ADR 0022), so the restricted pool is invisible there.
+        // Modelled by the absence of any spendablePool helper on the ability
+        // path — the fungible pool alone is { C: 0 }, which can't pay { X: 1 }.
+        expect(isManaCostCovered(sorcererPlayer.manaPool, { X: 1 }, subs)).toBe(
+            false
+        );
+    });
+
+    it("empties the restricted mana at end of step/phase (CR 500.4)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [makeInstance(mishrasWorkshop.id)],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        tapWorkshop(state);
+        expect(state.players[0].restrictedMana).toHaveLength(1);
+        // advancePhase runs emptyManaPools, which clears restrictedMana too.
+        advancePhase(state);
+        expect(state.players[0].restrictedMana).toBeUndefined();
+    });
+
+    it("is excluded from the auto-tap solver (restricted mana stays manual)", () => {
+        const battlefield = [
+            makeInstance(mishrasWorkshop.id),
+            makeInstance(stripMine.id), // {T}: Add {C} — a plain mana land
+        ];
+        const sources = buildAutoTapSources(battlefield);
+        const ids = sources.map((s) => s.cardId);
+        const wsId = battlefield[0].id;
+        expect(ids).not.toContain(wsId);
+        // The unrestricted land is still solver-visible.
+        expect(ids).toContain(battlefield[1].id);
+    });
+
+    it("restricted mana survives the wire projection (CR 106.6)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [makeInstance(mishrasWorkshop.id)],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        tapWorkshop(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].restrictedMana).toEqual([
+            { color: "C", amount: 3, restriction: "artifact-spell" },
+        ]);
+    });
+});
+
+/** No mana substitutions active (no Sunglasses of Urza etc.). */
+function getManaSubstitutionsEmpty(): [] {
+    return [];
+}
+
+// ---------------------------------------------------------------------------
+// Urza land trio — board-conditional mana (cluster I, #284)
+//   Mine / Power Plant each "{T}: Add {C}. If you control [the other two],
+//   add {C}{C} instead." Tower adds {C}{C}{C} when assembled.
+//   CR 106.1 (mana production), CR 605.1a (intrinsic mana ability), CR 205.3
+//   (subtype-keyed condition). Output recomputes from the controller's
+//   battlefield at activation time via the ability's `manaAmount` hook;
+//   `manaProduced` carries the representative assembled output (Mana Flare).
+// ---------------------------------------------------------------------------
+
+describe("Urza land trio (board-conditional mana, CR 106.1)", () => {
+    const TRIO = [
+        {
+            def: urzasMine,
+            name: "Urza's Mine",
+            subtype: "Urza's Mine",
+            assembled: 2,
+        },
+        {
+            def: urzasPowerPlant,
+            name: "Urza's Power Plant",
+            subtype: "Urza's Power-Plant",
+            assembled: 2,
+        },
+        {
+            def: urzasTower,
+            name: "Urza's Tower",
+            subtype: "Urza's Tower",
+            assembled: 3,
+        },
+    ] as const;
+
+    /** The controller's battlefield holding the named subset of the trio. */
+    function battlefieldWith(
+        subtypes: readonly (
+            | "Urza's Mine"
+            | "Urza's Power-Plant"
+            | "Urza's Tower"
+        )[]
+    ): CardInstanceState[] {
+        const bySubtype = {
+            "Urza's Mine": urzasMine.id,
+            "Urza's Power-Plant": urzasPowerPlant.id,
+            "Urza's Tower": urzasTower.id,
+        } as const;
+        return subtypes.map((s) => makeInstance(bySubtype[s]));
+    }
+
+    it("each land is a colorless mana Land carrying its Urza subtype", () => {
+        for (const { def, name, subtype } of TRIO) {
+            const looked = getCardById(def.id);
+            expect(looked.name).toBe(name);
+            expect(looked.types).toEqual(["Land"]);
+            expect(looked.subtypes).toEqual([subtype]);
+            const ability = looked.activatedAbilities?.[0];
+            expect(ability?.cost.tap).toBe(true);
+            expect(ability?.useStack).toBe(false);
+            expect(ability?.manaRestriction).toBeUndefined();
+            expect(typeof ability?.manaAmount).toBe("function");
+        }
+    });
+
+    it("a lone Urza land taps for exactly {C} (CR 106.1)", () => {
+        for (const { def } of TRIO) {
+            const land = makeInstance(def.id);
+            const battlefield = [land];
+            expect(getDynamicManaProduced(land, battlefield)).toEqual({ C: 1 });
+            expect(getFixedManaAmount(land, "C", battlefield)).toBe(1);
+        }
+    });
+
+    it("two of the trio still tap for only {C} (set not assembled)", () => {
+        // Mine + Tower in play, but no Power Plant: Mine and Tower each lone-tap.
+        const battlefield = battlefieldWith(["Urza's Mine", "Urza's Tower"]);
+        const mine = battlefield[0];
+        const tower = battlefield[1];
+        expect(getFixedManaAmount(mine, "C", battlefield)).toBe(1);
+        expect(getFixedManaAmount(tower, "C", battlefield)).toBe(1);
+    });
+
+    it("the assembled trio scales each land's output (2 / 2 / 3)", () => {
+        const battlefield = battlefieldWith([
+            "Urza's Mine",
+            "Urza's Power-Plant",
+            "Urza's Tower",
+        ]);
+        for (const { def, assembled } of TRIO) {
+            const land = battlefield.find(
+                (c) => (c.card as { id: string }).id === def.id
+            )!;
+            expect(getDynamicManaProduced(land, battlefield)).toEqual({
+                C: assembled,
+            });
+            expect(getFixedManaAmount(land, "C", battlefield)).toBe(assembled);
+        }
+        // Assembled, the whole set yields 2 + 2 + 3 = 7 colorless.
+        const total = battlefield.reduce(
+            (sum, land) => sum + getFixedManaAmount(land, "C", battlefield),
+            0
+        );
+        expect(total).toBe(7);
+    });
+
+    it("output recomputes from current board: losing one member drops the rest to {C}", () => {
+        const battlefield = battlefieldWith([
+            "Urza's Mine",
+            "Urza's Power-Plant",
+            "Urza's Tower",
+        ]);
+        const tower = battlefield[2];
+        expect(getFixedManaAmount(tower, "C", battlefield)).toBe(3);
+        // Power Plant leaves the battlefield → set disassembled.
+        const afterLoss = [battlefield[0], battlefield[2]];
+        expect(getFixedManaAmount(tower, "C", afterLoss)).toBe(1);
+    });
+
+    it("the condition is per-controller: opponent's Urza lands don't assemble yours", () => {
+        // p1 has only the Tower; p2 has Mine + Power Plant. The Tower keys off
+        // p1's own battlefield, so it stays at {C}.
+        const p1Battlefield = battlefieldWith(["Urza's Tower"]);
+        expect(getFixedManaAmount(p1Battlefield[0], "C", p1Battlefield)).toBe(
+            1
+        );
+    });
+
+    it("auto-tap solver reflects the assembled (not base) yield", () => {
+        const battlefield = battlefieldWith([
+            "Urza's Mine",
+            "Urza's Power-Plant",
+            "Urza's Tower",
+        ]);
+        const sources = buildAutoTapSources(battlefield);
+        // Every Urza land is solver-visible (unrestricted, single colorless).
+        expect(sources).toHaveLength(3);
+        const total = sources.reduce(
+            (sum, s) => sum + (s.options[0].mana.C ?? 0),
+            0
+        );
+        expect(total).toBe(7);
+    });
+
+    it("tap snapshots the assembled amount; untap refunds it even if the board changed", () => {
+        // Mirrors the tapUntap fixed-mana branch (game.ts): on tap the dynamic
+        // amount is snapshotted onto `chosenMana`; on untap the refund reads the
+        // snapshot, so a mid-float board change can't desync the pool.
+        const battlefield = battlefieldWith([
+            "Urza's Mine",
+            "Urza's Power-Plant",
+            "Urza's Tower",
+        ]);
+        const player = makePlayer("p1", { battlefield });
+        const tower = battlefield[2];
+
+        // Tap the assembled Tower for {C}{C}{C}, snapshotting onto chosenMana.
+        const amount = getFixedManaAmount(tower, "C", player.battlefield);
+        expect(amount).toBe(3);
+        tower.isTapped = true;
+        tower.chosenMana = { C: amount };
+        player.manaPool.C += amount;
+        expect(player.manaPool.C).toBe(3);
+
+        // The set is broken (Mine sacrificed) while the 3 mana is floating.
+        player.battlefield = [battlefield[1], battlefield[2]];
+
+        // Untap refunds the snapshot (3), not a fresh recomputation (would be 1).
+        const refund = tower.chosenMana?.C ?? 0;
+        expect(refund).toBe(3);
+        player.manaPool.C = Math.max(0, player.manaPool.C - refund);
+        tower.chosenMana = undefined;
+        tower.isTapped = false;
+        expect(player.manaPool.C).toBe(0);
+    });
+
+    it("wire format: assembled output survives projectPublicState (CR 106.1)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: battlefieldWith([
+                        "Urza's Mine",
+                        "Urza's Power-Plant",
+                        "Urza's Tower",
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const tower = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === urzasTower.id
+        )!;
+        // Fat state: assembled Tower yields 3.
+        expect(
+            getFixedManaAmount(tower, "C", state.players[0].battlefield)
+        ).toBe(3);
+
+        // Same assertion after projection (subtypes + card.id survive slimCard,
+        // so the dynamic computation re-reads the def from the registry).
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBattlefield = projected.players[0].battlefield;
+        const slimTower = slimBattlefield.find(
+            (c) => (c.card as { id: string }).id === urzasTower.id
+        )!;
+        expect(
+            getFixedManaAmount(
+                slimTower as unknown as CardInstanceState,
+                "C",
+                slimBattlefield as unknown as CardInstanceState[]
+            )
+        ).toBe(3);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Cluster B — "ability activated" trigger event (issue #285)
+// PERMANENT_TAPPED (CR 701.20a) + ABILITY_ACTIVATED (CR 602.1) punishers.
+// ---------------------------------------------------------------------------
+
+/** Synthetic ABILITY_ACTIVATED event over an artifact (CR 602.1). */
+function abilityActivatedEvent(overrides: {
+    permanentId: string;
+    controllerId: string;
+    permanentTypes?: CardType[];
+    abilityId?: string;
+}): GameEvent {
+    return {
+        type: "ABILITY_ACTIVATED" as const,
+        permanentId: overrides.permanentId,
+        controllerId: overrides.controllerId,
+        permanentTypes:
+            overrides.permanentTypes ?? (["Artifact"] as CardType[]),
+        permanentSubtypes: [],
+        abilityId: overrides.abilityId ?? "some-ability",
+    };
+}
+
+/** Synthetic PERMANENT_TAPPED event over an artifact (CR 701.20a). */
+function artifactTappedEvent(overrides: {
+    permanentId: string;
+    controllerId: string;
+    permanentTypes?: CardType[];
+}): GameEvent {
+    return {
+        type: "PERMANENT_TAPPED" as const,
+        permanentId: overrides.permanentId,
+        controllerId: overrides.controllerId,
+        permanentTypes:
+            overrides.permanentTypes ?? (["Artifact"] as CardType[]),
+        permanentSubtypes: [],
+        forMana: false,
+    };
+}
+
+describe("Haunting Wind (1 dmg on artifact tap or non-tap ability)", () => {
+    const self = {
+        id: "hw",
+        controllerId: "p1",
+        ownerId: "p1",
+        types: ["Enchantment"] as CardType[],
+        subtypes: [],
+        isTapped: false,
+        card: {},
+    };
+    const tappedTrig = hauntingWind.triggeredAbilities!.find(
+        (t) => t.id === "haunting-wind-tapped"
+    )!;
+    const abilityTrig = hauntingWind.triggeredAbilities!.find(
+        (t) => t.id === "haunting-wind-ability"
+    )!;
+
+    it("declares one PERMANENT_TAPPED and one ABILITY_ACTIVATED trigger", () => {
+        expect(tappedTrig.event).toBe("PERMANENT_TAPPED");
+        expect(abilityTrig.event).toBe("ABILITY_ACTIVATED");
+    });
+
+    it("tapped trigger fires for any artifact tap, ignores non-artifacts", () => {
+        expect(
+            tappedTrig.matches(
+                artifactTappedEvent({ permanentId: "a", controllerId: "p2" }),
+                self
+            )
+        ).toBe(true);
+        expect(
+            tappedTrig.matches(
+                artifactTappedEvent({
+                    permanentId: "a",
+                    controllerId: "p2",
+                    permanentTypes: ["Land"],
+                }),
+                self
+            )
+        ).toBe(false);
+    });
+
+    it("ability trigger fires for an artifact's non-tap ability, ignores non-artifacts", () => {
+        expect(
+            abilityTrig.matches(
+                abilityActivatedEvent({ permanentId: "a", controllerId: "p2" }),
+                self
+            )
+        ).toBe(true);
+        expect(
+            abilityTrig.matches(
+                abilityActivatedEvent({
+                    permanentId: "a",
+                    controllerId: "p2",
+                    permanentTypes: ["Creature"],
+                }),
+                self
+            )
+        ).toBe(false);
+        // Cross-wiring guard: the tapped trigger must NOT match the
+        // ABILITY_ACTIVATED event, and vice versa.
+        expect(
+            tappedTrig.matches(
+                abilityActivatedEvent({ permanentId: "a", controllerId: "p2" }),
+                self
+            )
+        ).toBe(false);
+        expect(
+            abilityTrig.matches(
+                artifactTappedEvent({ permanentId: "a", controllerId: "p2" }),
+                self
+            )
+        ).toBe(false);
+    });
+
+    it("resolves 1 damage to the artifact's controller on the ability event", () => {
+        const hw = makeInstance(hauntingWind.id, {
+            id: "hw",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hw], life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        fireTrigger(
+            state,
+            hw,
+            "haunting-wind-ability",
+            abilityActivatedEvent({ permanentId: "art", controllerId: "p2" })
+        );
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("wire format — damage to controller survives projection", () => {
+        const hw = makeInstance(hauntingWind.id, {
+            id: "hw",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hw], life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        fireTrigger(
+            state,
+            hw,
+            "haunting-wind-tapped",
+            artifactTappedEvent({ permanentId: "art", controllerId: "p2" })
+        );
+        expect(state.players[1].life).toBe(19);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[1].life).toBe(19);
+    });
+});
+
+describe("Powerleech (gain 1 on opponent artifact tap or non-tap ability)", () => {
+    const self = {
+        id: "pl",
+        controllerId: "p1",
+        ownerId: "p1",
+        types: ["Enchantment"] as CardType[],
+        subtypes: [],
+        isTapped: false,
+        card: {},
+    };
+    const tappedTrig = powerleech.triggeredAbilities!.find(
+        (t) => t.id === "powerleech-tapped"
+    )!;
+    const abilityTrig = powerleech.triggeredAbilities!.find(
+        (t) => t.id === "powerleech-ability"
+    )!;
+
+    it("fires only for an OPPONENT's artifact (scope: opponents)", () => {
+        // opponent (p2) artifact → both events match
+        expect(
+            tappedTrig.matches(
+                artifactTappedEvent({ permanentId: "a", controllerId: "p2" }),
+                self
+            )
+        ).toBe(true);
+        expect(
+            abilityTrig.matches(
+                abilityActivatedEvent({ permanentId: "a", controllerId: "p2" }),
+                self
+            )
+        ).toBe(true);
+        // own (p1) artifact → neither matches
+        expect(
+            tappedTrig.matches(
+                artifactTappedEvent({ permanentId: "a", controllerId: "p1" }),
+                self
+            )
+        ).toBe(false);
+        expect(
+            abilityTrig.matches(
+                abilityActivatedEvent({ permanentId: "a", controllerId: "p1" }),
+                self
+            )
+        ).toBe(false);
+    });
+
+    it("resolves +1 life to the enchantment's controller (both cases)", () => {
+        const make = () => {
+            const pl = makeInstance(powerleech.id, {
+                id: "pl",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            return {
+                pl,
+                state: makeState({
+                    players: [
+                        makePlayer("p1", { battlefield: [pl], life: 20 }),
+                        makePlayer("p2", { life: 20 }),
+                    ],
+                }),
+            };
+        };
+        const tap = make();
+        fireTrigger(
+            tap.state,
+            tap.pl,
+            "powerleech-tapped",
+            artifactTappedEvent({ permanentId: "art", controllerId: "p2" })
+        );
+        expect(tap.state.players[0].life).toBe(21);
+
+        const abil = make();
+        fireTrigger(
+            abil.state,
+            abil.pl,
+            "powerleech-ability",
+            abilityActivatedEvent({ permanentId: "art", controllerId: "p2" })
+        );
+        expect(abil.state.players[0].life).toBe(21);
+        // Wire format: life gain visible after projection.
+        const projected = projectPublicState(abil.state, 0, "p1");
+        expect(projected.players[0].life).toBe(21);
+    });
+});
+
+describe("Artifact Possession (Aura: 2 dmg on enchanted artifact tap/ability)", () => {
+    const tappedTrig = artifactPossession.triggeredAbilities!.find(
+        (t) => t.id === "artifact-possession-tapped"
+    )!;
+    const abilityTrig = artifactPossession.triggeredAbilities!.find(
+        (t) => t.id === "artifact-possession-ability"
+    )!;
+
+    it("is an Aura that enchants artifacts", () => {
+        expect(artifactPossession.subtypes).toContain("Aura");
+        expect(artifactPossession.targetRequirement).toEqual({
+            type: "Artifact",
+            count: 1,
+        });
+    });
+
+    it("fires only for the enchanted artifact (self.attachedTo host check)", () => {
+        const attached = {
+            id: "ap",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Enchantment"] as CardType[],
+            subtypes: ["Aura"],
+            isTapped: false,
+            attachedTo: "host",
+            card: {},
+        };
+        // enchanted artifact ("host") → matches
+        expect(
+            tappedTrig.matches(
+                artifactTappedEvent({
+                    permanentId: "host",
+                    controllerId: "p2",
+                }),
+                attached
+            )
+        ).toBe(true);
+        expect(
+            abilityTrig.matches(
+                abilityActivatedEvent({
+                    permanentId: "host",
+                    controllerId: "p2",
+                }),
+                attached
+            )
+        ).toBe(true);
+        // a DIFFERENT artifact → no match
+        expect(
+            abilityTrig.matches(
+                abilityActivatedEvent({
+                    permanentId: "other",
+                    controllerId: "p2",
+                }),
+                attached
+            )
+        ).toBe(false);
+        // unattached aura → no match
+        expect(
+            tappedTrig.matches(
+                artifactTappedEvent({
+                    permanentId: "host",
+                    controllerId: "p2",
+                }),
+                { ...attached, attachedTo: undefined }
+            )
+        ).toBe(false);
+    });
+
+    it("resolves 2 damage to the host artifact's controller", () => {
+        const ap = makeInstance(artifactPossession.id, {
+            id: "ap",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ap], life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        fireTrigger(
+            state,
+            ap,
+            "artifact-possession-ability",
+            abilityActivatedEvent({ permanentId: "host", controllerId: "p2" })
+        );
+        expect(state.players[1].life).toBe(18);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[1].life).toBe(18);
     });
 });

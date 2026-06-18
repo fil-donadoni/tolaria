@@ -604,6 +604,18 @@ export type PendingActivation = {
     tapSource: boolean;
     /** True iff the ability has a sacrifice cost — applied at commit. */
     sacrificeSource: boolean;
+    /** In-progress "sacrifice a permanent matching <filter>" cost picker
+     *  (CR 602.1, 118.5 — Antiquities sacrifice-for-value engines). Set when
+     *  the ability has `cost.sacrificeFilter`. `pickedId` is undefined until
+     *  the player calls `selectActivationCost`; commit is blocked while it is
+     *  undefined regardless of mana coverage. On commit the picked permanent
+     *  is sacrificed and its mana value is snapshotted onto the resulting
+     *  stack item (read at resolve via getAdditionalSacrificeMv — Priest of
+     *  Yawgmoth). Mirrors PendingCast.additionalCost. */
+    sacrificeChoice?: {
+        filter: PermanentFilter;
+        pickedId?: string;
+    };
     /** Counter-removal cost (CR 122.6 — "Remove a [type] counter from this
      *  creature"). Applied at commit. */
     removeCounterCost?: { type: string; count: number };
@@ -2671,6 +2683,32 @@ export function emitPermanentTapped(
     ];
 }
 
+/** Emits an ABILITY_ACTIVATED event for a non-mana activated ability that was
+ *  just committed to the stack (CR 602.1). This is the non-{T} complement of
+ *  `emitPermanentTapped`: callers gate on `!ability.cost.tap` so a {T} ability
+ *  (which already emits PERMANENT_TAPPED) is not double-counted. Together the
+ *  two events drive "whenever ~ is tapped or has a non-tap ability activated"
+ *  triggers (Antiquities cluster B — Haunting Wind, Powerleech, Artifact
+ *  Possession). Snapshots the source's controller/types/subtypes (CR 603.10
+ *  last-known information) so triggers can filter after the source leaves. */
+export function emitAbilityActivated(
+    state: GameState,
+    card: CardInstanceState,
+    abilityId: string
+): void {
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "ABILITY_ACTIVATED",
+            permanentId: card.id,
+            controllerId: card.controllerId,
+            permanentTypes: [...card.types],
+            permanentSubtypes: [...card.subtypes],
+            abilityId,
+        },
+    ];
+}
+
 /** Removes any queued PERMANENT_TAPPED event for `permanentId`. Called by
  *  payment-rollback paths (untapForPayment, cancelCast, cancelActivation) so
  *  a tap that was undone before commit doesn't fire its triggers. */
@@ -4580,15 +4618,20 @@ export function payManaCost(
 }
 
 /** True if restricted mana with `restriction` may pay for a spell with the
- *  given creature-ness (CR 106.6). The only restriction modelled today is
- *  `creature-spell`, spendable solely on creature spells (Metamorphosis). */
+ *  given card types (CR 106.6). Modelled restrictions:
+ *  - `creature-spell` — spendable solely on creature spells (Metamorphosis).
+ *  - `artifact-spell` — spendable solely on artifact spells (Mishra's
+ *    Workshop). Exhaustive `switch` over the union: a new member must add a
+ *    case here (and the compiler enforces it). */
 export function restrictionAllowsSpell(
     restriction: ManaRestriction,
-    isCreatureSpell: boolean
+    spellTypes: readonly string[]
 ): boolean {
     switch (restriction) {
         case "creature-spell":
-            return isCreatureSpell;
+            return spellTypes.includes("Creature");
+        case "artifact-spell":
+            return spellTypes.includes("Artifact");
     }
 }
 
@@ -4617,11 +4660,11 @@ export function addRestrictedManaToPool(
  *  spell being cast is a creature spell. */
 export function spendablePoolForSpell(
     player: PlayerState,
-    isCreatureSpell: boolean
+    spellTypes: readonly string[]
 ): Record<string, number> {
     const pool = { ...player.manaPool };
     for (const r of player.restrictedMana ?? []) {
-        if (restrictionAllowsSpell(r.restriction, isCreatureSpell)) {
+        if (restrictionAllowsSpell(r.restriction, spellTypes)) {
             pool[r.color] = (pool[r.color] ?? 0) + r.amount;
         }
     }
@@ -4633,16 +4676,16 @@ export function spendablePoolForSpell(
  *  policy — it maximises the flexible mana the caster keeps and can never make
  *  a payment illegal, since coverage was already confirmed against the merged
  *  pool. Reuses `payManaCost` semantics by paying a merged pool then
- *  reassigning who paid each color. Caller must pass whether the spell is a
- *  creature spell (drives which restricted mana is eligible). */
+ *  reassigning who paid each color. Caller must pass the spell's card types
+ *  (drives which restricted mana is eligible). */
 export function payManaCostForSpell(
     player: PlayerState,
     cost: Record<string, number>,
-    isCreatureSpell: boolean,
+    spellTypes: readonly string[],
     substitutions: ManaSubstitution[] = []
 ): void {
     const eligible = (player.restrictedMana ?? []).filter((r) =>
-        restrictionAllowsSpell(r.restriction, isCreatureSpell)
+        restrictionAllowsSpell(r.restriction, spellTypes)
     );
     if (eligible.length === 0) {
         payManaCost(player.manaPool, cost, substitutions);

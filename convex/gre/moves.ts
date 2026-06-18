@@ -35,6 +35,7 @@ import {
     validateBlockerEligibility,
 } from "./combat";
 import { getInstanceManaCost, tryGetCardById } from "../cards";
+import { matchesPermanentFilter } from "../cards/filters";
 import { substituteColorFilter } from "./textChanges";
 
 /** One land tap the executor must perform to fund a cast/activation. */
@@ -456,6 +457,17 @@ function enumerateAbilityMoves(
         // CR 118.3 — "discard the last card you drew this turn" cost
         // (Jandor's Ring) is unpayable when no such card is in hand.
         if (ability.cost.discardLastDrawn && !canPayDiscardLastDrawn(player)) {
+            continue;
+        }
+        // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>" cost is
+        // unpayable when no matching permanent is on the player's battlefield
+        // (Atog, Ashnod's Altar, Orcish Mechanics, etc.).
+        if (
+            ability.cost.sacrificeFilter &&
+            !player.battlefield.some((c) =>
+                matchesPermanentFilter(c, ability.cost.sacrificeFilter!)
+            )
+        ) {
             continue;
         }
         // Mana cost: must be payable. The {T} part of the cost is paid by the

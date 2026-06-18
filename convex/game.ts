@@ -29,6 +29,7 @@ import {
     payManaCost,
     payManaCostForSpell,
     spendablePoolForSpell,
+    addRestrictedManaToPool,
     payRemoveCounterCost,
     canPayDiscardLastDrawn,
     payDiscardLastDrawn,
@@ -41,6 +42,7 @@ import {
     applyCostIncrease,
     emitSpellCastEvent,
     emitPermanentTapped,
+    emitAbilityActivated,
     emitPermanentEntered,
     discardPermanentTappedEvent,
     processPendingActionTriggers,
@@ -87,6 +89,8 @@ import {
     DAMAGEABLE_PERMANENT_TYPES,
     getActivatedManaAbility,
     getActivatedManaColor,
+    getActivatedManaRestriction,
+    getDynamicManaProduced,
     getFixedManaAmount,
     hasManaAbility,
     isTapLockedBySummoningSickness,
@@ -317,7 +321,13 @@ function tapSourceIntoPayment(
     const manaColor = getBasicLandMana(card) ?? getActivatedManaColor(card);
     if (!manaColor) throw new Error("Card does not produce mana");
     card.isTapped = true;
-    const amount = getFixedManaAmount(card, manaColor);
+    // CR 106.1 / 605.1a — board-conditional output (Urza trio) is computed from
+    // the controller's battlefield now and snapshotted onto `chosenMana` so the
+    // untap/refund path returns the exact amount that was added.
+    const amount = getFixedManaAmount(card, manaColor, player.battlefield);
+    if (getDynamicManaProduced(card, player.battlefield)) {
+        card.chosenMana = { [manaColor]: amount } as ManaCost;
+    }
     player.manaPool[manaColor] = (player.manaPool[manaColor] ?? 0) + amount;
     emitPermanentTapped(state, card, true, { [manaColor]: amount } as ManaCost);
     tappedLandIds.push(card.id);
@@ -353,6 +363,33 @@ function untapSourceFromPayment(
     card.isTapped = false;
 }
 
+/** Look up a sacrifice-cost candidate on the activator's own battlefield by
+ *  instance id (CR 602.1 — costs are paid from the activating player's
+ *  resources). Returns undefined if it has vanished between selection and
+ *  commit. */
+function findSacrificeCandidate(
+    state: GameState,
+    playerId: string,
+    cardInstanceId: string
+): CardInstanceState | undefined {
+    const player = getPlayer(state, playerId);
+    return player.battlefield.find((c) => c.id === cardInstanceId);
+}
+
+/** Pre-sacrifice mana value of a permanent (CR 202.3). Read at commit so a
+ *  mana-value-derived effect (Priest of Yawgmoth) sees the sacrificed
+ *  permanent's printed cost. X in a printed cost counts as 0. */
+function sacrificedManaValue(perm: CardInstanceState): number {
+    const cardId = (perm.card as { id?: string }).id;
+    const def = cardId ? tryGetCardById(cardId) : undefined;
+    return def?.manaCost
+        ? Object.entries(def.manaCost).reduce<number>(
+              (acc, [, v]) => acc + (typeof v === "number" ? v : 0),
+              0
+          )
+        : 0;
+}
+
 /** If the activator's pool now covers pendingActivation, pay mana, apply the
  *  deferred tap/sacrifice costs on the source, push the ability on the stack,
  *  and swap priority. Mirrors tryAutoCommitPendingCast for abilities. Returns
@@ -379,6 +416,12 @@ function tryAutoCommitPendingActivation(
         )
     )
         return null;
+    // CR 602.1 / 118.5 — commit is blocked until the "sacrifice a permanent
+    // matching <filter>" cost has been picked (selectActivationCost). Mirrors
+    // pendingCast.additionalCost gating.
+    if (pa.sacrificeChoice && !pa.sacrificeChoice.pickedId) {
+        return null;
+    }
 
     // CR 113.3c — the source may live on another player's battlefield for an
     // "any player may activate" ability, so search every battlefield rather
@@ -433,6 +476,28 @@ function tryAutoCommitPendingActivation(
     if (pa.sacrificeSource) {
         removePermanentTo(state, card.id, "graveyard");
     }
+    // CR 602.1 / 118.5 — sacrifice the chosen filtered permanent and snapshot
+    // its pre-sacrifice mana value for the stack item (Priest of Yawgmoth).
+    let activationSacrificeSnapshot: StackItem["additionalSacrificeSnapshot"];
+    if (pa.sacrificeChoice?.pickedId) {
+        const sacrificed = findSacrificeCandidate(
+            state,
+            playerId,
+            pa.sacrificeChoice.pickedId
+        );
+        if (!sacrificed) {
+            // Picked permanent vanished between selection and commit — drop
+            // the activation silently (lands stay tapped, mirroring the
+            // vanished-source policy above and cancelCast).
+            state.pendingActivation = undefined;
+            return null;
+        }
+        activationSacrificeSnapshot = {
+            cardInstanceId: sacrificed.id,
+            mv: sacrificedManaValue(sacrificed),
+        };
+        removePermanentTo(state, sacrificed.id, "graveyard");
+    }
 
     const stackItem: StackItem = {
         ...structuredClone(card),
@@ -444,9 +509,12 @@ function tryAutoCommitPendingActivation(
         ...(pa.grantedSourceCardId
             ? { grantedSourceCardId: pa.grantedSourceCardId }
             : {}),
+        ...(activationSacrificeSnapshot
+            ? { additionalSacrificeSnapshot: activationSacrificeSnapshot }
+            : {}),
     };
     state.stack.push(stackItem);
-    recordActivation(card, pa.abilityId);
+    recordActivation(state, card, pa.abilityId, !!pa.tapSource);
 
     const keepPriority = pa.keepPriority;
     state.pendingActivation = undefined;
@@ -569,10 +637,10 @@ export function tryAutoCommitPendingCast(
     const castDef = castCard
         ? tryGetCardById((castCard.card as { id: string }).id)
         : undefined;
-    const isCreatureSpell = castDef?.types.includes("Creature") ?? false;
+    const castTypes = castDef?.types ?? [];
     if (
         !isManaCostCovered(
-            spendablePoolForSpell(player, isCreatureSpell),
+            spendablePoolForSpell(player, castTypes),
             state.pendingCast.manaCost,
             getManaSubstitutions(state, player.id)
         )
@@ -589,7 +657,7 @@ export function tryAutoCommitPendingCast(
     payManaCostForSpell(
         player,
         state.pendingCast.manaCost,
-        isCreatureSpell,
+        castTypes,
         getManaSubstitutions(state, player.id)
     );
     commitLandsForCost(player, state.pendingCast.manaCost);
@@ -1125,12 +1193,32 @@ function assertActivationTimingLegal(
 }
 
 /** Records one activation of `abilityId` against `card` for the current turn
- *  (CR 602.5 — `oncePerTurn` enforcement). Initialises the counter map on
- *  first activation. Called at every activation commit site. */
-function recordActivation(card: CardInstanceState, abilityId: string): void {
+ *  (CR 602.5 — `oncePerTurn` enforcement) and emits the cluster-B
+ *  `ABILITY_ACTIVATED` event for non-{T} abilities (CR 602.1). Initialises the
+ *  counter map on first activation. Called at every activation commit site —
+ *  the single shared anchor, so every path (immediate, targeted, deferred
+ *  payment) fires the event exactly once.
+ *
+ *  The event is emitted only when the ability has NO {T} component: a {T}
+ *  ability already emitted `PERMANENT_TAPPED` from its tap, and the two events
+ *  are complements (see `AbilityActivatedEvent` doc). Passing `taps` makes the
+ *  gate explicit at every call site. */
+function recordActivation(
+    state: GameState,
+    card: CardInstanceState,
+    abilityId: string,
+    taps: boolean
+): void {
     const map: Record<string, number> = card.activationsThisTurn ?? {};
     map[abilityId] = (map[abilityId] ?? 0) + 1;
     card.activationsThisTurn = map;
+    // CR 602.1 — non-{T} activated abilities emit ABILITY_ACTIVATED so
+    // "tapped or non-tap ability activated" punishers (Haunting Wind,
+    // Powerleech, Artifact Possession) can react. {T} abilities are covered by
+    // PERMANENT_TAPPED instead, avoiding a double trigger.
+    if (!taps) {
+        emitAbilityActivated(state, card, abilityId);
+    }
 }
 
 /** Minimum number of targets required for a TargetRequirement.count value.
@@ -1230,6 +1318,16 @@ function finalizeTargetSelection(
         ) {
             throw new Error("Ability cannot be activated right now");
         }
+        // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>": illegal
+        // if no matching permanent is on the activating player's battlefield.
+        if (ability.cost.sacrificeFilter) {
+            const candidates = player.battlefield.filter((c) =>
+                matchesPermanentFilter(c, ability.cost.sacrificeFilter!)
+            );
+            if (candidates.length === 0) {
+                throw new Error("No legal permanent to pay the sacrifice cost");
+            }
+        }
         assertActivationTimingLegal(state, card, ability);
 
         const hasXInCost =
@@ -1251,25 +1349,36 @@ function finalizeTargetSelection(
             );
         }
 
-        // Enter pendingActivation (deferred commit) if mana isn't covered.
-        if (
-            manaCost &&
+        // Enter pendingActivation (deferred commit) when mana isn't covered OR
+        // the ability has a "sacrifice a permanent matching <filter>" cost that
+        // still needs a player choice (CR 602.1 / 118.5). In the latter case we
+        // always defer to selectActivationCost even when mana is covered, so
+        // the player picks the sacrifice before the targeted ability commits.
+        const manaUncovered =
+            !!manaCost &&
             !isManaCostCovered(
                 player.manaPool,
                 manaCost,
                 getManaSubstitutions(state, player.id)
-            )
-        ) {
+            );
+        if (manaUncovered || ability.cost.sacrificeFilter) {
             state.pendingActivation = {
                 playerId,
                 cardInstanceId: card.id,
                 abilityId,
-                manaCost,
+                manaCost: manaCost ?? {},
                 tappedLandIds: [],
                 tapSource: !!ability.cost.tap,
                 sacrificeSource: !!ability.cost.sacrifice,
                 ...(ability.cost.removeCounter
                     ? { removeCounterCost: { ...ability.cost.removeCounter } }
+                    : {}),
+                ...(ability.cost.sacrificeFilter
+                    ? {
+                          sacrificeChoice: {
+                              filter: ability.cost.sacrificeFilter,
+                          },
+                      }
                     : {}),
                 ...(abilityChosenX !== undefined
                     ? { chosenX: abilityChosenX }
@@ -1278,6 +1387,9 @@ function finalizeTargetSelection(
                 targets,
                 ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
             };
+            // If mana was already covered (sacrifice-choice-only deferral),
+            // commit fires once selectActivationCost sets the pickedId.
+            tryAutoCommitPendingActivation(state, playerId);
             return;
         }
 
@@ -1310,11 +1422,15 @@ function finalizeTargetSelection(
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
         };
         state.stack.push(stackItem);
-        recordActivation(card, abilityId);
+        recordActivation(state, card, abilityId, !!ability.cost.tap);
         state.passCount = 0;
         state.priorityPlayerId = getOpponentId(state, playerId);
         state.singleShotAutoPass = keepPriority ? undefined : playerId;
         drainAutoPasses(state);
+        // CR 603.3 — flush ABILITY_ACTIVATED queued by recordActivation so the
+        // "non-tap ability activated" punisher lands on top of the freshly
+        // pushed ability (resolves first). No-op for {T} abilities.
+        processPendingActionTriggers(state);
         return;
     }
 
@@ -1332,13 +1448,14 @@ function finalizeTargetSelection(
         : {};
     applyCostIncrease(manaCost, getCostModifiers(state, cardInHand, "spell"));
 
-    // CR 106.6: creature spells may spend restriction-permitting mana
-    // (Metamorphosis) in addition to the fungible pool.
-    const isCreatureSpell = cardDef.types.includes("Creature");
+    // CR 106.6: a spell may also spend restriction-permitting mana —
+    // creature mana (Metamorphosis) or artifact mana (Mishra's Workshop) —
+    // in addition to the fungible pool. Eligibility is decided from the
+    // spell's card types in restrictionAllowsSpell.
     if (
         Object.keys(manaCost).length === 0 ||
         isManaCostCovered(
-            spendablePoolForSpell(player, isCreatureSpell),
+            spendablePoolForSpell(player, cardDef.types),
             manaCost,
             getManaSubstitutions(state, player.id)
         )
@@ -1347,7 +1464,7 @@ function finalizeTargetSelection(
             payManaCostForSpell(
                 player,
                 manaCost,
-                isCreatureSpell,
+                cardDef.types,
                 getManaSubstitutions(state, player.id)
             );
             commitLandsForCost(player, manaCost);
@@ -1614,13 +1731,12 @@ export const announceCast = mutation({
         }
 
         // If cost is zero or pool already covers it, commit immediately.
-        // CR 106.6: creature spells may also spend restriction-permitting
-        // mana (Metamorphosis).
-        const isCreatureSpell = cardDef.types.includes("Creature");
+        // CR 106.6: a spell may also spend restriction-permitting mana —
+        // creature mana (Metamorphosis) or artifact mana (Mishra's Workshop).
         if (
             Object.keys(manaCost).length === 0 ||
             isManaCostCovered(
-                spendablePoolForSpell(player, isCreatureSpell),
+                spendablePoolForSpell(player, cardDef.types),
                 manaCost,
                 getManaSubstitutions(state, player.id)
             )
@@ -1629,7 +1745,7 @@ export const announceCast = mutation({
                 payManaCostForSpell(
                     player,
                     manaCost,
-                    isCreatureSpell,
+                    cardDef.types,
                     getManaSubstitutions(state, player.id)
                 );
                 commitLandsForCost(player, manaCost);
@@ -1742,7 +1858,17 @@ export const tapForPayment = mutation({
             if (!manaColor) throw new Error("Card does not produce mana");
 
             card.isTapped = true;
-            const amount = getFixedManaAmount(card, manaColor);
+            // CR 106.1 / 605.1a — board-conditional output (Urza trio) computed
+            // from the controller's battlefield and snapshotted onto
+            // `chosenMana` so untap refunds the exact amount added.
+            const amount = getFixedManaAmount(
+                card,
+                manaColor,
+                player.battlefield
+            );
+            if (getDynamicManaProduced(card, player.battlefield)) {
+                card.chosenMana = { [manaColor]: amount } as ManaCost;
+            }
             player.manaPool[manaColor] =
                 (player.manaPool[manaColor] ?? 0) + amount;
             emitPermanentTapped(state, card, true, {
@@ -2104,6 +2230,65 @@ export const cancelActivation = mutation({
         }
 
         rollbackPendingActivation(state);
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** Pick the permanent to sacrifice for an activated ability's
+ *  "sacrifice a permanent matching <filter>" cost (CR 602.1 / 118.5).
+ *  Mirrors selectAdditionalCost for the spell path. Commit fires via
+ *  tryAutoCommitPendingActivation once both the pick and the mana are in. */
+export const selectActivationCost = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+
+        const pa = state.pendingActivation;
+        if (!pa) throw new Error("No ability being activated");
+        if (pa.playerId !== args.playerId) {
+            throw new Error("Not your pending activation");
+        }
+        const sc = pa.sacrificeChoice;
+        if (!sc) {
+            throw new Error("This ability has no sacrifice cost picker");
+        }
+        if (sc.pickedId) {
+            throw new Error("Sacrifice cost already paid");
+        }
+        const player = getPlayer(state, args.playerId);
+        const candidate = player.battlefield.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!candidate) {
+            throw new Error("Selected permanent not on your battlefield");
+        }
+        if (!matchesPermanentFilter(candidate, sc.filter)) {
+            throw new Error(
+                "Selected permanent does not match the sacrifice cost filter"
+            );
+        }
+        sc.pickedId = args.cardInstanceId;
+
+        // tryAutoCommitPendingActivation pushes the ability on the stack and
+        // clears pendingActivation when the mana is also covered. If mana is
+        // still owed, the activation stays pending and the player completes
+        // payment via tapForActivationPayment.
+        tryAutoCommitPendingActivation(state, args.playerId);
 
         await saveGameState(
             ctx,
@@ -3815,6 +4000,18 @@ export const activateAbility = mutation({
         if (ability.cost.discardLastDrawn && !canPayDiscardLastDrawn(player)) {
             throw new Error("No card drawn this turn left to discard");
         }
+        // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>": the
+        // activation is illegal if no matching permanent is on the activating
+        // player's battlefield. Validated up-front so we never enter a
+        // pendingActivation that can't be paid.
+        if (ability.cost.sacrificeFilter) {
+            const candidates = player.battlefield.filter((c) =>
+                matchesPermanentFilter(c, ability.cost.sacrificeFilter!)
+            );
+            if (candidates.length === 0) {
+                throw new Error("No legal permanent to pay the sacrifice cost");
+            }
+        }
         // CR 602.5 — activated abilities may declare a custom precondition
         // (e.g. Clockwork Beast: "Activate only if it has fewer than seven
         // +1/+0 counters on it.") read against current source state.
@@ -3845,23 +4042,27 @@ export const activateAbility = mutation({
             );
         }
 
-        // If mana isn't covered, enter a pendingActivation payment phase that
-        // mirrors pendingCast: the player taps lands, and auto-commit applies
-        // the deferred tap/sacrifice and pushes the ability on the stack.
+        // Enter a pendingActivation payment phase that mirrors pendingCast
+        // when (a) mana isn't yet covered, OR (b) the ability has a
+        // sacrifice-a-filtered-permanent cost that still needs a choice
+        // (CR 602.1 / 118.5). In the payment phase the player taps lands and
+        // picks the sacrifice (selectActivationCost); auto-commit applies the
+        // deferred tap/sacrifice and pushes the ability on the stack.
         // Tap/sacrifice are DEFERRED so cancel leaves the source untouched.
-        if (
-            manaCost &&
+        const manaUncovered =
+            !!manaCost &&
             !isManaCostCovered(
                 player.manaPool,
                 manaCost,
                 getManaSubstitutions(state, player.id)
-            )
-        ) {
+            );
+        const needsSacrificeChoice = !!ability.cost.sacrificeFilter;
+        if (manaUncovered || needsSacrificeChoice) {
             const pending: PendingActivation = {
                 playerId: args.playerId,
                 cardInstanceId: card.id,
                 abilityId: args.abilityId,
-                manaCost,
+                manaCost: manaCost ?? {},
                 tappedLandIds: [],
                 tapSource: !!ability.cost.tap,
                 sacrificeSource: !!ability.cost.sacrifice,
@@ -3871,11 +4072,25 @@ export const activateAbility = mutation({
                 ...(ability.cost.discardLastDrawn
                     ? { discardLastDrawnSource: true }
                     : {}),
+                ...(ability.cost.sacrificeFilter
+                    ? {
+                          sacrificeChoice: {
+                              filter: ability.cost.sacrificeFilter,
+                          },
+                      }
+                    : {}),
                 ...(chosenX !== undefined ? { chosenX } : {}),
                 keepPriority: args.keepPriority,
                 ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
             };
             state.pendingActivation = pending;
+            // CR 302.1 — a {T}-cost ability still needs the source untapped at
+            // commit; deferral keeps it untapped now, so re-check at commit.
+            // When mana is already covered and the source has a {T} cost but no
+            // sacrifice choice, this branch isn't reached (mana covered path).
+            // tryAutoCommitPendingActivation handles the eventual commit (after
+            // the sacrifice pick) including when mana is already covered.
+            tryAutoCommitPendingActivation(state, args.playerId);
 
             const nextSeq = gameState.seq + 1;
             await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
@@ -3914,13 +4129,17 @@ export const activateAbility = mutation({
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
         };
         state.stack.push(stackItem);
-        recordActivation(card, args.abilityId);
+        recordActivation(state, card, args.abilityId, !!ability.cost.tap);
         state.passCount = 0;
         state.priorityPlayerId = getOpponentId(state, args.playerId);
         state.singleShotAutoPass = args.keepPriority
             ? undefined
             : args.playerId;
         drainAutoPasses(state);
+        // CR 603.3 — flush ABILITY_ACTIVATED queued by recordActivation so the
+        // "non-tap ability activated" punisher lands on top of the freshly
+        // pushed ability (resolves first). No-op for {T} abilities.
+        processPendingActionTriggers(state);
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
@@ -4079,8 +4298,67 @@ export const tapUntap = mutation({
             const manaColor =
                 getBasicLandMana(card) ?? getActivatedManaColor(card);
             if (manaColor) {
-                const amount = getFixedManaAmount(card, manaColor);
-                if (!wasTapped) {
+                // CR 106.1 / 605.1a — board-conditional output (Urza trio) is
+                // computed from the controller's battlefield at tap time. On
+                // untap we refund the exact snapshotted `chosenMana` amount
+                // (the board may have changed since the tap), falling back to a
+                // fresh computation only for legacy/untracked instances.
+                const isDynamic = !!getDynamicManaProduced(
+                    card,
+                    player.battlefield
+                );
+                const refundAmount =
+                    isDynamic && wasTapped && card.chosenMana
+                        ? (card.chosenMana[manaColor] ?? 0)
+                        : getFixedManaAmount(
+                              card,
+                              manaColor,
+                              player.battlefield
+                          );
+                const amount = wasTapped
+                    ? refundAmount
+                    : getFixedManaAmount(card, manaColor, player.battlefield);
+                // CR 106.6 — Mishra's Workshop produces mana spendable only on
+                // artifact spells; it floats in a parallel `restrictedMana`
+                // pool rather than the fungible pool. Refund (untap, blocked
+                // unless `!manaCommitted`, so the full amount is still
+                // floating) removes it from the same pool.
+                const restriction = getActivatedManaRestriction(card);
+                if (restriction) {
+                    if (!wasTapped) {
+                        addRestrictedManaToPool(
+                            player,
+                            manaColor,
+                            amount,
+                            restriction
+                        );
+                        producedThisActivation = {
+                            [manaColor]: amount,
+                        } as ManaCost;
+                        emitPermanentTapped(
+                            state,
+                            card,
+                            true,
+                            producedThisActivation
+                        );
+                    } else {
+                        const list = player.restrictedMana ?? [];
+                        const entry = list.find(
+                            (r) =>
+                                r.color === manaColor &&
+                                r.restriction === restriction
+                        );
+                        if (entry) {
+                            entry.amount = Math.max(0, entry.amount - amount);
+                        }
+                        const remaining = list.filter((r) => r.amount > 0);
+                        player.restrictedMana =
+                            remaining.length > 0 ? remaining : undefined;
+                    }
+                } else if (!wasTapped) {
+                    if (isDynamic) {
+                        card.chosenMana = { [manaColor]: amount } as ManaCost;
+                    }
                     player.manaPool[manaColor] =
                         (player.manaPool[manaColor] ?? 0) + amount;
                     producedThisActivation = {
@@ -4095,6 +4373,7 @@ export const tapUntap = mutation({
                 } else {
                     player.manaPool[manaColor] =
                         (player.manaPool[manaColor] ?? 0) - amount;
+                    if (isDynamic) card.chosenMana = undefined;
                 }
             }
         }
