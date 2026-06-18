@@ -16,8 +16,17 @@
 import type {
     ActivatedAbilityContext,
     CardDefinition,
+    DelayedTriggerDef,
     SpellContext,
+    TargetSelection,
+    TriggeredAbility,
 } from "../types";
+import { EFFECT_AFFECTS_SELF } from "../types";
+import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
+import { diedTrigger } from "../abilities/triggers/diedTrigger";
+import { leftTrigger } from "../abilities/triggers/leftTrigger";
+import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
+import { makeCircleOfProtection } from "../abilities";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vanilla / keyword artifact creatures (CR 702 — keywords map to
@@ -690,6 +699,1028 @@ export const candelabraOfTawnos: CardDefinition = {
             resolve: (ctx: SpellContext) => {
                 for (const target of ctx.targets) {
                     if (target.type === "permanent") ctx.untap(target);
+                }
+            },
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Value triggers & counter creatures (free tranche, #276) — CR 603.2 triggered
+// abilities (SPELL_CAST / CREATURE_DIED / PERMANENT_LEFT / PHASE_BEGIN), CR
+// 117.3a optional may-pay, CR 122 counters (entersWith + removal cost), CR
+// 113.3c any-player activation. Modern Scryfall oracle text is authoritative
+// (ADR 0004); mana costs / type lines come from MTGJSON ATQ.json. Every effect
+// reuses existing trigger factories and SpellContext primitives — no new
+// primitive, no engine change.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Citanul Druid — {1}{G} Creature — Human Druid, 1/1. "Whenever an opponent
+// casts an artifact spell, put a +1/+1 counter on this creature." (CR 603.2
+// SPELL_CAST trigger scoped to opponents + filtered to Artifact spells; CR
+// 122.1 +1/+1 counter feeding layer 7d P/T.)
+export const citanulDruid: CardDefinition = {
+    id: "f8a130dc-3b1f-4fae-8459-b26bb5647fec",
+    name: "Citanul Druid",
+    oracleText:
+        "Whenever an opponent casts an artifact spell, put a +1/+1 counter on this creature.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Druid"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "citanul-druid-grow",
+            oracleText:
+                "Whenever an opponent casts an artifact spell, put a +1/+1 counter on this creature.",
+            scope: "opponents",
+            filter: { types: "Artifact" },
+            resolve: (ctx) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "+1/+1",
+                    1
+                );
+            },
+        }),
+    ],
+};
+
+// Urza's Chalice — {1} Artifact. "Whenever a player casts an artifact spell,
+// you may pay {1}. If you do, you gain 1 life." (CR 603.2 SPELL_CAST trigger,
+// scope "any"; CR 117.3a optional may-pay → gainLife.) Same shape as the LEA
+// color-sphere cycle, filtered to artifact spells instead of a color.
+export const urzasChalice: CardDefinition = {
+    id: "f3728537-86d3-42be-9046-90bba1bfafc1",
+    name: "Urza's Chalice",
+    oracleText:
+        "Whenever a player casts an artifact spell, you may pay {1}. If you do, you gain 1 life.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "urzas-chalice-life",
+            oracleText:
+                "Whenever a player casts an artifact spell, you may pay {1}. If you do, you gain 1 life.",
+            scope: "any",
+            filter: { types: "Artifact" },
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: ctx.controller,
+                    cost: { X: 1 },
+                    prompt: "Pay {1} to gain 1 life from Urza's Chalice?",
+                });
+                if (accept === undefined) return;
+                if (accept) ctx.gainLife(ctx.controller, 1);
+            },
+        }),
+    ],
+};
+
+// Onulet — {3} Artifact Creature — Construct, 2/2. "When this creature dies,
+// you gain 2 life." (CR 700.4 death = battlefield→graveyard; CR 603.2 death
+// trigger scoped to self.)
+export const onulet: CardDefinition = {
+    id: "d77fe8e2-8438-473e-ace5-01baddd2c4ed",
+    name: "Onulet",
+    oracleText: "When this creature dies, you gain 2 life.",
+    manaCost: { X: 3 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Construct"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        diedTrigger({
+            id: "onulet-life",
+            oracleText: "When this creature dies, you gain 2 life.",
+            scope: "self",
+            resolve: (ctx) => {
+                ctx.gainLife(ctx.controller, 2);
+            },
+        }),
+    ],
+};
+
+// Su-Chi — {4} Artifact Creature — Construct, 4/4. "When this creature dies,
+// add {C}{C}{C}{C}." (CR 603.2 death trigger scoped to self; CR 106.1 the
+// added mana goes to the trigger's controller's pool via addManaTo.) The mana
+// is added on resolution — it empties at end of the step/phase like any mana.
+export const suChi: CardDefinition = {
+    id: "a64d4f93-0c04-4078-aec0-7e9de92f260f",
+    name: "Su-Chi",
+    oracleText: "When this creature dies, add {C}{C}{C}{C}.",
+    manaCost: { X: 4 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Construct"],
+    power: 4,
+    toughness: 4,
+    triggeredAbilities: [
+        diedTrigger({
+            id: "su-chi-mana",
+            oracleText: "When this creature dies, add {C}{C}{C}{C}.",
+            scope: "self",
+            resolve: (ctx) => {
+                ctx.addManaTo(ctx.controller, { C: 4 });
+            },
+        }),
+    ],
+};
+
+// Tablet of Epityr — {1} Artifact. "Whenever an artifact you control is put
+// into a graveyard from the battlefield, you may pay {1}. If you do, you gain
+// 1 life." (CR 603.2 PERMANENT_LEFT trigger, toZone graveyard + scope "yours"
+// + Artifact filter; CR 117.3a optional may-pay.)
+export const tabletOfEpityr: CardDefinition = {
+    id: "6d7a2718-301f-4191-b348-0c44c7c07d43",
+    name: "Tablet of Epityr",
+    oracleText:
+        "Whenever an artifact you control is put into a graveyard from the battlefield, you may pay {1}. If you do, you gain 1 life.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        leftTrigger({
+            id: "tablet-of-epityr-life",
+            oracleText:
+                "Whenever an artifact you control is put into a graveyard from the battlefield, you may pay {1}. If you do, you gain 1 life.",
+            scope: "yours",
+            toZone: "graveyard",
+            filter: { types: "Artifact" },
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: ctx.controller,
+                    cost: { X: 1 },
+                    prompt: "Pay {1} to gain 1 life from Tablet of Epityr?",
+                });
+                if (accept === undefined) return;
+                if (accept) ctx.gainLife(ctx.controller, 1);
+            },
+        }),
+    ],
+};
+
+// Ivory Tower — {1} Artifact. "At the beginning of your upkeep, you gain X
+// life, where X is the number of cards in your hand minus 4." (CR 603.6a
+// upkeep trigger scoped to "your"; gain is clamped at 0 — you never lose life
+// when hand < 4.)
+export const ivoryTower: CardDefinition = {
+    id: "a5f23039-45ca-4c15-af50-bfd40ea26453",
+    name: "Ivory Tower",
+    oracleText:
+        "At the beginning of your upkeep, you gain X life, where X is the number of cards in your hand minus 4.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "ivory-tower-life",
+            oracleText:
+                "At the beginning of your upkeep, you gain X life, where X is the number of cards in your hand minus 4.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx, _event, playerId) => {
+                const x = ctx.getHandSize(playerId) - 4;
+                if (x > 0) ctx.gainLife(playerId, x);
+            },
+        }),
+    ],
+};
+
+// Armageddon Clock — {6} Artifact. Doom-counter time bomb:
+//  • "At the beginning of your upkeep, put a doom counter on this artifact."
+//  • "At the beginning of your draw step, this artifact deals damage equal to
+//    the number of doom counters on it to each player."
+//  • "{4}: Remove a doom counter from this artifact. Any player may activate
+//    this ability but only during any upkeep step."
+// (CR 603.6a phase triggers; CR 122.1 doom counter — inert to P/T; CR 113.3c
+// any-player activation via activatableByAnyPlayer + UPKEEP phase
+// restriction.) The draw-step ping reads the live counter count and damages
+// each player in APNAP order.
+export const armageddonClock: CardDefinition = {
+    id: "44a31889-6a8d-450c-a73d-381a7ff28bf9",
+    name: "Armageddon Clock",
+    oracleText:
+        "At the beginning of your upkeep, put a doom counter on this artifact.\nAt the beginning of your draw step, this artifact deals damage equal to the number of doom counters on it to each player.\n{4}: Remove a doom counter from this artifact. Any player may activate this ability but only during any upkeep step.",
+    manaCost: { X: 6 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "armageddon-clock-add-doom",
+            oracleText:
+                "At the beginning of your upkeep, put a doom counter on this artifact.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "doom",
+                    1
+                );
+            },
+        }),
+        phaseTrigger({
+            id: "armageddon-clock-ping",
+            oracleText:
+                "At the beginning of your draw step, this artifact deals damage equal to the number of doom counters on it to each player.",
+            phase: "DRAW",
+            scope: "your",
+            resolve: (ctx) => {
+                const doom = ctx.getCounterCount(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "doom"
+                );
+                if (doom <= 0) return;
+                for (const playerId of ctx.apNapOrder()) {
+                    ctx.dealDamage({ type: "player", id: playerId }, doom);
+                }
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "armageddon-clock-remove-doom",
+            oracleText:
+                "{4}: Remove a doom counter from this artifact. Any player may activate this ability but only during any upkeep step.",
+            cost: { mana: { X: 4 } },
+            useStack: true,
+            // "only during any upkeep step" — any player's upkeep, so phase
+            // restriction without controllerTurnOnly. "Any player may
+            // activate" — CR 113.3c.
+            activationPhaseRestriction: ["UPKEEP"],
+            activatableByAnyPlayer: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.removeCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "doom",
+                    1
+                );
+            },
+        },
+    ],
+};
+
+// Triskelion — {6} Artifact Creature — Construct, 1/1, enters with three +1/+1
+// counters. "Remove a +1/+1 counter from this creature: It deals 1 damage to
+// any target." (CR 122.1 ETB counters via entersWith; CR 122.6 counter-removal
+// cost; CR 115.4 "any target" = damageable permanent or player.)
+export const triskelion: CardDefinition = {
+    id: "a79c99e1-722a-44b6-8fa3-2be3f0c193d8",
+    name: "Triskelion",
+    oracleText:
+        "This creature enters with three +1/+1 counters on it.\nRemove a +1/+1 counter from this creature: It deals 1 damage to any target.",
+    manaCost: { X: 6 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Construct"],
+    power: 1,
+    toughness: 1,
+    entersWith: { counters: [{ type: "+1/+1", count: 3 }] },
+    activatedAbilities: [
+        {
+            id: "triskelion-bolt",
+            oracleText:
+                "Remove a +1/+1 counter from this creature: It deals 1 damage to any target.",
+            cost: { removeCounter: { type: "+1/+1", count: 1 } },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent" || target?.type === "player") {
+                    ctx.dealDamage(target, 1);
+                }
+            },
+        },
+    ],
+};
+
+// Clockwork Avian — {5} Artifact Creature — Bird, 0/4 with flying, enters with
+// four +1/+0 counters. (Twin of Clockwork Beast in lea.ts, capped at four
+// instead of seven and with flying.)
+//  • "At end of combat, if this creature attacked or blocked this combat,
+//    remove a +1/+0 counter from it." (CR 603.6a END_OF_COMBAT + CR 603.4d
+//    intervening-if on the attacked/blocked markers.)
+//  • "{X}, {T}: Put up to X +1/+0 counters on this creature. This ability
+//    can't cause the total ... to be greater than four. Activate only during
+//    your upkeep." (CR 122.1; the {X} pipeline + add-capped-to-four resolve +
+//    UPKEEP/your-turn activation restriction.)
+export const clockworkAvian: CardDefinition = {
+    id: "1dea8c2f-4aea-478d-aee7-cba1f74edd6c",
+    name: "Clockwork Avian",
+    oracleText:
+        "Flying\nThis creature enters with four +1/+0 counters on it.\nAt end of combat, if this creature attacked or blocked this combat, remove a +1/+0 counter from it.\n{X}, {T}: Put up to X +1/+0 counters on this creature. This ability can't cause the total number of +1/+0 counters on this creature to be greater than four. Activate only during your upkeep.",
+    manaCost: { X: 5 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Bird"],
+    power: 0,
+    toughness: 4,
+    staticAbilities: ["flying"],
+    entersWith: { counters: [{ type: "+1/+0", count: 4 }] },
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "clockwork-avian-decay",
+            oracleText:
+                "At end of combat, if this creature attacked or blocked this combat, remove a +1/+0 counter from it.",
+            phase: "END_OF_COMBAT",
+            scope: "each",
+            // CR 603.4d intervening-if — the "attacked or blocked this combat"
+            // markers persist past END_OF_COMBAT, so the resolve-time re-check
+            // sees the same values (mirrors Clockwork Beast).
+            interveningIf: (_event, self) =>
+                self.hasAttackedThisTurn === true ||
+                self.hasBlockedThisTurn === true,
+            resolve: (ctx) => {
+                ctx.removeCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "+1/+0",
+                    1
+                );
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "clockwork-avian-recharge",
+            oracleText:
+                "{X}, {T}: Put up to X +1/+0 counters on this creature. This ability can't cause the total number of +1/+0 counters on this creature to be greater than four. Activate only during your upkeep.",
+            cost: { mana: { X: "X" }, tap: true },
+            useStack: true,
+            activationPhaseRestriction: ["UPKEEP"],
+            controllerTurnOnly: true,
+            resolve: (ctx: SpellContext) => {
+                const self: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                const current = ctx.getCounterCount(self, "+1/+0");
+                // Up to X counters, capped so the total never exceeds four.
+                const room = Math.max(0, 4 - current);
+                const add = Math.min(ctx.getX(), room);
+                if (add > 0) ctx.addCounter(self, "+1/+0", add);
+            },
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// P/T statics, combat & one-shot prevention shields (free tranche, #277) —
+// CR 611 (layer 7c P/T buffs), CR 604.3 (characteristic-defining P/T), CR
+// 611.1 (temporary P/T mods + animate), CR 615 (one-shot damage prevention),
+// CR 702.21j (banding via grantStaticAbility), CR 117.3a (optional may-pay),
+// CR 705 (coin flip). Modern Scryfall oracle text is authoritative (ADR 0004);
+// mana costs / type lines come from MTGJSON ATQ.json. Every effect reuses
+// existing staticEffects kinds, the COP factory, animateAsCreature, and
+// SpellContext prevention/keyword primitives — no new primitive, no engine
+// change. Divergences (animate can't add the Artifact type; Urza's Avenger's
+// keyword choice modeled as fixed per-keyword abilities; Ashnod's "becomes an
+// artifact" deferred) are flagged inline below.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Mightstone — {4} Artifact. "Attacking creatures get +1/+0." (CR 611 layer
+// 7c anthem; CR 508.1 attacking — gated on `isAttacking`.) Affects EVERY
+// attacking creature regardless of controller (no controller clause, unlike
+// Orcish Oriflamme's "you control"). Same `pt-buff` + `isAttacking` shape.
+export const mightstone: CardDefinition = {
+    id: "b28ba599-5299-4831-a118-1712ada10ef6",
+    name: "Mightstone",
+    oracleText: "Attacking creatures get +1/+0.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, _source, ctx) =>
+                ctx.isCreature(target) && target.isAttacking === true,
+            power: 1,
+            toughness: 0,
+        },
+    ],
+};
+
+// Weakstone — {4} Artifact. "Attacking creatures get -1/-0." (CR 611 layer 7c;
+// CR 508.1.) Mirror of Mightstone with a negative power buff. Effective power
+// is floored at 0 by the layer reader (CR 107.1b — P/T can't be negative for
+// rules purposes, but combat damage uses the floored value).
+export const weakstone: CardDefinition = {
+    id: "46adf48f-99d2-440e-9129-794584c1ea21",
+    name: "Weakstone",
+    oracleText: "Attacking creatures get -1/-0.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, _source, ctx) =>
+                ctx.isCreature(target) && target.isAttacking === true,
+            power: -1,
+            toughness: 0,
+        },
+    ],
+};
+
+// Gaea's Avenger — {1}{G}{G} Creature — Treefolk, 1+*/1+*. "Gaea's Avenger's
+// power and toughness are each equal to 1 plus the number of artifacts your
+// opponents control." (CR 604.3 characteristic-defining ability; the CDA
+// `compute` result is ADDED to base P/T, so base is 1/1 and the contribution
+// is the opponent-artifact count.) Recomputed live from the board on each
+// stat read, so it tracks artifacts entering/leaving play.
+export const gaeasAvenger: CardDefinition = {
+    id: "39d763bd-b0a9-46ba-bcd2-9304063446f2",
+    name: "Gaea's Avenger",
+    oracleText:
+        "Gaea's Avenger's power and toughness are each equal to 1 plus the number of artifacts your opponents control.",
+    manaCost: { X: 1, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Treefolk"],
+    // Base 1/1; the CDA adds the opponent-artifact count on top (the "*" part).
+    power: 1,
+    toughness: 1,
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: EFFECT_AFFECTS_SELF,
+            compute: (source, state) => {
+                const n = state.players
+                    .flatMap((pl) => pl.battlefield)
+                    .filter(
+                        (c) =>
+                            c.controllerId !== source.controllerId &&
+                            c.types.includes("Artifact")
+                    ).length;
+                return { power: n, toughness: n };
+            },
+        },
+    ],
+};
+
+// Staff of Zegon — {4} Artifact. "{3}, {T}: Target creature gets -2/-0 until
+// end of turn." (CR 605 activated ability; CR 611.1 temporary P/T mod; CR
+// 514.2 cleanup expiry via the end-of-turn duration.) Same temp-buff shape as
+// Dragon Engine's pump, applied to a chosen target with a negative power buff.
+export const staffOfZegon: CardDefinition = {
+    id: "a6bf858d-bba9-4a16-9045-55384b1de633",
+    name: "Staff of Zegon",
+    oracleText: "{3}, {T}: Target creature gets -2/-0 until end of turn.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "staff-of-zegon-weaken",
+            oracleText:
+                "{3}, {T}: Target creature gets -2/-0 until end of turn.",
+            cost: { tap: true, mana: { X: 3 } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.addTemporaryPTBuff(target, -2, 0, {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
+
+// Mishra's Factory — Land (the "manland"). Three abilities:
+//  • "{T}: Add {C}." (CR 605.1a/605.3a mana ability, useStack:false.)
+//  • "{1}: This land becomes a 2/2 Assembly-Worker artifact creature until end
+//    of turn. It's still a land." (CR 611.1 animate; the engine restores the
+//    original types/subtypes/P-T at end of turn.)
+//  • "{T}: Target Assembly-Worker creature gets +1/+1 until end of turn."
+//    (CR 611.1 temp buff, restricted to Assembly-Workers via subtypeFilter.)
+//
+// DIVERGENCE (flagged, no engine change): `animateAsCreature` adds the
+// "Creature" type and the "Assembly-Worker" subtype but NOT the "Artifact"
+// type (AnimateSpec has no type list; the engine only adds Creature). The
+// animated land is therefore a 2/2 Assembly-Worker Creature Land, not an
+// Artifact Creature, for the duration. This is observable only to
+// artifact-matters effects targeting the animated Factory; the card's own
+// abilities (mana, self-animate, Assembly-Worker pump) are unaffected. A
+// general `AnimateSpec.additionalTypes` would close the gap and is deferred to
+// a feature tranche.
+export const mishrasFactory: CardDefinition = {
+    id: "a696c5b6-f216-454d-8029-74e84bbd1428",
+    name: "Mishra's Factory",
+    oracleText:
+        "{T}: Add {C}.\n{1}: This land becomes a 2/2 Assembly-Worker artifact creature until end of turn. It's still a land.\n{T}: Target Assembly-Worker creature gets +1/+1 until end of turn.",
+    manaCost: {},
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "mishras-factory-mana",
+            oracleText: "{T}: Add {C}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ C: 1 });
+            },
+            manaProduced: { C: 1 },
+        },
+        {
+            id: "mishras-factory-animate",
+            oracleText:
+                "{1}: This land becomes a 2/2 Assembly-Worker artifact creature until end of turn. It's still a land.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.animateAsCreature(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    {
+                        power: 2,
+                        toughness: 2,
+                        subtype: "Assembly-Worker",
+                        duration: { phase: "end-of-turn" },
+                    }
+                );
+            },
+        },
+        {
+            id: "mishras-factory-pump",
+            oracleText:
+                "{T}: Target Assembly-Worker creature gets +1/+1 until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                subtypeFilter: "Assembly-Worker",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.addTemporaryPTBuff(target, 1, 1, {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
+
+// Battering Ram — {2} Artifact Creature — Construct, 1/1. Two combat clauses:
+//  • "At the beginning of combat on your turn, this creature gains banding
+//    until end of combat." (CR 702.21 banding — a real engine capability,
+//    `gre/banding.ts` reads `staticAbilities.includes("banding")`; granted for
+//    the combat via `grantStaticAbility` with an end-of-combat duration.)
+//  • "Whenever this creature becomes blocked by a Wall, destroy that Wall at
+//    end of combat." (CR 509.1h pairing trigger on BLOCKERS_CONFIRMED, CR
+//    511.3 end-of-combat timing.) Inverse of Cockatrice's combat-kill: fires
+//    only when self is the BLOCKED ATTACKER and the blocker IS a Wall.
+const BATTERING_RAM_ID = "f7a69e35-d209-41c0-aa3c-c78414617075";
+function batteringRamWallTrigger(): TriggeredAbility {
+    return {
+        id: "battering-ram-wall-destroy",
+        oracleText:
+            "Whenever this creature becomes blocked by a Wall, destroy that Wall at end of combat.",
+        event: "BLOCKERS_CONFIRMED",
+        matches: (event, self) => {
+            if (event.type !== "BLOCKERS_CONFIRMED") return false;
+            // Self must be the blocked attacker; the blocker must be a Wall.
+            return (
+                event.attackerId === self.id &&
+                event.blockerSubtypes.includes("Wall")
+            );
+        },
+        resolve: (ctx, event) => {
+            if (event.type !== "BLOCKERS_CONFIRMED") return;
+            ctx.scheduleDelayedTrigger(
+                BATTERING_RAM_ID,
+                "battering-ram-wall-destroy-delayed",
+                "next-end-of-combat",
+                { targetId: event.blockerId }
+            );
+        },
+    };
+}
+function batteringRamWallDelayed(): DelayedTriggerDef {
+    return {
+        id: "battering-ram-wall-destroy-delayed",
+        oracleText: "Destroy that Wall at end of combat.",
+        timing: "next-end-of-combat",
+        resolve: (ctx, payload) => {
+            if (!payload.targetId) return;
+            ctx.destroy({ type: "permanent", id: payload.targetId });
+        },
+    };
+}
+export const batteringRam: CardDefinition = {
+    id: BATTERING_RAM_ID,
+    name: "Battering Ram",
+    oracleText:
+        "At the beginning of combat on your turn, this creature gains banding until end of combat.\nWhenever this creature becomes blocked by a Wall, destroy that Wall at end of combat.",
+    manaCost: { X: 2 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Construct"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "battering-ram-banding",
+            oracleText:
+                "At the beginning of combat on your turn, this creature gains banding until end of combat.",
+            phase: "BEGINNING_OF_COMBAT",
+            scope: "your",
+            resolve: (ctx) => {
+                ctx.grantStaticAbility(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "banding",
+                    { phase: "end-of-combat" }
+                );
+            },
+        }),
+        batteringRamWallTrigger(),
+    ],
+    delayedTriggers: [batteringRamWallDelayed()],
+};
+
+// Urza's Avenger — {6} Artifact Creature — Shapeshifter, 4/4. "{0}: This
+// creature gets -1/-1 and gains your choice of banding, flying, first strike,
+// or trample until end of turn." (CR 611.1 temp P/T mod + keyword grant.)
+//
+// DIVERGENCE (flagged, no engine change): the engine has no "choose one named
+// option from a list" resolution-choice kind (ZonePickKind is all zone-picks;
+// `modes` are spell-cast-time only). The single modal ability is therefore
+// modeled as FOUR fixed-keyword activated abilities — the player picks which
+// ability to activate, choosing the keyword that way. Each ability applies the
+// same -1/-1 and grants its own keyword until end of turn. Behaviorally
+// equivalent to the printed "your choice of …"; a general `choose-option`
+// choice kind would let it collapse back to one ability and is deferred.
+const URZAS_AVENGER_KEYWORDS = [
+    "banding",
+    "flying",
+    "first strike",
+    "trample",
+] as const;
+export const urzasAvenger: CardDefinition = {
+    id: "448e1811-fb16-4390-ac22-b7066a4a019c",
+    name: "Urza's Avenger",
+    oracleText:
+        "{0}: This creature gets -1/-1 and gains your choice of banding, flying, first strike, or trample until end of turn.",
+    manaCost: { X: 6 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Shapeshifter"],
+    power: 4,
+    toughness: 4,
+    activatedAbilities: URZAS_AVENGER_KEYWORDS.map((kw) => ({
+        id: `urzas-avenger-${kw.replace(/\s+/g, "-")}`,
+        oracleText: `{0}: This creature gets -1/-1 and gains ${kw} until end of turn.`,
+        cost: {},
+        useStack: true,
+        resolve: (ctx: SpellContext) => {
+            const self: TargetSelection = {
+                type: "permanent",
+                id: ctx.sourceInstanceId,
+            };
+            ctx.addTemporaryPTBuff(self, -1, -1, { phase: "end-of-turn" });
+            ctx.grantStaticAbility(self, kw, { phase: "end-of-turn" });
+        },
+    })),
+};
+
+// Amulet of Kroog — {2} Artifact. "{2}, {T}: Prevent the next 1 damage that
+// would be dealt to any target this turn." (CR 615.1/615.6 one-shot
+// prevention shield via `preventNextNDamageToTarget`, purged end-of-turn.)
+export const amuletOfKroog: CardDefinition = {
+    id: "b094f8dd-0184-41a2-9767-e848a6e4eac1",
+    name: "Amulet of Kroog",
+    oracleText:
+        "{2}, {T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "amulet-of-kroog-prevent",
+            oracleText:
+                "{2}, {T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+            cost: { tap: true, mana: { X: 2 } },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent" || target?.type === "player") {
+                    ctx.preventNextNDamageToTarget(target, 1, {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
+
+// Argivian Blacksmith — {1}{W}{W} Creature — Human Artificer, 2/2. "{T}:
+// Prevent the next 2 damage that would be dealt to target artifact creature
+// this turn." (CR 615.1 prevention shield.)
+//
+// DIVERGENCE (flagged): the target filter is "artifact creature" (AND of two
+// card types), but `TargetRequirement.type` arrays are OR-of-types (rules.ts
+// uses `.some()`), and there is no AND-of-types filter. The target is scoped to
+// `type: "Creature"` here, so it can prevent damage to a non-artifact creature
+// too — a loosening of the printed restriction. Closing this needs an
+// AND-types target filter (engine/rules change) and is deferred.
+export const argivianBlacksmith: CardDefinition = {
+    id: "5f604338-5ee4-4c47-ad5a-5c805c96c8de",
+    name: "Argivian Blacksmith",
+    oracleText:
+        "{T}: Prevent the next 2 damage that would be dealt to target artifact creature this turn.",
+    manaCost: { X: 1, W: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Artificer"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "argivian-blacksmith-prevent",
+            oracleText:
+                "{T}: Prevent the next 2 damage that would be dealt to target artifact creature this turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.preventNextNDamageToTarget(target, 2, {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
+
+// Rakalite — {6} Artifact. "{2}: Prevent the next 1 damage that would be dealt
+// to any target this turn. Return this artifact to its owner's hand at the
+// beginning of the next end step." (CR 615.1 prevention shield; CR 603.7a
+// delayed trigger for the self-bounce.) The {2} ability is repeatable (no tap)
+// and each activation schedules the next-end-step return.
+const RAKALITE_ID = "0fd7c711-3ff4-4691-914f-242e6737066c";
+export const rakalite: CardDefinition = {
+    id: RAKALITE_ID,
+    name: "Rakalite",
+    oracleText:
+        "{2}: Prevent the next 1 damage that would be dealt to any target this turn. Return this artifact to its owner's hand at the beginning of the next end step.",
+    manaCost: { X: 6 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "rakalite-prevent",
+            oracleText:
+                "{2}: Prevent the next 1 damage that would be dealt to any target this turn. Return this artifact to its owner's hand at the beginning of the next end step.",
+            cost: { mana: { X: 2 } },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent" || target?.type === "player") {
+                    ctx.preventNextNDamageToTarget(target, 1, {
+                        phase: "end-of-turn",
+                    });
+                }
+                ctx.scheduleDelayedTrigger(
+                    RAKALITE_ID,
+                    "rakalite-return",
+                    "next-end-step",
+                    { instanceId: ctx.sourceInstanceId }
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "rakalite-return",
+            oracleText:
+                "Return this artifact to its owner's hand at the beginning of the next end step.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                if (!payload.instanceId) return;
+                ctx.returnToHand({ type: "permanent", id: payload.instanceId });
+            },
+        },
+    ],
+};
+
+// Circle of Protection: Artifacts — {1}{W} Enchantment. "{2}: The next time an
+// artifact source of your choice would deal damage to you this turn, prevent
+// that damage." (CR 615.1/615.6.) Built from the shared `makeCircleOfProtection`
+// factory generalized to an artifact-source filter (instead of a color).
+export const circleOfProtectionArtifacts: CardDefinition =
+    makeCircleOfProtection({
+        id: "22ebd5a3-fef8-4097-b038-89a6cb38227d",
+        name: "Circle of Protection: Artifacts",
+        oracleText:
+            "{2}: The next time an artifact source of your choice would deal damage to you this turn, prevent that damage.",
+        source: { kind: "artifact", word: "artifact" },
+    });
+
+// Ashnod's Transmogrant — {1} Artifact. "{T}, Sacrifice this artifact: Put a
+// +1/+1 counter on target nonartifact creature. That creature becomes an
+// artifact in addition to its other types." (CR 122.1 +1/+1 counter; CR 205
+// type-add.)
+//
+// DIVERGENCE (flagged, no engine change): the "becomes an artifact in addition
+// to its other types" clause has NO resolve-time primitive — the only type-add
+// is the source-bound continuous `StaticTypeAdd` (auras, reverts when the
+// source leaves), which is wrong here since this artifact sacrifices ITSELF as
+// a cost (the type-add must persist after the source is gone). There is no
+// imperative `ctx.addCardType`. The card therefore ships the +1/+1 counter (the
+// board-dominant, fully testable effect) and omits the permanent artifact-type
+// grant. A resolve-time `addCardType` primitive is needed to close this and is
+// flagged for a feature tranche.
+// TODO #277: needs a resolve-time `addCardType` primitive for the permanent
+// "becomes an artifact in addition to its other types" clause.
+export const ashnodsTransmogrant: CardDefinition = {
+    id: "2aa5b289-36ba-49b1-a5ac-f23bf71f8241",
+    name: "Ashnod's Transmogrant",
+    oracleText:
+        "{T}, Sacrifice this artifact: Put a +1/+1 counter on target nonartifact creature. That creature becomes an artifact in addition to its other types.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "ashnods-transmogrant-counter",
+            oracleText:
+                "{T}, Sacrifice this artifact: Put a +1/+1 counter on target nonartifact creature. That creature becomes an artifact in addition to its other types.",
+            cost: { tap: true, sacrifice: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                excludeTypes: "Artifact",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.addCounter(target, "+1/+1", 1);
+                    // "becomes an artifact" omitted — see DIVERGENCE note above.
+                }
+            },
+        },
+    ],
+};
+
+// Yawgmoth Demon — {4}{B}{B} Creature — Phyrexian Demon, 6/6 with flying +
+// first strike. "At the beginning of your upkeep, you may sacrifice an
+// artifact. If you don't, tap this creature and it deals 2 damage to you."
+// (CR 603.6a upkeep trigger; CR 117.3a optional may; CR 701.16 sacrifice.)
+// The may is gated on having an artifact to sacrifice; declining (or having no
+// artifact) runs the else-branch: tap self + 2 damage to the controller.
+export const yawgmothDemon: CardDefinition = {
+    id: "04bbd231-0d5f-4cbf-92a7-10d2c5c4b82c",
+    name: "Yawgmoth Demon",
+    oracleText:
+        "Flying\nFirst strike\nAt the beginning of your upkeep, you may sacrifice an artifact. If you don't, tap this creature and it deals 2 damage to you.",
+    manaCost: { X: 4, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Phyrexian", "Demon"],
+    power: 6,
+    toughness: 6,
+    staticAbilities: ["flying", "first strike"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "yawgmoth-demon-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, you may sacrifice an artifact. If you don't, tap this creature and it deals 2 damage to you.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx, _event, playerId) => {
+                const self: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                const artifactIds = ctx.getBattlefieldIds(playerId, {
+                    types: "Artifact",
+                });
+                if (artifactIds.length > 0) {
+                    const accept = ctx.requestMayPay({
+                        playerId,
+                        choiceId: playerId,
+                        prompt: "Sacrifice an artifact to Yawgmoth Demon?",
+                    });
+                    if (accept === undefined) return;
+                    if (accept) {
+                        const picked = ctx.requestChoice({
+                            playerId,
+                            choiceId: `${playerId}-sac`,
+                            kind: "sacrifice-permanents",
+                            zone: "battlefield",
+                            filter: { types: "Artifact" },
+                            count: 1,
+                            prompt: "Sacrifice an artifact.",
+                        });
+                        if (picked === undefined) return;
+                        if (picked.length > 0) ctx.sacrifice(picked[0]);
+                        return;
+                    }
+                }
+                // Declined or no artifact to sacrifice: tap + 2 damage to you.
+                ctx.tap(self);
+                ctx.dealDamage({ type: "player", id: playerId }, 2);
+            },
+        }),
+    ],
+};
+
+// Mishra's War Machine — {7} Artifact Creature — Juggernaut, 5/5 with banding.
+// "At the beginning of your upkeep, this creature deals 3 damage to you unless
+// you discard a card. If it deals damage to you this way, tap it." (CR 702.21
+// banding; CR 603.6a upkeep trigger; CR 117.3a pay-or-else with a discard
+// cost.) Declining the discard runs the else-branch: 3 damage + tap self.
+export const mishrasWarMachine: CardDefinition = {
+    id: "8f6b4652-a1d4-418f-a89b-6a977a920a9e",
+    name: "Mishra's War Machine",
+    oracleText:
+        "Banding\nAt the beginning of your upkeep, this creature deals 3 damage to you unless you discard a card. If it deals damage to you this way, tap it.",
+    manaCost: { X: 7 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Juggernaut"],
+    power: 5,
+    toughness: 5,
+    staticAbilities: ["banding"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "mishras-war-machine-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, this creature deals 3 damage to you unless you discard a card. If it deals damage to you this way, tap it.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx, _event, playerId) => {
+                const self: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                const handIds = ctx.getHandIds(playerId);
+                if (handIds.length > 0) {
+                    const accept = ctx.requestMayPay({
+                        playerId,
+                        choiceId: playerId,
+                        prompt: "Discard a card to avoid 3 damage from Mishra's War Machine?",
+                    });
+                    if (accept === undefined) return;
+                    if (accept) {
+                        const picked = ctx.requestChoice({
+                            playerId,
+                            choiceId: `${playerId}-discard`,
+                            kind: "choose-hand-card",
+                            zone: "hand",
+                            count: 1,
+                            prompt: "Discard a card.",
+                        });
+                        if (picked === undefined) return;
+                        if (picked.length > 0) {
+                            ctx.discardCard(playerId, picked[0]);
+                            return;
+                        }
+                    }
+                }
+                // No discard: 3 damage to you, then tap self ("if it deals
+                // damage to you this way, tap it").
+                ctx.dealDamage({ type: "player", id: playerId }, 3);
+                ctx.tap(self);
+            },
+        }),
+    ],
+};
+
+// Goblin Artisans — {R} Creature — Goblin Artificer, 1/1. "{T}: Flip a coin.
+// If you win the flip, draw a card. If you lose the flip, counter target
+// artifact spell you control..." (CR 705.1 coin flip; CR 121.1 draw; CR
+// 701.5a counter.) The target is declared at activation (the ability always
+// targets an artifact spell you control); on a coin-flip WIN the counter is
+// simply not performed and you draw instead.
+//
+// DIVERGENCE (flagged): the printed "that isn't the target of an ability from
+// another creature named Goblin Artisans" multi-copy clause is simplified
+// (not enforced) — it only matters with two Goblin Artisans targeting the same
+// spell, an edge the current pool/UI doesn't exercise.
+export const goblinArtisans: CardDefinition = {
+    id: "6669d96e-9a7b-4427-a477-f4e76831f593",
+    name: "Goblin Artisans",
+    oracleText:
+        "{T}: Flip a coin. If you win the flip, draw a card. If you lose the flip, counter target artifact spell you control that isn't the target of an ability from another creature named Goblin Artisans.",
+    manaCost: { R: 1 },
+    types: ["Creature"],
+    subtypes: ["Goblin", "Artificer"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "goblin-artisans-flip",
+            oracleText:
+                "{T}: Flip a coin. If you win the flip, draw a card. If you lose the flip, counter target artifact spell you control.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "spell",
+                count: 1,
+                spellTypeFilter: "Artifact",
+                controller: "you",
+            },
+            resolve: (ctx: SpellContext) => {
+                if (ctx.flipCoin()) {
+                    ctx.drawCards(ctx.controller, 1);
+                } else {
+                    const target = ctx.targets[0];
+                    if (target?.type === "spell") ctx.counter(target);
                 }
             },
         },
