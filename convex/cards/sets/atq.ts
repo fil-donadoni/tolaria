@@ -26,6 +26,7 @@ import type {
 import { EFFECT_AFFECTS_SELF } from "../types";
 import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
+import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { tappedTrigger } from "../abilities/triggers/tappedTrigger";
@@ -2944,5 +2945,311 @@ export const energyFlux: CardDefinition = {
                 if (!paid) ctx.sacrifice(ctx.sourceInstanceId);
             },
         }),
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster O — minor isolated extensions (PRD #269, issue #292)
+//
+// Each card here exercises one small, orthogonal engine extension:
+//  • chosen-opponent-on-entry stored for the rest of the game (Cursed Rack,
+//    The Rack) — CR 603.6b / 614.12, `SpellContext.setChosenPlayer`.
+//  • sacrifice-vs-other leave distinction (Urza's Miter) — the `PERMANENT_LEFT`
+//    event now carries `cause: "sacrifice"`.
+//  • random-discard as an activation cost (Coral Helm) — `cost.discardAtRandom`.
+//  • "originally printed in [set]" mass sacrifice (Golgothian Sylex) —
+//    `isPrintedInSet`.
+//  • continuous-control activation precondition (Rocket Launcher) —
+//    `tracksControlContinuity` + `canActivate`.
+//  • can't-be-blocked-this-turn flag (Tawnos's Wand) —
+//    `SpellContext.setCantBeBlockedThisTurn`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Resolves the player chosen as an "as ~ enters, choose an opponent" card
+ *  entered. In the engine's 2-player games there is exactly one opponent, so
+ *  the choice auto-resolves (Arena-style — no prompt for a zero-branch choice).
+ *  Returns undefined if no opponent exists (solo edge case). */
+function singleOpponentId(ctx: SpellContext): string | undefined {
+    return ctx.allPlayerIds.find((id) => id !== ctx.controller);
+}
+
+// Cursed Rack — {4} Artifact. "As this artifact enters, choose an opponent.
+// The chosen player's maximum hand size is four." (CR 603.6b on-entry choice
+// stored via `setChosenPlayer`; CR 402.2 max-hand-size override read by
+// `effectiveMaxHandSize` through the `appliesTo: "chosen-player"`
+// `hand-size-override` static effect — the cap is applied at the chosen
+// player's CLEANUP.)
+export const cursedRack: CardDefinition = {
+    id: "720d871d-1e7b-482e-bd1e-8ec79519fb86",
+    name: "Cursed Rack",
+    oracleText:
+        "As this artifact enters, choose an opponent.\nThe chosen player's maximum hand size is four.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    // CR 402.2 — continuous override of the CHOSEN player's max hand size.
+    // `effectiveMaxHandSize` resolves "chosen-player" to this instance's
+    // stored `chosenPlayerId`.
+    staticEffects: [
+        {
+            kind: "hand-size-override",
+            value: 4,
+            appliesTo: "chosen-player",
+        },
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "cursed-rack-choose-opponent",
+            oracleText: "As this artifact enters, choose an opponent.",
+            scope: "self",
+            resolve: (ctx) => {
+                const opponent = singleOpponentId(ctx);
+                if (opponent) ctx.setChosenPlayer(opponent);
+            },
+        }),
+    ],
+};
+
+// The Rack — {1} Artifact. "As this artifact enters, choose an opponent. At the
+// beginning of the chosen player's upkeep, this artifact deals X damage to that
+// player, where X is 3 minus the number of cards in their hand." (CR 603.6b
+// on-entry choice; CR 603.6a upkeep trigger. `scope: "each"` fires on every
+// player's upkeep; the `condition` narrows it to the stored chosen player so
+// the trigger only enters the stack on their upkeep — CR 603.4.)
+export const theRack: CardDefinition = {
+    id: "ec0686ba-1277-4412-a397-7a6227808311",
+    name: "The Rack",
+    oracleText:
+        "As this artifact enters, choose an opponent.\nAt the beginning of the chosen player's upkeep, this artifact deals X damage to that player, where X is 3 minus the number of cards in their hand.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "the-rack-choose-opponent",
+            oracleText: "As this artifact enters, choose an opponent.",
+            scope: "self",
+            resolve: (ctx) => {
+                const opponent = singleOpponentId(ctx);
+                if (opponent) ctx.setChosenPlayer(opponent);
+            },
+        }),
+        phaseTrigger({
+            id: "the-rack-upkeep-damage",
+            oracleText:
+                "At the beginning of the chosen player's upkeep, this artifact deals X damage to that player, where X is 3 minus the number of cards in their hand.",
+            phase: "UPKEEP",
+            // Fire on every player's upkeep, then narrow to the stored chosen
+            // player (CR 603.4 — only fires when the active player is the one
+            // chosen as this artifact entered).
+            scope: "each",
+            condition: (event, self) =>
+                self.chosenPlayerId === event.activePlayerId,
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const x = 3 - ctx.getHandSize(scopedPlayerId);
+                if (x > 0) {
+                    ctx.dealDamage({ type: "player", id: scopedPlayerId }, x);
+                }
+            },
+        }),
+    ],
+};
+
+// Urza's Miter — {3} Artifact. "Whenever an artifact you control is put into a
+// graveyard from the battlefield, if it wasn't sacrificed, you may pay {3}. If
+// you do, draw a card." (CR 603.10 LTB trigger; the `cause` field on
+// `PERMANENT_LEFT` distinguishes sacrifice from every other departure — the
+// trigger fires only when `event.cause !== "sacrifice"`. CR 117.3a optional
+// payment via `requestMayPay`.)
+export const urzasMiter: CardDefinition = {
+    id: "438f0c61-a61d-4a9e-b21f-4e86420c7913",
+    name: "Urza's Miter",
+    oracleText:
+        "Whenever an artifact you control is put into a graveyard from the battlefield, if it wasn't sacrificed, you may pay {3}. If you do, draw a card.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        leftTrigger({
+            id: "urzas-miter-draw",
+            oracleText:
+                "Whenever an artifact you control is put into a graveyard from the battlefield, if it wasn't sacrificed, you may pay {3}. If you do, draw a card.",
+            scope: "yours",
+            toZone: "graveyard",
+            filter: { types: "Artifact" },
+            // CR 603.4 — only fires when the artifact was NOT sacrificed.
+            condition: (event) => event.cause !== "sacrifice",
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: ctx.controller,
+                    cost: { X: 3 },
+                    prompt: "Pay {3} to draw a card from Urza's Miter?",
+                });
+                if (accept === undefined) return; // suspended for the choice
+                if (accept) ctx.drawCards(ctx.controller, 1);
+            },
+        }),
+    ],
+};
+
+// Coral Helm — {3} Artifact. "{3}, Discard a card at random: Target creature
+// gets +2/+2 until end of turn." (CR 118.3 random-discard additional cost via
+// `cost.discardAtRandom`; CR 611.1 "+2/+2 until end of turn" via
+// `addTemporaryPTBuff`.)
+export const coralHelm: CardDefinition = {
+    id: "6c6df9db-0a46-40a5-ae9d-59f47dae9056",
+    name: "Coral Helm",
+    oracleText:
+        "{3}, Discard a card at random: Target creature gets +2/+2 until end of turn.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "coral-helm-pump",
+            oracleText:
+                "{3}, Discard a card at random: Target creature gets +2/+2 until end of turn.",
+            cost: { mana: { X: 3 }, discardAtRandom: 1 },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.addTemporaryPTBuff(target, 2, 2, {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
+
+// Golgothian Sylex — {4} Artifact. "{1}, {T}: Each nontoken permanent with a
+// name originally printed in the Antiquities expansion is sacrificed by its
+// controller." (CR 701.16 sacrifice; the "originally printed in ATQ" origin
+// filter is `isPrintedInSet(cardId, "atq")` — keyed off the home set of each
+// permanent's card definition. Golgothian Sylex itself is an ATQ card, so it
+// sacrifices itself too.)
+export const golgothianSylex: CardDefinition = {
+    id: "856be1dd-a20b-49c2-be9d-7db76c7efd8b",
+    name: "Golgothian Sylex",
+    oracleText:
+        "{1}, {T}: Each nontoken permanent with a name originally printed in the Antiquities expansion is sacrificed by its controller.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "golgothian-sylex-wrath",
+            oracleText:
+                "{1}, {T}: Each nontoken permanent with a name originally printed in the Antiquities expansion is sacrificed by its controller.",
+            cost: { tap: true, mana: { X: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                // Snapshot the matching ids first; sacrificing mutates the
+                // battlefield arrays. CR 701.16 — each is sacrificed by its
+                // controller (ctx.sacrifice resolves the current controller).
+                const toSacrifice: string[] = [];
+                for (const playerId of ctx.allPlayerIds) {
+                    // CR 111.5 — "nontoken permanent": exclude tokens via the
+                    // battlefield filter.
+                    for (const id of ctx.getBattlefieldIds(playerId, {
+                        isToken: false,
+                    })) {
+                        if (ctx.isPrintedInSet(id, "atq")) {
+                            toSacrifice.push(id);
+                        }
+                    }
+                }
+                for (const id of toSacrifice) ctx.sacrifice(id);
+            },
+        },
+    ],
+};
+
+// Rocket Launcher — {4} Artifact. "{2}: This artifact deals 1 damage to any
+// target. Destroy this artifact at the beginning of the next end step. Activate
+// only if you've controlled this artifact continuously since the beginning of
+// your most recent turn." (CR 115.4 any-target damage; CR 603.7a delayed
+// self-destroy; the continuous-control precondition reuses the summoning-sick
+// flag via `tracksControlContinuity` — the artifact is sick the turn it enters
+// or changes control and clears at the controller's untap step, so
+// `!isSummoningSick` on the controller's own turn means "controlled since my
+// most recent turn began".)
+export const rocketLauncher: CardDefinition = {
+    id: "d5bb2093-78a8-4a6c-abe7-9a5afc181ec5",
+    name: "Rocket Launcher",
+    oracleText:
+        "{2}: This artifact deals 1 damage to any target. Destroy this artifact at the beginning of the next end step. Activate only if you've controlled this artifact continuously since the beginning of your most recent turn.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    tracksControlContinuity: true,
+    activatedAbilities: [
+        {
+            id: "rocket-launcher-ping",
+            oracleText:
+                "{2}: This artifact deals 1 damage to any target. Destroy this artifact at the beginning of the next end step. Activate only if you've controlled this artifact continuously since the beginning of your most recent turn.",
+            cost: { mana: { X: 2 } },
+            useStack: true,
+            // CR 602.5b — "activate only ... since the beginning of your most
+            // recent turn": only your turn, and not the turn it came under your
+            // control (still summoning-sick).
+            controllerTurnOnly: true,
+            canActivate: (source) => source.isSummoningSick !== true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target) ctx.dealDamage(target, 1);
+                // CR 603.7a — schedule the self-destroy for the next end step.
+                ctx.scheduleDelayedTrigger(
+                    "d5bb2093-78a8-4a6c-abe7-9a5afc181ec5",
+                    "rocket-launcher-end-step-destroy",
+                    "next-end-step",
+                    { sourceId: ctx.sourceInstanceId }
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "rocket-launcher-end-step-destroy",
+            oracleText:
+                "Destroy Rocket Launcher at the beginning of the next end step.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                if (payload.sourceId) {
+                    ctx.destroy({ type: "permanent", id: payload.sourceId });
+                }
+            },
+        },
+    ],
+};
+
+// Tawnos's Wand — {4} Artifact. "{2}, {T}: Target creature with power 2 or less
+// can't be blocked this turn." (CR 509.1b can't-be-blocked, set on the attacker
+// via `setCantBeBlockedThisTurn` and cleared at CLEANUP; the
+// `powerFilter: { max: 2 }` restricts legal targets — CR 613 effective power.)
+export const tawnossWand: CardDefinition = {
+    id: "978f09dd-121a-4da5-ba16-5c03fbdce084",
+    name: "Tawnos's Wand",
+    oracleText:
+        "{2}, {T}: Target creature with power 2 or less can't be blocked this turn.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "tawnoss-wand-unblockable",
+            oracleText:
+                "{2}, {T}: Target creature with power 2 or less can't be blocked this turn.",
+            cost: { tap: true, mana: { X: 2 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                powerFilter: { max: 2 },
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.setCantBeBlockedThisTurn(target);
+                }
+            },
+        },
     ],
 };

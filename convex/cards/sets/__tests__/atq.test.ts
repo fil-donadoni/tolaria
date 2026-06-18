@@ -79,6 +79,13 @@ import {
     shapeshifter,
     powerArtifact,
     energyFlux,
+    cursedRack,
+    theRack,
+    urzasMiter,
+    coralHelm,
+    golgothianSylex,
+    rocketLauncher,
+    tawnossWand,
 } from "../atq";
 import { grizzlyBears, hillGiant, solRing } from "../lea";
 import { getCardById, getInstanceManaCost } from "../..";
@@ -132,6 +139,7 @@ import {
     advancePhase,
     untapStep,
     applyAllCombatDamage,
+    effectiveMaxHandSize,
 } from "../../../gre/phases";
 import { checkStateBasedActions } from "../../../gre/sba";
 import {
@@ -5809,5 +5817,439 @@ describe("Energy Flux ({2}{U} Enchantment — CR 113.1 triggered-grant + CR 611 
             (t) => t.id === "energy-flux-upkeep"
         );
         expect(tmpl?.oracleText).toContain("sacrifice this artifact");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster O — minor isolated extensions (#292)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Fires an enteredTrigger by pushing a synthetic PERMANENT_ENTERED stack item
+ *  (mirrors `collectTriggers` + `buildTriggerItem`) and resolving it. */
+function fireEntered(
+    state: GameState,
+    source: CardInstanceState,
+    triggeredAbilityId: string
+): void {
+    fireTrigger(state, source, triggeredAbilityId, {
+        type: "PERMANENT_ENTERED",
+        instanceId: source.id,
+        controllerId: source.controllerId,
+        types: source.types,
+    });
+}
+
+// Cursed Rack (CR 402.2 chosen-opponent max-hand-size override)
+describe("Cursed Rack (chosen opponent's max hand size is four)", () => {
+    const setup = () => {
+        const rack = makeInstance(cursedRack.id, {
+            id: "rack",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [rack] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, rack };
+    };
+
+    it("stores the chosen opponent on entry", () => {
+        const { state, rack } = setup();
+        fireEntered(state, rack, "cursed-rack-choose-opponent");
+        const live = state.players[0].battlefield.find((c) => c.id === "rack")!;
+        expect(live.chosenPlayerId).toBe("p2");
+    });
+
+    it("caps the chosen opponent's max hand size at 4 (not the controller's)", () => {
+        const { state, rack } = setup();
+        fireEntered(state, rack, "cursed-rack-choose-opponent");
+        // Controller is unaffected (default 7); chosen opponent is capped at 4.
+        expect(effectiveMaxHandSize(state.players[0], state)).toBe(7);
+        expect(effectiveMaxHandSize(state.players[1], state)).toBe(4);
+    });
+
+    it("override survives the wire-format round-trip", () => {
+        const { state, rack } = setup();
+        fireEntered(state, rack, "cursed-rack-choose-opponent");
+        const round = expandState(compactState(state));
+        expect(
+            round.players[0].battlefield.find((c) => c.id === "rack")!
+                .chosenPlayerId
+        ).toBe("p2");
+        expect(effectiveMaxHandSize(round.players[1], round)).toBe(4);
+    });
+
+    it("no cap once the Rack leaves the battlefield", () => {
+        const { state, rack } = setup();
+        fireEntered(state, rack, "cursed-rack-choose-opponent");
+        removePermanentTo(state, rack.id, "graveyard");
+        expect(effectiveMaxHandSize(state.players[1], state)).toBe(7);
+    });
+});
+
+// The Rack (CR 603.6a chosen-player upkeep damage = 3 − hand size)
+describe("The Rack (chosen player's upkeep: 3 − hand size damage)", () => {
+    const setup = (opponentHand: number) => {
+        const rack = makeInstance(theRack.id, {
+            id: "rack",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const hand = Array.from({ length: opponentHand }, (_, i) =>
+            makeInstance(onulet.id, {
+                id: `oh${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [rack] }),
+                makePlayer("p2", { hand, life: 20 }),
+            ],
+        });
+        fireEntered(state, rack, "the-rack-choose-opponent");
+        return { state };
+    };
+
+    it("deals 3 − hand size to the chosen player on their upkeep", () => {
+        const { state } = setup(0);
+        const rack = state.players[0].battlefield[0];
+        fireTrigger(state, rack, "the-rack-upkeep-damage", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p2",
+        });
+        expect(state.players[1].life).toBe(17);
+    });
+
+    it("deals 1 when the chosen player has 2 cards", () => {
+        const { state } = setup(2);
+        const rack = state.players[0].battlefield[0];
+        fireTrigger(state, rack, "the-rack-upkeep-damage", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p2",
+        });
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("deals no damage when the chosen player has 3+ cards", () => {
+        const { state } = setup(3);
+        const rack = state.players[0].battlefield[0];
+        fireTrigger(state, rack, "the-rack-upkeep-damage", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p2",
+        });
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("does not fire on the controller's own upkeep", () => {
+        const { state } = setup(0);
+        const rack = state.players[0].battlefield[0];
+        const trig = theRack.triggeredAbilities!.find(
+            (t) => t.id === "the-rack-upkeep-damage"
+        )!;
+        const self = { ...rack, chosenPlayerId: "p2" };
+        expect(
+            trig.matches(
+                {
+                    type: "PHASE_BEGIN",
+                    phase: "UPKEEP",
+                    activePlayerId: "p1",
+                },
+                self
+            )
+        ).toBe(false);
+    });
+});
+
+// Urza's Miter (CR 603.10 — draws only when the artifact wasn't sacrificed)
+describe("Urza's Miter (non-sacrifice artifact to graveyard → may pay {3} draw)", () => {
+    const setup = () => {
+        const miter = makeInstance(urzasMiter.id, {
+            id: "miter",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const artifact = makeInstance(onulet.id, {
+            id: "art",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const library = [
+            makeInstance(onulet.id, {
+                id: "libtop",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [miter, artifact], library }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state };
+    };
+
+    it("fires on a destroyed (non-sacrificed) artifact; accept → draws", () => {
+        const { state } = setup();
+        // Destruction routes through removePermanentTo with no cause.
+        removePermanentTo(state, "art", "graveyard");
+        processPendingActionTriggers(state);
+        const trig = state.stack.find(
+            (s) => s.triggeredAbilityId === "urzas-miter-draw"
+        );
+        expect(trig).toBeDefined();
+        const idx = state.stack.indexOf(trig!);
+        state.stack.splice(idx, 1);
+        state.stack.push(trig!);
+        const first = resolveTopOfStack(state);
+        expect(first).toBeNull();
+        const pending = state.pendingChoices![0];
+        const item = state.stack.find((s) => s.id === pending.stackItemId)!;
+        item.collectedChoices = {
+            [`${pending.step}:${pending.choiceId}`]: ["yes"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.some((c) => c.id === "libtop")).toBe(true);
+    });
+
+    it("does NOT fire when the artifact was sacrificed", () => {
+        const { state } = setup();
+        // Sacrifice tags the PERMANENT_LEFT event with cause "sacrifice".
+        removePermanentTo(state, "art", "graveyard", "sacrifice");
+        processPendingActionTriggers(state);
+        const trig = state.stack.find(
+            (s) => s.triggeredAbilityId === "urzas-miter-draw"
+        );
+        expect(trig).toBeUndefined();
+    });
+
+    it("condition predicate rejects a sacrifice cause directly", () => {
+        const trig = urzasMiter.triggeredAbilities![0];
+        const self = {
+            id: "miter",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Artifact"] as CardType[],
+            subtypes: [],
+            isTapped: false,
+            card: {},
+        };
+        const base = {
+            type: "PERMANENT_LEFT" as const,
+            instanceId: "art",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Artifact"] as CardType[],
+            wasAura: false,
+            toZone: "graveyard" as const,
+        };
+        expect(trig.matches({ ...base }, self)).toBe(true);
+        expect(trig.matches({ ...base, cause: "sacrifice" }, self)).toBe(false);
+    });
+});
+
+// Coral Helm (CR 118.3 random-discard cost; +2/+2 EOT)
+describe("Coral Helm ({3}, discard at random: target +2/+2 EOT)", () => {
+    it("pumps the target +2/+2 until end of turn", () => {
+        const helm = makeInstance(coralHelm.id, {
+            id: "helm",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [helm, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, helm, "coral-helm-pump", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, live)).toBe(4);
+        expect(getEffectiveToughness(state, live)).toBe(4);
+        // Wire format: the buff survives projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(4);
+    });
+});
+
+// Golgothian Sylex (origin-filtered mass sacrifice)
+describe("Golgothian Sylex ({1},{T}: sacrifice each nontoken ATQ permanent)", () => {
+    it("sacrifices ATQ-origin nontoken permanents, sparing non-ATQ and tokens", () => {
+        const sylex = makeInstance(golgothianSylex.id, {
+            id: "sylex",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const atqArtifact = makeInstance(onulet.id, {
+            id: "onulet",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const leaCreature = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const atqOpponent = makeInstance(yotianSoldier.id, {
+            id: "yotian",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const tokenAtq = makeInstance(onulet.id, {
+            id: "token",
+            controllerId: "p1",
+            ownerId: "p1",
+            isToken: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [sylex, atqArtifact, leaCreature, tokenAtq],
+                }),
+                makePlayer("p2", { battlefield: [atqOpponent] }),
+            ],
+        });
+        resolveActivated(state, sylex, "golgothian-sylex-wrath");
+        const ids = (pid: number) =>
+            state.players[pid].battlefield.map((c) => c.id);
+        // Sylex (ATQ), Onulet (ATQ), Yotian (ATQ) sacrificed; Grizzly Bears
+        // (LEA) and the token survive.
+        expect(ids(0)).toContain("bear");
+        expect(ids(0)).toContain("token");
+        expect(ids(0)).not.toContain("sylex");
+        expect(ids(0)).not.toContain("onulet");
+        expect(ids(1)).not.toContain("yotian");
+    });
+});
+
+// Rocket Launcher (continuous-control precondition + delayed self-destroy)
+describe("Rocket Launcher ({2}: 1 damage any target; destroy at end step)", () => {
+    const place = (summoningSick: boolean) => {
+        const launcher = makeInstance(rocketLauncher.id, {
+            id: "launcher",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: summoningSick || undefined,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [launcher], life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+            activePlayerId: "p1",
+        });
+        return { state, launcher };
+    };
+
+    it("enters summoning-sick (tracksControlContinuity)", () => {
+        expect(rocketLauncher.tracksControlContinuity).toBe(true);
+    });
+
+    it("canActivate is false while controlled this turn (summoning sick)", () => {
+        const { state, launcher } = place(true);
+        const ability = rocketLauncher.activatedAbilities![0];
+        expect(ability.canActivate!(launcher, state)).toBe(false);
+    });
+
+    it("canActivate is true once controlled since the last turn", () => {
+        const { state, launcher } = place(false);
+        const ability = rocketLauncher.activatedAbilities![0];
+        expect(ability.canActivate!(launcher, state)).toBe(true);
+    });
+
+    it("deals 1 to any target and schedules the end-step self-destroy", () => {
+        const { state, launcher } = place(false);
+        resolveActivated(state, launcher, "rocket-launcher-ping", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].life).toBe(19);
+        // A delayed trigger to destroy the launcher is queued for the end step.
+        expect(
+            state.delayedTriggers?.some(
+                (d) => d.triggerId === "rocket-launcher-end-step-destroy"
+            )
+        ).toBe(true);
+    });
+});
+
+// Tawnos's Wand (can't-be-blocked-this-turn flag)
+describe("Tawnos's Wand ({2},{T}: target power ≤ 2 can't be blocked)", () => {
+    const setup = () => {
+        const wand = makeInstance(tawnossWand.id, {
+            id: "wand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "attacker",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blocker = vanilla("blocker", 2, 2, { controllerId: "p2" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wand, attacker] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+        });
+        return { state, wand, attacker, blocker };
+    };
+
+    it("only targets creatures with power 2 or less", () => {
+        const req = tawnossWand.activatedAbilities![0].targetRequirement!;
+        expect(req.powerFilter).toEqual({ max: 2 });
+    });
+
+    it("flags the target as unblockable; blockers become ineligible", () => {
+        const { state, wand, attacker, blocker } = setup();
+        // Before: the 2/2 can legally block the 2/2.
+        expect(
+            validateBlockerEligibility(attacker, blocker, [blocker], state)
+                .eligible
+        ).toBe(true);
+        resolveActivated(state, wand, "tawnoss-wand-unblockable", [
+            { type: "permanent", id: "attacker" },
+        ]);
+        const liveAttacker = state.players[0].battlefield.find(
+            (c) => c.id === "attacker"
+        )!;
+        expect(liveAttacker.cantBeBlockedThisTurn).toBe(true);
+        expect(
+            validateBlockerEligibility(liveAttacker, blocker, [blocker], state)
+                .eligible
+        ).toBe(false);
+    });
+
+    it("the unblockable flag survives the wire-format round-trip", () => {
+        const { state, wand } = setup();
+        resolveActivated(state, wand, "tawnoss-wand-unblockable", [
+            { type: "permanent", id: "attacker" },
+        ]);
+        const round = expandState(compactState(state));
+        expect(
+            round.players[0].battlefield.find((c) => c.id === "attacker")!
+                .cantBeBlockedThisTurn
+        ).toBe(true);
     });
 });

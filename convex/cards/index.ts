@@ -329,6 +329,19 @@ export const getPrintingsForCard = (definitionId: string): CardPrinting[] => {
 export const getPrintsForCard = (definitionId: string): string[] =>
     getPrintingsForCard(definitionId).map((p) => p.printId);
 
+/** True if the card with this definition id was originally printed in
+ *  `setCode` — i.e. its home set (the module it is declared in) matches.
+ *  Reprints in other sets do not change the home set, so this answers
+ *  "originally printed in [set]" (Golgothian Sylex — "each nontoken permanent
+ *  originally printed in Antiquities is sacrificed"). Accepts either a
+ *  definition id or a reprint print id (resolved to its definition first).
+ *  Unknown ids return false. */
+export const isPrintedInSet = (cardId: string, setCode: string): boolean => {
+    const def = tryGetCardById(cardId);
+    if (!def) return false;
+    return definitionSetCode.get(def.id) === setCode;
+};
+
 /** Every set code in the catalogue (home sets + reprint sets), sorted. Drives
  *  the deck builder's set filter. */
 export const getAllSetCodes = (): string[] => {

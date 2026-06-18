@@ -3222,6 +3222,47 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Antiquities cluster O — minor isolated extensions (#292). Each card
+        // exercises one small engine extension:
+        //   • Cursed Rack / The Rack chose YOU (the controller's opponent) as
+        //     they entered — the opponent controls them, so YOUR max hand size
+        //     is four (discard at YOUR cleanup) and The Rack pings you at YOUR
+        //     upkeep for 3 − (cards in your hand). Pass to your upkeep / cleanup
+        //     to see both fire.
+        //   • Urza's Miter: when one of your artifacts is DESTROYED (not
+        //     sacrificed) you may pay {3} to draw. Right-click your Grapeshot
+        //     Catapult to ping, or destroy an artifact, vs. sacrificing one to
+        //     Atog (no draw on sacrifice).
+        //   • Coral Helm: right-click → "{3}, Discard a card at random:
+        //     target +2/+2". A card leaves your hand at random as the cost.
+        //   • Golgothian Sylex: right-click → "{1},{T}" wipes every nontoken
+        //     permanent originally printed in Antiquities (itself, the Racks,
+        //     the Miter, Onulet…), sparing the Grizzly Bears (LEA).
+        //   • Rocket Launcher: right-click → "{2}: 1 damage any target" only on
+        //     a turn after the one it entered; it's destroyed at the end step.
+        //   • Tawnos's Wand: right-click → "{2},{T}: target power ≤ 2 can't be
+        //     blocked this turn"; attack with the chosen creature to confirm.
+        label: "Antiquities O: minor extensions (Racks / Miter / Coral Helm / Sylex / Rocket Launcher / Wand)",
+        cards: [
+            { name: "Coral Helm", owner: "me" as const },
+            { name: "Golgothian Sylex", owner: "me" as const },
+            { name: "Rocket Launcher", owner: "me" as const },
+            { name: "Tawnos's Wand", owner: "me" as const },
+            { name: "Urza's Miter", owner: "me" as const },
+            { name: "Grapeshot Catapult", owner: "me" as const },
+            { name: "Onulet", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+            // The opponent controls the Racks, so THEY chose the table's other
+            // player (you) as their target on entry.
+            { name: "Cursed Rack", owner: "opp" as const },
+            { name: "The Rack", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

@@ -237,7 +237,12 @@ export function applyMoveForSearch(
                     // permanent (a conservative deterministic pick — the bot
                     // doesn't model the human's free choice here).
                     if (ability?.cost.sacrifice) {
-                        removePermanentTo(next, src.id, "graveyard");
+                        removePermanentTo(
+                            next,
+                            src.id,
+                            "graveyard",
+                            "sacrifice"
+                        );
                     } else if (ability?.cost.sacrificeFilter) {
                         const owner = next.players.find((p) =>
                             p.battlefield.some((c) => c.id === src!.id)
@@ -270,7 +275,12 @@ export function applyMoveForSearch(
                                 };
                                 return mv(c) < mv(lo) ? c : lo;
                             });
-                            removePermanentTo(next, pick.id, "graveyard");
+                            removePermanentTo(
+                                next,
+                                pick.id,
+                                "graveyard",
+                                "sacrifice"
+                            );
                         }
                     }
                 }

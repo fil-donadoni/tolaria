@@ -278,6 +278,13 @@ export interface ActivatedAbility {
          *  exact card is discarded at activation commit. Used by Jandor's
          *  Ring. */
         discardLastDrawn?: boolean;
+        /** "Discard N cards at random" cost (CR 118.3 / 701.8 — an additional
+         *  cost paid by discarding randomly-chosen cards). The ability is only
+         *  legal to activate while the activating player has at least one card
+         *  in hand; `count` cards (clamped to hand size) are discarded at
+         *  random, using the game's seeded PRNG, at activation commit. Used by
+         *  Coral Helm ("Discard a card at random: target creature gets +2/+2"). */
+        discardAtRandom?: number;
     };
     /** Oracle text for this ability (displayed in context menus and on the stack). */
     oracleText: string;
@@ -474,6 +481,18 @@ export interface SpellContext {
     /** Returns the `attachedTo` id of the trigger's source permanent (aura).
      *  Undefined if the source is not on the battlefield or has no host. */
     getAttachedToId: () => string | undefined;
+    /** Records a player chosen as this permanent enters and stores it on the
+     *  source instance for the rest of the game (CR 603.6b / 614.12 — "as ~
+     *  enters the battlefield, choose an opponent"). Read back with
+     *  `getChosenPlayer`. The source is the resolving permanent (an ETB
+     *  trigger's source). No-op if the source has left the battlefield. Used
+     *  by Cursed Rack (chosen opponent's max hand size is four) and The Rack
+     *  (damage at the chosen player's upkeep). */
+    setChosenPlayer: (playerId: string) => void;
+    /** Reads the player chosen as the source permanent entered (set by
+     *  `setChosenPlayer`). Undefined if no choice was stored or the source has
+     *  left the battlefield. */
+    getChosenPlayer: () => string | undefined;
     /** True if the given permanent currently has a keyword removal record
      *  for `keyword` (set by a keyword-remove static effect). */
     hasRemovedKeyword: (permanentId: string, keyword: string) => boolean;
@@ -982,6 +1001,12 @@ export interface SpellContext {
      *  lost block flip. No-op if target is not a permanent on the
      *  battlefield. */
     setCantBlockThisTurn: (target: TargetSelection) => void;
+    /** Marks a target permanent (an attacker) as unable to be blocked this
+     *  turn (CR 509.1b). Read on the attacker side by combat block-validation;
+     *  cleared at CLEANUP (CR 514.2). No-op if target is not a permanent on the
+     *  battlefield. Used by Tawnos's Wand ("target creature with power 2 or
+     *  less can't be blocked this turn"). */
+    setCantBeBlockedThisTurn: (target: TargetSelection) => void;
     /** Flips a coin (CR 705) using the game's seeded PRNG, so flips are
      *  replay-safe and reproducible given the seed. Returns true on "heads"
      *  (the flipping player wins the flip), false on "tails". Available where
@@ -1151,6 +1176,17 @@ export interface SpellContext {
     /** Ids of permanents on `playerId`'s battlefield matching the filter. */
     getBattlefieldIds: (playerId: string, filter?: PermanentFilter) => string[];
 
+    /** The card definition id (`card.card.id`) of a permanent on the
+     *  battlefield, or undefined if it isn't there. Used by identity filters
+     *  that key off the card registry. */
+    getCardDefinitionId: (cardInstanceId: string) => string | undefined;
+    /** True if the permanent on the battlefield was originally printed in
+     *  `setCode` — i.e. its card definition's home set matches (reprints do
+     *  not change the home set). Used by Golgothian Sylex ("each nontoken
+     *  permanent originally printed in the Antiquities expansion"). False if
+     *  the id isn't on the battlefield. */
+    isPrintedInSet: (cardInstanceId: string, setCode: string) => boolean;
+
     /** True if the permanent has the given subtype (CR 205.3). */
     hasSubtype: (target: TargetSelection, subtype: string) => boolean;
 
@@ -1272,6 +1308,12 @@ export interface PermanentView {
     /** Set on auras attached to another permanent (CR 303.4b). Predicates
      *  for keyword-grant effects typically use `target.id === source.attachedTo`. */
     attachedTo?: string;
+    /** Player chosen as this permanent entered (CR 603.6b), stored for the rest
+     *  of the game. Read by phase-trigger conditions that fire only on the
+     *  chosen player's step (The Rack — "the chosen player's upkeep"). The
+     *  trigger system passes the raw `CardInstanceState` as `self`, so this is
+     *  populated for trigger predicates. */
+    chosenPlayerId?: string;
     /** True while this creature is a declared attacker (CR 508.1). Set at
      *  DECLARE_ATTACKERS, cleared at END_OF_COMBAT. Static effect predicates
      *  like Orcish Oriflamme read this to buff attacking creatures. */
@@ -1682,6 +1724,13 @@ export interface StaticBlockRequirement {
 export interface StaticHandSizeOverride {
     kind: "hand-size-override";
     value: number | "unlimited";
+    /** Whose maximum hand size this overrides. Defaults to `"controller"` (the
+     *  source's controller — Library of Leng / Reliquary Tower). Set to
+     *  `"chosen-player"` when the override targets the player chosen as the
+     *  source entered the battlefield (Cursed Rack — "an opponent of your
+     *  choice... that player's maximum hand size is four"); the reader resolves
+     *  that to the source instance's stored `chosenPlayerId`. */
+    appliesTo?: "controller" | "chosen-player";
 }
 
 /** Layer 4 subtype replacement (CR 305.7 — "enchanted land is a [type]").
@@ -2014,6 +2063,13 @@ export interface PermanentLeftEvent {
     attachedToBeforeLeave?: string;
     /** Destination zone of the move. */
     toZone: "graveyard" | "exile" | "hand" | "library";
+    /** Why the permanent left the battlefield (CR 603.10). `"sacrifice"` is set
+     *  only when the permanent was sacrificed (CR 701.16); every other exit
+     *  (destruction, lethal-damage SBA, bounce, mill, exile) is left undefined.
+     *  Read by leave-the-battlefield triggers that must distinguish sacrifice
+     *  from other departures (Urza's Miter — "Whenever an artifact you control
+     *  is put into a graveyard, if it wasn't sacrificed, ..."). */
+    cause?: "sacrifice";
 }
 
 /** Spell-cast event emitted when a spell is put on the stack (CR 601.2i).
@@ -2583,6 +2639,13 @@ export interface CardDefinition {
     resolveSteps?: ((ctx: SpellContext) => void)[];
     /** Permanent enters the battlefield tapped (e.g. Nevinyrral's Disk). */
     entersTapped?: boolean;
+    /** Tracks continuity of control like summoning sickness, even for
+     *  noncreature permanents (CR 302.6 generalised). When set, the permanent
+     *  enters with `isSummoningSick` and clears it at its controller's untap
+     *  step, so an activated ability can gate on "controlled continuously since
+     *  your most recent turn began" via `canActivate: (s) => !s.isSummoningSick`
+     *  combined with `controllerTurnOnly`. Used by Rocket Launcher. */
+    tracksControlContinuity?: boolean;
     /** Counters placed on the permanent when it enters the battlefield
      *  (CR 122.1, 614.1c). Each entry is a counter type and a count, where
      *  `count: "X"` reads the value chosen for X at cast time (CR 107.3).

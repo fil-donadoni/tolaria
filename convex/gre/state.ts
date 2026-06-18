@@ -17,7 +17,11 @@ import type {
     TokenSpec,
     TriggerFizzledEvent,
 } from "../cards/types";
-import { registerTokenDefinition, tryGetCardById } from "../cards";
+import {
+    registerTokenDefinition,
+    tryGetCardById,
+    isPrintedInSet as isCardPrintedInSet,
+} from "../cards";
 import { turnFaceDown } from "./faceDown";
 import { getResolveFn } from "../cards/effectRegistry";
 import { matchesPermanentFilter } from "../cards/filters";
@@ -409,6 +413,20 @@ export type CardInstanceState = {
      *  Twin of `mustBlockAllThisTurn`. Set by Ydwen Efreet's lost block
      *  flip; enforced in `validateBlockerEligibility`. Cleared at CLEANUP. */
     cantBlockThisTurn?: boolean;
+    /** Transient flag: this creature can't be blocked this turn (CR 509.1b).
+     *  Set on an attacker by Tawnos's Wand ("target creature with power 2 or
+     *  less can't be blocked this turn"). Read by `validateBlockerEligibility`
+     *  on the attacker side so every would-be blocker is rejected. Cleared at
+     *  CLEANUP (CR 514.2). */
+    cantBeBlockedThisTurn?: boolean;
+    /** A player chosen as this permanent enters the battlefield and stored for
+     *  the rest of the game (CR 603.6b / 614.12 — "as ~ enters, choose an
+     *  opponent"). Set via `SpellContext.setChosenPlayer` from an ETB trigger;
+     *  read by static / triggered abilities that act on the chosen player
+     *  (Cursed Rack — chosen opponent's max hand size is four; The Rack —
+     *  damage at the chosen player's upkeep). Cleared when the permanent leaves
+     *  the battlefield (a new object, CR 400.7). */
+    chosenPlayerId?: string;
     /** Layer 5 color override (CR 305.7, 613.1d). When set, getColors()
      *  returns this array instead of mana-cost-derived + grantedColors.
      *  Set by lace instants ("target spell or permanent becomes [color]"). */
@@ -671,6 +689,9 @@ export type PendingActivation = {
     /** True iff the ability has a "discard the last card you drew this turn"
      *  cost (Jandor's Ring). The card is discarded at commit. */
     discardLastDrawnSource?: boolean;
+    /** "Discard N cards at random" cost (CR 118.3 — Coral Helm). The cards are
+     *  discarded at commit via the seeded PRNG. */
+    discardAtRandomCount?: number;
     /** Value chosen for X at activation announcement (CR 107.3 / 601.2b).
      *  Forwarded to the stack item at commit so resolve reads it via
      *  SpellContext.getX(). */
@@ -1629,6 +1650,7 @@ function finalizeSpellResolution(
     cardDef:
         | {
               entersTapped?: boolean;
+              tracksControlContinuity?: boolean;
               entersWith?: {
                   counters?: { type: string; count: number | "X" }[];
               };
@@ -1690,7 +1712,14 @@ function finalizeSpellResolution(
         }
         item.zone = "battlefield";
         item.isTapped = cardDef?.entersTapped === true;
-        if (item.types.includes("Creature")) {
+        // CR 302.6 — creatures enter summoning-sick. Noncreature permanents
+        // that gate activations on continuous control (Rocket Launcher) opt in
+        // via `tracksControlContinuity`, reusing the same flag + untap-step
+        // clear so the precondition is "controlled since my most recent turn".
+        if (
+            item.types.includes("Creature") ||
+            cardDef?.tracksControlContinuity === true
+        ) {
             item.isSummoningSick = true;
         }
         controller.battlefield.push(item);
@@ -2627,7 +2656,12 @@ export function combatPartnerIds(state: GameState, id: string): string[] {
 export function removePermanentTo(
     state: GameState,
     cardId: string,
-    toZone: "graveyard" | "exile" | "hand" | "library"
+    toZone: "graveyard" | "exile" | "hand" | "library",
+    /** Why the permanent is leaving (CR 603.10). Pass `"sacrifice"` from
+     *  sacrifice paths (CR 701.16) so leave-the-battlefield triggers can
+     *  distinguish sacrifice from destruction / bounce (Urza's Miter). Any
+     *  other departure leaves it undefined. */
+    cause?: "sacrifice"
 ): void {
     const initial = findOnBattlefield(state, cardId);
     if (!initial) return;
@@ -2727,6 +2761,7 @@ export function removePermanentTo(
             wasAura: lkiWasAura,
             attachedToBeforeLeave: lkiAttachedTo,
             toZone,
+            ...(cause ? { cause } : {}),
         },
     ];
     // CR 702.26 — "until ~ leaves the battlefield" durations end here. Any
@@ -2960,6 +2995,11 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.untapLockedBy;
     delete card.exileOnDeath;
     delete card.colorOverride;
+    delete card.cantBeBlockedThisTurn;
+    // CR 603.6b — the chosen player is stored for the rest of the game while
+    // this permanent is on the battlefield; a zone change makes a new object
+    // (CR 400.7), so the choice does not carry over.
+    delete card.chosenPlayerId;
     // CR 612.7 — a text-changing effect ends when the object changes zones
     // (it becomes a new object). Same lifecycle as colorOverride above.
     delete card.textChanges;
@@ -3064,6 +3104,28 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 item.triggerSourceId ?? item.id
             );
             return src?.card.attachedTo;
+        },
+
+        setChosenPlayer(playerId: string): void {
+            // CR 603.6b / 614.12 — record a player chosen as this permanent
+            // enters (or when an ability resolves), stored on the source
+            // instance for the rest of the game. The source is the resolving
+            // permanent: an ETB trigger's `triggerSourceId` points at the
+            // permanent that just entered. No-op if it is no longer on the
+            // battlefield.
+            const src = findOnBattlefield(
+                state,
+                item.triggerSourceId ?? item.id
+            );
+            if (src) src.card.chosenPlayerId = playerId;
+        },
+
+        getChosenPlayer(): string | undefined {
+            const src = findOnBattlefield(
+                state,
+                item.triggerSourceId ?? item.id
+            );
+            return src?.card.chosenPlayerId;
         },
 
         hasRemovedKeyword(permanentId: string, keyword: string): boolean {
@@ -3749,23 +3811,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             owner.graveyard.push(item);
         },
         discardAtRandom(playerId: string, amount: number): void {
-            const player = getPlayer(state, playerId);
-            const picks = Math.min(amount, player.hand.length);
-            for (let i = 0; i < picks; i++) {
-                const idx = randomInt(state, player.hand.length);
-                const cardId = player.hand[idx].id;
-                // CR 614 — Library of Leng's "may put it on top of library
-                // instead" intercepts each discard. If the replacement
-                // consumes the event the card has already been routed
-                // elsewhere by the apply ctx; skip the default discard.
-                const repl = applyDiscardReplacements(state, {
-                    kind: "discard",
-                    playerId,
-                    cardInstanceId: cardId,
-                });
-                if (repl === null) continue;
-                moveCard(player, repl.cardInstanceId, "hand", "graveyard");
-            }
+            discardCardsAtRandom(state, playerId, amount);
         },
         addMana(cost: CardManaCost): void {
             const player = getPlayer(state, item.castById);
@@ -4203,6 +4249,16 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             found.card.cantBlockThisTurn = true;
         },
 
+        setCantBeBlockedThisTurn(target: TargetSelection): void {
+            // CR 509.1b — flag an attacker as unblockable this turn (Tawnos's
+            // Wand). Read on the attacker side by `validateBlockerEligibility`;
+            // cleared at CLEANUP (CR 514.2). No-op off the battlefield.
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.cantBeBlockedThisTurn = true;
+        },
+
         setColorOverride(target: TargetSelection, colors: Color[]): void {
             if (target.type === "permanent") {
                 const found = findOnBattlefield(state, target.id);
@@ -4519,6 +4575,17 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 )
                 .map((c) => c.id);
         },
+        getCardDefinitionId(cardInstanceId: string): string | undefined {
+            const found = findOnBattlefield(state, cardInstanceId);
+            return found ? (found.card.card as { id?: string }).id : undefined;
+        },
+        isPrintedInSet(cardInstanceId: string, setCode: string): boolean {
+            const found = findOnBattlefield(state, cardInstanceId);
+            const cardId = found
+                ? (found.card.card as { id?: string }).id
+                : undefined;
+            return cardId ? isCardPrintedInSet(cardId, setCode) : false;
+        },
         hasSubtype(target: TargetSelection, subtype: string): boolean {
             if (target.type !== "permanent") return false;
             const found = findOnBattlefield(state, target.id);
@@ -4531,7 +4598,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         // it into its owner's graveyard. Indestructible does not prevent
         // sacrifice (CR 701.16a). No-op if the id is not on the battlefield.
         sacrifice(cardInstanceId: string): void {
-            removePermanentTo(state, cardInstanceId, "graveyard");
+            removePermanentTo(state, cardInstanceId, "graveyard", "sacrifice");
         },
         // CR 701.8: to discard a card is to move it from its owner's hand
         // into that player's graveyard. No-op if the card is no longer in
@@ -4845,6 +4912,45 @@ export function payDiscardLastDrawn(player: PlayerState): void {
     }
     moveCard(player, id, "hand", "graveyard");
     player.lastDrawnCardId = undefined;
+}
+
+/** Discards `amount` cards at random from `playerId`'s hand (CR 701.8), using
+ *  the game's seeded PRNG so replays reproduce the same picks. Clamped to the
+ *  hand size. Routes each discard through the discard-replacement layer
+ *  (CR 614 — Library of Leng). Shared by `SpellContext.discardAtRandom` (an
+ *  effect) and `payDiscardAtRandomCost` (an activation cost, CR 118.3). */
+export function discardCardsAtRandom(
+    state: GameState,
+    playerId: string,
+    amount: number
+): void {
+    const player = getPlayer(state, playerId);
+    const picks = Math.min(amount, player.hand.length);
+    for (let i = 0; i < picks; i++) {
+        const idx = randomInt(state, player.hand.length);
+        const cardId = player.hand[idx].id;
+        // CR 614 — Library of Leng's "may put it on top of library instead"
+        // intercepts each discard. If the replacement consumes the event the
+        // card has already been routed elsewhere; skip the default discard.
+        const repl = applyDiscardReplacements(state, {
+            kind: "discard",
+            playerId,
+            cardInstanceId: cardId,
+        });
+        if (repl === null) continue;
+        moveCard(player, repl.cardInstanceId, "hand", "graveyard");
+    }
+}
+
+/** Pays a "discard N cards at random" activation cost (CR 118.3 / 701.8 —
+ *  Coral Helm). Caller must validate the player has at least one card in hand
+ *  (the cost is illegal with an empty hand). Discards via the seeded PRNG. */
+export function payDiscardAtRandomCost(
+    state: GameState,
+    playerId: string,
+    count: number
+): void {
+    discardCardsAtRandom(state, playerId, count);
 }
 
 /** Active "spend X as though Y" mana-substitution rules for one player.

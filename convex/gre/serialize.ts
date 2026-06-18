@@ -150,6 +150,8 @@ function compactCard(
     }
     if (card.mustBlockAllThisTurn) out.mustBlockAllThisTurn = true;
     if (card.cantBlockThisTurn) out.cantBlockThisTurn = true;
+    if (card.cantBeBlockedThisTurn) out.cantBeBlockedThisTurn = true;
+    if (card.chosenPlayerId) out.chosenPlayerId = card.chosenPlayerId;
     if (card.pileLabel) out.pileLabel = card.pileLabel;
     if (card.faceDown) out.faceDown = true;
     if (card.faceDownOf) out.faceDownOf = card.faceDownOf;
@@ -299,6 +301,10 @@ function expandCard(
     }
     if (compact.mustBlockAllThisTurn) result.mustBlockAllThisTurn = true;
     if (compact.cantBlockThisTurn) result.cantBlockThisTurn = true;
+    if (compact.cantBeBlockedThisTurn) result.cantBeBlockedThisTurn = true;
+    if (compact.chosenPlayerId) {
+        result.chosenPlayerId = compact.chosenPlayerId as string;
+    }
     if (compact.pileLabel) result.pileLabel = compact.pileLabel as string;
     if (compact.faceDown) result.faceDown = true;
     if (compact.faceDownOf) result.faceDownOf = compact.faceDownOf as string;
