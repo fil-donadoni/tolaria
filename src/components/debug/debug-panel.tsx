@@ -57,6 +57,39 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Board-next hand UX (#271). A full, varied hand on the spatial board
+        // (?board=next) to exercise the four hand fixes end-to-end:
+        //   • Hover a hand card → the zoom preview appears (parity w/ the
+        //     battlefield card).
+        //   • Drag a card sideways → the hand reorders, snapping the card to the
+        //     slot under the drop position (view-only; no zone change).
+        //   • Flick a spell/land up a modest amount → it commits (lowered
+        //     threshold); a tiny nudge does not.
+        //   • While dragging up, the card stays visible — it never escapes into
+        //     the band above the hand.
+        // Six Mountains are in play so the burn spells and the land drop are all
+        // legal, making click and drag both live for several cards at once.
+        label: "Board next: hand UX (hover / reorder / drag-commit)",
+        cards: [
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Fireball", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Disintegrate",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Gray Ogre", owner: "me" as const, zone: "hand" as const },
+            { name: "Mountain", owner: "me" as const, zone: "hand" as const },
+            { name: "Mountain", owner: "me" as const, count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 4 (#191) — coin flip (CR 705). Flips route through the
         // seeded PRNG so they are deterministic on replay.
         //   • Bottle of Suleiman ({4} artifact): activate "{1}, Sacrifice this
