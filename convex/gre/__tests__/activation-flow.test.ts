@@ -33,6 +33,10 @@ import {
     jandorsRing,
 } from "../../cards/sets/arn";
 import type { CardType } from "../../cards/types";
+import { ashnodsBattleGear } from "../../cards/sets/atq";
+import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { untapStep } from "../phases";
+import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 
 // ---------------------------------------------------------------------------
 // Simulated mutation handlers for the pendingActivation payment phase.
@@ -886,5 +890,102 @@ describe("activation flow — Jandor's Ring ({2},{T}, discard last drawn: Draw)"
         expect(p1.battlefield.find((c) => c.id === "island-0")!.isTapped).toBe(
             false
         );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Cluster E integration (#286) — the real {2},{T} cost-payment path: the tap
+// cost actually taps the source, which is what makes the
+// "for as long as this remains tapped" buff live (CR 611.2). Then the
+// optional-untap step (CR 502.1) lets the controller keep the source tapped.
+// Exercises activateAbility → resolveTopOfStack → untapStep → choice submit,
+// the same functions the game.ts mutations call.
+// ---------------------------------------------------------------------------
+
+describe("activation flow — Ashnod's Battle Gear (+2/-2 while tapped)", () => {
+    it("the {T} cost taps the Gear so the buff is live, then optional-untap keeps it", () => {
+        const gear = makeInstance({
+            id: "gear",
+            card: { id: ashnodsBattleGear.id },
+        });
+        const bear = makeInstance({
+            id: "bear",
+            card: { id: "synth-bear" },
+            types: ["Creature"],
+            power: 3,
+            toughness: 3,
+        });
+        const state = makeGame({
+            players: [
+                makePlayer({
+                    id: "p1",
+                    battlefield: [gear, bear],
+                    // Float {2} so activateAbility auto-commits (taps the Gear).
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 2 },
+                }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+
+        const result = activateAbility(
+            state,
+            "p1",
+            "gear",
+            "ashnods-battle-gear-pump"
+        );
+        expect(result).toBe("committed");
+        // The {T} cost tapped the source.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "gear")!.isTapped
+        ).toBe(true);
+
+        // Attach the target (locked in during the production target step) and
+        // resolve.
+        state.stack[state.stack.length - 1].targets = [
+            { type: "permanent", id: "bear" },
+        ];
+        resolveTopOfStack(state);
+
+        const liveBear = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectivePower(state, liveBear)).toBe(5);
+        expect(getEffectiveToughness(state, liveBear)).toBe(1);
+
+        // Untap step: the Gear is prompted (may choose not to untap), not
+        // auto-untapped. Decline → the Gear stays tapped → buff persists.
+        state.phase = "UNTAP";
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        untapStep(state);
+        expect(state.pendingChoices?.[0]?.kind).toBe("untap-pick");
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [], // decline — keep the Gear tapped
+        });
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "gear")!.isTapped
+        ).toBe(true);
+        expect(getEffectivePower(state, liveBear)).toBe(5); // buff still live
+
+        // Next untap, choose to untap → buff ends.
+        state.phase = "UNTAP";
+        untapStep(state);
+        const head2 = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head2.playerId,
+            stackItemId: head2.stackItemId,
+            step: head2.step,
+            choiceId: head2.choiceId,
+            cardInstanceIds: ["gear"], // untap the Gear
+        });
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "gear")!.isTapped
+        ).toBe(false);
+        expect(getEffectivePower(state, liveBear)).toBe(3); // buff ended
     });
 });

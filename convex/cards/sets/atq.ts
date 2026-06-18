@@ -2226,3 +2226,116 @@ export const artifactPossession: CardDefinition = {
         }),
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster E (#286) — "for as long as this remains tapped" duration + tap-lock.
+// CR 611.2 models a duration tied to a continuously re-evaluated game state
+// rather than a phase boundary: the effect persists exactly while its source
+// stays tapped and ends the instant the source untaps or leaves play
+// (`checkSourceTappedEffects` SBA + live layer read). All three cards also use
+// the `may-choose-not-to-untap` keyword (CR 502.1 optional untap), which is
+// what lets the controller hold the source tapped to keep the effect alive.
+// Modern Scryfall oracle text is authoritative (ADR 0004); costs / type lines
+// come from MTGJSON ATQ.json.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Ashnod's Battle Gear — {2} Artifact. "{2}, {T}: Target creature you control
+// gets +2/-2 for as long as this artifact remains tapped." (CR 611.2 state-tied
+// duration via `addSourceTappedPTBuff`; CR 502.1 optional untap via the
+// `may-choose-not-to-untap` keyword.) The buff is read live at layer 7d while
+// the Battle Gear stays tapped and disappears the moment it untaps.
+export const ashnodsBattleGear: CardDefinition = {
+    id: "aeeec853-dd3f-4ac3-8b20-c07fada8888f",
+    name: "Ashnod's Battle Gear",
+    oracleText:
+        "You may choose not to untap this artifact during your untap step.\n{2}, {T}: Target creature you control gets +2/-2 for as long as this artifact remains tapped.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    staticAbilities: ["may-choose-not-to-untap"],
+    activatedAbilities: [
+        {
+            id: "ashnods-battle-gear-pump",
+            oracleText:
+                "{2}, {T}: Target creature you control gets +2/-2 for as long as this artifact remains tapped.",
+            cost: { tap: true, mana: { X: 2 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.addSourceTappedPTBuff(target, 2, -2);
+                }
+            },
+        },
+    ],
+};
+
+// Tawnos's Weaponry — {2} Artifact. "{2}, {T}: Target creature gets +1/+1 for
+// as long as this artifact remains tapped." (CR 611.2 state-tied duration; CR
+// 502.1 optional untap.) Same shape as Battle Gear but any creature and a
+// +1/+1 buff.
+export const tawnossWeaponry: CardDefinition = {
+    id: "3035cead-a501-4204-9154-5fd648577d32",
+    name: "Tawnos's Weaponry",
+    oracleText:
+        "You may choose not to untap this artifact during your untap step.\n{2}, {T}: Target creature gets +1/+1 for as long as this artifact remains tapped.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    staticAbilities: ["may-choose-not-to-untap"],
+    activatedAbilities: [
+        {
+            id: "tawnoss-weaponry-pump",
+            oracleText:
+                "{2}, {T}: Target creature gets +1/+1 for as long as this artifact remains tapped.",
+            cost: { tap: true, mana: { X: 2 } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.addSourceTappedPTBuff(target, 1, 1);
+                }
+            },
+        },
+    ],
+};
+
+// Phyrexian Gremlins — {2}{B} Creature — Phyrexian Gremlin, 1/1. "{T}: Tap
+// target artifact. It doesn't untap during its controller's untap step for as
+// long as this creature remains tapped." (CR 611.2 untap-lock tied to the
+// source's tapped state via `lockUntapWhileSourceTapped`; CR 502.1 optional
+// untap.) The Gremlin taps the artifact AND records the lock; the artifact
+// stays tapped through its controller's untap steps until the Gremlin untaps.
+export const phyrexianGremlins: CardDefinition = {
+    id: "21a985a9-5612-4844-982e-fd1aa6249770",
+    name: "Phyrexian Gremlins",
+    oracleText:
+        "You may choose not to untap this creature during your untap step.\n{T}: Tap target artifact. It doesn't untap during its controller's untap step for as long as this creature remains tapped.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Phyrexian", "Gremlin"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["may-choose-not-to-untap"],
+    activatedAbilities: [
+        {
+            id: "phyrexian-gremlins-tap-lock",
+            oracleText:
+                "{T}: Tap target artifact. It doesn't untap during its controller's untap step for as long as this creature remains tapped.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Artifact", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.tap(target);
+                    ctx.lockUntapWhileSourceTapped(target);
+                }
+            },
+        },
+    ],
+};

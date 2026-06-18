@@ -172,6 +172,10 @@ describe("game_state serialize round-trip", () => {
             { power: 0, duration: { phase: "end-of-turn" } },
             { power: 0, toughness: 2, duration: { phase: "end-of-turn" } },
         ];
+        lion.sourceTappedPTMods = [
+            { power: 2, toughness: -2, sourceId: "gear-1" },
+        ];
+        lion.untapLockedBy = ["gremlin-1"];
         lion.counters = { "+1/+1": 1, "+1/+0": 2 };
         lion.grantedStaticAbilities = [{ ability: "flying", auraId: "aura-1" }];
         lion.grantedActivatedAbilities = [
@@ -221,6 +225,10 @@ describe("game_state serialize round-trip", () => {
             { power: 0, duration: { phase: "end-of-turn" } },
             { power: 0, toughness: 2, duration: { phase: "end-of-turn" } },
         ]);
+        expect(got.sourceTappedPTMods).toEqual([
+            { power: 2, toughness: -2, sourceId: "gear-1" },
+        ]);
+        expect(got.untapLockedBy).toEqual(["gremlin-1"]);
         expect(got.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
         expect(got.grantedStaticAbilities).toEqual([
             { ability: "flying", auraId: "aura-1" },

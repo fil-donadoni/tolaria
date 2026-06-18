@@ -668,6 +668,37 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Antiquities cluster E — "for as long as this remains tapped" duration
+        // + tap-lock (#286, CR 611.2 state-tied duration / CR 502.1 optional
+        // untap). The buff/lock persists exactly while its source stays tapped:
+        //   • Right-click Ashnod's Battle Gear → "{2},{T}: target creature you
+        //     control +2/-2 while tapped"; target your Grizzly Bears (becomes
+        //     4/0 → dies to the toughness SBA, so target the Yotian Soldier or a
+        //     bigger body to watch it sit at +2/-2 while the Gear stays tapped).
+        //   • Right-click Tawnos's Weaponry → "{2},{T}: target creature +1/+1
+        //     while tapped"; target any creature.
+        //   • Right-click Phyrexian Gremlins → "{T}: tap target artifact; it
+        //     doesn't untap while the Gremlin stays tapped"; tap the opponent's
+        //     Millstone to lock it down.
+        //   • Pass to your UNTAP step: each tapped source PROMPTS "you may
+        //     choose not to untap this" — decline to keep the buff/lock alive,
+        //     accept to untap and end it. The locked Millstone stays tapped
+        //     through its controller's untap step until the Gremlin untaps.
+        label: "Antiquities E: while-tapped buff + tap-lock (Battle Gear / Weaponry / Gremlins)",
+        cards: [
+            { name: "Ashnod's Battle Gear", owner: "me" as const },
+            { name: "Tawnos's Weaponry", owner: "me" as const },
+            { name: "Phyrexian Gremlins", owner: "me" as const },
+            { name: "Yotian Soldier", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Swamp", owner: "me" as const, count: 4 },
+            { name: "Millstone", owner: "opp" as const },
+            { name: "Triskelion", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 8 (#179) — phasing (CR 702.26, ADR 0021). Cast Oubliette
         // ({1}{B}{B}) and choose the opponent's Serendib Efreet: it phases out
         // (treated as though it doesn't exist — gone from the board, fires no

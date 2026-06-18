@@ -1,7 +1,11 @@
 import type { CardInstanceState, GameState } from "./state";
 import { getOpponentId, removePermanentTo, revertControlChange } from "./state";
 import { isAura } from "./constants";
-import { getEffectivePower, getEffectiveToughness } from "./layers";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+    isSourceTappedLive,
+} from "./layers";
 import { isProtectedFromSource } from "./protection";
 import { applyLoseGameReplacements } from "./replacements";
 import { applyStateTriggers } from "./triggers";
@@ -268,9 +272,37 @@ export function checkConditionalControlChanges(state: GameState): boolean {
     return revertedAny;
 }
 
+/** SBA for "for as long as [the source] remains tapped" effects (CR 611.2;
+ *  ATQ cluster E). Strips `sourceTappedPTMods` entries and `untapLockedBy`
+ *  ids whose source has left the battlefield or untapped, so the buff /
+ *  untap-lock ends the moment its source is no longer tapped. Idempotent and
+ *  side-effect-free beyond the splice; the layer system also reads these live
+ *  (`getSourceTappedPTBuff`), so this is the bookkeeping pass that keeps the
+ *  stored state from accumulating stale entries (and that frees a locked
+ *  permanent to untap on its next untap step). */
+export function checkSourceTappedEffects(state: GameState): void {
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            if (card.sourceTappedPTMods?.length) {
+                const kept = card.sourceTappedPTMods.filter((m) =>
+                    isSourceTappedLive(state, m.sourceId)
+                );
+                card.sourceTappedPTMods = kept.length > 0 ? kept : undefined;
+            }
+            if (card.untapLockedBy?.length) {
+                const kept = card.untapLockedBy.filter((sourceId) =>
+                    isSourceTappedLive(state, sourceId)
+                );
+                card.untapLockedBy = kept.length > 0 ? kept : undefined;
+            }
+        }
+    }
+}
+
 export function checkStateBasedActions(state: GameState): void {
     checkAuraAttachmentSBA(state);
     checkConditionalControlChanges(state);
+    checkSourceTappedEffects(state);
     checkZeroToughnessSBA(state);
     checkTokenExistenceSBA(state);
     checkGameOverSBA(state);

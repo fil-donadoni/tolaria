@@ -65,6 +65,9 @@ import {
     hauntingWind,
     powerleech,
     artifactPossession,
+    ashnodsBattleGear,
+    tawnossWeaponry,
+    phyrexianGremlins,
 } from "../atq";
 import { getCardById, getInstanceManaCost } from "../..";
 import {
@@ -98,6 +101,7 @@ import { buildAutoTapSources } from "../../../gre/autoTap";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { getLegalTargets } from "../../../gre/rules";
 import { advancePhase, untapStep } from "../../../gre/phases";
+import { checkStateBasedActions } from "../../../gre/sba";
 import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
 import type { CardType, BlockersConfirmedEvent, GameEvent } from "../../types";
 
@@ -3965,5 +3969,359 @@ describe("Artifact Possession (Aura: 2 dmg on enchanted artifact tap/ability)", 
         expect(state.players[1].life).toBe(18);
         const projected = projectPublicState(state, 1, "p2");
         expect(projected.players[1].life).toBe(18);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Cluster E (#286) — "for as long as this remains tapped" duration + tap-lock
+// (CR 611.2 state-tied duration; CR 502.1 optional untap). The buff/lock is
+// read live while the source stays tapped and pruned by the
+// `checkSourceTappedEffects` SBA once the source untaps or leaves.
+// ---------------------------------------------------------------------------
+
+describe("Ashnod's Battle Gear (+2/-2 while tapped, CR 611.2)", () => {
+    it("is a {2} Artifact with the optional-untap keyword", () => {
+        expect(ashnodsBattleGear.manaCost).toEqual({ X: 2 });
+        expect(ashnodsBattleGear.types).toEqual(["Artifact"]);
+        expect(ashnodsBattleGear.staticAbilities).toContain(
+            "may-choose-not-to-untap"
+        );
+    });
+
+    it("grants +2/-2 to a creature you control while the Gear stays tapped", () => {
+        const gear = makeInstance(ashnodsBattleGear.id, {
+            id: "gear",
+            isTapped: true, // {T} cost already paid (resolveActivated skips costs)
+        });
+        const bear = vanilla("bear", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gear, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, bear)).toBe(2);
+        expect(getEffectiveToughness(state, bear)).toBe(2);
+
+        resolveActivated(state, gear, "ashnods-battle-gear-pump", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, live)).toBe(4);
+        expect(getEffectiveToughness(state, live)).toBe(0);
+    });
+
+    it("the buff disappears the moment the Gear untaps (live read + SBA prune)", () => {
+        const gear = makeInstance(ashnodsBattleGear.id, {
+            id: "gear",
+            isTapped: true,
+        });
+        const bear = vanilla("bear", 2, 4, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gear, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, gear, "ashnods-battle-gear-pump", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const liveBear = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectiveToughness(state, liveBear)).toBe(2); // 4 - 2
+
+        // Untap the Gear: the buff ends immediately on the live layer read,
+        // even before the SBA splices the stale entry out.
+        state.players[0].battlefield.find((c) => c.id === "gear")!.isTapped =
+            false;
+        expect(getEffectiveToughness(state, liveBear)).toBe(4);
+
+        // SBA prunes the now-stale entry.
+        checkStateBasedActions(state);
+        expect(liveBear.sourceTappedPTMods).toBeUndefined();
+        expect(getEffectiveToughness(state, liveBear)).toBe(4);
+    });
+
+    it("the buff ends when the Gear leaves the battlefield", () => {
+        const gear = makeInstance(ashnodsBattleGear.id, {
+            id: "gear",
+            isTapped: true,
+        });
+        const bear = vanilla("bear", 2, 4, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gear, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, gear, "ashnods-battle-gear-pump", [
+            { type: "permanent", id: "bear" },
+        ]);
+        removePermanentTo(state, "gear", "graveyard");
+        const liveBear = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectiveToughness(state, liveBear)).toBe(4); // source gone
+        checkStateBasedActions(state);
+        expect(liveBear.sourceTappedPTMods).toBeUndefined();
+    });
+
+    it("wire format: the +2/-2 survives projectPublicState while the Gear is tapped", () => {
+        const gear = makeInstance(ashnodsBattleGear.id, {
+            id: "gear",
+            isTapped: true,
+        });
+        const bear = vanilla("bear", 2, 4, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gear, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, gear, "ashnods-battle-gear-pump", [
+            { type: "permanent", id: "bear" },
+        ]);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBear = projected.players
+            .find((p) => p.id === "p1")!
+            .battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(projected, slimBear)).toBe(4);
+        expect(getEffectiveToughness(projected, slimBear)).toBe(2);
+
+        // And the projected tapped state of the source still gates the buff:
+        // flipping the projected Gear's isTapped removes the contribution.
+        const slimGear = projected.players
+            .find((p) => p.id === "p1")!
+            .battlefield.find((c) => c.id === "gear")!;
+        (slimGear as { isTapped: boolean }).isTapped = false;
+        expect(getEffectiveToughness(projected, slimBear)).toBe(4);
+    });
+});
+
+describe("Tawnos's Weaponry (+1/+1 while tapped, CR 611.2)", () => {
+    it("is a {2} Artifact with the optional-untap keyword", () => {
+        expect(tawnossWeaponry.manaCost).toEqual({ X: 2 });
+        expect(tawnossWeaponry.staticAbilities).toContain(
+            "may-choose-not-to-untap"
+        );
+    });
+
+    it("grants +1/+1 to any creature while the Weaponry stays tapped", () => {
+        const weap = makeInstance(tawnossWeaponry.id, {
+            id: "weap",
+            isTapped: true,
+        });
+        const foe = vanilla("foe", 2, 2); // p2's creature — "any" target
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [weap] }),
+                makePlayer("p2", { battlefield: [foe] }),
+            ],
+        });
+        resolveActivated(state, weap, "tawnoss-weaponry-pump", [
+            { type: "permanent", id: "foe" },
+        ]);
+        const live = state.players[1].battlefield.find((c) => c.id === "foe")!;
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+
+        // Untap → buff gone.
+        state.players[0].battlefield.find((c) => c.id === "weap")!.isTapped =
+            false;
+        expect(getEffectivePower(state, live)).toBe(2);
+        expect(getEffectiveToughness(state, live)).toBe(2);
+    });
+
+    it("wire format: the +1/+1 survives projectPublicState", () => {
+        const weap = makeInstance(tawnossWeaponry.id, {
+            id: "weap",
+            isTapped: true,
+        });
+        const foe = vanilla("foe", 2, 2);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [weap] }),
+                makePlayer("p2", { battlefield: [foe] }),
+            ],
+        });
+        resolveActivated(state, weap, "tawnoss-weaponry-pump", [
+            { type: "permanent", id: "foe" },
+        ]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players
+            .find((p) => p.id === "p2")!
+            .battlefield.find((c) => c.id === "foe")!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+describe("Phyrexian Gremlins (tap-lock while tapped, CR 611.2 / 502.1)", () => {
+    it("is a 1/1 Phyrexian Gremlin with the optional-untap keyword", () => {
+        expect(phyrexianGremlins.power).toBe(1);
+        expect(phyrexianGremlins.toughness).toBe(1);
+        expect(phyrexianGremlins.subtypes).toEqual(["Phyrexian", "Gremlin"]);
+        expect(phyrexianGremlins.manaCost).toEqual({ X: 2, B: 1 });
+        expect(phyrexianGremlins.staticAbilities).toContain(
+            "may-choose-not-to-untap"
+        );
+    });
+
+    it("taps the target artifact and records the untap-lock", () => {
+        const grem = makeInstance(phyrexianGremlins.id, {
+            id: "grem",
+            isTapped: true, // {T} cost already paid
+        });
+        const rock = vanilla("rock", 0, 0, {
+            controllerId: "p2",
+            ownerId: "p2",
+            types: ["Artifact"] as CardType[],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [grem] }),
+                makePlayer("p2", { battlefield: [rock] }),
+            ],
+        });
+        resolveActivated(state, grem, "phyrexian-gremlins-tap-lock", [
+            { type: "permanent", id: "rock" },
+        ]);
+        const liveRock = state.players[1].battlefield.find(
+            (c) => c.id === "rock"
+        )!;
+        expect(liveRock.isTapped).toBe(true);
+        expect(liveRock.untapLockedBy).toEqual(["grem"]);
+    });
+
+    it("keeps the locked artifact tapped through its controller's untap step", () => {
+        const grem = makeInstance(phyrexianGremlins.id, {
+            id: "grem",
+            isTapped: true,
+        });
+        const rock = vanilla("rock", 0, 0, {
+            controllerId: "p2",
+            ownerId: "p2",
+            types: ["Artifact"] as CardType[],
+            isTapped: true,
+            untapLockedBy: ["grem"],
+        });
+        const state = makeState({
+            phase: "UNTAP",
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [grem] }),
+                makePlayer("p2", { battlefield: [rock] }),
+            ],
+        });
+        untapStep(state);
+        const liveRock = state.players[1].battlefield.find(
+            (c) => c.id === "rock"
+        )!;
+        expect(liveRock.isTapped).toBe(true); // lock holds — Gremlin still tapped
+    });
+
+    it("frees the artifact once the Gremlin untaps (SBA prunes the lock)", () => {
+        const grem = makeInstance(phyrexianGremlins.id, {
+            id: "grem",
+            isTapped: false, // Gremlin untapped on a prior turn
+        });
+        const rock = vanilla("rock", 0, 0, {
+            controllerId: "p2",
+            ownerId: "p2",
+            types: ["Artifact"] as CardType[],
+            isTapped: true,
+            untapLockedBy: ["grem"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [grem] }),
+                makePlayer("p2", { battlefield: [rock] }),
+            ],
+        });
+        checkStateBasedActions(state);
+        const liveRock = state.players[1].battlefield.find(
+            (c) => c.id === "rock"
+        )!;
+        expect(liveRock.untapLockedBy).toBeUndefined();
+
+        // Now the artifact's controller's untap step untaps it.
+        state.phase = "UNTAP";
+        state.activePlayerId = "p2";
+        untapStep(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "rock")!.isTapped
+        ).toBe(false);
+    });
+});
+
+describe("Optional untap (CR 502.1 — 'you may choose not to untap this')", () => {
+    function untapState(source: CardInstanceState): GameState {
+        return makeState({
+            phase: "UNTAP",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("prompts the controller before untapping a may-choose-not-to-untap permanent", () => {
+        const gear = makeInstance(ashnodsBattleGear.id, {
+            id: "gear",
+            isTapped: true,
+        });
+        const state = untapState(gear);
+        untapStep(state);
+        // The Gear is not auto-untapped; an untap-pick prompt is queued.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "gear")!.isTapped
+        ).toBe(true);
+        expect(state.pendingChoices?.[0]?.kind).toBe("untap-pick");
+        expect(state.pendingChoices?.[0]?.choiceId).toBe("untap-optional-gear");
+    });
+
+    it("untaps when the controller chooses to (selects the id)", () => {
+        const gear = makeInstance(ashnodsBattleGear.id, {
+            id: "gear",
+            isTapped: true,
+        });
+        const state = untapState(gear);
+        untapStep(state);
+        submitChoice(state, ["gear"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "gear")!.isTapped
+        ).toBe(false);
+        expect(state.pendingChoices).toBeUndefined();
+    });
+
+    it("keeps it tapped when the controller declines (selects nothing)", () => {
+        const gear = makeInstance(ashnodsBattleGear.id, {
+            id: "gear",
+            isTapped: true,
+        });
+        const state = untapState(gear);
+        untapStep(state);
+        submitChoice(state, []);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "gear")!.isTapped
+        ).toBe(true);
+        expect(state.pendingChoices).toBeUndefined();
     });
 });
