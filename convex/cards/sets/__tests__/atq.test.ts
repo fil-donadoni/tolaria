@@ -57,24 +57,36 @@ import {
     priestOfYawgmoth,
     dwarvenWeaponsmith,
     gateToPhyrexia,
+    mishrasWorkshop,
+    urzasChalice as urzasChaliceDef,
 } from "../atq";
-import { getCardById } from "../..";
+import { getCardById, getInstanceManaCost } from "../..";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
 } from "../../__tests__/setup";
-import { isCreature } from "../../../gre/constants";
+import {
+    isCreature,
+    getActivatedManaRestriction,
+} from "../../../gre/constants";
 import { projectPublicState } from "../../../gameProjections";
 import {
     resolveTopOfStack,
     removePermanentTo,
     processPendingActionTriggers,
+    addRestrictedManaToPool,
+    restrictionAllowsSpell,
+    spendablePoolForSpell,
+    payManaCostForSpell,
+    isManaCostCovered,
+    normalizeManaCost,
     type CardInstanceState,
     type GameState,
     type StackItem,
 } from "../../../gre/state";
+import { buildAutoTapSources } from "../../../gre/autoTap";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { getLegalTargets } from "../../../gre/rules";
 import { advancePhase, untapStep } from "../../../gre/phases";
@@ -3220,3 +3232,181 @@ describe("Gate to Phyrexia (CR 602.5 — upkeep, once/turn, sac creature)", () =
         );
     });
 });
+
+// ---------------------------------------------------------------------------
+// Mishra's Workshop — restricted mana "artifact-spell" (cluster M, #283)
+//   "{T}: Add {C}{C}{C}. Spend this mana only to cast artifact spells."
+//   CR 106.6 (restricted mana) / CR 500.4 (empties at end of step/phase).
+//   ADR 0022 — reuses the restricted-mana storage/serialization/emptying/
+//   settlement machinery; only a new union member + ability field.
+// ---------------------------------------------------------------------------
+
+describe("Mishra's Workshop (restricted mana 'artifact-spell', CR 106.6)", () => {
+    /** Tap a Mishra's Workshop into the controller's pool exactly as the
+     *  tapUntap mutation's fixed-mana branch does: route the produced mana
+     *  into `restrictedMana` (not the fungible pool) under the ability's
+     *  declared restriction. */
+    function tapWorkshop(state: GameState): void {
+        const ws = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === mishrasWorkshop.id
+        )!;
+        ws.isTapped = true;
+        const restriction = getActivatedManaRestriction(ws)!;
+        addRestrictedManaToPool(state.players[0], "C", 3, restriction);
+    }
+
+    it("is a Land whose mana ability declares the artifact-spell restriction", () => {
+        const def = getCardById(mishrasWorkshop.id);
+        expect(def.name).toBe("Mishra's Workshop");
+        expect(def.types).toEqual(["Land"]);
+        const ability = def.activatedAbilities?.[0];
+        expect(ability?.cost.tap).toBe(true);
+        expect(ability?.useStack).toBe(false);
+        expect(ability?.manaProduced).toEqual({ C: 3 });
+        expect(ability?.manaRestriction).toBe("artifact-spell");
+    });
+
+    it("getActivatedManaRestriction reads the restriction off the instance", () => {
+        const ws = makeInstance(mishrasWorkshop.id);
+        expect(getActivatedManaRestriction(ws)).toBe("artifact-spell");
+        // A plain land mana ability carries no restriction.
+        const factory = makeInstance(mishrasFactory.id);
+        expect(getActivatedManaRestriction(factory)).toBeNull();
+    });
+
+    it("restrictionAllowsSpell gates artifact spells only", () => {
+        expect(restrictionAllowsSpell("artifact-spell", ["Artifact"])).toBe(
+            true
+        );
+        expect(
+            restrictionAllowsSpell("artifact-spell", ["Artifact", "Creature"])
+        ).toBe(true);
+        expect(restrictionAllowsSpell("artifact-spell", ["Creature"])).toBe(
+            false
+        );
+        expect(restrictionAllowsSpell("artifact-spell", ["Sorcery"])).toBe(
+            false
+        );
+    });
+
+    it("tapping produces three colorless mana in the restricted pool, not the fungible pool", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [makeInstance(mishrasWorkshop.id)],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        tapWorkshop(state);
+        expect(state.players[0].restrictedMana).toEqual([
+            { color: "C", amount: 3, restriction: "artifact-spell" },
+        ]);
+        // Nothing leaks into the fungible pool.
+        expect(state.players[0].manaPool.C).toBe(0);
+    });
+
+    // Integration across the GRE -> game.ts spell-cast boundary: mirror the
+    // affordability check + payment the cast mutations perform (CR 106.6).
+    it("pays an artifact spell from restricted mana but rejects a noncreature non-artifact spell and an ability", () => {
+        const subs = getManaSubstitutionsEmpty();
+        // Urza's Chalice — {1} Artifact. Restricted {C} pays the generic pip.
+        const artifactCost = normalizeManaCost(
+            getInstanceManaCost(
+                makeInstance(urzasChaliceDef.id, { zone: "hand" })
+            )!,
+            { chosenX: 1 }
+        );
+        const artifactTypes = getCardById(urzasChaliceDef.id).types;
+
+        const caster = makePlayer("p1", {
+            restrictedMana: [
+                { color: "C", amount: 3, restriction: "artifact-spell" },
+            ],
+        });
+        expect(
+            isManaCostCovered(
+                spendablePoolForSpell(caster, artifactTypes),
+                artifactCost,
+                subs
+            )
+        ).toBe(true);
+        payManaCostForSpell(caster, artifactCost, artifactTypes, subs);
+        expect(caster.restrictedMana).toEqual([
+            { color: "C", amount: 2, restriction: "artifact-spell" },
+        ]);
+        expect(caster.manaPool.C).toBe(0);
+
+        // The same pool can NOT pay a non-artifact spell (e.g. a Sorcery).
+        const sorcererPlayer = makePlayer("p1", {
+            restrictedMana: [
+                { color: "C", amount: 3, restriction: "artifact-spell" },
+            ],
+        });
+        expect(
+            isManaCostCovered(
+                spendablePoolForSpell(sorcererPlayer, ["Sorcery"]),
+                { X: 1 },
+                subs
+            )
+        ).toBe(false);
+
+        // ...nor an activated ability: those payment sites never consult
+        // restrictedMana (ADR 0022), so the restricted pool is invisible there.
+        // Modelled by the absence of any spendablePool helper on the ability
+        // path — the fungible pool alone is { C: 0 }, which can't pay { X: 1 }.
+        expect(isManaCostCovered(sorcererPlayer.manaPool, { X: 1 }, subs)).toBe(
+            false
+        );
+    });
+
+    it("empties the restricted mana at end of step/phase (CR 500.4)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [makeInstance(mishrasWorkshop.id)],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        tapWorkshop(state);
+        expect(state.players[0].restrictedMana).toHaveLength(1);
+        // advancePhase runs emptyManaPools, which clears restrictedMana too.
+        advancePhase(state);
+        expect(state.players[0].restrictedMana).toBeUndefined();
+    });
+
+    it("is excluded from the auto-tap solver (restricted mana stays manual)", () => {
+        const battlefield = [
+            makeInstance(mishrasWorkshop.id),
+            makeInstance(stripMine.id), // {T}: Add {C} — a plain mana land
+        ];
+        const sources = buildAutoTapSources(battlefield);
+        const ids = sources.map((s) => s.cardId);
+        const wsId = battlefield[0].id;
+        expect(ids).not.toContain(wsId);
+        // The unrestricted land is still solver-visible.
+        expect(ids).toContain(battlefield[1].id);
+    });
+
+    it("restricted mana survives the wire projection (CR 106.6)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [makeInstance(mishrasWorkshop.id)],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        tapWorkshop(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].restrictedMana).toEqual([
+            { color: "C", amount: 3, restriction: "artifact-spell" },
+        ]);
+    });
+});
+
+/** No mana substitutions active (no Sunglasses of Urza etc.). */
+function getManaSubstitutionsEmpty(): [] {
+    return [];
+}

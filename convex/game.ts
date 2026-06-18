@@ -29,6 +29,7 @@ import {
     payManaCost,
     payManaCostForSpell,
     spendablePoolForSpell,
+    addRestrictedManaToPool,
     payRemoveCounterCost,
     canPayDiscardLastDrawn,
     payDiscardLastDrawn,
@@ -87,6 +88,7 @@ import {
     DAMAGEABLE_PERMANENT_TYPES,
     getActivatedManaAbility,
     getActivatedManaColor,
+    getActivatedManaRestriction,
     getFixedManaAmount,
     hasManaAbility,
     isTapLockedBySummoningSickness,
@@ -540,10 +542,10 @@ function tryAutoCommitPendingCast(
     const castDef = castCard
         ? tryGetCardById((castCard.card as { id: string }).id)
         : undefined;
-    const isCreatureSpell = castDef?.types.includes("Creature") ?? false;
+    const castTypes = castDef?.types ?? [];
     if (
         !isManaCostCovered(
-            spendablePoolForSpell(player, isCreatureSpell),
+            spendablePoolForSpell(player, castTypes),
             state.pendingCast.manaCost,
             getManaSubstitutions(state, player.id)
         )
@@ -560,7 +562,7 @@ function tryAutoCommitPendingCast(
     payManaCostForSpell(
         player,
         state.pendingCast.manaCost,
-        isCreatureSpell,
+        castTypes,
         getManaSubstitutions(state, player.id)
     );
     commitLandsForCost(player, state.pendingCast.manaCost);
@@ -1327,13 +1329,14 @@ function finalizeTargetSelection(
         : {};
     applyCostIncrease(manaCost, getCostModifiers(state, cardInHand, "spell"));
 
-    // CR 106.6: creature spells may spend restriction-permitting mana
-    // (Metamorphosis) in addition to the fungible pool.
-    const isCreatureSpell = cardDef.types.includes("Creature");
+    // CR 106.6: a spell may also spend restriction-permitting mana —
+    // creature mana (Metamorphosis) or artifact mana (Mishra's Workshop) —
+    // in addition to the fungible pool. Eligibility is decided from the
+    // spell's card types in restrictionAllowsSpell.
     if (
         Object.keys(manaCost).length === 0 ||
         isManaCostCovered(
-            spendablePoolForSpell(player, isCreatureSpell),
+            spendablePoolForSpell(player, cardDef.types),
             manaCost,
             getManaSubstitutions(state, player.id)
         )
@@ -1342,7 +1345,7 @@ function finalizeTargetSelection(
             payManaCostForSpell(
                 player,
                 manaCost,
-                isCreatureSpell,
+                cardDef.types,
                 getManaSubstitutions(state, player.id)
             );
             commitLandsForCost(player, manaCost);
@@ -1609,13 +1612,12 @@ export const announceCast = mutation({
         }
 
         // If cost is zero or pool already covers it, commit immediately.
-        // CR 106.6: creature spells may also spend restriction-permitting
-        // mana (Metamorphosis).
-        const isCreatureSpell = cardDef.types.includes("Creature");
+        // CR 106.6: a spell may also spend restriction-permitting mana —
+        // creature mana (Metamorphosis) or artifact mana (Mishra's Workshop).
         if (
             Object.keys(manaCost).length === 0 ||
             isManaCostCovered(
-                spendablePoolForSpell(player, isCreatureSpell),
+                spendablePoolForSpell(player, cardDef.types),
                 manaCost,
                 getManaSubstitutions(state, player.id)
             )
@@ -1624,7 +1626,7 @@ export const announceCast = mutation({
                 payManaCostForSpell(
                     player,
                     manaCost,
-                    isCreatureSpell,
+                    cardDef.types,
                     getManaSubstitutions(state, player.id)
                 );
                 commitLandsForCost(player, manaCost);
@@ -4197,7 +4199,44 @@ export const tapUntap = mutation({
                 getBasicLandMana(card) ?? getActivatedManaColor(card);
             if (manaColor) {
                 const amount = getFixedManaAmount(card, manaColor);
-                if (!wasTapped) {
+                // CR 106.6 — Mishra's Workshop produces mana spendable only on
+                // artifact spells; it floats in a parallel `restrictedMana`
+                // pool rather than the fungible pool. Refund (untap, blocked
+                // unless `!manaCommitted`, so the full amount is still
+                // floating) removes it from the same pool.
+                const restriction = getActivatedManaRestriction(card);
+                if (restriction) {
+                    if (!wasTapped) {
+                        addRestrictedManaToPool(
+                            player,
+                            manaColor,
+                            amount,
+                            restriction
+                        );
+                        producedThisActivation = {
+                            [manaColor]: amount,
+                        } as ManaCost;
+                        emitPermanentTapped(
+                            state,
+                            card,
+                            true,
+                            producedThisActivation
+                        );
+                    } else {
+                        const list = player.restrictedMana ?? [];
+                        const entry = list.find(
+                            (r) =>
+                                r.color === manaColor &&
+                                r.restriction === restriction
+                        );
+                        if (entry) {
+                            entry.amount = Math.max(0, entry.amount - amount);
+                        }
+                        const remaining = list.filter((r) => r.amount > 0);
+                        player.restrictedMana =
+                            remaining.length > 0 ? remaining : undefined;
+                    }
+                } else if (!wasTapped) {
                     player.manaPool[manaColor] =
                         (player.manaPool[manaColor] ?? 0) + amount;
                     producedThisActivation = {

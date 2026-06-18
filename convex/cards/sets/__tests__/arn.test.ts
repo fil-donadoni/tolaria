@@ -2375,8 +2375,12 @@ describe("Metamorphosis (CR 106.6 restricted mana / 117.9 additional cost)", () 
     });
 
     it("restrictionAllowsSpell gates creature-spell mana correctly", () => {
-        expect(restrictionAllowsSpell("creature-spell", true)).toBe(true);
-        expect(restrictionAllowsSpell("creature-spell", false)).toBe(false);
+        expect(restrictionAllowsSpell("creature-spell", ["Creature"])).toBe(
+            true
+        );
+        expect(restrictionAllowsSpell("creature-spell", ["Sorcery"])).toBe(
+            false
+        );
     });
 
     // Integration across the GRE -> game.ts spell-cast boundary: mirror the
@@ -2389,9 +2393,7 @@ describe("Metamorphosis (CR 106.6 restricted mana / 117.9 additional cost)", () 
                 makeInstance(grizzlyBears.id, { zone: "hand" })
             )!
         ); // Grizzly Bears {1}{G} -> { X: 1, G: 1 }
-        const isCreature = tryGetCardById(grizzlyBears.id)!.types.includes(
-            "Creature"
-        );
+        const creatureTypes = tryGetCardById(grizzlyBears.id)!.types;
 
         const caster = makePlayer("p1", {
             restrictedMana: [
@@ -2400,12 +2402,12 @@ describe("Metamorphosis (CR 106.6 restricted mana / 117.9 additional cost)", () 
         });
         expect(
             isManaCostCovered(
-                spendablePoolForSpell(caster, isCreature),
+                spendablePoolForSpell(caster, creatureTypes),
                 creatureCost,
                 subs
             )
         ).toBe(true);
-        payManaCostForSpell(caster, creatureCost, isCreature, subs);
+        payManaCostForSpell(caster, creatureCost, creatureTypes, subs);
         // Cost is 2 (one green pip + one generic), both drawn from restricted.
         expect(caster.restrictedMana).toEqual([
             { color: "G", amount: 2, restriction: "creature-spell" },
@@ -2420,7 +2422,7 @@ describe("Metamorphosis (CR 106.6 restricted mana / 117.9 additional cost)", () 
         });
         expect(
             isManaCostCovered(
-                spendablePoolForSpell(noncreature, false),
+                spendablePoolForSpell(noncreature, ["Sorcery"]),
                 creatureCost,
                 subs
             )
@@ -2434,7 +2436,7 @@ describe("Metamorphosis (CR 106.6 restricted mana / 117.9 additional cost)", () 
                 { color: "G", amount: 2, restriction: "creature-spell" },
             ],
         });
-        payManaCostForSpell(player, { G: 2 }, true, []);
+        payManaCostForSpell(player, { G: 2 }, ["Creature"], []);
         // Restricted mana emptied first; the fungible green is untouched.
         expect(player.restrictedMana).toBeUndefined();
         expect(player.manaPool.G).toBe(3);

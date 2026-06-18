@@ -292,6 +292,12 @@ export interface ActivatedAbility {
     resolve?: (ctx: SpellContext) => void;
     /** Fixed mana output — used by the engine to track pool changes without executing the effect. */
     manaProduced?: ManaCost;
+    /** Spend restriction carried by the mana this ability produces (CR 106.6).
+     *  When set, the produced mana lands in the controller's `restrictedMana`
+     *  pool instead of the fungible pool and may pay only for spells the
+     *  restriction permits (Mishra's Workshop — "Spend this mana only to cast
+     *  artifact spells"). Only meaningful on fixed `manaProduced` abilities. */
+    manaRestriction?: ManaRestriction;
     /** Multiple mana options the player can choose from (e.g. Talisman: "{T}: Add {U} or {B}"). */
     manaChoices?: ManaCost[];
     /** Restricts activation timing to a specific subset of phases (CR 602.5).

@@ -581,6 +581,33 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Antiquities cluster M (#283) — Mishra's Workshop ({T}: Add {C}{C}{C},
+        // spend only to cast artifact spells; CR 106.6). Tap the Workshop to
+        // float three restricted colorless mana, then cast an artifact spell
+        // (Su-Chi {4} or Urza's Chalice) paying with it — the restricted mana
+        // is consumed first. Try casting the noncreature/non-artifact spell
+        // (Grizzly Bears is a creature, not an artifact): the restricted mana
+        // is NOT offered for it. The restricted mana empties at end of step.
+        label: "Antiquities M: restricted mana (Mishra's Workshop)",
+        cards: [
+            { name: "Mishra's Workshop", owner: "me" as const },
+            { name: "Su-Chi", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Urza's Chalice",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Su-Chi", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ARN Batch 8 (#179) — phasing (CR 702.26, ADR 0021). Cast Oubliette
         // ({1}{B}{B}) and choose the opponent's Serendib Efreet: it phases out
         // (treated as though it doesn't exist — gone from the board, fires no

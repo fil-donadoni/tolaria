@@ -75,8 +75,10 @@ export type OrderChoiceKind = "mulligan-bottom";
  *  restriction can only pay for costs the restriction permits; it still
  *  empties at end of step/phase like any other mana (CR 500.4).
  *  - `creature-spell`: spendable only to cast creature spells
- *    (Metamorphosis — "Spend this mana only to cast creature spells"). */
-export type ManaRestriction = "creature-spell";
+ *    (Metamorphosis — "Spend this mana only to cast creature spells").
+ *  - `artifact-spell`: spendable only to cast artifact spells
+ *    (Mishra's Workshop — "Spend this mana only to cast artifact spells"). */
+export type ManaRestriction = "creature-spell" | "artifact-spell";
 export type PendingChoiceKind =
     | ZonePickKind
     | YesNoChoiceKind
