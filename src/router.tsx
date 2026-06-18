@@ -14,6 +14,7 @@ import PrototypeButtonsRoute from "./routes/prototype-buttons.route";
 import PrototypeActionButtonsRoute from "./routes/prototype-action-buttons.route";
 import PrototypeBoardRoute from "./routes/prototype-board.route";
 import PrototypeBoardFullRoute from "./routes/prototype-board-full.route";
+import PrototypeArrowsRoute from "./routes/prototype-arrows.route";
 
 const rootRoute = createRootRoute({
     component: () => (
@@ -82,6 +83,12 @@ const prototypeBoardFullRoute = createRoute({
     component: PrototypeBoardFullRoute,
 });
 
+const prototypeArrowsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/prototype/arrows",
+    component: PrototypeArrowsRoute,
+});
+
 const routeTree = rootRoute.addChildren([
     indexRoute,
     decksCreateRoute,
@@ -92,6 +99,7 @@ const routeTree = rootRoute.addChildren([
     prototypeActionButtonsRoute,
     prototypeBoardRoute,
     prototypeBoardFullRoute,
+    prototypeArrowsRoute,
 ]);
 
 const router = createRouter({ routeTree });

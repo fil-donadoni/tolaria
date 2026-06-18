@@ -4,6 +4,7 @@ import type { StackItem } from "~/types/game";
 import { fanLayout, type Placement } from "~/lib/board-layout";
 import { useGameContext } from "~/hooks/useGameContext";
 import { ArrowAnchorProvider } from "~/hooks/useArrowAnchors";
+import { ArrowHighlightProvider } from "~/hooks/ArrowHighlightProvider";
 import BoardNextBattlefield from "./board-next-battlefield";
 import BoardNextPlayer from "./board-next-player";
 import BoardNextHand from "./board-next-hand";
@@ -43,7 +44,7 @@ export default function BoardNext({
     // The viewer's own hand is interactive (drag-to-cast / play, #254); every
     // other hand stays presentational. `playerId` is the current viewer seat
     // (the solo viewer auto-follows priority, set by the Board orchestrator).
-    const { playerId: viewerId } = useGameContext();
+    const { playerId: viewerId, combat } = useGameContext();
 
     return (
         // A single LayoutGroup spans every zone so a card's shared-layout
@@ -51,7 +52,8 @@ export default function BoardNext({
         // boundaries — moving hand → battlefield animates the SAME element via a
         // FLIP rather than unmount/remount (#252).
         <ArrowAnchorProvider>
-            <LayoutGroup>
+            <ArrowHighlightProvider>
+                <LayoutGroup>
                 <div className="absolute inset-0" data-board-variant="next">
                     {/* Opponent: hand on the top edge, battlefield below it — same
                     layout math, mirrored to the top half. */}
@@ -111,9 +113,10 @@ export default function BoardNext({
                     board, #257): endpoints derive from the shared layout
                     placements via the arrow-anchor registry, so arrows stay
                     glued through the spring/tilt motion. */}
-                    <BoardNextArrows stack={stackItems} />
-                </div>
-            </LayoutGroup>
+                    <BoardNextArrows stack={stackItems} combat={combat} />
+                    </div>
+                </LayoutGroup>
+            </ArrowHighlightProvider>
         </ArrowAnchorProvider>
     );
 }

@@ -14,7 +14,7 @@ export default function AiDecisionTraceBox() {
     const [open, setOpen] = useState(true);
 
     return (
-        <div className="fixed top-1/2 left-16 z-40 -translate-y-1/2 font-mono text-xs">
+        <div className="fixed top-1/2 left-16 z-100 -translate-y-1/2 font-mono text-xs">
             <div className="rounded-lg border border-white/10 bg-black/90 shadow-2xl backdrop-blur">
                 <button
                     onClick={() => setOpen((v) => !v)}

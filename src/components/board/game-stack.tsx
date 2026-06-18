@@ -9,6 +9,7 @@ import {
     wantsSpellTarget,
 } from "~/lib/card-utils";
 import { useGameContext } from "~/hooks/useGameContext";
+import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
 import { useDraggable } from "~/hooks/useDraggable";
 import { repositionLeaderLines } from "~/hooks/use-leader-lines";
 import DragHandle from "./drag-handle";
@@ -23,6 +24,12 @@ export default function GameStack({ stack }: GameStackProps) {
     const { gameId, playerId, pendingTarget } = useGameContext();
     const selectTarget = useMutation(api.game.selectTarget);
     const { offset, dragHandlers } = useDraggable();
+    // Arrow hover-highlight (combat-read): a stack item dims when a relationship
+    // is hovered and it is not part of it, lights when it is, and seeds the
+    // channel with its own id on hover so the arrow layer resolves the
+    // relationship. No-op on the classic board (no provider).
+    const highlight = useArrowHighlight();
+    const setSeed = highlight?.setSeed;
 
     // The panel moves via CSS transform, which fires no resize/scroll event,
     // so target arrows would keep stale endpoints. Re-anchor them on every
@@ -41,7 +48,7 @@ export default function GameStack({ stack }: GameStackProps) {
 
     return (
         <div
-            className="absolute top-1/2 right-4 z-50"
+            className="absolute top-1/2 right-4 z-100"
             style={{
                 transform: `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,
             }}
@@ -79,12 +86,26 @@ export default function GameStack({ stack }: GameStackProps) {
                                 pendingTarget?.spellTypeFilter
                             );
 
+                        const litState = highlight?.nodes
+                            ? highlight.nodes.has(item.id)
+                                ? "lit"
+                                : "unlit"
+                            : null;
+
                         return (
                             <button
                                 key={item.id}
                                 type="button"
                                 data-arrow-anchor-stack={item.id}
                                 disabled={!isTargetable}
+                                onPointerEnter={
+                                    setSeed
+                                        ? () => setSeed({ nodeId: item.id })
+                                        : undefined
+                                }
+                                onPointerLeave={
+                                    setSeed ? () => setSeed(null) : undefined
+                                }
                                 onClick={() => {
                                     if (!isTargetable) return;
                                     selectTarget({
@@ -94,14 +115,21 @@ export default function GameStack({ stack }: GameStackProps) {
                                         targetId: item.id,
                                     });
                                 }}
-                                className={`w-32 shrink-0 flex flex-col items-center bg-transparent border-0 p-0 ${
+                                className={`w-32 shrink-0 flex flex-col items-center bg-transparent border-0 p-0 transition-opacity duration-150 ${
                                     isTargetable
                                         ? "cursor-pointer ring-2 ring-amber-400 rounded hover:ring-amber-300"
                                         : "cursor-default"
                                 }`}
                                 style={{
                                     marginLeft: i > 0 ? "-4rem" : undefined,
-                                    zIndex: reversed.length - i,
+                                    // Lit items ride above the rest of the
+                                    // (overlapping) stack while highlighted, so
+                                    // the relationship reads on top.
+                                    zIndex:
+                                        litState === "lit"
+                                            ? reversed.length + 100 - i
+                                            : reversed.length - i,
+                                    opacity: litState === "unlit" ? 0.3 : 1,
                                 }}
                             >
                                 {abilityKind && abilityText ? (

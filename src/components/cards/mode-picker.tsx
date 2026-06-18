@@ -59,7 +59,7 @@ function ModePickerPortal({
             <div className="fixed inset-0 z-40" onMouseDown={onCancel} />
             <div
                 data-slot="dialog-content"
-                className="fixed z-50 flex min-w-64 flex-col gap-1 rounded-sm bg-[#0c0d12]/95 border border-zinc-800/80 backdrop-blur-md p-3 shadow-[0_0_50px_rgba(0,0,0,0.8)]"
+                className="fixed z-100 flex min-w-64 flex-col gap-1 rounded-sm bg-[#0c0d12]/95 border border-zinc-800/80 backdrop-blur-md p-3 shadow-[0_0_50px_rgba(0,0,0,0.8)]"
                 style={{ left: position.x, top: position.y }}
             >
                 <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-zinc-500/40" />

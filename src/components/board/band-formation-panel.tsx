@@ -83,7 +83,7 @@ export default function BandFormationPanel({
     };
 
     return (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 bg-black/90 border border-white/20 rounded-lg p-3 text-white text-xs max-w-sm">
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-100 bg-black/90 border border-white/20 rounded-lg p-3 text-white text-xs max-w-sm">
             <div className="font-bold mb-2">Form a Band (banding)</div>
             {ungrouped.length >= 2 && (
                 <>

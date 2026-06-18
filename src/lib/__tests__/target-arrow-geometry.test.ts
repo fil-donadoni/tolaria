@@ -4,11 +4,13 @@
 import { describe, it, expect } from "vitest";
 import {
     buildTargetArrows,
+    buildCombatArrows,
+    resolveArrowHighlight,
     arrowPath,
     emptyAnchorMap,
     type AnchorMap,
 } from "../target-arrow-geometry";
-import type { StackItem } from "~/types/game";
+import type { Combat, StackItem } from "~/types/game";
 
 /** Minimal StackItem stub — only the fields the geometry reads. */
 function stackItem(id: string, targets?: StackItem["targets"]): StackItem {
@@ -139,5 +141,136 @@ describe("arrowPath — curved bezier between endpoints", () => {
 
     it("degenerates to a straight line for coincident endpoints", () => {
         expect(arrowPath({ x: 5, y: 5 }, { x: 5, y: 5 })).toBe("M 5 5 L 5 5");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Combat arrows + hover highlight (combat-read). Encodes the agreed semantics:
+//   • combat   = transitive cluster (banding-aware)
+//   • stack    = peer-to-peer: arrow-hover lights only that arrow; node-hover
+//                lights the node's 1-hop neighbourhood (NOT transitive).
+// ---------------------------------------------------------------------------
+
+function combat(partial: Partial<Combat>): Combat {
+    return {
+        attackerIds: [],
+        confirmed: true,
+        blockerAssignments: {},
+        blockersConfirmed: true,
+        ...partial,
+    } as Combat;
+}
+
+describe("buildCombatArrows — blocker → attacker", () => {
+    it("draws one arrow per blocker, from blocker to the attacker it blocks", () => {
+        const c = combat({ blockerAssignments: { att: ["b1", "b2"] } });
+        const map = anchors({
+            permanent: {
+                att: { x: 500, y: 100 },
+                b1: { x: 300, y: 400 },
+                b2: { x: 700, y: 400 },
+            },
+        });
+        const arrows = buildCombatArrows(c, map);
+        expect(arrows).toHaveLength(2);
+        for (const a of arrows) {
+            expect(a.kind).toBe("combat");
+            expect(a.toId).toBe("att");
+            expect(a.to).toEqual({ x: 500, y: 100 });
+        }
+        // Same combat knot ⇒ same clusterId.
+        expect(arrows[0].clusterId).toBe(arrows[1].clusterId);
+    });
+
+    it("unions a band sharing blockers into one cluster", () => {
+        const c = combat({
+            blockerAssignments: { att1: ["b1"], att2: ["b2"] },
+            bands: [{ bandId: "band", memberIds: ["att1", "att2"] }],
+        });
+        const map = anchors({
+            permanent: {
+                att1: { x: 0, y: 0 },
+                att2: { x: 0, y: 0 },
+                b1: { x: 0, y: 0 },
+                b2: { x: 0, y: 0 },
+            },
+        });
+        const arrows = buildCombatArrows(c, map);
+        expect(arrows).toHaveLength(2);
+        expect(arrows[0].clusterId).toBe(arrows[1].clusterId);
+    });
+});
+
+describe("resolveArrowHighlight — combat is transitive", () => {
+    const c = combat({ blockerAssignments: { att: ["b1", "b2"] } });
+    const map = anchors({
+        permanent: {
+            att: { x: 5, y: 1 },
+            b1: { x: 3, y: 4 },
+            b2: { x: 7, y: 4 },
+        },
+    });
+    const arrows = buildCombatArrows(c, map);
+    const k1 = arrows[0].key;
+
+    it("lights the whole cluster from any arrow", () => {
+        const hl = resolveArrowHighlight(arrows, { key: k1 })!;
+        expect(hl.keys.size).toBe(2);
+        expect([...hl.nodes].sort()).toEqual(["att", "b1", "b2"]);
+    });
+
+    it("lights the whole cluster from any creature", () => {
+        const hl = resolveArrowHighlight(arrows, { nodeId: "b1" })!;
+        expect(hl.keys.size).toBe(2);
+        expect([...hl.nodes].sort()).toEqual(["att", "b1", "b2"]);
+    });
+});
+
+describe("resolveArrowHighlight — stack is peer-to-peer (A=bolt, B=bears, C=counter)", () => {
+    // Bolt A → Bears B (target); Counterspell C → Bolt A (spell).
+    const stack = [
+        stackItem("A", [{ type: "permanent", id: "B" }]),
+        stackItem("C", [{ type: "spell", id: "A" }]),
+    ];
+    const map = anchors({
+        stack: { A: { x: 1, y: 1 }, C: { x: 9, y: 1 } },
+        permanent: { B: { x: 1, y: 9 } },
+    });
+    const arrows = buildTargetArrows(stack, map);
+    const AB = "A->permanent:B:";
+    const CA = "C->spell:A:";
+
+    it("hover node B ⇒ {A, B, AB}", () => {
+        const hl = resolveArrowHighlight(arrows, { nodeId: "B" })!;
+        expect([...hl.keys]).toEqual([AB]);
+        expect([...hl.nodes].sort()).toEqual(["A", "B"]);
+    });
+
+    it("hover arrow AB ⇒ only {A, B, AB} (does NOT chain to CA via shared A)", () => {
+        const hl = resolveArrowHighlight(arrows, { key: AB })!;
+        expect([...hl.keys]).toEqual([AB]);
+        expect([...hl.nodes].sort()).toEqual(["A", "B"]);
+    });
+
+    it("hover node C ⇒ {A, C, CA}", () => {
+        const hl = resolveArrowHighlight(arrows, { nodeId: "C" })!;
+        expect([...hl.keys]).toEqual([CA]);
+        expect([...hl.nodes].sort()).toEqual(["A", "C"]);
+    });
+
+    it("hover arrow CA ⇒ only {A, C, CA}", () => {
+        const hl = resolveArrowHighlight(arrows, { key: CA })!;
+        expect([...hl.keys]).toEqual([CA]);
+        expect([...hl.nodes].sort()).toEqual(["A", "C"]);
+    });
+
+    it("hover node A (a source in two arrows) ⇒ only its OUTGOING {A, B, AB} — counter CA stays dim", () => {
+        const hl = resolveArrowHighlight(arrows, { nodeId: "A" })!;
+        expect([...hl.keys]).toEqual([AB]);
+        expect([...hl.nodes].sort()).toEqual(["A", "B"]);
+    });
+
+    it("returns null for an unrelated node with no arrow", () => {
+        expect(resolveArrowHighlight(arrows, { nodeId: "Z" })).toBeNull();
     });
 });

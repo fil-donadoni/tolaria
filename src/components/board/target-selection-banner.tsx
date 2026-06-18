@@ -115,7 +115,7 @@ export default function TargetSelectionBanner({
 
     return (
         <div
-            className="absolute top-1/2 left-1/2 z-50"
+            className="absolute top-1/2 left-1/2 z-100"
             style={{
                 transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
             }}

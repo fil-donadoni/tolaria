@@ -111,7 +111,7 @@ export default function DamageAssignmentPanel({
     if (sourceIds.length === 0) return null;
 
     return (
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-50 bg-black/90 border border-white/20 rounded-lg p-3 text-white text-sm max-w-md">
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-100 bg-black/90 border border-white/20 rounded-lg p-3 text-white text-sm max-w-md">
             <div className="font-bold mb-2">Assign Combat Damage</div>
             {sourceIds.map((sourceId) => {
                 const source = findCard(sourceId);

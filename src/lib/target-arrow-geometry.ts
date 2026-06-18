@@ -11,7 +11,7 @@
  * engineer positions by sampling the moving DOM at an instant.
  */
 
-import type { StackItem } from "~/types/game";
+import type { Combat, StackItem } from "~/types/game";
 
 /** A resolved anchor point in board-root coordinates (px). Both endpoints of
  *  every arrow come from this — published by zones from layout placements and by
@@ -35,11 +35,26 @@ export type AnchorMap = {
     graveyard: Record<string, AnchorPoint>;
 };
 
+/** Arrow category. `target` = stack item → its target (1-hop highlight on
+ *  hover). `combat` = blocker → the attacker it blocks (transitive cluster
+ *  highlight on hover, so a whole combat knot lights up together). */
+export type ArrowKind = "target" | "combat";
+
 /** One resolved arrow: a stable key, both endpoints, and a precomputed curved
  *  SVG path string connecting them. */
 export type TargetArrow = {
     key: string;
-    /** Source (stack item) center. */
+    kind: ArrowKind;
+    /** Source node id (stack item id for targets, blocker permanent id for
+     *  combat) — used to resolve hover highlight incidence. */
+    fromId: string;
+    /** Target node id (target id for targets, attacker permanent id for
+     *  combat). */
+    toId: string;
+    /** Connected-combat-component id; same for every arrow in one combat knot
+     *  (banding-aware). `undefined` for `target` arrows. */
+    clusterId?: string;
+    /** Source (stack item / blocker) center. */
     from: AnchorPoint;
     /** Target center. */
     to: AnchorPoint;
@@ -102,6 +117,9 @@ export function buildTargetArrows(
                 key: `${item.id}->${target.type}:${target.id}:${
                     target.playerId ?? ""
                 }`,
+                kind: "target",
+                fromId: item.id,
+                toId: target.id,
                 from,
                 to,
                 path: arrowPath(from, to),
@@ -109,6 +127,164 @@ export function buildTargetArrows(
         }
     }
     return arrows;
+}
+
+/**
+ * Build the combat arrows for the current combat: one arrow per
+ * `(blocker → attacker)` pair, drawn from the blocker's anchor to the attacker
+ * it blocks (CR 509 — a blocker points at what it stops). Both endpoints are
+ * battlefield permanents, so anchors come from the `permanent` bucket.
+ *
+ * Each arrow carries a `clusterId`: the id of its connected combat component
+ * (union-find over the block graph, with banded attackers unioned via
+ * `combat.bands`). Hovering any arrow in a knot highlights the whole knot —
+ * the transitive read the spaghetti of a multi-block / banding combat needs.
+ */
+export function buildCombatArrows(
+    combat: Combat | undefined,
+    anchors: AnchorMap
+): TargetArrow[] {
+    if (!combat) return [];
+    const assignments = combat.blockerAssignments ?? {};
+
+    // Union-find over attacker/blocker ids; band members are unioned so a band
+    // sharing blockers collapses into one cluster (CR 702.21).
+    const parent: Record<string, string> = {};
+    const find = (a: string): string => {
+        parent[a] ??= a;
+        let r = a;
+        while (parent[r] !== r) r = parent[r];
+        // path-compress
+        let c = a;
+        while (parent[c] !== r) {
+            const n = parent[c];
+            parent[c] = r;
+            c = n;
+        }
+        return r;
+    };
+    const union = (a: string, b: string) => {
+        parent[find(a)] = find(b);
+    };
+    for (const [attacker, blockers] of Object.entries(assignments)) {
+        find(attacker);
+        for (const blocker of blockers) union(blocker, attacker);
+    }
+    for (const band of combat.bands ?? []) {
+        const [first, ...rest] = band.memberIds;
+        if (first) for (const m of rest) union(m, first);
+    }
+
+    const arrows: TargetArrow[] = [];
+    for (const [attacker, blockers] of Object.entries(assignments)) {
+        const to = anchors.permanent[attacker];
+        if (!to) continue;
+        for (const blocker of blockers) {
+            const from = anchors.permanent[blocker];
+            if (!from) continue;
+            arrows.push({
+                key: `block:${blocker}->${attacker}`,
+                kind: "combat",
+                fromId: blocker,
+                toId: attacker,
+                clusterId: find(attacker),
+                from,
+                to,
+                path: arrowPath(from, to),
+            });
+        }
+    }
+    return arrows;
+}
+
+/** All arrows in the combat cluster `clusterId`, with their endpoint nodes. */
+function combatCluster(
+    arrows: TargetArrow[],
+    clusterId: string
+): { keys: Set<string>; nodes: Set<string> } {
+    const keys = new Set<string>();
+    const nodes = new Set<string>();
+    for (const a of arrows) {
+        if (a.kind === "combat" && a.clusterId === clusterId) {
+            keys.add(a.key);
+            nodes.add(a.fromId);
+            nodes.add(a.toId);
+        }
+    }
+    return { keys, nodes };
+}
+
+/**
+ * Resolve which arrows are highlighted when `hovered` is the focused arrow or a
+ * hovered board node. Pure so it is unit-testable. Two relationship shapes:
+ *
+ * - **combat** (transitive cluster): hovering a combat arrow OR any creature in
+ *   a combat knot lights the WHOLE banding-aware cluster.
+ * - **target / stack** (peer-to-peer, NOT transitive — and **directional**):
+ *     - hovering a *target arrow* lights **only that arrow** + its two
+ *       endpoints — it does not chain to other arrows that share an endpoint
+ *       (hover `A→B` ⇒ {A, B, A→B}, even if `C→A` also exists);
+ *     - hovering a *node* shows **what that node is involved with in its own
+ *       direction**: a node that is a *source* (a stack item with targets — it
+ *       is the `fromId` of ≥1 target arrow) lights only its **outgoing** arrows
+ *       (what it targets); any other node (a permanent / player only ever
+ *       targeted) lights its **incoming** arrows (what targets it). So with
+ *       `A→B` (bolt→bears) and `C→A` (counter→bolt): hover `A` (a source) ⇒
+ *       {A, B, A→B} — the counter `C→A` stays dim; hover `C` ⇒ {A, C, C→A};
+ *       hover `B` ⇒ {A, B, A→B}.
+ *
+ * Returns `null` when nothing is hovered, or when a hovered node has no arrow
+ * at all (an unrelated permanent) — so the caller dims nothing and only the
+ * card's own preview/tilt reacts.
+ */
+export function resolveArrowHighlight(
+    arrows: TargetArrow[],
+    hovered: { key: string } | { nodeId: string } | null
+): { keys: Set<string>; nodes: Set<string> } | null {
+    if (!hovered) return null;
+
+    if ("key" in hovered) {
+        const a = arrows.find((x) => x.key === hovered.key);
+        if (!a) return null;
+        // Combat arrow → whole cluster; target arrow → just this peer pair.
+        if (a.kind === "combat" && a.clusterId !== undefined) {
+            return combatCluster(arrows, a.clusterId);
+        }
+        return {
+            keys: new Set([a.key]),
+            nodes: new Set([a.fromId, a.toId]),
+        };
+    }
+
+    const id = hovered.nodeId;
+    // A node sitting in a combat knot lights the whole cluster.
+    const inCombat = arrows.find(
+        (x) =>
+            x.kind === "combat" && (x.fromId === id || x.toId === id)
+    );
+    if (inCombat?.clusterId !== undefined) {
+        return combatCluster(arrows, inCombat.clusterId);
+    }
+
+    // Directional over the target graph. A node that is a source (the `fromId`
+    // of any target arrow — i.e. a stack item with targets) shows its OUTGOING
+    // arrows; any other node shows its INCOMING arrows.
+    const isSource = arrows.some(
+        (a) => a.kind === "target" && a.fromId === id
+    );
+    const keys = new Set<string>();
+    const nodes = new Set<string>([id]);
+    for (const a of arrows) {
+        if (a.kind !== "target") continue;
+        const hit = isSource ? a.fromId === id : a.toId === id;
+        if (hit) {
+            keys.add(a.key);
+            nodes.add(a.fromId);
+            nodes.add(a.toId);
+        }
+    }
+    if (keys.size === 0) return null;
+    return { keys, nodes };
 }
 
 /** Curvature of the arrow as a fraction of the chord length: the control point

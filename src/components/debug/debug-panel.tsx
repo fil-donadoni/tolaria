@@ -196,6 +196,69 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Board-next combat ARROWS (combat-read). Load with ?board=next, then in
+        // your turn declare attackers and pass to blockers to exercise the
+        // blocker → attacker arrows + hover highlight:
+        //   • Band: the two Benalish Hero (banding) + Gray Ogre can attack as a
+        //     single band (CR 702.21) — declare all three, form the band.
+        //   • Solo: Hill Giant attacks alone (no banding).
+        //   • Opponent then multi-blocks: assign 2-3 blockers onto one attacker
+        //     to get crossing arrows, and one blocker each onto others.
+        // Hover any arrow OR any creature: the whole combat cluster lights
+        // (banding-aware) and everything else dims. The numeric combat-group
+        // badge is gone — the arrows convey the grouping.
+        label: "Board next: arrows — combat (banding + multi-block)",
+        cards: [
+            { name: "Benalish Hero", owner: "me" as const, count: 2 },
+            { name: "Gray Ogre", owner: "me" as const },
+            { name: "Hill Giant", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, count: 3 },
+            { name: "Grizzly Bears", owner: "opp" as const, count: 3 },
+            { name: "Gray Ogre", owner: "opp" as const },
+            { name: "Hill Giant", owner: "opp" as const },
+            { name: "Forest", owner: "opp" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Board-next STACK arrows (target + counter). Load with ?board=next:
+        //   • You: cast Lightning Bolt (3 Mountains untapped) at the opponent's
+        //     Grizzly Bears or at the opponent → a stack → target arrow.
+        //   • Opponent: holds Counterspell (3 Islands untapped); counter the
+        //     Bolt → a stack → stack arrow (counter → spell).
+        // Hover the arrow (or, for targets, the targeted card) to highlight the
+        // direct 1-hop relationship.
+        label: "Board next: arrows — stack (bolt vs counterspell)",
+        cards: [
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 3 },
+            {
+                name: "Counterspell",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Counterspell",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "opp" as const, count: 4 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next activated abilities (#278). The spatial board's battlefield
         // card now carries the same ability affordance as the classic board —
         // load this and switch the URL to ?board=next:
@@ -3075,7 +3138,7 @@ export default function DebugPanel({
     return (
         <div
             ref={panelRef}
-            className="fixed top-1/2 right-4 -translate-y-1/2 z-50 font-mono text-xs"
+            className="fixed top-1/2 right-4 -translate-y-1/2 z-100 font-mono text-xs"
         >
             <div className="rounded-lg border border-white/10 bg-black/90 shadow-2xl backdrop-blur">
                 <button

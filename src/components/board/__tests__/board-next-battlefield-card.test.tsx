@@ -110,22 +110,24 @@ describe("BoardNextBattlefieldCard visual state + anchors (#256)", () => {
         ).toBeTruthy();
     });
 
-    it("renders the combat grouping ring and badge from the visual state", () => {
+    it("renders the combat grouping ring + offset but NOT the numeric badge", () => {
         const vs: CardVisualState = {
             ...NEUTRAL_VS,
             ringClass: "ring-2 ring-red-500 rounded-sm",
             badge: { color: "bg-red-500", index: 0 },
             combatOffset: "-translate-y-8",
         };
-        const { container, getByText } = renderCard(makeCreature(), vs);
+        const { container, queryByText } = renderCard(makeCreature(), vs);
         // Ring is applied to the framed face element.
         expect(
             container.querySelector(".ring-red-500.rounded-sm")
         ).toBeTruthy();
-        // Combat group badge shows the 1-based group index.
-        expect(getByText("1")).toBeTruthy();
         // Combat offset is applied to the outer slot wrapper.
         expect(container.querySelector(".-translate-y-8")).toBeTruthy();
+        // The numeric combat-group badge is intentionally NOT rendered on the
+        // spatial board — the blocker → attacker arrows convey the grouping
+        // (combat-read). The badge index would have shown "1".
+        expect(queryByText("1")).toBeNull();
     });
 
     it("rotates 90° when the permanent is tapped", () => {

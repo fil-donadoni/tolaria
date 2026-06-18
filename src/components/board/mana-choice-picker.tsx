@@ -17,7 +17,7 @@ export default function ManaChoicePicker({
         <>
             <div className="fixed inset-0 z-40" onClick={onCancel} />
             <div
-                className="fixed z-50 flex gap-1 rounded-lg bg-black/90 p-2 shadow-xl ring-1 ring-white/20"
+                className="fixed z-100 flex gap-1 rounded-lg bg-black/90 p-2 shadow-xl ring-1 ring-white/20"
                 style={{ left: position.x, top: position.y }}
             >
                 {choices.map((cost, i) => {

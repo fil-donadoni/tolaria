@@ -1,6 +1,7 @@
 import type { CardInstance } from "~/types/game";
 import type { CardVisualState, ActivatableAbility } from "./battlefield-card";
 import { useGameContext } from "~/hooks/useGameContext";
+import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { isCreature } from "~/lib/card-utils";
 import { getColorOverrideDisplay } from "~/lib/color-override";
@@ -72,6 +73,37 @@ export default function BoardNextBattlefieldCard({
     const { allPlayers } = useGameContext();
     const creature = isCreature(card);
 
+    // Arrow hover-highlight (combat-read): when an arrow relationship is hovered
+    // this card lights if it is a node of that relationship, dims if a highlight
+    // is active and it is not. `null` = nothing hovered → neutral.
+    const highlight = useArrowHighlight();
+    const litState = highlight?.nodes
+        ? highlight.nodes.has(card.id)
+            ? "lit"
+            : "unlit"
+        : null;
+    // Hovering the card seeds the shared channel with this permanent's id; the
+    // arrow layer resolves it into the relationship to light (its own combat
+    // cluster / target arrows). Additive — the tilt + card-preview hover on the
+    // inner elements are untouched. A card with no arrows resolves to no
+    // highlight, so unrelated permanents only preview/tilt as before.
+    const setSeed = highlight?.setSeed;
+    const onPointerEnter = setSeed
+        ? () => setSeed({ nodeId: card.id })
+        : undefined;
+    const onPointerLeave = setSeed ? () => setSeed(null) : undefined;
+
+    const highlightRing =
+        litState === "lit" ? (
+            <div
+                className="absolute inset-0 rounded-sm pointer-events-none z-30"
+                style={{
+                    boxShadow:
+                        "0 0 0 2px var(--color-accent-strong), 0 0 16px 2px color-mix(in oklab, var(--color-accent) 55%, transparent)",
+                }}
+            />
+        ) : null;
+
     const abilities = activatableAbilities ?? [];
     const hasAbilities = abilities.length > 0;
     const activate = (abilityId: string, keepPriority: boolean) =>
@@ -94,13 +126,10 @@ export default function BoardNextBattlefieldCard({
         </div>
     ) : null;
 
-    const badgeEl = vs.badge && (
-        <div
-            className={`absolute -top-1 -right-1 w-5 h-5 rounded-full ${vs.badge.color} text-white text-xs font-bold flex items-center justify-center z-20`}
-        >
-            {vs.badge.index + 1}
-        </div>
-    );
+    // The combat-group numeric badge (`vs.badge`) is intentionally NOT rendered
+    // on the spatial board: the blocker → attacker arrows now convey combat
+    // grouping, so the numeric indicator is redundant here (it stays on the
+    // classic board).
 
     const darkenOverlay =
         (vs.interactive && !vs.enabled) || vs.dimmed ? (
@@ -149,7 +178,7 @@ export default function BoardNextBattlefieldCard({
                 <CardImage card={card} />
                 {colorOverrideOverlay}
                 {darkenOverlay}
-                {badgeEl}
+                {highlightRing}
                 {ptDamageStack}
             </div>
         </CardTilt3D>
@@ -168,8 +197,13 @@ export default function BoardNextBattlefieldCard({
         <div
             data-arrow-anchor-permanent={card.id}
             data-tapped={card.isTapped ? "true" : undefined}
-            className={`w-full h-full ${vs.combatOffset} ${cursorClass} transition-transform duration-250`}
-            style={{ transform: tapTransform }}
+            className={`w-full h-full ${vs.combatOffset} ${cursorClass} transition duration-250`}
+            style={{
+                transform: tapTransform,
+                opacity: litState === "unlit" ? 0.4 : 1,
+            }}
+            onPointerEnter={onPointerEnter}
+            onPointerLeave={onPointerLeave}
             {...clickHandlers}
         >
             {inner}

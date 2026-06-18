@@ -36,7 +36,7 @@ export default function ErrorToast({
     }
 
     return (
-        <div className="fixed left-1/2 bottom-24 -translate-x-1/2 z-50">
+        <div className="fixed left-1/2 bottom-24 -translate-x-1/2 z-100">
             <div className="relative bg-[#0c0d12]/90 border border-[#a04040]/45 backdrop-blur-md rounded-sm px-4 py-2 shadow-[0_0_50px_rgba(0,0,0,0.8)] flex items-center gap-3">
                 <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-[#a04040]/45" />
                 <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-[#a04040]/45" />
