@@ -1719,6 +1719,7 @@ export type GameEventType =
     | "PERMANENT_LEFT"
     | "SPELL_CAST"
     | "PERMANENT_TAPPED"
+    | "ABILITY_ACTIVATED"
     | "STATE_CHECK"
     | "TRIGGER_FIZZLED"
     | "ATTACKERS_DECLARED"
@@ -1886,6 +1887,39 @@ export interface PermanentTappedEvent {
     manaProduced?: ManaCost;
 }
 
+/** Activated-ability-use event emitted when a permanent's activated ability
+ *  (non-mana, `useStack: true`) is put on the stack, paid for, and committed
+ *  (CR 602.1). This is the COMPLEMENT of `PERMANENT_TAPPED`: it fires only for
+ *  abilities that do NOT have a {T} component in their cost, so the two events
+ *  together let a card react to "tapped OR a non-tap ability activated"
+ *  (Haunting Wind, Powerleech, Artifact Possession — Antiquities cluster B).
+ *
+ *  An ability with a {T} cost already emits `PERMANENT_TAPPED` from the tap
+ *  itself, so emitting `ABILITY_ACTIVATED` there too would double-count; the
+ *  emit site gates on `!ability.cost.tap`. Mana abilities (`useStack: false`)
+ *  resolve immediately and never reach the commit site, so they never emit
+ *  this event (their {T} taps still emit `PERMANENT_TAPPED` for "tapped for
+ *  mana" triggers).
+ *
+ *  Carries the source permanent's controller/types/subtypes snapshotted at
+ *  activation time (CR 603.10 last-known information) so `matches()` can filter
+ *  on "your/an opponent's artifact" or "enchanted artifact" without re-reading
+ *  the registry — mirroring the `PermanentTappedEvent` payload shape. */
+export interface AbilityActivatedEvent {
+    type: "ABILITY_ACTIVATED";
+    /** Instance id of the permanent whose ability was activated. */
+    permanentId: string;
+    /** Controller of the source permanent at activation time. */
+    controllerId: string;
+    /** Card types of the source (CR 205), snapshotted at activation time. */
+    permanentTypes: ReadonlyArray<CardType>;
+    /** Card subtypes of the source (CR 205.3), snapshotted at activation. */
+    permanentSubtypes: ReadonlyArray<string>;
+    /** Id of the activated ability on the source's CardDefinition. Lets a
+     *  trigger distinguish multiple abilities on one source if ever needed. */
+    abilityId: string;
+}
+
 /** State trigger probe (CR 603.8) emitted at every stable checkpoint where a
  *  player would gain priority. Carries no payload — `matches()` reads
  *  `state` to decide whether the trigger condition is currently met. */
@@ -1946,6 +1980,7 @@ export type GameEvent =
     | PermanentLeftEvent
     | SpellCastEvent
     | PermanentTappedEvent
+    | AbilityActivatedEvent
     | StateCheckEvent
     | TriggerFizzledEvent
     | AttackersDeclaredEvent

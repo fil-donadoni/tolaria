@@ -28,6 +28,8 @@ import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
 import { leftTrigger } from "../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
+import { tappedTrigger } from "../abilities/triggers/tappedTrigger";
+import { abilityActivatedTrigger } from "../abilities/triggers/abilityActivatedTrigger";
 import { makeCircleOfProtection } from "../abilities";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2089,5 +2091,138 @@ export const urzasTower: CardDefinition = {
             manaProduced: { C: 3 },
             manaAmount: urzaManaAmount([URZA_MINE, URZA_POWER_PLANT], 3),
         },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster B — "ability activated" trigger event (PRD #269 / issue #285)
+//
+// These three punishers react to BOTH halves of "an artifact is used":
+//   • the artifact becomes tapped → PERMANENT_TAPPED (CR 701.20a), and
+//   • a non-{T} activated ability of the artifact is used → ABILITY_ACTIVATED
+//     (CR 602.1), the complement event emitted by the engine only when the
+//     ability has no {T} component (so {T}-cost abilities aren't double-counted).
+// Each card therefore declares two triggered abilities — one per event — that
+// share an identical resolve body. `tappedTrigger`'s `forMana` is left
+// undefined so both mana taps and non-mana taps (Twiddle, combat) count, per
+// the oracle wording "becomes tapped".
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Haunting Wind — {3}{B} Enchantment. "Whenever an artifact becomes tapped or a
+// player activates an artifact's ability without {T} in its activation cost,
+// this enchantment deals 1 damage to that artifact's controller." (CR 603.2.)
+// `scope: "any"` + an Artifact type filter; damage goes to the artifact's
+// controller (carried on each event payload).
+export const hauntingWind: CardDefinition = {
+    id: "a2f6ef2f-a3a2-4e1f-b7eb-59abc8414114",
+    name: "Haunting Wind",
+    oracleText:
+        "Whenever an artifact becomes tapped or a player activates an artifact's ability without {T} in its activation cost, this enchantment deals 1 damage to that artifact's controller.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "haunting-wind-tapped",
+            oracleText:
+                "Whenever an artifact becomes tapped, this enchantment deals 1 damage to that artifact's controller.",
+            scope: "any",
+            filter: { types: "Artifact" },
+            resolve: (ctx, _event, tapped) => {
+                ctx.dealDamage({ type: "player", id: tapped.controllerId }, 1);
+            },
+        }),
+        abilityActivatedTrigger({
+            id: "haunting-wind-ability",
+            oracleText:
+                "Whenever a player activates an artifact's ability without {T} in its activation cost, this enchantment deals 1 damage to that artifact's controller.",
+            scope: "any",
+            filter: { types: "Artifact" },
+            resolve: (ctx, _event, activated) => {
+                ctx.dealDamage(
+                    { type: "player", id: activated.controllerId },
+                    1
+                );
+            },
+        }),
+    ],
+};
+
+// Powerleech — {G}{G} Enchantment. "Whenever an artifact an opponent controls
+// becomes tapped or an opponent activates an artifact's ability without {T} in
+// its activation cost, you gain 1 life." (CR 603.2.) `scope: "opponents"`
+// encodes "an opponent controls"; the life goes to the enchantment's
+// controller (`ctx.controller`).
+export const powerleech: CardDefinition = {
+    id: "ae1d7b09-3a1f-410f-b330-04ae768b0455",
+    name: "Powerleech",
+    oracleText:
+        "Whenever an artifact an opponent controls becomes tapped or an opponent activates an artifact's ability without {T} in its activation cost, you gain 1 life.",
+    manaCost: { G: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "powerleech-tapped",
+            oracleText:
+                "Whenever an artifact an opponent controls becomes tapped, you gain 1 life.",
+            scope: "opponents",
+            filter: { types: "Artifact" },
+            resolve: (ctx) => {
+                ctx.gainLife(ctx.controller, 1);
+            },
+        }),
+        abilityActivatedTrigger({
+            id: "powerleech-ability",
+            oracleText:
+                "Whenever an opponent activates an artifact's ability without {T} in its activation cost, you gain 1 life.",
+            scope: "opponents",
+            filter: { types: "Artifact" },
+            resolve: (ctx) => {
+                ctx.gainLife(ctx.controller, 1);
+            },
+        }),
+    ],
+};
+
+// Artifact Possession — {2}{B} Enchantment — Aura. "Enchant artifact. Whenever
+// enchanted artifact becomes tapped or a player activates an ability of
+// enchanted artifact without {T} in its activation cost, this Aura deals 2
+// damage to that artifact's controller." (CR 303.4 aura attachment, 603.2.)
+// As with Psychic Venom, there is no `host` scope (ADR 0002) — `scope: "any"`
+// plus a `self.attachedTo` host-check condition is the idiomatic expression.
+export const artifactPossession: CardDefinition = {
+    id: "587d6ac8-fad8-49e0-862e-636e06628ff9",
+    name: "Artifact Possession",
+    oracleText:
+        "Enchant artifact\nWhenever enchanted artifact becomes tapped or a player activates an ability of enchanted artifact without {T} in its activation cost, this Aura deals 2 damage to that artifact's controller.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Artifact", count: 1 },
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "artifact-possession-tapped",
+            oracleText:
+                "Whenever enchanted artifact becomes tapped, this Aura deals 2 damage to that artifact's controller.",
+            scope: "any",
+            condition: (event, self) =>
+                !!self.attachedTo && event.permanentId === self.attachedTo,
+            resolve: (ctx, _event, tapped) => {
+                ctx.dealDamage({ type: "player", id: tapped.controllerId }, 2);
+            },
+        }),
+        abilityActivatedTrigger({
+            id: "artifact-possession-ability",
+            oracleText:
+                "Whenever a player activates an ability of enchanted artifact without {T} in its activation cost, this Aura deals 2 damage to that artifact's controller.",
+            scope: "any",
+            condition: (event, self) =>
+                !!self.attachedTo && event.permanentId === self.attachedTo,
+            resolve: (ctx, _event, activated) => {
+                ctx.dealDamage(
+                    { type: "player", id: activated.controllerId },
+                    2
+                );
+            },
+        }),
     ],
 };
