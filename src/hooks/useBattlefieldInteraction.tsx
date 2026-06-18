@@ -1,0 +1,550 @@
+import { useState } from "react";
+import type { CardInstance, Player } from "~/types/game";
+import type { ManaCost } from "~/types/cards";
+import { useGameContext } from "~/hooks/useGameContext";
+import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { useBattlefieldVisualState } from "~/hooks/useBattlefieldVisualState";
+import { useMutation } from "convex/react";
+import { api } from "@convex/_generated/api";
+import { getCardById } from "@convex/cards";
+import {
+    isCreature,
+    getManaChoices,
+    getActivatedManaMenuEntry,
+    canRefundManaTap,
+    getStackAbilities,
+    getAnyPlayerStackAbilities,
+    wantsPermanentTarget,
+    matchesTargetRequirement,
+    isTapLockedBySummoningSickness,
+} from "~/lib/card-utils";
+import { outstandingDamageAssigner } from "~/lib/priority";
+import { extractMutationErrorMessage } from "~/lib/mutation-error";
+import type { ActivatableAbility } from "~/components/board/battlefield-card";
+import ManaChoicePicker from "~/components/board/mana-choice-picker";
+import ValidationToast from "~/components/board/validation-toast";
+
+/** Battlefield interaction controller for one player's battlefield (PRD #249,
+ *  slice #272). Mirrors how {@link useBattlefieldVisualState} (#256) was
+ *  extracted so the classic board and the spatial board (`?board=next`) share a
+ *  single source of truth — here for the *interaction* layer (clicks, mana
+ *  payment, the mana-choice picker and the validation toast) rather than the
+ *  *visual* layer.
+ *
+ *  This hook OWNS, for one battlefield:
+ *  - the Convex mutations (`tapUntap`, `tapForPayment`/`untapForPayment`,
+ *    `tapForActivationPayment`/`untapForActivationPayment`, plus the
+ *    target/choice/combat/activation mutations the follow-up slices need),
+ *  - the per-card click handlers (`handleClick` / `handleClickWithEvent`),
+ *  - the activated-ability menu (`getActivatable` + `handleActivateAbility`),
+ *  - the mana-choice-picker state (multi-color sources: Black Lotus, Birds),
+ *  - the client-side validation-error state.
+ *
+ *  Both `PlayerBattlefield` (classic) and the spatial battlefield consume the
+ *  identical handler set, so a tap / in-payment tap / mana-choice pick
+ *  dispatches the SAME mutation with the SAME args on either board.
+ *
+ *  The follow-up battlefield slices (#278 ability menu / #279 targeting+choice /
+ *  #281 combat) reuse the handlers untouched: their click branches and the
+ *  `getActivatable`/`handleActivateAbility` pair are kept here intact. THIS
+ *  slice only requires the spatial card to wire tap/pay + the mana picker +
+ *  the validation toast.
+ *
+ *  Reads ONLY projected (`PublicGameState` / `FullGameState`) fields exposed by
+ *  `useGameContext()` — no GRE engine import, consistent with the wire-format
+ *  rule in CLAUDE.md.
+ *
+ *  Returns the handlers plus `getVisualState`/`canInteract` (re-exposed from the
+ *  shared visual-state hook so a consumer needs a single call) and an
+ *  `overlays` node bundling the mana-choice picker + validation toast, which the
+ *  caller mounts wherever its layout needs them (classic: in the battlefield
+ *  root; spatial: in the board root). */
+export function useBattlefieldInteraction(player: Player) {
+    const {
+        gameId,
+        playerId,
+        activePlayerId,
+        priorityPlayerId,
+        phase,
+        pendingCast,
+        pendingActivation,
+        pendingTarget,
+        pendingChoices,
+        combat,
+    } = useGameContext();
+    const isMe = player.id === playerId;
+
+    // Mutations
+    const tapUntap = useMutation(api.game.tapUntap);
+    const tapForPayment = useMutation(api.game.tapForPayment);
+    const untapForPayment = useMutation(api.game.untapForPayment);
+    const tapForActivationPayment = useMutation(
+        api.game.tapForActivationPayment
+    );
+    const untapForActivationPayment = useMutation(
+        api.game.untapForActivationPayment
+    );
+    const toggleAttacker = useMutation(api.game.toggleAttacker);
+    const selectBlocker = useMutation(api.game.selectBlocker);
+    const assignBlockerTarget = useMutation(api.game.assignBlockerTarget);
+    const selectTarget = useMutation(api.game.selectTarget);
+    const selectAdditionalCost = useMutation(api.game.selectAdditionalCost);
+    const activateAbility = useMutation(api.game.activateAbility);
+    const bufferCtx = usePendingChoiceBuffer();
+
+    // Board-coupled visual state (combat rings, tap, damage, legal-target
+    // highlight) and the interaction predicate live in the shared visual-state
+    // hook so both boards read identical state (#256). Re-exposed here so a
+    // consumer gets visuals + interaction from one call.
+    const { getVisualState, canInteract } = useBattlefieldVisualState(player);
+
+    // Mana choice picker state. `inPayment` routes the selection to
+    // tapForPayment (committing the cast) vs tapUntap (floating mana).
+    const [manaChoiceState, setManaChoiceState] = useState<{
+        cardId: string;
+        choices: ManaCost[];
+        position: { x: number; y: number };
+        inPayment: boolean;
+    } | null>(null);
+
+    const [validationError, setValidationError] = useState<string | null>(null);
+
+    function guardMutation(promise: Promise<unknown>) {
+        promise.catch((err) => {
+            setValidationError(extractMutationErrorMessage(err));
+        });
+    }
+
+    // --- Interaction modes ---
+
+    const isPayingCast =
+        isMe && !!pendingCast && pendingCast.playerId === playerId;
+
+    const isPayingActivation =
+        isMe && !!pendingActivation && pendingActivation.playerId === playerId;
+
+    const isInPayment = isPayingCast || isPayingActivation;
+
+    const hasPriority = isMe && priorityPlayerId === playerId;
+    // CR 113.3c — "any player may activate" abilities (Ifh-Bíff Efreet) can be
+    // fired by the viewer even on an OPPONENT's permanent. Surface those on the
+    // opponent's block whenever the viewer holds priority. Distinct from
+    // `hasPriority` (which is gated on `isMe`) so the controller-only default is
+    // unaffected.
+    const viewerHasPriority = priorityPlayerId === playerId;
+
+    const isSelectingTarget =
+        !!pendingTarget &&
+        pendingTarget.playerId === playerId &&
+        wantsPermanentTarget(pendingTarget.targetType);
+
+    // Mid-resolution choice targeting a battlefield zone (CR 608.2). The
+    // chooser (viewer == activeChoice.playerId) clicks on the battlefield
+    // belonging to `zoneOwnerId ?? activeChoice.playerId`. Default behavior
+    // — the chooser picks from their own battlefield — keeps `zoneOwnerId`
+    // unset. Cross-player picks (e.g. Demonic Hordes: opponent picks one of
+    // controller's lands) set `zoneOwnerId` to the zone owner.
+    const activeChoice = pendingChoices?.[0];
+    const isViewerChoosing =
+        !!activeChoice && activeChoice.playerId === playerId;
+    const choiceZoneOwnerId = activeChoice
+        ? (activeChoice.zoneOwnerId ?? activeChoice.playerId)
+        : undefined;
+    // `allControllers` choices (CR 707 — Clone / Copy Artifact "any creature /
+    // artifact on the battlefield") let the chooser pick from EVERY player's
+    // battlefield, so every battlefield is interactive; the per-card filter
+    // below still restricts which cards are clickable.
+    const isSelectingChoice =
+        isViewerChoosing &&
+        activeChoice!.zone === "battlefield" &&
+        (activeChoice!.allControllers === true ||
+            choiceZoneOwnerId === player.id);
+
+    // Additional-cost picker (CR 117.9 / 601.2f). Active when this player's
+    // pendingCast is waiting for them to pick a permanent on their own
+    // battlefield. Routes clicks to selectAdditionalCost.
+    const isPickingAdditionalCost =
+        isMe &&
+        !!pendingCast &&
+        pendingCast.playerId === playerId &&
+        !!pendingCast.additionalCost &&
+        !pendingCast.additionalCost.pickedId;
+
+    const isSelectingAttackers =
+        phase === "DECLARE_ATTACKERS" &&
+        !!combat &&
+        !combat.confirmed &&
+        isMe &&
+        playerId === activePlayerId;
+
+    const isSelectingBlockers =
+        phase === "DECLARE_BLOCKERS" &&
+        !!combat &&
+        !combat.blockersConfirmed &&
+        isMe &&
+        playerId !== activePlayerId;
+
+    const isBlockerTarget =
+        !isMe &&
+        phase === "DECLARE_BLOCKERS" &&
+        !!combat &&
+        !combat.blockersConfirmed &&
+        !!combat.pendingBlockerId &&
+        playerId !== activePlayerId;
+
+    // CR 702.21j-k: the player who assigns may be the defender, so gate on the
+    // outstanding assigner rather than always the active player.
+    const isAssigningDamage =
+        (phase === "COMBAT_DAMAGE" || phase === "FIRST_STRIKE_DAMAGE") &&
+        !!combat &&
+        combat.damageConfirmed === false &&
+        isMe &&
+        playerId ===
+            outstandingDamageAssigner({
+                playerId,
+                activePlayerId,
+                priorityPlayerId: activePlayerId,
+                phase,
+                combat,
+            });
+
+    // --- Combat derived state ---
+
+    const selectedAttackerIds = combat?.attackerIds ?? [];
+
+    // --- Card-level logic ---
+
+    function handleClick(card: CardInstance) {
+        if (!canInteract(card)) return;
+
+        if (isSelectingChoice) {
+            bufferCtx.toggle(card.id);
+            return;
+        }
+
+        if (isPickingAdditionalCost) {
+            guardMutation(
+                selectAdditionalCost({
+                    gameId,
+                    playerId,
+                    cardInstanceId: card.id,
+                })
+            );
+            return;
+        }
+
+        if (
+            isSelectingTarget &&
+            pendingTarget &&
+            matchesTargetRequirement(card, pendingTarget.targetType)
+        ) {
+            guardMutation(
+                selectTarget({
+                    gameId,
+                    playerId,
+                    targetType: "permanent",
+                    targetId: card.id,
+                })
+            );
+            return;
+        }
+        if (isSelectingAttackers && isCreature(card)) {
+            // CR 508.1d: can't deselect a creature required to attack.
+            // Pre-check client-side for instant feedback (the server also
+            // rejects this via toggleAttacker).
+            const alreadySelected = selectedAttackerIds.includes(card.id);
+            const reqDef = getCardById(card.card.id);
+            const hasAttackReq = !!reqDef.staticEffects?.some(
+                (e) => e.kind === "attack-requirement"
+            );
+            const mustAttackClient =
+                alreadySelected &&
+                hasAttackReq &&
+                !card.isTapped &&
+                !card.isSummoningSick;
+            if (mustAttackClient) {
+                const name = getCardById(card.card.id).name;
+                setValidationError(`${name} must attack this combat if able`);
+                return;
+            }
+            guardMutation(
+                toggleAttacker({ gameId, playerId, cardInstanceId: card.id })
+            );
+            return;
+        }
+        if (isSelectingBlockers && isCreature(card)) {
+            guardMutation(
+                selectBlocker({ gameId, playerId, cardInstanceId: card.id })
+            );
+            return;
+        }
+        if (isBlockerTarget && card.isAttacking) {
+            guardMutation(
+                assignBlockerTarget({
+                    gameId,
+                    playerId,
+                    attackerId: card.id,
+                })
+            );
+            return;
+        }
+
+        // Mana source tap/untap (lands, mox, etc.)
+        if (isInPayment) {
+            const tapMutation = isPayingCast
+                ? tapForPayment
+                : tapForActivationPayment;
+            const untapMutation = isPayingCast
+                ? untapForPayment
+                : untapForActivationPayment;
+            if (card.isTapped) {
+                guardMutation(
+                    untapMutation({
+                        gameId,
+                        playerId,
+                        cardInstanceId: card.id,
+                    })
+                );
+                return;
+            }
+            const choices = getManaChoices(card);
+            if (choices) {
+                setManaChoiceState({
+                    cardId: card.id,
+                    choices,
+                    position: { x: 0, y: 0 },
+                    inPayment: true,
+                });
+            } else {
+                guardMutation(
+                    tapMutation({
+                        gameId,
+                        playerId,
+                        cardInstanceId: card.id,
+                    })
+                );
+            }
+        } else {
+            // Check for mana choices (e.g. Black Lotus) — show picker
+            const choices = getManaChoices(card);
+            if (choices && !card.isTapped) {
+                // We don't have mouse event coords here, so we use a fixed position
+                // The event is passed from the card component
+                setManaChoiceState({
+                    cardId: card.id,
+                    choices,
+                    position: { x: 0, y: 0 },
+                    inPayment: false,
+                });
+            } else {
+                guardMutation(
+                    tapUntap({ gameId, playerId, cardInstanceId: card.id })
+                );
+            }
+        }
+    }
+
+    function handleClickWithEvent(card: CardInstance, e: React.MouseEvent) {
+        // During mid-resolution choice or target selection, the click is a
+        // pick — skip mana-ability pickers and route straight to handleClick.
+        // Same for combat sub-states where the click is a declaration
+        // (CR 508.1 / 509.1): otherwise a multi-color mana source like Birds
+        // of Paradise would open its color picker instead of being declared
+        // as a blocker.
+        if (
+            isSelectingChoice ||
+            isSelectingTarget ||
+            isSelectingAttackers ||
+            isSelectingBlockers ||
+            isBlockerTarget ||
+            isAssigningDamage
+        ) {
+            handleClick(card);
+            return;
+        }
+        const choices = getManaChoices(card);
+        if (isMe && choices && !card.isTapped && canInteract(card)) {
+            setManaChoiceState({
+                cardId: card.id,
+                choices,
+                position: { x: e.clientX, y: e.clientY - 50 },
+                inPayment: isInPayment,
+            });
+            return;
+        }
+        handleClick(card);
+    }
+
+    // --- Activated abilities ---
+
+    function getActivatable(card: CardInstance): ActivatableAbility[] {
+        // Activation is blocked entirely while any payment/target/choice is in
+        // progress, regardless of whose permanent this is.
+        if (
+            pendingCast ||
+            pendingActivation ||
+            pendingTarget ||
+            (pendingChoices && pendingChoices.length > 0)
+        ) {
+            return [];
+        }
+        // CR 113.3c — on an OPPONENT's permanent, the viewer may only activate
+        // "any player may activate" abilities, and only while holding priority.
+        // Controller-only abilities and mana abilities stay hidden there.
+        if (!isMe) {
+            if (!viewerHasPriority) return [];
+            return getAnyPlayerStackAbilities(card, phase);
+        }
+        if (!hasPriority) {
+            return [];
+        }
+        // CR 508.1 / 509.1 — declaring attackers and declaring blockers are
+        // turn-based actions: no player has priority while they're in
+        // progress, so no activated ability (including mana abilities) can
+        // be used. Priority opens only after the choice is locked in
+        // (CR 508.2 / 509.2).
+        if (phase === "DECLARE_ATTACKERS" && combat && !combat.confirmed) {
+            return [];
+        }
+        if (
+            phase === "DECLARE_BLOCKERS" &&
+            combat &&
+            !combat.blockersConfirmed
+        ) {
+            return [];
+        }
+        // Jandor's Ring discard cost (CR 118.3): payable only while the
+        // controller's last-drawn-this-turn card is still in hand.
+        const canDiscardLastDrawn =
+            player.lastDrawnCardId !== undefined &&
+            player.hand.some(
+                (c) => c !== null && c.id === player.lastDrawnCardId
+            );
+        const stack = getStackAbilities(card, phase, canDiscardLastDrawn);
+        // When a card carries BOTH a mana ability and at least one stack
+        // ability (Basalt Monolith, Mana Vault), surface the mana ability as
+        // an explicit menu entry too — otherwise a left click would silently
+        // tap-for-mana and then the {3}: Untap option still appears, which
+        // confuses the player. The mana ability is gated by the same
+        // tap/sickness rules `canInteract` already enforces for a direct tap.
+        // When the card is already tapped from this mana ability (and mana is
+        // not yet committed to a cost), the same entry flips to a refund —
+        // `tapUntap` toggles in both directions so reusing the ability id is
+        // sufficient on the server side; only the label changes here.
+        if (stack.length === 0) return stack;
+        const mana = getActivatedManaMenuEntry(card);
+        if (!mana) return stack;
+        if (card.isTapped) {
+            if (!canRefundManaTap(card, player.manaPool)) return stack;
+            return [
+                { id: mana.id, oracleText: "Untap and refund mana" },
+                ...stack,
+            ];
+        }
+        if (isTapLockedBySummoningSickness(card)) return stack;
+        return [mana, ...stack];
+    }
+
+    function handleActivateAbility(
+        cardInstanceId: string,
+        abilityId: string,
+        keepPriority: boolean
+    ) {
+        const card = player.battlefield.find((c) => c.id === cardInstanceId);
+        if (!card) return;
+        const def = getCardById(card.card.id);
+        const ability = def.activatedAbilities?.find((a) => a.id === abilityId);
+        // Mana ability selected from the menu (useStack:false) — route through
+        // the mana-ability flow (`tapUntap`, or the mana picker for sources
+        // with `manaChoices`) instead of the activated-ability mutation.
+        if (ability && !ability.useStack) {
+            const choices = getManaChoices(card);
+            if (choices) {
+                setManaChoiceState({
+                    cardId: card.id,
+                    choices,
+                    position: { x: 0, y: 0 },
+                    inPayment: false,
+                });
+                return;
+            }
+            guardMutation(
+                tapUntap({ gameId, playerId, cardInstanceId: card.id })
+            );
+            return;
+        }
+        // CR 107.3 / 601.2b: if the ability has X in its mana cost, the
+        // activator chooses X before announcement. Prompt the user — same
+        // pattern as the spell-cast path in selectable-card.tsx.
+        const hasX =
+            ability?.cost.mana?.X !== undefined &&
+            typeof ability.cost.mana.X === "string";
+        let chosenX: number | undefined;
+        if (hasX) {
+            const raw = window.prompt(
+                `Choose X for ${def.name} (${ability!.oracleText})`,
+                "0"
+            );
+            if (raw === null) return;
+            const parsed = Number.parseInt(raw, 10);
+            if (!Number.isFinite(parsed) || parsed < 0) return;
+            chosenX = parsed;
+        }
+        guardMutation(
+            activateAbility({
+                gameId,
+                playerId,
+                cardInstanceId,
+                abilityId,
+                keepPriority: keepPriority || undefined,
+                chosenX,
+            })
+        );
+    }
+
+    // --- Overlays (mana-choice picker + validation toast) ---
+    // Bundled as one node so each board mounts the interaction surfaces where
+    // its layout needs them (classic: battlefield root; spatial: board root).
+    const overlays = (
+        <>
+            {manaChoiceState && (
+                <ManaChoicePicker
+                    choices={manaChoiceState.choices}
+                    position={manaChoiceState.position}
+                    onSelect={(index) => {
+                        const args = {
+                            gameId,
+                            playerId,
+                            cardInstanceId: manaChoiceState.cardId,
+                            manaChoiceIndex: index,
+                        };
+                        if (manaChoiceState.inPayment) {
+                            const mutation = isPayingCast
+                                ? tapForPayment
+                                : tapForActivationPayment;
+                            guardMutation(mutation(args));
+                        } else {
+                            guardMutation(tapUntap(args));
+                        }
+                        setManaChoiceState(null);
+                    }}
+                    onCancel={() => setManaChoiceState(null)}
+                />
+            )}
+            <ValidationToast
+                message={validationError}
+                onDismiss={() => setValidationError(null)}
+            />
+        </>
+    );
+
+    return {
+        getVisualState,
+        canInteract,
+        handleClick,
+        handleClickWithEvent,
+        getActivatable,
+        handleActivateAbility,
+        overlays,
+    };
+}

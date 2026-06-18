@@ -57,6 +57,37 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Board-next battlefield tap/pay (#272). The spatial board's
+        // battlefield is now interactive (?board=next) — load this and switch
+        // the URL to ?board=next to exercise the foundational tap/pay slice:
+        //   • Click an untapped Mountain → it taps for mana; click it again →
+        //     it untaps (plain tapUntap, no payment in progress).
+        //   • Click Black Lotus → the mana-choice picker opens; pick a color →
+        //     three of that color enter the pool (multi-color source, floating
+        //     mana mode).
+        //   • Click Fireball in hand to cast it, then click a Mountain to pay
+        //     part of the cost (tapForPayment); click the tapped Mountain to
+        //     refund it (untapForPayment).
+        //   • An illegal tap (e.g. without priority) surfaces the validation
+        //     toast mounted in the spatial board root.
+        // Same dispatches as the classic board — both consume
+        // useBattlefieldInteraction.
+        label: "Board next: battlefield tap / pay (lands + Black Lotus)",
+        cards: [
+            { name: "Fireball", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Black Lotus", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 5 },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next hand UX (#271). A full, varied hand on the spatial board
         // (?board=next) to exercise the four hand fixes end-to-end:
         //   • Hover a hand card → the zoom preview appears (parity w/ the

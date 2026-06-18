@@ -13,6 +13,15 @@ type BoardNextBattlefieldCardProps = {
      *  (combat rings, tap, legal-target highlight, dim, badge). The SAME
      *  computation the classic board uses — reused as-is (#256). */
     vs: CardVisualState;
+    /** Per-card click handler from the shared `useBattlefieldInteraction` hook
+     *  (#272). The battlefield is click-only on the spatial board (no drag):
+     *  clicking a mana source taps/untaps it (or routes cast/activation
+     *  payment), and the event carries the pointer coords the mana-choice
+     *  picker anchors to. Wired by `BoardNextBattlefield`; omitted means inert
+     *  (e.g. opponent's permanents the viewer can't act on). The ability menu /
+     *  targeting / combat branches live in the same handler and ship in the
+     *  follow-up slices (#278/#279/#281). */
+    onClick?: (e: React.MouseEvent) => void;
 };
 
 /** Battlefield card for the new spatial board (PRD #249, slice #256).
@@ -38,6 +47,7 @@ type BoardNextBattlefieldCardProps = {
 export default function BoardNextBattlefieldCard({
     card,
     vs,
+    onClick,
 }: BoardNextBattlefieldCardProps) {
     const { allPlayers } = useGameContext();
     const creature = isCreature(card);
@@ -94,12 +104,24 @@ export default function BoardNextBattlefieldCard({
     // the layout box, so rotation here never reflows neighbors.
     const tapTransform = card.isTapped ? "rotate(90deg)" : undefined;
 
+    // Cursor affordance mirrors the classic battlefield card: a pointer when
+    // the permanent is interactive and enabled, not-allowed when interactive
+    // but blocked, default otherwise (#272).
+    const cursorClass = onClick
+        ? vs.interactive
+            ? vs.enabled
+                ? "cursor-pointer"
+                : "cursor-not-allowed"
+            : "cursor-pointer"
+        : "";
+
     return (
         <div
             data-arrow-anchor-permanent={card.id}
             data-tapped={card.isTapped ? "true" : undefined}
-            className={`w-full h-full ${vs.combatOffset} transition-[transform] duration-[250ms]`}
+            className={`w-full h-full ${vs.combatOffset} ${cursorClass} transition-[transform] duration-[250ms]`}
             style={{ transform: tapTransform }}
+            onClick={onClick}
         >
             <CardTilt3D>
                 <div
