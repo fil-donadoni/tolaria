@@ -73,8 +73,10 @@ import {
     artifactWard,
     martyrsOfKorlis,
     reversePolarity,
+    titaniasSong,
+    xenicPoltergeist,
 } from "../atq";
-import { grizzlyBears, hillGiant } from "../lea";
+import { grizzlyBears, hillGiant, solRing } from "../lea";
 import { getCardById, getInstanceManaCost } from "../..";
 import {
     makeInstance,
@@ -87,11 +89,18 @@ import {
     getActivatedManaRestriction,
     getFixedManaAmount,
     getDynamicManaProduced,
+    getActivatedManaAbility,
+    hasManaAbility,
 } from "../../../gre/constants";
+import { collectTriggers } from "../../../gre/triggers";
+import { effectiveTriggeredAbilities } from "../../../gre/copy";
 import { projectPublicState } from "../../../gameProjections";
 import {
     resolveTopOfStack,
     removePermanentTo,
+    applySourceStaticEffects,
+    unapplySourceStaticEffects,
+    applyExistingGrantsTo,
     processPendingActionTriggers,
     addRestrictedManaToPool,
     restrictionAllowsSpell,
@@ -4886,5 +4895,243 @@ describe("artifact-damage tracking + Reverse Polarity (CR 120.3 tally / 119 life
         item.controllerId = "p1";
         resolveTopOfStack(state);
         expect(state.players[0].life).toBe(17);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster F — animate noncreature artifact (#288)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Puts Titania's Song on `p1`'s battlefield and a Sol Ring artifact on the
+ *  given controller's battlefield, then applies the Song's continuous effects
+ *  to the board (mirrors `finalizeSpellResolution`). Returns both instances. */
+function withTitaniasSong(controller: "p1" | "p2" = "p1"): {
+    state: GameState;
+    song: CardInstanceState;
+    ring: CardInstanceState;
+} {
+    const state = makeState();
+    const song = makeInstance(titaniasSong.id, {
+        id: "song-1",
+        controllerId: "p1",
+        zone: "battlefield",
+    });
+    const ring = makeInstance(solRing.id, {
+        id: "ring-1",
+        controllerId: controller,
+        zone: "battlefield",
+    });
+    state.players[0].battlefield.push(song);
+    state.players[controller === "p1" ? 0 : 1].battlefield.push(ring);
+    applySourceStaticEffects(state, song);
+    return { state, song, ring };
+}
+
+describe("Titania's Song ({3}{G} Enchantment — CR 613.1f ability-loss + CR 205 type-add + CR 604.3 mana-value P/T)", () => {
+    it("declares ability-loss + type-add + pt-cda static effects", () => {
+        const kinds = (titaniasSong.staticEffects ?? []).map((e) => e.kind);
+        expect(kinds).toContain("ability-loss");
+        expect(kinds).toContain("type-add");
+        expect(kinds).toContain("pt-cda");
+    });
+
+    it("makes every noncreature artifact an artifact creature with P/T = mana value", () => {
+        const { state, ring } = withTitaniasSong();
+        expect(ring.types).toContain("Creature");
+        expect(ring.types).toContain("Artifact");
+        // Sol Ring mana value is 1 → 1/1.
+        expect(getEffectivePower(state, ring)).toBe(1);
+        expect(getEffectiveToughness(state, ring)).toBe(1);
+    });
+
+    it("strips all abilities: the Sol Ring's mana ability stops functioning", () => {
+        const { ring } = withTitaniasSong();
+        expect(ring.abilitiesSuppressedBy).toEqual(["song-1"]);
+        expect(hasManaAbility(ring)).toBe(false);
+        expect(getActivatedManaAbility(ring)).toBeNull();
+    });
+
+    it("strips keyword abilities into removedKeywords (Ivory Tower has none; Ornithopter would)", () => {
+        // Use Ivory Tower (an Artifact with a triggered ability) to assert the
+        // triggered ability is suppressed.
+        const state = makeState();
+        const song = makeInstance(titaniasSong.id, {
+            id: "song-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const tower = makeInstance(ivoryTower.id, {
+            id: "tower-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(song, tower);
+        applySourceStaticEffects(state, song);
+        // Ivory Tower's "at the beginning of your upkeep" trigger is gone.
+        expect(effectiveTriggeredAbilities(tower)).toHaveLength(0);
+        const triggers = collectTriggers(state, [
+            { type: "PHASE_BEGIN", phase: "UPKEEP", activePlayerId: "p1" },
+        ]);
+        expect(
+            triggers.some((t) => t.triggeredAbilityId === "ivory-tower-life")
+        ).toBe(false);
+    });
+
+    it("does NOT animate a printed artifact creature (Ornithopter stays as-is)", () => {
+        const state = makeState();
+        const song = makeInstance(titaniasSong.id, {
+            id: "song-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const bird = makeInstance(ornithopter.id, {
+            id: "bird-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(song, bird);
+        applySourceStaticEffects(state, song);
+        // Printed artifact creature: keeps flying, unsuppressed, base 0/2.
+        expect(bird.abilitiesSuppressedBy).toBeUndefined();
+        expect(bird.staticAbilities).toContain("flying");
+        expect(getEffectivePower(state, bird)).toBe(0);
+        expect(getEffectiveToughness(state, bird)).toBe(2);
+    });
+
+    it("affects an artifact that ENTERS after the Song resolves (applyExistingGrantsTo)", () => {
+        const { state } = withTitaniasSong();
+        const newRing = makeInstance(solRing.id, {
+            id: "ring-2",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        state.players[1].battlefield.push(newRing);
+        applyExistingGrantsTo(state, newRing);
+        expect(newRing.types).toContain("Creature");
+        expect(newRing.abilitiesSuppressedBy).toEqual(["song-1"]);
+        expect(getEffectivePower(state, newRing)).toBe(1);
+    });
+
+    it("reverts cleanly when the Song leaves play (unapplySourceStaticEffects)", () => {
+        const { state, song, ring } = withTitaniasSong();
+        unapplySourceStaticEffects(state, song);
+        expect(ring.types).not.toContain("Creature");
+        expect(ring.abilitiesSuppressedBy).toBeUndefined();
+        expect(hasManaAbility(ring)).toBe(true);
+        // P/T pipeline: no longer a creature → base undefined.
+        expect(getActivatedManaAbility(ring)).not.toBeNull();
+    });
+
+    it("wire format: animated P/T and types survive projectPublicState", () => {
+        const { state, ring } = withTitaniasSong();
+        // Fat-state assertion.
+        expect(ring.types).toContain("Creature");
+        expect(getEffectivePower(state, ring)).toBe(1);
+        expect(getEffectiveToughness(state, ring)).toBe(1);
+        // Same assertion after projection (viewer p1).
+        const projected = projectPublicState(state, 1, "p1");
+        const projRing = projected.players[0].battlefield.find(
+            (c) => c.id === "ring-1"
+        )!;
+        expect(projRing.types).toContain("Creature");
+        expect(projRing.types).toContain("Artifact");
+        expect(getEffectivePower(projected, projRing)).toBe(1);
+        expect(getEffectiveToughness(projected, projRing)).toBe(1);
+    });
+});
+
+describe("Xenic Poltergeist ({1}{B}{B} 1/1 Spirit — {T}: animate target noncreature artifact until your next upkeep)", () => {
+    function setup(): {
+        state: GameState;
+        xenic: CardInstanceState;
+        ring: CardInstanceState;
+    } {
+        const state = makeState();
+        const xenic = makeInstance(xenicPoltergeist.id, {
+            id: "xenic-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const ring = makeInstance(solRing.id, {
+            id: "ring-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(xenic, ring);
+        return { state, xenic, ring };
+    }
+
+    it("declares a {T} activated ability targeting a noncreature artifact", () => {
+        const ability = xenicPoltergeist.activatedAbilities![0];
+        expect(ability.cost.tap).toBe(true);
+        expect(ability.targetRequirement?.type).toBe("Artifact");
+        expect(ability.targetRequirement?.excludeTypes).toBe("Creature");
+    });
+
+    it("animates the target artifact to a creature with P/T = mana value", () => {
+        const { state, xenic, ring } = setup();
+        resolveActivated(state, xenic, "xenic-poltergeist-animate", [
+            { type: "permanent", id: "ring-1" },
+        ]);
+        expect(ring.types).toContain("Creature");
+        expect(ring.animation).toBeDefined();
+        // Sol Ring MV 1 → 1/1; does NOT strip abilities (unlike the Song).
+        expect(getEffectivePower(state, ring)).toBe(1);
+        expect(getEffectiveToughness(state, ring)).toBe(1);
+        expect(ring.abilitiesSuppressedBy).toBeUndefined();
+        expect(hasManaAbility(ring)).toBe(true);
+    });
+
+    it("animation ends at the controller's next upkeep (CR 500.2)", () => {
+        const { state, xenic, ring } = setup();
+        resolveActivated(state, xenic, "xenic-poltergeist-animate", [
+            { type: "permanent", id: "ring-1" },
+        ]);
+        expect(ring.animation).toBeDefined();
+        // Run to p1's next upkeep: pass the rest of p1's turn, all of p2's, and
+        // reach p1's UPKEEP. Advancing phases ticks durations at the boundary.
+        for (let i = 0; i < 40; i++) {
+            advancePhase(state);
+            if (state.phase === "UPKEEP" && state.activePlayerId === "p1") {
+                break;
+            }
+        }
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.activePlayerId).toBe("p1");
+        expect(ring.animation).toBeUndefined();
+        expect(ring.types).not.toContain("Creature");
+    });
+
+    it("does NOT end at the OPPONENT's upkeep (player-scoped duration)", () => {
+        const { state, xenic, ring } = setup();
+        resolveActivated(state, xenic, "xenic-poltergeist-animate", [
+            { type: "permanent", id: "ring-1" },
+        ]);
+        // Advance to p2's upkeep — p1's animation must survive it.
+        for (let i = 0; i < 40; i++) {
+            advancePhase(state);
+            if (state.phase === "UPKEEP" && state.activePlayerId === "p2") {
+                break;
+            }
+        }
+        expect(state.activePlayerId).toBe("p2");
+        expect(ring.animation).toBeDefined();
+        expect(ring.types).toContain("Creature");
+    });
+
+    it("wire format: animated P/T and types survive projectPublicState", () => {
+        const { state, xenic, ring } = setup();
+        resolveActivated(state, xenic, "xenic-poltergeist-animate", [
+            { type: "permanent", id: "ring-1" },
+        ]);
+        expect(getEffectivePower(state, ring)).toBe(1);
+        const projected = projectPublicState(state, 1, "p1");
+        const projRing = projected.players[0].battlefield.find(
+            (c) => c.id === "ring-1"
+        )!;
+        expect(projRing.types).toContain("Creature");
+        expect(projRing.types).toContain("Artifact");
+        expect(getEffectivePower(projected, projRing)).toBe(1);
+        expect(getEffectiveToughness(projected, projRing)).toBe(1);
     });
 });

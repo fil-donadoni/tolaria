@@ -1063,7 +1063,12 @@ function resolveActivatedAbility(
     grantedSourceCardId?: string;
 } | null {
     const cardId = (card.card as { id?: string }).id;
-    if (cardId) {
+    // CR 613.1f — a permanent that "loses all abilities" (Titania's Song) has
+    // no native activated abilities while suppressed. Abilities granted by
+    // another source (`grantedActivatedAbilities`) are not the permanent's own
+    // and are unaffected.
+    const suppressed = (card.abilitiesSuppressedBy?.length ?? 0) > 0;
+    if (cardId && !suppressed) {
         const native = getCardById(cardId).activatedAbilities?.find(
             (a) => a.id === abilityId
         );

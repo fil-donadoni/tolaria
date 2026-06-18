@@ -122,8 +122,15 @@ export function isAura(card: {
     return card.types.includes("Enchantment") && card.subtypes.includes("Aura");
 }
 
+/** CR 613.1f — true while the permanent has lost all abilities (Titania's
+ *  Song). Its intrinsic mana abilities don't function while suppressed. */
+function abilitiesSuppressed(card: CardInstanceState): boolean {
+    return (card.abilitiesSuppressedBy?.length ?? 0) > 0;
+}
+
 /** Returns the mana color produced by a tap mana ability (e.g. Mox), or null. */
 export function getActivatedManaColor(card: CardInstanceState): Color | null {
+    if (abilitiesSuppressed(card)) return null;
     const cardDef = getCardById(card.card.id as string);
     const ability = cardDef.activatedAbilities?.find(
         (a) => a.cost.tap && !a.useStack && a.manaProduced
@@ -139,6 +146,7 @@ export function getActivatedManaColor(card: CardInstanceState): Color | null {
 export function getActivatedManaProduced(
     card: CardInstanceState
 ): ManaCost | null {
+    if (abilitiesSuppressed(card)) return null;
     const cardDef = getCardById(card.card.id as string);
     const ability = cardDef.activatedAbilities?.find(
         (a) => a.cost.tap && !a.useStack && a.manaProduced
@@ -176,6 +184,7 @@ export function getDynamicManaProduced(
     card: CardInstanceState,
     controllerBattlefield: readonly CardInstanceState[]
 ): ManaCost | null {
+    if (abilitiesSuppressed(card)) return null;
     const cardDef = getCardById(card.card.id as string);
     const ability = cardDef.activatedAbilities?.find(
         (a) => a.cost.tap && !a.useStack && a.manaAmount
@@ -193,6 +202,7 @@ export function getDynamicManaProduced(
 export function getActivatedManaRestriction(
     card: CardInstanceState
 ): ManaRestriction | null {
+    if (abilitiesSuppressed(card)) return null;
     const cardDef = getCardById(card.card.id as string);
     const ability = cardDef.activatedAbilities?.find(
         (a) => a.cost.tap && !a.useStack && a.manaProduced
@@ -202,6 +212,7 @@ export function getActivatedManaRestriction(
 
 /** Returns the activated mana ability definition for a card, or null. */
 export function getActivatedManaAbility(card: CardInstanceState) {
+    if (abilitiesSuppressed(card)) return null;
     const cardDef = getCardById(card.card.id as string);
     return (
         cardDef.activatedAbilities?.find(

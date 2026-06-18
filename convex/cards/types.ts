@@ -368,8 +368,11 @@ export interface ActivatedAbility {
  */
 export interface DurationSpec {
     /** Which phase boundary triggers expiry. end-of-turn = CLEANUP (CR 514.2);
-     *  end-of-combat = END_OF_COMBAT step (CR 511.3). */
-    phase: "end-of-turn" | "end-of-combat";
+     *  end-of-combat = END_OF_COMBAT step (CR 511.3); upkeep = the UPKEEP step
+     *  (CR 500.2 — "until your next upkeep" effects end as the upkeep begins,
+     *  combined with `player: "controller"` to scope to the controller's
+     *  upkeep, e.g. Xenic Poltergeist). */
+    phase: "end-of-turn" | "end-of-combat" | "upkeep";
     /** Number of matching boundaries to skip before the effect expires. 0 =
      *  next occurrence (default, "this turn/combat"). 1 = one after. */
     skip?: number;
@@ -1317,6 +1320,14 @@ export interface StaticEffectContext {
      *  preserved). Used by characteristic-defining abilities that key off
      *  the host's mana value (Animate Artifact). */
     getManaValue: (card: PermanentView) => number;
+    /** Printed card type line (CR 205.2, from the card definition), unaffected
+     *  by type-add / animate effects that mutate the live `types`. Used by
+     *  predicates that must distinguish a printed noncreature permanent from
+     *  one whose Creature type was added by another effect — e.g. Titania's
+     *  Song's "Each NONCREATURE artifact" set, which must keep matching its own
+     *  targets after it has made them creatures, and must never match a printed
+     *  artifact creature (Ornithopter). */
+    getPrintedTypes: (card: PermanentView) => CardType[];
 }
 
 export interface StaticPTBuff {
@@ -1465,6 +1476,30 @@ export interface StaticTypeAdd {
     /** Types to add to the target. Duplicates against printed `types` or
      *  other concurrent grants are deduplicated by the engine. */
     types: CardType[];
+}
+
+/** Continuous "loses all abilities" static effect (CR 613.1f layer 6 —
+ *  ability-removing effects). Suppresses ALL of the affected permanent's
+ *  abilities: keyword abilities (stripped from `staticAbilities`, tracked via
+ *  `removedKeywords` for restore), activated abilities (native lookups return
+ *  null while suppressed), triggered abilities (excluded from the trigger
+ *  scan), and intrinsic mana abilities. Used by Titania's Song ("Each
+ *  noncreature artifact loses all abilities and becomes an artifact
+ *  creature ..."). Applied/reversed imperatively like `type-add` and
+ *  `keyword-remove` — the `applies` predicate is read at apply time and when a
+ *  matching permanent enters (`applyExistingGrantsTo`); for ATQ's scope this
+ *  is sufficient (no card revokes the loss mid-life while the source stays in
+ *  play). Per CR 613, ability-removal here precedes the layer-7 P/T pipeline,
+ *  so a card whose P/T comes from a separate static effect on the same source
+ *  (Titania's Song's mana-value CDA) still has its P/T set. */
+export interface StaticAbilityLoss {
+    kind: "ability-loss";
+    /** Predicate: does this loss apply to `target` given `source`? */
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
 }
 
 /** Continuous untap-step restriction (CR 502.1) — caps how many permanents
@@ -1720,7 +1755,8 @@ export type StaticEffect =
     | StaticCostModifier
     | StaticManaSubstitution
     | StaticPermanentGuard
-    | StaticKeywordRemove;
+    | StaticKeywordRemove
+    | StaticAbilityLoss;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
  *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted

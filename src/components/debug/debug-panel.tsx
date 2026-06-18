@@ -185,6 +185,36 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Antiquities cluster F — animate noncreature artifact (#288, CR 613.1f
+        // ability-loss + CR 205 type-add + CR 604.3 mana-value P/T + CR 500.2
+        // "until your next upkeep").
+        //   • Titania's Song is in play: every NONCREATURE artifact you control
+        //     (Sol Ring, Ivory Tower) is now an artifact creature with P/T equal
+        //     to its mana value AND has lost all abilities — the Sol Ring no
+        //     longer taps for mana and Ivory Tower's upkeep trigger is gone. The
+        //     opponent's Sol Ring is animated/silenced too. Ornithopter (a
+        //     PRINTED artifact creature) is untouched — it keeps flying / 0/2.
+        //   • Xenic Poltergeist (a 1/1 Spirit) is untapped: right-click it →
+        //     "{T}: animate target noncreature artifact until your next upkeep".
+        //     Target the opponent's Sol Ring — it becomes a 1/1 creature but
+        //     KEEPS its mana ability (Xenic does not strip abilities). The
+        //     animation ends as your next upkeep begins.
+        label: "Antiquities F: animate noncreature artifact (Titania's Song / Xenic Poltergeist)",
+        cards: [
+            { name: "Titania's Song", owner: "me" as const },
+            { name: "Xenic Poltergeist", owner: "me" as const },
+            { name: "Sol Ring", owner: "me" as const },
+            { name: "Ivory Tower", owner: "me" as const },
+            { name: "Ornithopter", owner: "me" as const },
+            { name: "Swamp", owner: "me" as const, count: 3 },
+            { name: "Sol Ring", owner: "opp" as const },
+            { name: "Triskelion", owner: "opp" as const },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next battlefield tap/pay (#272). The spatial board's
         // battlefield is now interactive (?board=next) — load this and switch
         // the URL to ?board=next to exercise the foundational tap/pay slice:

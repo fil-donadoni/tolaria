@@ -9,6 +9,7 @@
 import { tryGetCardById } from "../cards";
 import { getColorsFromCost } from "../cards/colors";
 import type {
+    CardType,
     Color,
     ManaCost,
     PermanentView,
@@ -67,6 +68,13 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
     },
     hasSubtype(card: PermanentView, subtype: string): boolean {
         return card.subtypes.includes(subtype);
+    },
+    getPrintedTypes(card: PermanentView): CardType[] {
+        // CR 205.2 — printed type line from the card definition; ignores the
+        // live `types` array (which type-add / animate effects mutate).
+        const cardId = (card.card as { id?: string }).id;
+        const def = cardId ? tryGetCardById(cardId) : undefined;
+        return (def?.types ?? []) as CardType[];
     },
     getManaValue(card: PermanentView): number {
         // CR 202.3 — numeric X in the printed cost contributes to mana
