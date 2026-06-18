@@ -86,6 +86,9 @@ function compactCard(
     if (card.grantedActivatedAbilities?.length) {
         out.grantedActivatedAbilities = card.grantedActivatedAbilities;
     }
+    if (card.grantedTriggeredAbilities?.length) {
+        out.grantedTriggeredAbilities = card.grantedTriggeredAbilities;
+    }
     if (card.removedKeywords?.length) {
         out.removedKeywords = card.removedKeywords;
     }
@@ -217,6 +220,10 @@ function expandCard(
     if (compact.grantedActivatedAbilities) {
         result.grantedActivatedAbilities =
             compact.grantedActivatedAbilities as CardInstanceState["grantedActivatedAbilities"];
+    }
+    if (compact.grantedTriggeredAbilities) {
+        result.grantedTriggeredAbilities =
+            compact.grantedTriggeredAbilities as CardInstanceState["grantedTriggeredAbilities"];
     }
     if (compact.removedKeywords) {
         result.removedKeywords =

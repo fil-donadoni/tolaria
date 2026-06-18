@@ -491,7 +491,14 @@ describe("resolvePreviewAbilities (#156)", () => {
             { id: "a1", oracleText: "{T}: native", state: "native" },
             { id: "a2", oracleText: "{T}: granted", state: "granted" },
         ],
-        triggered: [{ id: "t1", oracleText: "When ..." }],
+        triggered: [
+            { id: "t1", oracleText: "When ...", state: "native" },
+            {
+                id: "t2",
+                oracleText: "At the beginning of your upkeep, ...",
+                state: "granted",
+            },
+        ],
     };
 
     it("returns the full set unchanged when Oracle text is not shown", () => {
@@ -509,7 +516,15 @@ describe("resolvePreviewAbilities (#156)", () => {
         expect(result.activated).toEqual([
             { id: "a2", oracleText: "{T}: granted", state: "granted" },
         ]);
-        expect(result.triggered).toEqual([]);
+        // native triggered drops (printed); a granted trigger (Energy Flux,
+        // #291) survives so it surfaces on the recipient's zoom panel.
+        expect(result.triggered).toEqual([
+            {
+                id: "t2",
+                oracleText: "At the beginning of your upkeep, ...",
+                state: "granted",
+            },
+        ]);
     });
 
     it("surfaces a granted keyword even when the card shows Oracle text (the #156 bug)", () => {

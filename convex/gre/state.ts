@@ -206,6 +206,20 @@ export type CardInstanceState = {
         abilityId: string;
         auraId: string;
     }[];
+    /** Triggered abilities granted to this permanent by an anthem-style static
+     *  effect (CR 113.1, 611). Each entry references a triggered-ability
+     *  template (`triggeredGrantTemplates`) on another card def — the template
+     *  is unioned into the permanent's effective triggers by
+     *  `effectiveTriggeredAbilities`, so the trigger collector scans and
+     *  resolves it as if it were printed on this permanent. Keyed by `auraId`
+     *  (the granting source's instance id) so it can be spliced out when the
+     *  source leaves play. Used by Energy Flux ("All artifacts have 'At the
+     *  beginning of your upkeep, sacrifice this artifact unless you pay {2}.'"). */
+    grantedTriggeredAbilities?: {
+        sourceCardId: string;
+        abilityId: string;
+        auraId: string;
+    }[];
     /** Keywords suppressed by a keyword-remove static effect (CR 613.1a
      *  layer 6). Each entry records the removed keyword and the source that
      *  removed it so `unapplySourceStaticEffects` can restore it. */
@@ -1813,6 +1827,18 @@ export function applySourceStaticEffects(
                             auraId: source.id,
                         },
                     ];
+                } else if (effect.kind === "triggered-grant" && cardId) {
+                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                        continue;
+                    }
+                    target.grantedTriggeredAbilities = [
+                        ...(target.grantedTriggeredAbilities ?? []),
+                        {
+                            sourceCardId: cardId,
+                            abilityId: effect.abilityId,
+                            auraId: source.id,
+                        },
+                    ];
                 } else if (effect.kind === "type-add") {
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
                         continue;
@@ -1958,6 +1984,12 @@ export function unapplySourceStaticEffects(
                 target.grantedActivatedAbilities =
                     keptA.length > 0 ? keptA : undefined;
             }
+            const triggered = target.grantedTriggeredAbilities;
+            if (triggered && triggered.length > 0) {
+                const keptT = triggered.filter((g) => g.auraId !== source.id);
+                target.grantedTriggeredAbilities =
+                    keptT.length > 0 ? keptT : undefined;
+            }
             const types = target.grantedTypes;
             if (types && types.length > 0) {
                 const removed = types.filter((g) => g.auraId === source.id);
@@ -2074,6 +2106,20 @@ export function applyExistingGrantsTo(
                     }
                     newPermanent.grantedActivatedAbilities = [
                         ...(newPermanent.grantedActivatedAbilities ?? []),
+                        {
+                            sourceCardId: cardId,
+                            abilityId: effect.abilityId,
+                            auraId: source.id,
+                        },
+                    ];
+                } else if (effect.kind === "triggered-grant" && cardId) {
+                    if (
+                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
+                    ) {
+                        continue;
+                    }
+                    newPermanent.grantedTriggeredAbilities = [
+                        ...(newPermanent.grantedTriggeredAbilities ?? []),
                         {
                             sourceCardId: cardId,
                             abilityId: effect.abilityId,
@@ -2903,6 +2949,7 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.controlChanges;
     delete card.grantedStaticAbilities;
     delete card.grantedActivatedAbilities;
+    delete card.grantedTriggeredAbilities;
     delete card.removedKeywords;
     delete card.animation;
     delete card.chosenMana;

@@ -374,16 +374,31 @@ export function getAbilityOracleText(
     return null;
 }
 
-/** Returns the oracle text for a triggered ability by id, or null. */
+/** Returns the oracle text for a triggered ability by id, or null. Checks
+ *  the card's own definition first, then any granted-triggered entries on the
+ *  passed instance (resolved via the granting card's `triggeredGrantTemplates`)
+ *  so an anthem-granted trigger (Energy Flux) shows its text on the stack. */
 export function getTriggeredAbilityOracleText(
     cardId: string,
-    triggeredAbilityId: string
+    triggeredAbilityId: string,
+    grantedTriggeredAbilities?: ReadonlyArray<{
+        sourceCardId: string;
+        abilityId: string;
+    }>
 ): string | null {
     const cardDef = getCardById(cardId);
     const ability = cardDef.triggeredAbilities?.find(
         (a) => a.id === triggeredAbilityId
     );
-    return ability?.oracleText ?? null;
+    if (ability?.oracleText) return ability.oracleText;
+    for (const grant of grantedTriggeredAbilities ?? []) {
+        if (grant.abilityId !== triggeredAbilityId) continue;
+        const tmpl = getCardById(
+            grant.sourceCardId
+        ).triggeredGrantTemplates?.find((a) => a.id === triggeredAbilityId);
+        if (tmpl?.oracleText) return tmpl.oracleText;
+    }
+    return null;
 }
 
 /** Display state for a card ability in the zoom panel.
@@ -408,6 +423,7 @@ export type DisplayActivated = {
 export type DisplayTriggered = {
     id: string;
     oracleText: string;
+    state: "native" | "granted";
 };
 
 export type DisplayAbilities = {
@@ -466,7 +482,25 @@ export function getDisplayAbilities(
 
     const triggered: DisplayTriggered[] = (def.triggeredAbilities ?? [])
         .filter((a) => a.oracleText)
-        .map((a) => ({ id: a.id, oracleText: a.oracleText }));
+        .map((a) => ({
+            id: a.id,
+            oracleText: a.oracleText,
+            state: "native" as const,
+        }));
+    // CR 113.1 — anthem-granted triggers (Energy Flux) live on the granting
+    // card's `triggeredGrantTemplates`, not on this card's def.
+    for (const grant of instance?.grantedTriggeredAbilities ?? []) {
+        const sourceDef = tryGetCardById(grant.sourceCardId);
+        const tmpl = sourceDef?.triggeredGrantTemplates?.find(
+            (a) => a.id === grant.abilityId
+        );
+        if (!tmpl?.oracleText) continue;
+        triggered.push({
+            id: tmpl.id,
+            oracleText: tmpl.oracleText,
+            state: "granted",
+        });
+    }
 
     return { keywords, activated, triggered };
 }
@@ -489,7 +523,7 @@ export function resolvePreviewAbilities(
     return {
         keywords: abilities.keywords.filter((k) => k.state !== "native"),
         activated: abilities.activated.filter((a) => a.state === "granted"),
-        triggered: [],
+        triggered: abilities.triggered.filter((t) => t.state === "granted"),
     };
 }
 

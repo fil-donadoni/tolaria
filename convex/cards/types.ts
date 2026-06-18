@@ -1486,6 +1486,33 @@ export interface StaticActivatedGrant {
     abilityId: string;
 }
 
+/** Continuous static ability that grants a TRIGGERED ability to matching
+ *  permanents (CR 611, 113.1). The lord-style analogue of
+ *  `StaticActivatedGrant` for triggers: an anthem grants "At the beginning of
+ *  your upkeep, sacrifice this artifact unless you pay {2}" to every artifact
+ *  (Energy Flux). The template lives on the granting card's
+ *  `triggeredGrantTemplates[]` (kept off `triggeredAbilities` so the source
+ *  itself doesn't fire the granted trigger). The grant is applied imperatively
+ *  when the source or a matching permanent enters the battlefield and reversed
+ *  when the source leaves play — exactly like `activated-grant`.
+ *
+ *  Resolution semantics: the granted trigger is scanned/resolved AS IF it were
+ *  printed on the recipient (via `effectiveTriggeredAbilities`), so the
+ *  trigger's `self` is the artifact carrying it — `scope: "your"` fires at the
+ *  artifact controller's own upkeep (CR 603.6a) and `ctx.sourceInstanceId`
+ *  refers to the artifact itself ("sacrifice this artifact"). */
+export interface StaticTriggeredGrant {
+    kind: "triggered-grant";
+    /** Predicate: does this grant apply to `target` given `source`? */
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Id on `source.triggeredGrantTemplates[]` to grant. */
+    abilityId: string;
+}
+
 /** Continuous static ability that adds card type(s) to a permanent
  *  (CR 205, 611, 1.3 — layer 4 type-setting effects). Mutates the affected
  *  permanent's `types` array imperatively on apply (and reverses on
@@ -1804,6 +1831,7 @@ export type StaticEffect =
     | StaticKeywordGrant
     | StaticControlChange
     | StaticActivatedGrant
+    | StaticTriggeredGrant
     | StaticTypeAdd
     | StaticSubtypeSet
     | StaticColorGrant
@@ -2573,6 +2601,14 @@ export interface CardDefinition {
      *  template is the value referenced by the grant's `abilityId` field. */
     grantTemplates?: ActivatedAbility[];
     triggeredAbilities?: TriggeredAbility[];
+    /** Triggered-ability templates GRANTED to other permanents by a
+     *  StaticTriggeredGrant on this card's `staticEffects` (CR 113.1, 611).
+     *  Kept separate from `triggeredAbilities` so the source itself does not
+     *  fire the granted trigger — only matching permanents receive a reference
+     *  via `grantedTriggeredAbilities` and are scanned for it by the trigger
+     *  collector. The `id` on each template is the value referenced by the
+     *  grant's `abilityId` field. Used by Energy Flux. */
+    triggeredGrantTemplates?: TriggeredAbility[];
     /** Continuous replacement effects (CR 614). Each effect declares the kind
      *  of game event it can intercept ("damage", "lifegain", "lifeloss",
      *  "discard", "lose-game"), an `appliesTo` predicate that filters by event

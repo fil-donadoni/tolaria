@@ -78,6 +78,7 @@ import {
     primalClay,
     shapeshifter,
     powerArtifact,
+    energyFlux,
 } from "../atq";
 import { grizzlyBears, hillGiant, solRing } from "../lea";
 import { getCardById, getInstanceManaCost } from "../..";
@@ -5616,5 +5617,197 @@ describe("Power Artifact (enchanted artifact's abilities cost {2} less, min 1 ma
                 "dragon-engine-pump"
             )
         ).toEqual({ X: 1 });
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster N (#291) — grant a triggered ability to a filtered set. Energy Flux:
+// "All artifacts have 'At the beginning of your upkeep, sacrifice this artifact
+// unless you pay {2}.'" CR 113.1 (granted ability) + CR 611 (continuous
+// filtered set) + CR 603.6a (your-upkeep trigger) + CR 118 (mana payment).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Puts Energy Flux on `p1`'s battlefield and a Sol Ring (an Artifact) on the
+ *  given controller's battlefield, then applies the grant to the board
+ *  (mirrors `finalizeSpellResolution`). Returns both instances. */
+function withEnergyFlux(controller: "p1" | "p2" = "p1"): {
+    state: GameState;
+    flux: CardInstanceState;
+    ring: CardInstanceState;
+} {
+    const state = makeState();
+    const flux = makeInstance(energyFlux.id, {
+        id: "flux-1",
+        controllerId: "p1",
+        zone: "battlefield",
+    });
+    const ring = makeInstance(solRing.id, {
+        id: "ring-1",
+        controllerId: controller,
+        zone: "battlefield",
+    });
+    state.players[0].battlefield.push(flux);
+    state.players[controller === "p1" ? 0 : 1].battlefield.push(ring);
+    applySourceStaticEffects(state, flux);
+    return { state, flux, ring };
+}
+
+describe("Energy Flux ({2}{U} Enchantment — CR 113.1 triggered-grant + CR 611 filtered set + CR 603.6a upkeep)", () => {
+    it("declares a triggered-grant static effect and the granted template", () => {
+        const kinds = (energyFlux.staticEffects ?? []).map((e) => e.kind);
+        expect(kinds).toContain("triggered-grant");
+        // The granted template lives on triggeredGrantTemplates, NOT on
+        // triggeredAbilities (Energy Flux itself must not fire it).
+        expect(energyFlux.triggeredAbilities ?? []).toHaveLength(0);
+        expect(
+            energyFlux.triggeredGrantTemplates?.some(
+                (t) => t.id === "energy-flux-upkeep"
+            )
+        ).toBe(true);
+    });
+
+    it("grants the upkeep trigger to every artifact in play", () => {
+        const { ring } = withEnergyFlux();
+        expect(
+            ring.grantedTriggeredAbilities?.some(
+                (g) =>
+                    g.sourceCardId === energyFlux.id &&
+                    g.abilityId === "energy-flux-upkeep"
+            )
+        ).toBe(true);
+        // effectiveTriggeredAbilities unions the granted template in.
+        expect(
+            effectiveTriggeredAbilities(ring).some(
+                (a) => a.id === "energy-flux-upkeep"
+            )
+        ).toBe(true);
+    });
+
+    it("does NOT grant the trigger to a non-artifact (CR 611 filter)", () => {
+        const state = makeState();
+        const flux = makeInstance(energyFlux.id, {
+            id: "flux-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(flux, bear);
+        applySourceStaticEffects(state, flux);
+        expect(bear.grantedTriggeredAbilities).toBeUndefined();
+        expect(
+            effectiveTriggeredAbilities(bear).some(
+                (a) => a.id === "energy-flux-upkeep"
+            )
+        ).toBe(false);
+    });
+
+    it("fires the granted trigger at the artifact controller's own upkeep (CR 603.6a)", () => {
+        const { state, ring } = withEnergyFlux("p1");
+        const triggers = collectTriggers(state, [UPKEEP_P1]);
+        expect(
+            triggers.some(
+                (t) =>
+                    t.triggeredAbilityId === "energy-flux-upkeep" &&
+                    t.triggerSourceId === ring.id
+            )
+        ).toBe(true);
+    });
+
+    it("does NOT fire on the OTHER player's upkeep (scope: your)", () => {
+        // Ring controlled by p2; p1's upkeep must not fire its granted trigger.
+        const { state } = withEnergyFlux("p2");
+        const triggers = collectTriggers(state, [UPKEEP_P1]);
+        expect(
+            triggers.some((t) => t.triggeredAbilityId === "energy-flux-upkeep")
+        ).toBe(false);
+    });
+
+    it("paying {2} keeps the artifact (CR 118)", () => {
+        const { state } = withEnergyFlux("p1");
+        state.players[0].manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 2 };
+        state.stack.push(...collectTriggers(state, [UPKEEP_P1]));
+        // Resolution suspends at the may-pay.
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.playerId).toBe("p1");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        // Artifact survives; {2} was spent.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "ring-1")
+        ).toBe(true);
+        expect(state.players[0].manaPool.C).toBe(0);
+    });
+
+    it("declining (or being unable to pay) sacrifices the artifact (CR 701.16)", () => {
+        const { state } = withEnergyFlux("p1");
+        state.stack.push(...collectTriggers(state, [UPKEEP_P1]));
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "ring-1")
+        ).toBe(false);
+        expect(state.players[0].graveyard.some((c) => c.id === "ring-1")).toBe(
+            true
+        );
+    });
+
+    it("grants the trigger to an artifact that ENTERS after Energy Flux (applyExistingGrantsTo)", () => {
+        const { state } = withEnergyFlux("p1");
+        const newRing = makeInstance(solRing.id, {
+            id: "ring-2",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        state.players[1].battlefield.push(newRing);
+        applyExistingGrantsTo(state, newRing);
+        expect(
+            effectiveTriggeredAbilities(newRing).some(
+                (a) => a.id === "energy-flux-upkeep"
+            )
+        ).toBe(true);
+    });
+
+    it("removes the grant when Energy Flux leaves play (unapplySourceStaticEffects)", () => {
+        const { state, flux, ring } = withEnergyFlux("p1");
+        unapplySourceStaticEffects(state, flux);
+        expect(ring.grantedTriggeredAbilities).toBeUndefined();
+        expect(
+            effectiveTriggeredAbilities(ring).some(
+                (a) => a.id === "energy-flux-upkeep"
+            )
+        ).toBe(false);
+    });
+
+    it("wire format: the granted trigger survives projectPublicState and still fires", () => {
+        const { state, ring } = withEnergyFlux("p1");
+        // Fat-state assertion.
+        expect(
+            effectiveTriggeredAbilities(ring).some(
+                (a) => a.id === "energy-flux-upkeep"
+            )
+        ).toBe(true);
+        // Same assertion after projection (viewer p1).
+        const projected = projectPublicState(state, 1, "p1");
+        const projRing = projected.players[0].battlefield.find(
+            (c) => c.id === "ring-1"
+        )!;
+        expect(
+            projRing.grantedTriggeredAbilities?.some(
+                (g) => g.abilityId === "energy-flux-upkeep"
+            )
+        ).toBe(true);
+        // The oracle text resolves through the granting source on the wire
+        // (frontend getTriggeredAbilityOracleText path) — non-null.
+        const tmpl = energyFlux.triggeredGrantTemplates?.find(
+            (t) => t.id === "energy-flux-upkeep"
+        );
+        expect(tmpl?.oracleText).toContain("sacrifice this artifact");
     });
 });
