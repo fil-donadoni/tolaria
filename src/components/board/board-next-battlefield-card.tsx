@@ -28,7 +28,14 @@ type BoardNextBattlefieldCardProps = {
      *  shared `useBattlefieldInteraction` hook's `getActivatable` (#278). When
      *  non-empty, the card gains the same right-click context menu / touch
      *  action-sheet affordance as the classic board via the shared
-     *  {@link ActivatableAbilityMenu}. */
+     *  {@link ActivatableAbilityMenu}.
+     *
+     *  During combat sub-steps (DECLARE_ATTACKERS / DECLARE_BLOCKERS) this same
+     *  click handler dispatches the combat declaration mutations
+     *  (toggleAttacker / selectBlocker / assignBlockerTarget) via the hook's
+     *  `handleClickWithEvent`, which routes combat clicks straight to the
+     *  declaration branch instead of opening a multi-color source's mana picker
+     *  (#281). */
     activatableAbilities?: ActivatableAbility[];
     /** Dispatches the selected ability — wired to the hook's
      *  `handleActivateAbility` (X prompt, keep-priority, mana entry). */

@@ -88,6 +88,36 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Board-next combat declaration (#281). The spatial board now surfaces
+        // attacker / blocker declaration and the combat panels — load this and
+        // switch the URL to ?board=next, then advance to combat:
+        //   • DECLARE_ATTACKERS (your turn): click an untapped creature → it
+        //     toggles as an attacker (toggleAttacker). A creature that "must
+        //     attack if able" (Juggernaut) can't be deselected — the validation
+        //     toast explains why.
+        //   • A multi-color source that is also a creature (Birds of Paradise)
+        //     is DECLARED as an attacker on click, NOT opening its mana picker.
+        //   • DECLARE_BLOCKERS (opponent attacking): click your creature to
+        //     declare it as a blocker (selectBlocker), then click the attacker
+        //     it should block (assignBlockerTarget).
+        //   • The band-formation panel appears during attacker declaration; the
+        //     damage-assignment panel appears at the combat-damage step. Same
+        //     dispatches + panels as the classic board.
+        label: "Board next: combat declaration (attackers / blockers / damage)",
+        cards: [
+            { name: "Juggernaut", owner: "me" as const },
+            { name: "Birds of Paradise", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "me" as const, count: 3 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Gray Ogre", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next activated abilities (#278). The spatial board's battlefield
         // card now carries the same ability affordance as the classic board —
         // load this and switch the URL to ?board=next:

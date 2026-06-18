@@ -3,19 +3,16 @@ import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { getCardById } from "@convex/cards";
 import { isCreature, isLand, groupByName } from "~/lib/card-utils";
-import { outstandingDamageAssigner } from "~/lib/priority";
 import { useBattlefieldInteraction } from "~/hooks/useBattlefieldInteraction";
 import BattlefieldCard from "./battlefield-card";
-import DamageAssignmentPanel from "./damage-assignment-panel";
-import BandFormationPanel from "./band-formation-panel";
+import CombatPanels from "./combat-panels";
 
 // ---------------------------------------------------------------------------
 // PlayerBattlefield
 // ---------------------------------------------------------------------------
 
 export default function PlayerBattlefield({ player }: { player: Player }) {
-    const { gameId, playerId, activePlayerId, phase, combat, allPlayers } =
-        useGameContext();
+    const { playerId, allPlayers } = useGameContext();
     const isMe = player.id === playerId;
 
     // Battlefield interaction controller — the click handlers, ability menu,
@@ -30,31 +27,6 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
         handleActivateAbility,
         overlays,
     } = useBattlefieldInteraction(player);
-
-    // --- Combat panel gating (rendered by this layout, not the hook) ---
-
-    const isSelectingAttackers =
-        phase === "DECLARE_ATTACKERS" &&
-        !!combat &&
-        !combat.confirmed &&
-        isMe &&
-        playerId === activePlayerId;
-
-    // CR 702.21j-k: the player who assigns may be the defender, so gate on the
-    // outstanding assigner rather than always the active player.
-    const isAssigningDamage =
-        (phase === "COMBAT_DAMAGE" || phase === "FIRST_STRIKE_DAMAGE") &&
-        !!combat &&
-        combat.damageConfirmed === false &&
-        isMe &&
-        playerId ===
-            outstandingDamageAssigner({
-                playerId,
-                activePlayerId,
-                priorityPlayerId: activePlayerId,
-                phase,
-                combat,
-            });
 
     // --- Rendering ---
 
@@ -224,29 +196,7 @@ export default function PlayerBattlefield({ player }: { player: Player }) {
                 </div>
             </div>
 
-            {isSelectingAttackers && combat && (
-                <BandFormationPanel
-                    combat={combat}
-                    attackers={player.battlefield.filter((c) =>
-                        combat.attackerIds.includes(c.id)
-                    )}
-                    gameId={gameId}
-                    playerId={playerId}
-                />
-            )}
-
-            {isAssigningDamage && (
-                <DamageAssignmentPanel
-                    combat={combat!}
-                    allPlayers={allPlayers}
-                    gameId={gameId}
-                    playerId={playerId}
-                    defenderId={
-                        allPlayers.find((p) => p.id !== activePlayerId)?.id ??
-                        ""
-                    }
-                />
-            )}
+            <CombatPanels player={player} />
 
             {overlays}
         </div>
