@@ -2781,6 +2781,54 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "UPKEEP",
         landCount: 0,
     },
+    {
+        // ATQ #277 — P/T statics, combat & prevention shields. Exercise:
+        //   • Mightstone + Weakstone anthems: declare attackers and watch the
+        //     ±1/+0 / -1/-0 shift attacking-creature P/T globally.
+        //   • Gaea's Avenger: a 1+*/1+* whose P/T tracks the opponent's
+        //     artifacts (Amulet of Kroog + Mishra's Factory on the opp side).
+        //   • Mishra's Factory: {1} animate into a 2/2 Assembly-Worker, then
+        //     {T} pump it +1/+1.
+        //   • Staff of Zegon: {3},{T} shrink a creature -2/-0.
+        //   • Amulet of Kroog: {2},{T} fog the next 1 damage to any target.
+        //   • Battering Ram (1/1): gains banding at combat, destroys a blocking
+        //     Wall at end of combat (Wall of Spears on the opp side).
+        label: "ATQ #277: P/T statics, combat & prevention shields",
+        cards: [
+            { name: "Mightstone", owner: "me" as const },
+            { name: "Weakstone", owner: "me" as const },
+            { name: "Gaea's Avenger", owner: "me" as const },
+            { name: "Mishra's Factory", owner: "me" as const },
+            {
+                name: "Staff of Zegon",
+                owner: "me" as const,
+            },
+            {
+                name: "Amulet of Kroog",
+                owner: "me" as const,
+            },
+            {
+                name: "Battering Ram",
+                owner: "me" as const,
+            },
+            {
+                name: "Argivian Blacksmith",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Circle of Protection: Artifacts",
+                owner: "me" as const,
+            },
+            { name: "Mishra's Factory", owner: "opp" as const },
+            { name: "Amulet of Kroog", owner: "opp" as const },
+            { name: "Wall of Spears", owner: "opp" as const },
+            { name: "Mountain", owner: "me" as const, count: 5 },
+            { name: "Plains", owner: "me" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
