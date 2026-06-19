@@ -1026,6 +1026,53 @@ export const libraryOfAlexandria: CardDefinition = {
     ],
 };
 
+// Bazaar of Baghdad — "{T}: Draw two cards, then discard three cards." (CR 305
+// land, CR 121.6 draw, CR 701.8 discard.) A nonbasic land with no mana ability.
+// The draw and the discard are split across `resolveSteps`: step 0 commits the
+// draw, then step 1 suspends for the discard choice. A single `resolve` would
+// re-run the draw every time the discard choice suspended — that re-draw bug is
+// why this card was deferred until activated-ability `resolveSteps` shipped.
+export const bazaarOfBaghdad: CardDefinition = {
+    id: "ff37b863-f8c4-4584-8cc2-ac0e096e583f",
+    name: "Bazaar of Baghdad",
+    oracleText: "{T}: Draw two cards, then discard three cards.",
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "bazaar-of-baghdad-draw-discard",
+            oracleText: "{T}: Draw two cards, then discard three cards.",
+            cost: { tap: true },
+            useStack: true,
+            resolveSteps: [
+                // Step 0 — draw two (CR 121.6). Isolated in its own step so a
+                // suspension in the discard step never re-runs the draw.
+                (ctx: SpellContext) => {
+                    ctx.drawCards(ctx.controller, 2);
+                },
+                // Step 1 — discard three chosen cards (CR 701.8). Clamped to
+                // hand size: with fewer than three in hand, all are discarded.
+                (ctx: SpellContext) => {
+                    const handIds = ctx.getHandIds(ctx.controller);
+                    const count = Math.min(3, handIds.length);
+                    if (count === 0) return;
+                    const picks = ctx.requestChoice({
+                        playerId: ctx.controller,
+                        choiceId: "bazaar-discard",
+                        kind: "choose-hand-card",
+                        zone: "hand",
+                        count,
+                        prompt: `Discard ${count} card${count === 1 ? "" : "s"}.`,
+                    });
+                    if (picks === undefined) return;
+                    for (const id of picks) {
+                        ctx.discardCard(ctx.controller, id);
+                    }
+                },
+            ],
+        },
+    ],
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Batch 3 (#175) — damage prevention / replacement / destroy-replacement / reflect
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2511,10 +2558,6 @@ export const aladdinsLamp: CardDefinition = {
 //     unblocked-attacker trigger event.
 //   • Sandals of Abdallah — the "when that creature dies this turn, destroy
 //     this artifact" rider needs a per-target death watch.
-//   • Bazaar of Baghdad — "draw two, then discard three" draws BEFORE the
-//     discard choice; activated abilities have no `resolveSteps`, so the single
-//     `resolve` re-runs (and re-draws) when the discard choice suspends. Needs
-//     resolveSteps support on activated abilities.
 //
 // Other batches (PRD #171):
 //   • Batch 9 (#180-187, misc): Metamorphosis, Magnetic Mountain,

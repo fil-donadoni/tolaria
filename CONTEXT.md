@@ -8,9 +8,13 @@ Terms from the Magic: The Gathering Comprehensive Rules. The CR is the authority
 
 ### Game Structure
 
+**Match**:
+A best-of-N contest between two **Players**, composed of one or more **Games** (CR 100.6, tournament rules). Bo1 is a Match of a single **Game**; Bo3 is won by the first **Player** to win two **Games**. The Match owns the running **Game** score, the **Sideboarding** step between **Games**, and the play/draw choice for each **Game** after the first. Every **Game** belongs to exactly one Match.
+_Avoid_: Series, set (that's a card collection), session
+
 **Game**:
-A match between two **Players**, proceeding in **Turns** divided into **Phases**.
-_Avoid_: Match, session
+A single contest within a **Match** between two **Players**, proceeding in **Turns** divided into **Phases**, ending when one **Player** wins (life ≤ 0, decked, or concede). A **Match** may contain several Games played in sequence.
+_Avoid_: session
 
 **Player**:
 A participant in a **Game**, identified by a **Player ID**. Has life total, **Zones**, and a **Mana Pool**.
@@ -295,8 +299,20 @@ A search effect: `requestChoice({ kind: "search-library" })` reveals the searche
 _Avoid_: Fetch, search primitive
 
 **Deck**:
-The list of **Card IDs** a **Player** brings to a **Game**. Used only at game creation to build the initial **Library**. Static metadata — never mutated during gameplay.
+The list of **Card IDs** a **Player** brings to a **Match**, split into a **Maindeck** and a **Sideboard**. Used at the start of each **Game** to build the initial **Library** from the current **Maindeck**. Static metadata — never mutated during gameplay; only altered between **Games** by **Sideboarding**.
 _Avoid_: Library (that's the zone), card list
+
+**Maindeck**:
+The portion of a **Deck** that builds a **Player**'s starting **Library** for a **Game**. The cards actually played. Its size is fixed for the duration of a **Match** — **Sideboarding** may swap which cards are in it but not how many.
+_Avoid_: Mainboard (we use Maindeck), main, library
+
+**Sideboard**:
+The portion of a **Deck** held outside the **Maindeck** (0–15 cards). Not used to build the starting **Library**. Between **Games** of a **Match**, **Sideboarding** exchanges cards between the **Sideboard** and the **Maindeck**.
+_Avoid_: Side, bench, reserve
+
+**Sideboarding**:
+The step between two **Games** of a **Match** where a **Player** may exchange cards between **Maindeck** and **Sideboard**, keeping the **Maindeck** size constant and the combined card pool unchanged. Produces the **Maindeck** used to build the next **Game**'s **Library**.
+_Avoid_: Swapping, boarding, side-in/side-out
 
 ### Identity
 

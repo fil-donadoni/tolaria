@@ -11,6 +11,7 @@ When modifying files in `convex/gre/` or `convex/cards/`:
 
 ## Rules compliance
 
+- **CR-compliance is the default — never ask the user whether to follow the Comprehensive Rules.** When behavior is governed by the CR, implement it exactly as the CR specifies. Only surface a question when the CR is genuinely ambiguous, when intentionally simplifying/deferring, or when a design choice is not dictated by the CR. Verify the relevant CR text first (`/mtg-rules-check`) rather than asking.
 - Every game mechanic MUST reference its CR (Comprehensive Rules) section in code comments
 - Before implementing a new rule or modifying existing behavior, verify against official CR using `/mtg-rules-check`
 - Flag any deviation from CR explicitly — document what's simplified and why

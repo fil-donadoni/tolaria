@@ -4,9 +4,11 @@ import { getCardById } from "../cards";
 
 describe("PRESET_DECKS", () => {
     it.each(PRESET_DECKS.map((d) => [d.name, d]))(
-        "%s has 40 cards",
+        "%s has at least 40 cards",
         (_name, deck) => {
-            expect(deck.cards).toHaveLength(40);
+            // Casual presets are 40; constructed-style presets (e.g. Robots)
+            // may run larger. A deck must meet the 40-card minimum.
+            expect(deck.cards.length).toBeGreaterThanOrEqual(40);
         }
     );
 

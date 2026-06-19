@@ -16,8 +16,8 @@ function times(n: number, cardId: string, cardName: string): DeckCard[] {
     return Array.from({ length: n }, () => ({ cardId, cardName }));
 }
 
-// All preset decks: 40 cards total. Land count varies per list. Only cards
-// implemented in convex/cards/sets/lea.ts.
+// Casual presets run 40 cards; constructed-style presets (Robots) run larger.
+// Land count varies per list. Only cards implemented in convex/cards/sets/.
 
 const whiteWeenie: DeckPreset = {
     presetId: "white-weenie",
@@ -203,6 +203,84 @@ const monoBlack: DeckPreset = {
     ],
 };
 
+// "Robots" — vintage-style artifact aggro: cheap artifact creatures (Su-Chi,
+// Triskelion) and big bombs (Colossus of Sardia, Tetravus) accelerated by the
+// full Mox/Lotus suite, with UBR support (burn, reanimation, card draw).
+// Larger than the 40-card casual presets — kept at its constructed list size.
+const robots: DeckPreset = {
+    presetId: "robots",
+    name: "Robots",
+    format: "Freeform",
+    description:
+        "Artifact aggro: fast Moxen into Su-Chi, Triskelion and big bombs.",
+    colors: ["U", "B", "R"],
+    cards: [
+        ...times(
+            1,
+            "067c44e9-1b23-42fd-9acb-daafb62c32a2",
+            "Colossus of Sardia"
+        ),
+        ...times(
+            2,
+            "c9fd4054-42fc-4f95-a6f7-369a5da43dd5",
+            "Priest of Yawgmoth"
+        ),
+        ...times(3, "b4ff60ce-073c-46b8-807c-8b40467b960c", "Sage of Lat-Nam"),
+        ...times(4, "a64d4f93-0c04-4078-aec0-7e9de92f260f", "Su-Chi"),
+        ...times(1, "23eb19f9-2e8f-4bf0-9bf8-868e6da70e2d", "Tetravus"),
+        ...times(4, "a79c99e1-722a-44b6-8fa3-2be3f0c193d8", "Triskelion"),
+        ...times(1, "b0faa7f2-b547-42c4-a810-839da50dadfe", "Black Lotus"),
+        // Chaos Orb → Sol Ring (Chaos Orb not implemented).
+        ...times(1, "c4300d24-1cae-4dd5-be7e-38cc677cf5bd", "Sol Ring"),
+        ...times(1, "b0e1427c-05cd-465b-be59-97ed6e39f7ba", "Mox Emerald"),
+        ...times(1, "92bcd1ce-19b1-4d78-8b09-95242ca08d76", "Mox Jet"),
+        ...times(1, "8ebe4be7-e12a-4596-a899-fbd5b152e879", "Mox Pearl"),
+        ...times(1, "8945585f-4773-493d-a0fe-d707db910b38", "Mox Ruby"),
+        ...times(1, "82da0972-b17b-4600-9efd-e9430a0db04b", "Mox Sapphire"),
+        // Skull of Orm → Raise Dead (Skull of Orm not implemented).
+        ...times(1, "ce07bede-2219-427c-a61a-56518751de42", "Raise Dead"),
+        ...times(1, "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b", "Ancestral Recall"),
+        ...times(3, "a6a86e6e-bfff-46af-9d36-c912901fea92", "Psionic Blast"),
+        ...times(1, "62b19a12-6914-430e-81ce-dcfca47884df", "Braingeyser"),
+        ...times(1, "711d4d54-5520-4de8-9b93-79902ed8e562", "Demonic Tutor"),
+        // 2 Fireball + 2 Pyrotechnics (unimplemented) → 3 Fireball + 1 Earthquake
+        ...times(1, "e68ac362-6cdc-48a6-bdd3-4f8ea32add64", "Earthquake"),
+        ...times(3, "b7623c00-144b-4a8f-9c6c-f5e9e4f65ece", "Fireball"),
+        ...times(1, "eee9e106-a248-49d2-b8c8-6bbcd56ce739", "Mind Twist"),
+        // Recall → Bazaar of Baghdad.
+        ...times(
+            1,
+            "ff37b863-f8c4-4584-8cc2-ac0e096e583f",
+            "Bazaar of Baghdad"
+        ),
+        ...times(1, "e0139f60-d48e-46fb-9f5a-1e3d7558c834", "Time Walk"),
+        ...times(1, "9a49dc44-616e-4bdd-8220-0bb71eccc512", "Timetwister"),
+        ...times(1, "67b369c4-faa8-45c8-a1b9-98f228b69682", "Wheel of Fortune"),
+        ...times(3, "8fd7861d-925f-4b4c-a4ab-60be6f43d50b", "Animate Dead"),
+        ...times(1, "fd5ed955-1193-4e6a-a3e2-f54c1f9bf063", "Copy Artifact"),
+        // Dance of Many → The Hive (Dance of Many not implemented).
+        ...times(1, "544a7138-eae8-4ff9-9e17-680bfa717183", "The Hive"),
+        ...times(1, "717f6d10-9144-4ade-9ac6-a481cc66b875", "Badlands"),
+        ...times(1, "f4e32327-380d-471e-813b-4c27477787ce", "City of Brass"),
+        ...times(2, "90a57c0e-fa61-45ef-955d-d296403967d5", "Island"),
+        ...times(
+            1,
+            "ee266113-34ce-4189-84e7-ee2c86a2722c",
+            "Library of Alexandria"
+        ),
+        ...times(
+            1,
+            "135de5c7-6ac9-4b68-8f1a-97f120a4b125",
+            "Mishra's Workshop"
+        ),
+        ...times(1, "eace2c85-976c-425e-9800-5a6ccbd91b56", "Mountain"),
+        ...times(1, "e7880157-7f27-4f1b-9cdc-ab36a6252376", "Strip Mine"),
+        ...times(1, "6176936d-72e2-4205-8871-4c5a4f1cb2d8", "Swamp"),
+        ...times(4, "ff76ac86-8a8a-47fe-9388-8950ca3e26c3", "Underground Sea"),
+        ...times(4, "0324641d-af55-4c53-b4dc-c8262e967da5", "Volcanic Island"),
+    ],
+};
+
 export const PRESET_DECKS: DeckPreset[] = [
     whiteWeenie,
     monoRedBurn,
@@ -211,4 +289,5 @@ export const PRESET_DECKS: DeckPreset[] = [
     leDeck,
     gueddon,
     monoBlack,
+    robots,
 ];

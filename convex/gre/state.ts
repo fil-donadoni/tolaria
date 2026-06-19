@@ -1752,7 +1752,23 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 (a) => a.id === top.abilityId
             );
         }
-        if (ability?.resolve) {
+        // --- Stepped activated-ability resolve (CR 608.2, 101.4) ---
+        // Mirrors the stepped-spell path: peek-and-pop, advance `resolutionStep`
+        // before each step so a `requestChoice` suspension resumes the SAME step
+        // (and never re-runs completed steps). Lets "draw, then discard a chosen
+        // card" abilities (Bazaar of Baghdad) draw exactly once.
+        if (ability?.resolveSteps && ability.resolveSteps.length > 0) {
+            const start = top.resolutionStep ?? 0;
+            for (let i = start; i < ability.resolveSteps.length; i++) {
+                top.resolutionStep = i;
+                const ctx = buildSpellContext(state, top);
+                ability.resolveSteps[i](ctx);
+                if ((state.pendingChoices?.length ?? 0) > 0) {
+                    return null; // suspended — wait for selectResolutionChoice
+                }
+            }
+            delete top.resolutionStep;
+        } else if (ability?.resolve) {
             const ctx = buildSpellContext(state, top);
             ability.resolve(ctx);
             if ((state.pendingChoices?.length ?? 0) > 0) return null;

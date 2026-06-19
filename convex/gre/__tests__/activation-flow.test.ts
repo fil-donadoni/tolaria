@@ -31,6 +31,7 @@ import {
     ifhBiffEfreet,
     birdMaiden,
     jandorsRing,
+    bazaarOfBaghdad,
 } from "../../cards/sets/arn";
 import type { CardType } from "../../cards/types";
 import { ashnodsBattleGear } from "../../cards/sets/atq";
@@ -987,5 +988,87 @@ describe("activation flow — Ashnod's Battle Gear (+2/-2 while tapped)", () => 
             state.players[0].battlefield.find((c) => c.id === "gear")!.isTapped
         ).toBe(false);
         expect(getEffectivePower(state, liveBear)).toBe(3); // buff ended
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Bazaar of Baghdad — stepped activated ability through the real path:
+// activateAbility (tap cost, no mana → auto-commit) → resolveTopOfStack
+// (step 0 draws two, step 1 suspends) → applyPendingChoiceSubmit (the
+// production discard resume). Guards the re-draw bug end-to-end: the draw
+// must commit exactly once before the discard choice suspends.
+// ---------------------------------------------------------------------------
+
+describe("activation flow — Bazaar of Baghdad ({T}: draw two, discard three)", () => {
+    function fillerInstances(
+        prefix: string,
+        zone: "library" | "hand",
+        n: number
+    ) {
+        return Array.from({ length: n }, (_, i) =>
+            makeInstance({
+                id: `${prefix}${i}`,
+                card: { id: `synth-${prefix}${i}` },
+                types: ["Creature"],
+                zone,
+            })
+        );
+    }
+
+    it("draws exactly once before suspending, then discards the three chosen cards", () => {
+        const bazaar = makeInstance({
+            id: "bazaar",
+            card: { id: bazaarOfBaghdad.id },
+            types: ["Land"],
+        });
+        const state = makeGame({
+            players: [
+                makePlayer({
+                    id: "p1",
+                    battlefield: [bazaar],
+                    library: fillerInstances("lib", "library", 5),
+                    hand: fillerInstances("h", "hand", 4),
+                }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+
+        // {T} cost, no mana → activation auto-commits and taps Bazaar.
+        const result = activateAbility(
+            state,
+            "p1",
+            "bazaar",
+            "bazaar-of-baghdad-draw-discard"
+        );
+        expect(result).toBe("committed");
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "bazaar")!
+                .isTapped
+        ).toBe(true);
+
+        // Resolve: step 0 draws two, step 1 suspends on the discard choice.
+        resolveTopOfStack(state);
+        expect(state.players[0].library).toHaveLength(3); // drew exactly twice
+        expect(state.players[0].hand).toHaveLength(6);
+        expect(state.pendingChoices?.[0]?.choiceId).toBe("bazaar-discard");
+
+        // Production discard resume.
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["h0", "h1", "lib0"],
+        });
+
+        expect(state.players[0].library).toHaveLength(3); // no second draw
+        expect(state.players[0].hand).toHaveLength(3);
+        expect(state.players[0].graveyard.map((c) => c.id).sort()).toEqual([
+            "h0",
+            "h1",
+            "lib0",
+        ]);
+        expect(state.stack).toHaveLength(0);
     });
 });

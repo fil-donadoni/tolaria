@@ -297,6 +297,18 @@ export interface ActivatedAbility {
     useStack: boolean;
     /** Effect for stack abilities (useStack: true) — called with full SpellContext on resolution. */
     resolve?: (ctx: SpellContext) => void;
+    /** Multi-step resolve for stack abilities that gather player choices
+     *  mid-resolution (CR 608.2, 101.4). Mirrors `CardDefinition.resolveSteps`:
+     *  the engine runs steps in order; a step that calls
+     *  `SpellContext.requestChoice` suspends the ability and waits for
+     *  `selectResolutionChoice`. On resume the SAME step is re-invoked (earlier
+     *  steps are NOT re-run, tracked via `resolutionStep`), so effects applied
+     *  before the suspension are not duplicated. This is what lets
+     *  "draw, then discard with a choice" abilities draw exactly once: the draw
+     *  lives in an earlier step than the discard choice. Use `resolveSteps` XOR
+     *  `resolve`; if both are present, `resolveSteps` wins. Used by Bazaar of
+     *  Baghdad ("{T}: Draw two cards, then discard three cards"). */
+    resolveSteps?: ((ctx: SpellContext) => void)[];
     /** Fixed mana output — used by the engine to track pool changes without executing the effect. */
     manaProduced?: ManaCost;
     /** Board-conditional mana output (CR 106.1, 605.1a). When present, the

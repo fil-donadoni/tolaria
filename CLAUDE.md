@@ -130,7 +130,7 @@ Cards are defined as **data**, not imperative code. Three complexity levels:
 
 1. **Pure data** — Vanilla creatures and basic lands (stats only)
 2. **Declarative behavior** — Triggered/activated/static abilities using structured templates
-3. **Imperative behavior** — Layer system (out of initial scope). Replacement effects have shipped.
+3. **Imperative behavior** — `resolve()` closures for one-shot spell/ability effects. Continuous static effects are data: declare `staticEffects[]` and the layer system (`convex/gre/layers.ts`, CR 611/613) computes them at read time. Replacement effects have shipped.
 
 Key types in `convex/cards/types.ts`: `CardDefinition`, `ActivatedAbility`, `ManaCost`, `SpellContext`, `TargetRequirement`, `TargetSelection`.
 
@@ -218,12 +218,28 @@ Browser visual verification is NOT a default gate. Run it only when the user exp
 
 When implementing a new MTG rule or card ability, always cross-reference the user's instruction with the official Magic: The Gathering Comprehensive Rules. Before writing code, discuss with the user any details not covered in their instruction — edge cases, interactions, timing — and decide together what to implement now vs defer.
 
-## Out of Scope (initial)
+## Implemented engine capabilities
 
-- Layer system for static effects (Anthem, Humility)
-- Complex choice triggered abilities
-- Simultaneous trigger APNAP ordering
-- Full card catalog — starting with a controlled limited set
+The engine follows the Comprehensive Rules. The following were once deferred but
+have since **shipped** — do not treat them as out of scope:
+
+- **Continuous static effects via the layer system** (`gre/layers.ts`, CR 611/613):
+  P/T (layers 7a–7e, ADR 0017), color (5), type/subtype add (4), ability grant /
+  removal / loss (6), control change (2), text-changing (3, ADR 0011). Anthems
+  (Crusade) and ability-stripping (Humility-style) are expressible as `staticEffects[]`
+  with an `applies` predicate.
+- **Replacement effects** (`gre/replacements.ts`) — damage, destroy (ADR 0020), etc.
+- **Complex / choice triggered abilities** and **simultaneous-trigger APNAP ordering**
+  (CR 603.3b).
+
+## Out of Scope
+
+- **Full card catalog** — a controlled, growing set, not all ~80k cards.
+- **3+ player multiplayer** — only 2-player and solo (one user, two seats).
+- **Ante & subgames** — Shahrazad, ante cards (ADR 0010).
+
+When a card needs a capability that genuinely isn't built yet, flag it explicitly
+rather than assuming it's deferred — most mechanics are now supported.
 
 ## Agent skills
 

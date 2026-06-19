@@ -3755,6 +3755,35 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Bazaar of Baghdad — "{T}: Draw two cards, then discard three cards"
+        // (CR 121.6 draw, CR 701.8 discard). The draw and discard are split
+        // across activated-ability `resolveSteps`, so the draw commits exactly
+        // once before the discard choice suspends (the re-draw bug this card was
+        // deferred for).
+        //   • Right-click Bazaar of Baghdad → activate its only ability. It taps;
+        //     your hand grows from 2 to 4 (drew two off the library).
+        //   • A discard prompt asks for exactly three cards — pick three. Hand
+        //     drops to 1, three cards hit your graveyard, and the library is down
+        //     by exactly two (never four).
+        label: "Bazaar of Baghdad: draw two, then discard three (stepped activated ability)",
+        cards: [
+            { name: "Bazaar of Baghdad", owner: "me" as const },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Psionic Blast",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 10,
+    },
 ];
 
 type DebugPanelProps = {

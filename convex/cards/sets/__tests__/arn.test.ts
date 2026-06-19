@@ -71,6 +71,7 @@ import {
     ydwenEfreet,
     jihad,
     aladdinsLamp,
+    bazaarOfBaghdad,
 } from "../arn";
 import {
     grizzlyBears,
@@ -4020,5 +4021,103 @@ describe("Aladdin's Lamp (#189) — replace the next draw with look-X-keep-one",
         }
         expect(state.activePlayerId).toBe("p2");
         expect(state.drawLookReplacements).toBeUndefined();
+    });
+});
+
+describe("Bazaar of Baghdad ({T}: Draw two cards, then discard three cards)", () => {
+    // Each filler card is a distinct grizzly-bear instance in the named zone.
+    const libCard = (id: string) =>
+        makeInstance(grizzlyBears.id, {
+            id,
+            controllerId: "p1",
+            zone: "library",
+        });
+    const handCard = (id: string) =>
+        makeInstance(grizzlyBears.id, { id, controllerId: "p1", zone: "hand" });
+
+    function bazaarState(libIds: string[], handIds: string[]): GameState {
+        const bazaar = makeInstance(bazaarOfBaghdad.id, {
+            id: "bazaar",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [bazaar],
+                    library: libIds.map(libCard),
+                    hand: handIds.map(handCard),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    const bazaarInstance = (state: GameState) =>
+        state.players[0].battlefield.find((c) => c.id === "bazaar")!;
+
+    it("draws two BEFORE suspending for the discard choice, drawing exactly once (CR 121.6, 701.8)", () => {
+        const state = bazaarState(
+            ["l1", "l2", "l3", "l4", "l5"],
+            ["h1", "h2", "h3", "h4"]
+        );
+
+        // Step 0 (draw two) commits, then step 1 suspends on the discard choice.
+        resolveActivated(
+            state,
+            bazaarInstance(state),
+            "bazaar-of-baghdad-draw-discard"
+        );
+
+        const p1 = () => state.players[0];
+        // Draw happened exactly once: library 5 → 3, hand 4 → 6. A re-running
+        // single `resolve` would have drawn twice (library 1) — the bug this
+        // card was deferred for.
+        expect(p1().library).toHaveLength(3);
+        expect(p1().hand).toHaveLength(6);
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.pendingChoices![0].choiceId).toBe("bazaar-discard");
+        // Still on the stack while suspended.
+        expect(state.stack).toHaveLength(1);
+
+        // Discard three of the six held cards.
+        answerChoice(state, ["h1", "h2", "l1"]);
+
+        // Library unchanged by the discard (no second draw): still 3.
+        expect(p1().library).toHaveLength(3);
+        expect(p1().hand).toHaveLength(3);
+        expect(p1().graveyard).toHaveLength(3);
+        expect(
+            p1()
+                .graveyard.map((c) => c.id)
+                .sort()
+        ).toEqual(["h1", "h2", "l1"]);
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+
+        // Wire format — the visible draw/discard survives projection.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand).toHaveLength(3);
+        expect(projected.players[0].graveyard).toHaveLength(3);
+        expect(projected.players[0].library.count).toBe(3);
+    });
+
+    it("clamps the discard to hand size when fewer than three cards are held", () => {
+        // Library 3, empty hand → draw two → hand 2 → discard min(3,2)=2.
+        const state = bazaarState(["l1", "l2", "l3"], []);
+        resolveActivated(
+            state,
+            bazaarInstance(state),
+            "bazaar-of-baghdad-draw-discard"
+        );
+
+        expect(state.players[0].hand).toHaveLength(2);
+        expect(state.pendingChoices).toHaveLength(1);
+
+        answerChoice(state, ["l1", "l2"]);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].graveyard).toHaveLength(2);
+        expect(state.players[0].library).toHaveLength(1);
+        expect(state.stack).toHaveLength(0);
     });
 });

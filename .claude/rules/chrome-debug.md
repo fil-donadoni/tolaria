@@ -52,7 +52,7 @@ to reach a playable board.
 | `tolaria:playerId`       | session player id — clear together with `gameId`   |
 
 Available preset ids: `white-weenie`, `mono-red-burn`, `channel-fireball`,
-`mono-green-stompy`, `le-deck`, `gueddon`, `mono-black`. Pick whichever deck
+`mono-green-stompy`, `le-deck`, `gueddon`, `mono-black`, `robots`. Pick whichever deck
 exposes the cards your scenario needs (`mono-red-burn` is a fine generic
 default for non-deck-specific debugging).
 
