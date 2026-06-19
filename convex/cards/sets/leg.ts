@@ -24,6 +24,7 @@ import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { tappedTrigger } from "../abilities/triggers/tappedTrigger";
 import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
+import { diedTrigger } from "../abilities/triggers/diedTrigger";
 import { manaCostForCardId } from "../manaCostLookup";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1100,3 +1101,487 @@ function colorsOf(view: { card: Record<string, unknown> }): string[] {
         (c) => (cost[c] ?? 0) > 0
     );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Black free tranche (#373) — every mono-black Legends card expressible with
+// existing primitives (keywords, staticEffects / layer system, trigger
+// factories, regeneration shields, prevention shields, reanimation, SpellContext
+// methods). Data + resolve() closures only; zero engine change (ADR 0014).
+//
+// Cards owned by feature clusters (#369 C1–C9) are NOT here:
+//   • Nether Void → C8 (cast-tax "counter unless pay" World enchantment).
+//   • The Abyss → its upkeep "destroy target nonartifact creature that player
+//     controls of their choice" rides the world-rule (C2) World base; deferred
+//     with the rest of the World-supertype cards.
+//   • Cosmic Horror, Mold Demon → C7 (upkeep / ETB pay-or-sacrifice).
+//   • Spirit Shackle, Takklemaggot, All Hallow's Eve → C5 (named counters:
+//     -0/-2, -0/-1, scream).
+//   • Wall of Shadows → C6 (can't-be-the-target-of Wall-only spells/abilities).
+//   • Pit Scorpion → C5 (poison counters — no named-counter primitive yet).
+//   • Lesser Werewolf → C5 (-0/-1 counters on a combatant).
+//
+// Cards that genuinely need an unbuilt primitive are SKIPPED (not built here):
+//   • Transmutation — "switch power and toughness" has no swap primitive.
+//   • Abomination, Infernal Medusa — "whenever this blocks / becomes blocked by
+//     [a creature], destroy that creature at end of combat" needs a
+//     becomes-blocked trigger plus a deferred end-of-combat destroy; neither
+//     exists.
+//   • Glyph of Doom — "at the next end of combat, destroy all creatures blocked
+//     by that Wall this turn" needs the same deferred-end-of-combat + per-combat
+//     block tracking.
+//   • Imprison — counters a {T} activation of the enchanted creature and removes
+//     it from combat for {1}; no activate-an-ability "may pay to counter"
+//     replacement.
+//   • Chains of Mephistopheles — a draw replacement with a per-step exemption;
+//     no draw-replacement primitive of this shape.
+//   • Giant Slug — "{5}: at the beginning of your next upkeep, gain landwalk
+//     of a chosen type" needs a delayed cross-turn keyword grant.
+//   • Shimian Night Stalker — continuous combat-damage redirection from a chosen
+//     attacker; no such redirection primitive.
+//   • Underworld Dreams — "whenever an opponent draws a card" needs a card-drawn
+//     trigger that doesn't exist yet.
+//   • Vampire Bats — "{B}: +1/+0, activate no more than TWICE each turn" needs a
+//     numeric per-turn activation cap (only `oncePerTurn` exists).
+//   • Quagmire — "creatures with swampwalk can be blocked as though they didn't
+//     have swampwalk" needs a global landwalk-suppression static.
+//   • Demonic Torment, Evil Eye of Orms-by-Gore — emit can't-attack restrictions
+//     onto OTHER creatures (the source-emitted `attack-restriction` only binds
+//     the creature carrying it); no other-creature attack-lock static.
+//   • Wall of Putrid Flesh — its "prevent all damage dealt to this by enchanted
+//     creatures" clause needs a continuous, source-filtered prevention static.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// --- Vanilla / keyword creatures (CR 702 — pure data) ---------------------
+
+// Headless Horseman — vanilla 2/2 (CR 110.1 pure data).
+export const headlessHorseman: CardDefinition = {
+    id: "d1aa37c8-98fa-4984-b09b-cf65ad84e97b",
+    name: "Headless Horseman",
+    oracleText: "",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Zombie", "Knight"],
+    power: 2,
+    toughness: 2,
+};
+
+// Lost Soul — swampwalk (CR 702.19 landwalk variant).
+export const lostSoul: CardDefinition = {
+    id: "601eed5c-436d-425b-a45f-07881ad893c8",
+    name: "Lost Soul",
+    oracleText:
+        "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Spirit", "Minion"],
+    power: 2,
+    toughness: 1,
+    staticAbilities: ["swampwalk"],
+};
+
+// --- Activated-ability creatures (CR 605) ----------------------------------
+
+// Carrion Ants — "{1}: This creature gets +1/+1 until end of turn." (CR 611.1
+// repeatable temporary buff.)
+export const carrionAnts: CardDefinition = {
+    id: "cbc0b009-3951-4aa3-985a-97139882da7e",
+    name: "Carrion Ants",
+    oracleText: "{1}: This creature gets +1/+1 until end of turn.",
+    manaCost: { X: 2, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Insect"],
+    power: 0,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "carrion-ants-pump",
+            oracleText: "{1}: This creature gets +1/+1 until end of turn.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+
+// Walking Dead — "{B}: Regenerate this creature." (CR 701.15a regeneration
+// shield.)
+export const walkingDead: CardDefinition = {
+    id: "d7533a72-77d1-40cd-b3a1-7597d566c428",
+    name: "Walking Dead",
+    oracleText: "{B}: Regenerate this creature.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "walking-dead-regenerate",
+            oracleText: "{B}: Regenerate this creature.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.applyRegenerationShield({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
+
+// Ghosts of the Damned — "{T}: Target creature gets -1/-0 until end of turn."
+// (CR 611.1 temporary debuff via a tap ability.)
+export const ghostsOfTheDamned: CardDefinition = {
+    id: "20275678-3488-43d8-a93b-993e2267ab07",
+    name: "Ghosts of the Damned",
+    oracleText: "{T}: Target creature gets -1/-0 until end of turn.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Spirit"],
+    power: 0,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "ghosts-of-the-damned-debuff",
+            oracleText: "{T}: Target creature gets -1/-0 until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.addTemporaryPTBuff(target, -1, 0, {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
+
+// Fallen Angel — Flying; "Sacrifice a creature: This creature gets +2/+1 until
+// end of turn." (CR 702.9 flying + CR 602.1 sacrifice-another cost via
+// `sacrificeFilter`, CR 611.1 buff.)
+export const fallenAngel: CardDefinition = {
+    id: "0f4174e4-0be8-49b5-8c52-22001790f6eb",
+    name: "Fallen Angel",
+    oracleText:
+        "Flying\nSacrifice a creature: This creature gets +2/+1 until end of turn.",
+    manaCost: { X: 3, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Angel"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "fallen-angel-feast",
+            oracleText:
+                "Sacrifice a creature: This creature gets +2/+1 until end of turn.",
+            cost: { sacrificeFilter: { types: "Creature" } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    2,
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+
+// Hell's Caretaker — "{T}, Sacrifice a creature: Return target creature card
+// from your graveyard to the battlefield. Activate only during your upkeep."
+// (CR 602.5b activation-window restriction + CR 400.7 reanimation.)
+export const hellsCaretaker: CardDefinition = {
+    id: "336b3b8f-d104-4f06-ad4f-c92b8a9038ca",
+    name: "Hell's Caretaker",
+    oracleText:
+        "{T}, Sacrifice a creature: Return target creature card from your graveyard to the battlefield. Activate only during your upkeep.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Horror"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "hells-caretaker-reanimate",
+            oracleText:
+                "{T}, Sacrifice a creature: Return target creature card from your graveyard to the battlefield. Activate only during your upkeep.",
+            cost: { tap: true, sacrificeFilter: { types: "Creature" } },
+            useStack: true,
+            controllerTurnOnly: true,
+            activationPhaseRestriction: ["UPKEEP"],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "graveyard-card") {
+                    ctx.returnToBattlefield(
+                        ctx.controller,
+                        target.id,
+                        "graveyard"
+                    );
+                }
+            },
+        },
+    ],
+};
+
+// --- Auras (CR 303 — Enchant land) ----------------------------------------
+
+// Blight — "Enchant land. When enchanted land becomes tapped, destroy it."
+// (CR 303.4 host trigger via the tapped factory → CR 701.7 destroy.)
+export const blight: CardDefinition = {
+    id: "9ca19b39-4201-463c-bd40-fbffa31c9eda",
+    name: "Blight",
+    oracleText: "Enchant land\nWhen enchanted land becomes tapped, destroy it.",
+    manaCost: { B: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1 },
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "blight-destroy-land",
+            oracleText: "When enchanted land becomes tapped, destroy it.",
+            scope: "any",
+            // Fire only for the aura's own host (CR 303.4b).
+            condition: (event, self) => event.permanentId === self.attachedTo,
+            resolve: (ctx) => {
+                const host = ctx.getAttachedToId();
+                if (host) ctx.destroy({ type: "permanent", id: host });
+            },
+        }),
+    ],
+};
+
+// --- Removal / sweeper spells (CR 701.7) -----------------------------------
+
+// Hell Swarm — "All creatures get -1/-0 until end of turn." (CR 611.1 one-shot
+// team debuff applied per creature on the battlefield.)
+export const hellSwarm: CardDefinition = {
+    id: "64164d1b-75f4-456e-a717-90ce554dc16c",
+    name: "Hell Swarm",
+    oracleText: "All creatures get -1/-0 until end of turn.",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        for (const pid of ctx.allPlayerIds) {
+            for (const id of ctx.getBattlefieldIds(pid, {
+                types: "Creature",
+            })) {
+                ctx.addTemporaryPTBuff({ type: "permanent", id }, -1, 0, {
+                    phase: "end-of-turn",
+                });
+            }
+        }
+    },
+};
+
+// Hellfire — "Destroy all nonblack creatures. Hellfire deals X plus 3 damage to
+// you, where X is the number of creatures that died this way." (CR 701.7 mass
+// destroy filtered on colour + CR 614.5 count of permanents destroyed this way,
+// then CR 120.1 damage to caster.)
+export const hellfire: CardDefinition = {
+    id: "362f1fe9-20af-434c-9957-7a1a564d89e6",
+    name: "Hellfire",
+    oracleText:
+        "Destroy all nonblack creatures. Hellfire deals X plus 3 damage to you, where X is the number of creatures that died this way.",
+    manaCost: { X: 2, B: 3 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        // Colour-aware sweep: `destroyAll` doesn't populate colours, so drive
+        // the destroy off the colour-aware id query (CR 202.2). "Nonblack" is
+        // the set difference between all creatures and the black ones; tally
+        // how many were actually put into a graveyard (CR 614.5).
+        let died = 0;
+        for (const pid of ctx.allPlayerIds) {
+            const black = new Set(
+                ctx.getBattlefieldIds(pid, {
+                    types: "Creature",
+                    colors: "B",
+                })
+            );
+            for (const id of ctx.getBattlefieldIds(pid, {
+                types: "Creature",
+            })) {
+                if (black.has(id)) continue;
+                if (ctx.destroy({ type: "permanent", id })) died += 1;
+            }
+        }
+        ctx.dealDamage({ type: "player", id: ctx.caster }, died + 3);
+    },
+};
+
+// --- Drain / burn spells ---------------------------------------------------
+
+// Syphon Soul — "Syphon Soul deals 2 damage to each other player. You gain life
+// equal to the damage dealt this way." (CR 120.1 damage to each opponent → CR
+// 119.3 lifegain; 2-player so a single opponent contributes 2.)
+export const syphonSoul: CardDefinition = {
+    id: "f3020304-7a39-411e-b055-3ade72b4bff8",
+    name: "Syphon Soul",
+    oracleText:
+        "Syphon Soul deals 2 damage to each other player. You gain life equal to the damage dealt this way.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        let dealt = 0;
+        for (const pid of ctx.allPlayerIds) {
+            if (pid === ctx.caster) continue;
+            ctx.dealDamage({ type: "player", id: pid }, 2);
+            dealt += 2;
+        }
+        ctx.gainLife(ctx.caster, dealt);
+    },
+};
+
+// Jovial Evil — "Jovial Evil deals X damage to target opponent, where X is twice
+// the number of white creatures that player controls." (CR 202.2 colour count
+// snapshot at resolution → CR 120.1 damage.)
+export const jovialEvil: CardDefinition = {
+    id: "c993c74c-a574-423b-81c8-96b0a7a6e529",
+    name: "Jovial Evil",
+    oracleText:
+        "Jovial Evil deals X damage to target opponent, where X is twice the number of white creatures that player controls.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1, controller: "opponent" },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "player") return;
+        const whiteCreatures = ctx.getBattlefieldIds(target.id, {
+            types: "Creature",
+            colors: "W",
+        }).length;
+        ctx.dealDamage(target, whiteCreatures * 2);
+    },
+};
+
+// --- Tricks / regeneration utility -----------------------------------------
+
+// Touch of Darkness — "One or more target creatures become black until end of
+// turn." (CR 305.7 layer-5 colour override, end-of-turn duration; variable
+// target count, CR 601.2c.)
+export const touchOfDarkness: CardDefinition = {
+    id: "eda7177f-1354-4008-aaaa-2c8b823ed5e9",
+    name: "Touch of Darkness",
+    oracleText: "One or more target creatures become black until end of turn.",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: { min: 1 } },
+    resolve: (ctx: SpellContext) => {
+        for (const target of ctx.targets) {
+            if (target.type === "permanent") {
+                ctx.setColorOverride(target, ["B"]);
+            }
+        }
+    },
+};
+
+// Horror of Horrors — "Sacrifice a Swamp: Regenerate target black creature."
+// (CR 602.1 sacrifice cost via `sacrificeFilter` + CR 701.15a regeneration
+// shield on a colour-restricted target.)
+export const horrorOfHorrors: CardDefinition = {
+    id: "b9f68dc2-c048-41ec-b237-c36fdd99c27d",
+    name: "Horror of Horrors",
+    oracleText: "Sacrifice a Swamp: Regenerate target black creature.",
+    manaCost: { X: 3, B: 2 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "horror-of-horrors-regenerate",
+            oracleText: "Sacrifice a Swamp: Regenerate target black creature.",
+            cost: { sacrificeFilter: { types: "Land", subtypes: "Swamp" } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1, colorFilter: "B" },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.applyRegenerationShield(target);
+                }
+            },
+        },
+    ],
+};
+
+// --- Death triggers (CR 603.2) ---------------------------------------------
+
+// Cyclopean Mummy — "When this creature dies, exile it." (CR 603.2 self death
+// trigger → CR 406 exile of the card now in the graveyard.)
+export const cyclopeanMummy: CardDefinition = {
+    id: "479ccc50-2d72-4adc-901e-fbd4eef2cf92",
+    name: "Cyclopean Mummy",
+    oracleText: "When this creature dies, exile it.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 2,
+    toughness: 1,
+    triggeredAbilities: [
+        diedTrigger({
+            id: "cyclopean-mummy-exile",
+            oracleText: "When this creature dies, exile it.",
+            scope: "self",
+            resolve: (ctx, _event, deadCreature) => {
+                // The card is in its owner's graveyard by the time the trigger
+                // resolves (CR 603.10); move that exact object to exile
+                // (CR 406 zone change).
+                ctx.moveCardById(
+                    deadCreature.controllerId,
+                    deadCreature.id,
+                    "graveyard",
+                    "exile"
+                );
+            },
+        }),
+    ],
+};
+
+// Greed — "{B}, Pay 2 life: Draw a card." (CR 118.4 life payment + CR 121.1
+// draw.)
+export const greed: CardDefinition = {
+    id: "111a16a2-e875-4756-80db-290f9e8606db",
+    name: "Greed",
+    oracleText: "{B}, Pay 2 life: Draw a card.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "greed-draw",
+            oracleText: "{B}, Pay 2 life: Draw a card.",
+            cost: { mana: { B: 1 }, life: 2 },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.drawCards(ctx.controller, 1);
+            },
+        },
+    ],
+};
+
+// Darkness — "Prevent all combat damage that would be dealt this turn."
+// (CR 615 — the global combat-damage prevention used by Fog-style cards.)
+export const darkness: CardDefinition = {
+    id: "53b04dab-45b7-418b-a0f0-bcf35145fc53",
+    name: "Darkness",
+    oracleText: "Prevent all combat damage that would be dealt this turn.",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        ctx.preventAllCombatDamage();
+    },
+};

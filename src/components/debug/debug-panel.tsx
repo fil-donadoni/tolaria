@@ -3900,6 +3900,66 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // LEG black #373 — sacrifice / pump / reanimation. Fallen Angel eats a
+        // creature for +2/+1, Carrion Ants pumps repeatedly, Walking Dead and
+        // Horror of Horrors hand out regeneration shields, and Hell's Caretaker
+        // (set the phase to your upkeep) reanimates a creature from the
+        // graveyard by sacrificing one.
+        label: "LEG black #373: Fallen Angel, Carrion Ants, regen, Hell's Caretaker",
+        cards: [
+            { name: "Fallen Angel", owner: "me" as const },
+            { name: "Carrion Ants", owner: "me" as const },
+            { name: "Walking Dead", owner: "me" as const },
+            { name: "Headless Horseman", owner: "me" as const },
+            { name: "Hell's Caretaker", owner: "me" as const },
+            { name: "Horror of Horrors", owner: "me" as const },
+            {
+                name: "Cyclopean Mummy",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 6 },
+        ],
+        phase: "UPKEEP",
+        landCount: 0,
+    },
+    {
+        // LEG black #373 — removal / drain / tricks. Hellfire wipes nonblack
+        // creatures (and burns you), Hell Swarm shrinks the board, Syphon Soul
+        // drains the opponent, Jovial Evil scales off their white creatures,
+        // Touch of Darkness recolours a creature, Greed draws off life, and
+        // Blight destroys an enchanted land the moment it taps.
+        label: "LEG black #373: Hellfire, Hell Swarm, Syphon Soul, Greed, Blight",
+        cards: [
+            { name: "Hellfire", owner: "me" as const, zone: "hand" as const },
+            { name: "Hell Swarm", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Syphon Soul",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Jovial Evil",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Touch of Darkness",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Darkness", owner: "me" as const, zone: "hand" as const },
+            { name: "Greed", owner: "me" as const },
+            { name: "Blight", owner: "me" as const, zone: "hand" as const },
+            { name: "Keepers of the Faith", owner: "opp" as const },
+            { name: "Hill Giant", owner: "opp" as const },
+            { name: "Lost Soul", owner: "opp" as const },
+            { name: "Swamp", owner: "me" as const, count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

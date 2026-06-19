@@ -53,9 +53,26 @@ import {
     teleport,
     energyTap,
     reset,
+    headlessHorseman,
+    lostSoul,
+    carrionAnts,
+    walkingDead,
+    ghostsOfTheDamned,
+    fallenAngel,
+    hellsCaretaker,
+    blight,
+    hellSwarm,
+    hellfire,
+    syphonSoul,
+    jovialEvil,
+    touchOfDarkness,
+    horrorOfHorrors,
+    cyclopeanMummy,
+    greed,
+    darkness,
 } from "../leg";
 import { getCardById, getCardByName, getAllCards } from "../../index";
-import { lightningBolt, mountain, forest, island } from "../lea";
+import { lightningBolt, mountain, forest, island, swamp } from "../lea";
 import {
     resolveTopOfStack,
     type CardInstanceState,
@@ -1121,5 +1138,467 @@ describe("Reset (untap your lands, opponent-turn only, CR 117.1b)", () => {
         expect(
             state.players[0].battlefield.find((c) => c.id === "isl")!.isTapped
         ).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Black free tranche (#373)
+// ---------------------------------------------------------------------------
+
+describe("LEG black keyword / vanilla creatures (CR 702)", () => {
+    it("Headless Horseman is a vanilla 2/2 with no abilities", () => {
+        expect(headlessHorseman.power).toBe(2);
+        expect(headlessHorseman.toughness).toBe(2);
+        expect(headlessHorseman.staticAbilities ?? []).toEqual([]);
+        expect(headlessHorseman.triggeredAbilities).toBeUndefined();
+        expect(headlessHorseman.activatedAbilities).toBeUndefined();
+    });
+    it("Lost Soul has swampwalk", () => {
+        expect(lostSoul.staticAbilities).toContain("swampwalk");
+    });
+    it("Fallen Angel has flying", () => {
+        expect(fallenAngel.staticAbilities).toContain("flying");
+    });
+});
+
+describe("Carrion Ants ({1}: +1/+1 EOT, CR 611.1)", () => {
+    it("pumps itself by +1/+1 until end of turn (repeatable)", () => {
+        const ants = makeInstance(carrionAnts.id, {
+            id: "ants",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ants] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, ants)).toBe(0);
+        expect(getEffectiveToughness(state, ants)).toBe(1);
+        // Activate twice.
+        for (let i = 0; i < 2; i++) {
+            state.stack.push({
+                ...ants,
+                zone: "stack",
+                castById: "p1",
+                abilityId: "carrion-ants-pump",
+                targets: [],
+            } as StackItem);
+            resolveTopOfStack(state);
+        }
+        const live = state.players[0].battlefield.find((c) => c.id === "ants")!;
+        expect(getEffectivePower(state, live)).toBe(2);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+        // Wire format: the buff survives projection.
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "ants"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+describe("Walking Dead ({B}: Regenerate this, CR 701.15a)", () => {
+    it("arms a regeneration shield on itself", () => {
+        const wd = makeInstance(walkingDead.id, {
+            id: "wd",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wd] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...wd,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "walking-dead-regenerate",
+            targets: [],
+        } as StackItem);
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find((c) => c.id === "wd")!;
+        expect(live.regenerationShields ?? 0).toBeGreaterThanOrEqual(1);
+    });
+});
+
+describe("Ghosts of the Damned ({T}: target -1/-0 EOT, CR 611.1)", () => {
+    it("debuffs the target's power by 1 until end of turn", () => {
+        const ghosts = makeInstance(ghostsOfTheDamned.id, {
+            id: "ghosts",
+            controllerId: "p1",
+        });
+        const bear = makeInstance(headlessHorseman.id, {
+            id: "bear",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ghosts] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        expect(getEffectivePower(state, bear)).toBe(2);
+        state.stack.push({
+            ...ghosts,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "ghosts-of-the-damned-debuff",
+            targets: [{ type: "permanent", id: "bear" }],
+        } as StackItem);
+        resolveTopOfStack(state);
+        const live = state.players[1].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, live)).toBe(1);
+    });
+});
+
+describe("Fallen Angel (Sacrifice a creature: +2/+1 EOT, CR 602.1/611.1)", () => {
+    it("sacrifices a creature and pumps itself +2/+1", () => {
+        const angel = makeInstance(fallenAngel.id, {
+            id: "angel",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const fodder = makeInstance(headlessHorseman.id, {
+            id: "fodder",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [angel, fodder] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, angel)).toBe(3);
+        state.stack.push({
+            ...angel,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "fallen-angel-feast",
+            sacrificedPermanentId: "fodder",
+            targets: [],
+        } as StackItem);
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "angel"
+        )!;
+        expect(getEffectivePower(state, live)).toBe(5);
+        expect(getEffectiveToughness(state, live)).toBe(4);
+    });
+});
+
+describe("Hell's Caretaker (reanimate from GY, upkeep only, CR 400.7)", () => {
+    it("returns a creature card from the graveyard to the battlefield", () => {
+        const caretaker = makeInstance(hellsCaretaker.id, {
+            id: "ct",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const fodder = makeInstance(headlessHorseman.id, {
+            id: "fodder",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const deadInst = makeInstance(carrionAnts.id, {
+            id: "dead",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [caretaker, fodder],
+                    graveyard: [deadInst],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...caretaker,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "hells-caretaker-reanimate",
+            sacrificedPermanentId: "fodder",
+            targets: [{ type: "graveyard-card", id: "dead", playerId: "p1" }],
+        } as StackItem);
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "dead")
+        ).toBeDefined();
+        expect(
+            state.players[0].graveyard.find((c) => c.id === "dead")
+        ).toBeUndefined();
+    });
+});
+
+describe("Blight (enchanted land tapped → destroy, CR 303.4)", () => {
+    it("destroys the host land when it becomes tapped", () => {
+        const land = makeInstance(swamp.id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const aura = makeInstance(blight.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "land",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [aura] }),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        resolveTrigger(state, aura, "blight-destroy-land", {
+            type: "PERMANENT_TAPPED",
+            permanentId: "land",
+            controllerId: "p2",
+            permanentTypes: ["Land"],
+            permanentSubtypes: ["Swamp"],
+            forMana: false,
+        } as StackItem["triggerEvent"]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "land")
+        ).toBeUndefined();
+    });
+});
+
+describe("Hell Swarm (all creatures -1/-0 EOT, CR 611.1)", () => {
+    it("debuffs every creature's power by 1", () => {
+        const a = makeInstance(headlessHorseman.id, {
+            id: "a",
+            controllerId: "p1",
+        });
+        const b = makeInstance(headlessHorseman.id, {
+            id: "b",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a] }),
+                makePlayer("p2", { battlefield: [b] }),
+            ],
+        });
+        pushSpell(state, hellSwarm.id, "p1");
+        resolveTopOfStack(state);
+        expect(getEffectivePower(state, a)).toBe(1);
+        expect(getEffectivePower(state, b)).toBe(1);
+    });
+});
+
+describe("Hellfire (destroy all nonblack creatures + X+3 to you, CR 701.7)", () => {
+    it("destroys nonblack creatures, spares black, and deals X+3 to caster", () => {
+        // Scathe Zombies (black) survives; Hill Giant (red) dies.
+        const zombie = makeInstance("e9be6dcf-5e25-4b8c-9cd0-badf3771f81e", {
+            id: "zombie",
+            controllerId: "p2",
+        });
+        const giant = makeInstance("0ddb98e8-13fe-4786-83f7-b72c56db135a", {
+            id: "giant",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [zombie, giant] }),
+            ],
+        });
+        pushSpell(state, hellfire.id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "giant")
+        ).toBeUndefined();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "zombie")
+        ).toBeDefined();
+        // X = 1 nonblack creature died → 1 + 3 = 4 damage to caster.
+        expect(state.players[0].life).toBe(16);
+    });
+});
+
+describe("Syphon Soul (2 to each opponent, gain that much, CR 120.1)", () => {
+    it("deals 2 to the opponent and gains the caster 2 life", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, syphonSoul.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(18);
+        expect(state.players[0].life).toBe(22);
+    });
+});
+
+describe("Jovial Evil (X = 2× white creatures opponent controls, CR 120.1)", () => {
+    it("deals twice the opponent's white-creature count", () => {
+        // keepersOfTheFaith is a white creature.
+        const w1 = makeInstance(keepersOfTheFaith.id, {
+            id: "w1",
+            controllerId: "p2",
+        });
+        const w2 = makeInstance(keepersOfTheFaith.id, {
+            id: "w2",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [w1, w2] }),
+            ],
+        });
+        pushSpell(state, jovialEvil.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        // 2 white creatures × 2 = 4 damage.
+        expect(state.players[1].life).toBe(16);
+    });
+});
+
+describe("Touch of Darkness (creatures become black EOT, CR 305.7 layer 5)", () => {
+    it("makes targeted creatures black, surviving projection (wire format)", () => {
+        const lion = makeInstance(keepersOfTheFaith.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lion] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, touchOfDarkness.id, "p1", [
+            { type: "permanent", id: "lion" },
+        ]);
+        resolveTopOfStack(state);
+        expect(STATIC_EFFECT_CTX.getColors(lion)).toEqual(["B"]);
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "lion"
+        )!;
+        expect(STATIC_EFFECT_CTX.getColors(slim)).toEqual(["B"]);
+    });
+});
+
+describe("Horror of Horrors (Sac a Swamp: regenerate target black creature)", () => {
+    it("arms a regeneration shield on a black creature", () => {
+        const horror = makeInstance(horrorOfHorrors.id, {
+            id: "hh",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(swamp.id, {
+            id: "swamp",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Scathe Zombies — black creature.
+        const zombie = makeInstance("e9be6dcf-5e25-4b8c-9cd0-badf3771f81e", {
+            id: "zombie",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [horror, land, zombie] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...horror,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "horror-of-horrors-regenerate",
+            sacrificedPermanentId: "swamp",
+            targets: [{ type: "permanent", id: "zombie" }],
+        } as StackItem);
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "zombie"
+        )!;
+        expect(live.regenerationShields ?? 0).toBeGreaterThanOrEqual(1);
+    });
+});
+
+describe("Cyclopean Mummy (dies → exile, CR 603.2 / 406)", () => {
+    it("moves the dead creature from graveyard to exile", () => {
+        const mummy = makeInstance(cyclopeanMummy.id, {
+            id: "mummy",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [mummy] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, mummy, "cyclopean-mummy-exile", {
+            type: "CREATURE_DIED",
+            creatureInstanceId: "mummy",
+            creatureControllerId: "p1",
+            creatureTypes: ["Creature"],
+            damagedBySources: [],
+            creaturePower: 2,
+            creatureToughness: 1,
+        } as StackItem["triggerEvent"]);
+        expect(
+            state.players[0].graveyard.find((c) => c.id === "mummy")
+        ).toBeUndefined();
+        expect(
+            state.players[0].exile.find((c) => c.id === "mummy")
+        ).toBeDefined();
+    });
+});
+
+describe("Greed ({B}, Pay 2 life: Draw a card, CR 118.4 / 121.1)", () => {
+    it("draws a card and costs 2 life", () => {
+        const greedInst = makeInstance(greed.id, {
+            id: "greed",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const libCard = makeInstance(headlessHorseman.id, {
+            id: "lib",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [greedInst],
+                    library: [libCard],
+                    life: 20,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...greedInst,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "greed-draw",
+            targets: [],
+        } as StackItem);
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.find((c) => c.id === "lib")).toBeDefined();
+    });
+});
+
+describe("Darkness (prevent all combat damage this turn, CR 615)", () => {
+    it("arms the global combat-damage prevention", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, darkness.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.preventAllCombatDamageThisTurn).toBe(true);
     });
 });
