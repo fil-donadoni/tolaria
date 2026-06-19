@@ -23,6 +23,7 @@ import { advancePhase } from "@convex/gre/phases";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
+    applyRandomRevealAck,
 } from "@convex/gre/pendingChoiceSubmit";
 import { enumerateMoves } from "@convex/gre";
 import { decidingPlayer } from "@convex/gre/search";
@@ -73,6 +74,9 @@ function engineMutations(state: GameState): MoveMutations {
         },
         submitMayPay: async ({ playerId, accept }) => {
             applyMayPaySubmit(state, { playerId, accept });
+        },
+        submitRandomRevealAck: async ({ playerId, stackItemId, choiceId }) => {
+            applyRandomRevealAck(state, { playerId, stackItemId, choiceId });
         },
         passPriority: reject,
     };

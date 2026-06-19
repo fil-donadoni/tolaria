@@ -640,6 +640,29 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).pendingChoices).toEqual(state.pendingChoices);
     });
 
+    it("pendingChoices with random-reveal outcome (#301, CR 705 / ADR 0023)", () => {
+        const state = freshState();
+        state.pendingChoices = [
+            {
+                stackItemId: "bottle",
+                step: 0,
+                choiceId: "bottle-of-suleiman-flip",
+                playerId: "p1",
+                kind: "random-reveal",
+                count: 1,
+                prompt: "Flip a coin",
+                randomKind: "coin",
+                sides: 2,
+                result: 1,
+                realized: {
+                    face: "WIN",
+                    consequence: "Create a 5/5 flying Djinn",
+                },
+            },
+        ];
+        expect(roundTrip(state).pendingChoices).toEqual(state.pendingChoices);
+    });
+
     it("autoPassPlayers", () => {
         const state = freshState();
         state.autoPassPlayers = ["p1", "p2"];

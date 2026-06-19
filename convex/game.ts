@@ -120,6 +120,7 @@ import { checkStateBasedActions } from "./gre/sba";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
+    applyRandomRevealAck,
 } from "./gre/pendingChoiceSubmit";
 import { findActiveGameForUser, gameBelongsToUser } from "./gameLifecycle";
 
@@ -3573,6 +3574,38 @@ export const submitMayPay = mutation({
     },
 });
 
+/** Acknowledges a suspended `random-reveal` flip (CR 705.2, ADR 0023). Carries
+ *  NO choice data — only "the animation finished, resume". The outcome was
+ *  drawn once and persisted on the suspended step; this mutation validates the
+ *  queue head, removes it, and re-enters resolution so the consequence is
+ *  applied. The chooser's client fires this automatically when the coin
+ *  animation ends; the same generic mutation serves coins and future dice. */
+export const submitRandomRevealAck = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        stackItemId: v.string(),
+        choiceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+
+        applyRandomRevealAck(state, {
+            playerId: args.playerId,
+            stackItemId: args.stackItemId,
+            choiceId: args.choiceId,
+        });
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
+    },
+});
+
 /** Declare keep / mulligan during the pre-game mulligan phase (CR 103.5,
  *  London mulligan). Sequential per round in turn order from the starting
  *  player. Once every still-unlocked player has declared this round, the
@@ -4777,6 +4810,11 @@ export const debugSetupScenario = mutation({
          *  (`lastDrawnCardId`), so abilities with a "discard the last card you
          *  drew this turn" cost (Jandor's Ring) are one-click activatable. */
         markLastDrawn: v.optional(v.boolean()),
+        /** Pin the seeded PRNG (CR 705 / ADR 0023). Resets `rngSeed` and zeroes
+         *  `rngCounter` so the NEXT random draw is deterministic — e.g. a coin
+         *  flip (Bottle of Suleiman) lands WIN with seed 1 / LOSE with seed 7.
+         *  Default: unchanged. */
+        rngSeed: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -4937,6 +4975,13 @@ export const debugSetupScenario = mutation({
         state.passCount = 0;
         state.pendingCast = undefined;
         state.stack = [];
+
+        // Pin the PRNG so the next random draw is deterministic (CR 705 /
+        // ADR 0023) — e.g. force a Bottle of Suleiman coin flip to WIN/LOSE.
+        if (args.rngSeed !== undefined) {
+            state.rngSeed = args.rngSeed;
+            state.rngCounter = 0;
+        }
 
         await saveGameState(
             ctx,

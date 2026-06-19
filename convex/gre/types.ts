@@ -83,6 +83,31 @@ export type OrderChoiceKind = "mulligan-bottom";
  *  mutation. */
 export type OptionChoiceKind = "option-pick";
 
+/** Random-reveal family (CR 705, ADR 0023). Unlike every other pending-choice
+ *  family the chooser makes NO decision: the *engine* draws the outcome from
+ *  the seeded PRNG, persists it on the choice, and suspends resolution BEFORE
+ *  the consequence is applied so both clients can animate the spin and land on
+ *  a WIN/LOSE face. The chooser's client auto-acknowledges when the animation
+ *  ends (`submitRandomRevealAck`); no button, no data submitted. A single
+ *  member today (`random-reveal`) because the resume path is identical for a
+ *  coin and a future die — only the widget and `sides` differ. */
+export type RandomRevealKind = "random-reveal";
+
+/** Which random device produced the outcome — drives the overlay widget.
+ *  `coin` ships now (2 sides); `die` is reserved for a future card and reuses
+ *  the same envelope, kind, and acknowledge mutation (ADR 0023, scope). */
+export type RandomKind = "coin" | "die";
+
+/** The realized outcome descriptor carried on a `random-reveal` pending choice.
+ *  `face` is the label the coin/die lands on — defaults to `WIN`/`LOSE` for a
+ *  win/lose flip, overridable for future non-win/lose flips (Puppet's Verdict
+ *  HEADS/TAILS). `consequence` is the one-line preview the overlay shows
+ *  ("Create a 5/5 Djinn"). Both are public (CR 705) and survive projection. */
+export type RealizedOutcome = {
+    face: string;
+    consequence: string;
+};
+
 /** Spend restriction on a unit of mana (CR 106.6). Mana carrying a
  *  restriction can only pay for costs the restriction permits; it still
  *  empties at end of step/phase like any other mana (CR 500.4).
@@ -95,4 +120,5 @@ export type PendingChoiceKind =
     | ZonePickKind
     | YesNoChoiceKind
     | OrderChoiceKind
-    | OptionChoiceKind;
+    | OptionChoiceKind
+    | RandomRevealKind;

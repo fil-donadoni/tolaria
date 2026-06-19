@@ -798,6 +798,9 @@ import type {
     YesNoChoiceKind,
     OrderChoiceKind,
     OptionChoiceKind,
+    RandomRevealKind,
+    RandomKind,
+    RealizedOutcome,
     PendingChoiceKind,
     ManaRestriction,
 } from "./types";
@@ -806,6 +809,9 @@ export type {
     YesNoChoiceKind,
     OrderChoiceKind,
     OptionChoiceKind,
+    RandomRevealKind,
+    RandomKind,
+    RealizedOutcome,
     PendingChoiceKind,
     ManaRestriction,
 };
@@ -891,6 +897,26 @@ export type PendingChoice = {
      *  validates it against this list. The frontend renders one button per
      *  option. Used by Primal Clay / Shapeshifter (choose-body-on-entry). */
     options?: { id: string; label: string }[];
+
+    // --- random-reveal family (CR 705, ADR 0023) ---
+    /** For `kind: "random-reveal"` only — which random device produced the
+     *  outcome. Drives the overlay widget (`coin` animation now, `die`
+     *  deferred). */
+    randomKind?: RandomKind;
+    /** For `kind: "random-reveal"` only — number of faces of the device
+     *  (2 for a coin). Carried so a future die can reuse the envelope without
+     *  the engine assuming coin-ness. */
+    sides?: number;
+    /** For `kind: "random-reveal"` only — the 0-based index the device landed
+     *  on (the bit the engine drew). For a coin: 1 = heads (the flipper wins),
+     *  0 = tails. The realized outcome lives in `realized`; `result` is the
+     *  raw index the animation lands on. */
+    result?: number;
+    /** For `kind: "random-reveal"` only — the realized outcome descriptor:
+     *  the `face` the device landed on (defaults `WIN`/`LOSE`) and the
+     *  one-line `consequence` preview the overlay renders. Public (CR 705),
+     *  survives projection to both clients. */
+    realized?: RealizedOutcome;
 };
 
 /** Reads the upper bound out of a `PendingChoice.count`, regardless of
@@ -4629,6 +4655,52 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 count: 1,
                 options: req.options,
                 prompt: req.prompt,
+            };
+            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            return undefined;
+        },
+        requestCoinFlip(req): boolean | undefined {
+            // CR 705.2 / ADR 0023 — engine-generated random reveal. Unlike the
+            // player-answer primitives above, the OUTCOME is drawn here, not
+            // submitted by a player. The drawn bit must be generated EXACTLY
+            // ONCE and persisted, then read back on resume — a naive re-roll
+            // on the replayed step would advance `rngCounter` and animate a
+            // different result than the one applied (the determinism bug ADR
+            // 0023 calls out).
+            const step = item.resolutionStep ?? 0;
+            const key = `${step}:${req.choiceId}`;
+            const stored = item.collectedChoices?.[key];
+            // Resume: the persisted bit short-circuits the re-run, no re-roll.
+            if (stored) return stored[0] === "heads";
+
+            // First call: draw the bit ONCE via the seeded coin flip.
+            const won = this.flipCoin();
+            // Persist the realized bit into collectedChoices so the replayed
+            // step reads it back instead of re-flipping (same contract as a
+            // stored player answer). The ack mutation only removes the head
+            // pending choice and resumes; it carries no data.
+            item.collectedChoices = {
+                ...(item.collectedChoices ?? {}),
+                [key]: [won ? "heads" : "tails"],
+            };
+            const winning = won ? req.heads : req.tails;
+            const realized: RealizedOutcome = {
+                face: winning.face ?? (won ? "WIN" : "LOSE"),
+                consequence: winning.consequence,
+            };
+            const entry: PendingChoice = {
+                stackItemId: item.id,
+                step,
+                choiceId: req.choiceId,
+                playerId: req.playerId,
+                kind: "random-reveal",
+                count: 1,
+                prompt: "Flip a coin",
+                randomKind: "coin",
+                sides: 2,
+                // CR 705.2 — 1 = heads (the flipping player wins), 0 = tails.
+                result: won ? 1 : 0,
+                realized,
             };
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;

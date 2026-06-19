@@ -11,6 +11,7 @@ import { manaCostToString } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
 import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
 import PendingChoiceOptions from "~/components/board/pending-choice-options";
+import RandomRevealOverlay from "~/components/board/random-reveal-overlay";
 
 function getCountMin(count: PendingChoice["count"]): number {
     return typeof count === "number" ? count : count.min;
@@ -78,6 +79,20 @@ export default function PendingChoicePrompt({
     // Done/Skip label (ADR 0007): switches to "Skip" only when min === 0 and
     // the buffer is empty.
     const submitLabel = min === 0 && selected === 0 ? "Skip" : "Done";
+
+    // Random-reveal (CR 705 / ADR 0023): an engine-drawn outcome with NO
+    // decision — route to the center-screen reveal overlay (coin animation,
+    // auto-acknowledge on landing) instead of the buttons. Both clients render
+    // it; only the chooser's client acks.
+    if (choice.kind === "random-reveal") {
+        return (
+            <RandomRevealOverlay
+                choice={choice}
+                playerId={playerId}
+                gameId={gameId}
+            />
+        );
+    }
 
     return (
         <div

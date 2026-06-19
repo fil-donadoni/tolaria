@@ -86,6 +86,8 @@ export function describeMove(move: Move, state: GameState): string {
             })`;
         case "may-pay":
             return move.accept ? "pay optional cost" : "decline optional cost";
+        case "random-reveal-ack":
+            return "acknowledge coin flip";
         case "play-land":
             return `play ${instanceName(state, move.cardInstanceId)}`;
         case "cast-spell": {
