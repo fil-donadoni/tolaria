@@ -3541,7 +3541,7 @@ describe("Mijae Djinn (random-reveal attack flip, CR 705 / ADR 0023 + CR 508)", 
     });
 });
 
-describe("Ydwen Efreet (block flip, CR 705 + CR 509.1h)", () => {
+describe("Ydwen Efreet (block flip via requestCoinFlip, CR 705 / 509.1h / ADR 0023)", () => {
     it("definition snapshot: 3/6 Efreet, {R}{R}{R}", () => {
         expect(ydwenEfreet.power).toBe(3);
         expect(ydwenEfreet.toughness).toBe(6);
@@ -3549,8 +3549,11 @@ describe("Ydwen Efreet (block flip, CR 705 + CR 509.1h)", () => {
         expect(ydwenEfreet.manaCost).toEqual({ R: 3 });
     });
 
-    function blockingYdwen(seed: number) {
-        // p1 attacks with a bear; p2's Ydwen is its only blocker.
+    /** p1 attacks with a bear; p2's Ydwen is its only blocker. When
+     *  `secondBlocker` is set, a 2/2 bear ("blk2") also blocks "atk", so
+     *  Ydwen is no longer the SOLE blocker — leaving combat must NOT unblock
+     *  the attacker (CR 509.1h). Resolving the trigger suspends on the flip. */
+    function blockingYdwen(seed: number, secondBlocker = false) {
         const attacker = makeInstance(grizzlyBears.id, {
             id: "atk",
             controllerId: "p1",
@@ -3563,17 +3566,29 @@ describe("Ydwen Efreet (block flip, CR 705 + CR 509.1h)", () => {
             ownerId: "p2",
             isBlocking: true,
         });
+        const blk2 = makeInstance(grizzlyBears.id, {
+            id: "blk2",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const blockerAssignments: Record<string, string[]> = secondBlocker
+            ? { ydwen: ["atk"], blk2: ["atk"] }
+            : { ydwen: ["atk"] };
         const state = makeState({
             rngSeed: seed,
             activePlayerId: "p1",
             players: [
                 makePlayer("p1", { life: 20, battlefield: [attacker] }),
-                makePlayer("p2", { life: 20, battlefield: [ydwen] }),
+                makePlayer("p2", {
+                    life: 20,
+                    battlefield: secondBlocker ? [ydwen, blk2] : [ydwen],
+                }),
             ],
             combat: {
                 attackerIds: ["atk"],
                 confirmed: true,
-                blockerAssignments: { ydwen: ["atk"] },
+                blockerAssignments,
                 blockedAttackerIds: ["atk"],
                 blockersConfirmed: true,
             },
@@ -3593,17 +3608,51 @@ describe("Ydwen Efreet (block flip, CR 705 + CR 509.1h)", () => {
         return state;
     }
 
-    it("won flip → stays blocking, attacker stays blocked", () => {
+    /** Acknowledge the head random-reveal choice to resume resolution. */
+    function ack(state: GameState) {
+        const head = state.pendingChoices![0];
+        applyRandomRevealAck(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            choiceId: head.choiceId,
+        });
+    }
+
+    it("suspends on a random-reveal choice BEFORE applying the consequence (LOSE)", () => {
+        const state = blockingYdwen(LOSE_SEED);
+        // Suspended on a random-reveal pending choice owned by Ydwen's
+        // controller — the flipping player is the blocker's controller.
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("random-reveal");
+        expect(head.playerId).toBe("p2");
+        expect(head.randomKind).toBe("coin");
+        expect(head.sides).toBe(2);
+        // LOSE seed → result 0 (tails), realized LOSE face + consequence.
+        expect(head.result).toBe(0);
+        expect(head.realized?.face).toBe("LOSE");
+        // Consequence NOT applied yet: Ydwen still blocking, attacker blocked.
+        const y = state.players[1].battlefield.find((c) => c.id === "ydwen")!;
+        expect(y.isBlocking).toBe(true);
+        expect(y.cantBlockThisTurn).toBeFalsy();
+        expect(state.combat!.blockedAttackerIds).toContain("atk");
+    });
+
+    it("won flip → stays blocking, attacker stays blocked (only after ack)", () => {
         const state = blockingYdwen(WIN_SEED);
+        const head = state.pendingChoices![0];
+        expect(head.realized?.face).toBe("WIN");
+        ack(state);
         const y = state.players[1].battlefield.find((c) => c.id === "ydwen")!;
         expect(y.isBlocking).toBe(true);
         expect(y.cantBlockThisTurn).toBeFalsy();
         expect(state.combat!.blockedAttackerIds).toContain("atk");
         expect(state.combat!.blockerAssignments.ydwen).toEqual(["atk"]);
+        expect(state.pendingChoices).toBeUndefined();
     });
 
-    it("lost flip → removed from combat, can't block, solely-blocked attacker becomes unblocked and hits defender", () => {
+    it("lost flip → removed from combat, can't block, solely-blocked attacker becomes unblocked and hits defender (only after ack)", () => {
         const state = blockingYdwen(LOSE_SEED);
+        ack(state);
         const y = state.players[1].battlefield.find((c) => c.id === "ydwen")!;
         expect(y.isBlocking).toBeFalsy();
         expect(y.cantBlockThisTurn).toBe(true);
@@ -3617,8 +3666,66 @@ describe("Ydwen Efreet (block flip, CR 705 + CR 509.1h)", () => {
         expect(state.players[1].life).toBe(18);
     });
 
+    it("lost flip but NOT solely blocked → attacker stays blocked (CR 509.1h)", () => {
+        const state = blockingYdwen(LOSE_SEED, /* secondBlocker */ true);
+        ack(state);
+        const y = state.players[1].battlefield.find((c) => c.id === "ydwen")!;
+        // Ydwen leaves combat and can't block again...
+        expect(y.isBlocking).toBeFalsy();
+        expect(y.cantBlockThisTurn).toBe(true);
+        // ...but a second creature still blocks "atk", so it stays blocked.
+        expect(state.combat!.blockedAttackerIds).toContain("atk");
+        expect(state.combat!.blockerAssignments.ydwen ?? []).not.toContain(
+            "atk"
+        );
+        expect(state.combat!.blockerAssignments.blk2).toEqual(["atk"]);
+    });
+
+    it("flipCoin runs exactly once: rngCounter advances by 1 across suspend/resume", () => {
+        const state = blockingYdwen(LOSE_SEED);
+        // The bit was drawn once on suspend; ack resumes without a re-roll.
+        const afterSuspend = state.rngCounter;
+        ack(state);
+        expect(state.rngCounter).toBe(afterSuspend);
+    });
+
+    it("wire format: random-reveal fields survive projection for BOTH viewers", () => {
+        const state = blockingYdwen(LOSE_SEED);
+        for (const viewerId of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewerId);
+            const head = projected.pendingChoices![0];
+            expect(head.kind).toBe("random-reveal");
+            expect(head.randomKind).toBe("coin");
+            // The result is public (CR 705) — both flipper and opponent see the
+            // realized LOSE face.
+            expect(head.result).toBe(0);
+            expect(head.realized?.face).toBe("LOSE");
+        }
+    });
+
+    it("ack mutation rejects a mismatched head (stack item / choice id)", () => {
+        const state = blockingYdwen(LOSE_SEED);
+        const head = state.pendingChoices![0];
+        expect(() =>
+            applyRandomRevealAck(state, {
+                playerId: head.playerId,
+                stackItemId: "wrong",
+                choiceId: head.choiceId,
+            })
+        ).toThrow();
+        // Unchanged: still suspended.
+        expect(state.pendingChoices![0].kind).toBe("random-reveal");
+        // Sanity: ack resumes only on the correct identity.
+        ack(state);
+        const y = getPlayer(state, "p2").battlefield.find(
+            (c) => c.id === "ydwen"
+        )!;
+        expect(y.isBlocking).toBeFalsy();
+    });
+
     it("can't block this turn is enforced by validateBlockerEligibility (CR 509.1b)", () => {
         const state = blockingYdwen(LOSE_SEED);
+        ack(state);
         const y = state.players[1].battlefield.find((c) => c.id === "ydwen")!;
         const newAttacker = makeInstance(grizzlyBears.id, {
             id: "atk2",

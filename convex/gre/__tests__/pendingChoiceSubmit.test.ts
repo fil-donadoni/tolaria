@@ -3,7 +3,7 @@
 // `submitResolutionChoice` mutation. Slice #80 only handles `discard-hand`.
 
 import { describe, it, expect } from "vitest";
-import { resolveTopOfStack, type GameState } from "../state";
+import { resolveTopOfStack, type GameState, type StackItem } from "../state";
 import { advancePhase, untapStep } from "../phases";
 import { recordDeclaration, makeMulliganState } from "../mulligan";
 import {
@@ -21,6 +21,7 @@ import {
     bottleOfSuleiman,
     cuombajjWitches,
     juzamDjinn,
+    ydwenEfreet,
 } from "../../cards/sets/arn";
 import {
     makeInstance,
@@ -747,5 +748,114 @@ describe("applyRandomRevealAck — coin flip resume (CR 705.2 / ADR 0023)", () =
                 choiceId: "stale",
             })
         ).toThrow(/choice id mismatch/i);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Block-trigger resume path (#303). Drives Ydwen Efreet end to end through the
+// same backend mutation seam as Bottle, but via a triggered ability rather
+// than an activated one: BLOCKERS_CONFIRMED trigger on the stack → suspend on a
+// random-reveal flip → ack → remove-from-combat / unblock applied only on LOSE.
+// ---------------------------------------------------------------------------
+
+function suspendOnYdwenBlockFlip(seed: number): GameState {
+    const attacker = makeInstance(grizzlyBears.id, {
+        id: "atk",
+        controllerId: "p1",
+        ownerId: "p1",
+        isAttacking: true,
+    });
+    const ydwen = makeInstance(ydwenEfreet.id, {
+        id: "ydwen",
+        controllerId: "p2",
+        ownerId: "p2",
+        isBlocking: true,
+    });
+    const state = makeState({
+        rngSeed: seed,
+        activePlayerId: "p1",
+        players: [
+            makePlayer("p1", { life: 20, battlefield: [attacker] }),
+            makePlayer("p2", { life: 20, battlefield: [ydwen] }),
+        ],
+        combat: {
+            attackerIds: ["atk"],
+            confirmed: true,
+            blockerAssignments: { ydwen: ["atk"] },
+            blockedAttackerIds: ["atk"],
+            blockersConfirmed: true,
+        },
+    });
+    // Mirror the post-trigger state: triggered ability on the stack.
+    state.stack.push({
+        ...ydwen,
+        zone: "stack",
+        castById: "p2",
+        triggeredAbilityId: "ydwen-efreet-block-flip",
+        triggerSourceId: "ydwen",
+        triggerEvent: {
+            type: "BLOCKERS_CONFIRMED",
+            attackerId: "atk",
+            attackerControllerId: "p1",
+            attackerTypes: ["Creature"],
+            attackerSubtypes: [],
+            blockerId: "ydwen",
+            blockerControllerId: "p2",
+            blockerTypes: ["Creature"],
+            blockerSubtypes: ["Efreet"],
+        } as StackItem["triggerEvent"],
+        targets: [],
+    });
+    resolveTopOfStack(state);
+    return state;
+}
+
+describe("applyRandomRevealAck — Ydwen block-trigger resume (#303, CR 705 / 509.1h)", () => {
+    it("WIN: ack resumes and Ydwen stays blocking", () => {
+        const state = suspendOnYdwenBlockFlip(WIN_SEED);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("random-reveal");
+        expect(head.playerId).toBe("p2");
+        // Consequence not applied while suspended.
+        const before = state.players[1].battlefield.find(
+            (c) => c.id === "ydwen"
+        )!;
+        expect(before.isBlocking).toBe(true);
+
+        applyRandomRevealAck(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            choiceId: head.choiceId,
+        });
+
+        const y = state.players[1].battlefield.find((c) => c.id === "ydwen")!;
+        expect(y.isBlocking).toBe(true);
+        expect(y.cantBlockThisTurn).toBeFalsy();
+        expect(state.combat!.blockedAttackerIds).toContain("atk");
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack.length).toBe(0);
+    });
+
+    it("LOSE: ack resumes, removes Ydwen from combat, unblocks the solely-blocked attacker", () => {
+        const state = suspendOnYdwenBlockFlip(LOSE_SEED);
+        const head = state.pendingChoices![0];
+        // Still blocking while suspended.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "ydwen")!
+                .isBlocking
+        ).toBe(true);
+
+        applyRandomRevealAck(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            choiceId: head.choiceId,
+        });
+
+        const y = state.players[1].battlefield.find((c) => c.id === "ydwen")!;
+        expect(y.isBlocking).toBeFalsy();
+        expect(y.cantBlockThisTurn).toBe(true);
+        expect(state.combat!.blockedAttackerIds).not.toContain("atk");
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack.length).toBe(0);
     });
 });
