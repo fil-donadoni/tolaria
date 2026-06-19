@@ -35,15 +35,38 @@ import {
     lifeblood,
     presenceOfTheMaster,
     visions,
+    azureDrake,
+    zephyrFalcon,
+    devouringDeep,
+    segovianLeviathan,
+    psionicEntity,
+    wallOfWonder,
+    backfire,
+    flashCounter,
+    removeSoul,
+    forceSpike,
+    boomerang,
+    acidRain,
+    flashFlood,
+    seaKingsBlessing,
+    partWater,
+    teleport,
+    energyTap,
+    reset,
 } from "../leg";
 import { getCardById, getCardByName, getAllCards } from "../../index";
+import { lightningBolt, mountain, forest, island } from "../lea";
 import {
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
     type StackItem,
 } from "../../../gre/state";
-import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+    STATIC_EFFECT_CTX,
+} from "../../../gre/layers";
 import { validateBlockerEligibility } from "../../../gre/combat";
 import { projectPublicState } from "../../../gameProjections";
 import {
@@ -703,5 +726,400 @@ describe("Visions (look at top 5, may shuffle, CR 401.4)", () => {
         answerChoice(state, ["no"]);
         // No throw; resolution completed.
         expect(state.stack).toHaveLength(0);
+    });
+});
+
+// ===========================================================================
+// Blue free tranche (#372)
+// ===========================================================================
+
+// commit a single pending may-pay/choice head (shared by the counterspell
+// and Recall-style tests below).
+function commitHead(state: GameState, picks: string[]): void {
+    const queue = state.pendingChoices ?? [];
+    const head = queue[0];
+    const stackItem = state.stack.find((s) => s.id === head.stackItemId)!;
+    stackItem.collectedChoices = {
+        ...(stackItem.collectedChoices ?? {}),
+        [`${head.step}:${head.choiceId}`]: picks,
+    };
+    queue.shift();
+    state.pendingChoices = queue.length > 0 ? queue : undefined;
+}
+
+describe("LEG blue keyword / vanilla creatures (CR 702)", () => {
+    it("Azure Drake has flying with canonical stats", () => {
+        expect(azureDrake.staticAbilities).toContain("flying");
+        expect(azureDrake.power).toBe(2);
+        expect(azureDrake.toughness).toBe(4);
+    });
+
+    it("Zephyr Falcon has flying and vigilance", () => {
+        expect(zephyrFalcon.staticAbilities).toEqual(["flying", "vigilance"]);
+    });
+
+    it("Devouring Deep and Segovian Leviathan have islandwalk", () => {
+        expect(devouringDeep.staticAbilities).toContain("islandwalk");
+        expect(segovianLeviathan.staticAbilities).toContain("islandwalk");
+    });
+});
+
+describe("Psionic Entity ({T}: 2 to any target, 3 to itself, CR 120.1)", () => {
+    it("deals 2 to the target and 3 to itself", () => {
+        const pe = makeInstance(psionicEntity.id, {
+            id: "pe",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pe] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...pe,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "psionic-entity-zap",
+            targets: [{ type: "player", id: "p2" }],
+        } as StackItem);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(18); // 20 - 2
+        // 3 damage marked on itself (CR 120.3) — lethal vs toughness 2 → dies.
+        const self = state.players[0].battlefield.find((c) => c.id === "pe");
+        expect(self).toBeUndefined();
+    });
+});
+
+describe("Wall of Wonder (animate pump, CR 702.3 / 611.1)", () => {
+    it("gives +4/-4 and grants the defender-suspend keyword until EOT", () => {
+        const ww = makeInstance(wallOfWonder.id, {
+            id: "ww",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ww] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, ww)).toBe(1);
+        state.stack.push({
+            ...ww,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "wall-of-wonder-animate",
+            targets: [],
+        } as StackItem);
+        resolveTopOfStack(state);
+        const animated = state.players[0].battlefield.find(
+            (c) => c.id === "ww"
+        )!;
+        expect(getEffectivePower(state, animated)).toBe(5); // 1 + 4
+        expect(getEffectiveToughness(state, animated)).toBe(1); // 5 - 4
+        expect(animated.staticAbilities).toContain("can-attack-with-defender");
+    });
+});
+
+describe("Backfire (reflect host's damage to you back to its controller)", () => {
+    it("deals damage to the host's controller equal to the reflected amount", () => {
+        // Aura host controlled by p2; aura controlled by p1.
+        const host = makeInstance(azureDrake.id, {
+            id: "host",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const aura = makeInstance(backfire.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [aura] }),
+                makePlayer("p2", { battlefield: [host] }),
+            ],
+        });
+        resolveTrigger(state, aura, "backfire-reflect", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "host",
+            sourceControllerId: "p2",
+            target: { type: "player", id: "p1" },
+            amount: 2,
+            isCombat: true,
+        } as StackItem["triggerEvent"]);
+        expect(state.players[1].life).toBe(18); // p2 (host controller) takes 2
+    });
+});
+
+describe("Flash Counter / Remove Soul (type-restricted counters, CR 701.5a)", () => {
+    it("Flash Counter counters an instant on the stack", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        pushSpell(state, flashCounter.id, "p1", [
+            { type: "spell", id: bolt.id },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.stack.find((s) => s.id === bolt.id)).toBeUndefined();
+    });
+
+    it("Remove Soul restricts to creature spells via spellTypeFilter", () => {
+        expect(removeSoul.targetRequirement?.spellTypeFilter).toBe("Creature");
+        expect(flashCounter.targetRequirement?.spellTypeFilter).toBe("Instant");
+    });
+});
+
+describe("Force Spike (counter unless controller pays {1}, CR 701.5a)", () => {
+    it("counters the spell when the controller declines to pay", () => {
+        const p1 = makePlayer("p1");
+        const p2 = makePlayer("p2", {
+            manaPool: { W: 0, U: 0, B: 0, R: 3, G: 0, C: 0 },
+        });
+        const state = makeState({ players: [p1, p2] });
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        pushSpell(state, forceSpike.id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state);
+        expect(state.pendingChoices?.[0].kind).toBe("may-pay");
+        commitHead(state, ["no"]);
+        resolveTopOfStack(state);
+        expect(state.stack.find((s) => s.id === bolt.id)).toBeUndefined();
+    });
+
+    it("lets the spell resolve when the controller pays {1}", () => {
+        const p1 = makePlayer("p1");
+        const p2 = makePlayer("p2", {
+            manaPool: { W: 0, U: 0, B: 0, R: 3, G: 0, C: 0 },
+        });
+        const state = makeState({ players: [p1, p2] });
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        pushSpell(state, forceSpike.id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state);
+        commitHead(state, ["yes"]);
+        resolveTopOfStack(state);
+        expect(state.stack.find((s) => s.id === bolt.id)).toBeDefined();
+    });
+});
+
+describe("Boomerang (return target permanent to hand, CR 701.10)", () => {
+    it("bounces a permanent to its owner's hand", () => {
+        const drake = makeInstance(azureDrake.id, {
+            id: "drake",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [drake] }),
+            ],
+        });
+        pushSpell(state, boomerang.id, "p1", [
+            { type: "permanent", id: "drake" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "drake")
+        ).toBeUndefined();
+        expect(state.players[1].hand.some((c) => c.id === "drake")).toBe(true);
+    });
+});
+
+describe("Acid Rain (destroy all Forests, CR 701.7)", () => {
+    it("destroys Forests and spares other lands", () => {
+        const f = makeInstance(forest.id, {
+            id: "f",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const m = makeInstance(mountain.id, {
+            id: "m",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [f, m] }),
+            ],
+        });
+        pushSpell(state, acidRain.id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "f")
+        ).toBeUndefined();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "m")
+        ).toBeDefined();
+    });
+});
+
+describe("Flash Flood (modal: destroy red / return Mountain, CR 700.2)", () => {
+    it("return-mountain mode bounces a Mountain to hand", () => {
+        const m = makeInstance(mountain.id, {
+            id: "m",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { battlefield: [m] })],
+        });
+        const item = pushSpell(state, flashFlood.id, "p1", [
+            { type: "permanent", id: "m" },
+        ]);
+        item.chosenModeId = "return-mountain";
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "m")
+        ).toBeUndefined();
+        expect(state.players[1].hand.some((c) => c.id === "m")).toBe(true);
+    });
+});
+
+describe("Sea Kings' Blessing (creatures become blue EOT, CR 305.7 layer 5)", () => {
+    it("makes targeted creatures blue, surviving projection (wire format)", () => {
+        const drake = makeInstance(azureDrake.id, {
+            id: "drake",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Use a white creature so the colour change is observable.
+        const lion = makeInstance(keepersOfTheFaith.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [drake, lion] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, seaKingsBlessing.id, "p1", [
+            { type: "permanent", id: "lion" },
+        ]);
+        resolveTopOfStack(state);
+        expect(STATIC_EFFECT_CTX.getColors(lion)).toEqual(["U"]);
+
+        // Wire format: the colour override survives projection.
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "lion"
+        )!;
+        expect(STATIC_EFFECT_CTX.getColors(slim)).toEqual(["U"]);
+    });
+});
+
+describe("Part Water (X creatures gain islandwalk EOT, CR 702.19)", () => {
+    it("grants islandwalk to each target", () => {
+        const a = makeInstance(keepersOfTheFaith.id, {
+            id: "a",
+            controllerId: "p1",
+        });
+        const b = makeInstance(keepersOfTheFaith.id, {
+            id: "b",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, partWater.id, "p1", [
+            { type: "permanent", id: "a" },
+            { type: "permanent", id: "b" },
+        ]);
+        item.chosenX = 2;
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield
+                .find((c) => c.id === "a")!
+                .staticAbilities?.includes("islandwalk")
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield
+                .find((c) => c.id === "b")!
+                .staticAbilities?.includes("islandwalk")
+        ).toBe(true);
+    });
+});
+
+describe("Teleport (target creature can't be blocked, CR 509.1b)", () => {
+    it("only castable during declare attackers and marks the target unblockable", () => {
+        expect(teleport.castPhaseRestriction).toEqual(["DECLARE_ATTACKERS"]);
+        const atk = makeInstance(azureDrake.id, {
+            id: "atk",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [atk] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, teleport.id, "p1", [{ type: "permanent", id: "atk" }]);
+        resolveTopOfStack(state);
+        const marked = state.players[0].battlefield.find(
+            (c) => c.id === "atk"
+        )!;
+        expect(marked.cantBeBlockedThisTurn).toBe(true);
+    });
+});
+
+describe("Energy Tap (tap your creature, add {C}=MV, CR 106.1)", () => {
+    it("taps the creature and adds colorless equal to its mana value", () => {
+        // Azure Drake MV 4.
+        const drake = makeInstance(azureDrake.id, {
+            id: "drake",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [drake] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, energyTap.id, "p1", [
+            { type: "permanent", id: "drake" },
+        ]);
+        resolveTopOfStack(state);
+        const tapped = state.players[0].battlefield.find(
+            (c) => c.id === "drake"
+        )!;
+        expect(tapped.isTapped).toBe(true);
+        expect(state.players[0].manaPool.C).toBe(4);
+    });
+});
+
+describe("Reset (untap your lands, opponent-turn only, CR 117.1b)", () => {
+    it("is restricted to the opponent's turn and untaps the caster's lands", () => {
+        expect(reset.castTurnRestriction).toBe("opponent");
+        const land = makeInstance(island.id, {
+            id: "isl",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, reset.id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "isl")!.isTapped
+        ).toBe(false);
     });
 });
