@@ -146,6 +146,45 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Knowledge clear on unwitnessed discard (ADR 0026 / PRD #338 slice 4,
+        // #343). A look at the opponent's hand is cleared the moment that hand
+        // changes in a way the knower did not select:
+        //   • Right-click Glasses of Urza → "{T}: Look at target player's hand",
+        //     target the opponent, acknowledge the reveal. The opponent's two
+        //     cards now sit FACE-UP among their card backs on your side.
+        //   • Cast Mind Twist (the random-discard vehicle, Hymn-style) with
+        //     X = 1 targeting the opponent. The opponent discards one card at
+        //     random — a discard YOU did not pick.
+        //   • The whole opponent hand reverts to hidden card backs: a random /
+        //     unwitnessed change voids your identity→card map for the entire
+        //     hand (clear trigger #2), not just the discarded card.
+        //   • Flip the viewer (Pass once): the eye icon is gone from the
+        //     opponent's own view too. The owner always knows their own hand.
+        label: "Knowledge clear: random discard (Mind Twist) voids look at opponent hand (slice 4)",
+        cards: [
+            { name: "Glasses of Urza", owner: "me" as const },
+            {
+                name: "Mind Twist",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Island", owner: "me" as const, count: 2 },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Graveyard card picker dialog (#314, CR 109.2 / 400.7). A graveyard-
         // zone target opens a selection dialog instead of forcing the player to
         // hunt the board piles:
