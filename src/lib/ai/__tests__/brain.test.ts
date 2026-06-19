@@ -415,15 +415,75 @@ describe("chooseResolution remaining zone-pick policies (ADR 0016, issue #165)",
     });
 
     it("range kinds with min 0 resolve to a legal empty submission", () => {
-        for (const kind of [
-            "untap-pick",
-            "partition",
-            "choose-hand-card",
-        ] as const) {
+        for (const kind of ["partition", "choose-hand-card"] as const) {
             expect(chooseResolution(owed({ kind, min: 0, max: 3 }))).toEqual(
                 []
             );
         }
+    });
+
+    describe("untap-pick (CR 502.1, Winter Orb / Smoke — issue #325)", () => {
+        // The floor is 0, but untapping is pure upside: the bot must untap up to
+        // the cap best-first, NEVER submit an empty selection while an eligible
+        // permanent is tapped.
+        const untap = (
+            candidates: ChoiceCandidate[],
+            min: number,
+            max: number
+        ): OwedChoice => ({ kind: "untap-pick", min, max, candidates });
+
+        it("Winter Orb (land cap 1): untaps exactly one — the best land, not zero", () => {
+            // min 0, max 1, ≥1 tapped eligible land → pick the highest-value land.
+            expect(
+                chooseResolution(
+                    untap(
+                        [
+                            { id: "forest", value: 8 },
+                            { id: "mox", value: 40 }, // higher-value eligible land
+                        ],
+                        0,
+                        1
+                    )
+                )
+            ).toEqual(["mox"]);
+        });
+
+        it("cap exceeds eligible count: untaps all eligible permanents", () => {
+            // max 3 but only 2 eligible → untap both (within [min, max]).
+            expect(
+                chooseResolution(
+                    untap(
+                        [
+                            { id: "c1", value: 10 },
+                            { id: "c2", value: 20 },
+                        ],
+                        0,
+                        3
+                    )
+                )
+            ).toEqual(["c2", "c1"]);
+        });
+
+        it("Smoke-style creature cap: untaps up to the cap, best-first", () => {
+            // creature cap 2 with 3 tapped creatures → pick the two best.
+            expect(
+                chooseResolution(
+                    untap(
+                        [
+                            { id: "weenie", value: 30 },
+                            { id: "dragon", value: 400 },
+                            { id: "bears", value: 90 },
+                        ],
+                        0,
+                        2
+                    )
+                )
+            ).toEqual(["dragon", "bears"]);
+        });
+
+        it("no eligible candidates: legal empty submission (never throws)", () => {
+            expect(chooseResolution(untap([], 0, 1))).toEqual([]);
+        });
     });
 
     it("reveal-hand acknowledges with an empty submission (count 0)", () => {
