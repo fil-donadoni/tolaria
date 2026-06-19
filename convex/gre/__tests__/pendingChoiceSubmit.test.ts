@@ -10,6 +10,7 @@ import {
     applyPendingChoiceSubmit,
     applyRandomRevealAck,
 } from "../pendingChoiceSubmit";
+import { checkStateBasedActions } from "../sba";
 import {
     disruptingScepter,
     grizzlyBears,
@@ -17,6 +18,7 @@ import {
     plains,
     winterOrb,
 } from "../../cards/sets/lea";
+import { jasmineBoreal } from "../../cards/sets/leg";
 import {
     bottleOfSuleiman,
     cuombajjWitches,
@@ -857,5 +859,91 @@ describe("applyRandomRevealAck — Ydwen block-trigger resume (#303, CR 705 / 50
         expect(state.combat!.blockedAttackerIds).not.toContain("atk");
         expect(state.pendingChoices).toBeUndefined();
         expect(state.stack.length).toBe(0);
+    });
+});
+
+// Backend integration for the legend-rule keep-which choice (CR 704.5j, #378).
+// `applyPendingChoiceSubmit` is the exact engine entry the `submitResolutionChoice`
+// mutation calls (game.ts), so this exercises GRE → mutation surface → resolved
+// state for an SBA-raised phase-level choice (stackItemId: "").
+describe("applyPendingChoiceSubmit — legend-keep (CR 704.5j)", () => {
+    function setupTwoJasmines(): GameState {
+        const a = makeInstance(jasmineBoreal.id, {
+            id: "jasmine-a",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const b = makeInstance(jasmineBoreal.id, {
+            id: "jasmine-b",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+        // The SBA enqueues the legend-keep prompt, mirroring the server flow.
+        checkStateBasedActions(state);
+        return state;
+    }
+
+    it("happy path: keeps the picked legend, the other goes to graveyard, queue clears", () => {
+        const state = setupTwoJasmines();
+        const head = state.pendingChoices![0];
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["jasmine-b"],
+        });
+
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "jasmine-b",
+        ]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual([
+            "jasmine-a",
+        ]);
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.priorityPlayerId).toBe("p1");
+    });
+
+    it("rejects a pick that is not one of the recorded duplicates", () => {
+        const state = setupTwoJasmines();
+        const head = state.pendingChoices![0];
+        // A real-but-irrelevant battlefield id is not in candidateIds.
+        const intruder = makeInstance(grizzlyBears.id, { id: "intruder" });
+        state.players[0].battlefield.push(intruder);
+
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["intruder"],
+            })
+        ).toThrow();
+        // Choice still pending — nothing destroyed.
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.players[0].battlefield).toHaveLength(3);
+    });
+
+    it("rejects a submission from the wrong player (identity guard)", () => {
+        const state = setupTwoJasmines();
+        const head = state.pendingChoices![0];
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p2",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["jasmine-a"],
+            })
+        ).toThrow();
+        expect(state.pendingChoices).toHaveLength(1);
     });
 });

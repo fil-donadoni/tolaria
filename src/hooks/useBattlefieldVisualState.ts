@@ -153,6 +153,15 @@ export function useBattlefieldVisualState(player: Player) {
     function canInteract(card: CardInstance): boolean {
         if (isSelectingChoice && activeChoice) {
             if (bufferCtx.buffer.includes(card.id)) return true;
+            // Precomputed allow-list (e.g. legend-keep, CR 704.5j): only the
+            // recorded candidates are clickable, even if others match the
+            // filter / zone. Mirrors the server's candidateIds enforcement.
+            if (
+                activeChoice.candidateIds &&
+                !activeChoice.candidateIds.includes(card.id)
+            ) {
+                return false;
+            }
             if (
                 activeChoice.filter &&
                 !matchesPermanentFilter(card, activeChoice.filter)

@@ -4206,6 +4206,25 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "UPKEEP",
         landCount: 0,
     },
+    {
+        // LEG C1 — Legend rule SBA (CR 704.5j, #378). You control TWO copies of
+        // the Legendary creature Jasmine Boreal, which is illegal: a controller
+        // may keep only one legendary permanent of a given name.
+        //   • On load the legend-rule state-based action fires immediately and a
+        //     "Legend rule — choose which Jasmine Boreal to keep" prompt appears.
+        //   • Click one of the two Jasmine Boreals, then Done. The other is put
+        //     into its owner's graveyard; one survives on the battlefield.
+        //   • The opponent's lone Jasmine Boreal is untouched — the rule is
+        //     per-controller, so a same-name legend on the other side coexists.
+        label: "LEG C1 #378: Legend rule — two Jasmine Boreals, keep one (CR 704.5j)",
+        cards: [
+            { name: "Jasmine Boreal", owner: "me" as const, count: 2 },
+            { name: "Jasmine Boreal", owner: "opp" as const },
+            { name: "Plains", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

@@ -169,6 +169,8 @@ import {
     STATIC_EFFECT_CTX,
 } from "../../../gre/layers";
 import { validateBlockerEligibility } from "../../../gre/combat";
+import { checkStateBasedActions } from "../../../gre/sba";
+import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../gameProjections";
 import {
     makeInstance,
@@ -3217,5 +3219,256 @@ describe("Pendelhaven (Legendary land: {T}: Add {G}; {T}: pump a 1/1, CR 305 / 6
         )!;
         expect(getEffectivePower(projected, slim)).toBe(2);
         expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C1 — Legend rule SBA (CR 704.5j, #378)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("legend rule SBA (CR 704.5j)", () => {
+    /** Submits a `legend-keep` choice for `playerId`, keeping `keepId`. */
+    function keepLegend(state: GameState, playerId: string, keepId: string) {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [keepId],
+        });
+    }
+
+    it("offers a keep-which choice when a controller has two same-name legendaries", () => {
+        const a = makeInstance(jasmineBoreal.id, {
+            id: "jasmine-a",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const b = makeInstance(jasmineBoreal.id, {
+            id: "jasmine-b",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        checkStateBasedActions(state);
+
+        expect(state.pendingChoices).toHaveLength(1);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("legend-keep");
+        expect(head.playerId).toBe("p1");
+        expect(head.stackItemId).toBe("");
+        expect(head.count).toBe(1);
+        expect(head.candidateIds).toEqual(["jasmine-a", "jasmine-b"]);
+        expect(state.priorityPlayerId).toBe("p1");
+    });
+
+    it("keeps the chosen legendary and puts the rest into their owners' graveyards", () => {
+        const a = makeInstance(jasmineBoreal.id, {
+            id: "jasmine-a",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const b = makeInstance(jasmineBoreal.id, {
+            id: "jasmine-b",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        checkStateBasedActions(state);
+        keepLegend(state, "p1", "jasmine-a");
+
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "jasmine-a",
+        ]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual([
+            "jasmine-b",
+        ]);
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.priorityPlayerId).toBe("p1");
+    });
+
+    it("puts a duplicate into its OWNER's graveyard, not the controller's (CR 704.5j)", () => {
+        const mine = makeInstance(jasmineBoreal.id, {
+            id: "jasmine-mine",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const borrowed = makeInstance(jasmineBoreal.id, {
+            id: "jasmine-borrowed",
+            controllerId: "p1",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine, borrowed] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        checkStateBasedActions(state);
+        keepLegend(state, "p1", "jasmine-mine");
+
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "jasmine-mine",
+        ]);
+        expect(state.players[0].graveyard).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual([
+            "jasmine-borrowed",
+        ]);
+    });
+
+    it("leaves two DIFFERENT-name legendaries on the battlefield", () => {
+        const jasmine = makeInstance(jasmineBoreal.id, { id: "jasmine" });
+        const orca = makeInstance(ladyOrca.id, { id: "orca" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [jasmine, orca] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        checkStateBasedActions(state);
+
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "jasmine",
+            "orca",
+        ]);
+    });
+
+    it("does NOT fire across different controllers (per-controller, CR 704.5j)", () => {
+        const a = makeInstance(jasmineBoreal.id, {
+            id: "jasmine-p1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const b = makeInstance(jasmineBoreal.id, {
+            id: "jasmine-p2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a] }),
+                makePlayer("p2", { battlefield: [b] }),
+            ],
+        });
+
+        checkStateBasedActions(state);
+
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].battlefield).toHaveLength(1);
+        expect(state.players[1].battlefield).toHaveLength(1);
+    });
+
+    it("ignores two same-name NON-legendary permanents (CR 704.5j — Legendary only)", () => {
+        const a = makeInstance(grizzlyBears.id, { id: "bears-a" });
+        const b = makeInstance(grizzlyBears.id, { id: "bears-b" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        checkStateBasedActions(state);
+
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].battlefield).toHaveLength(2);
+    });
+
+    it("groups a copy (Clone-style, CR 707.2) with the original by copied name", () => {
+        const original = makeInstance(jasmineBoreal.id, {
+            id: "jasmine-real",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const copy = makeInstance(grizzlyBears.id, {
+            id: "the-copy",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // A copy effect overwrites card.id with the copied definition's id.
+        copy.card = { id: jasmineBoreal.id };
+        copy.copiedFrom = grizzlyBears.id;
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [original, copy] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        checkStateBasedActions(state);
+
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.pendingChoices![0].candidateIds).toEqual([
+            "jasmine-real",
+            "the-copy",
+        ]);
+    });
+
+    it("re-sweeps after a keep to resolve a SECOND same-name group", () => {
+        const j1 = makeInstance(jasmineBoreal.id, { id: "j1" });
+        const j2 = makeInstance(jasmineBoreal.id, { id: "j2" });
+        const o1 = makeInstance(ladyOrca.id, { id: "o1" });
+        const o2 = makeInstance(ladyOrca.id, { id: "o2" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [j1, j2, o1, o2] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        checkStateBasedActions(state);
+        expect(state.pendingChoices![0].candidateIds).toEqual(["j1", "j2"]);
+        keepLegend(state, "p1", "j1");
+
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.pendingChoices![0].candidateIds).toEqual(["o1", "o2"]);
+        keepLegend(state, "p1", "o2");
+
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].battlefield.map((c) => c.id).sort()).toEqual([
+            "j1",
+            "o2",
+        ]);
+        expect(state.players[0].graveyard.map((c) => c.id).sort()).toEqual([
+            "j2",
+            "o1",
+        ]);
+    });
+
+    it("surfaces the pending legend-keep choice across the wire projection", () => {
+        const a = makeInstance(jasmineBoreal.id, { id: "jasmine-a" });
+        const b = makeInstance(jasmineBoreal.id, { id: "jasmine-b" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+        checkStateBasedActions(state);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const head = projected.pendingChoices?.[0];
+        expect(head?.kind).toBe("legend-keep");
+        expect(head?.playerId).toBe("p1");
+        expect(head?.candidateIds).toEqual(["jasmine-a", "jasmine-b"]);
+        const ids = projected.players[0].battlefield.map((c) => c.id);
+        expect(ids).toContain("jasmine-a");
+        expect(ids).toContain("jasmine-b");
     });
 });

@@ -422,6 +422,22 @@ describe("chooseResolution remaining zone-pick policies (ADR 0016, issue #165)",
         }
     });
 
+    it("legend-keep keeps the highest-value duplicate (CR 704.5j, #378)", () => {
+        // Two same-name legends — the bot keeps the better-valued copy (e.g. the
+        // one carrying a buff) and lets the engine bin the other.
+        expect(
+            chooseResolution({
+                kind: "legend-keep",
+                min: 1,
+                max: 1,
+                candidates: [
+                    { id: "dup-weak", value: 40 },
+                    { id: "dup-strong", value: 200 },
+                ],
+            })
+        ).toEqual(["dup-strong"]);
+    });
+
     describe("untap-pick (CR 502.1, Winter Orb / Smoke — issue #325)", () => {
         // The floor is 0, but untapping is pure upside: the bot must untap up to
         // the cap best-first, NEVER submit an empty selection while an eligible
