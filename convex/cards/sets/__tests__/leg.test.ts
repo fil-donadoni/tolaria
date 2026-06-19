@@ -93,6 +93,22 @@ import {
     glyphOfDestruction,
     activeVolcano,
     windsOfChange,
+    barbaryApes,
+    durkwoodBoars,
+    mossMonster,
+    catWarriors,
+    hornetCobra,
+    elvenRiders,
+    rabidWombat,
+    emeraldDragonfly,
+    fireSprites,
+    killerBees,
+    pixieQueen,
+    pradeshGypsies,
+    stormSeeker,
+    typhoon,
+    winterBlast,
+    sylvanParadise,
 } from "../leg";
 import { getCardById, getCardByName, getAllCards } from "../../index";
 import { fireDelayedTriggers } from "../../../gre/phases";
@@ -134,6 +150,24 @@ function resolveTrigger(
         triggeredAbilityId,
         triggerSourceId: source.id,
         triggerEvent,
+        targets,
+    });
+    resolveTopOfStack(state);
+}
+
+/** Push an activated ability onto the stack with its cost assumed already
+ *  paid (mirrors the post-`activateAbility` state), then resolve it. */
+function resolveActivated(
+    state: GameState,
+    source: CardInstanceState,
+    abilityId: string,
+    targets: StackItem["targets"] = []
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        abilityId,
         targets,
     });
     resolveTopOfStack(state);
@@ -2155,5 +2189,333 @@ describe("Winds of Change (each player shuffles hand into library, redraws, CR 7
         expect(
             state.players[1].hand.length + state.players[1].library.length
         ).toBe(3);
+    });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Green free tranche (#375)
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("LEG green — vanilla / keyword definitions (CR 110.1 / 702)", () => {
+    it("registers the green vanilla creatures with correct P/T", () => {
+        expect(getCardById(barbaryApes.id)).toBe(barbaryApes);
+        expect(barbaryApes.power).toBe(2);
+        expect(barbaryApes.toughness).toBe(2);
+        expect(durkwoodBoars.power).toBe(4);
+        expect(durkwoodBoars.toughness).toBe(4);
+        expect(mossMonster.power).toBe(3);
+        expect(mossMonster.toughness).toBe(6);
+    });
+    it("declares the printed keywords (CR 702)", () => {
+        expect(catWarriors.staticAbilities).toContain("forestwalk");
+        expect(hornetCobra.staticAbilities).toContain("first strike");
+        expect(emeraldDragonfly.staticAbilities).toContain("flying");
+        expect(fireSprites.staticAbilities).toContain("flying");
+        expect(killerBees.staticAbilities).toContain("flying");
+        expect(pixieQueen.staticAbilities).toContain("flying");
+        expect(rabidWombat.staticAbilities).toContain("vigilance");
+    });
+});
+
+describe("Elven Riders (can't be blocked except by Walls/flyers, CR 509.1b)", () => {
+    function setup(blocker: CardInstanceState) {
+        const attacker = makeInstance(elvenRiders.id, {
+            id: "rider",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+        });
+        return { state, attacker, blocker };
+    }
+    it("a ground non-Wall creature may NOT block it", () => {
+        const blocker = makeInstance(barbaryApes.id, {
+            id: "ground",
+            controllerId: "p2",
+        });
+        const { state, attacker } = setup(blocker);
+        const res = validateBlockerEligibility(
+            attacker,
+            blocker,
+            state.players[1].battlefield,
+            state
+        );
+        expect(res.eligible).toBe(false);
+    });
+    it("a flyer may block it", () => {
+        const blocker = makeInstance(emeraldDragonfly.id, {
+            id: "flyer",
+            controllerId: "p2",
+        });
+        const { state, attacker } = setup(blocker);
+        const res = validateBlockerEligibility(
+            attacker,
+            blocker,
+            state.players[1].battlefield,
+            state
+        );
+        expect(res.eligible).toBe(true);
+    });
+    it("a Wall may block it", () => {
+        // wallOfLight (LEG white) is a Wall; reuse it as a ground Wall blocker.
+        const blocker = makeInstance(wallOfLight.id, {
+            id: "wall",
+            controllerId: "p2",
+        });
+        const { state, attacker } = setup(blocker);
+        const res = validateBlockerEligibility(
+            attacker,
+            blocker,
+            state.players[1].battlefield,
+            state
+        );
+        expect(res.eligible).toBe(true);
+    });
+});
+
+describe("Rabid Wombat (+2/+2 per attached Aura, CR 604.3 pt-cda + wire)", () => {
+    function setup(auraCount: number) {
+        const wombat = makeInstance(rabidWombat.id, {
+            id: "wombat",
+            controllerId: "p1",
+        });
+        const auras: CardInstanceState[] = [];
+        for (let i = 0; i < auraCount; i++) {
+            auras.push(
+                makeInstance(spiritLink.id, {
+                    id: `aura-${i}`,
+                    controllerId: "p1",
+                    attachedTo: "wombat",
+                })
+            );
+        }
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wombat, ...auras] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, wombat };
+    }
+    it("is base 0/1 with no Auras", () => {
+        const { state, wombat } = setup(0);
+        expect(getEffectivePower(state, wombat)).toBe(0);
+        expect(getEffectiveToughness(state, wombat)).toBe(1);
+    });
+    it("gets +2/+2 per attached Aura (GRE + wire)", () => {
+        const { state, wombat } = setup(2);
+        // base 0/1 + 2 auras × (+2/+2) = 4 / 5
+        expect(getEffectivePower(state, wombat)).toBe(4);
+        expect(getEffectiveToughness(state, wombat)).toBe(5);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "wombat"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(4);
+        expect(getEffectiveToughness(projected, slim)).toBe(5);
+    });
+});
+
+describe("Emerald Dragonfly ({G}{G}: gains first strike EOT, CR 611.1b)", () => {
+    it("grants first strike until end of turn", () => {
+        const dragonfly = makeInstance(emeraldDragonfly.id, {
+            id: "df",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [dragonfly] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, dragonfly, "emerald-dragonfly-first-strike");
+        const live = state.players[0].battlefield.find((c) => c.id === "df")!;
+        expect(
+            live.grantedStaticAbilities?.some(
+                (g) => g.ability === "first strike"
+            )
+        ).toBe(true);
+    });
+});
+
+describe("Fire Sprites ({G}, {T}: Add {R}, CR 605.1a mana ability)", () => {
+    it("declares a mana ability that does not use the stack", () => {
+        const ability = fireSprites.activatedAbilities?.[0];
+        expect(ability?.useStack).toBe(false);
+        expect(ability?.manaProduced).toEqual({ R: 1 });
+    });
+});
+
+describe("Killer Bees ({G}: +1/+1 EOT, CR 611.1)", () => {
+    it("pumps itself when activated", () => {
+        const bees = makeInstance(killerBees.id, {
+            id: "bees",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bees] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, bees, "killer-bees-pump");
+        const live = state.players[0].battlefield.find((c) => c.id === "bees")!;
+        // base 0/1 + 1/+1
+        expect(getEffectivePower(state, live)).toBe(1);
+        expect(getEffectiveToughness(state, live)).toBe(2);
+    });
+});
+
+describe("Pixie Queen ({G}{G}{G}, {T}: target gains flying EOT, CR 611.1b)", () => {
+    it("grants flying to a chosen creature", () => {
+        const queen = makeInstance(pixieQueen.id, {
+            id: "queen",
+            controllerId: "p1",
+        });
+        const grounded = makeInstance(barbaryApes.id, {
+            id: "apes",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [queen, grounded] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, queen, "pixie-queen-grant-flying", [
+            { type: "permanent", id: "apes" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "apes")!;
+        expect(
+            live.grantedStaticAbilities?.some((g) => g.ability === "flying")
+        ).toBe(true);
+    });
+});
+
+describe("Pradesh Gypsies ({1}{G}, {T}: target gets -2/-0 EOT, CR 611.1)", () => {
+    it("debuffs the target's power", () => {
+        const gypsies = makeInstance(pradeshGypsies.id, {
+            id: "gyp",
+            controllerId: "p1",
+        });
+        const victim = makeInstance(durkwoodBoars.id, {
+            id: "boar",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gypsies] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        resolveActivated(state, gypsies, "pradesh-gypsies-debuff", [
+            { type: "permanent", id: "boar" },
+        ]);
+        const live = state.players[1].battlefield.find((c) => c.id === "boar")!;
+        expect(getEffectivePower(state, live)).toBe(2); // 4 - 2
+        expect(getEffectiveToughness(state, live)).toBe(4); // unchanged
+    });
+});
+
+describe("Storm Seeker (damage = target's hand size, CR 120.1)", () => {
+    it("deals damage equal to the target player's hand count", () => {
+        const hand = [
+            makeInstance(forest.id, { id: "g-h1", zone: "hand" }),
+            makeInstance(forest.id, { id: "g-h2", zone: "hand" }),
+            makeInstance(forest.id, { id: "g-h3", zone: "hand" }),
+        ];
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand })],
+        });
+        pushSpell(state, stormSeeker.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17); // 20 - 3
+    });
+});
+
+describe("Typhoon (damage to each opponent = their Islands, CR 120.1)", () => {
+    it("deals damage equal to the opponent's Island count", () => {
+        const islands = [
+            makeInstance(island.id, { id: "i1", controllerId: "p2" }),
+            makeInstance(island.id, { id: "i2", controllerId: "p2" }),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: islands }),
+            ],
+        });
+        pushSpell(state, typhoon.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(18); // 20 - 2 islands
+    });
+});
+
+describe("Winter Blast (tap X creatures, 2 dmg to those with flying, CR 120.1)", () => {
+    it("taps every target and damages only the flyers", () => {
+        // azureDrake (2/4 flyer) survives the 2 damage so it can be inspected.
+        const flyer = makeInstance(azureDrake.id, {
+            id: "fly",
+            controllerId: "p2",
+        });
+        const ground = makeInstance(barbaryApes.id, {
+            id: "grnd",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [flyer, ground] }),
+            ],
+        });
+        const item = pushSpell(state, winterBlast.id, "p1", [
+            { type: "permanent", id: "fly" },
+            { type: "permanent", id: "grnd" },
+        ]);
+        item.chosenX = 2;
+        resolveTopOfStack(state);
+        const liveFly = state.players[1].battlefield.find(
+            (c) => c.id === "fly"
+        )!;
+        const liveGround = state.players[1].battlefield.find(
+            (c) => c.id === "grnd"
+        )!;
+        expect(liveFly.isTapped).toBe(true);
+        expect(liveGround.isTapped).toBe(true);
+        // the flyer takes 2 damage; the ground creature takes none.
+        expect(liveFly.damageMarked ?? 0).toBe(2);
+        expect(liveGround.damageMarked ?? 0).toBe(0);
+    });
+});
+
+describe("Sylvan Paradise (creatures become green EOT, CR 305.7 layer 5)", () => {
+    it("makes the targets green (GRE + wire)", () => {
+        const apes = makeInstance(barbaryApes.id, {
+            id: "apes",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [apes] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, sylvanParadise.id, "p1", [
+            { type: "permanent", id: "apes" },
+        ]);
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find((c) => c.id === "apes")!;
+        expect(live.colorOverride).toEqual(["G"]);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "apes"
+        )!;
+        expect(slim.colorOverride).toEqual(["G"]);
     });
 });
