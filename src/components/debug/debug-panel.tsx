@@ -4108,6 +4108,60 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // LEG multicolor #376 — Dakkon Blackblade is a living land-counter
+        // (P/T = lands you control: with 6 lands he's a 6/6); Jacques le Vert
+        // pumps your green creatures +0/+2 (Barbary Apes becomes 2/4);
+        // Sol'kanar gains you 1 life whenever any black spell is cast (cast the
+        // Dark Ritual in hand to watch the trigger). Boris Devilboon makes
+        // Minor Demon tokens; tap him to spawn one.
+        label: "LEG multicolor #376: Dakkon (P/T=lands), Jacques anthem, Sol'kanar, Boris tokens",
+        cards: [
+            { name: "Dakkon Blackblade", owner: "me" as const },
+            { name: "Jacques le Vert", owner: "me" as const },
+            { name: "Sol'kanar the Swamp King", owner: "me" as const },
+            { name: "Boris Devilboon", owner: "me" as const },
+            { name: "Barbary Apes", owner: "me" as const },
+            {
+                name: "Dark Ritual",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // LEG multicolor #376 — utility legends with targeted activated
+        // abilities: Adun Oakenshield returns a creature card from your
+        // graveyard to hand; Kei Takahashi / Ragnar prevent damage / regenerate
+        // a target; Tuknir Deathlock (flying) pumps a target +2/+2; Xira Arien
+        // (flying) draws a card for a target player; Gwendlyn Di Corci makes a
+        // player discard at random (your turn only). Princess Lucrezia, Riven
+        // Turnbull, and Sunastian Falconer are mana legends (tap for U / B / CC).
+        label: "LEG multicolor #376: Adun, Kei, Ragnar, Tuknir, Xira, Gwendlyn, mana legends",
+        cards: [
+            { name: "Adun Oakenshield", owner: "me" as const },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            { name: "Kei Takahashi", owner: "me" as const },
+            { name: "Ragnar", owner: "me" as const },
+            { name: "Tuknir Deathlock", owner: "me" as const },
+            { name: "Xira Arien", owner: "me" as const },
+            { name: "Gwendlyn Di Corci", owner: "me" as const },
+            { name: "Princess Lucrezia", owner: "me" as const },
+            { name: "Sunastian Falconer", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Swamp", owner: "me" as const, count: 3 },
+            { name: "Forest", owner: "me" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

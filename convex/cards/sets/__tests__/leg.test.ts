@@ -109,6 +109,31 @@ import {
     typhoon,
     winterBlast,
     sylvanParadise,
+    barktoothWarbeard,
+    jeditOjanen,
+    jerrardOfTheClosedFist,
+    kasimirTheLoneWolf,
+    sirShandlarOfEberyn,
+    sivitriScarzam,
+    theLadyOfTheMountain,
+    tobiasAndrion,
+    torstenVonUrsus,
+    ramirezDePietro,
+    dakkonBlackblade,
+    jacquesLeVert,
+    solkanarTheSwampKing,
+    adunOakenshield,
+    angusMackenzie,
+    borisDevilboon,
+    gwendlynDiCorci,
+    keiTakahashi,
+    pavelMaliki,
+    ragnar,
+    tuknirDeathlock,
+    xiraArien,
+    princessLucrezia,
+    rivenTurnbull,
+    sunastianFalconer,
 } from "../leg";
 import { getCardById, getCardByName, getAllCards } from "../../index";
 import { fireDelayedTriggers } from "../../../gre/phases";
@@ -2517,5 +2542,392 @@ describe("Sylvan Paradise (creatures become green EOT, CR 305.7 layer 5)", () =>
             (c) => c.id === "apes"
         )!;
         expect(slim.colorOverride).toEqual(["G"]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Multicolor / gold free tranche (#376)
+// ---------------------------------------------------------------------------
+
+describe("LEG multicolor vanilla / keyword legendary creatures (CR 205.4a, 702)", () => {
+    it("ships the vanilla legends with canonical stats and supertype", () => {
+        for (const c of [
+            barktoothWarbeard,
+            jeditOjanen,
+            jerrardOfTheClosedFist,
+            kasimirTheLoneWolf,
+            sirShandlarOfEberyn,
+            sivitriScarzam,
+            theLadyOfTheMountain,
+            tobiasAndrion,
+            torstenVonUrsus,
+        ]) {
+            expect(c.supertypes).toContain("Legendary");
+            expect(c.types).toEqual(["Creature"]);
+            expect(c.staticAbilities).toBeUndefined();
+        }
+        expect(barktoothWarbeard.power).toBe(6);
+        expect(barktoothWarbeard.toughness).toBe(5);
+        expect(sirShandlarOfEberyn.toughness).toBe(7);
+    });
+
+    it("Ramirez DePietro has first strike", () => {
+        expect(ramirezDePietro.staticAbilities).toContain("first strike");
+        expect(ramirezDePietro.supertypes).toContain("Legendary");
+    });
+
+    it("registers the multicolor cards by name (pool / debug lookup)", () => {
+        expect(getCardByName("Dakkon Blackblade")).toBe(dakkonBlackblade);
+        expect(getCardByName("Sol'kanar the Swamp King")).toBe(
+            solkanarTheSwampKing
+        );
+        expect(getCardByName("Boris Devilboon")).toBe(borisDevilboon);
+    });
+});
+
+describe("Dakkon Blackblade (P/T = lands you control, CR 604.3 pt-cda)", () => {
+    it("scales with controlled lands (GRE + wire)", () => {
+        const dakkon = makeInstance(dakkonBlackblade.id, {
+            id: "dakkon",
+            controllerId: "p1",
+        });
+        const l1 = makeInstance(mountain.id, { id: "l1", controllerId: "p1" });
+        const l2 = makeInstance(forest.id, { id: "l2", controllerId: "p1" });
+        const l3 = makeInstance(island.id, { id: "l3", controllerId: "p2" }); // opponent's land doesn't count
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [dakkon, l1, l2] }),
+                makePlayer("p2", { battlefield: [l3] }),
+            ],
+        });
+        expect(getEffectivePower(state, dakkon)).toBe(2);
+        expect(getEffectiveToughness(state, dakkon)).toBe(2);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "dakkon"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(2);
+
+        // Add another land → grows.
+        state.players[0].battlefield.push(
+            makeInstance(swamp.id, { id: "l4", controllerId: "p1" })
+        );
+        expect(getEffectivePower(state, dakkon)).toBe(3);
+    });
+});
+
+describe("Jacques le Vert (green creatures you control get +0/+2, CR 611)", () => {
+    it("buffs only your green creatures (GRE + wire)", () => {
+        const jacques = makeInstance(jacquesLeVert.id, {
+            id: "jacques",
+            controllerId: "p1",
+        });
+        // Barbary Apes (green 2/2) controlled by p1 — buffed.
+        const ape = makeInstance("df25ffdd-995d-46ae-856b-f6368f9438ed", {
+            id: "ape",
+            controllerId: "p1",
+        });
+        // Red creature (Hill Giant 3/3) controlled by p1 — not buffed.
+        const giant = makeInstance("0ddb98e8-13fe-4786-83f7-b72c56db135a", {
+            id: "giant",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [jacques, ape, giant] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, ape)).toBe(2);
+        expect(getEffectiveToughness(state, ape)).toBe(4); // 2 + 2
+        expect(getEffectiveToughness(state, giant)).toBe(3); // unbuffed
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimApe = projected.players[0].battlefield.find(
+            (c) => c.id === "ape"
+        )!;
+        expect(getEffectiveToughness(projected, slimApe)).toBe(4);
+    });
+});
+
+describe("Sol'kanar the Swamp King (black-spell lifegain, CR 603.2)", () => {
+    it("has swampwalk and gains 1 life per black spell cast", () => {
+        expect(solkanarTheSwampKing.staticAbilities).toContain("swampwalk");
+        const solkanar = makeInstance(solkanarTheSwampKing.id, {
+            id: "solkanar",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [solkanar] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, solkanar, "solkanar-black-spell-lifegain", {
+            type: "SPELL_CAST",
+            casterId: "p2",
+            spellInstanceId: "x",
+            spellCardId: "x",
+            spellTypes: ["Sorcery"],
+            spellSubtypes: [],
+            spellColors: ["B"],
+        } as StackItem["triggerEvent"]);
+        expect(state.players[0].life).toBe(21);
+    });
+});
+
+describe("Adun Oakenshield ({B}{R}{G},{T}: graveyard creature → hand, CR 400.7)", () => {
+    it("returns a creature card from your graveyard to your hand", () => {
+        const adun = makeInstance(adunOakenshield.id, {
+            id: "adun",
+            controllerId: "p1",
+        });
+        const dead = makeInstance("0ddb98e8-13fe-4786-83f7-b72c56db135a", {
+            id: "dead",
+            controllerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [adun],
+                    graveyard: [dead],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, adun, "adun-oakenshield-regrowth", [
+            { type: "graveyard-card", id: "dead", playerId: "p1" },
+        ]);
+        expect(
+            state.players[0].graveyard.find((c) => c.id === "dead")
+        ).toBeUndefined();
+        expect(
+            state.players[0].hand.find((c) => c.id === "dead")
+        ).toBeDefined();
+    });
+});
+
+describe("Angus Mackenzie ({G}{W}{U},{T}: fog, CR 615)", () => {
+    it("sets the combat-damage prevention flag", () => {
+        const angus = makeInstance(angusMackenzie.id, {
+            id: "angus",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [angus] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, angus, "angus-mackenzie-fog");
+        expect(state.preventAllCombatDamageThisTurn).toBe(true);
+    });
+});
+
+describe("Boris Devilboon ({2}{B}{R},{T}: make a Minor Demon, CR 111)", () => {
+    it("creates a 1/1 black-and-red Demon token", () => {
+        const boris = makeInstance(borisDevilboon.id, {
+            id: "boris",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [boris] }),
+                makePlayer("p2"),
+            ],
+        });
+        const before = state.players[0].battlefield.length;
+        resolveActivated(state, boris, "boris-devilboon-minor-demon");
+        const token = state.players[0].battlefield.find(
+            (c) => c.isToken && c.id !== "boris"
+        );
+        expect(state.players[0].battlefield.length).toBe(before + 1);
+        expect(token).toBeDefined();
+        expect(token!.power).toBe(1);
+        expect(token!.toughness).toBe(1);
+        expect(token!.subtypes).toContain("Demon");
+    });
+});
+
+describe("Gwendlyn Di Corci ({T}: random discard, your turn, CR 701.8a)", () => {
+    it("makes the target player discard a card at random", () => {
+        const gwen = makeInstance(gwendlynDiCorci.id, {
+            id: "gwen",
+            controllerId: "p1",
+        });
+        const victimCard = makeInstance(
+            "0ddb98e8-13fe-4786-83f7-b72c56db135a",
+            { id: "hc", controllerId: "p2", zone: "hand" }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gwen] }),
+                makePlayer("p2", { hand: [victimCard] }),
+            ],
+        });
+        expect(state.players[1].hand.length).toBe(1);
+        resolveActivated(state, gwen, "gwendlyn-di-corci-discard", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].hand.length).toBe(0);
+    });
+});
+
+describe("Kei Takahashi ({T}: prevent next 2 to target creature, CR 615)", () => {
+    it("records a damage-prevention shield on the target", () => {
+        const kei = makeInstance(keiTakahashi.id, {
+            id: "kei",
+            controllerId: "p1",
+        });
+        const bear = makeInstance("d05b92bd-797e-413f-a8b0-32e0937a1ee0", {
+            id: "bear",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [kei, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, kei, "kei-takahashi-prevent", [
+            { type: "permanent", id: "bear" },
+        ]);
+        expect((state.targetPreventionShields ?? []).length).toBeGreaterThan(0);
+    });
+});
+
+describe("Pavel Maliki ({B}{R}: +1/+0 EOT, CR 611.1)", () => {
+    it("buffs its own power by 1 until end of turn", () => {
+        const pavel = makeInstance(pavelMaliki.id, {
+            id: "pavel",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pavel] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, pavel)).toBe(5);
+        resolveActivated(state, pavel, "pavel-maliki-pump");
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "pavel"
+        )!;
+        expect(getEffectivePower(state, live)).toBe(6);
+    });
+});
+
+describe("Ragnar ({G}{W}{U},{T}: regenerate target creature, CR 701.15a)", () => {
+    it("arms a regeneration shield on the target", () => {
+        const ragnarInst = makeInstance(ragnar.id, {
+            id: "ragnar",
+            controllerId: "p1",
+        });
+        const bear = makeInstance("d05b92bd-797e-413f-a8b0-32e0937a1ee0", {
+            id: "bear",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ragnarInst, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, ragnarInst, "ragnar-regenerate", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(live.regenerationShields ?? 0).toBeGreaterThanOrEqual(1);
+    });
+});
+
+describe("Tuknir Deathlock ({R}{G},{T}: target +2/+2 EOT, CR 611.1)", () => {
+    it("has flying and buffs the target by +2/+2", () => {
+        expect(tuknirDeathlock.staticAbilities).toContain("flying");
+        const tuknir = makeInstance(tuknirDeathlock.id, {
+            id: "tuknir",
+            controllerId: "p1",
+        });
+        const bear = makeInstance("d05b92bd-797e-413f-a8b0-32e0937a1ee0", {
+            id: "bear",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tuknir, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        const baseP = getEffectivePower(state, bear);
+        const baseT = getEffectiveToughness(state, bear);
+        resolveActivated(state, tuknir, "tuknir-deathlock-pump", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, live)).toBe(baseP + 2);
+        expect(getEffectiveToughness(state, live)).toBe(baseT + 2);
+    });
+});
+
+describe("Xira Arien ({B}{R}{G},{T}: target player draws, CR 121.1)", () => {
+    it("has flying and draws a card for the target player", () => {
+        expect(xiraArien.staticAbilities).toContain("flying");
+        const xira = makeInstance(xiraArien.id, {
+            id: "xira",
+            controllerId: "p1",
+        });
+        const lib = makeInstance("d05b92bd-797e-413f-a8b0-32e0937a1ee0", {
+            id: "libcard",
+            controllerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [xira], library: [lib] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(state.players[0].hand.length).toBe(0);
+        resolveActivated(state, xira, "xira-arien-draw", [
+            { type: "player", id: "p1" },
+        ]);
+        expect(state.players[0].hand.length).toBe(1);
+    });
+});
+
+describe("LEG multicolor mana abilities (CR 605.1a)", () => {
+    // Mana abilities don't use the stack (useStack: false) — assert the
+    // declaration shape (mirrors Fire Sprites) and that the `effect` closure
+    // adds the right mana to the pool.
+    function manaOf(card: typeof princessLucrezia) {
+        const ability = card.activatedAbilities?.[0];
+        let added: Record<string, number> | undefined;
+        ability?.effect?.({
+            addMana: (cost) => {
+                added = cost as Record<string, number>;
+            },
+        });
+        return { ability, added };
+    }
+    it("Princess Lucrezia: {T}: Add {U}", () => {
+        const { ability, added } = manaOf(princessLucrezia);
+        expect(ability?.useStack).toBe(false);
+        expect(ability?.manaProduced).toEqual({ U: 1 });
+        expect(added).toEqual({ U: 1 });
+    });
+    it("Riven Turnbull: {T}: Add {B}", () => {
+        const { ability, added } = manaOf(rivenTurnbull);
+        expect(ability?.useStack).toBe(false);
+        expect(ability?.manaProduced).toEqual({ B: 1 });
+        expect(added).toEqual({ B: 1 });
+    });
+    it("Sunastian Falconer: {T}: Add {C}{C}", () => {
+        const { ability, added } = manaOf(sunastianFalconer);
+        expect(ability?.useStack).toBe(false);
+        expect(ability?.manaProduced).toEqual({ C: 2 });
+        expect(added).toEqual({ C: 2 });
     });
 });
