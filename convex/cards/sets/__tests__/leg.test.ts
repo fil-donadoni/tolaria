@@ -134,13 +134,31 @@ import {
     princessLucrezia,
     rivenTurnbull,
     sunastianFalconer,
+    manaMatrix,
+    planarGate,
+    relicBarrier,
+    alchorsTomb,
+    mirrorUniverse,
+    pendelhaven,
 } from "../leg";
 import { getCardById, getCardByName, getAllCards } from "../../index";
 import { fireDelayedTriggers } from "../../../gre/phases";
-import { lightningBolt, mountain, forest, island, swamp } from "../lea";
+import {
+    lightningBolt,
+    mountain,
+    forest,
+    island,
+    swamp,
+    grizzlyBears,
+    crusade,
+    castle,
+} from "../lea";
 import {
     resolveTopOfStack,
     applySourceStaticEffects,
+    getCostModifiers,
+    applyCostModifiers,
+    normalizeManaCost,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -2929,5 +2947,275 @@ describe("LEG multicolor mana abilities (CR 605.1a)", () => {
         expect(ability?.useStack).toBe(false);
         expect(ability?.manaProduced).toEqual({ C: 2 });
         expect(added).toEqual({ C: 2 });
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Artifacts, lands & colorless free tranche (#377). Cost-reduction statics are
+// asserted via getCostModifiers + applyCostModifiers (the exact path game.ts
+// runs when casting); activated abilities are pushed via resolveActivated and
+// the resulting state / projection is checked.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Mana Matrix (instant/enchantment spells you cast cost {2} less, CR 601.2f)", () => {
+    /** Mirror game.ts spell-cost calc: normalize the spell's printed cost, then
+     *  fold in battlefield cost modifiers for the casting player's spell. */
+    function effectiveSpellCost(
+        state: GameState,
+        spellCardId: string,
+        controllerId: string
+    ): Record<string, number> {
+        const def = getCardById(spellCardId);
+        const spellView = makeInstance(spellCardId, {
+            controllerId,
+            zone: "stack",
+        });
+        const cost = normalizeManaCost(def.manaCost ?? {});
+        applyCostModifiers(cost, getCostModifiers(state, spellView, "spell"));
+        return cost;
+    }
+
+    function boardWith(artifactId: string, controllerId = "p1") {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(artifactId, { id: "art", controllerId }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("definition: {6} colorless Artifact with a cost-modifier static", () => {
+        expect(manaMatrix.manaCost).toEqual({ X: 6 });
+        expect(manaMatrix.types).toEqual(["Artifact"]);
+        expect(
+            manaMatrix.staticEffects?.some((e) => e.kind === "cost-modifier")
+        ).toBe(true);
+    });
+
+    it("reduces your instant by {2} (Lightning Bolt {R} stays {R})", () => {
+        const state = boardWith(manaMatrix.id);
+        // {R} has no generic to reduce → unchanged colored pip.
+        expect(effectiveSpellCost(state, lightningBolt.id, "p1")).toEqual({
+            R: 1,
+        });
+    });
+
+    it("reduces your enchantment's generic by {2} (Castle {3}{W} → {1}{W})", () => {
+        const state = boardWith(manaMatrix.id);
+        // Generic-only reduction (CR 601.2f): {3} → {1}, colored {W} untouched.
+        expect(effectiveSpellCost(state, castle.id, "p1")).toEqual({
+            X: 1,
+            W: 1,
+        });
+    });
+
+    it("leaves a colored-only enchantment unchanged (Crusade {W}{W} has no generic)", () => {
+        const state = boardWith(manaMatrix.id);
+        expect(effectiveSpellCost(state, crusade.id, "p1")).toEqual({ W: 2 });
+    });
+
+    it("does not reduce a creature spell (Grizzly Bears {1}{G} unchanged)", () => {
+        const state = boardWith(manaMatrix.id);
+        expect(effectiveSpellCost(state, grizzlyBears.id, "p1")).toEqual({
+            X: 1,
+            G: 1,
+        });
+    });
+
+    it("only reduces spells YOU cast (opponent's enchantment unchanged)", () => {
+        const state = boardWith(manaMatrix.id, "p1");
+        // p2 casts Castle — Mana Matrix is p1's, so no reduction.
+        expect(effectiveSpellCost(state, castle.id, "p2")).toEqual({
+            X: 3,
+            W: 1,
+        });
+    });
+});
+
+describe("Planar Gate (creature spells you cast cost {2} less, CR 601.2f)", () => {
+    function effectiveSpellCost(
+        state: GameState,
+        spellCardId: string,
+        controllerId: string
+    ): Record<string, number> {
+        const def = getCardById(spellCardId);
+        const spellView = makeInstance(spellCardId, {
+            controllerId,
+            zone: "stack",
+        });
+        const cost = normalizeManaCost(def.manaCost ?? {});
+        applyCostModifiers(cost, getCostModifiers(state, spellView, "spell"));
+        return cost;
+    }
+
+    const board = (controllerId = "p1") =>
+        makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(planarGate.id, {
+                            id: "gate",
+                            controllerId,
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+    it("definition: {6} Artifact with a cost-modifier static", () => {
+        expect(planarGate.manaCost).toEqual({ X: 6 });
+        expect(
+            planarGate.staticEffects?.some((e) => e.kind === "cost-modifier")
+        ).toBe(true);
+    });
+
+    it("reduces your creature spell (Grizzly Bears {1}{G} → {G})", () => {
+        const state = board();
+        expect(effectiveSpellCost(state, grizzlyBears.id, "p1")).toEqual({
+            G: 1,
+        });
+    });
+
+    it("does not reduce a noncreature spell (Lightning Bolt {R} unchanged)", () => {
+        const state = board();
+        expect(effectiveSpellCost(state, lightningBolt.id, "p1")).toEqual({
+            R: 1,
+        });
+    });
+
+    it("only reduces creatures YOU cast", () => {
+        const state = board("p1");
+        expect(effectiveSpellCost(state, grizzlyBears.id, "p2")).toEqual({
+            X: 1,
+            G: 1,
+        });
+    });
+});
+
+describe("Relic Barrier ({T}: Tap target artifact, CR 701.20)", () => {
+    it("taps the target artifact", () => {
+        const barrier = makeInstance(relicBarrier.id, { id: "barrier" });
+        const otherArtifact = makeInstance(manaMatrix.id, { id: "other" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [barrier, otherArtifact],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(otherArtifact.isTapped).toBe(false);
+        resolveActivated(state, barrier, "relic-barrier-tap", [
+            { type: "permanent", id: "other" },
+        ]);
+        const target = state.players[0].battlefield.find(
+            (c) => c.id === "other"
+        )!;
+        expect(target.isTapped).toBe(true);
+    });
+});
+
+describe("Alchor's Tomb (target permanent becomes chosen color, CR 105.2 / 611)", () => {
+    it("sets the chosen color override on the target and survives projection", () => {
+        const tomb = makeInstance(alchorsTomb.id, { id: "tomb" });
+        const bears = makeInstance(grizzlyBears.id, { id: "bears" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tomb, bears] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, tomb, "alchors-tomb-color", [
+            { type: "permanent", id: "bears" },
+        ]);
+        // The option choice suspends — answer "U" (blue).
+        answerChoice(state, ["U"]);
+        const colored = state.players[0].battlefield.find(
+            (c) => c.id === "bears"
+        )!;
+        expect(colored.colorOverride).toEqual(["U"]);
+        // Wire-format: the color override survives projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "bears"
+        )!;
+        expect(slim.colorOverride).toEqual(["U"]);
+    });
+});
+
+describe("Mirror Universe (exchange life totals, CR 118.5)", () => {
+    it("swaps the controller's and target opponent's life totals", () => {
+        const mirror = makeInstance(mirrorUniverse.id, { id: "mirror" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 3, battlefield: [mirror] }),
+                makePlayer("p2", { life: 18 }),
+            ],
+        });
+        resolveActivated(state, mirror, "mirror-universe-exchange", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[0].life).toBe(18);
+        expect(state.players[1].life).toBe(3);
+    });
+
+    it("definition: upkeep-only, controller-turn-only, taps + sacrifices", () => {
+        const ability = mirrorUniverse.activatedAbilities![0];
+        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
+        expect(ability.controllerTurnOnly).toBe(true);
+        expect(ability.cost.tap).toBe(true);
+        expect(ability.cost.sacrifice).toBe(true);
+    });
+});
+
+describe("Pendelhaven (Legendary land: {T}: Add {G}; {T}: pump a 1/1, CR 305 / 611.1)", () => {
+    it("definition: Legendary Land with a mana ability and a pump ability", () => {
+        expect(pendelhaven.types).toEqual(["Land"]);
+        expect(pendelhaven.supertypes).toEqual(["Legendary"]);
+        const mana = pendelhaven.activatedAbilities!.find(
+            (a) => a.id === "pendelhaven-mana"
+        )!;
+        expect(mana.useStack).toBe(false);
+        expect(mana.manaProduced).toEqual({ G: 1 });
+        const pump = pendelhaven.activatedAbilities!.find(
+            (a) => a.id === "pendelhaven-pump"
+        )!;
+        expect(pump.targetRequirement?.powerFilter).toEqual({ min: 1, max: 1 });
+        expect(pump.targetRequirement?.toughnessFilter).toEqual({
+            min: 1,
+            max: 1,
+        });
+    });
+
+    it("pumps a 1/1 creature to 2/3 until end of turn and survives projection", () => {
+        const land = makeInstance(pendelhaven.id, { id: "pendel" });
+        // Use a 1/1 vanilla creature (Tundra Wolves is 1/1).
+        const wolves = makeInstance(tundraWolves.id, { id: "wolves" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land, wolves] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, land, "pendelhaven-pump", [
+            { type: "permanent", id: "wolves" },
+        ]);
+        const target = state.players[0].battlefield.find(
+            (c) => c.id === "wolves"
+        )!;
+        expect(getEffectivePower(state, target)).toBe(2);
+        expect(getEffectiveToughness(state, target)).toBe(3);
+        // Wire-format: the buff survives projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "wolves"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
     });
 });

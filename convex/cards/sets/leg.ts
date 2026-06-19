@@ -19,7 +19,13 @@
 // ADR 0010). They stay absent so "Legends complete" means complete minus those
 // two named exclusions. The remaining cards land in later batches.
 
-import type { CardDefinition, ManaCost, SpellContext } from "../types";
+import type {
+    CardDefinition,
+    ManaCost,
+    SpellContext,
+    PermanentView,
+    StaticEffectContext,
+} from "../types";
 import { EFFECT_AFFECTS_SELF } from "../types";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { tappedTrigger } from "../abilities/triggers/tappedTrigger";
@@ -3322,6 +3328,282 @@ export const sunastianFalconer: CardDefinition = {
             useStack: false,
             effect: (ctx) => ctx.addMana({ C: 2 }),
             manaProduced: { C: 2 },
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Artifacts, lands & colorless free tranche (#377) — every artifact, land, and
+// colorless Legends card expressible TODAY with existing primitives (keywords,
+// staticEffects / layer system, trigger factories, prevention shields,
+// activated / mana abilities, SpellContext methods). Data + resolve() closures
+// only; zero engine change (ADR 0014). Legendary artifacts/lands ship carrying
+// the `Legendary` supertype as data and become fully correct once the legend-
+// rule SBA (#369 C1) lands. Source: MTGJSON LEG.json, modern Oracle text
+// (ADR 0004).
+//
+// Cards owned by feature clusters (#369 C1–C9) are NOT here:
+//   • C4 bands-with-other grant-lands: Adventurers' Guildhouse, Cathedral of
+//     Serra, Mountain Stronghold, Seafarer's Quay, Unholy Citadel; and the
+//     banding strip Tolaria.
+//   • C5 named counters: Triassic Egg (hatchling counters), Voodoo Doll (pin
+//     counters), Serpent Generator (poison-counter token).
+//   • C7 upkeep pay-or-sacrifice: Forethought Amulet, The Tabernacle at Pendrell
+//     Vale.
+//
+// SKIPPED here — needs an engine primitive that genuinely isn't built yet
+// (data-only tranche must not build engine support); each lands in a later
+// batch when its primitive ships:
+//   • Hammerheim, Urborg — "target creature loses all landwalk / loses first
+//     strike or swampwalk until end of turn" needs a duration-scoped keyword
+//     REMOVAL; only static keyword-remove and keyword GRANT exist (same gap
+//     flagged for Radjan Spirit).
+//   • Karakas — "Return target legendary creature" needs a supertype target
+//     filter; TargetRequirement has no `supertypeFilter`.
+//   • Arena of the Ancients — "Legendary creatures don't untap" needs a
+//     supertype-scoped untap-restriction; PermanentFilter has no supertypes
+//     field.
+//   • Black/Blue/Green/Red/White Mana Battery — "{T}, Remove any number of
+//     charge counters: Add 1 + N mana" needs an interactive count choice inside
+//     a mana ability; immediate (useStack:false) mana abilities can't suspend
+//     for a choice.
+//   • Al-abara's Carpet — "prevent all damage to you by attacking creatures
+//     without flying" needs an attacker-flying-filtered player damage shield;
+//     no primitive (Island Sanctuary is an attack restriction, not prevention).
+//   • Horn of Deafening, Kry Shield — "prevent all damage that would be dealt
+//     BY target creature" needs a per-source by-only prevention; only the
+//     to-AND-by shield and global Fog exist (same gap flagged for Subdue).
+//   • Marble Priest — "all Walls able to block this do so" + Wall-filtered
+//     damage prevention has no clean primitive.
+//   • Nova Pentacle — redirect player-damage onto a creature; no redirect-to-
+//     creature shield kind exists (the shields redirect to a player).
+//   • Bronze Horse — "prevent all damage by spells that target this, while you
+//     control another creature" needs a conditional spell-damage prevention
+//     guard; permanent-guard covers targeting/destroy, not damage.
+//   • Sentinel — "change base toughness to 1 + target's power, indefinitely"
+//     needs an indefinite base-P/T set; only phase-scoped setBasePT exists
+//     (same gap flagged for Wood Elemental).
+//   • North Star — "spend mana as though any type for one spell" needs a
+//     one-shot any→any mana substitution; only static single-pair from→to
+//     mana-substitution exists.
+//   • Ring of Immortals — "counter a spell that targets a permanent you
+//     control" needs a target-of-the-spell predicate not exposed to
+//     TargetRequirement.
+//   • Sword of the Ages — "Sacrifice any number of creatures" as a cost needs a
+//     variable multi-sacrifice activation cost; only single sacrificeFilter
+//     exists.
+//   • Gauntlets of Chaos — two-target type-matched control exchange + aura
+//     destruction; deferred to keep this batch low-risk.
+//   • Knowledge Vault — "return all cards exiled with this artifact to hand /
+//     graveyard" needs exile-by-source tracking with non-battlefield return;
+//     returnExiledForSource returns to the battlefield only.
+//   • Life Chisel — gain life equal to the SACRIFICED creature's toughness; the
+//     sacrifice cost snapshots mana value only, not toughness.
+//   • Life Matrix — grants an INDEFINITE activated ability to a creature;
+//     grantAbility is phase-scoped only.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// --- Cost-reduction artifacts (CR 601.2f — cost-modifier static) ----------
+
+// Mana Matrix — "Instant and enchantment spells you cast cost {2} less."
+// Generic-only reduction (CR 601.2f) scoped to the controller via the spell's
+// controllerId matching the artifact's controllerId.
+export const manaMatrix: CardDefinition = {
+    id: "a3eedc11-0b47-430c-8391-577a2d05c2ae",
+    name: "Mana Matrix",
+    oracleText:
+        "Instant and enchantment spells you cast cost {2} less to cast.",
+    manaCost: { X: 6 },
+    types: ["Artifact"],
+    staticEffects: [
+        {
+            kind: "cost-modifier",
+            appliesToSpell: (
+                card: PermanentView,
+                _ctx: StaticEffectContext,
+                effectSource?: PermanentView
+            ) =>
+                card.controllerId === effectSource?.controllerId &&
+                (card.types.includes("Instant") ||
+                    card.types.includes("Enchantment")),
+            costReduction: { X: 2 },
+        },
+    ],
+};
+
+// Planar Gate — "Creature spells you cast cost {2} less to cast."
+export const planarGate: CardDefinition = {
+    id: "dd27f0fe-c032-4f61-9f3d-98a6d2e2c426",
+    name: "Planar Gate",
+    oracleText: "Creature spells you cast cost {2} less to cast.",
+    manaCost: { X: 6 },
+    types: ["Artifact"],
+    staticEffects: [
+        {
+            kind: "cost-modifier",
+            appliesToSpell: (
+                card: PermanentView,
+                _ctx: StaticEffectContext,
+                effectSource?: PermanentView
+            ) =>
+                card.controllerId === effectSource?.controllerId &&
+                card.types.includes("Creature"),
+            costReduction: { X: 2 },
+        },
+    ],
+};
+
+// --- Utility artifacts (CR 602 activated abilities) -----------------------
+
+// Relic Barrier — "{T}: Tap target artifact." (CR 701.20 tap.)
+export const relicBarrier: CardDefinition = {
+    id: "c062cbae-ce5e-43be-9932-c81a0a3622e8",
+    name: "Relic Barrier",
+    oracleText: "{T}: Tap target artifact.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "relic-barrier-tap",
+            oracleText: "{T}: Tap target artifact.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Artifact", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") ctx.tap(target);
+            },
+        },
+    ],
+};
+
+// Alchor's Tomb — "{2}, {T}: Target permanent you control becomes the color of
+// your choice. (This effect lasts indefinitely.)" (CR 105.2, 611 color-set via
+// indefinite setColorOverride; the color is a player option choice.)
+export const alchorsTomb: CardDefinition = {
+    id: "f4395b19-2118-4a09-8932-f9ce9bc54d6d",
+    name: "Alchor's Tomb",
+    oracleText:
+        "{2}, {T}: Target permanent you control becomes the color of your choice. (This effect lasts indefinitely.)",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "alchors-tomb-color",
+            oracleText:
+                "{2}, {T}: Target permanent you control becomes the color of your choice.",
+            cost: { mana: { X: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "any",
+                count: 1,
+                controller: "you",
+            },
+            resolveSteps: [
+                (ctx: SpellContext) => {
+                    const target = ctx.targets[0];
+                    if (target?.type !== "permanent") return;
+                    const pick = ctx.requestOptionChoice({
+                        playerId: ctx.controller,
+                        choiceId: "alchors-tomb-color",
+                        prompt: "Choose a color.",
+                        options: [
+                            { id: "W", label: "White" },
+                            { id: "U", label: "Blue" },
+                            { id: "B", label: "Black" },
+                            { id: "R", label: "Red" },
+                            { id: "G", label: "Green" },
+                        ],
+                    });
+                    if (pick === undefined) return; // suspended
+                    ctx.setColorOverride(target, [pick as "W"]);
+                },
+            ],
+        },
+    ],
+};
+
+// Mirror Universe — "{T}, Sacrifice Mirror Universe: Exchange life totals with
+// target opponent. Activate only during your upkeep." (CR 118.5 life exchange,
+// modeled as gain/loss deltas since there is no setLife primitive.)
+export const mirrorUniverse: CardDefinition = {
+    id: "a8f05d5e-bb7d-4554-b880-f0c6b4688357",
+    name: "Mirror Universe",
+    oracleText:
+        "{T}, Sacrifice Mirror Universe: Exchange life totals with target opponent. Activate only during your upkeep.",
+    manaCost: { X: 6 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "mirror-universe-exchange",
+            oracleText:
+                "{T}, Sacrifice Mirror Universe: Exchange life totals with target opponent. Activate only during your upkeep.",
+            cost: { tap: true, sacrifice: true },
+            useStack: true,
+            activationPhaseRestriction: ["UPKEEP"],
+            controllerTurnOnly: true,
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type !== "player") return;
+                const mine = ctx.getLife(ctx.controller);
+                const theirs = ctx.getLife(target.id);
+                const delta = mine - theirs;
+                if (delta > 0) {
+                    ctx.loseLife(ctx.controller, delta);
+                    ctx.gainLife(target.id, delta);
+                } else if (delta < 0) {
+                    ctx.gainLife(ctx.controller, -delta);
+                    ctx.loseLife(target.id, -delta);
+                }
+            },
+        },
+    ],
+};
+
+// --- Legendary lands (CR 305 land + 205.4a Legendary supertype) -----------
+
+// Pendelhaven — Legendary land. "{T}: Add {G}." + "{T}: Target 1/1 creature gets
+// +1/+2 until end of turn." (CR 605.1a mana ability; CR 611.1 temp P/T buff
+// gated by a 1/1 power+toughness filter.)
+export const pendelhaven: CardDefinition = {
+    id: "79427109-c1f3-476d-a029-0049217237b5",
+    name: "Pendelhaven",
+    oracleText:
+        "{T}: Add {G}.\n{T}: Target 1/1 creature gets +1/+2 until end of turn.",
+    manaCost: {},
+    types: ["Land"],
+    supertypes: ["Legendary"],
+    activatedAbilities: [
+        {
+            id: "pendelhaven-mana",
+            oracleText: "{T}: Add {G}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ G: 1 }),
+            manaProduced: { G: 1 },
+        },
+        {
+            id: "pendelhaven-pump",
+            oracleText:
+                "{T}: Target 1/1 creature gets +1/+2 until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                powerFilter: { min: 1, max: 1 },
+                toughnessFilter: { min: 1, max: 1 },
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type !== "permanent") return;
+                ctx.addTemporaryPTBuff(target, 1, 2, { phase: "end-of-turn" });
+            },
         },
     ],
 };

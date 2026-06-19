@@ -4162,6 +4162,50 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // LEG artifacts #377 — cost-reduction + utility artifacts. Mana Matrix
+        // makes your instant/enchantment spells cost {2} less; Planar Gate makes
+        // your creature spells cost {2} less (cast the hand cards and watch the
+        // cost drop). Relic Barrier taps a target artifact. Alchor's Tomb makes
+        // a permanent you control the color of your choice. Plenty of lands so
+        // the reductions are visible against a real payment.
+        label: "LEG artifacts #377: cost reduction (Mana Matrix / Planar Gate), Relic Barrier, Alchor's Tomb",
+        cards: [
+            { name: "Mana Matrix", owner: "me" as const },
+            { name: "Planar Gate", owner: "me" as const },
+            { name: "Relic Barrier", owner: "me" as const },
+            { name: "Alchor's Tomb", owner: "me" as const },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Bottle of Suleiman", owner: "opp" as const },
+            { name: "Island", owner: "me" as const, count: 8 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // LEG artifacts/lands #377 — Mirror Universe and Pendelhaven. During
+        // your upkeep, sacrifice Mirror Universe to swap life totals with the
+        // opponent (you start at 3, they start at 18). Pendelhaven (Legendary
+        // land) pumps a 1/1 (Tundra Wolves) to 2/3 until end of turn.
+        label: "LEG #377: Mirror Universe (swap life), Pendelhaven (pump a 1/1)",
+        cards: [
+            { name: "Mirror Universe", owner: "me" as const },
+            { name: "Pendelhaven", owner: "me" as const },
+            { name: "Tundra Wolves", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, count: 4 },
+        ],
+        phase: "UPKEEP",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
