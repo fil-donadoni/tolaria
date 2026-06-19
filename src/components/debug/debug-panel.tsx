@@ -669,6 +669,32 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         rngSeed: 7,
     },
     {
+        // Random Reveal: Mijae Djinn attack trigger (#302, CR 705 / ADR 0023)
+        // pinned to WIN. Mijae Djinn (6/3) is untapped on your battlefield in
+        // precombat main. Advance to combat and declare Mijae as an attacker:
+        // its ATTACKERS_DECLARED trigger goes on the stack, the coin overlay
+        // animates and lands on WIN, and Mijae stays attacking (untapped).
+        // rngSeed 1 → first flipCoin() = heads (win). This exercises the
+        // combat-trigger timing path (trigger on the stack at declare-attackers),
+        // distinct from Bottle's activated-ability path.
+        label: "Random Reveal: Mijae Djinn attack (WIN — stays attacking)",
+        cards: [{ name: "Mijae Djinn", owner: "me" as const }],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        rngSeed: 1,
+    },
+    {
+        // Random Reveal: Mijae Djinn attack trigger (#302) pinned to LOSE.
+        // Advance to combat and declare Mijae as an attacker: the coin overlay
+        // lands on LOSE, then Mijae is removed from combat and tapped — only
+        // after the reveal. rngSeed 7 → first flipCoin() = tails (lose).
+        label: "Random Reveal: Mijae Djinn attack (LOSE — removed + tapped)",
+        cards: [{ name: "Mijae Djinn", owner: "me" as const }],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        rngSeed: 7,
+    },
+    {
         // ARN Batch 9 (#188) — Jihad ({W}{W}{W} Enchantment): "As it enters,
         // choose a color and an opponent. White creatures get +2/+1 as long as
         // the chosen player controls a nontoken permanent of the chosen color.

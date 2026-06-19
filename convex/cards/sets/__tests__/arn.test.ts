@@ -3385,7 +3385,7 @@ describe("Bottle of Suleiman (random-reveal coin flip, CR 705 / ADR 0023)", () =
     });
 });
 
-describe("Mijae Djinn (attack flip, CR 705 + CR 508)", () => {
+describe("Mijae Djinn (random-reveal attack flip, CR 705 / ADR 0023 + CR 508)", () => {
     it("definition snapshot: 6/3 Djinn, {R}{R}{R}", () => {
         expect(mijaeDjinn.power).toBe(6);
         expect(mijaeDjinn.toughness).toBe(3);
@@ -3393,6 +3393,9 @@ describe("Mijae Djinn (attack flip, CR 705 + CR 508)", () => {
         expect(mijaeDjinn.manaCost).toEqual({ R: 3 });
     });
 
+    /** Build a fresh combat with Mijae attacking, seeded for a known first
+     *  flip, and push+resolve its attack trigger (which suspends on the
+     *  random-reveal). Returns the suspended state. */
     function attackingMijae(seed: number) {
         const mijae = makeInstance(mijaeDjinn.id, {
             id: "mijae",
@@ -3419,23 +3422,122 @@ describe("Mijae Djinn (attack flip, CR 705 + CR 508)", () => {
             attackerIds: ["mijae"],
         };
         resolveTrigger(state, mijae, "mijae-djinn-attack-flip", event);
-        return state;
+        return { state, mijae };
     }
 
-    it("won flip → stays attacking, untapped", () => {
-        const state = attackingMijae(WIN_SEED);
-        const m = state.players[0].battlefield.find((c) => c.id === "mijae")!;
+    /** Acknowledge the head random-reveal choice to resume the trigger. */
+    function ack(state: GameState) {
+        const head = state.pendingChoices![0];
+        applyRandomRevealAck(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            choiceId: head.choiceId,
+        });
+    }
+
+    const mijaeOf = (state: GameState) =>
+        state.players[0].battlefield.find((c) => c.id === "mijae")!;
+
+    it("suspends on a random-reveal choice BEFORE applying the consequence", () => {
+        const { state } = attackingMijae(LOSE_SEED);
+        // Trigger is suspended on a random-reveal pending choice.
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("random-reveal");
+        expect(head.playerId).toBe("p1");
+        expect(head.randomKind).toBe("coin");
+        expect(head.sides).toBe(2);
+        // LOSE seed → result 0 (tails), realized LOSE face + consequence.
+        expect(head.result).toBe(0);
+        expect(head.realized).toEqual({
+            face: "LOSE",
+            consequence: "Remove Mijae Djinn from combat and tap it",
+        });
+        // The consequence has NOT been applied yet (reveal precedes apply):
+        // Mijae is still attacking and untapped.
+        const m = mijaeOf(state);
         expect(m.isAttacking).toBe(true);
         expect(m.isTapped).toBe(false);
         expect(state.combat!.attackerIds).toContain("mijae");
     });
 
-    it("lost flip → removed from combat and tapped", () => {
-        const state = attackingMijae(LOSE_SEED);
-        const m = state.players[0].battlefield.find((c) => c.id === "mijae")!;
+    it("won flip → stays attacking, untapped (flipCoin once across resume)", () => {
+        const { state } = attackingMijae(WIN_SEED);
+        const before = state.rngCounter;
+        // WIN seed → result 1 (heads), realized WIN face.
+        const head = state.pendingChoices![0];
+        expect(head.result).toBe(1);
+        expect(head.realized).toEqual({
+            face: "WIN",
+            consequence: "Mijae Djinn stays attacking",
+        });
+        ack(state);
+        // Resume reads the persisted outcome — no re-roll.
+        expect(state.rngCounter).toBe(before);
+        const m = mijaeOf(state);
+        expect(m.isAttacking).toBe(true);
+        expect(m.isTapped).toBe(false);
+        expect(state.combat!.attackerIds).toContain("mijae");
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack.length).toBe(0);
+    });
+
+    it("lost flip → removed from combat and tapped (flipCoin once across resume)", () => {
+        const { state } = attackingMijae(LOSE_SEED);
+        const before = state.rngCounter;
+        ack(state);
+        // Resume reads the persisted outcome — no re-roll.
+        expect(state.rngCounter).toBe(before);
+        const m = mijaeOf(state);
         expect(m.isAttacking).toBeFalsy();
         expect(m.isTapped).toBe(true);
         expect(state.combat!.attackerIds).not.toContain("mijae");
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack.length).toBe(0);
+    });
+
+    it("flipCoin runs exactly once: rngCounter advances by 1 on suspend, then 0 on resume", () => {
+        const { state } = attackingMijae(LOSE_SEED);
+        const afterSuspend = state.rngCounter;
+        // The bit was drawn once when the trigger suspended.
+        expect(afterSuspend).toBe(1);
+        ack(state);
+        // Resume does NOT re-roll.
+        expect(state.rngCounter).toBe(afterSuspend);
+    });
+
+    it("wire format: random-reveal fields survive projection for BOTH viewers", () => {
+        const { state } = attackingMijae(LOSE_SEED);
+        for (const viewerId of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewerId);
+            const head = projected.pendingChoices![0];
+            expect(head.kind).toBe("random-reveal");
+            expect(head.randomKind).toBe("coin");
+            expect(head.result).toBe(0);
+            // The result is public (CR 705) — both the flipper and the
+            // opponent see the realized face + consequence before the apply.
+            expect(head.realized).toEqual({
+                face: "LOSE",
+                consequence: "Remove Mijae Djinn from combat and tap it",
+            });
+        }
+    });
+
+    it("ack mutation rejects a mismatched head (stack item id)", () => {
+        const { state } = attackingMijae(LOSE_SEED);
+        const head = state.pendingChoices![0];
+        expect(() =>
+            applyRandomRevealAck(state, {
+                playerId: head.playerId,
+                stackItemId: "wrong",
+                choiceId: head.choiceId,
+            })
+        ).toThrow();
+        // Unchanged: still suspended, consequence not applied.
+        expect(state.pendingChoices![0].kind).toBe("random-reveal");
+        expect(mijaeOf(state).isTapped).toBe(false);
+        // Sanity: ack resumes only on the correct identity.
+        ack(state);
+        expect(mijaeOf(state).isTapped).toBe(true);
     });
 });
 
