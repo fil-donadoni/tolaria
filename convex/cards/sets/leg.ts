@@ -20,6 +20,7 @@
 // two named exclusions. The remaining cards land in later batches.
 
 import type { CardDefinition, ManaCost, SpellContext } from "../types";
+import { EFFECT_AFFECTS_SELF } from "../types";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { tappedTrigger } from "../abilities/triggers/tappedTrigger";
 import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
@@ -2668,3 +2669,659 @@ export const sylvanParadise: CardDefinition = {
 // `{ id, types, manaValue }`, so the basic-land restriction cannot be
 // expressed as a `candidateIds` allow-list without widening that accessor to
 // carry supertypes — an engine change out of scope for this data-only tranche.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Multicolor / gold free tranche (#376) — every multicolor (2+ colors) Legends
+// card expressible with existing primitives (keywords, staticEffects / layer
+// system incl. pt-cda, trigger factories, prevention shields, mana abilities,
+// createToken, control/regeneration machinery, SpellContext methods). Data +
+// resolve() closures only; zero engine change (ADR 0014). Almost every
+// multicolor card in Legends is a Legendary creature — the simple ones ship
+// here carrying the `Legendary` supertype as data (CR 205.4a); they become
+// fully rules-correct once the legend-rule SBA (#369 C1) lands.
+//
+// Cards owned by feature clusters (#369 C1–C9) are NOT here:
+//   • Elder Dragon Legends (upkeep pay-or-sacrifice, C7): Arcades Sabboth,
+//     Chromium, Nicol Bolas, Palladia-Mors, Vaevictis Asmadi.
+//   • Rampage N (C3): Hunding Gjornersen, Marhault Elsdragon, and Gabriel
+//     Angelfire (its upkeep choice includes "rampage 3").
+//   • Banding / bands-with-other (C4): Ayesha Tanaka.
+//   • Shroud / can't-be-targeted (C6): Bartel Runeaxe, Tetsuo Umezawa.
+//   • Named counters (C5): Rasputin Dreamweaver (dream counters).
+//   • Control-change-to-opponent upkeep penalty + named anthem (cluster-shaped):
+//     Rohgahh of Kher Keep.
+//
+// Cards that genuinely need an unbuilt primitive are SKIPPED (not built here):
+//   • Axelrod Gunnarson — "whenever a creature dealt damage by Axelrod this
+//     turn dies, ..." needs a per-source combat-damage tally keyed to the
+//     dealer; no such surface exists (same gap flagged for Blazing Effigy).
+//   • Gosta Dirk / Lord Magnus / Ur-Drago — each carries a landwalk-suppression
+//     static ("creatures with islandwalk/forestwalk/plainswalk/swampwalk can be
+//     blocked as though they didn't have it"); no global landwalk-suppression
+//     primitive (same gap flagged for Crevasse). Can't ship partial (their
+//     keyword half alone isn't the printed card).
+//   • Hazezon Tamar — delayed X 1/1 Sand Warrior tokens at the next upkeep plus
+//     a leaves-the-battlefield "exile all Sand Warriors" sweep keyed by token
+//     name across both players; the cross-board named-token tracking has no
+//     primitive.
+//   • Johan — "attacking doesn't cause creatures you control to tap this combat"
+//     is a combat-tap replacement with no primitive.
+//   • Lady Caleria / Tor Wauki — "{T}: deal N damage to target attacking OR
+//     blocking creature"; `combatRoleFilter` admits only one role at a time
+//     (same gap flagged for Crimson Manticore).
+//   • Lady Evangela — "prevent all combat damage that would be dealt BY target
+//     creature this turn"; only `preventAllCombatDamageToAndBy` (both
+//     directions, Ebony Horse) exists — a by-only shield would over-prevent.
+//   • Nebuchadnezzar — "reveal X cards at random from hand, then discard all
+//     with the chosen name" needs a name-guess + random-reveal-from-hand
+//     primitive with no surface.
+//   • Ramses Overdark — "destroy target enchanted creature"; no
+//     enchanted-permanent target filter on `TargetRequirement`.
+//   • Stangg — creates a linked legendary token twin with a sacrifice-the-pair
+//     LTB linkage (token leaves → sacrifice Stangg, Stangg leaves → exile
+//     token); no token-linkage primitive.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// --- Vanilla / keyword multicolor creatures (CR 110.1, 702 — pure data) ----
+
+// Barktooth Warbeard — vanilla legendary 6/5 (CR 205.4a Legendary supertype).
+export const barktoothWarbeard: CardDefinition = {
+    id: "0ea52228-f8ad-4623-9e05-f162473bfc03",
+    name: "Barktooth Warbeard",
+    oracleText: "",
+    manaCost: { X: 4, B: 1, R: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Warrior"],
+    power: 6,
+    toughness: 5,
+};
+
+// Jedit Ojanen — vanilla legendary 5/5.
+export const jeditOjanen: CardDefinition = {
+    id: "97b80124-2b59-425c-93cc-9b032e631c6e",
+    name: "Jedit Ojanen",
+    oracleText: "",
+    manaCost: { X: 4, W: 2, U: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Cat", "Warrior"],
+    power: 5,
+    toughness: 5,
+};
+
+// Jerrard of the Closed Fist — vanilla legendary 6/5.
+export const jerrardOfTheClosedFist: CardDefinition = {
+    id: "7f841918-813b-4784-ab57-907185b0a355",
+    name: "Jerrard of the Closed Fist",
+    oracleText: "",
+    manaCost: { X: 3, R: 1, G: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Knight"],
+    power: 6,
+    toughness: 5,
+};
+
+// Kasimir the Lone Wolf — vanilla legendary 5/3.
+export const kasimirTheLoneWolf: CardDefinition = {
+    id: "45b1e60d-54dd-41cd-b9a2-00890725a3df",
+    name: "Kasimir the Lone Wolf",
+    oracleText: "",
+    manaCost: { X: 4, W: 1, U: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Warrior"],
+    power: 5,
+    toughness: 3,
+};
+
+// Sir Shandlar of Eberyn — vanilla legendary 4/7.
+export const sirShandlarOfEberyn: CardDefinition = {
+    id: "31570ded-f5e3-44c4-b95f-294ac10b2cd2",
+    name: "Sir Shandlar of Eberyn",
+    oracleText: "",
+    manaCost: { X: 4, G: 1, W: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Knight"],
+    power: 4,
+    toughness: 7,
+};
+
+// Sivitri Scarzam — vanilla legendary 6/4.
+export const sivitriScarzam: CardDefinition = {
+    id: "9c12ee9e-db13-4b4d-a061-b6566f538f09",
+    name: "Sivitri Scarzam",
+    oracleText: "",
+    manaCost: { X: 5, U: 1, B: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human"],
+    power: 6,
+    toughness: 4,
+};
+
+// The Lady of the Mountain — vanilla legendary 5/5.
+export const theLadyOfTheMountain: CardDefinition = {
+    id: "83717eb2-220e-4086-be09-dee9174798b8",
+    name: "The Lady of the Mountain",
+    oracleText: "",
+    manaCost: { X: 4, R: 1, G: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Giant"],
+    power: 5,
+    toughness: 5,
+};
+
+// Tobias Andrion — vanilla legendary 4/4.
+export const tobiasAndrion: CardDefinition = {
+    id: "cac56eda-5ed3-4abd-beec-f5063fbf930a",
+    name: "Tobias Andrion",
+    oracleText: "",
+    manaCost: { X: 3, W: 1, U: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Advisor"],
+    power: 4,
+    toughness: 4,
+};
+
+// Torsten Von Ursus — vanilla legendary 5/5.
+export const torstenVonUrsus: CardDefinition = {
+    id: "5fd99522-4a91-4ccd-91bf-5f32a6ac3510",
+    name: "Torsten Von Ursus",
+    oracleText: "",
+    manaCost: { X: 3, G: 2, W: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Soldier"],
+    power: 5,
+    toughness: 5,
+};
+
+// Ramirez DePietro — first strike (CR 702.7) legendary 4/3.
+export const ramirezDePietro: CardDefinition = {
+    id: "e5c66c61-aadf-433b-9958-fc9b44b327b9",
+    name: "Ramirez DePietro",
+    oracleText: "First strike",
+    manaCost: { X: 3, U: 1, B: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Pirate"],
+    power: 4,
+    toughness: 3,
+    staticAbilities: ["first strike"],
+};
+
+// --- Characteristic-defining P/T (CR 604.3) --------------------------------
+
+// Dakkon Blackblade — "Dakkon Blackblade's power and toughness are each equal
+// to the number of lands you control." (CR 604.3 pt-cda; base 0/0, the CDA
+// supplies the whole value from a land count.)
+export const dakkonBlackblade: CardDefinition = {
+    id: "fbfd1278-1486-4516-8846-007ce1985ee9",
+    name: "Dakkon Blackblade",
+    oracleText:
+        "Dakkon Blackblade's power and toughness are each equal to the number of lands you control.",
+    manaCost: { X: 2, W: 1, U: 2, B: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Warrior"],
+    power: 0,
+    toughness: 0,
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: EFFECT_AFFECTS_SELF,
+            compute: (source, state) => {
+                let lands = 0;
+                for (const player of state.players) {
+                    for (const p of player.battlefield) {
+                        if (
+                            p.controllerId === source.controllerId &&
+                            p.types.includes("Land")
+                        ) {
+                            lands++;
+                        }
+                    }
+                }
+                return { power: lands, toughness: lands };
+            },
+        },
+    ],
+};
+
+// --- Filtered anthem (CR 611 layer 7c) -------------------------------------
+
+// Jacques le Vert — "Green creatures you control get +0/+2." (CR 611 filtered
+// anthem keyed on colour + controller.)
+export const jacquesLeVert: CardDefinition = {
+    id: "ee5a45b1-169b-468e-9251-424c09cd7f0f",
+    name: "Jacques le Vert",
+    oracleText: "Green creatures you control get +0/+2.",
+    manaCost: { X: 1, R: 1, G: 1, W: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Warrior"],
+    power: 3,
+    toughness: 2,
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, source, ctx) =>
+                ctx.isCreature(target) &&
+                target.controllerId === source.controllerId &&
+                ctx.getColors(target).includes("G"),
+            power: 0,
+            toughness: 2,
+        },
+    ],
+};
+
+// --- Spell-cast trigger (CR 603.2) -----------------------------------------
+
+// Sol'kanar the Swamp King — Swampwalk (CR 702.13) + "Whenever a player casts a
+// black spell, you gain 1 life." (CR 603.2 spell-cast trigger, any caster,
+// colour-filtered → CR 119.3 lifegain.)
+export const solkanarTheSwampKing: CardDefinition = {
+    id: "7a20dcb0-5350-40e0-82d3-c8d0186fc9d2",
+    name: "Sol'kanar the Swamp King",
+    oracleText:
+        "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)\nWhenever a player casts a black spell, you gain 1 life.",
+    manaCost: { X: 2, U: 1, B: 1, R: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Demon"],
+    power: 5,
+    toughness: 5,
+    staticAbilities: ["swampwalk"],
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "solkanar-black-spell-lifegain",
+            oracleText:
+                "Whenever a player casts a black spell, you gain 1 life.",
+            scope: "any",
+            filter: { colors: "B" },
+            resolve: (ctx) => ctx.gainLife(ctx.controller, 1),
+        }),
+    ],
+};
+
+// --- Activated abilities (CR 602) ------------------------------------------
+
+// Adun Oakenshield — "{B}{R}{G}, {T}: Return target creature card from your
+// graveyard to your hand." (CR 602 activated ability + CR 400.7 graveyard→hand
+// move on a chosen graveyard creature.)
+export const adunOakenshield: CardDefinition = {
+    id: "60252226-a102-4d88-9b80-42d021b5184d",
+    name: "Adun Oakenshield",
+    oracleText:
+        "{B}{R}{G}, {T}: Return target creature card from your graveyard to your hand.",
+    manaCost: { B: 1, R: 1, G: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Knight"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "adun-oakenshield-regrowth",
+            oracleText:
+                "{B}{R}{G}, {T}: Return target creature card from your graveyard to your hand.",
+            cost: { mana: { B: 1, R: 1, G: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "graveyard-card") {
+                    ctx.moveCardById(
+                        ctx.controller,
+                        target.id,
+                        "graveyard",
+                        "hand"
+                    );
+                }
+            },
+        },
+    ],
+};
+
+// Angus Mackenzie — "{G}{W}{U}, {T}: Prevent all combat damage that would be
+// dealt this turn. Activate only before the combat damage step." (CR 602.5b
+// activation-window restriction + CR 615 fog-style global combat-damage
+// prevention.)
+export const angusMackenzie: CardDefinition = {
+    id: "57264bd9-94f6-4d4d-baff-2b2900585635",
+    name: "Angus Mackenzie",
+    oracleText:
+        "{G}{W}{U}, {T}: Prevent all combat damage that would be dealt this turn. Activate only before the combat damage step.",
+    manaCost: { G: 1, W: 1, U: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Cleric"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "angus-mackenzie-fog",
+            oracleText:
+                "{G}{W}{U}, {T}: Prevent all combat damage that would be dealt this turn. Activate only before the combat damage step.",
+            cost: { mana: { G: 1, W: 1, U: 1 }, tap: true },
+            useStack: true,
+            // "before the combat damage step" — legal through the declare-
+            // blockers step at the latest (CR 508–510).
+            activationPhaseRestriction: [
+                "BEGINNING_OF_COMBAT",
+                "DECLARE_ATTACKERS",
+                "DECLARE_BLOCKERS",
+            ],
+            resolve: (ctx: SpellContext) => ctx.preventAllCombatDamage(),
+        },
+    ],
+};
+
+// Boris Devilboon — "{2}{B}{R}, {T}: Create a 1/1 black and red Demon creature
+// token named Minor Demon." (CR 602 activated ability + CR 111 token
+// creation.)
+export const borisDevilboon: CardDefinition = {
+    id: "82ae30e8-2dcd-46b8-925b-cc24e11fb95d",
+    name: "Boris Devilboon",
+    oracleText:
+        "{2}{B}{R}, {T}: Create a 1/1 black and red Demon creature token named Minor Demon.",
+    manaCost: { X: 3, B: 1, R: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Zombie", "Wizard"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "boris-devilboon-minor-demon",
+            oracleText:
+                "{2}{B}{R}, {T}: Create a 1/1 black and red Demon creature token named Minor Demon.",
+            cost: { mana: { X: 2, B: 1, R: 1 }, tap: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.createToken(
+                    {
+                        name: "Minor Demon",
+                        types: ["Creature"],
+                        subtypes: ["Demon"],
+                        power: 1,
+                        toughness: 1,
+                        colors: ["B", "R"],
+                    },
+                    ctx.controller
+                );
+            },
+        },
+    ],
+};
+
+// Gwendlyn Di Corci — "{T}: Target player discards a card at random. Activate
+// only during your turn." (CR 602.5b turn restriction + CR 701.8a random
+// discard.)
+export const gwendlynDiCorci: CardDefinition = {
+    id: "473d70b6-a88c-49f4-9415-19919c4468ae",
+    name: "Gwendlyn Di Corci",
+    oracleText:
+        "{T}: Target player discards a card at random. Activate only during your turn.",
+    manaCost: { X: 1, U: 1, B: 2, R: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Rogue"],
+    power: 3,
+    toughness: 5,
+    activatedAbilities: [
+        {
+            id: "gwendlyn-di-corci-discard",
+            oracleText:
+                "{T}: Target player discards a card at random. Activate only during your turn.",
+            cost: { tap: true },
+            useStack: true,
+            controllerTurnOnly: true,
+            targetRequirement: { type: "player", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "player") {
+                    ctx.discardAtRandom(target.id, 1);
+                }
+            },
+        },
+    ],
+};
+
+// Kei Takahashi — "{T}: Prevent the next 2 damage that would be dealt to target
+// creature this turn." (CR 602 tap ability + CR 615 prevent-N shield on a
+// chosen target.)
+export const keiTakahashi: CardDefinition = {
+    id: "6a4a524a-fdc7-432d-994b-953808528349",
+    name: "Kei Takahashi",
+    oracleText:
+        "{T}: Prevent the next 2 damage that would be dealt to target creature this turn.",
+    manaCost: { X: 2, G: 1, W: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Cleric"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "kei-takahashi-prevent",
+            oracleText:
+                "{T}: Prevent the next 2 damage that would be dealt to target creature this turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.preventNextNDamageToTarget(target, 2, {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
+
+// Pavel Maliki — "{B}{R}: Pavel Maliki gets +1/+0 until end of turn." (CR 611.1
+// repeatable temporary buff.)
+export const pavelMaliki: CardDefinition = {
+    id: "304f9d39-3ea2-4274-b23e-e4eaabbc1c4b",
+    name: "Pavel Maliki",
+    oracleText: "{B}{R}: Pavel Maliki gets +1/+0 until end of turn.",
+    manaCost: { X: 4, B: 1, R: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human"],
+    power: 5,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "pavel-maliki-pump",
+            oracleText: "{B}{R}: Pavel Maliki gets +1/+0 until end of turn.",
+            cost: { mana: { B: 1, R: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+
+// Ragnar — "{G}{W}{U}, {T}: Regenerate target creature." (CR 602 tap ability +
+// CR 701.15a regeneration shield on a chosen target.)
+export const ragnar: CardDefinition = {
+    id: "2cf6a3a3-4a06-4eb7-981a-b70cf05b2473",
+    name: "Ragnar",
+    oracleText: "{G}{W}{U}, {T}: Regenerate target creature.",
+    manaCost: { G: 1, W: 1, U: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Cleric"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "ragnar-regenerate",
+            oracleText: "{G}{W}{U}, {T}: Regenerate target creature.",
+            cost: { mana: { G: 1, W: 1, U: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.applyRegenerationShield(target);
+                }
+            },
+        },
+    ],
+};
+
+// Tuknir Deathlock — Flying (CR 702.9) + "{R}{G}, {T}: Target creature gets
+// +2/+2 until end of turn." (CR 611.1 buff on a chosen target.)
+export const tuknirDeathlock: CardDefinition = {
+    id: "9dfbcb4d-a9ae-4d76-8dde-7312fbad56b0",
+    name: "Tuknir Deathlock",
+    oracleText:
+        "Flying\n{R}{G}, {T}: Target creature gets +2/+2 until end of turn.",
+    manaCost: { X: 0, R: 2, G: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Wizard"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "tuknir-deathlock-pump",
+            oracleText:
+                "{R}{G}, {T}: Target creature gets +2/+2 until end of turn.",
+            cost: { mana: { R: 1, G: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.addTemporaryPTBuff(target, 2, 2, {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
+
+// Xira Arien — Flying (CR 702.9) + "{B}{R}{G}, {T}: Target player draws a
+// card." (CR 602 tap ability + CR 121.1 draw.)
+export const xiraArien: CardDefinition = {
+    id: "cc6c7d89-32e7-4c3f-ac90-7db3a46eed4b",
+    name: "Xira Arien",
+    oracleText: "Flying\n{B}{R}{G}, {T}: Target player draws a card.",
+    manaCost: { B: 1, R: 1, G: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Insect", "Wizard"],
+    power: 1,
+    toughness: 2,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "xira-arien-draw",
+            oracleText: "{B}{R}{G}, {T}: Target player draws a card.",
+            cost: { mana: { B: 1, R: 1, G: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "player", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "player") {
+                    ctx.drawCards(target.id, 1);
+                }
+            },
+        },
+    ],
+};
+
+// --- Mana abilities (CR 605.1a — useStack: false, resolve immediately) ------
+
+// Princess Lucrezia — "{T}: Add {U}." (CR 605.1a mana ability.)
+export const princessLucrezia: CardDefinition = {
+    id: "a1dcf48c-2700-4024-807e-9244e4c649ac",
+    name: "Princess Lucrezia",
+    oracleText: "{T}: Add {U}.",
+    manaCost: { X: 3, U: 2, B: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Wizard"],
+    power: 5,
+    toughness: 4,
+    activatedAbilities: [
+        {
+            id: "princess-lucrezia-mana",
+            oracleText: "{T}: Add {U}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ U: 1 }),
+            manaProduced: { U: 1 },
+        },
+    ],
+};
+
+// Riven Turnbull — "{T}: Add {B}." (CR 605.1a mana ability.)
+export const rivenTurnbull: CardDefinition = {
+    id: "d11f90e7-ced1-4d80-8083-99acbf459ad7",
+    name: "Riven Turnbull",
+    oracleText: "{T}: Add {B}.",
+    manaCost: { X: 5, U: 1, B: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Advisor"],
+    power: 5,
+    toughness: 7,
+    activatedAbilities: [
+        {
+            id: "riven-turnbull-mana",
+            oracleText: "{T}: Add {B}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ B: 1 }),
+            manaProduced: { B: 1 },
+        },
+    ],
+};
+
+// Sunastian Falconer — "{T}: Add {C}{C}." (CR 605.1a mana ability.)
+export const sunastianFalconer: CardDefinition = {
+    id: "587075f3-a568-4089-83ca-fe1e473c025d",
+    name: "Sunastian Falconer",
+    oracleText: "{T}: Add {C}{C}.",
+    manaCost: { X: 3, R: 1, G: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Shaman"],
+    power: 4,
+    toughness: 4,
+    activatedAbilities: [
+        {
+            id: "sunastian-falconer-mana",
+            oracleText: "{T}: Add {C}{C}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ C: 2 }),
+            manaProduced: { C: 2 },
+        },
+    ],
+};
