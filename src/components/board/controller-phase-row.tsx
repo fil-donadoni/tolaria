@@ -22,11 +22,11 @@ type ControllerPhaseRowProps = {
 function stopTooltip(phase: Phase, side: Side, stopOn: boolean) {
     const who = side === "self" ? "your turn" : "your opponent's turn";
     return (
-        <div className="max-w-[200px] leading-snug">
+        <div className="max-w-[180px] leading-tight">
             <div className="font-semibold">
                 {phaseLabel(phase)} — {who}
             </div>
-            <div className="text-white/70 mt-0.5">
+            <div className="text-background/70 mt-0.5">
                 {stopOn
                     ? "Priority will stop here. Click to auto-pass instead."
                     : "Auto-passing. Click to stop here and take priority."}

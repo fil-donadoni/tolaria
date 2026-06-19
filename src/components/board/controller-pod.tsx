@@ -30,11 +30,11 @@ export default function ControllerPod({
 
     return (
         // Right edge, above the viewer's bottom-right piles (variant H). It sits
-        // below the center-right stack slot and never overlaps it. `bottom-28`
+        // below the center-right stack slot and never overlaps it. `bottom-32`
         // clears the pile row height in the corner.
         <div
             data-controller-pod
-            className="fixed bottom-28 right-4 z-40 flex w-52 flex-col gap-2 rounded-2xl border border-zinc-800/80 bg-[#0c0d12]/90 p-2.5 shadow-2xl backdrop-blur-md"
+            className="fixed bottom-32 right-4 z-40 flex w-52 flex-col gap-2 rounded-2xl border border-zinc-800/80 bg-[#0c0d12]/90 p-2.5 shadow-2xl backdrop-blur-md"
         >
             <button
                 type="button"

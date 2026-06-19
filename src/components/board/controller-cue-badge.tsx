@@ -31,12 +31,12 @@ export default function ControllerCueBadge({ cue }: { cue: ControllerCue }) {
             role="status"
             aria-live="polite"
             data-cue={cue}
-            className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/70"
+            className={`flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/70 ${
+                style.pulse ? "animate-pulse" : ""
+            }`}
         >
             <span
-                className={`h-2 w-2 shrink-0 rounded-full ${style.dot} ${
-                    style.pulse ? "animate-pulse" : ""
-                }`}
+                className={`h-2 w-2 shrink-0 rounded-full ${style.dot}`}
                 aria-hidden
             />
             {style.label}

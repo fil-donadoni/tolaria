@@ -30,22 +30,14 @@ export default function PriorityIndicator() {
     if (state === "none") return null;
     const style = STATE_STYLE[state];
 
+    // The labelled top badge moved into the controller pod's cue badge (#331);
+    // only the board-edge glow stays here so the priority cue reads without a
+    // floating banner.
     return (
-        <>
-            <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 z-40"
-                style={{ boxShadow: style.glow }}
-            />
-            <div
-                role="status"
-                aria-live="polite"
-                className={`pointer-events-none absolute left-1/2 top-2 z-40 -translate-x-1/2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide shadow-lg ${style.badge} ${
-                    style.pulse ? "animate-pulse" : ""
-                }`}
-            >
-                {style.label}
-            </div>
-        </>
+        <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 z-40"
+            style={{ boxShadow: style.glow }}
+        />
     );
 }

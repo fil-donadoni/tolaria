@@ -52,7 +52,7 @@ export default function ControllerPhaseList({
                 <span className="w-6 text-center">Opp</span>
             </div>
 
-            <div className="flex-1 overflow-y-auto pb-2">
+            <div className="min-h-0 flex-1 overflow-y-auto pb-2">
                 {PHASE_GROUPS.map((group) => (
                     <div key={group.label}>
                         <div className="px-3 pb-0.5 pt-2 text-[9px] uppercase tracking-wider text-white/40">

@@ -28,7 +28,7 @@ export default function PhaseStopDot({
                 onClick={onClick}
                 aria-label={ariaLabel}
                 aria-pressed={active}
-                className="group grid place-items-center h-6 w-6 -m-[9px] shrink-0 cursor-pointer"
+                className="group grid place-items-center h-6 w-6 -m-2.25 shrink-0 cursor-pointer"
             >
                 <span
                     className={`block h-1.5 w-1.5 rounded-full border transition-colors ${
@@ -38,7 +38,12 @@ export default function PhaseStopDot({
                     }`}
                 />
             </TooltipTrigger>
-            <TooltipContent side="right">{tooltip}</TooltipContent>
+            <TooltipContent
+                side="right"
+                className="items-start gap-0 px-2 py-1"
+            >
+                {tooltip}
+            </TooltipContent>
         </Tooltip>
     );
 }

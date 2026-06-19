@@ -344,7 +344,6 @@ export function useControllerActions(): ControllerState {
             key: "pass",
             label: "Pass",
             tone: "primary",
-            shortcut: "space",
             disabled: isBusy,
             onClick: handlePass,
         });
