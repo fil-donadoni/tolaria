@@ -3784,6 +3784,60 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 7,
     },
+    {
+        // LEG white #371 — anthems / auras / removal. Divine Transformation on
+        // a Wall of Light, Angelic Voices live (only a white creature on board),
+        // Cleanse vs an opposing black creature, and Spirit Link gaining life.
+        label: "LEG white #371: anthems, auras, Cleanse, Spirit Link",
+        cards: [
+            { name: "Angelic Voices", owner: "me" as const },
+            { name: "Keepers of the Faith", owner: "me" as const },
+            { name: "Wall of Light", owner: "me" as const },
+            {
+                name: "Divine Transformation",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Cleanse",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Spirit Link",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Scathe Zombies", owner: "opp" as const },
+            { name: "Plains", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // LEG white #371 — evasion / prevention / triggers. Amrou Kithkin and a
+        // Seeker-enchanted attacker test the can't-be-blocked-except-by clauses;
+        // Ivory Guardians grows while the opponent holds a red creature; Holy
+        // Day fogs combat; Lifeblood + an opponent Mountain.
+        label: "LEG white #371: evasion, Holy Day fog, Ivory Guardians, Lifeblood",
+        cards: [
+            { name: "Amrou Kithkin", owner: "me" as const },
+            { name: "Ivory Guardians", owner: "me" as const },
+            { name: "Lifeblood", owner: "me" as const },
+            { name: "Seeker", owner: "me" as const, zone: "hand" as const },
+            { name: "Holy Day", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Shield Wall",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Hill Giant", owner: "opp" as const },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+            { name: "Plains", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
