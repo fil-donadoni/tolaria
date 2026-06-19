@@ -3755,6 +3755,35 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Legends (LEG) walking skeleton (#370 / PRD #369). Proves the `leg`
+        // set is registered and its vanilla legendary creatures are playable
+        // from the pool end-to-end:
+        //   • Jasmine Boreal (4/5 Legendary Human) and Lady Orca (7/4 Legendary
+        //     Demon) start on your battlefield — confirm they render with the
+        //     Legendary frame and correct P/T.
+        //   • A copy of each sits in hand so you can hard-cast it (lands cover
+        //     the cost) and watch it resolve onto the battlefield. The legend
+        //     rule (CR 704.5j) is not enforced yet — it lands as an SBA in
+        //     cluster C1 — so two copies of the same legend may coexist for now.
+        label: "LEG skeleton: vanilla legendary creatures (Jasmine Boreal, Lady Orca) (#370)",
+        cards: [
+            { name: "Jasmine Boreal", owner: "me" as const },
+            { name: "Lady Orca", owner: "me" as const },
+            {
+                name: "Jasmine Boreal",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Lady Orca",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 7,
+    },
 ];
 
 type DebugPanelProps = {
