@@ -4,7 +4,7 @@ const CUE_STYLE: Record<
     ControllerCue,
     { dot: string; label: string; pulse: boolean }
 > = {
-    mine: { dot: "bg-emerald-400", label: "Your turn to act", pulse: true },
+    mine: { dot: "bg-emerald-400", label: "Your Go", pulse: true },
     opponent: {
         dot: "bg-amber-400/70",
         label: "Opponent to act",

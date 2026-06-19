@@ -277,7 +277,6 @@ export function useControllerActions(): ControllerState {
             key: "cancel-cast",
             label: "Cancel Cast",
             tone: "destructive",
-            shortcut: "U",
             disabled: isBusy,
             onClick: runBusy(() => cancelCast({ gameId, playerId })),
         });
@@ -286,7 +285,6 @@ export function useControllerActions(): ControllerState {
             key: "cancel-activation",
             label: "Cancel Ability",
             tone: "destructive",
-            shortcut: "U",
             disabled: isBusy,
             onClick: runBusy(() => cancelActivation({ gameId, playerId })),
         });
@@ -298,7 +296,6 @@ export function useControllerActions(): ControllerState {
                     ? `Confirm Attackers (${selectedAttackerIds.length})`
                     : "Skip Attack",
             tone: "primary",
-            shortcut: "space",
             disabled: isBusy,
             onClick: runBusy(() => confirmAttackers({ gameId, playerId })),
         });
@@ -306,7 +303,6 @@ export function useControllerActions(): ControllerState {
             key: "pass-turn-attackers",
             label: "Pass Turn",
             tone: "destructive",
-            shortcut: "enter",
             disabled: isBusy,
             onClick: handleEndTurn,
         });
@@ -318,7 +314,6 @@ export function useControllerActions(): ControllerState {
                     ? `Confirm Blockers (${blockerCount})`
                     : "No Blockers",
             tone: "primary",
-            shortcut: "space",
             disabled: isBusy,
             onClick: runBusy(() => confirmBlockers({ gameId, playerId })),
         });
@@ -326,7 +321,6 @@ export function useControllerActions(): ControllerState {
             key: "pass-turn-blockers",
             label: "Pass Turn",
             tone: "destructive",
-            shortcut: "enter",
             disabled: isBusy,
             onClick: handleEndTurn,
         });
@@ -335,7 +329,6 @@ export function useControllerActions(): ControllerState {
             key: "confirm-damage",
             label: "Confirm Damage",
             tone: "primary",
-            shortcut: "space",
             disabled: isBusy || !allDamageAssigned,
             onClick: runBusy(() => confirmDamage({ gameId, playerId })),
         });
@@ -351,7 +344,6 @@ export function useControllerActions(): ControllerState {
             key: "pass-turn",
             label: "Pass Turn",
             tone: "destructive",
-            shortcut: "enter",
             disabled: isBusy,
             onClick: handleEndTurn,
         });
@@ -371,7 +363,6 @@ export function useControllerActions(): ControllerState {
             key: "auto-pass",
             label: "Auto-passing... (cancel)",
             tone: "destructive",
-            shortcut: "enter",
             disabled: isBusy,
             pill: true,
             onClick: handleCancelAutoPass,
@@ -387,7 +378,6 @@ export function useControllerActions(): ControllerState {
             key: "queued-end-turn",
             label: "Pass Turn queued (cancel)",
             tone: "destructive",
-            shortcut: "enter",
             disabled: isBusy,
             pill: true,
             onClick: handleCancelAutoPass,

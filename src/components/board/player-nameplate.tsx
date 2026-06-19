@@ -1,5 +1,6 @@
 import type { Player } from "~/types/game";
 import type { PlayerInteraction } from "~/hooks/usePlayerInteraction";
+import AnimatedLifeTotal from "./animated-life-total";
 
 type PlayerNameplateProps = {
     player: Player;
@@ -77,9 +78,7 @@ export default function PlayerNameplate({
             <span className="absolute top-1 right-1 w-2.5 h-2.5 border-t border-r border-border-accent/50" />
             <span className="absolute bottom-1 left-1 w-2.5 h-2.5 border-b border-l border-border-accent/50" />
             <span className="absolute bottom-1 right-1 w-2.5 h-2.5 border-b border-r border-border-accent/50" />
-            <div className="text-3xl font-bold leading-none text-accent-strong tabular-nums">
-                {player.life}
-            </div>
+            <AnimatedLifeTotal life={player.life} />
             <div className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-text-muted">
                 {player.name}
             </div>
