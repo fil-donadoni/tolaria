@@ -19,6 +19,7 @@ import {
     pushSpell,
 } from "@convex/cards/__tests__/setup";
 import { resolveTopOfStack, type GameState } from "@convex/gre/state";
+import { advancePhase } from "@convex/gre/phases";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
@@ -42,6 +43,8 @@ const NATURAL_SELECTION = getCardByName("Natural Selection").id; // reorder-libr
 const PLAINS = getCardByName("Plains").id; // white-producing land
 const MOUNTAIN = getCardByName("Mountain").id; // red-producing land
 const SHIVAN_DRAGON = getCardByName("Shivan Dragon").id; // 4RR — castable only off red sources
+const WINTER_ORB = getCardByName("Winter Orb").id; // "untap up to one land" (cap 1)
+const LIBRARY = getCardByName("Library of Alexandria").id; // a high-value land
 
 /** Fake mutation surface routing `submitResolutionChoice` / `submitMayPay`
  *  through the SAME engine primitives the real `game.ts` mutations call. Every
@@ -509,5 +512,105 @@ describe("bot resolution-choice full path — discard-hand mana-aware (issue #24
         expect(bot.graveyard.map((c) => c.id)).toEqual(["hand-land-0"]);
         expect(bot.hand.map((c) => c.id)).toContain("shivan");
         expect(state.pendingChoices).toBeUndefined();
+    });
+});
+
+/** Drive a Winter Orb untap-pick prompt onto the bot. The bot is the active
+ *  player entering its UNTAP step with Winter Orb (land cap 1) and two tapped
+ *  lands of differing card value in play; the dispatcher enqueues a count
+ *  `{ min: 0, max: 1 }` `untap-pick` choice for the bot. */
+function makeWinterOrbState(): GameState {
+    const orb = makeInstance(WINTER_ORB, {
+        id: "orb",
+        controllerId: BOT,
+        ownerId: BOT,
+        zone: "battlefield",
+    });
+    const library = makeInstance(LIBRARY, {
+        id: "bot-library",
+        controllerId: BOT,
+        ownerId: BOT,
+        zone: "battlefield",
+        isTapped: true,
+    });
+    const forest = makeInstance(FOREST, {
+        id: "bot-forest",
+        controllerId: BOT,
+        ownerId: BOT,
+        zone: "battlefield",
+        isTapped: true,
+    });
+    const state = makeState({
+        // Active bot in END_STEP; advancePhase drives END_STEP → CLEANUP → turn
+        // flip → UNTAP, where the dispatcher enqueues the bot's untap-pick.
+        phase: "END_STEP",
+        activePlayerId: HUMAN,
+        priorityPlayerId: HUMAN,
+        players: [
+            makePlayer(HUMAN),
+            makePlayer(BOT, { battlefield: [orb, library, forest] }),
+        ],
+    });
+    advancePhase(state);
+    return state;
+}
+
+describe("bot resolution-choice full path — untap-pick (Winter Orb, issue #325)", () => {
+    it("enqueues a count {0,1} untap-pick for the bot that the GRE search cannot resolve", () => {
+        const state = makeWinterOrbState();
+        expect(state.phase).toBe("UNTAP");
+        expect(state.activePlayerId).toBe(BOT);
+        expect(state.pendingChoices?.[0]?.kind).toBe("untap-pick");
+        expect(state.pendingChoices?.[0]?.count).toEqual({ min: 0, max: 1 });
+        // While the choice is pending the GRE surfaces no move — the bot would
+        // freeze (or, pre-fix, submit nothing) without the brain policy.
+        expect(enumerateMoves(state, BOT)).toEqual([]);
+        expect(decidingPlayer(state)).toBeNull();
+    });
+
+    it("buildBotView surfaces the cap as `max` (not just min) with both tapped lands", () => {
+        const state = makeWinterOrbState();
+        const view = buildBotView(projectPublicState(state, 1, BOT), BOT);
+        expect(view.owedChoice).toMatchObject({
+            kind: "untap-pick",
+            min: 0,
+            max: 1,
+        });
+        expect(view.owedChoice?.candidates.map((c) => c.id).sort()).toEqual([
+            "bot-forest",
+            "bot-library",
+        ]);
+    });
+
+    it("untaps exactly one land — the best — never an empty selection; queue drains", async () => {
+        const state = makeWinterOrbState();
+
+        const projected = projectPublicState(state, 1, BOT);
+        const view = buildBotView(projected, BOT);
+        const action = decideBotAction(view);
+        expect(action.kind).toBe("resolution-choice");
+        if (action.kind !== "resolution-choice") throw new Error("unreachable");
+        // Up to the cap (1), best-first — exactly one land, NOT empty.
+        expect(action.cardInstanceIds).toEqual(["bot-library"]);
+
+        const move = botActionToMove(action, projected, BOT);
+        expect(move?.kind).toBe("resolution-choice");
+        if (!move) throw new Error("unreachable");
+
+        await executeMove(move, {
+            gameId: "g" as never,
+            botId: BOT,
+            mutations: engineMutations(state),
+        });
+
+        // The choice committed across the real `finalizeUntapPick` path: the
+        // chosen land untapped, the capped-out land stayed tapped, the queue
+        // drained and the turn advanced (no freeze).
+        expect(state.pendingChoices).toBeUndefined();
+        const bot = state.players.find((p) => p.id === BOT)!;
+        const library = bot.battlefield.find((c) => c.id === "bot-library")!;
+        const forest = bot.battlefield.find((c) => c.id === "bot-forest")!;
+        expect(library.isTapped).toBe(false);
+        expect(forest.isTapped).toBe(true);
     });
 });

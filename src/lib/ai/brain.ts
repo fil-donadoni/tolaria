@@ -307,7 +307,7 @@ function discardOrder(
  *  `buildBotView`). Quality is explicitly deferred to the evaluation work —
  *  these are minimal legal actions, not the best ones. */
 export function chooseResolution(choice: OwedChoice): string[] {
-    const { kind, candidates, min } = choice;
+    const { kind, candidates, min, max } = choice;
     switch (kind) {
         // Keep / fetch the best `min` (non-lands first): the chooser retains
         // these and the rest are sacrificed / discarded / left behind.
@@ -338,14 +338,25 @@ export function chooseResolution(choice: OwedChoice): string[] {
             return order.slice(0, min).map((c) => c.id);
         }
 
+        // Untap cap (CR 502.1, Winter Orb / Smoke): the floor is 0 (the active
+        // player MAY untap zero), but untapping is pure upside — declining it is
+        // strictly self-harming (a permissive `min` here would leave the bot's
+        // lands tapped every turn). Untap up to the cap (`max`), best-first by
+        // projected card value, so the bot reclaims its most valuable eligible
+        // permanents and never submits an empty selection while an eligible
+        // permanent is tapped. The server commit (`finalizeUntapPick`) accepts
+        // any subset within `[min, max]`, so this stays a legal submission.
+        case "untap-pick":
+            return bestFirst(candidates)
+                .slice(0, max)
+                .map((c) => c.id);
+
         // Neutral pick of exactly `min` legal candidates in zone order. For the
-        // range kinds `min` is 0 (CR 502.1 untap cap is permissive; "up to"
-        // partitions; optional Illusionary Mask), so these resolve to an empty,
-        // always-legal submission.
+        // range kinds `min` is 0 ("up to" partitions; optional Illusionary
+        // Mask), so these resolve to an empty, always-legal submission.
         case "choose-permanents":
         case "pick-source":
         case "choose-hand-card":
-        case "untap-pick":
         case "partition":
             return candidates.slice(0, min).map((c) => c.id);
 
