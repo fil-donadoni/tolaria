@@ -1304,6 +1304,15 @@ export interface SpellContext {
         knowerId: string
     ) => void;
 
+    /** Reveals cards to ALL players (ADR 0026, PRD #338 — slice 2). Adds every
+     *  player in the game to the `knownTo` set of each library/hand card in
+     *  `cardInstanceIds` owned by `zoneOwnerId`. This is the _reveal_ class of
+     *  knowledge (vs `markKnown`, the _look_ class which grants to one player):
+     *  a revealed card is face-up to everyone and stays so until an uncertainty
+     *  event clears it (e.g. a library shuffle, CR 701.20). Idempotent; no-op
+     *  for ids not currently in that owner's library or hand. */
+    markKnownToAll: (zoneOwnerId: string, cardInstanceIds: string[]) => void;
+
     /** Reveals `targetPlayerId`'s hand to the controller via a display-only
      *  pending choice (CR 401.4 — "look at"). Returns the revealed card ids
      *  on acknowledgement, `undefined` while suspended waiting for the

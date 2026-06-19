@@ -286,6 +286,8 @@ import {
     payManaCost,
     isManaCostCovered,
     getManaSubstitutions,
+    grantKnowledgeToAll,
+    clearKnowledge,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -16806,6 +16808,74 @@ describe("Natural Selection (peek top 3 + reorder + optional shuffle, CR 401.4)"
         ]);
         const forP2 = projectPublicState(reloaded, 1, "p2");
         expect(forP2.players[1].library.known).toEqual([]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Reveal-to-all (library) — ADR 0026 / PRD #338 slice 2 (#340)
+// A reveal effect stamps every player onto a library card's knownTo. The card
+// is then face-up to ALL players (every viewer's projection exposes it at its
+// index) and stays so until the library is shuffled, which clears it for all
+// (reusing slice 1's shuffle clear). This exercises the full
+// GRE primitive → serialize (DB) → projection → clear path that a
+// reveal-the-top-card style effect drives via SpellContext.markKnownToAll.
+// ---------------------------------------------------------------------------
+describe("Reveal-to-all library knowledge (ADR 0026 slice 2, CR 701.16 / 701.20)", () => {
+    function setup() {
+        const library = ["r1", "r2", "r3"].map((id) =>
+            makeInstance(swamp.id, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "library",
+            })
+        );
+        return makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { library })],
+        });
+    }
+
+    it("stamps every player onto the revealed card's knownTo", () => {
+        const state = setup();
+        grantKnowledgeToAll(state, "p2", ["r1"]);
+        // Both players know it (a look would add only one).
+        expect(state.players[1].library[0].knownTo).toEqual(["p1", "p2"]);
+        // Other cards stay hidden.
+        expect(state.players[1].library[1].knownTo).toBeUndefined();
+    });
+
+    it("end-to-end: every viewer sees the revealed card; a shuffle clears it for all", () => {
+        const state = setup();
+        grantKnowledgeToAll(state, "p2", ["r1"]);
+
+        // Survives the DB round trip (as saveGameState → load would do).
+        const reloaded = expandState(compactState(state));
+        expect(reloaded.players[1].library[0].knownTo).toEqual(["p1", "p2"]);
+
+        // Projection: the revealed top card reaches EVERY viewer at index 0,
+        // and raw knownTo never crosses the wire.
+        for (const viewer of ["p1", "p2"]) {
+            const projected = projectPublicState(reloaded, 1, viewer);
+            const lib = projected.players[1].library;
+            expect(lib.count).toBe(3);
+            expect(lib.known).toHaveLength(1);
+            expect(lib.known[0].index).toBe(0);
+            expect(lib.known[0].card.id).toBe("r1");
+            expect(
+                (lib.known[0].card as { knownTo?: string[] }).knownTo
+            ).toBeUndefined();
+        }
+
+        // Shuffle clears the reveal for everyone (CR 701.20).
+        clearKnowledge(reloaded.players[1].library, null);
+        for (const c of reloaded.players[1].library) {
+            expect(c.knownTo).toBeUndefined();
+        }
+        // After the shuffle no viewer sees the card any more.
+        for (const viewer of ["p1", "p2"]) {
+            const projected = projectPublicState(reloaded, 1, viewer);
+            expect(projected.players[1].library.known).toEqual([]);
+        }
     });
 });
 

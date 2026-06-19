@@ -162,6 +162,15 @@ describe("game_state serialize round-trip", () => {
         expect(expanded.players[0].library[1].knownTo).toBeUndefined();
     });
 
+    // ADR 0026 slice 2 (#340) — a REVEALED library card carries every player in
+    // knownTo; the multi-element array must survive the 3-tuple round trip.
+    it("preserves a reveal-to-all knownTo (multiple viewers) across the round trip", () => {
+        const state = freshState();
+        state.players[0].library[0].knownTo = ["p1", "p2"];
+        const expanded = expandState(compactState(state));
+        expect(expanded.players[0].library[0].knownTo).toEqual(["p1", "p2"]);
+    });
+
     it("keeps the compact library entry a 2-tuple when knownTo is empty", () => {
         const state = freshState();
         const compact = compactState(state);

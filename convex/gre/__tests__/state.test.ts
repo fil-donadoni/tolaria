@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
     clearKnowledge,
     grantKnowledge,
+    grantKnowledgeToAll,
     getBasicLandMana,
     getPlayer,
     getOpponentId,
@@ -1146,6 +1147,71 @@ describe("grantKnowledge stamps persistent knowledge (ADR 0026)", () => {
         for (const c of state.players[0].library) {
             expect(c.knownTo).toBeUndefined();
         }
+    });
+});
+
+describe("grantKnowledgeToAll — reveal stamps every player (ADR 0026 slice 2)", () => {
+    it("adds every player to knownTo of the targeted library cards", () => {
+        const library = [
+            makeCard({
+                id: "l0",
+                zone: "library",
+                ownerId: "p2",
+                controllerId: "p2",
+            }),
+            makeCard({
+                id: "l1",
+                zone: "library",
+                ownerId: "p2",
+                controllerId: "p2",
+            }),
+        ];
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1" }),
+                makePlayer({ id: "p2", library }),
+            ],
+        });
+        grantKnowledgeToAll(state, "p2", ["l0"]);
+        grantKnowledgeToAll(state, "p2", ["l0"]); // idempotent
+        // Revealed card is known to BOTH players (look would be just one).
+        expect(state.players[1].library[0].knownTo).toEqual(["p1", "p2"]);
+        // The untouched card stays hidden from everyone.
+        expect(state.players[1].library[1].knownTo).toBeUndefined();
+    });
+
+    it("merges with an existing looker rather than dropping it", () => {
+        const library = [
+            makeCard({
+                id: "l0",
+                zone: "library",
+                ownerId: "p1",
+                controllerId: "p1",
+                knownTo: ["p1"], // p1 already looked
+            }),
+        ];
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", library }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        grantKnowledgeToAll(state, "p1", ["l0"]);
+        expect(state.players[0].library[0].knownTo).toEqual(["p1", "p2"]);
+    });
+
+    it("a shuffle (clearKnowledge null) clears the reveal for everyone (CR 701.20)", () => {
+        const library = [makeCard({ id: "l0", zone: "library" })];
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", library }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        grantKnowledgeToAll(state, "p1", ["l0"]);
+        expect(state.players[0].library[0].knownTo).toEqual(["p1", "p2"]);
+        clearKnowledge(state.players[0].library, null); // models shuffle
+        expect(state.players[0].library[0].knownTo).toBeUndefined();
     });
 });
 
