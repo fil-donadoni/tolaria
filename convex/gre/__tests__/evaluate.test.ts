@@ -929,3 +929,94 @@ describe("reactive flexibility (ADR 0021 slice 1, issue #221)", () => {
         );
     });
 });
+
+// ---------------------------------------------------------------------------
+// Non-creature beneficial permanents are realized material (issue #365). A
+// static-buff Enchantment (Castle) and a card-advantage Artifact (Jayemdae
+// Tome) carry no power/toughness, so before the fix their loss barely moved the
+// material margin and the bot would Disenchant its own. Their realized
+// battlefield worth must register, so destroying one is a measurable,
+// correctly-signed material change.
+// ---------------------------------------------------------------------------
+describe("non-creature beneficial permanents are material (issue #365)", () => {
+    const CASTLE = getCardByName("Castle").id; // {3}{W} Enchantment, +0/+2 buff
+    const TOME = getCardByName("Jayemdae Tome").id; // {4} Artifact, card draw
+
+    function withPerm(cardId: string, ownerId: string, id: string) {
+        return makeInstance(cardId, { controllerId: ownerId, ownerId, id });
+    }
+
+    it("destroying the bot's own Enchantment lowers its material margin", () => {
+        const withCastle = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [withPerm(CASTLE, "p1", "castle")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const without = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        // Losing the Castle is a strict, measurable material LOSS for p1.
+        expect(materialMargin(without, "p1")).toBeLessThan(
+            materialMargin(withCastle, "p1")
+        );
+        // And it is more than the flat board-presence bonus alone (W_PERMANENT
+        // = 5): the realized non-creature body now counts.
+        expect(
+            materialMargin(withCastle, "p1") - materialMargin(without, "p1")
+        ).toBeGreaterThan(5);
+    });
+
+    it("destroying a card-advantage Artifact lowers the controller's margin", () => {
+        const withTome = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [withPerm(TOME, "p1", "tome")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const without = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        expect(materialMargin(without, "p1")).toBeLessThan(
+            materialMargin(withTome, "p1")
+        );
+    });
+
+    it("the opponent's beneficial permanent is a NEGATIVE term for the bot", () => {
+        // The same permanent on the opponent's board lowers the bot's margin —
+        // destroying THAT is a gain, so the friendly-vs-enemy sign is correct.
+        const oppHasTome = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [withPerm(TOME, "p2", "tome")],
+                }),
+            ],
+        });
+        const neither = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        expect(materialMargin(oppHasTome, "p1")).toBeLessThan(
+            materialMargin(neither, "p1")
+        );
+    });
+
+    it("a land is NOT given a realized body (mana term owns it, issue #149)", () => {
+        const MOUNTAIN_ID = getCardByName("Mountain").id;
+        const withLand = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [withPerm(MOUNTAIN_ID, "p1", "mtn")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // A land's permanents term is the flat W_PERMANENT only (5); its value
+        // lives in the `mana` term, not a duplicated non-creature body.
+        expect(evaluateBreakdown(withLand, "p1").self.permanents).toBe(5);
+    });
+});

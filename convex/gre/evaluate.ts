@@ -332,6 +332,22 @@ function playerTerms(state: GameState, player: PlayerState): EvalTerms {
         terms.permanents += W_PERMANENT;
         if (isCreature(perm)) {
             terms.creatures += evaluateCreature(state, perm);
+        } else {
+            // Non-creature, non-land beneficial permanents (a static buff
+            // Enchantment like Castle, a card-advantage Artifact like Jayemdae
+            // Tome) carry no power/toughness, so without a realized body value
+            // they registered only the flat W_PERMANENT (5) — destroying one
+            // read as ~neutral and the bot would Disenchant its OWN Castle
+            // (issue #365). Give them the SAME Forge-scale realized worth their
+            // `cardValue` body assigns latently (an `aiValue` override or
+            // `NONCREATURE_BASE + MV × W_NC_MV`), so their loss is a measurable,
+            // correctly-signed material change in both `materialMargin` and
+            // `evaluate`. Lands are excluded — their worth is already counted by
+            // the `mana` term (an untapped source), so adding the body here
+            // would double-count and skew the land-drop invariant (issue #149).
+            if (!isLand(perm)) {
+                terms.permanents += cardValue(state, perm);
+            }
         }
     }
     const availableMana = availableManaFor(player);
