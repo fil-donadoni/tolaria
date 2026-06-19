@@ -208,3 +208,113 @@ export function solveAutoTap(
     }
     return null;
 }
+
+/**
+ * Total still-unmet mana of a pool against a cost, after applying colored
+ * requirements (with substitutions, CR 609.4b) and then the generic
+ * remainder. This is the quantity the partial solver tries to drive down:
+ * a source tap is "useful" iff it strictly reduces this number.
+ */
+function remainingDeficit(
+    pool: Record<string, number>,
+    cost: Record<string, number>,
+    substitutions: ManaSubstitution[]
+): number {
+    const remaining = { ...pool };
+    let deficit = 0;
+
+    // Colored/colorless pips: spend exact color first, then substitutes.
+    for (const color of MANA_COLORS) {
+        let required = cost[color] ?? 0;
+        if (required <= 0) continue;
+        const direct = Math.min(remaining[color] ?? 0, required);
+        remaining[color] = (remaining[color] ?? 0) - direct;
+        required -= direct;
+        for (const sub of substitutions) {
+            if (required <= 0) break;
+            if (sub.to !== color) continue;
+            const take = Math.min(remaining[sub.from] ?? 0, required);
+            remaining[sub.from] = (remaining[sub.from] ?? 0) - take;
+            required -= take;
+        }
+        deficit += required;
+    }
+
+    // Generic remainder: any leftover mana counts toward it.
+    const generic = cost.X ?? 0;
+    if (generic > 0) {
+        let available = 0;
+        for (const color of MANA_COLORS) available += remaining[color] ?? 0;
+        deficit += Math.max(0, generic - available);
+    }
+
+    return deficit;
+}
+
+/**
+ * Maximal-useful partial plan (issue #321).
+ *
+ * Used when `solveAutoTap` returns `null` (the available pure-mana sources
+ * cannot fully cover the cost, e.g. the rest must come from an excluded
+ * sacrifice source like Black Lotus). Greedily taps every source that
+ * strictly advances payment toward the cost, leaving the manual remainder
+ * for the player. Caller commits only if the cost ends up fully covered;
+ * otherwise the payment banner stays up.
+ *
+ * Guarantees mirroring the full solver's contract:
+ *  - never taps a source whose mana is irrelevant to the cost's colors/amount
+ *    (a tap that does not reduce the remaining deficit is skipped);
+ *  - never over-taps: once the deficit reaches 0 the loop stops;
+ *  - excluded sources are not present in `sources`, so they're never tapped.
+ *
+ * Returns `[]` when no source can make any progress (true no-op).
+ */
+export function solveAutoTapPartial(
+    pool: Record<string, number>,
+    cost: Record<string, number>,
+    substitutions: ManaSubstitution[],
+    sources: AutoTapSource[]
+): AutoTapPlan {
+    const plan: AutoTapPlan = [];
+    let currentPool = { ...pool };
+    // Sources are pre-sorted restricted-first; consume in order, skipping any
+    // that can't help so flexible sources aren't spent on already-met needs.
+    const remaining = [...sources];
+
+    let deficit = remainingDeficit(currentPool, cost, substitutions);
+    let progressed = true;
+    while (deficit > 0 && progressed) {
+        progressed = false;
+        for (let i = 0; i < remaining.length; i++) {
+            const src = remaining[i];
+            // Best option = the one that reduces the deficit the most.
+            let bestOpt: AutoTapSource["options"][number] | undefined;
+            let bestDeficit = deficit;
+            for (const opt of src.options) {
+                const after = remainingDeficit(
+                    addContribution(currentPool, opt.mana),
+                    cost,
+                    substitutions
+                );
+                if (after < bestDeficit) {
+                    bestDeficit = after;
+                    bestOpt = opt;
+                }
+            }
+            if (!bestOpt) continue; // this source can't advance the cost
+            currentPool = addContribution(currentPool, bestOpt.mana);
+            plan.push({
+                cardId: src.cardId,
+                ...(bestOpt.manaChoiceIndex !== undefined
+                    ? { manaChoiceIndex: bestOpt.manaChoiceIndex }
+                    : {}),
+            });
+            remaining.splice(i, 1);
+            deficit = bestDeficit;
+            progressed = true;
+            break;
+        }
+    }
+
+    return plan;
+}
