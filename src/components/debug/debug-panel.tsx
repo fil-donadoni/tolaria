@@ -84,6 +84,37 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Persistent hand knowledge (ADR 0026 / PRD #338 slice 3, #341). A look
+        // at an opponent's hand stays known to the looker after it resolves:
+        //   • Right-click Glasses of Urza → "{T}: Look at target player's hand",
+        //     target the opponent. Acknowledge the reveal.
+        //   • The two cards now in the opponent's hand stay FACE-UP among the
+        //     opponent's card backs on your side of the board (you keep knowing
+        //     them), while a freshly drawn card stays hidden.
+        //   • Flip the viewer (solo mode follows priority — Pass once): on the
+        //     opponent's own view, those same two cards carry the eye icon —
+        //     per-card, only on the known cards, never the whole hand.
+        //   • A random discard (e.g. via a future Hymn) would clear the whole
+        //     hand back to hidden (clear trigger #2).
+        label: "Knowledge: look at opponent hand stays known (Glasses of Urza) + eye icon",
+        cards: [
+            { name: "Glasses of Urza", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Counter display (CR 122) — verify counters render on the board and in
         // the card preview:
         //   • Grizzly Bears carries two +1/+1 counters (folds to 4/4 — the

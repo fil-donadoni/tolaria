@@ -288,6 +288,7 @@ import {
     getManaSubstitutions,
     grantKnowledgeToAll,
     clearKnowledge,
+    discardCardsAtRandom,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -16988,6 +16989,131 @@ describe("Glasses of Urza (reveal hand, CR 401.4)", () => {
         // p2 should NOT see the reveal field
         const forP2 = projectPublicState(state, 1, "p2");
         expect(forP2.players[1].revealedHand).toBeUndefined();
+    });
+
+    // ADR 0026 / PRD #338 (slice 3) — the look is a persistent _hand_ knowledge
+    // grant. Once the reveal is acknowledged, the controller (p1) keeps knowing
+    // p2's hand cards after the ability resolves.
+    it("stamps the target's whole hand knownTo the controller after acknowledge", () => {
+        const state = setup();
+        activateGlasses(state);
+        resolveTopOfStack(state);
+
+        // Mid-choice: nothing stamped yet (the reveal hasn't been acknowledged).
+        expect(state.players[1].hand[0].knownTo).toBeUndefined();
+
+        // Controller acknowledges the reveal (empty selection).
+        commitHead(state, []);
+        resolveTopOfStack(state);
+
+        // Every card in p2's hand is now known to p1 (only p1 — a look, not a
+        // reveal) and survives resolution.
+        expect(state.players[1].hand[0].knownTo).toEqual(["p1"]);
+        expect(state.players[1].hand[1].knownTo).toEqual(["p1"]);
+        // p2 never appears in their own hand's knownTo (owner sees it natively).
+        expect(state.players[1].hand[0].knownTo).not.toContain("p2");
+    });
+
+    it("wire format: known hand reaches p1 face-up + eye flag for p2; p2 view stays hidden to others", () => {
+        const state = setup();
+        activateGlasses(state);
+        resolveTopOfStack(state);
+        commitHead(state, []);
+        resolveTopOfStack(state);
+
+        // p1's view of p2's hand: known slots carry identity (face-up), length
+        // preserved, raw knownTo never on the wire.
+        const forP1 = projectPublicState(state, 1, "p1");
+        const oppHand = forP1.players[1].hand;
+        expect(oppHand).toHaveLength(2);
+        expect(oppHand[0]).not.toBeNull();
+        expect(oppHand[1]).not.toBeNull();
+        expect(oppHand.map((c) => c!.id)).toEqual(["h1", "h2"]);
+        for (const c of oppHand) {
+            expect((c as { knownTo?: string[] }).knownTo).toBeUndefined();
+        }
+
+        // p2's own view: each known card carries the derived eye flag; raw
+        // knownTo never crosses the wire.
+        const forP2 = projectPublicState(state, 1, "p2");
+        const ownHand = forP2.players[1].hand;
+        expect(ownHand[0]!.seenByOpponent).toBe(true);
+        expect(ownHand[1]!.seenByOpponent).toBe(true);
+        for (const c of ownHand) {
+            expect((c as { knownTo?: string[] }).knownTo).toBeUndefined();
+        }
+    });
+
+    // Integration mandate: the full GRE → serialize (DB) → projection path for a
+    // hand knowledge-granting effect. Knowledge stamped by resolution must
+    // survive a DB round trip and still project correctly.
+    it("end-to-end: hand knownTo survives the DB round trip and projects per viewer", () => {
+        const state = setup();
+        activateGlasses(state);
+        resolveTopOfStack(state);
+        commitHead(state, []);
+        resolveTopOfStack(state);
+
+        const reloaded = expandState(compactState(state));
+        expect(reloaded.players[1].hand[0].knownTo).toEqual(["p1"]);
+
+        const forP1 = projectPublicState(reloaded, 1, "p1");
+        expect(forP1.players[1].hand.map((c) => c?.id)).toEqual(["h1", "h2"]);
+        const forP2 = projectPublicState(reloaded, 1, "p2");
+        expect(forP2.players[1].hand[0]!.seenByOpponent).toBe(true);
+    });
+
+    // Integration: drive the reveal acknowledgement through the SAME primitive
+    // the `submitPendingChoice` mutation calls (`applyPendingChoiceSubmit`), not
+    // the test shim — so the full GRE → game.ts boundary path stamps knownTo and
+    // it survives into the projection. (Knowledge-granting leg of the mandate.)
+    it("integration: submitting the reveal ack via the mutation primitive stamps + projects knownTo", () => {
+        const state = setup();
+        activateGlasses(state);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [], // a reveal ack carries no picks
+        });
+
+        // The mutation path resolved the ability and stamped the hand.
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[1].hand[0].knownTo).toEqual(["p1"]);
+
+        const forP1 = projectPublicState(state, 1, "p1");
+        expect(forP1.players[1].hand.map((c) => c?.id)).toEqual(["h1", "h2"]);
+        const forP2 = projectPublicState(state, 1, "p2");
+        expect(forP2.players[1].hand[0]!.seenByOpponent).toBe(true);
+    });
+
+    // ADR 0026 clear trigger #2 — a random discard is unwitnessed: the knower's
+    // identity→card map can no longer be trusted, so the WHOLE remaining hand
+    // reverts to hidden for non-owners. (Knowledge-clearing leg of the mandate.)
+    it("a random discard clears the controller's knowledge of the whole hand", () => {
+        const state = setup();
+        activateGlasses(state);
+        resolveTopOfStack(state);
+        commitHead(state, []);
+        resolveTopOfStack(state);
+        expect(state.players[1].hand[0].knownTo).toEqual(["p1"]);
+
+        // p2 discards one card at random (e.g. Hymn to Tourach style).
+        discardCardsAtRandom(state, "p2", 1);
+
+        // The remaining hand card is no longer known to p1.
+        for (const c of state.players[1].hand) {
+            expect(c.knownTo).toBeUndefined();
+        }
+        // And the eye flag is gone from p2's own view.
+        const forP2 = projectPublicState(state, 1, "p2");
+        for (const c of forP2.players[1].hand) {
+            expect(c!.seenByOpponent).toBeUndefined();
+        }
     });
 });
 

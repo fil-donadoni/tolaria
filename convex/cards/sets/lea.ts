@@ -6736,7 +6736,15 @@ export const gauntletOfMight: CardDefinition = {
 };
 
 // Glasses of Urza — {1} Artifact. "{T}: Look at target player's hand."
-// (CR 401.4 — "look at" is a one-time reveal to the ability's controller)
+// (CR 401.4 — "look at" is a one-time reveal to the ability's controller).
+// ADR 0026 / PRD #338 (slice 3): the look is a _hand_ knowledge grant. The
+// controller legitimately learns the target's hand, so once the reveal is
+// acknowledged each card currently in that hand becomes `knownTo` the
+// controller (and only them). The knowledge persists after the ability
+// resolves — projecting the known cards face-up to the controller and an eye
+// icon to the hand owner — until a clear event (a random/owner-chosen discard
+// reverts the whole hand to hidden, CR 701.8; entering a public zone clears
+// the individual card). A drawn card the controller had not seen stays hidden.
 export const glassesOfUrza: CardDefinition = {
     id: "cafc2350-5d64-4379-9198-79a114654d45",
     name: "Glasses of Urza",
@@ -6752,7 +6760,17 @@ export const glassesOfUrza: CardDefinition = {
             targetRequirement: { type: "player", count: 1 },
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
-                ctx.revealHand(target.id);
+                // First call enqueues the reveal-hand display choice and
+                // returns undefined (suspend; the resolve must return early).
+                // The re-invocation after the controller acknowledges returns a
+                // non-undefined value (the ack carries no ids of its own).
+                const ack = ctx.revealHand(target.id);
+                if (ack === undefined) return;
+                // CR 401.4 — the controller now knows the hand. Stamp every
+                // card currently in the target's hand `knownTo` the controller
+                // so the knowledge outlives the ability.
+                const handIds = ctx.getHandCards(target.id).map((c) => c.id);
+                ctx.markKnown(target.id, handIds, ctx.controller);
             },
         },
     ],

@@ -3,10 +3,12 @@ import type { CardInstance } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { isSelectableHandChoiceCard } from "~/lib/hand-choice";
+import { isSeenByOpponent } from "~/lib/hand-knowledge";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 import { useDragToCommit } from "~/hooks/useDragToCommit";
 import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
+import SeenByOpponentBadge from "./seen-by-opponent-badge";
 
 type BoardNextHandCardProps = {
     /** The viewer's own hand card (never null — opponent/back slots render the
@@ -74,6 +76,11 @@ export default function BoardNextHandCard({
     );
     const isChoiceSelected = isHandChoice && bufferCtx.buffer.includes(card.id);
 
+    // ADR 0026 / PRD #338 (slice 3) — the eye badge shows iff an opponent
+    // legitimately knows this specific own-hand card. Per-card, never the whole
+    // hand. The flag is derived server-side; raw `knownTo` never reaches here.
+    const seen = isSeenByOpponent(card);
+
     const legal = card.legalActions ?? [];
     const canPlay = legal.includes("play");
     const canCast = legal.includes("cast");
@@ -131,6 +138,7 @@ export default function BoardNextHandCard({
                 }}
             >
                 <CardImage card={card} />
+                {seen && <SeenByOpponentBadge />}
             </div>
         );
     }
@@ -182,6 +190,7 @@ export default function BoardNextHandCard({
                     <CardImage card={card} />
                 </div>
             </CardTilt3D>
+            {seen && <SeenByOpponentBadge />}
             {modePickerOverlay}
         </div>
     );
