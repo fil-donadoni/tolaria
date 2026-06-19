@@ -20,6 +20,7 @@ import {
 import { preloadCardImages } from "~/lib/image-preload";
 import { computeSoloViewerId } from "~/lib/priority";
 import BoardNext from "./board-next";
+import BoardBackground from "./board-background";
 import Controller from "./controller";
 import AutoPassController from "./auto-pass-controller";
 import GameOverDialog from "./game-over-dialog";
@@ -228,6 +229,7 @@ export default function Board({
                 <PendingChoiceBufferContext value={pendingChoiceBuffer}>
                     <MinimizedChoiceContext value={minimizedChoice}>
                         <main className="flex h-full w-full flex-col relative overflow-hidden">
+                            <BoardBackground />
                             <AutoPassController solo={solo} />
                             {vsAi && (
                                 <VsAiDriver gameId={gameId} botId={botId} />

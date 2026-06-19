@@ -31,6 +31,7 @@ import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { tappedTrigger } from "../abilities/triggers/tappedTrigger";
+import { untapTrigger } from "../abilities/triggers/untapTrigger";
 import { abilityActivatedTrigger } from "../abilities/triggers/abilityActivatedTrigger";
 import { makeCircleOfProtection } from "../abilities";
 
@@ -3387,6 +3388,199 @@ export const tetravus: CardDefinition = {
                     "+1/+1",
                     chosen.length
                 );
+            },
+        }),
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Library tutor → battlefield (ATQ cluster H, ADR 0027)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Transmute Artifact — {U}{U} Sorcery. "Sacrifice an artifact. If you do,
+// search your library for an artifact card. If that card's mana value is less
+// than or equal to the sacrificed artifact's mana value, put it onto the
+// battlefield. If it's greater, you may pay {X}, where X is the difference. If
+// you do, put it onto the battlefield. If you don't, put it into its owner's
+// graveyard. Then shuffle." (CR 701.16 sacrifice, CR 701.19 search, CR 202.3
+// mana value, CR 701.20 shuffle.)
+//
+// All board mutations run only after the LAST suspending choice (the search,
+// or the optional pay-the-difference when it applies): a `resolveSteps` step
+// re-runs from its top on every resume, so any mutation reached before a later
+// suspend would fire twice. The sacrificed artifact stays on the battlefield
+// until that final pass, so `getManaValue` reads its live mana value just
+// before it leaves (CR 608.2g — the sacrifice and the comparison are part of
+// the same resolution; no priority intervenes).
+export const transmuteArtifact: CardDefinition = {
+    id: "6eab6765-eba3-4844-81ca-ae37a6e903df",
+    name: "Transmute Artifact",
+    oracleText:
+        "Sacrifice an artifact. If you do, search your library for an artifact card. If that card's mana value is less than or equal to the sacrificed artifact's mana value, put it onto the battlefield. If it's greater, you may pay {X}, where X is the difference. If you do, put it onto the battlefield. If you don't, put it into its owner's graveyard. Then shuffle.",
+    manaCost: { U: 2 },
+    types: ["Sorcery"],
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            // "Sacrifice an artifact." — mandatory if able; with no artifact to
+            // sacrifice the whole effect ("If you do, …") does nothing.
+            const artifacts = ctx.getBattlefieldIds(ctx.caster, {
+                types: "Artifact",
+            });
+            if (artifacts.length === 0) return;
+            const sacPick = ctx.requestChoice({
+                playerId: ctx.caster,
+                choiceId: "transmute-sac",
+                kind: "sacrifice-permanents",
+                zone: "battlefield",
+                zoneOwnerId: ctx.caster,
+                filter: { types: "Artifact" },
+                count: 1,
+                prompt: "Sacrifice an artifact.",
+            });
+            if (sacPick === undefined) return; // suspended
+            const sacId = sacPick[0];
+            if (!sacId) return;
+
+            // "search your library for an artifact card" — the submit
+            // validator does not apply a filter to hidden library cards, so the
+            // artifact-card restriction is carried as a `candidateIds`
+            // allow-list (CR 701.19; a fail-to-find is allowed, min 0).
+            const libArtifacts = ctx
+                .getLibraryCards(ctx.caster)
+                .filter((c) => c.types.includes("Artifact"));
+            const found = ctx.requestChoice({
+                playerId: ctx.caster,
+                choiceId: "transmute-search",
+                kind: "search-library",
+                zone: "library",
+                candidateIds: libArtifacts.map((c) => c.id),
+                count: { min: 0, max: 1 },
+                prompt: "Search your library for an artifact card.",
+            });
+            if (found === undefined) return; // suspended
+
+            // Read the sacrificed artifact's mana value while it is still on the
+            // battlefield (CR 202.3), then resolve the comparison.
+            const sacMv = ctx.getManaValue({ type: "permanent", id: sacId });
+            const foundId = found[0];
+
+            // Fail-to-find (or no artifact in library): sacrifice, then shuffle.
+            if (!foundId) {
+                ctx.sacrifice(sacId);
+                ctx.shuffleLibrary(ctx.caster);
+                return;
+            }
+            const foundMv =
+                libArtifacts.find((c) => c.id === foundId)?.manaValue ?? 0;
+
+            if (foundMv > sacMv) {
+                // "you may pay {X}, where X is the difference."
+                const diff = foundMv - sacMv;
+                const paid = ctx.requestMayPay({
+                    playerId: ctx.caster,
+                    choiceId: "transmute-paydiff",
+                    cost: { X: diff },
+                    prompt: `Pay {${diff}} to put the artifact onto the battlefield?`,
+                });
+                if (paid === undefined) return; // suspended
+                ctx.sacrifice(sacId);
+                if (paid) {
+                    ctx.putFromLibraryOntoBattlefield(ctx.caster, foundId);
+                } else {
+                    ctx.moveCardById(
+                        ctx.caster,
+                        foundId,
+                        "library",
+                        "graveyard"
+                    );
+                }
+                ctx.shuffleLibrary(ctx.caster);
+                return;
+            }
+
+            // mana value ≤ sacrificed mana value: straight onto the battlefield.
+            ctx.sacrifice(sacId);
+            ctx.putFromLibraryOntoBattlefield(ctx.caster, foundId);
+            ctx.shuffleLibrary(ctx.caster);
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Exile-with-attachments + return (ATQ cluster K, ADR 0028)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Tawnos's Coffin — {4} Artifact. "You may choose not to untap this artifact
+// during your untap step. {3},{T}: Exile target creature and all Auras attached
+// to it. Note the number and kind of counters that were on that creature. When
+// this artifact leaves the battlefield or becomes untapped, return that exiled
+// card to the battlefield under its owner's control tapped with the noted
+// number and kind of counters on it. If you do, return the other exiled cards
+// to the battlefield under their owner's control attached to that permanent."
+// (CR 502.1 optional untap, CR 701.18 exile, CR 122 counters, CR 603.7a
+// delayed return, CR 303.4 aura attachment.)
+//
+// The exile-and-return is the general holding mechanism (ADR 0028): the
+// activated ability arms an `ExileReturnBundle` keyed to this artifact, and the
+// return is driven by TWO triggers on this same artifact — its leaves-the-
+// battlefield (`leftTrigger`) and its becomes-untapped (`untapTrigger`,
+// CR 701.20b). The bundle's existence is the delayed-trigger's armed flag, so
+// both triggers gate on `state.exileHeld` to avoid firing with nothing held.
+// "You may choose not to untap" reuses the existing `may-choose-not-to-untap`
+// optional-untap static (ADR 0005) — declining keeps the creature exiled.
+const tawnossCoffinHoldsSomething = (
+    _event: unknown,
+    self: { id: string },
+    state?: { exileHeld?: ReadonlyArray<{ sourceId: string }> }
+): boolean => !!state?.exileHeld?.some((b) => b.sourceId === self.id);
+
+export const tawnossCoffin: CardDefinition = {
+    id: "c27bc1de-8246-4dc8-af51-ec21def9e226",
+    name: "Tawnos's Coffin",
+    oracleText:
+        "You may choose not to untap this artifact during your untap step.\n{3}, {T}: Exile target creature and all Auras attached to it. Note the number and kind of counters that were on that creature. When this artifact leaves the battlefield or becomes untapped, return that exiled card to the battlefield under its owner's control tapped with the noted number and kind of counters on it. If you do, return the other exiled cards to the battlefield under their owner's control attached to that permanent.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    staticAbilities: ["may-choose-not-to-untap"],
+    activatedAbilities: [
+        {
+            id: "tawnoss-coffin-exile",
+            oracleText:
+                "{3}, {T}: Exile target creature and all Auras attached to it. Note the number and kind of counters that were on that creature.",
+            cost: { tap: true, mana: { X: 3 } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (!target || target.type !== "permanent") return;
+                // CR 701.18 / 122 — exile the creature + its Auras and note its
+                // counters; arm the return keyed to this artifact (ADR 0028).
+                ctx.exileWithAttachments(target.id, {
+                    sourceId: ctx.sourceInstanceId,
+                    returnTapped: true,
+                });
+            },
+        },
+    ],
+    triggeredAbilities: [
+        leftTrigger({
+            id: "tawnoss-coffin-return-on-leave",
+            oracleText:
+                "When this artifact leaves the battlefield, return the exiled card to the battlefield under its owner's control tapped with the noted counters, and reattach the other exiled cards to it.",
+            scope: "self",
+            condition: tawnossCoffinHoldsSomething,
+            resolve: (ctx: SpellContext) => {
+                ctx.returnExiledForSource(ctx.sourceInstanceId);
+            },
+        }),
+        untapTrigger({
+            id: "tawnoss-coffin-return-on-untap",
+            oracleText:
+                "When this artifact becomes untapped, return the exiled card to the battlefield under its owner's control tapped with the noted counters, and reattach the other exiled cards to it.",
+            scope: "self",
+            condition: tawnossCoffinHoldsSomething,
+            resolve: (ctx: SpellContext) => {
+                ctx.returnExiledForSource(ctx.sourceInstanceId);
             },
         }),
     ],

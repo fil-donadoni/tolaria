@@ -34,8 +34,31 @@ export default function ControllerPod({
         // clears the pile row height in the corner.
         <div
             data-controller-pod
-            className="fixed bottom-32 right-4 z-40 flex w-52 flex-col gap-2 rounded-2xl border border-zinc-800/80 bg-[#0c0d12]/90 p-2.5 shadow-2xl backdrop-blur-md"
+            className={`fixed bottom-32 right-4 z-40 flex w-52 flex-col gap-2 rounded-2xl border bg-[#0c0d12]/90 p-2.5 shadow-2xl backdrop-blur-md ${
+                isMyTurn
+                    ? "border-emerald-500/60 shadow-emerald-500/10"
+                    : "border-rose-500/40 shadow-rose-500/10"
+            }`}
         >
+            {/* Turn-ownership banner (#331 follow-up). The 8px "You/Opp" caption
+             *  was too faint to read at a glance, so whose turn it is now reads
+             *  as a full-width colored pill plus a matching pod border. */}
+            <div
+                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-bold uppercase tracking-wider ${
+                    isMyTurn
+                        ? "bg-emerald-500/20 text-emerald-300"
+                        : "bg-rose-500/20 text-rose-300"
+                }`}
+            >
+                <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                        isMyTurn ? "bg-emerald-400" : "bg-rose-400"
+                    }`}
+                    aria-hidden
+                />
+                {isMyTurn ? "Your turn" : "Opponent's turn"}
+            </div>
+
             <button
                 type="button"
                 onClick={() => setExpanded((v) => !v)}
@@ -45,8 +68,7 @@ export default function ControllerPod({
             >
                 <div className="flex min-w-0 flex-1 flex-col">
                     <span className="text-[8px] uppercase tracking-wider text-white/40">
-                        T{turn} · {phaseGroupLabel(phase)} ·{" "}
-                        {isMyTurn ? "You" : "Opp"}
+                        T{turn} · {phaseGroupLabel(phase)}
                     </span>
                     <span className="truncate font-beleren text-sm font-bold text-amber-300">
                         {phaseLabel(phase)}

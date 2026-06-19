@@ -90,8 +90,17 @@ export default function PlayerLibrary({
     const searchMax =
         typeof searchCount === "number" ? searchCount : searchCount.max;
 
+    // Filtered search (Transmute Artifact: "an artifact card"): the choice
+    // carries a `candidateIds` allow-list. Only those cards are pickable — a
+    // click on an ineligible card is a no-op (the server would reject it too).
+    const eligibleIds =
+        isLibrarySearchTarget && head!.candidateIds
+            ? new Set(head!.candidateIds)
+            : undefined;
+
     const onCardClick = isLibraryPick
         ? (card: { id: string }) => {
+              if (eligibleIds && !eligibleIds.has(card.id)) return;
               if (bufferCtx.buffer.includes(card.id)) {
                   bufferCtx.toggle(card.id);
                   return;

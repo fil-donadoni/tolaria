@@ -3640,6 +3640,69 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
         libraryCount: 20,
     },
+    {
+        // ATQ cluster H (#294) — library tutor → battlefield (ADR 0027).
+        // Transmute Artifact: "Sacrifice an artifact. If you do, search your
+        // library for an artifact card. If its mana value ≤ the sacrificed
+        // artifact's, put it onto the battlefield; if greater, you may pay the
+        // difference; otherwise it goes to the graveyard. Then shuffle."
+        //   • Cast Transmute Artifact ({U}{U}) with two Islands.
+        //   • Sacrifice Sol Ring (mana value 1) at the sacrifice prompt.
+        //   • The library search opens face-up but ONLY artifact cards are
+        //     clickable (the candidateIds allow-list) — creatures/lands stay
+        //     inert.
+        //   • Pick an artifact: mana value ≤ 1 lands straight onto the
+        //     battlefield; a greater one prompts "pay {difference}" (use the
+        //     two spare Islands), and declining drops it into the graveyard.
+        // Library artifacts come from the selected deck; pick an artifact-rich
+        // deck (e.g. the Antiquities / artifact deck) to exercise both
+        // branches.
+        label: "ATQ H #294: library tutor → battlefield (Transmute Artifact)",
+        cards: [
+            {
+                name: "Transmute Artifact",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 4 },
+            { name: "Sol Ring", owner: "me" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 20,
+    },
+    {
+        // ATQ cluster K (#295) — exile-with-attachments + return (ADR 0028).
+        // Tawnos's Coffin: "{3},{T}: Exile target creature and all Auras
+        // attached to it, noting its counters. When this leaves the battlefield
+        // or becomes untapped, return it tapped with the noted counters (Auras
+        // reattached)."
+        //   • Right-click Tawnos's Coffin → activate its {3},{T} ability (three
+        //     lands cover {3}), targeting the opponent's Grizzly Bears (it
+        //     carries two +1/+1 counters).
+        //   • The Bears + its counters leave for exile; the Coffin is now
+        //     tapped.
+        //   • Pass to your next turn. At your untap step you are prompted "you
+        //     may choose not to untap this" — choose to UNTAP the Coffin: the
+        //     Bears returns under its owner's control TAPPED with both +1/+1
+        //     counters restored.
+        //   • Alternatively, destroy the Coffin (e.g. with a Shatter effect)
+        //     while it holds the creature — the same return fires on "leaves
+        //     the battlefield".
+        // (Aura reattach is exercised by the vitest suite — the scenario seeder
+        // can't pre-attach an Aura.)
+        label: "ATQ K #295: exile + return on untap/leave (Tawnos's Coffin)",
+        cards: [
+            { name: "Tawnos's Coffin", owner: "me" as const },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                counters: { "+1/+1": 2 },
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
 ];
 
 type DebugPanelProps = {

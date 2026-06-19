@@ -79,4 +79,47 @@ describe("card-preview singleton (single active preview)", () => {
         expect(closeB).toHaveBeenCalledTimes(1);
         expect(closeA).not.toHaveBeenCalled();
     });
+
+    // Self-healing: if stale handles linger (a card slid under a stationary
+    // cursor without a pointermove to fire its exit watcher), the next open
+    // must sweep EVERY other open preview, not just the most recent.
+    it("opening a preview closes ALL other lingering previews", () => {
+        // closeA/closeB are stale handles that never released themselves.
+        const closeA = vi.fn();
+        const closeB = vi.fn();
+        const closeC = vi.fn();
+
+        // Simulate two stale previews that never called releasePreview.
+        requestOpenPreview(closeA);
+        // B's open closes A; A's stale handle stays registered because the fake
+        // closeA doesn't release. (In prod, close() calls releasePreview.)
+        requestOpenPreview(closeB);
+        closeA.mockClear();
+        closeB.mockClear();
+
+        requestOpenPreview(closeC);
+        expect(closeA).toHaveBeenCalledTimes(1);
+        expect(closeB).toHaveBeenCalledTimes(1);
+        expect(closeC).not.toHaveBeenCalled();
+    });
+
+    it("a pointerdown anywhere closes the open preview", () => {
+        const closeA = vi.fn(() => releasePreview(closeA));
+        requestOpenPreview(closeA);
+
+        document.dispatchEvent(new Event("pointerdown"));
+        expect(closeA).toHaveBeenCalledTimes(1);
+    });
+
+    it("no pointerdown listener leaks once every preview is closed", () => {
+        const closeA = vi.fn(() => releasePreview(closeA));
+        requestOpenPreview(closeA);
+        // Mouse-out releases the only open preview → listener detaches.
+        releasePreview(closeA);
+        closeA.mockClear();
+
+        // A later click must not reach the now-released handle.
+        document.dispatchEvent(new Event("pointerdown"));
+        expect(closeA).not.toHaveBeenCalled();
+    });
 });

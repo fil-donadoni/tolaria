@@ -286,6 +286,14 @@ _Avoid_: Edition, expansion (use the set code)
 The API surface available to a **Card Definition**'s `resolve()` function. Provides composable primitives (moveZone, drawCards, damage, gainLife, etc.) that the resolver calls to apply effects.
 _Avoid_: Resolver, effect context, spell API
 
+**Holding Bundle**:
+A record that pulls a **Permanent** (plus the Auras attached to it and a snapshot of its counters) off the battlefield as a unit and remembers how to put it back. Two flavours: the **phased-out bundle** (`phasedOut`, ADR 0021) keeps the same object off-battlefield with no zone change or triggers; the **exile-and-return bundle** (`exileHeld`, ADR 0028) is a real exile — leaves/enters triggers fire, the returned object is new, and counters are _noted_ then re-applied. The bundle's existence doubles as the "delayed return is armed" flag.
+_Avoid_: Limbo, stash, suspended permanent
+
+**Library Tutor**:
+A search effect: `requestChoice({ kind: "search-library" })` reveals the searcher's library and picks a card (optionally gated by a `candidateIds` allow-list for a typed search), then routes it — to hand (`moveCardById`) or onto the battlefield (`putFromLibraryOntoBattlefield`, ADR 0027) — and shuffles.
+_Avoid_: Fetch, search primitive
+
 **Deck**:
 The list of **Card IDs** a **Player** brings to a **Game**. Used only at game creation to build the initial **Library**. Static metadata — never mutated during gameplay.
 _Avoid_: Library (that's the zone), card list

@@ -203,4 +203,36 @@ describe("PlayerLibrary", () => {
         pileProps.onCardClick({ id: "s1" });
         expect(toggle).toHaveBeenCalledWith("s1");
     });
+
+    it("gates clicks to the candidateIds allow-list on a filtered search (Transmute Artifact)", () => {
+        // A filtered search ("an artifact card") carries `candidateIds`; only
+        // those cards are pickable. Clicking an ineligible card is a no-op.
+        cardsPileSpy.mockClear();
+        const search = [makeCard("artifact-1"), makeCard("creature-2")];
+        const player = makePlayer({ count: 2 }, {
+            librarySearch: search,
+        } as Partial<Player>);
+        const toggle = vi.fn();
+        renderWithContext(<PlayerLibrary player={player} />, "me", {
+            pendingChoices: [
+                {
+                    stackItemId: "stk",
+                    step: 0,
+                    choiceId: "transmute-search",
+                    playerId: "me",
+                    kind: "search-library",
+                    zone: "library",
+                    count: { min: 0, max: 1 },
+                    candidateIds: ["artifact-1"],
+                    prompt: "Search your library for an artifact card.",
+                },
+            ],
+            buffer: { ...noopBuffer, toggle },
+        });
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        pileProps.onCardClick({ id: "creature-2" }); // ineligible — no-op
+        expect(toggle).not.toHaveBeenCalled();
+        pileProps.onCardClick({ id: "artifact-1" }); // eligible
+        expect(toggle).toHaveBeenCalledWith("artifact-1");
+    });
 });

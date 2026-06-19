@@ -1280,6 +1280,15 @@ export type GameState = {
      *  nonexistent for free. Bundles return via `removePermanentTo`'s
      *  source-leaves hook (Oubliette). See ADR 0021. */
     phasedOut?: PhasedOutBundle[];
+    /** CR 603.7a / ADR 0028 — creatures held in exile by an exile-and-return
+     *  effect (Tawnos's Coffin), awaiting their source's "leaves the
+     *  battlefield or becomes untapped" trigger. Unlike `phasedOut`, the
+     *  exiled cards live in their owners' `exile` arrays (a real zone change:
+     *  leaves/enters triggers fire, the returned object is new). A bundle holds
+     *  only the linkage and the noted counter snapshot — pure metadata, no fat
+     *  card state — so it serializes as plain data. Its existence is also the
+     *  "delayed return is armed" flag (see TriggerStateView.exileHeld). */
+    exileHeld?: ExileReturnBundle[];
 };
 
 /** Player-level replacement preferences. Each entry is opt-in: undefined
@@ -1379,6 +1388,35 @@ export interface PhasedOutBundle {
     /** Applied to the HOST (cards[0]) on phase-in. Oubliette taps the
      *  creature "as it phases in this way". */
     onPhaseIn?: { tap?: boolean };
+}
+
+/** CR 603.7a / ADR 0028 — an exile-and-return holding record. The host
+ *  creature and its Auras are exiled (a real zone change, so leaves/enters
+ *  triggers fire and the returned object is new), and this bundle remembers
+ *  what to put back when the source's "leaves the battlefield or becomes
+ *  untapped" trigger resolves (Tawnos's Coffin). The exiled cards themselves
+ *  stay in their owners' `exile` arrays — the bundle holds only ids, owners,
+ *  and the noted counter snapshot, so it is pure serializable metadata. */
+export interface ExileReturnBundle {
+    /** Stable bundle id (allocated via `allocInstanceId`). */
+    id: string;
+    /** Instance id of the holding permanent (the coffin). The return triggers
+     *  match their `self` against this; LKI keeps it valid after the source
+     *  leaves. */
+    sourceId: string;
+    /** Exiled host creature: instance id + owner (the zone it returns to —
+     *  control reverts to the owner, CR 110.2 / the card's "under its owner's
+     *  control"). */
+    hostId: string;
+    hostOwnerId: string;
+    /** Exiled Auras that were attached to the host, in attachment order. They
+     *  return attached to the restored host (CR 303.4). */
+    attached: { id: string; ownerId: string }[];
+    /** Counter kinds and counts noted on the host as it was exiled (CR 122),
+     *  re-applied to the returned (new) object. */
+    counters: Record<string, number>;
+    /** The host returns tapped (Tawnos's Coffin: "tapped"). */
+    returnTapped: boolean;
 }
 
 /** Returns true if a prevention effect matches (source, player) and consumes
@@ -2963,6 +3001,97 @@ function phaseInBundlesForSource(state: GameState, sourceId: string): void {
     }
 }
 
+/** CR 603.7a / ADR 0028 — exile `targetId` and every permanent attached to it
+ *  (Auras), noting the host's counters, and record an `ExileReturnBundle` keyed
+ *  to `sourceId`. Unlike phasing, this is a real zone change: the attachments
+ *  are exiled FIRST (so the orphan-aura SBA, CR 704.5n, never sees them once
+ *  the host leaves), then the host — each via `removePermanentTo`, so
+ *  leaves-the-battlefield triggers fire and the cards land in their owners'
+ *  exile arrays. Returns the bundle id, or null if the target isn't on the
+ *  battlefield. The return is driven later by `returnExiledForSource`. */
+export function exileWithAttachments(
+    state: GameState,
+    targetId: string,
+    opts: { sourceId: string; returnTapped: boolean }
+): string | null {
+    const found = findOnBattlefield(state, targetId);
+    if (!found) return null;
+    const host = found.card;
+    const hostOwnerId = host.ownerId;
+    // CR 122 — note the counters that were on the creature.
+    const counters: Record<string, number> = { ...(host.counters ?? {}) };
+    // Collect attachments (Auras) across all battlefields, in a stable order.
+    const attached: { id: string; ownerId: string }[] = [];
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            if (card.id !== targetId && card.attachedTo === targetId) {
+                attached.push({ id: card.id, ownerId: card.ownerId });
+            }
+        }
+    }
+    // Exile attachments first, then the host (CR 701.18). Both fire
+    // PERMANENT_LEFT — exile is a real zone change, unlike phasing.
+    for (const a of attached) removePermanentTo(state, a.id, "exile");
+    removePermanentTo(state, targetId, "exile");
+    const bundle: ExileReturnBundle = {
+        id: allocInstanceId(state),
+        sourceId: opts.sourceId,
+        hostId: targetId,
+        hostOwnerId,
+        attached,
+        counters,
+        returnTapped: opts.returnTapped,
+    };
+    state.exileHeld = [...(state.exileHeld ?? []), bundle];
+    return bundle.id;
+}
+
+/** CR 603.7a / ADR 0028 — resolve the return half of every exile-and-return
+ *  bundle held by `sourceId` (Tawnos's Coffin's "when this leaves the
+ *  battlefield or becomes untapped" trigger). For each bundle: return the host
+ *  from its owner's exile to the battlefield under its owner's control
+ *  (a fresh object, ETB fires), tapped if `returnTapped`, carrying the noted
+ *  counters; then return each exiled Aura attached to that host (CR 303.4). A
+ *  host that has since left exile fizzles that bundle (its Auras stay exiled,
+ *  matching "if you do … return the other exiled cards"). Bundles are removed
+ *  whether or not they fully restored, so the return happens at most once. */
+export function returnExiledForSource(
+    state: GameState,
+    sourceId: string
+): void {
+    const held = state.exileHeld ?? [];
+    const mine = held.filter((b) => b.sourceId === sourceId);
+    if (mine.length === 0) return;
+    const remaining = held.filter((b) => b.sourceId !== sourceId);
+    state.exileHeld = remaining.length > 0 ? remaining : undefined;
+
+    for (const bundle of mine) {
+        const ownerExile = getPlayer(state, bundle.hostOwnerId).exile;
+        const idx = ownerExile.findIndex((c) => c.id === bundle.hostId);
+        if (idx === -1) continue; // host left exile — the return fizzles
+        const [hostCard] = ownerExile.splice(idx, 1);
+        putReanimatedOnBattlefield(state, hostCard, bundle.hostOwnerId);
+        if (bundle.returnTapped) hostCard.isTapped = true;
+        // CR 122 — re-apply the noted counters to the new object.
+        if (Object.keys(bundle.counters).length > 0) {
+            hostCard.counters = { ...bundle.counters };
+        }
+        // CR 303.4 — the exiled Auras return attached to the restored host.
+        for (const a of bundle.attached) {
+            const auraExile = getPlayer(state, a.ownerId).exile;
+            const ax = auraExile.findIndex((c) => c.id === a.id);
+            if (ax === -1) continue;
+            const [auraCard] = auraExile.splice(ax, 1);
+            putReanimatedOnBattlefield(state, auraCard, a.ownerId);
+            // Wire the attachment + (re)apply the aura's static grants to the
+            // host, mirroring `reattachAura`.
+            unapplySourceStaticEffects(state, auraCard);
+            auraCard.attachedTo = bundle.hostId;
+            applySourceStaticEffects(state, auraCard);
+        }
+    }
+}
+
 /** Emits a SPELL_CAST event for a freshly-pushed stack item (CR 601.2i).
  *  Reads the spell's card definition to derive types, subtypes, and colors
  *  so trigger predicates can filter without re-resolving the registry. */
@@ -3007,6 +3136,31 @@ export function emitPermanentTapped(
             ...(manaProduced ? { manaProduced } : {}),
         },
     ];
+}
+
+/** Untaps `card` and, on a real tapped → untapped transition, emits a
+ *  PERMANENT_UNTAPPED event (CR 701.20b "becomes untapped"). No-op (and no
+ *  event) if the permanent was already untapped — a non-transition is not a
+ *  "becomes untapped". Returns true if it transitioned. The single choke point
+ *  for the untap step (CR 502.2) and untap effects (Twiddle) so "when ~ becomes
+ *  untapped" triggers (Tawnos's Coffin, ADR 0028) fire from both. */
+export function untapPermanent(
+    state: GameState,
+    card: CardInstanceState
+): boolean {
+    if (!card.isTapped) return false;
+    card.isTapped = false;
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "PERMANENT_UNTAPPED",
+            permanentId: card.id,
+            controllerId: card.controllerId,
+            permanentTypes: [...card.types],
+            permanentSubtypes: [...card.subtypes],
+        },
+    ];
+    return true;
 }
 
 /** Emits an ABILITY_ACTIVATED event for a non-mana activated ability that was
@@ -3798,6 +3952,27 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             putReanimatedOnBattlefield(state, card, playerId);
             return true;
         },
+        // CR 400.7 / ADR 0027 — library tutor → battlefield. Locate
+        // `cardInstanceId` in `playerId`'s library, splice it out, and put it
+        // onto `playerId`'s battlefield via the shared `putReanimatedOnBattle-
+        // field` path (same ETB / grant application as reanimation, since both
+        // are zone changes onto the battlefield). The search half is a separate
+        // `requestChoice({ kind: "search-library" })`; this is only the move.
+        // Returns false on silent fizzle when the id is not in the library at
+        // resolution (CR 608.2b). Used by Transmute Artifact.
+        putFromLibraryOntoBattlefield(
+            playerId: string,
+            cardInstanceId: string
+        ): boolean {
+            const player = getPlayer(state, playerId);
+            const idx = player.library.findIndex(
+                (c) => c.id === cardInstanceId
+            );
+            if (idx === -1) return false;
+            const [card] = player.library.splice(idx, 1);
+            putReanimatedOnBattlefield(state, card, playerId);
+            return true;
+        },
         // CR 701.20a: to tap a permanent is to turn it sideways from an
         // untapped position. Already-tapped permanents are unaffected.
         // Silently no-ops if the target has left the battlefield (CR 608.2b).
@@ -3817,7 +3992,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 throw new Error("Cannot untap a player");
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            found.card.isTapped = false;
+            // CR 701.20b — emit "becomes untapped" on the transition so
+            // untap-watching triggers (Tawnos's Coffin) fire (ADR 0028).
+            untapPermanent(state, found.card);
         },
         // CR 613.1b (layer 2): gain control of a permanent. The control change
         // is sourced by the resolving permanent (`item.id`) so it reverts when
@@ -3909,6 +4086,16 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         // CR 702.26 — phase a bundle back in. See `phaseInBundle`.
         phaseIn(bundleId) {
             return phaseInBundle(state, bundleId);
+        },
+        // CR 603.7a / ADR 0028 — exile a creature + its Auras, noting counters,
+        // and arm a return keyed to `sourceId`. See `exileWithAttachments`.
+        exileWithAttachments(targetId, opts) {
+            return exileWithAttachments(state, targetId, opts);
+        },
+        // CR 603.7a / ADR 0028 — return every bundle held by `sourceId`. See
+        // `returnExiledForSource`.
+        returnExiledForSource(sourceId) {
+            returnExiledForSource(state, sourceId);
         },
         // CR 701.20: randomize a player's library. Uses the seeded PRNG so
         // replays reproduce the same ordering. ADR 0026: a shuffle is an
@@ -4935,6 +5122,22 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             playerId: string
         ): Array<{ id: string; types: CardType[]; manaValue: number }> {
             return getPlayer(state, playerId).hand.map((c) => {
+                const cardId = (c.card as { id?: string }).id;
+                const def = cardId ? tryGetCardById(cardId) : undefined;
+                return {
+                    id: c.id,
+                    types: def?.types ?? c.types,
+                    manaValue: manaValue(def?.manaCost),
+                };
+            });
+        },
+        // CR 108.1 — library card characteristics from the registry. Mirrors
+        // `getHandCards`; used to precompute the `candidateIds` allow-list for a
+        // filtered `search-library` choice (Transmute Artifact: artifact cards).
+        getLibraryCards(
+            playerId: string
+        ): Array<{ id: string; types: CardType[]; manaValue: number }> {
+            return getPlayer(state, playerId).library.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
                 const def = cardId ? tryGetCardById(cardId) : undefined;
                 return {

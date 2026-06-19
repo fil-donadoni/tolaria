@@ -26,6 +26,7 @@ import {
     resolveTopOfStack,
     runDamageReplacement,
     tapPermanent,
+    untapPermanent,
     tickDuration,
 } from "./state";
 import { tryGetCardById } from "../cards";
@@ -170,7 +171,8 @@ export function finalizeUntapPick(
     const chooser = getPlayer(state, head.zoneOwnerId ?? head.playerId);
     for (const id of selectedIds) {
         const card = chooser.battlefield.find((c) => c.id === id);
-        if (card) card.isTapped = false;
+        // CR 701.20b — emit "becomes untapped" on the transition (ADR 0028).
+        if (card) untapPermanent(state, card);
     }
     queue.shift();
     state.pendingChoices = queue.length > 0 ? queue : undefined;
@@ -322,7 +324,10 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 continue;
             }
-            card.isTapped = false;
+            // CR 701.20b — emit "becomes untapped" on the transition so
+            // untap-watching triggers fire (Tawnos's Coffin, ADR 0028). The
+            // events are collected into triggers at step completion below.
+            untapPermanent(state, card);
             card.manaCommitted = undefined;
             card.isSummoningSick = undefined;
             card.chosenMana = undefined;
@@ -432,6 +437,22 @@ export function untapStep(state: GameState): void {
     }
 
     state.pendingUntapStep = undefined;
+
+    // CR 603.3 / ADR 0028 — UNTAP is an auto-phase and grants no priority, so
+    // its PERMANENT_UNTAPPED events are never drained by a resolveTopOfStack
+    // pass (unlike untap effects during a spell's resolution). Collect the
+    // "becomes untapped" triggers (Tawnos's Coffin's return) now and push them;
+    // they sit on the stack until the upkeep priority window. Non-untap events
+    // (none expected during untap) are left in the queue.
+    const pending = state.pendingEvents ?? [];
+    const untapEvents = pending.filter((e) => e.type === "PERMANENT_UNTAPPED");
+    if (untapEvents.length > 0) {
+        const rest = pending.filter((e) => e.type !== "PERMANENT_UNTAPPED");
+        state.pendingEvents = rest.length > 0 ? rest : undefined;
+        for (const t of collectTriggers(state, untapEvents)) {
+            state.stack.push(t);
+        }
+    }
 }
 
 /** Draw step: active player draws a card. Skipped on turn 1 (CR 103.8).

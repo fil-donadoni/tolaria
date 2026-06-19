@@ -39,9 +39,20 @@ export default function ControllerBottomBar({
             <div
                 data-controller-bottom-bar
                 data-cue={cue}
-                className="fixed inset-x-2 bottom-2 z-40 flex flex-col gap-2 rounded-2xl border border-zinc-800/80 bg-[#0c0d12]/92 p-2 shadow-2xl backdrop-blur-md data-[cue=mine]:border-emerald-500/50 md:hidden"
+                className={`fixed inset-x-2 bottom-2 z-40 flex flex-col gap-2 rounded-2xl border bg-[#0c0d12]/92 p-2 shadow-2xl backdrop-blur-md md:hidden ${
+                    isMyTurn ? "border-emerald-500/60" : "border-rose-500/40"
+                }`}
             >
                 <div className="flex items-stretch gap-2">
+                    <span
+                        className={`flex items-center rounded-lg px-2 text-[11px] font-bold uppercase tracking-wider ${
+                            isMyTurn
+                                ? "bg-emerald-500/20 text-emerald-300"
+                                : "bg-rose-500/20 text-rose-300"
+                        }`}
+                    >
+                        {isMyTurn ? "You" : "Opp"}
+                    </span>
                     <button
                         type="button"
                         onClick={() => setSheetOpen((v) => !v)}
@@ -50,8 +61,7 @@ export default function ControllerBottomBar({
                         className="flex min-w-[88px] flex-col justify-center rounded-xl bg-white/[0.04] px-3 py-2 text-left active:bg-white/[0.08]"
                     >
                         <span className="flex items-center gap-1 text-[8px] uppercase tracking-wider text-white/40">
-                            T{turn} · {phaseGroupLabel(phase)} ·{" "}
-                            {isMyTurn ? "You" : "Opp"}
+                            T{turn} · {phaseGroupLabel(phase)}
                             <ChevronUp className="h-3 w-3" aria-hidden />
                         </span>
                         <span className="truncate font-beleren text-sm font-bold text-amber-300">

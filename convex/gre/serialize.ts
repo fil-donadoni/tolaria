@@ -610,6 +610,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "destroyReplacementShields",
     "combatDamageImmunity",
     "phasedOut",
+    "exileHeld",
     "drawLookReplacements",
 ] as const;
 

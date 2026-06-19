@@ -6,6 +6,8 @@
 import { describe, it, expect } from "vitest";
 import {
     ornithopter,
+    transmuteArtifact,
+    tawnossCoffin,
     yotianSoldier,
     wallOfSpears,
     dragonEngine,
@@ -88,7 +90,7 @@ import {
     tawnossWand,
     tetravus,
 } from "../atq";
-import { grizzlyBears, hillGiant, solRing } from "../lea";
+import { grizzlyBears, hillGiant, solRing, holyStrength } from "../lea";
 import { getCardById, getInstanceManaCost } from "../..";
 import {
     makeInstance,
@@ -110,6 +112,7 @@ import { projectPublicState } from "../../../gameProjections";
 import {
     resolveTopOfStack,
     removePermanentTo,
+    untapPermanent,
     applySourceStaticEffects,
     unapplySourceStaticEffects,
     applyExistingGrantsTo,
@@ -6540,5 +6543,408 @@ describe("Tetravus (token provenance link, CR 111 / 122 / 303.4)", () => {
         expect(isGuardedAgainst(restored, restoredTok, "cantBeEnchanted")).toBe(
             true
         );
+    });
+});
+
+describe("Transmute Artifact (ATQ cluster H — library tutor → battlefield, CR 701.16 / 701.19 / 202.3)", () => {
+    /** p1 holds Sol Ring (artifact, mv 1) on the battlefield and a library of
+     *  the given cards. Casts Transmute Artifact, sacrifices Sol Ring, then
+     *  searches for `foundId`. Returns the resolved state mid-flow (after the
+     *  search submit), so callers can assert the ≤ branch outright or feed the
+     *  may-pay branch. */
+    function castAndSearch(
+        library: CardInstanceState[],
+        foundId: string | null,
+        manaPool?: { C?: number }
+    ): GameState {
+        const solRingInst = makeInstance(solRing.id, {
+            id: "sac-artifact",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [solRingInst],
+                    library,
+                    manaPool: {
+                        W: 0,
+                        U: 0,
+                        B: 0,
+                        R: 0,
+                        G: 0,
+                        C: manaPool?.C ?? 0,
+                    },
+                }),
+                makePlayer("p2"),
+            ],
+            rngSeed: 1,
+        });
+        pushSpell(state, transmuteArtifact.id, "p1");
+        resolveTopOfStack(state); // suspends on the sacrifice pick
+        expect(state.pendingChoices?.[0]).toMatchObject({
+            kind: "sacrifice-permanents",
+        });
+        submitChoice(state, ["sac-artifact"]); // resumes → suspends on search
+        expect(state.pendingChoices?.[0]).toMatchObject({
+            kind: "search-library",
+        });
+        submitChoice(state, foundId ? [foundId] : []); // resumes
+        return state;
+    }
+
+    it("puts a found artifact of mana value ≤ the sacrificed one straight onto the battlefield", () => {
+        const orn = makeInstance(ornithopter.id, {
+            id: "found-orn",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        }); // mv 0 ≤ Sol Ring mv 1
+        const state = castAndSearch([orn], "found-orn");
+
+        const p1 = state.players[0];
+        expect(p1.battlefield.map((c) => c.id)).toContain("found-orn");
+        expect(p1.battlefield.map((c) => c.id)).not.toContain("sac-artifact");
+        expect(p1.graveyard.map((c) => c.id)).toContain("sac-artifact");
+        expect(p1.library).toHaveLength(0);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("offers a pay-the-difference may-pay when the found artifact's mana value is greater, and puts it onto the battlefield when paid", () => {
+        const yotian = makeInstance(yotianSoldier.id, {
+            id: "found-yotian",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        }); // mv 3 > Sol Ring mv 1 → difference 2
+        const state = castAndSearch([yotian], "found-yotian", { C: 2 });
+
+        expect(state.pendingChoices?.[0]).toMatchObject({
+            kind: "may-pay",
+            cost: { X: 2 },
+        });
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+
+        const p1 = state.players[0];
+        expect(p1.battlefield.map((c) => c.id)).toContain("found-yotian");
+        expect(p1.manaPool.C).toBe(0); // {2} paid
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("puts the found artifact into its owner's graveyard when the difference is not paid", () => {
+        const yotian = makeInstance(yotianSoldier.id, {
+            id: "found-yotian",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = castAndSearch([yotian], "found-yotian");
+
+        expect(state.pendingChoices?.[0]).toMatchObject({ kind: "may-pay" });
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+
+        const p1 = state.players[0];
+        expect(p1.battlefield.map((c) => c.id)).not.toContain("found-yotian");
+        expect(p1.graveyard.map((c) => c.id)).toContain("found-yotian");
+        expect(p1.library).toHaveLength(0);
+    });
+
+    it("restricts the search to artifact cards via candidateIds (CR 701.19)", () => {
+        const orn = makeInstance(ornithopter.id, {
+            id: "lib-artifact",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "lib-creature",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        }); // not an artifact
+        const solRingInst = makeInstance(solRing.id, {
+            id: "sac-artifact",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [solRingInst],
+                    library: [orn, bears],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, transmuteArtifact.id, "p1");
+        resolveTopOfStack(state);
+        submitChoice(state, ["sac-artifact"]);
+
+        const search = state.pendingChoices![0];
+        expect(search.kind).toBe("search-library");
+        expect(search.candidateIds).toEqual(["lib-artifact"]);
+    });
+
+    it("sacrifices and shuffles but finds nothing when the library holds no artifact card (fail-to-find, CR 701.19c)", () => {
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "lib-creature",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = castAndSearch([bears], null);
+
+        const p1 = state.players[0];
+        expect(p1.graveyard.map((c) => c.id)).toContain("sac-artifact");
+        expect(p1.battlefield.map((c) => c.id)).not.toContain("sac-artifact");
+        expect(p1.library.map((c) => c.id)).toEqual(["lib-creature"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("wire format: the tutored artifact is on the caster's projected battlefield (putFromLibraryOntoBattlefield survives projection)", () => {
+        const orn = makeInstance(ornithopter.id, {
+            id: "found-orn",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = castAndSearch([orn], "found-orn");
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].battlefield.map((c) => c.id)).toContain(
+            "found-orn"
+        );
+    });
+});
+
+describe("Tawnos's Coffin (ATQ cluster K — exile-with-attachments + return, CR 701.18 / 122 / 603.7a / 502.1)", () => {
+    /** p1 controls Tawnos's Coffin; p2 controls `victim`, a creature with the
+     *  given counters (and optionally an attached Holy Strength). Activates the
+     *  coffin's exile ability targeting `victim` and returns the resolved
+     *  state, the coffin instance, and the victim id. */
+    function exileVictim(opts: {
+        counters?: Record<string, number>;
+        withAura?: boolean;
+    }): { state: GameState; coffin: CardInstanceState; victimId: string } {
+        const coffin = makeInstance(tawnossCoffin.id, {
+            id: "coffin",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            ...(opts.counters ? { counters: opts.counters } : {}),
+        });
+        const p2Battlefield: CardInstanceState[] = [victim];
+        if (opts.withAura) {
+            p2Battlefield.push(
+                makeInstance(holyStrength.id, {
+                    id: "aura",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone: "battlefield",
+                    attachedTo: "victim",
+                })
+            );
+        }
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [coffin] }),
+                makePlayer("p2", { battlefield: p2Battlefield }),
+            ],
+        });
+        resolveActivated(state, coffin, "tawnoss-coffin-exile", [
+            { type: "permanent", id: "victim" },
+        ]);
+        return { state, coffin, victimId: "victim" };
+    }
+
+    /** Drives the untap step for p1's tapped coffin, choosing to untap it, then
+     *  resolves the resulting return trigger. */
+    function untapCoffinAndResolve(state: GameState, coffinId: string): void {
+        const coffin = state.players[0].battlefield.find(
+            (c) => c.id === coffinId
+        )!;
+        coffin.isTapped = true; // the {T} cost was paid on activation
+        state.phase = "UNTAP";
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        untapStep(state);
+        // may-choose-not-to-untap: the coffin defers to an optional prompt.
+        expect(state.pendingChoices?.[0]?.kind).toBe("untap-pick");
+        submitChoice(state, [coffinId]); // choose to untap → arms the return
+        // The "becomes untapped" trigger is on the stack; resolve it.
+        const trig = state.stack.find(
+            (s) => s.triggeredAbilityId === "tawnoss-coffin-return-on-untap"
+        );
+        expect(trig).toBeDefined();
+        resolveTopOfStack(state);
+    }
+
+    it("exiles the target creature, notes its counters, and arms a return bundle", () => {
+        const { state, coffin } = exileVictim({ counters: { "+1/+1": 2 } });
+
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "victim")
+        ).toBeUndefined();
+        expect(state.players[1].exile.map((c) => c.id)).toContain("victim");
+        expect(state.exileHeld).toHaveLength(1);
+        expect(state.exileHeld?.[0]).toMatchObject({
+            sourceId: coffin.id,
+            hostId: "victim",
+            hostOwnerId: "p2",
+            counters: { "+1/+1": 2 },
+            returnTapped: true,
+        });
+    });
+
+    it("exiles attached Auras alongside the creature (CR 303.4)", () => {
+        const { state } = exileVictim({ withAura: true });
+
+        expect(state.players[1].exile.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["victim", "aura"])
+        );
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "aura")
+        ).toBeUndefined();
+        expect(state.exileHeld?.[0].attached).toEqual([
+            { id: "aura", ownerId: "p2" },
+        ]);
+    });
+
+    it("returns the creature tapped under its owner's control with the noted counters when the coffin becomes untapped", () => {
+        const { state, coffin } = exileVictim({ counters: { "+1/+1": 2 } });
+        untapCoffinAndResolve(state, coffin.id);
+
+        const returned = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        );
+        expect(returned).toBeDefined();
+        expect(returned!.isTapped).toBe(true); // returns tapped
+        expect(returned!.counters).toEqual({ "+1/+1": 2 }); // noted counters
+        expect(state.exileHeld).toBeUndefined(); // bundle consumed
+    });
+
+    it("reattaches the exiled Aura to the returned creature (CR 303.4)", () => {
+        const { state, coffin } = exileVictim({ withAura: true });
+        untapCoffinAndResolve(state, coffin.id);
+
+        const returned = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        const aura = state.players[1].battlefield.find((c) => c.id === "aura");
+        expect(aura).toBeDefined();
+        expect(aura!.attachedTo).toBe("victim");
+        // Holy Strength's +1/+2 applies again → Grizzly Bears 2/2 reads 3/4.
+        expect(getEffectivePower(state, returned)).toBe(3);
+        expect(getEffectiveToughness(state, returned)).toBe(4);
+    });
+
+    it("returns the creature when the coffin leaves the battlefield (CR 603.7a)", () => {
+        const { state, coffin } = exileVictim({ counters: { "+1/+1": 1 } });
+        removePermanentTo(state, coffin.id, "graveyard");
+        processPendingActionTriggers(state);
+        const trig = state.stack.find(
+            (s) => s.triggeredAbilityId === "tawnoss-coffin-return-on-leave"
+        );
+        expect(trig).toBeDefined();
+        resolveTopOfStack(state);
+
+        const returned = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        );
+        expect(returned).toBeDefined();
+        expect(returned!.isTapped).toBe(true);
+        expect(returned!.counters).toEqual({ "+1/+1": 1 });
+        expect(state.exileHeld).toBeUndefined();
+    });
+
+    it("keeps the creature exiled when the controller declines to untap the coffin (CR 502.1)", () => {
+        const { state, coffin } = exileVictim({});
+        const c = state.players[0].battlefield.find((x) => x.id === coffin.id)!;
+        c.isTapped = true;
+        state.phase = "UNTAP";
+        state.activePlayerId = "p1";
+        untapStep(state);
+        submitChoice(state, []); // decline → coffin stays tapped, no return
+
+        expect(c.isTapped).toBe(true);
+        expect(state.players[1].exile.map((x) => x.id)).toContain("victim");
+        expect(state.exileHeld).toHaveLength(1);
+        expect(
+            state.stack.find(
+                (s) => s.triggeredAbilityId === "tawnoss-coffin-return-on-untap"
+            )
+        ).toBeUndefined();
+    });
+
+    it("does not fire a return trigger when an empty (nothing-held) coffin untaps", () => {
+        const coffin = makeInstance(tawnossCoffin.id, {
+            id: "coffin",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [coffin] }),
+                makePlayer("p2"),
+            ],
+            phase: "UNTAP",
+        });
+        untapStep(state);
+        submitChoice(state, ["coffin"]); // untap it — but nothing is held
+        expect(
+            state.stack.find(
+                (s) => s.triggeredAbilityId === "tawnoss-coffin-return-on-untap"
+            )
+        ).toBeUndefined();
+    });
+
+    it("emits PERMANENT_UNTAPPED only on a real tapped → untapped transition (CR 701.20b)", () => {
+        const card = makeInstance(grizzlyBears.id, {
+            id: "c",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [card] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(untapPermanent(state, card)).toBe(true);
+        expect(state.pendingEvents?.[0]).toMatchObject({
+            type: "PERMANENT_UNTAPPED",
+            permanentId: "c",
+        });
+        // Already untapped → no transition, no event.
+        state.pendingEvents = undefined;
+        expect(untapPermanent(state, card)).toBe(false);
+        expect(state.pendingEvents).toBeUndefined();
+    });
+
+    it("serialization: a non-empty exileHeld bundle round-trips (schema drift guard)", () => {
+        const { state } = exileVictim({ counters: { "+1/+1": 3 } });
+        const restored = expandState(compactState(state));
+        expect(restored.exileHeld).toEqual(state.exileHeld);
+    });
+
+    it("wire format: the returned creature is on its owner's projected battlefield", () => {
+        const { state, coffin } = exileVictim({ counters: { "+1/+1": 1 } });
+        untapCoffinAndResolve(state, coffin.id);
+
+        const projected = projectPublicState(state, 1, "p2");
+        const returned = projected.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        );
+        expect(returned).toBeDefined();
+        expect(returned!.isTapped).toBe(true);
     });
 });

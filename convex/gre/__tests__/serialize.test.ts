@@ -380,6 +380,24 @@ describe("game_state serialize round-trip", () => {
         expect((gotHost.card as { id: string }).id).toBe(savannahLions.id);
     });
 
+    it("preserves exileHeld bundles across the round trip (ADR 0028)", () => {
+        const state = freshState();
+        state.exileHeld = [
+            {
+                id: "bundle-1",
+                sourceId: "coffin",
+                hostId: "victim",
+                hostOwnerId: "p2",
+                attached: [{ id: "aura", ownerId: "p2" }],
+                counters: { "+1/+1": 2 },
+                returnTapped: true,
+            },
+        ];
+        const expanded = expandState(compactState(state));
+        // Pure metadata — no fat card to hydrate, so it round-trips verbatim.
+        expect(expanded.exileHeld).toEqual(state.exileHeld);
+    });
+
     it("preserves combatBlockRestrictions across the round trip", () => {
         const state = freshState();
         state.combatBlockRestrictions = [

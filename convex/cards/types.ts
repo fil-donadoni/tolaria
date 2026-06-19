@@ -635,6 +635,23 @@ export interface SpellContext {
         cardInstanceId: string,
         fromZone: "graveyard" | "exile"
     ) => boolean;
+    /** Library tutor → battlefield primitive (CR 400.7 zone change, ADR
+     *  0027). Moves a card a player owns from their library onto their
+     *  battlefield — the destination half of a search effect whose search
+     *  half is `requestChoice({ kind: "search-library", zone: "library" })`.
+     *  Distinct from `returnToBattlefield` (graveyard/exile sources) because a
+     *  library is hidden and unordered: callers pick the instance id from the
+     *  `requestChoice` result, then route it here. The card becomes a new
+     *  object — battlefield transient state is cleared, summoning sickness is
+     *  set for creatures (CR 302.1), existing lord-grants reach it and its own
+     *  static effects push out, and an ETB notification fires (CR 603.6).
+     *  Returns true if the card was in the library and moved, false on silent
+     *  fizzle (CR 608.2b). Used by Transmute Artifact. Pair with
+     *  `shuffleLibrary` (CR 701.20) after the search resolves. */
+    putFromLibraryOntoBattlefield: (
+        playerId: string,
+        cardInstanceId: string
+    ) => boolean;
     /** Taps a permanent on the battlefield (CR 701.20a). No-op if already
      *  tapped or if the target is no longer on the battlefield (CR 608.2b).
      *  Used by Icy Manipulator and similar "tap target permanent" effects. */
@@ -709,6 +726,23 @@ export interface SpellContext {
     /** CR 702.26 — phase a bundle (from `phaseOut`) back in. Silent. Returns
      *  false if the bundle id is unknown. */
     phaseIn: (bundleId: string) => boolean;
+    /** CR 603.7a / ADR 0028 — exile `targetId` and every Aura attached to it,
+     *  noting the host's counters, and arm an exile-and-return bundle keyed to
+     *  `sourceId`. Unlike `phaseOut` this is a real zone change (leaves/enters
+     *  triggers fire; the returned object is new). Returns the bundle id, or
+     *  null if the target isn't on the battlefield. The return is driven by
+     *  `returnExiledForSource` from the source's leaves/untaps triggers
+     *  (Tawnos's Coffin). */
+    exileWithAttachments: (
+        targetId: string,
+        opts: { sourceId: string; returnTapped: boolean }
+    ) => string | null;
+    /** CR 603.7a / ADR 0028 — return every exile-and-return bundle held by
+     *  `sourceId`: the host re-enters under its owner's control (tapped, with
+     *  the noted counters) and the exiled Auras re-enter attached to it.
+     *  No-op if `sourceId` holds nothing. Called from the source's "leaves the
+     *  battlefield or becomes untapped" triggers. */
+    returnExiledForSource: (sourceId: string) => void;
     /** Randomizes the order of a player's library using the seeded PRNG
      *  (CR 701.20). Deterministic under replay. */
     shuffleLibrary: (playerId: string) => void;
@@ -1341,6 +1375,17 @@ export interface SpellContext {
      *  could be paid by the {X} spent"). `manaValue` folds X to 0 (CR 202.3b).
      *  Empty for an empty hand. */
     getHandCards: (
+        playerId: string
+    ) => Array<{ id: string; types: CardType[]; manaValue: number }>;
+
+    /** Characteristics of every card in `playerId`'s library, read from the
+     *  card registry (CR 108.1). Mirrors `getHandCards`; used to precompute the
+     *  `candidateIds` allow-list of a filtered `search-library` choice (CR
+     *  701.19 — "search your library for a [type] card"), since the submit
+     *  validator enforces `candidateIds` on library picks but does not apply a
+     *  `PermanentFilter` to hidden library cards. `manaValue` folds X to 0 (CR
+     *  202.3b). Empty for an empty library. Used by Transmute Artifact. */
+    getLibraryCards: (
         playerId: string
     ) => Array<{ id: string; types: CardType[]; manaValue: number }>;
 
@@ -2036,6 +2081,7 @@ export type GameEventType =
     | "PERMANENT_LEFT"
     | "SPELL_CAST"
     | "PERMANENT_TAPPED"
+    | "PERMANENT_UNTAPPED"
     | "ABILITY_ACTIVATED"
     | "STATE_CHECK"
     | "TRIGGER_FIZZLED"
@@ -2211,6 +2257,21 @@ export interface PermanentTappedEvent {
     manaProduced?: ManaCost;
 }
 
+/** Emitted when a permanent transitions tapped → untapped (CR 701.20b "becomes
+ *  untapped"). Fired by every untap site that flips `isTapped` from true to
+ *  false: the untap step (CR 502.2) and untap effects (Twiddle). NOT fired for
+ *  a permanent that was already untapped (no transition). Carries the source's
+ *  controller/types/subtypes (last-known information) so `matches()` can filter
+ *  without re-reading the registry, mirroring `PermanentTappedEvent`. Used by
+ *  the exile-and-return mechanism (Tawnos's Coffin, ADR 0028). */
+export interface PermanentUntappedEvent {
+    type: "PERMANENT_UNTAPPED";
+    permanentId: string;
+    controllerId: string;
+    permanentTypes: ReadonlyArray<CardType>;
+    permanentSubtypes: ReadonlyArray<string>;
+}
+
 /** Activated-ability-use event emitted when a permanent's activated ability
  *  (non-mana, `useStack: true`) is put on the stack, paid for, and committed
  *  (CR 602.1). This is the COMPLEMENT of `PERMANENT_TAPPED`: it fires only for
@@ -2304,6 +2365,7 @@ export type GameEvent =
     | PermanentLeftEvent
     | SpellCastEvent
     | PermanentTappedEvent
+    | PermanentUntappedEvent
     | AbilityActivatedEvent
     | StateCheckEvent
     | TriggerFizzledEvent
@@ -2349,6 +2411,12 @@ export interface TriggerStateView {
         }>;
     }>;
     activePlayerId?: string;
+    /** Source ids that currently hold an armed exile-and-return bundle
+     *  (ADR 0028). The bundle's existence is the "delayed trigger is armed"
+     *  flag: a return trigger (Tawnos's Coffin's leaves/untaps) gates its
+     *  `condition` on membership so an untap of a coffin holding nothing does
+     *  not push a do-nothing trigger. Populated from `GameState.exileHeld`. */
+    exileHeld?: ReadonlyArray<{ sourceId: string }>;
 }
 
 export interface TriggeredAbility {
