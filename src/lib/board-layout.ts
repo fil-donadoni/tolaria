@@ -227,6 +227,17 @@ const BAND_V_PAD = 14;
  *  here next to the layout math so the gutter and the pod can't drift apart. */
 export const RIGHT_GUTTER = 224;
 
+/** Portrait hand (#336): at or below this many cards the flat-overlap hand lays
+ *  out within the viewport; beyond it the hand scrolls horizontally so cards
+ *  stay legible instead of cramming into ever-thinner slivers. */
+export const PORTRAIT_HAND_SCROLL_THRESHOLD = 6;
+
+/** Whether the portrait hand should scroll horizontally for a given card count
+ *  (#336). True strictly above {@link PORTRAIT_HAND_SCROLL_THRESHOLD}. */
+export function portraitHandScrolls(count: number): boolean {
+    return count > PORTRAIT_HAND_SCROLL_THRESHOLD;
+}
+
 /**
  * Stacks several rows inside ONE full-height zone — the battlefield split into a
  * creature row and a lands+noncreature back row (Arena-style) without clipping.
