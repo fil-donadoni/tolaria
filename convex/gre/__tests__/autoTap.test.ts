@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
     buildAutoTapSources,
     solveAutoTap,
+    solveAutoTapPartial,
     type AutoTapSource,
 } from "../autoTap";
 import { makeInstance } from "../../cards/__tests__/setup";
@@ -151,6 +152,91 @@ describe("solveAutoTap — minimal valid combination (CR 601.2g)", () => {
             [fixed("sol", "C", 2), fixed("l2", "R")]
         );
         expect(plan).toEqual([{ cardId: "sol" }]);
+    });
+});
+
+describe("solveAutoTapPartial — maximal useful subset (issue #321)", () => {
+    it("taps all 5 Mountains toward a {7}{R} cost it can't fully cover", () => {
+        // {7}{R} = R:1, generic 7. Five Mountains = 5 mana < 8 needed.
+        // Black Lotus is excluded from sources (stays manual), so the partial
+        // plan should tap every Mountain (all advance the cost).
+        const sources = [
+            fixed("m1", "R"),
+            fixed("m2", "R"),
+            fixed("m3", "R"),
+            fixed("m4", "R"),
+            fixed("m5", "R"),
+        ];
+        const plan = solveAutoTapPartial(
+            EMPTY_POOL,
+            { R: 1, X: 7 },
+            [],
+            sources
+        );
+        expect(plan.map((p) => p.cardId).sort()).toEqual([
+            "m1",
+            "m2",
+            "m3",
+            "m4",
+            "m5",
+        ]);
+    });
+
+    it("returns [] when no source can advance the cost (no over-tap)", () => {
+        // Cost needs U only; only a Forest (G) is available — irrelevant.
+        const plan = solveAutoTapPartial(
+            EMPTY_POOL,
+            { U: 1 },
+            [],
+            [fixed("forest", "G")]
+        );
+        expect(plan).toEqual([]);
+    });
+
+    it("never taps sources irrelevant to a partly-payable cost", () => {
+        // Cost {R}{R}{R} (R:3). One Mountain + one Island. Island (U) is
+        // irrelevant: only the Mountain should be tapped.
+        const plan = solveAutoTapPartial(
+            EMPTY_POOL,
+            { R: 3 },
+            [],
+            [fixed("mtn", "R"), fixed("isl", "U")]
+        );
+        expect(plan).toEqual([{ cardId: "mtn" }]);
+    });
+
+    it("stops once the cost is fully covered (no over-tap)", () => {
+        // {1} generic, three Mountains. Only one tap is needed even though the
+        // partial solver would otherwise keep going.
+        const plan = solveAutoTapPartial(
+            EMPTY_POOL,
+            { X: 1 },
+            [],
+            [fixed("m1", "R"), fixed("m2", "R"), fixed("m3", "R")]
+        );
+        expect(plan).toHaveLength(1);
+    });
+
+    it("picks the advancing option from a choice source", () => {
+        // Cost {U}{U}{U}; a Tundra (W or U) should be tapped for U.
+        const plan = solveAutoTapPartial(
+            EMPTY_POOL,
+            { U: 3 },
+            [],
+            [choice("tundra", ["W", "U"])]
+        );
+        expect(plan).toEqual([{ cardId: "tundra", manaChoiceIndex: 1 }]);
+    });
+
+    it("honors mana substitutions when judging usefulness", () => {
+        // Cost {U}{U}; G can be spent as U. A single Forest advances it.
+        const plan = solveAutoTapPartial(
+            EMPTY_POOL,
+            { U: 2 },
+            [{ from: "G", to: "U" }],
+            [fixed("forest", "G")]
+        );
+        expect(plan).toEqual([{ cardId: "forest" }]);
     });
 });
 
