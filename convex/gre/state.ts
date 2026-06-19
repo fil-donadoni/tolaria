@@ -518,6 +518,23 @@ export function grantKnowledge(
     }
 }
 
+/** ADR 0026 / PRD #338 (slice 2) — the _reveal_ class of knowledge: grants
+ *  knowledge of `cardInstanceIds` (owned by `zoneOwnerId`) to EVERY player in
+ *  the game. A reveal differs from a look only in which players are added
+ *  (CR 701.16 — "reveal" makes a card known to all players), so this is just
+ *  `grantKnowledge` looped over `state.players`. The card stays face-up to all
+ *  until an uncertainty event clears it (e.g. shuffle, CR 701.20). Idempotent.
+ *  Backs `SpellContext.markKnownToAll`. */
+export function grantKnowledgeToAll(
+    state: GameState,
+    zoneOwnerId: string,
+    cardInstanceIds: string[]
+): void {
+    for (const player of state.players) {
+        grantKnowledge(state, zoneOwnerId, cardInstanceIds, player.id);
+    }
+}
+
 /** A one-shot damage prevention effect (CR 615.1, 615.6). The next time the
  *  given source would deal damage to `playerId`, that damage is prevented and
  *  this effect is consumed. An unconsumed effect is purged when its
@@ -4803,6 +4820,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             knowerId: string
         ): void {
             grantKnowledge(state, zoneOwnerId, cardInstanceIds, knowerId);
+        },
+        // ADR 0026 / PRD #338 (slice 2) — reveal: stamp every player onto the
+        // cards' knownTo so they are face-up to all until a shuffle clears them.
+        markKnownToAll(zoneOwnerId: string, cardInstanceIds: string[]): void {
+            grantKnowledgeToAll(state, zoneOwnerId, cardInstanceIds);
         },
         revealHand(targetPlayerId: string): string[] | undefined {
             return ctx.requestChoice({

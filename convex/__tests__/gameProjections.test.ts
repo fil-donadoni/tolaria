@@ -589,4 +589,56 @@ describe("projectPublicState — knownTo (ADR 0026)", () => {
         const myHand = forP1.players.find((p) => p.id === "p1")!.hand;
         expect(myHand[0]!.seenByOpponent).toBeUndefined();
     });
+
+    // Slice 2 (#340) — a REVEALED library card (knownTo = all players) projects
+    // face-up to EVERY viewer, including the library owner who would otherwise
+    // not auto-know their own order. A look (single knower) does not.
+    it("reveal: a library card known to all players is exposed to every viewer", () => {
+        const state = makeState();
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        // p2-l1 revealed to both players (markKnownToAll on p2's library).
+        p2.library[0].knownTo = ["p1", "p2"];
+        const instanceId = p2.library[0].id; // "p2-l1"
+
+        // The library owner sees their own revealed top card.
+        const forP2 = projectPublicState(state, 1, "p2");
+        const ownerLib = forP2.players.find((p) => p.id === "p2")!.library;
+        expect(ownerLib.count).toBe(2);
+        expect(ownerLib.known).toHaveLength(1);
+        expect(ownerLib.known[0].index).toBe(0);
+        expect(ownerLib.known[0].card.id).toBe(instanceId);
+
+        // The opponent sees the same revealed card at the same index.
+        const forP1 = projectPublicState(state, 1, "p1");
+        const oppLib = forP1.players.find((p) => p.id === "p2")!.library;
+        expect(oppLib.known).toHaveLength(1);
+        expect(oppLib.known[0].index).toBe(0);
+        expect(oppLib.known[0].card.id).toBe(instanceId);
+
+        // Raw knownTo never crosses the wire for either viewer.
+        expect(
+            (oppLib.known[0].card as { knownTo?: string[] }).knownTo
+        ).toBeUndefined();
+        expect(
+            (ownerLib.known[0].card as { knownTo?: string[] }).knownTo
+        ).toBeUndefined();
+    });
+
+    it("reveal vs look: a single-knower library card stays hidden from the other player", () => {
+        const state = makeState();
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        // Only p1 looked — not a reveal.
+        p2.library[0].knownTo = ["p1"];
+
+        const forP1 = projectPublicState(state, 1, "p1");
+        expect(
+            forP1.players.find((p) => p.id === "p2")!.library.known
+        ).toHaveLength(1);
+
+        // The library owner p2 did not learn it (no auto-knowledge of own order).
+        const forP2 = projectPublicState(state, 1, "p2");
+        expect(forP2.players.find((p) => p.id === "p2")!.library.known).toEqual(
+            []
+        );
+    });
 });
