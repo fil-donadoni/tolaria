@@ -28,6 +28,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "mulligan-bottom": "Mulligan",
     // option family
     "option-pick": "Choose",
+    // random-reveal family (CR 705, ADR 0023)
+    "random-reveal": "Coin flip",
 };
 
 export function pendingChoiceLabel(kind: PendingChoiceKind): string {

@@ -57,6 +57,10 @@ type PresetScenario = {
     /** Mark "me"'s last hand card as the card drawn this turn — enables
      *  "discard the last card you drew this turn" costs (Jandor's Ring). */
     markLastDrawn?: boolean;
+    /** Pin the seeded PRNG (CR 705 / ADR 0023) so the next random draw is
+     *  deterministic — e.g. force a coin flip to WIN (seed 1) or LOSE (seed 7).
+     *  Default: unchanged. */
+    rngSeed?: number;
 };
 
 const PRESET_SCENARIOS: PresetScenario[] = [
@@ -636,6 +640,33 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
+    },
+    {
+        // Random Reveal tracer (#301, CR 705 / ADR 0023) — Bottle of Suleiman
+        // pinned to WIN. Activate "{1}, Sacrifice this artifact": the coin
+        // overlay animates, lands on WIN, then a 5/5 flying Djinn token enters.
+        // rngSeed 1 → first flipCoin() = heads (win). One Island funds the {1}.
+        label: "Random Reveal: Bottle of Suleiman (WIN)",
+        cards: [
+            { name: "Bottle of Suleiman", owner: "me" as const },
+            { name: "Island", owner: "me" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        rngSeed: 1,
+    },
+    {
+        // Random Reveal tracer (#301) — Bottle of Suleiman pinned to LOSE.
+        // Activate the ability: the overlay lands on LOSE, then the artifact
+        // deals 5 damage to you (20 → 15). rngSeed 7 → first flipCoin() = tails.
+        label: "Random Reveal: Bottle of Suleiman (LOSE)",
+        cards: [
+            { name: "Bottle of Suleiman", owner: "me" as const },
+            { name: "Island", owner: "me" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        rngSeed: 7,
     },
     {
         // ARN Batch 9 (#188) — Jihad ({W}{W}{W} Enchantment): "As it enters,
@@ -3572,6 +3603,7 @@ export default function DebugPanel({
                                                     markLastDrawn:
                                                         scenario.markLastDrawn,
                                                     turn: scenario.turn,
+                                                    rngSeed: scenario.rngSeed,
                                                 })
                                             }
                                         >

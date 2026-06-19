@@ -1154,6 +1154,35 @@ export interface SpellContext {
         prompt: string;
     }) => string | undefined;
 
+    /** Flips a coin and PAUSES resolution to reveal the outcome before the
+     *  consequence is applied (CR 705.2, ADR 0023). Unlike `flipCoin` (which
+     *  draws a bit synchronously and returns immediately), this enqueues a
+     *  `random-reveal` pending choice carrying the realized outcome and
+     *  suspends the step — both clients animate the coin landing on a WIN/LOSE
+     *  face, then the chooser's client auto-acknowledges
+     *  (`submitRandomRevealAck`) and the engine resumes.
+     *
+     *  On the first call in a step it draws the bit via `flipCoin()` EXACTLY
+     *  ONCE, persists it, and returns `undefined` — the caller MUST return
+     *  early so the engine suspends before applying the consequence. On resume
+     *  the persisted outcome short-circuits the re-run and returns the boolean
+     *  (no re-roll): `true` when the flipping player wins (heads), `false` on
+     *  tails. `choiceId` disambiguates multiple flips within a step and must be
+     *  stable across replays.
+     *
+     *  `heads`/`tails` each carry a `consequence` one-liner shown as the
+     *  overlay preview ("Create a 5/5 Djinn"). The landed `face` defaults to
+     *  `WIN` (heads) / `LOSE` (tails); pass `face` to override for a future
+     *  non-win/lose flip (Puppet's Verdict-style HEADS/TAILS). A thin wrapper
+     *  over the generic `random-reveal` envelope a future `requestDieRoll`
+     *  reuses. Used by Bottle of Suleiman. */
+    requestCoinFlip: (req: {
+        playerId: string;
+        choiceId: string;
+        heads: { consequence: string; face?: string };
+        tails: { consequence: string; face?: string };
+    }) => boolean | undefined;
+
     /** Sets the resolving permanent's BASE characteristics in place (CR 614.12
      *  "as it enters" body selection / a re-choice on the battlefield). Unlike
      *  `setBasePT` (a timestamped layer-7b set that the cleanup step purges),

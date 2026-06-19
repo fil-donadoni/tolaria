@@ -360,5 +360,18 @@ export function botActionToMove(
         }
         return { kind: "may-pay", accept: action.accept };
     }
+    if (action.kind === "random-reveal-ack") {
+        // CR 705.2 / ADR 0023 — routes through `submitRandomRevealAck`. No
+        // data travels; the choice identity is read from the active head.
+        const head = state.pendingChoices?.[0];
+        if (!head || head.kind !== "random-reveal" || head.playerId !== botId) {
+            return null;
+        }
+        return {
+            kind: "random-reveal-ack",
+            stackItemId: head.stackItemId,
+            choiceId: head.choiceId,
+        };
+    }
     return null;
 }

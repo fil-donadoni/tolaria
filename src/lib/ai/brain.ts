@@ -164,6 +164,7 @@ export type BotAction =
     | { kind: "mulligan-bottom"; cardInstanceIds: string[] }
     | { kind: "resolution-choice"; cardInstanceIds: string[] }
     | { kind: "may-pay"; accept: boolean }
+    | { kind: "random-reveal-ack" }
     | { kind: "declare-attackers" }
     | { kind: "declare-blockers" }
     | { kind: "confirm-combat-damage" }
@@ -388,8 +389,13 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // (`decideBotAction` handles it before reaching here), and
         // `mulligan-bottom` has its own pre-game branch. Reaching either via
         // `chooseResolution` is a programming error.
+        // `may-pay` is yes/no (`submitMayPay`), `mulligan-bottom` has its own
+        // pre-game branch, and `random-reveal` is an engine-drawn reveal acked
+        // via `random-reveal-ack` (`decideBotAction` handles all three before
+        // reaching here). Reaching any via `chooseResolution` is a bug.
         case "may-pay":
         case "mulligan-bottom":
+        case "random-reveal":
             throw new Error(
                 `chooseResolution: "${kind}" is not resolved here (use the dedicated path)`
             );
@@ -436,6 +442,12 @@ export function decideBotAction(view: BotView): BotAction {
             // from the bot's mana pool, else decline (ADR 0016 minimal policy —
             // smart "should I pay?" is deferred). Both answers are legal.
             return { kind: "may-pay", accept: choice.affordable === true };
+        }
+        if (choice.kind === "random-reveal") {
+            // CR 705.2 / ADR 0023 — a no-decision reveal: the engine already
+            // drew the outcome. The bot just acknowledges to resume (the human
+            // client auto-acks on animation end).
+            return { kind: "random-reveal-ack" };
         }
         return {
             kind: "resolution-choice",

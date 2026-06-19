@@ -29,6 +29,7 @@ function fakeMutations() {
         declareMulligan: vi.fn().mockResolvedValue(null),
         submitResolutionChoice: vi.fn().mockResolvedValue(null),
         submitMayPay: vi.fn().mockResolvedValue(null),
+        submitRandomRevealAck: vi.fn().mockResolvedValue(null),
         passPriority: vi.fn().mockResolvedValue(null),
     };
     return m as unknown as MoveMutations &
@@ -103,6 +104,22 @@ describe("executeMove (issue #110)", () => {
         expect(m.submitMayPay).toHaveBeenCalledWith({ ...GP, accept: true });
         // Never routes through the resolution-choice path.
         expect(m.submitResolutionChoice).not.toHaveBeenCalled();
+    });
+
+    it("random-reveal-ack → submitRandomRevealAck with the choice identity (#301)", async () => {
+        const m = await run({
+            kind: "random-reveal-ack",
+            stackItemId: "bottle",
+            choiceId: "bottle-of-suleiman-flip",
+        });
+        expect(m.submitRandomRevealAck).toHaveBeenCalledWith({
+            ...GP,
+            stackItemId: "bottle",
+            choiceId: "bottle-of-suleiman-flip",
+        });
+        // No choice data — a no-decision reveal.
+        expect(m.submitResolutionChoice).not.toHaveBeenCalled();
+        expect(m.submitMayPay).not.toHaveBeenCalled();
     });
 
     it("play-land → playCard with the card id", async () => {

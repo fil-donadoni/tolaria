@@ -77,6 +77,17 @@ export type Move =
           kind: "may-pay";
           accept: boolean;
       }
+    | {
+          /** Acknowledge a suspended `random-reveal` flip (CR 705.2, ADR 0023).
+           *  Carries no choice data — the engine drew and persisted the
+           *  outcome; this only means "resume". Realised through the
+           *  `submitRandomRevealAck` mutation; the choice identity is read from
+           *  the active pending choice. A no-decision reveal: the bot acks just
+           *  as the human client auto-acks when the animation ends. */
+          kind: "random-reveal-ack";
+          stackItemId: string;
+          choiceId: string;
+      }
     | { kind: "play-land"; cardInstanceId: string }
     | {
           kind: "cast-spell";

@@ -105,6 +105,60 @@ export function applyMayPaySubmit(
     }
 }
 
+export type RandomRevealAckArgs = {
+    playerId: string;
+    stackItemId: string;
+    choiceId: string;
+};
+
+/** Resumes a suspended `random-reveal` flip (CR 705.2, ADR 0023). The outcome
+ *  was already drawn ONCE and persisted into the stack item's
+ *  `collectedChoices` by `requestCoinFlip`; this carries NO choice data — it
+ *  only means "the animation finished, resume". Validates the queue head is a
+ *  `random-reveal` for this player/stack item, removes it, and re-enters
+ *  resolution; the replayed step reads the persisted bit back (no re-roll) and
+ *  applies the consequence. The same generic mutation serves coins and future
+ *  dice. Mutates `state` in place; throws on a mismatched/missing head. */
+export function applyRandomRevealAck(
+    state: GameState,
+    args: RandomRevealAckArgs
+): void {
+    const queue = state.pendingChoices ?? [];
+    if (queue.length === 0) throw new Error("No pending choice");
+    const head = queue[0];
+    if (head.kind !== "random-reveal") {
+        throw new Error("Pending choice is not a random reveal");
+    }
+    if (head.stackItemId !== args.stackItemId) {
+        throw new Error("Stack item mismatch");
+    }
+    if (head.choiceId !== args.choiceId) {
+        throw new Error("Choice id mismatch");
+    }
+    // The realized bit already lives in `collectedChoices` (written by
+    // requestCoinFlip). The ack only drops the head and resumes — replay-safe
+    // regardless of which client acks (the chooser auto-acks; the gate avoids
+    // a double submit, but a duplicate is harmless because the choice is gone).
+    queue.shift();
+    state.pendingChoices = queue.length > 0 ? queue : undefined;
+
+    if ((state.pendingChoices?.length ?? 0) === 0) {
+        resolveTopOfStack(state);
+        if ((state.pendingChoices?.length ?? 0) > 0) {
+            state.priorityPlayerId = state.pendingChoices![0].playerId;
+        } else if (state.pendingTarget) {
+            state.priorityPlayerId = state.pendingTarget.playerId;
+        } else {
+            state.priorityPlayerId = state.activePlayerId;
+            state.passCount = 0;
+            drainAutoPasses(state);
+        }
+        checkStateBasedActions(state);
+    } else {
+        state.priorityPlayerId = state.pendingChoices![0].playerId;
+    }
+}
+
 /** Validates and applies a client-buffered submission against the current
  *  head pending choice. Mutates `state` in place. Throws on validation
  *  failure (identity mismatch, may-pay kind, duplicate ids, count outside

@@ -616,4 +616,20 @@ describe("decideBotAction resolves an owed mid-resolution choice (ADR 0016)", ()
             accept: false,
         });
     });
+
+    it("acknowledges an engine-drawn random-reveal (coin flip, #301)", () => {
+        const action = decideBotAction(
+            view({
+                priorityPlayerId: BOT,
+                owedChoice: {
+                    kind: "random-reveal",
+                    min: 1,
+                    max: 1,
+                    candidates: [],
+                },
+            })
+        );
+        // No decision — the bot just acks to resume (like the human auto-ack).
+        expect(action).toEqual({ kind: "random-reveal-ack" });
+    });
 });

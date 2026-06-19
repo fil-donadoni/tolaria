@@ -6,7 +6,10 @@ import { describe, it, expect } from "vitest";
 import { resolveTopOfStack, type GameState } from "../state";
 import { advancePhase, untapStep } from "../phases";
 import { recordDeclaration, makeMulliganState } from "../mulligan";
-import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
+import {
+    applyPendingChoiceSubmit,
+    applyRandomRevealAck,
+} from "../pendingChoiceSubmit";
 import {
     disruptingScepter,
     grizzlyBears,
@@ -14,7 +17,11 @@ import {
     plains,
     winterOrb,
 } from "../../cards/sets/lea";
-import { cuombajjWitches, juzamDjinn } from "../../cards/sets/arn";
+import {
+    bottleOfSuleiman,
+    cuombajjWitches,
+    juzamDjinn,
+} from "../../cards/sets/arn";
 import {
     makeInstance,
     makePlayer,
@@ -643,5 +650,102 @@ describe("applyPendingChoiceSubmit — choose-damage-target (Cuombajj Witches)",
                 cardInstanceIds: ["p2-body"],
             })
         ).toThrow(/stale pending choice/i);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// applyRandomRevealAck — backend resume path for an engine-drawn coin flip
+// (CR 705.2 / ADR 0023). Mirrors the `submitRandomRevealAck` mutation, which is
+// a thin wrapper over this helper. Drives Bottle of Suleiman end to end:
+// activate → suspend on a random-reveal choice → ack → consequence applied.
+// ---------------------------------------------------------------------------
+
+const WIN_SEED = 1; // first flipCoin() → true (heads / win)
+const LOSE_SEED = 7; // first flipCoin() → false (tails / lose)
+
+function suspendOnBottleFlip(seed: number): GameState {
+    const bottle = makeInstance(bottleOfSuleiman.id, {
+        id: "bottle",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const state = makeState({
+        rngSeed: seed,
+        players: [
+            makePlayer("p1", { life: 20, battlefield: [bottle] }),
+            makePlayer("p2"),
+        ],
+    });
+    // Mirror the post-activate state: ability on the stack, cost paid.
+    state.stack.push({
+        ...bottle,
+        zone: "stack",
+        castById: "p1",
+        abilityId: "bottle-of-suleiman-flip",
+        targets: [],
+    });
+    resolveTopOfStack(state);
+    return state;
+}
+
+describe("applyRandomRevealAck — coin flip resume (CR 705.2 / ADR 0023)", () => {
+    it("WIN: ack resumes resolution and creates the 5/5 flying Djinn token", () => {
+        const state = suspendOnBottleFlip(WIN_SEED);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("random-reveal");
+        // Consequence not yet applied while suspended.
+        expect(state.players[0].battlefield.some((c) => c.isToken)).toBe(false);
+
+        applyRandomRevealAck(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            choiceId: head.choiceId,
+        });
+
+        const tokens = state.players[0].battlefield.filter((c) => c.isToken);
+        expect(tokens).toHaveLength(1);
+        expect(tokens[0].power).toBe(5);
+        expect(tokens[0].staticAbilities).toContain("flying");
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack.length).toBe(0);
+    });
+
+    it("LOSE: ack resumes resolution and deals 5 damage to the controller", () => {
+        const state = suspendOnBottleFlip(LOSE_SEED);
+        const head = state.pendingChoices![0];
+        expect(state.players[0].life).toBe(20);
+
+        applyRandomRevealAck(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            choiceId: head.choiceId,
+        });
+
+        expect(state.players[0].life).toBe(15);
+        expect(state.players[0].battlefield.some((c) => c.isToken)).toBe(false);
+        expect(state.pendingChoices).toBeUndefined();
+    });
+
+    it("throws when the head is not a random-reveal", () => {
+        const state = makeState();
+        expect(() =>
+            applyRandomRevealAck(state, {
+                playerId: "p1",
+                stackItemId: "x",
+                choiceId: "y",
+            })
+        ).toThrow(/no pending choice/i);
+    });
+
+    it("throws on a choice-id mismatch (stale ack)", () => {
+        const state = suspendOnBottleFlip(WIN_SEED);
+        const head = state.pendingChoices![0];
+        expect(() =>
+            applyRandomRevealAck(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                choiceId: "stale",
+            })
+        ).toThrow(/choice id mismatch/i);
     });
 });

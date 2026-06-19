@@ -2173,7 +2173,22 @@ export const bottleOfSuleiman: CardDefinition = {
             cost: { mana: { X: 1 }, sacrifice: true },
             useStack: true,
             resolve: (ctx: SpellContext) => {
-                if (ctx.flipCoin()) {
+                // CR 705.2 / ADR 0023 — flip a coin and PAUSE to reveal the
+                // outcome before applying it. `requestCoinFlip` draws the bit
+                // once, suspends the resolve step (returns undefined), and on
+                // resume returns the boolean from the persisted outcome (no
+                // re-roll). The caller MUST return early while suspended so the
+                // consequence (token / damage) lands only after the reveal.
+                const won = ctx.requestCoinFlip({
+                    playerId: ctx.controller,
+                    choiceId: "bottle-of-suleiman-flip",
+                    heads: { consequence: "Create a 5/5 flying Djinn" },
+                    tails: {
+                        consequence: "Bottle of Suleiman deals 5 damage to you",
+                    },
+                });
+                if (won === undefined) return; // suspended after the flip
+                if (won) {
                     ctx.createToken(
                         {
                             name: "Djinn",

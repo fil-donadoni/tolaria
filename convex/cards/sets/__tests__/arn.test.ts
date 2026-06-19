@@ -97,7 +97,10 @@ import {
     fireDelayedTriggers,
     untapStep,
 } from "../../../gre/phases";
-import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
+import {
+    applyPendingChoiceSubmit,
+    applyRandomRevealAck,
+} from "../../../gre/pendingChoiceSubmit";
 import { applyDamageReplacements } from "../../../gre/replacements";
 import { matchesPermanentFilter } from "../../filters";
 import {
@@ -124,6 +127,7 @@ import {
     drawCard,
     canPayDiscardLastDrawn,
     payDiscardLastDrawn,
+    getPlayer,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -3234,7 +3238,34 @@ describe("Guardian Beast (permanent-guard while untapped, CR 611)", () => {
 const WIN_SEED = 1; // first flipCoin() → true
 const LOSE_SEED = 7; // first flipCoin() → false
 
-describe("Bottle of Suleiman (coin flip activated ability, CR 705)", () => {
+describe("Bottle of Suleiman (random-reveal coin flip, CR 705 / ADR 0023)", () => {
+    /** Build a fresh state with Bottle in play, seeded for a known first flip. */
+    function setup(seed: number) {
+        const bottle = makeInstance(bottleOfSuleiman.id, {
+            id: "bottle",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            rngSeed: seed,
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [bottle] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, bottle };
+    }
+
+    /** Acknowledge the head random-reveal choice to resume resolution. */
+    function ack(state: GameState) {
+        const head = state.pendingChoices![0];
+        applyRandomRevealAck(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            choiceId: head.choiceId,
+        });
+    }
+
     it("definition snapshot: {4} Artifact, {1}+sacrifice flip ability", () => {
         expect(bottleOfSuleiman.types).toEqual(["Artifact"]);
         expect(bottleOfSuleiman.manaCost).toEqual({ X: 4 });
@@ -3242,20 +3273,40 @@ describe("Bottle of Suleiman (coin flip activated ability, CR 705)", () => {
         expect(ability.cost).toEqual({ mana: { X: 1 }, sacrifice: true });
     });
 
-    it("win flip → creates a 5/5 flying Djinn artifact creature token", () => {
-        const bottle = makeInstance(bottleOfSuleiman.id, {
-            id: "bottle",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            rngSeed: WIN_SEED,
-            players: [
-                makePlayer("p1", { life: 20, battlefield: [bottle] }),
-                makePlayer("p2"),
-            ],
-        });
+    it("suspends on a random-reveal choice BEFORE applying the consequence", () => {
+        const { state, bottle } = setup(WIN_SEED);
         resolveActivated(state, bottle, "bottle-of-suleiman-flip");
+
+        // Resolution is suspended on a random-reveal pending choice.
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("random-reveal");
+        expect(head.playerId).toBe("p1");
+        expect(head.randomKind).toBe("coin");
+        expect(head.sides).toBe(2);
+        // WIN seed → result 1 (heads), realized WIN face + Djinn consequence.
+        expect(head.result).toBe(1);
+        expect(head.realized).toEqual({
+            face: "WIN",
+            consequence: "Create a 5/5 flying Djinn",
+        });
+        // The consequence has NOT been applied yet (reveal precedes apply).
+        expect(state.players[0].battlefield.filter((c) => c.isToken)).toEqual(
+            []
+        );
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("flipCoin runs exactly once: rngCounter advances by 1 across suspend/resume (WIN)", () => {
+        const { state, bottle } = setup(WIN_SEED);
+        const before = state.rngCounter;
+        resolveActivated(state, bottle, "bottle-of-suleiman-flip");
+        // The bit was drawn once on suspend.
+        expect(state.rngCounter).toBe(before + 1);
+        ack(state);
+        // Resume reads the persisted outcome — no re-roll.
+        expect(state.rngCounter).toBe(before + 1);
+
+        // WIN consequence applied only after the ack.
         const tokens = state.players[0].battlefield.filter((c) => c.isToken);
         expect(tokens).toHaveLength(1);
         const djinn = tokens[0];
@@ -3264,27 +3315,72 @@ describe("Bottle of Suleiman (coin flip activated ability, CR 705)", () => {
         expect(djinn.power).toBe(5);
         expect(djinn.toughness).toBe(5);
         expect(djinn.staticAbilities).toContain("flying");
-        // No self-damage on a win.
         expect(state.players[0].life).toBe(20);
+        // Choice cleared, stack empty.
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack.length).toBe(0);
     });
 
-    it("lose flip → deals 5 damage to its controller, no token", () => {
-        const bottle = makeInstance(bottleOfSuleiman.id, {
-            id: "bottle",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            rngSeed: LOSE_SEED,
-            players: [
-                makePlayer("p1", { life: 20, battlefield: [bottle] }),
-                makePlayer("p2"),
-            ],
-        });
+    it("flipCoin runs exactly once: rngCounter advances by 1 across suspend/resume (LOSE)", () => {
+        const { state, bottle } = setup(LOSE_SEED);
+        const before = state.rngCounter;
         resolveActivated(state, bottle, "bottle-of-suleiman-flip");
+        const head = state.pendingChoices![0];
+        expect(head.result).toBe(0);
+        expect(head.realized).toEqual({
+            face: "LOSE",
+            consequence: "Bottle of Suleiman deals 5 damage to you",
+        });
+        expect(state.rngCounter).toBe(before + 1);
+        // Damage NOT yet applied.
+        expect(state.players[0].life).toBe(20);
+
+        ack(state);
+        expect(state.rngCounter).toBe(before + 1);
+        // LOSE consequence applied: 5 damage, no token.
         expect(state.players[0].life).toBe(15);
         expect(state.players[0].battlefield.filter((c) => c.isToken)).toEqual(
             []
+        );
+        expect(state.pendingChoices).toBeUndefined();
+    });
+
+    it("wire format: random-reveal fields survive projection for BOTH viewers", () => {
+        const { state, bottle } = setup(WIN_SEED);
+        resolveActivated(state, bottle, "bottle-of-suleiman-flip");
+
+        for (const viewerId of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewerId);
+            const head = projected.pendingChoices![0];
+            expect(head.kind).toBe("random-reveal");
+            expect(head.randomKind).toBe("coin");
+            expect(head.result).toBe(1);
+            // The result is public (CR 705) — both the flipper and the
+            // opponent see the realized face + consequence.
+            expect(head.realized).toEqual({
+                face: "WIN",
+                consequence: "Create a 5/5 flying Djinn",
+            });
+        }
+    });
+
+    it("ack mutation rejects a mismatched head (stack item / choice id)", () => {
+        const { state, bottle } = setup(WIN_SEED);
+        resolveActivated(state, bottle, "bottle-of-suleiman-flip");
+        const head = state.pendingChoices![0];
+        expect(() =>
+            applyRandomRevealAck(state, {
+                playerId: head.playerId,
+                stackItemId: "wrong",
+                choiceId: head.choiceId,
+            })
+        ).toThrow();
+        // Unchanged: still suspended.
+        expect(state.pendingChoices![0].kind).toBe("random-reveal");
+        // Sanity: ack resumes only on the correct identity (silences getPlayer).
+        ack(state);
+        expect(getPlayer(state, "p1").battlefield.some((c) => c.isToken)).toBe(
+            true
         );
     });
 });

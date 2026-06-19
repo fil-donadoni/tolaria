@@ -77,6 +77,9 @@ export type MoveMutations = {
         }
     ) => Promise<unknown>;
     submitMayPay: (a: GP & { accept: boolean }) => Promise<unknown>;
+    submitRandomRevealAck: (
+        a: GP & { stackItemId: string; choiceId: string }
+    ) => Promise<unknown>;
     passPriority: (a: GP) => Promise<unknown>;
 };
 
@@ -125,6 +128,17 @@ export async function executeMove(
             // Yes/no family (CR 117.3a / 118.4) — a SEPARATE entry point from
             // submitResolutionChoice (ADR 0016).
             await mutations.submitMayPay({ ...base, accept: move.accept });
+            return;
+
+        case "random-reveal-ack":
+            // CR 705.2 / ADR 0023 — acknowledge an engine-drawn coin flip to
+            // resume resolution. No data travels; the choice identity is on the
+            // Move (read from the head pending choice).
+            await mutations.submitRandomRevealAck({
+                ...base,
+                stackItemId: move.stackItemId,
+                choiceId: move.choiceId,
+            });
             return;
 
         case "play-land":
