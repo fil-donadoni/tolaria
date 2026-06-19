@@ -3838,6 +3838,68 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // LEG blue #372 — counters / bounce / tempo. Cast a creature with the
+        // opponent, then Force Spike / Flash Counter / Remove Soul it; Boomerang
+        // any permanent; Acid Rain wipes opposing Forests. Energy Tap ramps off
+        // Azure Drake.
+        label: "LEG blue #372: counters, Boomerang, Acid Rain, Energy Tap",
+        cards: [
+            { name: "Azure Drake", owner: "me" as const },
+            {
+                name: "Force Spike",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Flash Counter",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Remove Soul",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Boomerang", owner: "me" as const, zone: "hand" as const },
+            { name: "Acid Rain", owner: "me" as const, zone: "hand" as const },
+            { name: "Energy Tap", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Hill Giant",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Forest", owner: "opp" as const, count: 2 },
+            { name: "Island", owner: "me" as const, count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // LEG blue #372 — evasion / colour / combat tricks. Sea Kings' Blessing
+        // turns a creature blue, Part Water grants islandwalk, Teleport makes an
+        // attacker unblockable (cast in the declare-attackers step), Wall of
+        // Wonder animates with +4/-4, Backfire reflects an attacker's damage,
+        // and Psionic Entity pings for 2.
+        label: "LEG blue #372: Sea Kings' Blessing, Part Water, Wall of Wonder, Psionic Entity",
+        cards: [
+            { name: "Psionic Entity", owner: "me" as const },
+            { name: "Wall of Wonder", owner: "me" as const },
+            { name: "Devouring Deep", owner: "me" as const },
+            {
+                name: "Sea Kings' Blessing",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Part Water", owner: "me" as const, zone: "hand" as const },
+            { name: "Teleport", owner: "me" as const, zone: "hand" as const },
+            { name: "Backfire", owner: "me" as const, zone: "hand" as const },
+            { name: "Hill Giant", owner: "opp" as const },
+            { name: "Island", owner: "me" as const, count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
