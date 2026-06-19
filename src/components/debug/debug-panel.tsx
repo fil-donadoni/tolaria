@@ -3756,33 +3756,149 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
-        // Bazaar of Baghdad — "{T}: Draw two cards, then discard three cards"
-        // (CR 121.6 draw, CR 701.8 discard). The draw and discard are split
-        // across activated-ability `resolveSteps`, so the draw commits exactly
-        // once before the discard choice suspends (the re-draw bug this card was
-        // deferred for).
-        //   • Right-click Bazaar of Baghdad → activate its only ability. It taps;
-        //     your hand grows from 2 to 4 (drew two off the library).
-        //   • A discard prompt asks for exactly three cards — pick three. Hand
-        //     drops to 1, three cards hit your graveyard, and the library is down
-        //     by exactly two (never four).
-        label: "Bazaar of Baghdad: draw two, then discard three (stepped activated ability)",
+        // Legends (LEG) walking skeleton (#370 / PRD #369). Proves the `leg`
+        // set is registered and its vanilla legendary creatures are playable
+        // from the pool end-to-end:
+        //   • Jasmine Boreal (4/5 Legendary Human) and Lady Orca (7/4 Legendary
+        //     Demon) start on your battlefield — confirm they render with the
+        //     Legendary frame and correct P/T.
+        //   • A copy of each sits in hand so you can hard-cast it (lands cover
+        //     the cost) and watch it resolve onto the battlefield. The legend
+        //     rule (CR 704.5j) is not enforced yet — it lands as an SBA in
+        //     cluster C1 — so two copies of the same legend may coexist for now.
+        label: "LEG skeleton: vanilla legendary creatures (Jasmine Boreal, Lady Orca) (#370)",
         cards: [
-            { name: "Bazaar of Baghdad", owner: "me" as const },
+            { name: "Jasmine Boreal", owner: "me" as const },
+            { name: "Lady Orca", owner: "me" as const },
             {
-                name: "Lightning Bolt",
+                name: "Jasmine Boreal",
                 owner: "me" as const,
                 zone: "hand" as const,
             },
             {
-                name: "Psionic Blast",
+                name: "Lady Orca",
                 owner: "me" as const,
                 zone: "hand" as const,
             },
         ],
         phase: "PRECOMBAT_MAIN",
+        landCount: 7,
+    },
+    {
+        // LEG white #371 — anthems / auras / removal. Divine Transformation on
+        // a Wall of Light, Angelic Voices live (only a white creature on board),
+        // Cleanse vs an opposing black creature, and Spirit Link gaining life.
+        label: "LEG white #371: anthems, auras, Cleanse, Spirit Link",
+        cards: [
+            { name: "Angelic Voices", owner: "me" as const },
+            { name: "Keepers of the Faith", owner: "me" as const },
+            { name: "Wall of Light", owner: "me" as const },
+            {
+                name: "Divine Transformation",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Cleanse",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Spirit Link",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Scathe Zombies", owner: "opp" as const },
+            { name: "Plains", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
         landCount: 0,
-        libraryCount: 10,
+    },
+    {
+        // LEG white #371 — evasion / prevention / triggers. Amrou Kithkin and a
+        // Seeker-enchanted attacker test the can't-be-blocked-except-by clauses;
+        // Ivory Guardians grows while the opponent holds a red creature; Holy
+        // Day fogs combat; Lifeblood + an opponent Mountain.
+        label: "LEG white #371: evasion, Holy Day fog, Ivory Guardians, Lifeblood",
+        cards: [
+            { name: "Amrou Kithkin", owner: "me" as const },
+            { name: "Ivory Guardians", owner: "me" as const },
+            { name: "Lifeblood", owner: "me" as const },
+            { name: "Seeker", owner: "me" as const, zone: "hand" as const },
+            { name: "Holy Day", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Shield Wall",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Hill Giant", owner: "opp" as const },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+            { name: "Plains", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // LEG blue #372 — counters / bounce / tempo. Cast a creature with the
+        // opponent, then Force Spike / Flash Counter / Remove Soul it; Boomerang
+        // any permanent; Acid Rain wipes opposing Forests. Energy Tap ramps off
+        // Azure Drake.
+        label: "LEG blue #372: counters, Boomerang, Acid Rain, Energy Tap",
+        cards: [
+            { name: "Azure Drake", owner: "me" as const },
+            {
+                name: "Force Spike",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Flash Counter",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Remove Soul",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Boomerang", owner: "me" as const, zone: "hand" as const },
+            { name: "Acid Rain", owner: "me" as const, zone: "hand" as const },
+            { name: "Energy Tap", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Hill Giant",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Forest", owner: "opp" as const, count: 2 },
+            { name: "Island", owner: "me" as const, count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // LEG blue #372 — evasion / colour / combat tricks. Sea Kings' Blessing
+        // turns a creature blue, Part Water grants islandwalk, Teleport makes an
+        // attacker unblockable (cast in the declare-attackers step), Wall of
+        // Wonder animates with +4/-4, Backfire reflects an attacker's damage,
+        // and Psionic Entity pings for 2.
+        label: "LEG blue #372: Sea Kings' Blessing, Part Water, Wall of Wonder, Psionic Entity",
+        cards: [
+            { name: "Psionic Entity", owner: "me" as const },
+            { name: "Wall of Wonder", owner: "me" as const },
+            { name: "Devouring Deep", owner: "me" as const },
+            {
+                name: "Sea Kings' Blessing",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Part Water", owner: "me" as const, zone: "hand" as const },
+            { name: "Teleport", owner: "me" as const, zone: "hand" as const },
+            { name: "Backfire", owner: "me" as const, zone: "hand" as const },
+            { name: "Hill Giant", owner: "opp" as const },
+            { name: "Island", owner: "me" as const, count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
     },
 ];
 
