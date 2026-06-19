@@ -17115,6 +17115,66 @@ describe("Glasses of Urza (reveal hand, CR 401.4)", () => {
             expect(c!.seenByOpponent).toBeUndefined();
         }
     });
+
+    // ADR 0026 / PRD #338 (slice 4), clear trigger #2 — an OWNER-CHOSEN discard
+    // (Disrupting Scepter: the target picks the card) is witnessed by the owner
+    // but NOT by the knower (p1). The knower's identity→card map can no longer
+    // be trusted, so the WHOLE remaining hand reverts to hidden for p1 while p2
+    // (the owner) is untouched. End-to-end through the mutation primitive so the
+    // GRE → game.ts → projection path is exercised. (Clearing leg of the mandate.)
+    it("an owner-chosen discard clears the controller's knowledge of the whole hand", () => {
+        const state = setup();
+        activateGlasses(state);
+        resolveTopOfStack(state);
+        commitHead(state, []);
+        resolveTopOfStack(state);
+        expect(state.players[1].hand[0].knownTo).toEqual(["p1"]);
+        expect(state.players[1].hand[1].knownTo).toEqual(["p1"]);
+
+        // p2 discards a card of their OWN choosing (Disrupting Scepter activated
+        // by p1, but p2 chooses which card leaves their hand).
+        const scepter = makeInstance(disruptingScepter.id, {
+            id: "scepter",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(scepter);
+        const ability = disruptingScepter.activatedAbilities![0];
+        const item = pushSpell(state, disruptingScepter.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.abilityId = ability.id;
+        resolveTopOfStack(state);
+
+        // p2 picks h1 to discard, through the same primitive the mutation calls.
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["h1"],
+        });
+
+        // h1 is in p2's graveyard; the remaining hand card (h2) is no longer
+        // known to p1 — the whole hand reverted to hidden for the non-owner.
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("h1");
+        for (const c of state.players[1].hand) {
+            expect(c.knownTo).toBeUndefined();
+        }
+
+        // Projection: p1 no longer sees p2's hand face-up; p2's own view loses
+        // the eye flag. The owner's own knowledge is never affected.
+        const forP1 = projectPublicState(state, 1, "p1");
+        for (const c of forP1.players[1].hand) {
+            expect(c).toBeNull();
+        }
+        const forP2 = projectPublicState(state, 1, "p2");
+        for (const c of forP2.players[1].hand) {
+            expect(c!.seenByOpponent).toBeUndefined();
+        }
+    });
 });
 
 // ---------------------------------------------------------------------------

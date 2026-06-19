@@ -4799,6 +4799,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             });
             if (repl === null) return;
             moveCard(player, repl.cardInstanceId, "hand", "graveyard");
+            // ADR 0026 / PRD #338 (slice 4), clear trigger #2: an owner-chosen
+            // discard (Disrupting Scepter, Wheel of Fortune, Balance, cleanup)
+            // is a change the OWNER chose-and-witnessed but a non-owner knower
+            // did not. Conservatively revert the whole remaining hand to hidden
+            // for every non-owner viewer — the knower can no longer trust their
+            // identity→card mapping. `selectorId = playerId` keeps only the
+            // owner's knowledge, but the owner never appears in their own hand
+            // `knownTo`, so in practice this clears all non-owner knowers.
+            clearKnowledge(player.hand, playerId);
         },
         // CR 701.15a: stacks one regeneration shield on the target permanent.
         // The shield is consumed by the next destroy event on that permanent

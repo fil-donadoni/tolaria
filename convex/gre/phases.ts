@@ -13,6 +13,7 @@ import {
     applyTargetPrevention,
     bumpArtifactDamageToPlayer,
     bumpDamageDealtToPlayer,
+    clearKnowledge,
     consumePreventionIfAny,
     destroyWithReplacements,
     drawCard,
@@ -1430,6 +1431,12 @@ export function finalizeCleanupDiscard(
         if (repl === null) continue;
         moveCard(player, repl.cardInstanceId, "hand", "graveyard");
     }
+    // ADR 0026 / PRD #338 (slice 4), clear trigger #2: the cleanup discard
+    // (CR 514.1) is chosen-and-witnessed by the hand's OWNER but not by any
+    // non-owner knower. Conservatively revert the whole remaining hand to
+    // hidden for every non-owner viewer (the owner never appears in their own
+    // hand `knownTo`, so `selectorId = player.id` leaves the owner untouched).
+    clearKnowledge(player.hand, player.id);
     queue.shift();
     state.pendingChoices = queue.length > 0 ? queue : undefined;
     state.pendingCleanupDiscard = undefined;
