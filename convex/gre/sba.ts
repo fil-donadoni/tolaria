@@ -415,12 +415,81 @@ export function finalizeLegendKeep(
     }
 }
 
+/** CR 205.4a — true when the permanent currently has the World supertype.
+ *  Read from the (possibly copied) card definition, mirroring the Legendary
+ *  check, so a Clone copying a World permanent reads World here. */
+function isWorldPermanent(card: CardInstanceState): boolean {
+    return permanentDefinition(card)?.supertypes?.includes("World") ?? false;
+}
+
+/** Every World permanent across both players' battlefields (CR 704.5m — the
+ *  world rule is global, unlike the per-controller legend rule). */
+function allWorldPermanents(state: GameState): CardInstanceState[] {
+    const result: CardInstanceState[] = [];
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            if (isWorldPermanent(card)) result.push(card);
+        }
+    }
+    return result;
+}
+
+/** CR 704.5m — the "world rule." If two or more permanents have the World
+ *  supertype, all except the one that has had the World supertype for the
+ *  shortest amount of time are put into their owners' graveyards. In the event
+ *  of a tie for the shortest amount of time, ALL tied permanents are put into
+ *  their owners' graveyards.
+ *
+ *  "Shortest time as a world permanent" is tracked by `worldSeq`, a monotonic
+ *  timestamp stamped the first time each permanent is observed carrying the
+ *  World supertype (CR 613.7m). Higher seq = became a world permanent more
+ *  recently = shorter time; the survivor is the permanent with the maximum
+ *  seq. Permanents first observed in the same SBA sweep share a seq — that
+ *  shared maximum encodes the simultaneous-tie case (a single effect ETB-ing
+ *  two World permanents), in which the rule destroys all of them.
+ *
+ *  Fully automatic — no player choice (CR 704.5m), unlike the legend rule.
+ *  Returns true when a permanent was moved (the SBA caller re-runs the sweep
+ *  per CR 704.3 until no SBA applies). */
+export function checkWorldRuleSBA(state: GameState): boolean {
+    const worlds = allWorldPermanents(state);
+    // Stamp any newly-arrived world permanent. Every world permanent that is
+    // currently unstamped is part of the same arrival event from this sweep's
+    // point of view, so they all share one freshly-allocated seq (the tie).
+    const unstamped = worlds.filter((c) => c.worldSeq === undefined);
+    if (unstamped.length > 0) {
+        state.nextWorldSeq = (state.nextWorldSeq ?? 0) + 1;
+        for (const card of unstamped) card.worldSeq = state.nextWorldSeq;
+    }
+    if (worlds.length < 2) return false;
+    // Survivor(s): the permanent(s) with the maximum seq (shortest time).
+    const maxSeq = Math.max(...worlds.map((c) => c.worldSeq ?? 0));
+    const newest = worlds.filter((c) => (c.worldSeq ?? 0) === maxSeq);
+    // CR 704.5m — if more than one permanent shares the shortest time (a tie),
+    // none survives: every world permanent (including the tied "newest" ones)
+    // goes to its owner's graveyard. Otherwise the lone newest survives and
+    // every older world permanent is put into its owner's graveyard.
+    const doomed =
+        newest.length > 1 ? worlds : worlds.filter((c) => c !== newest[0]);
+    if (doomed.length === 0) return false;
+    // Defer the moves past the read above (removePermanentTo mutates the
+    // battlefield arrays). This is a zone change, not a destroy, so
+    // indestructible / regeneration do not apply.
+    for (const card of doomed) removePermanentTo(state, card.id, "graveyard");
+    return true;
+}
+
 export function checkStateBasedActions(state: GameState): void {
     checkAuraAttachmentSBA(state);
     checkConditionalControlChanges(state);
     checkSourceTappedEffects(state);
     checkZeroToughnessSBA(state);
     checkTokenExistenceSBA(state);
+    // CR 704.5m — world rule. Fully automatic (no player choice): keeps the
+    // newest World permanent and graveyards the rest (all of them on a tie).
+    // Runs before the legend-rule prompt so its automatic moves settle before
+    // any choice suspends the sweep.
+    checkWorldRuleSBA(state);
     // CR 704.5j — legend rule. Enqueues a keep-one prompt and returns early;
     // priority is frozen until the controller commits via finalizeLegendKeep.
     // Run before game-over so a legend death that would change life totals is

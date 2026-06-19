@@ -66,6 +66,57 @@ export const ladyOrca: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// World enchantments (CR 205.4a — World supertype; CR 704.5m world rule lands
+// as an SBA in cluster C2, #379). A World permanent carries the `World`
+// supertype as data; the world-rule SBA (`checkWorldRuleSBA`) consumes the flag
+// globally: when two or more World permanents exist, all but the newest go to
+// their owners' graveyards (a simultaneous tie destroys all of them). These two
+// carry no other new mechanic — their continuous effects ride the existing
+// layer system (keyword grant / removal, CR 613.1a layer 6) — so they double as
+// the real cards the world-rule SBA acts on.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Concordant Crossroads — World enchantment, "All creatures have haste."
+// (CR 702.10, 613.1a layer 6 — keyword-grant to every creature, any controller.)
+export const concordantCrossroads: CardDefinition = {
+    id: "ff01b408-6d17-40a3-9efd-a1b341ec1307",
+    name: "Concordant Crossroads",
+    oracleText: "All creatures have haste.",
+    manaCost: { G: 1 },
+    types: ["Enchantment"],
+    supertypes: ["World"],
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            // Global — every creature on the battlefield, regardless of
+            // controller (CR 109.2 "all creatures").
+            applies: (target: PermanentView) =>
+                target.types.includes("Creature"),
+            keyword: "haste",
+        },
+    ],
+};
+
+// Gravity Sphere — World enchantment, "All creatures lose flying."
+// (CR 702.9, 613.1a layer 6 — keyword-remove on every creature, any controller.)
+export const gravitySphere: CardDefinition = {
+    id: "8ddf93fe-980b-4dc4-b56f-6a2ee50100a6",
+    name: "Gravity Sphere",
+    oracleText: "All creatures lose flying.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Enchantment"],
+    supertypes: ["World"],
+    staticEffects: [
+        {
+            kind: "keyword-remove",
+            applies: (target: PermanentView) =>
+                target.types.includes("Creature"),
+            keyword: "flying",
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // White free tranche (#371) — every mono-white Legends card expressible with
 // existing primitives (keywords, staticEffects / layer system, trigger
 // factories, prevention shields, SpellContext methods). Data + resolve()

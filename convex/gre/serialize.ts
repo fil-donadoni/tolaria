@@ -120,6 +120,9 @@ function compactCard(
     if (card.counters && Object.keys(card.counters).length > 0) {
         out.counters = card.counters;
     }
+    // CR 704.5m world-rule timestamp — battlefield-only, must round-trip so a
+    // mid-game save/load preserves which World permanent is the newest.
+    if (card.worldSeq !== undefined) out.worldSeq = card.worldSeq;
     if (
         card.activationsThisTurn &&
         Object.keys(card.activationsThisTurn).length > 0
@@ -270,6 +273,9 @@ function expandCard(
     }
     if (compact.counters) {
         result.counters = compact.counters as Record<string, number>;
+    }
+    if (compact.worldSeq !== undefined) {
+        result.worldSeq = compact.worldSeq as number;
     }
     if (compact.activationsThisTurn) {
         result.activationsThisTurn = compact.activationsThisTurn as Record<
@@ -593,6 +599,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "delayedTriggers",
     "nextDelayedSeq",
     "nextTokenSeq",
+    "nextWorldSeq",
     "nextInstanceId",
     "pendingEvents",
     "deathsThisTurn",

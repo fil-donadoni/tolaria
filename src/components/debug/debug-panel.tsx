@@ -3785,6 +3785,36 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 7,
     },
     {
+        // World rule SBA (CR 704.5m, #379 / PRD #369 cluster C2). The world rule
+        // is global and fully automatic — no player choice:
+        //   • Concordant Crossroads (a World enchantment) already sits on your
+        //     battlefield; a SECOND World enchantment (Gravity Sphere) waits in
+        //     your hand.
+        //   • Cast Gravity Sphere (the Forest covers {G}; the Mountains cover
+        //     {2}{R}) and let it resolve. The moment it enters, the world rule
+        //     fires: the OLDER World permanent (Concordant Crossroads) is put
+        //     into its owner's graveyard automatically, leaving only the newest
+        //     World permanent (Gravity Sphere) on the battlefield.
+        //   • No prompt appears — unlike the legend rule, the world rule never
+        //     asks the player to choose (newest survives, ties kill all).
+        label: "LEG world rule (CR 704.5m): second World enters → older one dies (#379)",
+        cards: [
+            { name: "Concordant Crossroads", owner: "me" as const },
+            {
+                name: "Gravity Sphere",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            { name: "Forest", owner: "me" as const },
+            // A flyer to make Gravity Sphere's "all creatures lose flying"
+            // visible once it sticks.
+            { name: "Azure Drake", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // LEG white #371 — anthems / auras / removal. Divine Transformation on
         // a Wall of Light, Angelic Voices live (only a white creature on board),
         // Cleanse vs an opposing black creature, and Spirit Link gaining life.

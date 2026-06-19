@@ -68,6 +68,10 @@ describe("game_state serialize round-trip", () => {
         lion.counters = { "+1/+1": 2 };
         // CR 111 — token provenance link survives the DB round-trip.
         lion.createdBy = "source-instance-7";
+        // CR 704.5m — the world-rule timestamp is a battlefield-only property
+        // that must persist so a save/load preserves which World permanent is
+        // the newest.
+        lion.worldSeq = 3;
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
         expect(got.isTapped).toBe(true);
@@ -75,6 +79,7 @@ describe("game_state serialize round-trip", () => {
         expect(got.damageMarked).toBe(1);
         expect(got.counters).toEqual({ "+1/+1": 2 });
         expect(got.createdBy).toBe("source-instance-7");
+        expect(got.worldSeq).toBe(3);
     });
 
     it("preserves a non-zero mana pool", () => {
@@ -841,6 +846,12 @@ describe("optional field round-trip smoke tests", () => {
         const state = freshState();
         state.nextTokenSeq = 7;
         expect(roundTrip(state).nextTokenSeq).toBe(7);
+    });
+
+    it("nextWorldSeq (CR 704.5m world-rule timestamp counter)", () => {
+        const state = freshState();
+        state.nextWorldSeq = 4;
+        expect(roundTrip(state).nextWorldSeq).toBe(4);
     });
 
     it("pendingEvents", () => {

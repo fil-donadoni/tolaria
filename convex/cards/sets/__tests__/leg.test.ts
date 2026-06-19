@@ -140,6 +140,8 @@ import {
     alchorsTomb,
     mirrorUniverse,
     pendelhaven,
+    concordantCrossroads,
+    gravitySphere,
 } from "../leg";
 import { getCardById, getCardByName, getAllCards } from "../../index";
 import { fireDelayedTriggers } from "../../../gre/phases";
@@ -3470,5 +3472,283 @@ describe("legend rule SBA (CR 704.5j)", () => {
         const ids = projected.players[0].battlefield.map((c) => c.id);
         expect(ids).toContain("jasmine-a");
         expect(ids).toContain("jasmine-b");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C2 — World rule SBA (CR 704.5m, #379)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("world rule SBA (CR 704.5m)", () => {
+    /** Builds a World permanent instance. `worldSeq` lets a test pin the
+     *  relative "time as a world permanent" (higher = newer = shorter time). */
+    function world(
+        id: string,
+        opts: {
+            cardId?: string;
+            controllerId?: string;
+            ownerId?: string;
+            worldSeq?: number;
+        } = {}
+    ) {
+        return makeInstance(opts.cardId ?? concordantCrossroads.id, {
+            id,
+            controllerId: opts.controllerId ?? "p1",
+            ownerId: opts.ownerId ?? opts.controllerId ?? "p1",
+            ...(opts.worldSeq !== undefined ? { worldSeq: opts.worldSeq } : {}),
+        });
+    }
+
+    it("a single World permanent is unaffected (SBA no-op)", () => {
+        const cc = world("cc");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cc] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        checkStateBasedActions(state);
+
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual(["cc"]);
+        expect(state.players[0].graveyard).toHaveLength(0);
+        // Stamped with a timestamp so a later-arriving World can be compared.
+        expect(state.players[0].battlefield[0].worldSeq).toBe(1);
+    });
+
+    it("a second, newer World permanent graveyards the older one (CR 704.5m)", () => {
+        // `old` has been a world permanent longer (lower seq); `fresh` is
+        // newer (higher seq) and survives.
+        const older = world("older", { worldSeq: 1 });
+        const newer = world("newer", {
+            cardId: gravitySphere.id,
+            worldSeq: 2,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [older, newer] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        checkStateBasedActions(state);
+
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "newer",
+        ]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["older"]);
+        // Fully automatic — no prompt.
+        expect(state.pendingChoices).toBeUndefined();
+    });
+
+    it("a simultaneous tie (equal seq) puts ALL tied World permanents into graveyards (CR 704.5m)", () => {
+        // Two World permanents first observed in the same arrival event share a
+        // seq — the world rule destroys all of them.
+        const a = world("a", { cardId: concordantCrossroads.id, worldSeq: 5 });
+        const b = world("b", { cardId: gravitySphere.id, worldSeq: 5 });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        checkStateBasedActions(state);
+
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.id).sort()).toEqual([
+            "a",
+            "b",
+        ]);
+    });
+
+    it("stamps two unstamped World permanents with one shared seq → tie kills both", () => {
+        // No worldSeq on either: this is the "single effect ETB-ed two World
+        // permanents" case. The SBA stamps both with the SAME fresh seq in one
+        // sweep, then resolves the tie by graveyarding both.
+        const a = world("a", { cardId: concordantCrossroads.id });
+        const b = world("b", { cardId: gravitySphere.id });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        checkStateBasedActions(state);
+
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard).toHaveLength(2);
+    });
+
+    it("applies GLOBALLY across both players, unlike the per-controller legend rule (CR 704.5m)", () => {
+        // Each player controls one World permanent. The world rule is global,
+        // so the older one dies even though no single player controls two.
+        const mine = world("mine", { controllerId: "p1", worldSeq: 1 });
+        const yours = world("yours", {
+            cardId: gravitySphere.id,
+            controllerId: "p2",
+            worldSeq: 2,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine] }),
+                makePlayer("p2", { battlefield: [yours] }),
+            ],
+        });
+
+        checkStateBasedActions(state);
+
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["mine"]);
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "yours",
+        ]);
+    });
+
+    it("puts a World permanent into its OWNER's graveyard, not the controller's (CR 704.5m)", () => {
+        // p1 controls a World enchantment owned by p2 (e.g. via a control
+        // effect); when it loses the world rule it goes to p2's graveyard.
+        const borrowed = world("borrowed", {
+            controllerId: "p1",
+            ownerId: "p2",
+            worldSeq: 1,
+        });
+        const ownNewer = world("own-newer", {
+            cardId: gravitySphere.id,
+            controllerId: "p1",
+            ownerId: "p1",
+            worldSeq: 2,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [borrowed, ownNewer] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        checkStateBasedActions(state);
+
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "own-newer",
+        ]);
+        expect(state.players[0].graveyard).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual([
+            "borrowed",
+        ]);
+    });
+
+    it("clears worldSeq when a World permanent leaves the battlefield", () => {
+        // The doomed permanent is re-stampable as a fresh world permanent on
+        // any re-entry (CR 400.7) — its stale seq must not carry over.
+        const older = world("older", { worldSeq: 1 });
+        const newer = world("newer", {
+            cardId: gravitySphere.id,
+            worldSeq: 2,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [older, newer] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        checkStateBasedActions(state);
+
+        const dead = state.players[0].graveyard.find((c) => c.id === "older")!;
+        expect(dead.worldSeq).toBeUndefined();
+    });
+});
+
+describe("Concordant Crossroads (World — all creatures have haste, CR 702.10)", () => {
+    it("carries the World supertype as data", () => {
+        expect(concordantCrossroads.supertypes).toEqual(["World"]);
+        expect(concordantCrossroads.types).toEqual(["Enchantment"]);
+    });
+
+    it("grants haste to every creature, regardless of controller (wire format)", () => {
+        const cc = makeInstance(concordantCrossroads.id, {
+            id: "cc",
+            controllerId: "p1",
+        });
+        const mine = makeInstance(grizzlyBears.id, {
+            id: "mine",
+            controllerId: "p1",
+        });
+        const theirs = makeInstance(grizzlyBears.id, {
+            id: "theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cc, mine] }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        applySourceStaticEffects(state, cc);
+
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "mine")!
+                .staticAbilities
+        ).toContain("haste");
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "theirs")!
+                .staticAbilities
+        ).toContain("haste");
+
+        // Survives projection (the grant is materialized on staticAbilities).
+        const projected = projectPublicState(state, 1, "p1");
+        const slimTheirs = projected.players[1].battlefield.find(
+            (c) => c.id === "theirs"
+        )!;
+        expect(slimTheirs.staticAbilities).toContain("haste");
+    });
+});
+
+describe("Gravity Sphere (World — all creatures lose flying, CR 702.9)", () => {
+    it("carries the World supertype as data", () => {
+        expect(gravitySphere.supertypes).toEqual(["World"]);
+        expect(gravitySphere.types).toEqual(["Enchantment"]);
+    });
+
+    it("removes flying from every creature, regardless of controller (wire format)", () => {
+        const gs = makeInstance(gravitySphere.id, {
+            id: "gs",
+            controllerId: "p1",
+        });
+        const mine = makeInstance(azureDrake.id, {
+            id: "mine",
+            controllerId: "p1",
+            staticAbilities: ["flying"],
+        });
+        const theirs = makeInstance(azureDrake.id, {
+            id: "theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+            staticAbilities: ["flying"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gs, mine] }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        applySourceStaticEffects(state, gs);
+
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "mine")!
+                .staticAbilities
+        ).not.toContain("flying");
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "theirs")!
+                .staticAbilities
+        ).not.toContain("flying");
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimTheirs = projected.players[1].battlefield.find(
+            (c) => c.id === "theirs"
+        )!;
+        expect(slimTheirs.staticAbilities).not.toContain("flying");
     });
 });
