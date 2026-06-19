@@ -4044,6 +4044,70 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // LEG green #375 — fliers / pumps / activated abilities. Killer Bees
+        // and Emerald Dragonfly pump/grant first strike; Fire Sprites taps for
+        // {R}; Pixie Queen grants flying to a grounded creature; Pradesh Gypsies
+        // shrinks an attacker; Rabid Wombat grows +2/+2 per attached Aura (cast
+        // Spirit Link from hand onto it to watch it swell).
+        label: "LEG green #375: Killer Bees, Pixie Queen, Fire Sprites, Pradesh Gypsies, Rabid Wombat",
+        cards: [
+            { name: "Killer Bees", owner: "me" as const },
+            { name: "Emerald Dragonfly", owner: "me" as const },
+            { name: "Fire Sprites", owner: "me" as const },
+            { name: "Pixie Queen", owner: "me" as const },
+            { name: "Pradesh Gypsies", owner: "me" as const },
+            { name: "Rabid Wombat", owner: "me" as const },
+            {
+                name: "Spirit Link",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Barbary Apes", owner: "opp" as const },
+            { name: "Forest", owner: "me" as const, count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // LEG green #375 — combat / burn / evasion. Elven Riders can be blocked
+        // only by Walls or flyers (set phase to combat and attack to verify);
+        // Winter Blast taps the opponent's creatures and burns the flyers;
+        // Storm Seeker and Typhoon scale on hand size / Islands; Sylvan Paradise
+        // turns creatures green. Hornet Cobra / Cat Warriors round out the board.
+        label: "LEG green #375: Elven Riders, Winter Blast, Storm Seeker, Typhoon, Sylvan Paradise",
+        cards: [
+            { name: "Elven Riders", owner: "me" as const },
+            { name: "Hornet Cobra", owner: "me" as const },
+            { name: "Cat Warriors", owner: "me" as const },
+            {
+                name: "Winter Blast",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Storm Seeker",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Typhoon",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Sylvan Paradise",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Azure Drake", owner: "opp" as const },
+            { name: "Wall of Light", owner: "opp" as const },
+            { name: "Island", owner: "opp" as const, count: 3 },
+            { name: "Forest", owner: "me" as const, count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
