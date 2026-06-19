@@ -253,3 +253,30 @@
         z-index: 60;
     }
 }
+
+/* Portrait controller phase sheet (#335). The sheet slides up from the bottom
+ * edge, and its phase rows get comfortable (large) touch targets coherent with
+ * the ADR-0009 action-sheet — the same ControllerPhaseList component, only
+ * re-sized for the thumb when it is mounted inside the sheet shell. */
+@keyframes sheetUp {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+[data-phase-sheet] [data-current],
+[data-phase-sheet] .grid {
+    min-height: 48px;
+}
+
+[data-phase-sheet] [role="dialog"] {
+    width: 100%;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}

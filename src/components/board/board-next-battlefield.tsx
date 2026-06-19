@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useBattlefieldInteraction } from "~/hooks/useBattlefieldInteraction";
+import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { isCreature, isLand } from "~/lib/card-utils";
 import { bandedRowsLayout, RIGHT_GUTTER } from "~/lib/board-layout";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
@@ -73,6 +74,11 @@ export default function BoardNextBattlefield({
         () => (ctx.allPlayers?.length ? ctx.allPlayers : [player]),
         [ctx.allPlayers, player]
     );
+    // Single high seam (#335): on portrait the right control column collapses
+    // (pod → bottom bar) so the battlefield reclaims the reserved gutter and
+    // uses the full screen width. Same hook the controller reads — the gutter
+    // and the pod can never disagree about which layout is live.
+    const isPortrait = useIsPortrait();
     const {
         getVisualState,
         handleClickWithEvent,
@@ -214,7 +220,9 @@ export default function BoardNextBattlefield({
             ],
             width,
             height,
-            rightGutter: RIGHT_GUTTER,
+            // Portrait drops the gutter to 0 so both rows span the full width;
+            // landscape/desktop keeps the reserved control-column gutter.
+            rightGutter: isPortrait ? 0 : RIGHT_GUTTER,
         });
     }
 
