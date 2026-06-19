@@ -6,6 +6,22 @@ import type { PublicGrantedAbility } from "@convex/gameProjections";
 export type { Zone, CardAction };
 export type GrantedAbility = PublicGrantedAbility;
 
+/** ADR 0026 / PRD #338 — one viewer-known library card and its top-relative
+ *  position (0 = top). */
+export interface KnownLibraryCard {
+    index: number;
+    card: CardInstance;
+}
+
+/** ADR 0026 / PRD #338 — sparse projected library: `count` is the full size,
+ *  `known` carries only the cards the viewer legitimately knows, each at its
+ *  top-relative `index`. The server always emits `known` (possibly empty); it
+ *  is optional here so a `{ count }`-only fixture is still a valid library. */
+export interface PublicLibrary {
+    count: number;
+    known?: KnownLibraryCard[];
+}
+
 export interface Player {
     id: string;
     name: string;
@@ -13,8 +29,11 @@ export interface Player {
     life: number;
     /** Own hand has full cards; opponent's hand is a list of nulls when viewed via getPublicState. */
     hand: (CardInstance | null)[];
-    /** Full array when the viewer has full-state access, { count } when hidden (getPublicState). */
-    library: CardInstance[] | { count: number };
+    /** Full array when the viewer has full-state access (full debug view).
+     *  Via getPublicState it is the sparse ADR 0026 shape (`PublicLibrary`):
+     *  `count` plus the cards the viewer knows (`known[]`) at their
+     *  top-relative `index` (0 = top). */
+    library: CardInstance[] | PublicLibrary;
     /** Set only on the searcher's own player while a `search-library` choice
      *  is active (CR 401.4 / 701.19) — slim card list rendered face-up so the
      *  player can pick one. Independent of `library` to keep the wire shape
@@ -112,6 +131,11 @@ export interface CardInstance {
      *  Each entry adds to effective P/T at read time. */
     temporaryPTMods?: ReadonlyArray<{ power: number; toughness: number }>;
     legalActions?: CardAction[];
+    /** ADR 0026 — derived eye-icon flag on the viewer's OWN hand cards: true
+     *  when at least one opponent currently knows this card's identity. Only
+     *  present on own-hand projected cards; raw `knownTo` never reaches the
+     *  client. */
+    seenByOpponent?: boolean;
     /** Layer 5 color override (CR 305.7, 613.1d). Set by lace instants. */
     colorOverride?: string[];
     /** Copy effect anchor (CR 707.2). When set, this permanent is a copy and

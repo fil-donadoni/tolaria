@@ -93,6 +93,11 @@ export default function Board({
             for (const c of p.hand) if (c) ids.push(c.card.id);
             if (Array.isArray(p.library)) {
                 for (const c of p.library) ids.push(c.card.id);
+            } else {
+                // ADR 0026 — preload art for the viewer's known library cards.
+                for (const k of p.library.known ?? []) {
+                    ids.push(k.card.card.id);
+                }
             }
         }
         if (stack) for (const c of stack) ids.push(c.card.id);

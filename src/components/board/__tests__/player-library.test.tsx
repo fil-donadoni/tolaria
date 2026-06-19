@@ -14,6 +14,7 @@ vi.mock("../cards-pile", () => ({
     default: (props: {
         cards: CardInstance[];
         isFaceDown?: boolean;
+        faceUpIds?: ReadonlySet<string>;
         layout?: "fan" | "grid";
         forceOpen?: boolean;
         selectedIds?: string[];
@@ -128,6 +129,24 @@ describe("PlayerLibrary", () => {
         renderWithContext(<PlayerLibrary player={player} />);
         const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
         expect(pileProps.cards).toHaveLength(0);
+    });
+
+    it("marks a viewer-known library position face-up via faceUpIds (ADR 0026)", () => {
+        // Public-state sparse library: index 0 is known to the viewer.
+        cardsPileSpy.mockClear();
+        const player = makePlayer({
+            count: 3,
+            known: [{ index: 0, card: makeCard("known-top") }],
+        });
+        renderWithContext(<PlayerLibrary player={player} />);
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        expect(pileProps.cards).toHaveLength(3);
+        // The known card sits at the top; the rest are placeholders.
+        expect(pileProps.cards[0].id).toBe("known-top");
+        // Pile is hidden by default, but the known position is overridden.
+        expect(pileProps.isFaceDown).toBe(true);
+        expect(pileProps.faceUpIds.has("known-top")).toBe(true);
+        expect(pileProps.faceUpIds.size).toBe(1);
     });
 
     it("exposes the search-library picker as a face-up grid with per-card selection", () => {

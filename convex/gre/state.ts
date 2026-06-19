@@ -458,7 +458,65 @@ export type CardInstanceState = {
      *  round-trip; cleared with the rest of the instance when the token leaves
      *  the battlefield (a new object, CR 400.7). */
     createdBy?: string;
+    /** Persistent, viewer-scoped card knowledge (ADR 0026, PRD #338). The set
+     *  of player ids that currently know this instance's identity while it
+     *  sits in a Hidden Zone (library, hand, face-down exile). A _look_ effect
+     *  adds the looker; a _reveal_ effect adds all players; face-down exile
+     *  adds the controller. Persists across hidden→hidden moves and is cleared
+     *  only by an uncertainty event (`clearKnowledge`): shuffle, unwitnessed
+     *  discard, or entering a public zone. Never crosses the wire raw — the
+     *  projection turns it into identity gating + the derived `seenByOpponent`
+     *  flag. */
+    knownTo?: string[];
 };
+
+/** ADR 0026 — clears persistent card knowledge over a Hidden Zone. The single
+ *  principle: knowledge of viewer V over zone Z is cleared when Z changes in a
+ *  way V did not choose-and-witness.
+ *
+ *  - `selectorId` is a player id → that player chose-and-witnessed the change,
+ *    so only their knowledge survives; everyone else is cleared. (Not used by
+ *    slice 1, reserved for owner-chosen discard.)
+ *  - `selectorId === null` → the change was random/unwitnessed (shuffle), so
+ *    ALL viewers are cleared (CR 701.20 — nobody knows the new order, not even
+ *    the player who shuffled).
+ *
+ *  Mutates each card in place, deleting an emptied `knownTo` so the slim
+ *  serialization and projection stay clean. */
+export function clearKnowledge(
+    cards: CardInstanceState[],
+    selectorId: string | null
+): void {
+    for (const card of cards) {
+        if (!card.knownTo) continue;
+        if (selectorId === null) {
+            delete card.knownTo;
+            continue;
+        }
+        const survivors = card.knownTo.filter((id) => id === selectorId);
+        if (survivors.length > 0) card.knownTo = survivors;
+        else delete card.knownTo;
+    }
+}
+
+/** ADR 0026 / PRD #338 — grants persistent knowledge: adds `knowerId` to the
+ *  `knownTo` set of each library/hand card in `cardInstanceIds` owned by
+ *  `zoneOwnerId`. Idempotent. No-op for ids not currently in that owner's
+ *  library or hand. Backs `SpellContext.markKnown`. */
+export function grantKnowledge(
+    state: GameState,
+    zoneOwnerId: string,
+    cardInstanceIds: string[],
+    knowerId: string
+): void {
+    const owner = getPlayer(state, zoneOwnerId);
+    const ids = new Set(cardInstanceIds);
+    for (const card of [...owner.library, ...owner.hand]) {
+        if (!ids.has(card.id)) continue;
+        const known = card.knownTo ?? [];
+        if (!known.includes(knowerId)) card.knownTo = [...known, knowerId];
+    }
+}
 
 /** A one-shot damage prevention effect (CR 615.1, 615.6). The next time the
  *  given source would deal damage to `playerId`, that damage is prevented and
@@ -3810,9 +3868,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             return phaseInBundle(state, bundleId);
         },
         // CR 701.20: randomize a player's library. Uses the seeded PRNG so
-        // replays reproduce the same ordering.
+        // replays reproduce the same ordering. ADR 0026: a shuffle is an
+        // unwitnessed reordering — clear ALL persistent knowledge of every
+        // card in the library (nobody, not even the shuffler, knows the new
+        // order).
         shuffleLibrary(playerId: string): void {
-            seededShuffle(state, getPlayer(state, playerId).library);
+            const library = getPlayer(state, playerId).library;
+            seededShuffle(state, library);
+            clearKnowledge(library, null);
         },
         // CR 701.5a: to counter a spell is to remove it from the stack and put
         // it into its owner's graveyard. If the target is no longer on the
@@ -4733,6 +4796,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             });
             player.library.unshift(...reordered);
         },
+        // ADR 0026 / PRD #338 — stamp persistent knowledge on hidden-zone cards.
+        markKnown(
+            zoneOwnerId: string,
+            cardInstanceIds: string[],
+            knowerId: string
+        ): void {
+            grantKnowledge(state, zoneOwnerId, cardInstanceIds, knowerId);
+        },
         revealHand(targetPlayerId: string): string[] | undefined {
             return ctx.requestChoice({
                 playerId: item.castById,
@@ -4784,6 +4855,12 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
     };
     return ctx;
 }
+
+/** ADR 0026 — zones in which a card's identity is universally known. Entering
+ *  any of these clears the instance's persistent per-viewer `knownTo`. (Exile
+ *  is treated as public here; face-down exile / impulse-draw — which keeps the
+ *  card known to its controller — is a later slice and will gate this.) */
+const PUBLIC_ZONES = new Set<Zone>(["battlefield", "graveyard", "exile"]);
 
 const ZONE_TO_FIELD: Record<Exclude<Zone, "stack">, keyof PlayerState> = {
     hand: "hand",
@@ -4847,6 +4924,12 @@ export function moveCard(
 
     const [card] = sourceZone.splice(cardIndex, 1);
     card.zone = to;
+
+    // ADR 0026 — entering a public zone makes identity universally known, so
+    // persistent per-viewer knowledge is meaningless there; empty it so a
+    // later return to a hidden zone is hidden again unless freshly re-granted.
+    // Stale `knownTo` never resurrects.
+    if (PUBLIC_ZONES.has(to)) delete card.knownTo;
 
     const targetZone = player[toField] as CardInstanceState[];
     targetZone.push(card);

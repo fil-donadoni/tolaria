@@ -6,22 +6,12 @@ import {
     ContextMenuItem,
     ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import type { CardInstance, Player } from "~/types/game";
+import type { Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import CardsPile from "./cards-pile";
 import LibrarySearchConfirm from "./library-search-confirm";
-
-function libraryPlaceholders(count: number, playerId: string): CardInstance[] {
-    return Array.from({ length: count }, (_, i) => ({
-        id: `lib-${playerId}-${i}`,
-        card: { id: "" },
-        controllerId: playerId,
-        ownerId: playerId,
-        zone: "library",
-        isTapped: false,
-    }));
-}
+import { buildLibraryPileModel } from "~/lib/library-knowledge";
 
 export default function PlayerLibrary({ player }: { player: Player }) {
     const { gameId, playerId, debugAllActions, pendingChoices } =
@@ -58,13 +48,19 @@ export default function PlayerLibrary({ player }: { player: Player }) {
 
     const isLibraryPick = isLibrarySearchTarget || isLibraryPeekPick;
 
+    // ADR 0026 — outside an active pick, the pile renders from the projected
+    // library: known positions (`knownTo`) face-up, the rest as backs.
+    const pileModel = buildLibraryPileModel(player.library, player.id);
     const libraryCards = isLibrarySearchTarget
         ? player.librarySearch!
         : isLibraryPeekPick
           ? player.libraryPeek!
-          : Array.isArray(player.library)
-            ? player.library
-            : libraryPlaceholders(player.library.count, player.id);
+          : pileModel.map((slot) => slot.card);
+    // Per-card face-up override for the non-pick library view (picks expose
+    // every card face-up already via `isFaceDown={false}`).
+    const faceUpIds = isLibraryPick
+        ? undefined
+        : new Set(pileModel.filter((s) => s.faceUp).map((s) => s.card.id));
     const hasCards = libraryCards.length > 0;
 
     const handleDraw = () => draw({ gameId, playerId });
@@ -105,6 +101,7 @@ export default function PlayerLibrary({ player }: { player: Player }) {
         <CardsPile
             cards={libraryCards}
             isFaceDown={!isLibraryPick}
+            faceUpIds={faceUpIds}
             emptyLabel="Library is empty"
             title={
                 isLibrarySearchTarget

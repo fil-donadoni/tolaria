@@ -5936,6 +5936,10 @@ export const naturalSelection: CardDefinition = {
             });
             if (!ordered) return;
             ctx.reorderLibraryTop(target.id, ordered);
+            // ADR 0026 / PRD #338: the chooser precisely positioned these top
+            // cards, so they become known to the chooser only — persisting
+            // after the choice resolves, until a shuffle clears the library.
+            ctx.markKnown(target.id, ordered, ctx.controller);
         },
         // Step 1: optional shuffle
         (ctx: SpellContext) => {

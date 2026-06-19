@@ -14,6 +14,11 @@ function seededRandom(seed: number) {
 type CardsPileProps = {
     cards: CardInstance[];
     isFaceDown?: boolean;
+    /** ADR 0026 — per-card face-up override. When provided, a card renders
+     *  face-up iff its instance id is in this set, regardless of `isFaceDown`.
+     *  Lets a hidden pile (library) reveal only the positions the viewer
+     *  legitimately knows (`knownTo`) while the rest stay backs. */
+    faceUpIds?: ReadonlySet<string>;
     emptyLabel?: string;
     /** Zone glyph shown (centered) in place of the text label when the pile is
      *  empty — e.g. a `Skull` for the graveyard, `Sparkles` for exile. Falls
@@ -35,6 +40,17 @@ type CardsPileProps = {
     footer?: React.ReactNode;
 };
 
+/** Resolves whether a single card renders face-down. A `faceUpIds` set (ADR
+ *  0026) overrides the pile-wide `isFaceDown` for individually-known cards. */
+function isCardFaceDown(
+    card: CardInstance,
+    isFaceDown: boolean,
+    faceUpIds?: ReadonlySet<string>
+): boolean {
+    if (faceUpIds?.has(card.id)) return false;
+    return isFaceDown;
+}
+
 /** Ring class for a selectable card: emerald once picked, amber otherwise. */
 function selectionRing(isSelected: boolean): string {
     return isSelected
@@ -45,12 +61,14 @@ function selectionRing(isSelected: boolean): string {
 function FanLayout({
     cards,
     isFaceDown,
+    faceUpIds,
     onCardClick,
     onClose,
     selectedIds,
 }: {
     cards: CardInstance[];
     isFaceDown: boolean;
+    faceUpIds?: ReadonlySet<string>;
     onCardClick?: (card: CardInstance) => void;
     onClose: () => void;
     selectedIds?: string[];
@@ -79,12 +97,17 @@ function FanLayout({
                 }}
             >
                 {cards.map((cardInstance, cardIndex) => {
-                    const inner = isFaceDown ? (
+                    const faceDown = isCardFaceDown(
+                        cardInstance,
+                        isFaceDown,
+                        faceUpIds
+                    );
+                    const inner = faceDown ? (
                         <CardBack />
                     ) : (
                         <CardImage card={cardInstance} />
                     );
-                    const clickable = !isFaceDown && !!onCardClick;
+                    const clickable = !faceDown && !!onCardClick;
                     const isSelected =
                         selectedIds?.includes(cardInstance.id) ?? false;
                     return (
@@ -123,12 +146,14 @@ function FanLayout({
 function GridLayout({
     cards,
     isFaceDown,
+    faceUpIds,
     onCardClick,
     onClose,
     selectedIds,
 }: {
     cards: CardInstance[];
     isFaceDown: boolean;
+    faceUpIds?: ReadonlySet<string>;
     onCardClick?: (card: CardInstance) => void;
     onClose: () => void;
     selectedIds?: string[];
@@ -136,12 +161,17 @@ function GridLayout({
     return (
         <div className="flex flex-wrap gap-2 justify-center py-4 px-2">
             {cards.map((cardInstance) => {
-                const inner = isFaceDown ? (
+                const faceDown = isCardFaceDown(
+                    cardInstance,
+                    isFaceDown,
+                    faceUpIds
+                );
+                const inner = faceDown ? (
                     <CardBack />
                 ) : (
                     <CardImage card={cardInstance} />
                 );
-                const clickable = !isFaceDown && !!onCardClick;
+                const clickable = !faceDown && !!onCardClick;
                 const isSelected =
                     selectedIds?.includes(cardInstance.id) ?? false;
                 return (
@@ -173,6 +203,7 @@ function GridLayout({
 export default function CardsPile({
     cards,
     isFaceDown = false,
+    faceUpIds,
     emptyLabel,
     zoneIcon,
     title,
@@ -218,7 +249,7 @@ export default function CardsPile({
             transform: `rotate(${rotations[cardIndex]}deg)`,
         };
 
-        const image = isFaceDown ? (
+        const image = isCardFaceDown(cardInstance, isFaceDown, faceUpIds) ? (
             <CardBack />
         ) : (
             <SelectableCard
@@ -258,6 +289,7 @@ export default function CardsPile({
                     <FanLayout
                         cards={cards}
                         isFaceDown={isFaceDown}
+                        faceUpIds={faceUpIds}
                         onCardClick={onCardClick}
                         onClose={() => setIsOpen(false)}
                         selectedIds={selectedIds}
@@ -266,6 +298,7 @@ export default function CardsPile({
                     <GridLayout
                         cards={cards}
                         isFaceDown={isFaceDown}
+                        faceUpIds={faceUpIds}
                         onCardClick={onCardClick}
                         onClose={() => setIsOpen(false)}
                         selectedIds={selectedIds}

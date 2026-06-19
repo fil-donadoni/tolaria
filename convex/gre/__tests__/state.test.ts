@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+    clearKnowledge,
+    grantKnowledge,
     getBasicLandMana,
     getPlayer,
     getOpponentId,
@@ -1067,5 +1069,98 @@ describe("tickDuration (CR 514.2, 511.3)", () => {
         expect(
             tickDuration(afterP2, { phase: "CLEANUP", activePlayerId: "p1" })
         ).toBeNull();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Persistent card knowledge — ADR 0026 / PRD #338
+// ---------------------------------------------------------------------------
+
+describe("clearKnowledge (ADR 0026)", () => {
+    it("clears ALL viewers when the change is random/unwitnessed (selectorId = null)", () => {
+        const cards = [
+            makeCard({ id: "a", knownTo: ["p1", "p2"] }),
+            makeCard({ id: "b", knownTo: ["p1"] }),
+            makeCard({ id: "c" }),
+        ];
+        clearKnowledge(cards, null);
+        expect(cards[0].knownTo).toBeUndefined();
+        expect(cards[1].knownTo).toBeUndefined();
+        expect(cards[2].knownTo).toBeUndefined();
+    });
+
+    it("keeps only the selector's knowledge when a player chose-and-witnessed", () => {
+        const cards = [makeCard({ id: "a", knownTo: ["p1", "p2"] })];
+        clearKnowledge(cards, "p1");
+        expect(cards[0].knownTo).toEqual(["p1"]);
+    });
+
+    it("deletes an emptied knownTo rather than leaving []", () => {
+        const cards = [makeCard({ id: "a", knownTo: ["p2"] })];
+        clearKnowledge(cards, "p1");
+        expect(cards[0].knownTo).toBeUndefined();
+    });
+});
+
+describe("grantKnowledge stamps persistent knowledge (ADR 0026)", () => {
+    it("adds the knower to library cards and is idempotent", () => {
+        const library = [
+            makeCard({
+                id: "l0",
+                zone: "library",
+                ownerId: "p2",
+                controllerId: "p2",
+            }),
+            makeCard({
+                id: "l1",
+                zone: "library",
+                ownerId: "p2",
+                controllerId: "p2",
+            }),
+        ];
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1" }),
+                makePlayer({ id: "p2", library }),
+            ],
+        });
+        grantKnowledge(state, "p2", ["l0"], "p1");
+        grantKnowledge(state, "p2", ["l0"], "p1"); // idempotent
+        expect(state.players[1].library[0].knownTo).toEqual(["p1"]);
+        expect(state.players[1].library[1].knownTo).toBeUndefined();
+    });
+
+    it("a shuffle (clearKnowledge null) wipes a freshly granted set", () => {
+        const library = [
+            makeCard({ id: "l0", zone: "library" }),
+            makeCard({ id: "l1", zone: "library" }),
+        ];
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", library }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        grantKnowledge(state, "p1", ["l0", "l1"], "p1");
+        clearKnowledge(state.players[0].library, null); // models shuffle
+        for (const c of state.players[0].library) {
+            expect(c.knownTo).toBeUndefined();
+        }
+    });
+});
+
+describe("moveCard clears knowledge entering a public zone (ADR 0026)", () => {
+    it("drops knownTo when a card enters the battlefield/graveyard/exile", () => {
+        const hand = [makeCard({ id: "h0", zone: "hand", knownTo: ["p2"] })];
+        const player = makePlayer({ id: "p1", hand });
+        moveCard(player, "h0", "hand", "graveyard");
+        expect(player.graveyard[0].knownTo).toBeUndefined();
+    });
+
+    it("preserves knownTo on a hidden→hidden move (hand→library)", () => {
+        const hand = [makeCard({ id: "h0", zone: "hand", knownTo: ["p2"] })];
+        const player = makePlayer({ id: "p1", hand });
+        moveCard(player, "h0", "hand", "library");
+        expect(player.library[0].knownTo).toEqual(["p2"]);
     });
 });

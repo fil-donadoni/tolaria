@@ -1263,6 +1263,18 @@ export interface SpellContext {
      *  given by `orderedIds` (CR 401). All ids must already be in the top N. */
     reorderLibraryTop: (playerId: string, orderedIds: string[]) => void;
 
+    /** Grants persistent card knowledge (ADR 0026, PRD #338): adds `knowerId`
+     *  to the `knownTo` set of each library/hand card in `cardInstanceIds`
+     *  owned by `zoneOwnerId`. A _look_ effect passes a single looker; a
+     *  _reveal_ effect calls this once per player. The knowledge persists on
+     *  the instance until a `clearKnowledge` event (shuffle, etc.). No-op for
+     *  ids not currently in that owner's library or hand. */
+    markKnown: (
+        zoneOwnerId: string,
+        cardInstanceIds: string[],
+        knowerId: string
+    ) => void;
+
     /** Reveals `targetPlayerId`'s hand to the controller via a display-only
      *  pending choice (CR 401.4 — "look at"). Returns the revealed card ids
      *  on acknowledgement, `undefined` while suspended waiting for the
