@@ -389,3 +389,22 @@ describe("BoardNextHandCard drag containment (#271 fix 4)", () => {
         fireEvent.pointerUp(target, { clientX: 100, clientY: 0 });
     });
 });
+
+// ADR 0026 / PRD #338 (slice 3) — the eye icon renders per-card ONLY on the
+// viewer's own hand cards that an opponent legitimately knows (derived
+// `seenByOpponent` flag), never generically on the whole hand.
+describe("BoardNextHandCard seenByOpponent eye icon (ADR 0026)", () => {
+    it("renders the eye badge when the card is seenByOpponent", () => {
+        const card = { ...makeCard("seen", ["cast"]), seenByOpponent: true };
+        renderCard(card);
+        expect(
+            document.querySelector("[data-seen-by-opponent]")
+        ).not.toBeNull();
+    });
+
+    it("does NOT render the eye badge when the card is not seenByOpponent", () => {
+        const card = makeCard("secret", ["cast"]);
+        renderCard(card);
+        expect(document.querySelector("[data-seen-by-opponent]")).toBeNull();
+    });
+});

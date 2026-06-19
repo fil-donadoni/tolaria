@@ -5149,6 +5149,12 @@ export function discardCardsAtRandom(
         if (repl === null) continue;
         moveCard(player, repl.cardInstanceId, "hand", "graveyard");
     }
+    // ADR 0026 / PRD #338 (slice 3), clear trigger #2: a random discard is an
+    // event the knower did not choose-and-witness — a player who knew this hand
+    // can no longer trust their identity→card mapping. Conservatively revert the
+    // WHOLE remaining hand to hidden for every non-owner viewer (the owner never
+    // appears in their own hand `knownTo`, so `null` leaves it untouched).
+    clearKnowledge(player.hand, null);
 }
 
 /** Pays a "discard N cards at random" activation cost (CR 118.3 / 701.8 —
