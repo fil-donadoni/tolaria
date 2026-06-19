@@ -63,6 +63,7 @@ import {
     getLegalTargets,
     getPendingTargetSourceColors,
     getPendingTargetSourceTypes,
+    getPendingTargetSourceSubtypes,
     hasColor,
     isProtectedFromColors,
     matchesMvFilter,
@@ -1643,7 +1644,10 @@ export const announceCast = mutation({
                 sourceColors,
                 args.playerId,
                 chosenX,
-                cardInHand.types
+                cardInHand.types,
+                cardInHand.subtypes,
+                // Casting from hand — the source is a spell (CR 113.3).
+                true
             );
             if (legalTargets.length === 0) {
                 throw new Error("No legal targets available");
@@ -2569,22 +2573,29 @@ export const selectTarget = mutation({
             if (isProtectedFromColors(matchedCard, sourceColors)) {
                 throw new Error("Target has protection from this source");
             }
-            // CR 611 — a continuous `permanent-guard` (Guardian Beast) may bar
-            // targeting entirely. Mirror of the getLegalTargets gate. The
-            // source's card types (CR 109.5) narrow source-type-filtered guards
-            // (Artifact Ward's "abilities from artifact sources").
+            // CR 611 — a continuous `permanent-guard` (Guardian Beast / shroud)
+            // may bar targeting entirely. Mirror of the getLegalTargets gate.
+            // The source's card types (CR 109.5), subtypes ("Aura spells"), and
+            // spell-vs-ability (CR 113.3 "spells only") narrow filtered guards.
+            const guardSourceKind = pt.kind ?? "cast";
             const sourceTypes = getPendingTargetSourceTypes(
                 state,
                 pt.cardInstanceId,
-                pt.kind ?? "cast"
+                guardSourceKind
+            );
+            const sourceSubtypes = getPendingTargetSourceSubtypes(
+                state,
+                pt.cardInstanceId,
+                guardSourceKind
             );
             if (
-                isGuardedAgainst(
-                    state,
-                    matchedCard,
-                    "cantBeTargeted",
-                    sourceTypes
-                )
+                isGuardedAgainst(state, matchedCard, "cantBeTargeted", {
+                    types: sourceTypes,
+                    subtypes: sourceSubtypes,
+                    // copy-retarget is a spell copy; cast is a spell; ability
+                    // is not (CR 113.3).
+                    isSpell: guardSourceKind !== "ability",
+                })
             ) {
                 throw new Error(
                     "Target can't be the target of spells or abilities"
@@ -4017,7 +4028,10 @@ export const activateAbility = mutation({
                 abilitySourceColors,
                 args.playerId,
                 targetChosenX,
-                card.types
+                card.types,
+                card.subtypes,
+                // Source is an activated ability, not a spell (CR 113.3).
+                false
             );
             if (legal.length === 0) {
                 throw new Error("No legal targets available");

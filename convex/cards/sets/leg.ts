@@ -678,8 +678,9 @@ export const visions: CardDefinition = {
 // unbuilt primitive — left for their owning issue):
 //   • C5 named counters — Glyph of Delusion (glyph counters), Venarian Gold
 //     (sleep counters).
-//   • C6 shroud / can't-be-targeted — Anti-Magic Aura ("can't be the target of
-//     spells"), Spectral Cloak (shroud while untapped).
+//   • C6 shroud / can't-be-targeted — SHIPPED below (Spectral Cloak,
+//     Anti-Magic Aura, Bartel Runeaxe). Tetsuo Umezawa and Wall of Shadows are
+//     deferred — see the C6 section footer for the per-card reasons.
 //   • C7 upkeep pay-or-sacrifice — Elder Spawn ("unless you sacrifice an
 //     Island, sacrifice this and it deals 6 damage to you").
 //   • C8 cast-tax counter-unless-pay — In the Eye of Chaos (World), Invoke
@@ -4041,3 +4042,128 @@ export const tolaria: CardDefinition = {
         },
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C6 — Shroud / "can't be the target" static (#382)
+//
+// CR 702.18 (Shroud): a permanent with shroud "can't be the target of spells or
+// abilities" — including its controller's own (unlike hexproof, which only bars
+// opponents). CR 115 governs targets; CR 113.3 distinguishes spells from
+// abilities; CR 109.5 fixes a source's characteristics (types/subtypes) for the
+// "Aura spells" / "spells only" variants.
+//
+// All variants reuse the live `permanent-guard` machinery (gre/permanentGuard.ts,
+// CR 611 continuous effect): `cantBeTargeted: true` with an `applies` predicate,
+// optionally narrowed by `targetSourceSubtypeFilter` (Aura) and/or
+// `targetSourceMustBeSpell`. The guard is queried at both targeting gates
+// (getLegalTargets — excluded from legal targets; selectTarget — server-side
+// rejection), so a guarded permanent is unclickable in the UI and a hand-rolled
+// target is rejected authoritatively.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Spectral Cloak — "Enchant creature\nEnchanted creature has shroud as long as
+// it's untapped." (CR 702.18 shroud, conditional on the host being untapped —
+// the live guard reads the host's tap state at each targeting gate, so the
+// shroud blinks off the moment the creature taps.)
+export const spectralCloak: CardDefinition = {
+    id: "fadfa9f9-d096-4083-8630-1c18928133ff",
+    name: "Spectral Cloak",
+    oracleText:
+        "Enchant creature\nEnchanted creature has shroud as long as it's untapped. (It can't be the target of spells or abilities.)",
+    manaCost: { U: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "permanent-guard",
+            id: "spectral-cloak-shroud",
+            // CR 702.18 shroud (all sources, spells AND abilities) — but only
+            // while the host is untapped (CR 611 live read of the host's state).
+            cantBeTargeted: true,
+            applies: (target, source) =>
+                target.id === source.attachedTo && !target.isTapped,
+        },
+    ],
+};
+
+// Anti-Magic Aura — "Enchant creature\nEnchanted creature can't be the target of
+// spells and can't be enchanted by other Auras." (CR 113.3 — "spells" excludes
+// abilities, so a `targetSourceMustBeSpell` guard; plus a `cantBeEnchanted`
+// guard, CR 303.4, blocking further Auras from attaching.)
+export const antiMagicAura: CardDefinition = {
+    id: "6f78c1e2-e38f-431b-8864-8aad982e9912",
+    name: "Anti-Magic Aura",
+    oracleText:
+        "Enchant creature\nEnchanted creature can't be the target of spells and can't be enchanted by other Auras.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "permanent-guard",
+            id: "anti-magic-aura-no-spell-target",
+            // CR 113.3 — barred from SPELLS only; abilities can still target.
+            cantBeTargeted: true,
+            targetSourceMustBeSpell: true,
+            applies: (target, source) => target.id === source.attachedTo,
+        },
+        {
+            kind: "permanent-guard",
+            id: "anti-magic-aura-no-enchant",
+            // CR 303.4 — no further Aura may be cast at / attach to the host.
+            cantBeEnchanted: true,
+            applies: (target, source) => target.id === source.attachedTo,
+        },
+    ],
+};
+
+// Bartel Runeaxe — Legendary 6/5 Giant Warrior, "Vigilance\nBartel Runeaxe can't
+// be the target of Aura spells." (CR 702.18-style untargetability narrowed to
+// AURA SPELLS: a self-targeting guard with `targetSourceMustBeSpell` +
+// `targetSourceSubtypeFilter: ["Aura"]`, CR 109.5 / 113.3. Vigilance is a plain
+// keyword, CR 702.21.)
+export const bartelRuneaxe: CardDefinition = {
+    id: "9beccf09-c024-408b-9f84-fe2c7462babb",
+    name: "Bartel Runeaxe",
+    oracleText: "Vigilance\nBartel Runeaxe can't be the target of Aura spells.",
+    manaCost: { X: 3, B: 1, R: 1, G: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Giant", "Warrior"],
+    power: 6,
+    toughness: 5,
+    staticAbilities: ["vigilance"],
+    staticEffects: [
+        {
+            kind: "permanent-guard",
+            id: "bartel-runeaxe-no-aura-spell",
+            cantBeTargeted: true,
+            // Only Aura SPELLS (CR 109.5 subtype + CR 113.3 spell-not-ability).
+            // Aura abilities (rare) and non-Aura spells/abilities still hit.
+            targetSourceMustBeSpell: true,
+            targetSourceSubtypeFilter: ["Aura"],
+            applies: (target, source) => target.id === source.id,
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C6 deferred (need an unbuilt primitive — left for a future batch):
+//   • Tetsuo Umezawa — its "{U}{B}{B}{R}, {T}: Destroy target tapped or blocking
+//     creature" needs a disjunctive "tapped OR blocking" target filter across
+//     two different axes (tappedFilter vs combatRoleFilter, today combined as
+//     AND). Same combat-target-OR gap flagged for Crimson Manticore ("attacking
+//     or blocking"). Its can't-be-target-of-Aura-spells static IS expressible
+//     here (identical to Bartel Runeaxe), but shipping a Tetsuo whose flagship
+//     removal ability can't be cast would be partial — defer the whole card.
+//   • Wall of Shadows — "Prevent all damage that would be dealt to this by
+//     creatures it's blocking" is a CONTINUOUS, blocking-pair-scoped combat
+//     prevention (only a turn-scoped `combatDamageImmunity` exists, no
+//     per-blocking-pair continuous prevention static — same gap flagged for Wall
+//     of Vapor / Feint). Its "can't be the target of spells/abilities that can
+//     target only Walls" clause is also not expressible (no card in the pool
+//     carries a "Walls only" target restriction, so there is nothing to match
+//     against). Defer until the continuous combat-prevention primitive lands.
+// ─────────────────────────────────────────────────────────────────────────────

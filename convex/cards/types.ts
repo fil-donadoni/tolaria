@@ -2019,6 +2019,18 @@ export interface StaticPermanentGuard {
      *  ANY source (Guardian Beast). Evaluated at the targeting gates, which
      *  pass the source's types. */
     targetSourceTypeFilter?: CardType[];
+    /** Narrows `cantBeTargeted` to sources whose SUBTYPES intersect this list
+     *  (CR 109.5). Used by "can't be the target of Aura spells" (filter
+     *  `["Aura"]`, Bartel Runeaxe / Tetsuo Umezawa). When omitted, the guard
+     *  doesn't filter on subtype. Evaluated at the targeting gates, which pass
+     *  the source's subtypes. */
+    targetSourceSubtypeFilter?: string[];
+    /** When true, `cantBeTargeted` blocks SPELLS only, not activated/triggered
+     *  abilities (CR 113.3 — "can't be the target of spells", Anti-Magic Aura).
+     *  When omitted/false the guard blocks both spells and abilities (Guardian
+     *  Beast / shroud). Evaluated at the targeting gates, which pass whether the
+     *  source is a spell. */
+    targetSourceMustBeSpell?: boolean;
     /** CR 303.4 "can't be enchanted" — an Aura can't be cast at, or attach to,
      *  the guarded permanent. Already-attached Auras are unaffected (the gate
      *  only blocks new attachment). */

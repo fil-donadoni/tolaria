@@ -15,6 +15,7 @@ import {
     getActivatedManaColor,
     getManaChoices,
 } from "~/lib/card-utils";
+import { isUntargetableByPending } from "~/lib/targeting";
 import { COMBAT_GROUP_RING, COMBAT_GROUP_BG } from "~/lib/combat-colors";
 import type { CardVisualState } from "~/components/board/battlefield-card";
 
@@ -192,10 +193,26 @@ export function useBattlefieldVisualState(player: Player) {
         }
 
         if (isSelectingTarget) {
-            return (
-                !!pendingTarget &&
-                matchesTargetRequirement(card, pendingTarget.targetType)
-            );
+            if (
+                !pendingTarget ||
+                !matchesTargetRequirement(card, pendingTarget.targetType)
+            ) {
+                return false;
+            }
+            // CR 702.18 / 611 — a shrouded / "can't be the target" permanent is
+            // not a legal target, so it must not read as clickable (#382). The
+            // server also rejects it; this just mirrors the gate client-side.
+            if (
+                isUntargetableByPending(
+                    allPlayers,
+                    card,
+                    pendingTarget.cardInstanceId,
+                    pendingTarget.kind
+                )
+            ) {
+                return false;
+            }
+            return true;
         }
 
         if (isSelectingAttackers && isCreature(card)) {
