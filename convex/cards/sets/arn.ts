@@ -2150,9 +2150,12 @@ export const abuJafar: CardDefinition = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Batch 4 (#191) — coin flip (CR 705). `ctx.flipCoin()` wraps the seeded PRNG
-// (rngSeed/rngCounter) so outcomes are deterministic on replay. Mijae/Ydwen
-// reuse the existing `removeFromCombat`; Ydwen reuses `becomeUnblocked` (#172)
-// and the new `setCantBlockThisTurn` (twin of `setMustBlockAll`).
+// (rngSeed/rngCounter) so outcomes are deterministic on replay. Mijae reuses
+// the existing `removeFromCombat`; Ydwen reuses `becomeUnblocked` (#172) and
+// `setCantBlockThisTurn` (twin of `setMustBlockAll`). Mijae's attack trigger
+// (#302) and Ydwen's block trigger (#303) both flip via `requestCoinFlip`
+// (ADR 0023): each suspends on a `random-reveal` pending choice so both clients
+// animate the coin before the remove-from-combat / unblock consequence lands.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const bottleOfSuleiman: CardDefinition = {
@@ -2283,15 +2286,34 @@ export const ydwenEfreet: CardDefinition = {
                 return event.blockerId === self.id;
             },
             resolve: (ctx) => {
+                // CR 705.2 / ADR 0023 — flip a coin and PAUSE to reveal the
+                // outcome before applying it. `requestCoinFlip` draws the bit
+                // once, suspends the trigger resolution (returns undefined),
+                // and on resume returns the persisted outcome (no re-roll).
+                // The caller MUST return early while suspended so the
+                // remove-from-combat / unblock consequence lands only after the
+                // reveal. Block triggers (CR 509.4) run this at declare-blockers
+                // while Ydwen is still on the stack as a triggered ability.
+                const won = ctx.requestCoinFlip({
+                    playerId: ctx.controller,
+                    choiceId: "ydwen-efreet-block-flip",
+                    heads: { consequence: "Ydwen Efreet stays blocking" },
+                    tails: {
+                        consequence:
+                            "Remove Ydwen Efreet from combat; attackers it solely blocked become unblocked",
+                    },
+                });
+                if (won === undefined) return; // suspended after the flip
+                if (won) return; // won: stays blocking
                 const self: TargetSelection = {
                     type: "permanent",
                     id: ctx.sourceInstanceId,
                 };
                 // Capture the attackers Ydwen is solely blocking BEFORE it
                 // leaves combat: any attacker whose only blocker is Ydwen
-                // becomes unblocked (CR 509.1h) and hits the defender.
+                // becomes unblocked (CR 509.1h) and hits the defender. Safe to
+                // read here on resume — removeFromCombat has not run yet.
                 const blockersByAttacker = ctx.getBlockersByAttacker();
-                if (ctx.flipCoin()) return; // won: stays blocking
                 const solelyBlocked = Object.keys(blockersByAttacker).filter(
                     (attackerId) => {
                         const blockers = blockersByAttacker[attackerId];

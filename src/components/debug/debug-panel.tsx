@@ -695,6 +695,40 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         rngSeed: 7,
     },
     {
+        // Random Reveal: Ydwen Efreet block trigger (#303, CR 705 / 509.1h /
+        // ADR 0023) pinned to WIN. You control a Grizzly Bears; the opponent
+        // controls Ydwen Efreet. Attack with the Bears, then (in solo mode)
+        // switch to the opponent and block with Ydwen. The "Whenever Ydwen
+        // blocks" trigger flips a coin: the overlay animates and lands on WIN,
+        // so Ydwen STAYS blocking (the Bears deal no damage to the defender).
+        // rngSeed 1 → first flipCoin() = heads (win). This exercises the
+        // block-trigger timing path (trigger on the stack at declare-blockers),
+        // distinct from Mijae's attack-trigger and Bottle's activated paths.
+        label: "Random Reveal: Ydwen Efreet block (WIN — stays blocking)",
+        cards: [
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Ydwen Efreet", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        rngSeed: 1,
+    },
+    {
+        // Random Reveal: Ydwen Efreet block trigger (#303) pinned to LOSE.
+        // Same setup as the WIN tracer, but the coin lands on LOSE: Ydwen is
+        // removed from combat and can't block this turn, and the Bears it was
+        // solely blocking become unblocked (CR 509.1h) and hit the defender for
+        // 2. rngSeed 7 → first flipCoin() = tails (lose).
+        label: "Random Reveal: Ydwen Efreet block (LOSE — unblocks attacker)",
+        cards: [
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Ydwen Efreet", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        rngSeed: 7,
+    },
+    {
         // ARN Batch 9 (#188) — Jihad ({W}{W}{W} Enchantment): "As it enters,
         // choose a color and an opponent. White creatures get +2/+1 as long as
         // the chosen player controls a nontoken permanent of the chosen color.
