@@ -8,6 +8,7 @@ import {
     getEffectiveBlockGraph,
     damageSourcesForPlayer,
 } from "~/lib/combat-graph";
+import { effectivePower } from "~/lib/effective-stats";
 
 function DamageRow({
     targetId,
@@ -116,7 +117,13 @@ export default function DamageAssignmentPanel({
             {sourceIds.map((sourceId) => {
                 const source = findCard(sourceId);
                 if (!source) return null;
-                const power = Math.max(0, source.power ?? 0);
+                // CR 510.1c / 613.4: the assignable budget is the source's
+                // EFFECTIVE power (temporary P/T mods from combat tricks
+                // applied), matching the server-side validation in
+                // setDamageAssignment. Reading the raw base power field would
+                // ignore buffs like Giant Growth and clamp the +/- buttons too
+                // low.
+                const power = Math.max(0, effectivePower(allPlayers, source));
                 const hasTrample =
                     source.staticAbilities?.includes("trample") ?? false;
                 const isAttacker = combat.attackerIds.includes(sourceId);
