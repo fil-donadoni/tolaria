@@ -286,9 +286,12 @@ import {
     payManaCost,
     isManaCostCovered,
     getManaSubstitutions,
+    grantKnowledge,
     grantKnowledgeToAll,
     clearKnowledge,
     discardCardsAtRandom,
+    drawCard,
+    removeFromZone,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -16877,6 +16880,100 @@ describe("Reveal-to-all library knowledge (ADR 0026 slice 2, CR 701.16 / 701.20)
             const projected = projectPublicState(reloaded, 1, viewer);
             expect(projected.players[1].library.known).toEqual([]);
         }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// knownTo cross-zone movement rules (ADR 0026 slice 5, #344)
+// ---------------------------------------------------------------------------
+// Knowledge persists across hidden→hidden moves (a witnessed draw) and is
+// cleared at the public-zone boundary (casting to the stack), never to
+// resurrect on a later return to a hidden zone. Exercises the full
+// GRE primitive (draw / removeFromZone) → serialize (DB) → projection path.
+// ---------------------------------------------------------------------------
+describe("knownTo cross-zone rules (ADR 0026 slice 5, CR 121.1 / 405)", () => {
+    function setup() {
+        const library = ["l1", "l2"].map((id) =>
+            makeInstance(swamp.id, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "library",
+            })
+        );
+        const hand = [
+            makeInstance(swamp.id, {
+                id: "h1",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }),
+        ];
+        return makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { library, hand })],
+        });
+    }
+
+    it("witnessed draw: an opponent-known top card stays known after drawing it, and projects to the opponent", () => {
+        const state = setup();
+        // p1 saw the top of p2's library (reveal-top style effect).
+        grantKnowledge(state, "p2", ["l1"], "p1");
+
+        // p2 draws it — library→hand is hidden→hidden, so knowledge persists.
+        drawCard(state.players[1]);
+        const drawn = state.players[1].hand.find((c) => c.id === "l1")!;
+        expect(drawn.knownTo).toEqual(["p1"]);
+
+        // Survives the DB round trip, then projects: p1 sees the card face-up in
+        // p2's hand and p2 sees it flagged seenByOpponent. Raw knownTo never
+        // crosses the wire.
+        const reloaded = expandState(compactState(state));
+        const handForP1 = projectPublicState(reloaded, 1, "p1").players[1].hand;
+        const slotForP1 = handForP1.find((c) => c?.id === "l1")!;
+        expect(slotForP1).not.toBeNull();
+        expect((slotForP1 as { knownTo?: string[] }).knownTo).toBeUndefined();
+
+        const handForP2 = projectPublicState(reloaded, 1, "p2").players[1].hand;
+        const slotForP2 = handForP2.find((c) => c?.id === "l1")!;
+        expect(slotForP2.seenByOpponent).toBe(true);
+    });
+
+    it("self-scry then draw: owner-known card stays owner-only and is not seenByOpponent", () => {
+        const state = setup();
+        // p2 scryed l1 to the top — knownTo the owner only.
+        grantKnowledge(state, "p2", ["l1"], "p2");
+
+        drawCard(state.players[1]);
+        const drawn = state.players[1].hand.find((c) => c.id === "l1")!;
+        expect(drawn.knownTo).toEqual(["p2"]);
+
+        const reloaded = expandState(compactState(state));
+        const handForP2 = projectPublicState(reloaded, 1, "p2").players[1].hand;
+        const slotForP2 = handForP2.find((c) => c?.id === "l1")!;
+        expect(slotForP2.seenByOpponent).toBeUndefined();
+        // p1 does not see it.
+        const handForP1 = projectPublicState(reloaded, 1, "p1").players[1].hand;
+        expect(handForP1.find((c) => c?.id === "l1")).toBeUndefined();
+    });
+
+    it("play to public then return to hidden: old knowledge does not resurrect", () => {
+        const state = setup();
+        // p1 knew p2's hand card h1 (Duress-style disruption).
+        grantKnowledge(state, "p2", ["h1"], "p1");
+        expect(state.players[1].hand[0].knownTo).toEqual(["p1"]);
+
+        // p2 casts it: hand → stack (public zone) clears the knowledge.
+        const onStack = removeFromZone(state.players[1], "h1", "hand");
+        expect(onStack.knownTo).toBeUndefined();
+
+        // It later returns to hand (e.g. countered to hand / bounced): no stale
+        // knowledge resurrects, so p1 no longer sees it.
+        onStack.zone = "hand";
+        state.players[1].hand.push(onStack);
+
+        const reloaded = expandState(compactState(state));
+        const handForP1 = projectPublicState(reloaded, 1, "p1").players[1].hand;
+        expect(handForP1.find((c) => c?.id === "h1")).toBeUndefined();
     });
 });
 

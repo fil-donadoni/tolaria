@@ -328,6 +328,18 @@ describe("removeFromZone", () => {
             "Card nope not found in hand"
         );
     });
+
+    // ADR 0026 slice 5 — the stack is a public zone: casting a known card to
+    // the stack makes its identity universally known, so persistent per-viewer
+    // knowledge is emptied and never resurrects on a later return to hidden.
+    it("clears knownTo when moving a known card to the stack", () => {
+        const card = makeCard({ id: "k0", zone: "hand", knownTo: ["p2"] });
+        const player = makePlayer({ id: "p1", hand: [card] });
+
+        const removed = removeFromZone(player, "k0", "hand");
+
+        expect(removed.knownTo).toBeUndefined();
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -878,6 +890,41 @@ describe("drawCard (CR 121.1)", () => {
         expect(drawn).toBeNull();
         expect(player.hasDrawnFromEmpty).toBe(true);
         expect(player.hand).toHaveLength(0);
+    });
+
+    // ADR 0026 slice 5 — library→hand is a hidden→hidden move, so knownTo
+    // persists. An opponent who saw the top of the library (witnessed draw)
+    // still knows the card now sitting in the owner's hand.
+    it("keeps an opponent's knownTo when drawing a card they saw on top", () => {
+        const player = makePlayer({
+            id: "p1",
+            library: [
+                makeCard({ id: "top", zone: "library", knownTo: ["p2"] }),
+                makeCard({ id: "next", zone: "library" }),
+            ],
+        });
+
+        const drawn = drawCard(player);
+
+        expect(drawn?.id).toBe("top");
+        expect(player.hand[0].knownTo).toEqual(["p2"]);
+    });
+
+    // ADR 0026 slice 5 — a card the owner scryed to the top (knownTo = owner
+    // only) and then drew is in hand known to the owner only — never flagged
+    // as opponent-known.
+    it("keeps a self-scryed card knownTo the owner only after drawing it", () => {
+        const player = makePlayer({
+            id: "p1",
+            library: [
+                makeCard({ id: "scryed", zone: "library", knownTo: ["p1"] }),
+            ],
+        });
+
+        const drawn = drawCard(player);
+
+        expect(drawn?.id).toBe("scryed");
+        expect(player.hand[0].knownTo).toEqual(["p1"]);
     });
 });
 

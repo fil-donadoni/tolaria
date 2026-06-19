@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { projectFullState, projectPublicState } from "../gameProjections";
 import { computeSoloViewerId } from "../soloViewer";
+import { drawCard, removeFromZone } from "../gre/state";
 import type { CardInstanceState, GameState, PlayerState } from "../gre/state";
 
 function makeCard(
@@ -622,6 +623,83 @@ describe("projectPublicState — knownTo (ADR 0026)", () => {
         expect(
             (ownerLib.known[0].card as { knownTo?: string[] }).knownTo
         ).toBeUndefined();
+    });
+
+    // Slice 5 (#344) — cross-zone movement → projection, end-to-end through the
+    // real primitives. An opponent who saw the top of the library still knows
+    // the card after the owner draws it: it projects face-up to the opponent
+    // and carries `seenByOpponent` in the owner's hand.
+    it("witnessed draw: a card the opponent saw on top stays known after drawing it (post-transfer scoping)", () => {
+        const state = makeState();
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        // p2 saw p1's top-of-library card (e.g. a reveal-top effect).
+        p1.library[0].knownTo = ["p2"];
+        const seenId = p1.library[0].id; // "p1-l1"
+
+        // The owner draws it — library→hand is hidden→hidden, knowledge persists.
+        drawCard(p1);
+        expect(p1.hand.some((c) => c.id === seenId)).toBe(true);
+
+        // Owner's view: the drawn card is flagged seenByOpponent.
+        const forP1 = projectPublicState(state, 1, "p1");
+        const ownHand = forP1.players.find((p) => p.id === "p1")!.hand;
+        const ownSlot = ownHand.find((c) => c?.id === seenId)!;
+        expect(ownSlot.seenByOpponent).toBe(true);
+
+        // Opponent's view of p1's hand: the witnessed card is revealed, the rest
+        // are null. Raw knownTo never crosses the wire.
+        const forP2 = projectPublicState(state, 1, "p2");
+        const oppView = forP2.players.find((p) => p.id === "p1")!.hand;
+        const revealed = oppView.find((c) => c?.id === seenId)!;
+        expect(revealed).not.toBeNull();
+        expect((revealed as { knownTo?: string[] }).knownTo).toBeUndefined();
+        expect(oppView.filter((c) => c !== null)).toHaveLength(1);
+    });
+
+    // Slice 5 (#344) — a self-scryed card (knownTo = owner only) drawn into hand
+    // is known to the owner only and is NOT flagged seenByOpponent.
+    it("self-scry then draw: the card is owner-known only, never flagged seenByOpponent", () => {
+        const state = makeState();
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        p1.library[0].knownTo = ["p1"]; // owner scryed it to top
+        const scryedId = p1.library[0].id;
+
+        drawCard(p1);
+
+        const forP1 = projectPublicState(state, 1, "p1");
+        const ownSlot = forP1.players
+            .find((p) => p.id === "p1")!
+            .hand.find((c) => c?.id === scryedId)!;
+        expect(ownSlot.seenByOpponent).toBeUndefined();
+
+        // The opponent does not see it in p1's hand.
+        const forP2 = projectPublicState(state, 1, "p2");
+        const oppView = forP2.players.find((p) => p.id === "p1")!.hand;
+        expect(oppView.every((c) => c === null)).toBe(true);
+    });
+
+    // Slice 5 (#344) — play to a public zone (stack) then return to a hidden
+    // zone: old knowledge does NOT resurrect. Casting routes through
+    // `removeFromZone`, which empties knownTo at the public-zone boundary.
+    it("play-to-public then return-to-hidden: old knowledge does not resurrect", () => {
+        const state = makeState();
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        p1.hand[0].knownTo = ["p2"];
+        const cardId = p1.hand[0].id;
+
+        // Cast it: hand → stack (public). Knowledge is emptied.
+        const onStack = removeFromZone(p1, cardId, "hand");
+        expect(onStack.knownTo).toBeUndefined();
+
+        // Simulate a return to a hidden zone (e.g. countered to hand): the card
+        // carries no knownTo, so the opponent does not re-learn it.
+        onStack.zone = "hand";
+        p1.hand.push(onStack);
+
+        const forP2 = projectPublicState(state, 1, "p2");
+        const oppView = forP2.players.find((p) => p.id === "p1")!.hand;
+        const returned = oppView.find((c) => c?.id === cardId);
+        expect(returned).toBeUndefined(); // hidden — slot is null, not present by id
     });
 
     it("reveal vs look: a single-knower library card stays hidden from the other player", () => {
