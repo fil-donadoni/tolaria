@@ -132,6 +132,31 @@ describe("BoardNextPiles (slice #255)", () => {
         ).toBeTruthy();
     });
 
+    it("renders opponent piles top-right and viewer piles bottom-right (#334 symmetry)", () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        renderPiles(opp, me);
+
+        const opponentPiles = screen.getByTestId("piles-opponent");
+        const playerPiles = screen.getByTestId("piles-player");
+
+        // Opponent piles mirror the viewer's bottom-right column to the
+        // top-right, so the board's right edge reads as one symmetric column.
+        expect(opponentPiles.className).toContain("top-3");
+        expect(opponentPiles.className).toContain("right-3");
+        expect(opponentPiles.className).not.toContain("left-3");
+        expect(opponentPiles.className).not.toContain("bottom-3");
+
+        // Viewer piles stay bottom-right.
+        expect(playerPiles.className).toContain("bottom-3");
+        expect(playerPiles.className).toContain("right-3");
+
+        // Both columns reverse their flex so graveyard/library/exile read in the
+        // same order on each seat — the column is a true mirror.
+        expect(opponentPiles.className).toContain("flex-row-reverse");
+        expect(playerPiles.className).toContain("flex-row-reverse");
+    });
+
     it("shows the collapsed (empty) form when zones are empty", () => {
         const me = makePlayer("me");
         const opp = makePlayer("opp");

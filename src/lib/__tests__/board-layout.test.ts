@@ -10,6 +10,7 @@ import {
     reconcileHandOrder,
     CARD_WIDTH,
     CARD_HEIGHT,
+    RIGHT_GUTTER,
     type Placement,
 } from "../board-layout";
 
@@ -240,6 +241,86 @@ describe("bandedRowsLayout (creatures row over a split back row)", () => {
                 height: HEIGHT_BF,
             })
         ).toEqual([]);
+    });
+});
+
+describe("bandedRowsLayout right gutter (#334 — control-column symmetry)", () => {
+    const WIDTH_BF = 1000;
+    const HEIGHT_BF = 360;
+
+    // The flush-right back-row block must end before the reserved control
+    // column. With a gutter, the rightmost noncreature's FAR edge lands at
+    // `width - RIGHT_GUTTER`, never under the pod.
+    function rightEdge(placement: Placement): number {
+        return placement.x + (CARD_WIDTH * placement.scale) / 2;
+    }
+
+    it("ends the flush-right back-row block at width - RIGHT_GUTTER", () => {
+        const placed = bandedRowsLayout({
+            bands: [
+                { count: 1, centerYFrac: 0.28 }, // creature
+                { split: { left: 2, right: 2 }, centerYFrac: 0.74 }, // back row
+            ],
+            width: WIDTH_BF,
+            height: HEIGHT_BF,
+            rightGutter: RIGHT_GUTTER,
+        });
+        // Rightmost placement is the last flush-right noncreature.
+        const last = placed[placed.length - 1];
+        expect(rightEdge(last)).toBeCloseTo(WIDTH_BF - RIGHT_GUTTER, 3);
+    });
+
+    it("reserves the SAME right boundary on both seats (symmetry)", () => {
+        // Both seats call the identical layout fn (the opponent only mirrors Y,
+        // which leaves x / scale untouched), so the reserved right boundary is
+        // shared. Assert two independent computations with the same gutter agree.
+        const bands = [
+            { count: 2, centerYFrac: 0.28 },
+            { split: { left: 3, right: 2 }, centerYFrac: 0.74 },
+        ];
+        const viewer = bandedRowsLayout({
+            bands,
+            width: WIDTH_BF,
+            height: HEIGHT_BF,
+            rightGutter: RIGHT_GUTTER,
+        });
+        const opponent = bandedRowsLayout({
+            bands,
+            width: WIDTH_BF,
+            height: HEIGHT_BF,
+            rightGutter: RIGHT_GUTTER,
+        });
+        const viewerRight = Math.max(...viewer.map(rightEdge));
+        const opponentRight = Math.max(...opponent.map(rightEdge));
+        expect(viewerRight).toBeCloseTo(opponentRight, 6);
+        expect(viewerRight).toBeCloseTo(WIDTH_BF - RIGHT_GUTTER, 3);
+    });
+
+    it("keeps every card left of the reserved column (nothing under the pod)", () => {
+        const placed = bandedRowsLayout({
+            bands: [
+                { count: 4, centerYFrac: 0.28 },
+                { split: { left: 3, right: 3 }, centerYFrac: 0.74 },
+            ],
+            width: WIDTH_BF,
+            height: HEIGHT_BF,
+            rightGutter: RIGHT_GUTTER,
+        });
+        for (const p of placed) {
+            expect(rightEdge(p)).toBeLessThanOrEqual(
+                WIDTH_BF - RIGHT_GUTTER + 0.5
+            );
+        }
+    });
+
+    it("defaults to the full width when no gutter is reserved", () => {
+        const placed = bandedRowsLayout({
+            bands: [{ split: { left: 1, right: 1 }, centerYFrac: 0.74 }],
+            width: WIDTH_BF,
+            height: HEIGHT_BF,
+        });
+        const last = placed[placed.length - 1];
+        expect(rightEdge(last)).toBeCloseTo(WIDTH_BF, 3);
     });
 });
 
