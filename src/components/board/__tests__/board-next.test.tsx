@@ -88,7 +88,6 @@ vi.mock("../board-next-player", () => ({
 }));
 vi.mock("../game-stack", () => ({ default: () => null }));
 vi.mock("../board-next-piles", () => ({ default: () => null }));
-vi.mock("../phase-tracker", () => ({ default: () => null }));
 vi.mock("../priority-indicator", () => ({ default: () => null }));
 
 import BoardNext from "../board-next";

@@ -10,11 +10,44 @@ import {
     isSelectingBlockers as isSelectingBlockersFn,
     isWaitingOnOpponent,
 } from "~/lib/priority";
-import ActionButton from "./action-button";
-import HotkeysLegend from "./hotkeys-legend";
-import PauseMenuButton from "./pause-menu-button";
 
-export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
+/** Coarse priority cue for the collapsed pod (#331). One of four mutually
+ *  exclusive states the player reads at a glance. */
+export type ControllerCue = "mine" | "opponent" | "waiting" | "auto-passing";
+
+export type ControllerActionTone = "primary" | "destructive";
+
+/** A single action button the pod (or any controller surface) renders. The
+ *  `onClick`/`disabled`/`shortcut` are the SAME wiring the old ActionBar used,
+ *  so each button dispatches the identical mutation it did before. */
+export type ControllerAction = {
+    key: string;
+    label: string;
+    tone: ControllerActionTone;
+    onClick: () => void;
+    disabled: boolean;
+    shortcut?: "space" | "enter" | "U";
+    /** A "status pill" action (e.g. waiting on opponent / auto-passing) renders
+     *  as informative chrome rather than a primary call-to-action button. */
+    pill?: boolean;
+};
+
+export type ControllerState = {
+    /** Plain priority cue for the collapsed pod header. */
+    cue: ControllerCue;
+    /** The action buttons for the current step, in display order. */
+    actions: ControllerAction[];
+    isAutoPass: boolean;
+    isQueuedEndTurn: boolean;
+};
+
+/** Hook holding ALL of the controller's mutations, derived priority state,
+ *  click handlers, the keyboard-shortcut effect, and the ordered action
+ *  descriptors. Extracted verbatim from the old `ActionBar` so the collapsed
+ *  pod (#331) reuses the priority helpers and dispatches the SAME mutations —
+ *  view-layer only, no GRE changes. Space = act, Enter = pass turn / cancel
+ *  auto-pass, U = cancel cast/activation are preserved exactly. */
+export function useControllerActions(): ControllerState {
     const {
         gameId,
         playerId,
@@ -227,174 +260,123 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         playerId,
     ]);
 
-    const buttons: React.ReactNode[] = [];
+    const actions: ControllerAction[] = [];
+
+    const runBusy = (fn: () => Promise<unknown>) => async () => {
+        if (isBusy) return;
+        setIsBusy(true);
+        try {
+            await fn();
+        } finally {
+            setIsBusy(false);
+        }
+    };
 
     if (isPayingCast) {
-        buttons.push(
-            <ActionButton
-                key="cancel-cast"
-                onClick={async () => {
-                    if (isBusy) return;
-                    setIsBusy(true);
-                    try {
-                        await cancelCast({ gameId, playerId });
-                    } finally {
-                        setIsBusy(false);
-                    }
-                }}
-                label="Cancel Cast"
-                tone="destructive"
-                shortcut="U"
-                disabled={isBusy}
-            />
-        );
+        actions.push({
+            key: "cancel-cast",
+            label: "Cancel Cast",
+            tone: "destructive",
+            shortcut: "U",
+            disabled: isBusy,
+            onClick: runBusy(() => cancelCast({ gameId, playerId })),
+        });
     } else if (isPayingActivation) {
-        buttons.push(
-            <ActionButton
-                key="cancel-activation"
-                onClick={async () => {
-                    if (isBusy) return;
-                    setIsBusy(true);
-                    try {
-                        await cancelActivation({ gameId, playerId });
-                    } finally {
-                        setIsBusy(false);
-                    }
-                }}
-                label="Cancel Ability"
-                tone="destructive"
-                shortcut="U"
-                disabled={isBusy}
-            />
-        );
+        actions.push({
+            key: "cancel-activation",
+            label: "Cancel Ability",
+            tone: "destructive",
+            shortcut: "U",
+            disabled: isBusy,
+            onClick: runBusy(() => cancelActivation({ gameId, playerId })),
+        });
     } else if (isSelectingAttackers) {
-        buttons.push(
-            <ActionButton
-                key="confirm-attackers"
-                onClick={async () => {
-                    if (isBusy) return;
-                    setIsBusy(true);
-                    try {
-                        await confirmAttackers({ gameId, playerId });
-                    } finally {
-                        setIsBusy(false);
-                    }
-                }}
-                label={
-                    selectedAttackerIds.length > 0
-                        ? `Confirm Attackers (${selectedAttackerIds.length})`
-                        : "Skip Attack"
-                }
-                tone="primary"
-                shortcut="space"
-                disabled={isBusy}
-            />
-        );
-        buttons.push(
-            <ActionButton
-                key="pass-turn-attackers"
-                onClick={handleEndTurn}
-                label="Pass Turn"
-                tone="destructive"
-                shortcut="enter"
-                disabled={isBusy}
-            />
-        );
+        actions.push({
+            key: "confirm-attackers",
+            label:
+                selectedAttackerIds.length > 0
+                    ? `Confirm Attackers (${selectedAttackerIds.length})`
+                    : "Skip Attack",
+            tone: "primary",
+            shortcut: "space",
+            disabled: isBusy,
+            onClick: runBusy(() => confirmAttackers({ gameId, playerId })),
+        });
+        actions.push({
+            key: "pass-turn-attackers",
+            label: "Pass Turn",
+            tone: "destructive",
+            shortcut: "enter",
+            disabled: isBusy,
+            onClick: handleEndTurn,
+        });
     } else if (isSelectingBlockers) {
-        buttons.push(
-            <ActionButton
-                key="confirm-blockers"
-                onClick={async () => {
-                    if (isBusy) return;
-                    setIsBusy(true);
-                    try {
-                        await confirmBlockers({ gameId, playerId });
-                    } finally {
-                        setIsBusy(false);
-                    }
-                }}
-                label={
-                    blockerCount > 0
-                        ? `Confirm Blockers (${blockerCount})`
-                        : "No Blockers"
-                }
-                tone="primary"
-                shortcut="space"
-                disabled={isBusy}
-            />
-        );
-        buttons.push(
-            <ActionButton
-                key="pass-turn-blockers"
-                onClick={handleEndTurn}
-                label="Pass Turn"
-                tone="destructive"
-                shortcut="enter"
-                disabled={isBusy}
-            />
-        );
+        actions.push({
+            key: "confirm-blockers",
+            label:
+                blockerCount > 0
+                    ? `Confirm Blockers (${blockerCount})`
+                    : "No Blockers",
+            tone: "primary",
+            shortcut: "space",
+            disabled: isBusy,
+            onClick: runBusy(() => confirmBlockers({ gameId, playerId })),
+        });
+        actions.push({
+            key: "pass-turn-blockers",
+            label: "Pass Turn",
+            tone: "destructive",
+            shortcut: "enter",
+            disabled: isBusy,
+            onClick: handleEndTurn,
+        });
     } else if (isAssigningDamage) {
-        buttons.push(
-            <ActionButton
-                key="confirm-damage"
-                onClick={async () => {
-                    if (isBusy) return;
-                    setIsBusy(true);
-                    try {
-                        await confirmDamage({ gameId, playerId });
-                    } finally {
-                        setIsBusy(false);
-                    }
-                }}
-                label="Confirm Damage"
-                tone="primary"
-                disabled={isBusy || !allDamageAssigned}
-            />
-        );
+        actions.push({
+            key: "confirm-damage",
+            label: "Confirm Damage",
+            tone: "primary",
+            shortcut: "space",
+            disabled: isBusy || !allDamageAssigned,
+            onClick: runBusy(() => confirmDamage({ gameId, playerId })),
+        });
     } else if (hasPriority) {
-        buttons.push(
-            <ActionButton
-                key="pass"
-                onClick={handlePass}
-                label="Pass"
-                tone="primary"
-                disabled={isBusy}
-            />
-        );
-        buttons.push(
-            <ActionButton
-                key="pass-turn"
-                onClick={handleEndTurn}
-                label="Pass Turn"
-                tone="destructive"
-                disabled={isBusy}
-            />
-        );
+        actions.push({
+            key: "pass",
+            label: "Pass",
+            tone: "primary",
+            shortcut: "space",
+            disabled: isBusy,
+            onClick: handlePass,
+        });
+        actions.push({
+            key: "pass-turn",
+            label: "Pass Turn",
+            tone: "destructive",
+            shortcut: "enter",
+            disabled: isBusy,
+            onClick: handleEndTurn,
+        });
     } else if (waitingOnOpponent) {
-        buttons.push(
-            <div
-                key="waiting-opponent"
-                className="relative bg-[#0c0d12]/90 border border-zinc-800/80 backdrop-blur-md rounded-sm px-5 py-2 text-zinc-500 text-sm font-beleren tracking-wide shadow-md"
-            >
-                {opponentSelectingAttackers
-                    ? "Opponent declaring attackers..."
-                    : "Opponent declaring blockers..."}
-            </div>
-        );
+        actions.push({
+            key: "waiting-opponent",
+            label: opponentSelectingAttackers
+                ? "Opponent declaring attackers..."
+                : "Opponent declaring blockers...",
+            tone: "primary",
+            disabled: true,
+            pill: true,
+            onClick: () => {},
+        });
     } else if (isAutoPass) {
-        buttons.push(
-            <button
-                key="auto-pass"
-                onClick={handleCancelAutoPass}
-                disabled={isBusy}
-                className="bg-zinc-800/40 hover:bg-zinc-700/40 border border-zinc-600/45 text-zinc-300 px-5 py-2 rounded-sm text-sm font-beleren tracking-wide transition-colors shadow-md cursor-pointer"
-            >
-                Auto-passing... (cancel)
-                <span className="ml-2 text-xs opacity-70 hidden md:inline">
-                    [enter]
-                </span>
-            </button>
-        );
+        actions.push({
+            key: "auto-pass",
+            label: "Auto-passing... (cancel)",
+            tone: "destructive",
+            shortcut: "enter",
+            disabled: isBusy,
+            pill: true,
+            onClick: handleCancelAutoPass,
+        });
     }
 
     // Queued Pass Turn intent (issue #157): the player pressed Enter without
@@ -402,26 +384,35 @@ export default function ActionBar({ onOpenMenu }: { onOpenMenu: () => void }) {
     // so it stays visible while waiting for priority to return. Mutually
     // exclusive with isAutoPass (the engine clears the queue once it fires).
     if (isQueuedEndTurn) {
-        buttons.push(
-            <button
-                key="queued-end-turn"
-                onClick={handleCancelAutoPass}
-                disabled={isBusy}
-                className="bg-zinc-800/40 hover:bg-zinc-700/40 border border-zinc-600/45 text-zinc-300 px-5 py-2 rounded-sm text-sm font-beleren tracking-wide transition-colors shadow-md cursor-pointer"
-            >
-                Pass Turn queued (cancel)
-                <span className="ml-2 text-xs opacity-70 hidden md:inline">
-                    [enter]
-                </span>
-            </button>
-        );
+        actions.push({
+            key: "queued-end-turn",
+            label: "Pass Turn queued (cancel)",
+            tone: "destructive",
+            shortcut: "enter",
+            disabled: isBusy,
+            pill: true,
+            onClick: handleCancelAutoPass,
+        });
     }
 
-    return (
-        <div className="fixed bottom-4 right-4 z-40 flex gap-2 items-center">
-            {buttons}
-            <HotkeysLegend />
-            <PauseMenuButton onOpen={onOpenMenu} />
-        </div>
-    );
+    let cue: ControllerCue;
+    if (isAutoPass || isQueuedEndTurn) {
+        cue = "auto-passing";
+    } else if (
+        hasPriority ||
+        isPayingCast ||
+        isPayingActivation ||
+        isSelectingAttackers ||
+        isSelectingBlockers ||
+        isAssigningDamage ||
+        pendingChoiceAction
+    ) {
+        cue = "mine";
+    } else if (waitingOnOpponent) {
+        cue = "waiting";
+    } else {
+        cue = "opponent";
+    }
+
+    return { cue, actions, isAutoPass, isQueuedEndTurn };
 }
