@@ -5054,6 +5054,12 @@ export function removeFromZone(
     }
     const [card] = sourceZone.splice(cardIndex, 1);
     card.zone = "stack";
+    // ADR 0026 — the stack is a public zone: putting a card on the stack makes
+    // its identity universally known. Empty its persistent per-viewer knowledge
+    // so that if it later returns to a hidden zone (e.g. a countered spell sent
+    // to hand, or a bounce) it is hidden again unless freshly re-granted. Stale
+    // `knownTo` never resurrects.
+    delete card.knownTo;
     return card;
 }
 
