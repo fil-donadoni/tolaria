@@ -2672,6 +2672,12 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             // choice (count=1): your library is exposed face-up in a grid so
             // each card is individually selectable. Click one (emerald ring),
             // press Done, and it goes to hand before the library shuffles.
+            //
+            // Issue #315 — this modal carries the minimize control (the "−" in
+            // the dialog's top-right). After selecting a card, minimize to
+            // inspect the board: the dialog collapses to a pulsing accent badge
+            // and play stays blocked. Click the badge to restore the dialog
+            // with your pick still selected, then press Done.
             {
                 name: "Demonic Tutor",
                 owner: "me" as const,

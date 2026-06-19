@@ -6,7 +6,14 @@ import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
 } from "~/hooks/usePendingChoiceBuffer";
+import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
 import PlayerLibrary from "../player-library";
+
+const noopMinimized = {
+    isMinimized: false,
+    minimize: () => {},
+    restore: () => {},
+};
 
 // Capture the props that CardsPile receives so we can assert shape.
 const cardsPileSpy = vi.fn();
@@ -96,7 +103,9 @@ function renderWithContext(
     return render(
         <GameContext value={value}>
             <PendingChoiceBufferContext value={extra.buffer ?? noopBuffer}>
-                {ui}
+                <MinimizedChoiceContext value={noopMinimized}>
+                    {ui}
+                </MinimizedChoiceContext>
             </PendingChoiceBufferContext>
         </GameContext>
     );
