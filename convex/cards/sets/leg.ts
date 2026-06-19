@@ -25,6 +25,7 @@ import type {
     SpellContext,
     PermanentView,
     StaticEffectContext,
+    Color,
 } from "../types";
 import { EFFECT_AFFECTS_SELF } from "../types";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
@@ -3791,4 +3792,252 @@ export const marhaultElsdragon: CardDefinition = {
     toughness: 6,
     staticAbilities: ["rampage 1"],
     triggeredAbilities: [rampageTrigger(1)],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C4 — Bands with other [quality] (CR 702.22j, #381)
+//
+// The restricted banding variant. Encoded as a parametric keyword string on
+// `staticAbilities` and consumed by the band-formation legality check in
+// `convex/gre/banding.ts`:
+//
+//   "bands with other:legendary"               — "bands with other legendary creatures"
+//   "bands with other:name=Wolves of the Hunt" — "bands with other creatures named …"
+//
+// A band is legal (CR 702.22j) when some member has "bands with other [Q]" and
+// EVERY member satisfies that quality [Q]. The damage-division property of
+// banding (CR 702.22j-k) also applies — `getDamageAssignerId` treats a
+// bands-with-other creature exactly like a plain-banding one.
+//
+// Scope of #381: band-FORMATION eligibility + the damage-assignment authority,
+// reusing the shipped banding engine (block-as-a-group and damage division were
+// already built for plain banding). No new attacking-band primitives.
+//
+// The five grant-lands publish the keyword onto color-matched legendary
+// creatures their controller controls via a filtered `keyword-grant` static
+// effect (continuous, CR 611). Master of the Hunt mints same-named Wolf tokens
+// carrying the name-quality keyword. Shelkin Brownie and Tolaria strip the
+// ability until end of turn via the duration-scoped `removeStaticAbilities`
+// primitive (Tolaria also strips plain banding).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Predicate factory for a grant-land: matches the controller's legendary
+ *  creatures of the given color (CR 611 — "[Color] legendary creatures you
+ *  control"). */
+const legendaryCreatureGrant =
+    (
+        color: Color
+    ): ((
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean) =>
+    (target, source, ctx) =>
+        ctx.isCreature(target) &&
+        target.controllerId === source.controllerId &&
+        ctx.hasSupertype(target, "Legendary") &&
+        ctx.getColors(target).includes(color);
+
+// Adventurers' Guildhouse — "Green legendary creatures you control have 'bands
+// with other legendary creatures.'" (CR 702.22j via keyword-grant.)
+export const adventurersGuildhouse: CardDefinition = {
+    id: "32865e68-5842-4f17-b2ea-4ffa743b511f",
+    name: "Adventurers' Guildhouse",
+    oracleText:
+        'Green legendary creatures you control have "bands with other legendary creatures." (Any legendary creatures can attack in a band as long as at least one has "bands with other legendary creatures." Bands are blocked as a group. If at least two legendary creatures you control, one of which has "bands with other legendary creatures," are blocking or being blocked by the same creature, you divide that creature\'s combat damage, not its controller, among any of the creatures it\'s being blocked by or is blocking.)',
+    manaCost: {},
+    types: ["Land"],
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: legendaryCreatureGrant("G"),
+            keyword: "bands with other:legendary",
+        },
+    ],
+};
+
+// Cathedral of Serra — White legendary creatures grant-land.
+export const cathedralOfSerra: CardDefinition = {
+    id: "e65356e6-0ead-49fd-b069-be1ea9b1c105",
+    name: "Cathedral of Serra",
+    oracleText:
+        'White legendary creatures you control have "bands with other legendary creatures." (Any legendary creatures can attack in a band as long as at least one has "bands with other legendary creatures." Bands are blocked as a group. If at least two legendary creatures you control, one of which has "bands with other legendary creatures," are blocking or being blocked by the same creature, you divide that creature\'s combat damage, not its controller, among any of the creatures it\'s being blocked by or is blocking.)',
+    manaCost: {},
+    types: ["Land"],
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: legendaryCreatureGrant("W"),
+            keyword: "bands with other:legendary",
+        },
+    ],
+};
+
+// Mountain Stronghold — Red legendary creatures grant-land.
+export const mountainStronghold: CardDefinition = {
+    id: "314fd1d7-4bd8-4d95-b7c2-1aa6660ab88a",
+    name: "Mountain Stronghold",
+    oracleText:
+        'Red legendary creatures you control have "bands with other legendary creatures." (Any legendary creatures can attack in a band as long as at least one has "bands with other legendary creatures." Bands are blocked as a group. If at least two legendary creatures you control, one of which has "bands with other legendary creatures," are blocking or being blocked by the same creature, you divide that creature\'s combat damage, not its controller, among any of the creatures it\'s being blocked by or is blocking.)',
+    manaCost: {},
+    types: ["Land"],
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: legendaryCreatureGrant("R"),
+            keyword: "bands with other:legendary",
+        },
+    ],
+};
+
+// Seafarer's Quay — Blue legendary creatures grant-land.
+export const seafarersQuay: CardDefinition = {
+    id: "66641d88-b3f0-4bcd-8d2d-29aa2de69e30",
+    name: "Seafarer's Quay",
+    oracleText:
+        'Blue legendary creatures you control have "bands with other legendary creatures." (Any legendary creatures can attack in a band as long as at least one has "bands with other legendary creatures." Bands are blocked as a group. If at least two legendary creatures you control, one of which has "bands with other legendary creatures," are blocking or being blocked by the same creature, you divide that creature\'s combat damage, not its controller, among any of the creatures it\'s being blocked by or is blocking.)',
+    manaCost: {},
+    types: ["Land"],
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: legendaryCreatureGrant("U"),
+            keyword: "bands with other:legendary",
+        },
+    ],
+};
+
+// Unholy Citadel — Black legendary creatures grant-land.
+export const unholyCitadel: CardDefinition = {
+    id: "9de534ff-fb48-4692-bd0f-dd237ca28502",
+    name: "Unholy Citadel",
+    oracleText:
+        'Black legendary creatures you control have "bands with other legendary creatures." (Any legendary creatures can attack in a band as long as at least one has "bands with other legendary creatures." Bands are blocked as a group. If at least two legendary creatures you control, one of which has "bands with other legendary creatures," are blocking or being blocked by the same creature, you divide that creature\'s combat damage, not its controller, among any of the creatures it\'s being blocked by or is blocking.)',
+    manaCost: {},
+    types: ["Land"],
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: legendaryCreatureGrant("B"),
+            keyword: "bands with other:legendary",
+        },
+    ],
+};
+
+// Master of the Hunt — "{2}{G}{G}: Create a 1/1 green Wolf creature token named
+// Wolves of the Hunt. It has 'bands with other creatures named Wolves of the
+// Hunt.'" (CR 702.22j name-quality band via a token with the parametric
+// keyword.) The token's name-quality keyword lets every Wolves-of-the-Hunt
+// token band together (CR 702.22j: all members share the name).
+export const masterOfTheHunt: CardDefinition = {
+    id: "4e6bf56e-2d74-4e4d-a667-885853979377",
+    name: "Master of the Hunt",
+    oracleText:
+        '{2}{G}{G}: Create a 1/1 green Wolf creature token named Wolves of the Hunt. It has "bands with other creatures named Wolves of the Hunt."',
+    manaCost: { X: 2, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Human"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "master-of-the-hunt-wolves",
+            oracleText:
+                '{2}{G}{G}: Create a 1/1 green Wolf creature token named Wolves of the Hunt. It has "bands with other creatures named Wolves of the Hunt."',
+            cost: { mana: { X: 2, G: 2 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.createToken(
+                    {
+                        name: "Wolves of the Hunt",
+                        types: ["Creature"],
+                        subtypes: ["Wolf"],
+                        power: 1,
+                        toughness: 1,
+                        colors: ["G"],
+                        staticAbilities: [
+                            "bands with other:name=Wolves of the Hunt",
+                        ],
+                    },
+                    ctx.controller
+                );
+            },
+        },
+    ],
+};
+
+// Shelkin Brownie — "{T}: Target creature loses all 'bands with other' abilities
+// until end of turn." (CR 611.1b layer-6 duration-scoped keyword removal.)
+export const shelkinBrownie: CardDefinition = {
+    id: "fddcc557-871d-425b-b4ee-bc0c9bc717aa",
+    name: "Shelkin Brownie",
+    oracleText:
+        '{T}: Target creature loses all "bands with other" abilities until end of turn.',
+    manaCost: { X: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Ouphe"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "shelkin-brownie-strip",
+            oracleText:
+                '{T}: Target creature loses all "bands with other" abilities until end of turn.',
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type !== "permanent") return;
+                ctx.removeStaticAbilities(
+                    target,
+                    (kw) => kw.startsWith("bands with other:"),
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+
+// Tolaria — "{T}: Add {U}." and "{T}: Target creature loses banding and all
+// 'bands with other' abilities until end of turn. Activate only during any
+// upkeep step." (CR 605.1a mana ability + CR 611.1b duration-scoped strip with
+// a phase-restricted activation.) Legendary land.
+export const tolaria: CardDefinition = {
+    id: "d43c01b7-443d-4061-a934-6863d230c9b8",
+    name: "Tolaria",
+    oracleText:
+        '{T}: Add {U}.\n{T}: Target creature loses banding and all "bands with other" abilities until end of turn. Activate only during any upkeep step.',
+    manaCost: {},
+    types: ["Land"],
+    supertypes: ["Legendary"],
+    activatedAbilities: [
+        {
+            id: "tolaria-mana",
+            oracleText: "{T}: Add {U}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ U: 1 }),
+            manaProduced: { U: 1 },
+        },
+        {
+            id: "tolaria-strip",
+            oracleText:
+                '{T}: Target creature loses banding and all "bands with other" abilities until end of turn. Activate only during any upkeep step.',
+            cost: { tap: true },
+            useStack: true,
+            activationPhaseRestriction: ["UPKEEP"],
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type !== "permanent") return;
+                ctx.removeStaticAbilities(
+                    target,
+                    (kw) =>
+                        kw === "banding" || kw.startsWith("bands with other:"),
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
 };

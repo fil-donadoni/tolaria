@@ -149,14 +149,26 @@ import {
     chromium,
     hundingGjornersen,
     marhaultElsdragon,
+    adventurersGuildhouse,
+    cathedralOfSerra,
+    mountainStronghold,
+    seafarersQuay,
+    unholyCitadel,
+    masterOfTheHunt,
+    shelkinBrownie,
+    tolaria,
 } from "../leg";
 import { getCardById, getCardByName, getAllCards } from "../../index";
 import {
     fireDelayedTriggers,
     emitBlockersConfirmedEvents,
     advancePhase,
+    finalizeCleanup,
 } from "../../../gre/phases";
-import { recordBlockedAttackers } from "../../../gre/banding";
+import {
+    recordBlockedAttackers,
+    isLegalBandComposition,
+} from "../../../gre/banding";
 import {
     lightningBolt,
     mountain,
@@ -3946,5 +3958,234 @@ describe("Rampage N (CR 702.23)", () => {
         )!;
         expect(getEffectivePower(projected, slim)).toBe(8);
         expect(getEffectiveToughness(projected, slim)).toBe(8);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C4 — Bands with other [quality] (CR 702.22j, #381)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Bands-with-other grant-lands (CR 702.22j, keyword-grant)", () => {
+    const LANDS = [
+        adventurersGuildhouse,
+        cathedralOfSerra,
+        mountainStronghold,
+        seafarersQuay,
+        unholyCitadel,
+    ];
+
+    for (const land of LANDS) {
+        it(`${land.name} declares a legendary keyword-grant`, () => {
+            const grant = land.staticEffects?.find(
+                (e) => e.kind === "keyword-grant"
+            );
+            expect(grant).toBeDefined();
+            expect(grant && "keyword" in grant && grant.keyword).toBe(
+                "bands with other:legendary"
+            );
+        });
+    }
+
+    it("Adventurers' Guildhouse grants the keyword to your GREEN legendary creature only", () => {
+        // Hunding Gjornersen ({W}{U}) is not green; Marhault Elsdragon ({R}{G}) is.
+        const land = makeInstance(adventurersGuildhouse.id, {
+            id: "guildhouse",
+            controllerId: "p1",
+        });
+        const greenLegend = makeInstance(marhaultElsdragon.id, {
+            id: "green",
+            controllerId: "p1",
+        });
+        const nonGreenLegend = makeInstance(hundingGjornersen.id, {
+            id: "nongreen",
+            controllerId: "p1",
+        });
+        const oppGreenLegend = makeInstance(marhaultElsdragon.id, {
+            id: "oppgreen",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [land, greenLegend, nonGreenLegend],
+                }),
+                makePlayer("p2", { battlefield: [oppGreenLegend] }),
+            ],
+        });
+        applySourceStaticEffects(state, land);
+
+        const kw = "bands with other:legendary";
+        expect(greenLegend.staticAbilities).toContain(kw); // green + legendary + yours
+        expect(nonGreenLegend.staticAbilities).not.toContain(kw); // not green
+        expect(oppGreenLegend.staticAbilities).not.toContain(kw); // not yours
+
+        // Wire format: the granted keyword must survive projection so the band
+        // panel (which reads staticAbilities client-side) can offer the band.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "green"
+        )!;
+        expect(slim.staticAbilities).toContain(kw);
+    });
+
+    it("the granted keyword forms a legal legendary band (end-to-end legality)", () => {
+        const land = makeInstance(mountainStronghold.id, {
+            id: "stronghold",
+            controllerId: "p1",
+        });
+        // Marhault Elsdragon ({R}{G}) is red + legendary → gets the keyword.
+        const a = makeInstance(marhaultElsdragon.id, {
+            id: "a",
+            controllerId: "p1",
+        });
+        const b = makeInstance(marhaultElsdragon.id, {
+            id: "b",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land, a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+        applySourceStaticEffects(state, land);
+        // Both legendary, one grants the legendary quality → band is legal.
+        expect(isLegalBandComposition([a, b])).toBe(true);
+    });
+});
+
+describe("Master of the Hunt (Wolves-of-the-Hunt token band, CR 702.22j)", () => {
+    it("mints a 1/1 green Wolf with the name-quality keyword that bands with its kin", () => {
+        const master = makeInstance(masterOfTheHunt.id, {
+            id: "master",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [master] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Make two Wolf tokens.
+        resolveActivated(state, master, "master-of-the-hunt-wolves");
+        resolveActivated(state, master, "master-of-the-hunt-wolves");
+
+        const wolves = state.players[0].battlefield.filter(
+            (c) =>
+                getCardById(c.card.id as string).name === "Wolves of the Hunt"
+        );
+        expect(wolves).toHaveLength(2);
+        for (const w of wolves) {
+            expect(w.power).toBe(1);
+            expect(w.toughness).toBe(1);
+            expect(w.subtypes).toContain("Wolf");
+            expect(w.staticAbilities).toContain(
+                "bands with other:name=Wolves of the Hunt"
+            );
+        }
+        // Two same-named Wolves, at least one with the keyword → legal band.
+        expect(isLegalBandComposition(wolves)).toBe(true);
+    });
+});
+
+describe("Shelkin Brownie (strip 'bands with other' until EOT, CR 611.1b)", () => {
+    it("removes the bands-with-other keyword and restores it at cleanup", () => {
+        const brownie = makeInstance(shelkinBrownie.id, {
+            id: "brownie",
+            controllerId: "p1",
+        });
+        const target = makeInstance(hundingGjornersen.id, {
+            id: "legend",
+            controllerId: "p2",
+            staticAbilities: ["bands with other:legendary"],
+        });
+        const state = makeState({
+            phase: "DECLARE_BLOCKERS",
+            players: [
+                makePlayer("p1", { battlefield: [brownie] }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        resolveActivated(state, brownie, "shelkin-brownie-strip", [
+            { type: "permanent", id: "legend" },
+        ]);
+        expect(target.staticAbilities).not.toContain(
+            "bands with other:legendary"
+        );
+
+        // CR 514.2 — the strip ends at cleanup; the keyword comes back.
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(target.staticAbilities).toContain("bands with other:legendary");
+    });
+
+    it("leaves plain banding alone (only strips bands-with-other)", () => {
+        const brownie = makeInstance(shelkinBrownie.id, {
+            id: "brownie",
+            controllerId: "p1",
+        });
+        const target = makeInstance(hundingGjornersen.id, {
+            id: "legend",
+            controllerId: "p2",
+            staticAbilities: ["banding", "bands with other:legendary"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [brownie] }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        resolveActivated(state, brownie, "shelkin-brownie-strip", [
+            { type: "permanent", id: "legend" },
+        ]);
+        expect(target.staticAbilities).toContain("banding"); // untouched
+        expect(target.staticAbilities).not.toContain(
+            "bands with other:legendary"
+        );
+    });
+});
+
+describe("Tolaria (strip banding + bands-with-other, upkeep-only, CR 611.1b)", () => {
+    it("restricts the strip ability to the upkeep step", () => {
+        const strip = tolaria.activatedAbilities?.find(
+            (a) => a.id === "tolaria-strip"
+        );
+        expect(strip?.activationPhaseRestriction).toEqual(["UPKEEP"]);
+    });
+
+    it("strips both banding and bands-with-other until cleanup", () => {
+        const land = makeInstance(tolaria.id, {
+            id: "tolaria",
+            controllerId: "p1",
+        });
+        const target = makeInstance(marhaultElsdragon.id, {
+            id: "legend",
+            controllerId: "p2",
+            staticAbilities: [
+                "banding",
+                "bands with other:legendary",
+                "flying",
+            ],
+        });
+        const state = makeState({
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        resolveActivated(state, land, "tolaria-strip", [
+            { type: "permanent", id: "legend" },
+        ]);
+        expect(target.staticAbilities).not.toContain("banding");
+        expect(target.staticAbilities).not.toContain(
+            "bands with other:legendary"
+        );
+        expect(target.staticAbilities).toContain("flying"); // unrelated keyword kept
+
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(target.staticAbilities).toContain("banding");
+        expect(target.staticAbilities).toContain("bands with other:legendary");
     });
 });

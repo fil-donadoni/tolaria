@@ -616,6 +616,38 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Bands with other [quality] (CR 702.22j, #381). Load with ?board=next:
+        //   • Adventurers' Guildhouse grants "bands with other legendary
+        //     creatures" to your GREEN legendary creatures (Jasmine Boreal,
+        //     Marhault Elsdragon, Jerrard) — they all light up with the ⟡ banding
+        //     marker in the band-formation panel.
+        //   • Advance to DECLARE_ATTACKERS, declare two of them as attackers, and
+        //     form a band: because both are legendary and one carries the granted
+        //     keyword, the band is LEGAL (CR 702.22j). The non-green / non-
+        //     legendary creature (Hill Giant) cannot join — the band stays illegal
+        //     if you add it.
+        //   • Activate Master of the Hunt ({2}{G}{G}) to mint Wolves-of-the-Hunt
+        //     tokens; two of them band together via the name quality.
+        //   • Shelkin Brownie ({T}) strips a target's "bands with other" abilities
+        //     until end of turn — tap it targeting a granted legend and watch the
+        //     marker disappear.
+        label: "Bands with other [quality] — legendary band + Wolves (CR 702.22j)",
+        cards: [
+            { name: "Adventurers' Guildhouse", owner: "me" as const },
+            { name: "Jasmine Boreal", owner: "me" as const },
+            { name: "Marhault Elsdragon", owner: "me" as const },
+            { name: "Jerrard of the Closed Fist", owner: "me" as const },
+            { name: "Master of the Hunt", owner: "me" as const },
+            { name: "Shelkin Brownie", owner: "me" as const },
+            { name: "Hill Giant", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 4 },
+            { name: "Grizzly Bears", owner: "opp" as const, count: 3 },
+            { name: "Forest", owner: "opp" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Board-next STACK arrows (target + counter). Load with ?board=next:
         //   • You: cast Lightning Bolt (3 Mountains untapped) at the opponent's
         //     Grizzly Bears or at the opponent → a stack → target arrow.
