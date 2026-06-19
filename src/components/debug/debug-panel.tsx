@@ -4255,6 +4255,28 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // LEG C3 — Rampage N (CR 702.23, #380). You control Frost Giant (4/4,
+        // Rampage 2); the opponent fields three Grizzly Bears (2/2) ready to
+        // gang-block it.
+        //   • Advance to combat and attack with Frost Giant.
+        //   • Have the opponent block it with all THREE bears.
+        //   • On block confirmation Frost Giant's Rampage triggers ONCE and gets
+        //     +2/+2 for each blocker beyond the first: 2 × (3 − 1) = +4/+4, so it
+        //     becomes an 8/8 until end of turn — enough to survive 6 damage and
+        //     kill every bear it is assigned to.
+        //   • Edge case: kill one bear (e.g. a burn spell) AFTER blocks but
+        //     BEFORE the Rampage ability resolves and the bonus drops to +2/+2
+        //     (only two blockers remain) — the count is taken at resolution.
+        label: "LEG C3 #380: Rampage 2 — Frost Giant gang-blocked by 3 grows to 8/8 (CR 702.23)",
+        cards: [
+            { name: "Frost Giant", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const, count: 3 },
+            { name: "Mountain", owner: "me" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
