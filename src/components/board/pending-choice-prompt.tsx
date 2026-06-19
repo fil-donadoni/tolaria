@@ -12,6 +12,7 @@ import { formatOracleText } from "~/lib/oracle-text";
 import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
 import PendingChoiceOptions from "~/components/board/pending-choice-options";
 import RandomRevealOverlay from "~/components/board/random-reveal-overlay";
+import MinimizeChoiceButton from "~/components/board/minimize-choice-button";
 
 function getCountMin(count: PendingChoice["count"]): number {
     return typeof count === "number" ? count : count.min;
@@ -112,6 +113,7 @@ export default function PendingChoicePrompt({
 
                 {isChooser ? (
                     <>
+                        <MinimizeChoiceButton className="absolute top-1.5 right-1.5" />
                         <div className="flex flex-col items-center text-center gap-1">
                             <p className="font-beleren text-sm tracking-wide text-[#f1f1e8]">
                                 {sourceLabel}

@@ -13,6 +13,10 @@ import {
     PendingChoiceBufferContext,
     usePendingChoiceBufferState,
 } from "~/hooks/usePendingChoiceBuffer";
+import {
+    MinimizedChoiceContext,
+    useMinimizedChoiceState,
+} from "~/hooks/useMinimizedChoice";
 import { preloadCardImages } from "~/lib/image-preload";
 import { computeSoloViewerId } from "~/lib/priority";
 import BoardNext from "./board-next";
@@ -25,6 +29,7 @@ import GraveyardTargetDialog from "./graveyard-target-dialog";
 import { isGraveyardTargetForViewer } from "~/lib/graveyard-targets";
 import PaymentBanner from "./payment-banner";
 import PendingChoicePrompt from "./pending-choice-prompt";
+import MinimizedChoiceIndicator from "./minimized-choice-indicator";
 import MulliganPrompt from "./mulligan-prompt";
 import ErrorToast from "./error-toast";
 import VsAiDriver from "./vs-ai-driver";
@@ -128,6 +133,12 @@ export default function Board({
         activeChoice: state?.pendingChoices?.[0],
     });
 
+    // Client-only per-choice minimize toggle for blocking choice dialogs
+    // (issue #315). Shared by the banner and the library-pick modal so one
+    // minimize collapses whichever surface the active choice uses. Resets when
+    // the choice resolves; never persisted to GameState.
+    const minimizedChoice = useMinimizedChoiceState(state?.pendingChoices?.[0]);
+
     if (!state) {
         return (
             <div className="flex h-full items-center justify-center text-white">
@@ -215,87 +226,101 @@ export default function Board({
         >
             <SkipPhasePrefsContext value={skipPhasePrefs}>
                 <PendingChoiceBufferContext value={pendingChoiceBuffer}>
-                    <main className="flex h-full w-full flex-col relative overflow-hidden">
-                        <AutoPassController solo={solo} />
-                        {vsAi && <VsAiDriver gameId={gameId} botId={botId} />}
-                        <BoardNext
-                            orderedPlayers={orderedPlayers}
-                            stackItems={stackItems}
-                        />
-                        {pendingTarget &&
-                            pendingTarget.playerId === viewerId &&
-                            (isGraveyardTargetForViewer(
-                                pendingTarget,
-                                viewerId
-                            ) ? (
-                                <GraveyardTargetDialog
-                                    pendingTarget={pendingTarget}
-                                    me={me}
-                                    allPlayers={allPlayers}
-                                    gameId={gameId}
-                                    playerId={viewerId}
-                                />
-                            ) : (
-                                <TargetSelectionBanner
-                                    pendingTarget={pendingTarget}
-                                    me={me}
-                                    gameId={gameId}
-                                    playerId={viewerId}
-                                />
-                            ))}
-                        {pendingCast && pendingCast.playerId === viewerId && (
-                            <PaymentBanner
-                                kind="cast"
-                                pendingCast={pendingCast}
-                                me={me}
-                                gameId={gameId}
-                                playerId={viewerId}
+                    <MinimizedChoiceContext value={minimizedChoice}>
+                        <main className="flex h-full w-full flex-col relative overflow-hidden">
+                            <AutoPassController solo={solo} />
+                            {vsAi && (
+                                <VsAiDriver gameId={gameId} botId={botId} />
+                            )}
+                            <BoardNext
+                                orderedPlayers={orderedPlayers}
+                                stackItems={stackItems}
                             />
-                        )}
-                        {pendingActivation &&
-                            pendingActivation.playerId === viewerId && (
-                                <PaymentBanner
-                                    kind="activation"
-                                    pendingActivation={pendingActivation}
-                                    me={me}
+                            {pendingTarget &&
+                                pendingTarget.playerId === viewerId &&
+                                (isGraveyardTargetForViewer(
+                                    pendingTarget,
+                                    viewerId
+                                ) ? (
+                                    <GraveyardTargetDialog
+                                        pendingTarget={pendingTarget}
+                                        me={me}
+                                        allPlayers={allPlayers}
+                                        gameId={gameId}
+                                        playerId={viewerId}
+                                    />
+                                ) : (
+                                    <TargetSelectionBanner
+                                        pendingTarget={pendingTarget}
+                                        me={me}
+                                        gameId={gameId}
+                                        playerId={viewerId}
+                                    />
+                                ))}
+                            {pendingCast &&
+                                pendingCast.playerId === viewerId && (
+                                    <PaymentBanner
+                                        kind="cast"
+                                        pendingCast={pendingCast}
+                                        me={me}
+                                        gameId={gameId}
+                                        playerId={viewerId}
+                                    />
+                                )}
+                            {pendingActivation &&
+                                pendingActivation.playerId === viewerId && (
+                                    <PaymentBanner
+                                        kind="activation"
+                                        pendingActivation={pendingActivation}
+                                        me={me}
+                                        gameId={gameId}
+                                        playerId={viewerId}
+                                    />
+                                )}
+                            {pendingChoices &&
+                                pendingChoices.length > 0 &&
+                                (minimizedChoice.isMinimized &&
+                                pendingChoices[0].playerId === viewerId ? (
+                                    <MinimizedChoiceIndicator
+                                        choice={pendingChoices[0]}
+                                    />
+                                ) : (
+                                    <PendingChoicePrompt
+                                        choice={pendingChoices[0]}
+                                        playerId={viewerId}
+                                        gameId={gameId}
+                                    />
+                                ))}
+                            {mulligan && !mulligan.bottoming && (
+                                <MulliganPrompt
                                     gameId={gameId}
-                                    playerId={viewerId}
+                                    viewerId={viewerId}
+                                    mulligan={mulligan}
+                                    allPlayers={allPlayers}
                                 />
                             )}
-                        {pendingChoices && pendingChoices.length > 0 && (
-                            <PendingChoicePrompt
-                                choice={pendingChoices[0]}
+                            <ActionBar
+                                onOpenMenu={() => setPauseMenuOpen(true)}
+                            />
+                            {gameOver && (
+                                <GameOverDialog
+                                    gameOver={gameOver}
+                                    allPlayers={allPlayers}
+                                />
+                            )}
+                            <PauseMenuDialog
+                                open={pauseMenuOpen}
+                                onOpenChange={setPauseMenuOpen}
+                                gameId={gameId}
                                 playerId={viewerId}
+                            />
+                            <ErrorToast
+                                error={pendingChoiceBuffer.lastError}
                                 gameId={gameId}
+                                onDismiss={pendingChoiceBuffer.dismissError}
                             />
-                        )}
-                        {mulligan && !mulligan.bottoming && (
-                            <MulliganPrompt
-                                gameId={gameId}
-                                viewerId={viewerId}
-                                mulligan={mulligan}
-                                allPlayers={allPlayers}
-                            />
-                        )}
-                        <ActionBar onOpenMenu={() => setPauseMenuOpen(true)} />
-                        {gameOver && (
-                            <GameOverDialog
-                                gameOver={gameOver}
-                                allPlayers={allPlayers}
-                            />
-                        )}
-                        <PauseMenuDialog
-                            open={pauseMenuOpen}
-                            onOpenChange={setPauseMenuOpen}
-                            gameId={gameId}
-                            playerId={viewerId}
-                        />
-                        <ErrorToast
-                            error={pendingChoiceBuffer.lastError}
-                            gameId={gameId}
-                            onDismiss={pendingChoiceBuffer.dismissError}
-                        />
-                    </main>
+                        </main>
+                    </MinimizedChoiceContext>
                 </PendingChoiceBufferContext>
             </SkipPhasePrefsContext>
         </GameContext>

@@ -9,6 +9,7 @@ import {
 import type { Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import CardsPile from "./cards-pile";
 import LibrarySearchConfirm from "./library-search-confirm";
 import { buildLibraryPileModel } from "~/lib/library-knowledge";
@@ -20,6 +21,7 @@ export default function PlayerLibrary({ player }: { player: Player }) {
     const millCard = useMutation(api.game.mill);
     const exile = useMutation(api.game.exileFromLibrary);
     const bufferCtx = usePendingChoiceBuffer();
+    const { isMinimized, minimize } = useMinimizedChoice();
     const isMe = player.id === playerId;
 
     // CR 401.4 / 701.19: while a `search-library` choice is active for the
@@ -111,7 +113,11 @@ export default function PlayerLibrary({ player }: { player: Player }) {
                       : "Library"
             }
             onCardClick={onCardClick}
-            forceOpen={isLibraryPick}
+            // Issue #315 — collapse the blocking picker to the board indicator
+            // while minimized. The Pending Choice stays active and the buffered
+            // selection is untouched; restoring re-opens this same modal.
+            forceOpen={isLibraryPick && !isMinimized}
+            onMinimize={isLibraryPick ? minimize : undefined}
             // A full library has ~40-50 cards: the fan's 50% overlap merges
             // every amber selection ring into one solid strip and leaves only
             // thin slivers clickable. Lay the exposed cards out in a grid so

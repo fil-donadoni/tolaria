@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Minus } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -19,6 +20,11 @@ type GameDialogProps = {
     size?: GameDialogSize;
     dismissable?: boolean;
     showCloseButton?: boolean;
+    /** Minimize affordance (issue #315). When provided, a minimize control is
+     *  shown in the top-right; clicking it invokes this callback. Used by the
+     *  blocking library-pick modal so the chooser can collapse it to the board
+     *  indicator without dismissing the underlying Pending Choice. */
+    onMinimize?: () => void;
     className?: string;
     children: React.ReactNode;
 };
@@ -37,6 +43,7 @@ export default function GameDialog({
     size = "default",
     dismissable = true,
     showCloseButton = false,
+    onMinimize,
     className,
     children,
 }: GameDialogProps) {
@@ -88,6 +95,21 @@ export default function GameDialog({
                             </div>
                         </div>
                     </div>
+
+                    {onMinimize && (
+                        <button
+                            type="button"
+                            onClick={onMinimize}
+                            aria-label="Minimize choice dialog"
+                            title="Minimize"
+                            className={cn(
+                                "absolute top-3 flex items-center justify-center w-6 h-6 text-text-disabled hover:text-text-muted transition-colors cursor-pointer",
+                                showCloseButton ? "right-10" : "right-3"
+                            )}
+                        >
+                            <Minus className="h-4 w-4" />
+                        </button>
+                    )}
 
                     {showCloseButton && (
                         <button

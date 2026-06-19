@@ -18,7 +18,14 @@ import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
 } from "~/hooks/usePendingChoiceBuffer";
+import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
 import BoardNextPiles from "../board-next-piles";
+
+const noopMinimized = {
+    isMinimized: false,
+    minimize: () => {},
+    restore: () => {},
+};
 
 // Pile components call useMutation; the card image components hit the card
 // registry / image worker. Stub the data seams, keep the pile structure real.
@@ -90,7 +97,9 @@ function renderPiles(opponent: Player, me: Player) {
     return render(
         <GameContext value={value}>
             <PendingChoiceBufferContext value={noopBuffer}>
-                <BoardNextPiles orderedPlayers={[opponent, me]} />
+                <MinimizedChoiceContext value={noopMinimized}>
+                    <BoardNextPiles orderedPlayers={[opponent, me]} />
+                </MinimizedChoiceContext>
             </PendingChoiceBufferContext>
         </GameContext>
     );

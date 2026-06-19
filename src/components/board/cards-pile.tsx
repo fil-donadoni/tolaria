@@ -38,6 +38,11 @@ type CardsPileProps = {
      *  as a modal (`forceOpen`) and would otherwise cover the board-level
      *  PendingChoicePrompt, leaving the chooser no reachable way to commit. */
     footer?: React.ReactNode;
+    /** Minimize affordance forwarded to the dialog (issue #315). When set, the
+     *  expanded pile dialog shows a minimize control; used by the blocking
+     *  library-pick modal so the chooser can collapse it to the board
+     *  indicator without dismissing the Pending Choice. */
+    onMinimize?: () => void;
 };
 
 /** Resolves whether a single card renders face-down. A `faceUpIds` set (ADR
@@ -212,6 +217,7 @@ export default function CardsPile({
     forceOpen = false,
     selectedIds,
     footer,
+    onMinimize,
 }: CardsPileProps) {
     const [internalOpen, setInternalOpen] = useState(false);
     const isOpen = forceOpen || internalOpen;
@@ -284,6 +290,7 @@ export default function CardsPile({
                 size="wide"
                 dismissable={!forceOpen}
                 showCloseButton={!forceOpen}
+                onMinimize={forceOpen ? onMinimize : undefined}
             >
                 {layout === "fan" ? (
                     <FanLayout
