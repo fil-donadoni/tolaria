@@ -61,6 +61,25 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Auto-tap partial coverage (issue #321). Pure-mana sources alone can't
+        // cover the cost, but a manual sacrifice source (Black Lotus) is also
+        // present:
+        //   • Cast Fireball, choose X=7 → cost {7}{R} = 8 mana.
+        //   • Press auto-tap. The 5 Mountains all tap (5 mana) and Black Lotus
+        //     stays untapped — no server error, the Pay banner stays up.
+        //   • Manually sacrifice Black Lotus (floats 3) → cost covered, Fireball
+        //     can be paid and resolved.
+        label: "Auto-tap: partial coverage leaves Black Lotus manual (Fireball X=7)",
+        cards: [
+            { name: "Fireball", owner: "me" as const, zone: "hand" as const },
+            { name: "Mountain", owner: "me" as const, count: 5 },
+            { name: "Black Lotus", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Counter display (CR 122) — verify counters render on the board and in
         // the card preview:
         //   • Grizzly Bears carries two +1/+1 counters (folds to 4/4 — the

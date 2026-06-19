@@ -50,7 +50,11 @@ import {
     allocInstanceId,
     tapPermanent,
 } from "./gre/state";
-import { buildAutoTapSources, solveAutoTap } from "./gre/autoTap";
+import {
+    buildAutoTapSources,
+    solveAutoTap,
+    solveAutoTapPartial,
+} from "./gre/autoTap";
 import { isGuardedAgainst } from "./gre/permanentGuard";
 import type { Color, ManaCost, SpellMode } from "./cards/types";
 import {
@@ -278,7 +282,7 @@ function assertNoPendingChoices(
  *  tapForPayment and tapForActivationPayment — the logic is identical, only
  *  the bookkeeping state differs. Mutates `card`, `player.manaPool`, and
  *  pushes the card id onto `tappedLandIds`. */
-function tapSourceIntoPayment(
+export function tapSourceIntoPayment(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState,
@@ -2159,16 +2163,27 @@ export const autoTapForPayment = mutation({
         if (!pending) throw new Error("No pending payment");
 
         const player = getPlayer(state, args.playerId);
+        const substitutions = getManaSubstitutions(state, player.id);
         const sources = buildAutoTapSources(player.battlefield);
-        const plan = solveAutoTap(
+        // Prefer a minimal full plan. When the pure-mana sources can't cover
+        // the whole cost (the rest must come from an excluded manual source,
+        // e.g. Black Lotus — issue #321), fall back to the maximal-useful
+        // partial plan: tap what we can toward the cost and leave the manual
+        // remainder to the player rather than no-op + throw.
+        const fullPlan = solveAutoTap(
             player.manaPool,
             pending.manaCost,
-            getManaSubstitutions(state, player.id),
+            substitutions,
             sources
         );
-        if (!plan) {
-            throw new Error("No mana combination can pay this cost");
-        }
+        const plan =
+            fullPlan ??
+            solveAutoTapPartial(
+                player.manaPool,
+                pending.manaCost,
+                substitutions,
+                sources
+            );
 
         for (const step of plan) {
             const card = player.battlefield.find((c) => c.id === step.cardId);
@@ -2182,7 +2197,9 @@ export const autoTapForPayment = mutation({
             );
         }
 
-        // Pool now covers the cost (the solver guarantees it) → commit.
+        // Commit only if the cost is now fully covered. A partial plan leaves
+        // a deficit (manual source still owed) — keep the banner up so the
+        // player can finish the payment by hand.
         if (state.pendingCast?.playerId === args.playerId) {
             tryAutoCommitPendingCast(state, args.playerId);
         } else {
