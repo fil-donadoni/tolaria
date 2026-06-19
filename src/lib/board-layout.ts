@@ -216,6 +216,17 @@ export type LayoutBand = {
  *  don't touch. */
 const BAND_V_PAD = 14;
 
+/** Width of the right control column (#334) — the collapsed controller pod plus
+ *  its edge offset. The board reserves a matching right gutter on BOTH seats so
+ *  the back row's flush-right noncreature block always ends before this column
+ *  and no permanent is ever hidden under the pod. The opponent reserves the same
+ *  gutter for symmetry even though it hosts no pod, so the right edge reads as
+ *  one symmetric column (opponent piles · stack · pod · viewer piles).
+ *
+ *  Sized to the pod's footprint: `w-52` (208px) + `right-4` (16px) offset. Kept
+ *  here next to the layout math so the gutter and the pod can't drift apart. */
+export const RIGHT_GUTTER = 224;
+
 /**
  * Stacks several rows inside ONE full-height zone — the battlefield split into a
  * creature row and a lands+noncreature back row (Arena-style) without clipping.
@@ -232,6 +243,12 @@ export function bandedRowsLayout(opts: {
     height: number;
     cardWidth?: number;
     cardHeight?: number;
+    /** Pixels reserved on the RIGHT for the control column (#334). When set, the
+     *  usable width shrinks by this amount so the flush-right back-row block ends
+     *  before the column (`usableWidth = width - rightGutter`) and nothing is
+     *  hidden under the pod. Applied identically on both seats for symmetry —
+     *  the opponent reserves it even though it hosts no pod. Defaults to 0. */
+    rightGutter?: number;
 }): Placement[] {
     const {
         bands,
@@ -239,8 +256,13 @@ export function bandedRowsLayout(opts: {
         height,
         cardWidth = CARD_WIDTH,
         cardHeight = CARD_HEIGHT,
+        rightGutter = 0,
     } = opts;
     if (bands.length === 0 || height <= 0) return [];
+    // Reserve the right control column: every band is placed within
+    // `[0, usableWidth]`, so the flush-right block stops before the column.
+    // Clamp so a degenerate (very narrow) board never goes negative.
+    const usableWidth = Math.max(cardWidth, width - rightGutter);
     // Each band may use at most its even share of the height; cap the card scale
     // so a full-height card fits that slice (minus padding).
     const bandHeight = height / bands.length;
@@ -254,7 +276,7 @@ export function bandedRowsLayout(opts: {
             return splitRowLayout({
                 left: band.split.left,
                 right: band.split.right,
-                width,
+                width: usableWidth,
                 centerY,
                 cardWidth,
                 maxScale,
@@ -262,7 +284,7 @@ export function bandedRowsLayout(opts: {
         }
         return rowLayout({
             count: band.count ?? 0,
-            width,
+            width: usableWidth,
             centerY,
             cardWidth,
             maxScale,

@@ -19,8 +19,10 @@ type BoardNextPilesProps = {
  *  The classic board lays these out in a flex row inside `PlayerSideRow`; here
  *  they are absolutely positioned in the board corners so the battlefield/hand
  *  spatial zones keep the full width: the viewer's piles sit at the
- *  bottom-right edge, the opponent's mirror to the top-left. View-layer only —
- *  the GRE boundary is untouched. */
+ *  bottom-right edge, the opponent's mirror to the top-RIGHT (#334), so the
+ *  right edge reads as one symmetric control column — opponent piles · stack ·
+ *  pod · viewer piles — with both halves symmetric about the midline. View-layer
+ *  only — the GRE boundary is untouched. */
 export default function BoardNextPiles({
     orderedPlayers,
 }: BoardNextPilesProps) {
@@ -30,7 +32,7 @@ export default function BoardNextPiles({
         <>
             {opponent && (
                 <div
-                    className="absolute left-3 top-3 z-30 flex gap-2"
+                    className="absolute right-3 top-3 z-30 flex flex-row-reverse gap-2"
                     data-testid="piles-opponent"
                 >
                     <PlayerGraveyard player={opponent} />

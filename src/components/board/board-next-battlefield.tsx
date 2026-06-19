@@ -3,7 +3,7 @@ import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useBattlefieldInteraction } from "~/hooks/useBattlefieldInteraction";
 import { isCreature, isLand } from "~/lib/card-utils";
-import { bandedRowsLayout } from "~/lib/board-layout";
+import { bandedRowsLayout, RIGHT_GUTTER } from "~/lib/board-layout";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
 import BoardNextBattlefieldCard from "./board-next-battlefield-card";
 import CombatPanels from "./combat-panels";
@@ -195,7 +195,11 @@ export default function BoardNextBattlefield({
 
     // One full-height zone; the layout stacks the creature row (centered) over
     // the back row (lands flush-left, other noncreatures flush-right) so nothing
-    // is clipped vertically (see BANDS doc).
+    // is clipped vertically (see BANDS doc). Both seats reserve a matching
+    // `RIGHT_GUTTER` (#334) so the flush-right back-row block ends before the
+    // right control column (opponent piles · stack · pod · viewer piles) and no
+    // permanent is hidden under the controller pod. The opponent reserves it for
+    // symmetry even though only the viewer side hosts the pod.
     function layout(_count: number, width: number, height: number) {
         return bandedRowsLayout({
             bands: [
@@ -210,6 +214,7 @@ export default function BoardNextBattlefield({
             ],
             width,
             height,
+            rightGutter: RIGHT_GUTTER,
         });
     }
 
