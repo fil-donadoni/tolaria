@@ -1,13 +1,7 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { tryGetCardById } from "@convex/cards";
-import {
-    ART_CROP_RATIO,
-    getArtCropImageUrl,
-    resolveCardImageId,
-} from "~/lib/images";
-import CardImageLoader from "./card-image-loader";
-import TokenPlaceholder from "./token-placeholder";
+import { getArtCropImageUrl, resolveCardImageId } from "~/lib/images";
 import {
     formatTypeLine,
     getDisplayAbilities,
@@ -15,65 +9,17 @@ import {
     resolvePreviewAbilities,
 } from "~/lib/card-utils";
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
-import { formatOracleText } from "~/lib/oracle-text";
 import { GameContext } from "~/hooks/useGameContext";
 import { useLongPress } from "~/hooks/useLongPress";
 import type { CardInstance } from "~/types/game";
 import { getColorOverrideDisplay } from "~/lib/color-override";
-import CardPreviewAbilities from "./card-preview-abilities";
-import CardPreviewCounters from "./card-preview-counters";
 import { getCounterDisplays } from "~/lib/counters";
 import { releasePreview, requestOpenPreview } from "./card-preview-singleton";
+import CardPreviewBody from "./card-preview-body";
+import CardPreviewDock from "./card-preview-dock";
 
-const ZOOM_WIDTH = 128 * 2;
-const GAP = 8;
-const VIEWPORT_PAD = 8;
-const HOVER_DELAY_MS = 300;
-
-// Clamp the zoom panel so it sits next to the anchored card without ever
-// overflowing the viewport. Vertical height varies with oracle text length, so
-// it is measured post-mount instead of assuming a fixed aspect.
-function clampZoomPosition(
-    cardRect: DOMRect,
-    zoomWidth: number,
-    zoomHeight: number
-): { top: number; left: number } {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-
-    let left: number;
-    const fitsRight = cardRect.right + GAP + zoomWidth <= vw - VIEWPORT_PAD;
-    const fitsLeft = cardRect.left - GAP - zoomWidth >= VIEWPORT_PAD;
-    if (fitsRight) {
-        left = cardRect.right + GAP;
-    } else if (fitsLeft) {
-        left = cardRect.left - GAP - zoomWidth;
-    } else {
-        const gapRight = vw - cardRect.right;
-        const gapLeft = cardRect.left;
-        left =
-            gapRight >= gapLeft
-                ? cardRect.right + GAP
-                : cardRect.left - GAP - zoomWidth;
-    }
-    left = Math.max(
-        VIEWPORT_PAD,
-        Math.min(left, vw - VIEWPORT_PAD - zoomWidth)
-    );
-
-    const cardCenterY = cardRect.top + cardRect.height / 2;
-    let top = cardCenterY - zoomHeight / 2;
-    const maxTop = vh - VIEWPORT_PAD - zoomHeight;
-    if (maxTop < VIEWPORT_PAD) {
-        top = VIEWPORT_PAD;
-    } else if (top < VIEWPORT_PAD) {
-        top = VIEWPORT_PAD;
-    } else if (top > maxTop) {
-        top = maxTop;
-    }
-
-    return { top, left };
-}
+const OVERLAY_WIDTH = 128 * 2;
+export const HOVER_DELAY_MS = 300;
 
 type CardPreviewProps = {
     cardId: string;
@@ -88,14 +34,13 @@ export default function CardPreview({
     cardInstance,
     children,
 }: CardPreviewProps) {
-    const [showZoom, setShowZoom] = useState(false);
-    const [position, setPosition] = useState({ top: 0, left: 0 });
-    const [measured, setMeasured] = useState(false);
-    const [zoomImgLoaded, setZoomImgLoaded] = useState(false);
+    // Desktop hover preview (fixed center-left dock, #332). Mobile long-press
+    // overlay is a separate surface (`showOverlay`) and is unaffected.
+    const [showDock, setShowDock] = useState(false);
+    const [dockImgLoaded, setDockImgLoaded] = useState(false);
     const isHovered = useRef(false);
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const zoomRef = useRef<HTMLDivElement>(null);
 
     const longPress = useLongPress({});
     // Preview is visible during the peek window and once locked; only `idle`
@@ -105,42 +50,13 @@ export default function CardPreview({
     const sawTouchRef = useRef(false);
 
     // Latest closePreview, read by the singleton from a stable identity so
-    // openZoom/cleanup don't need closePreview in their dep arrays.
+    // openDock/cleanup don't need closePreview in their dep arrays.
     const closeRef = useRef<() => void>(() => {});
 
-    const openZoom = useCallback(() => {
+    const openDock = useCallback(() => {
         requestOpenPreview(closeRef.current);
-        setMeasured(false);
-        setZoomImgLoaded(false);
-        setShowZoom(true);
-    }, []);
-
-    const recomputePosition = useCallback(() => {
-        const anchor = containerRef.current;
-        const zoom = zoomRef.current;
-        if (!anchor || !zoom) return;
-        const cardRect = anchor.getBoundingClientRect();
-        const zoomRect = zoom.getBoundingClientRect();
-        setPosition(
-            clampZoomPosition(cardRect, zoomRect.width, zoomRect.height)
-        );
-        setMeasured(true);
-    }, []);
-
-    // Callback ref measures synchronously when the zoom div mounts, so the
-    // first paint already has the correct (clamped) position. Variable-height
-    // oracle text never overflows the viewport.
-    const zoomCallbackRef = useCallback((node: HTMLDivElement | null) => {
-        zoomRef.current = node;
-        if (!node) return;
-        const anchor = containerRef.current;
-        if (!anchor) return;
-        const cardRect = anchor.getBoundingClientRect();
-        const zoomRect = node.getBoundingClientRect();
-        setPosition(
-            clampZoomPosition(cardRect, zoomRect.width, zoomRect.height)
-        );
-        setMeasured(true);
+        setDockImgLoaded(false);
+        setShowDock(true);
     }, []);
 
     const clearHoverTimeout = useCallback(() => {
@@ -167,7 +83,7 @@ export default function CardPreview({
     const closePreview = useCallback(() => {
         isHovered.current = false;
         clearHoverTimeout();
-        setShowZoom(false);
+        setShowDock(false);
         stopExitWatch();
         releasePreview(closeRef.current);
     }, [clearHoverTimeout, stopExitWatch]);
@@ -214,30 +130,19 @@ export default function CardPreview({
         };
     }, [stopExitWatch]);
 
-    useEffect(() => {
-        if (!showZoom) return;
-        const handler = () => recomputePosition();
-        window.addEventListener("resize", handler);
-        window.addEventListener("scroll", handler, true);
-        return () => {
-            window.removeEventListener("resize", handler);
-            window.removeEventListener("scroll", handler, true);
-        };
-    }, [showZoom, recomputePosition]);
-
     const handleMouseDown = useCallback(
         (e: React.MouseEvent) => {
             if (e.button !== 2) return;
             e.preventDefault();
             e.stopPropagation();
-            openZoom();
+            openDock();
             const onUp = () => {
                 closeRef.current();
                 window.removeEventListener("mouseup", onUp);
             };
             window.addEventListener("mouseup", onUp);
         },
-        [openZoom]
+        [openDock]
     );
 
     const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -318,7 +223,7 @@ export default function CardPreview({
         bodyAbilities.triggered.length > 0;
     const displayName = def?.name ?? cardName;
     // Tokens (CR 111) without a printed art id render an in-app placeholder
-    // in the zoom panel — Scryfall has no entry for synthesized `token:` ids
+    // in the preview — Scryfall has no entry for synthesized `token:` ids
     // and would 404. `resolveCardImageId` returns null in that case.
     const imageId = resolveCardImageId(cardId);
     const imageSrc = imageId ? getArtCropImageUrl(imageId) : null;
@@ -344,6 +249,32 @@ export default function CardPreview({
         longPress.dismiss();
     }, [longPress]);
 
+    // Shared content props for both preview surfaces (desktop dock + mobile
+    // overlay) — same art + rules text, only the framing differs.
+    const sharedBody = {
+        cardName,
+        displayName,
+        imageSrc,
+        types,
+        subtypes,
+        staticAbilities:
+            cardInstance?.staticAbilities ?? def?.staticAbilities ?? [],
+        manaCost,
+        typeLine,
+        oracleParagraphs,
+        bodyAbilities,
+        hasBody,
+        hasPT,
+        effPower,
+        effToughness,
+        basePower,
+        baseToughness,
+        ptModified,
+        counterDisplays,
+        colorName: colorDisplay?.name ?? null,
+        ownerName,
+    };
+
     return (
         <div
             ref={containerRef}
@@ -353,13 +284,13 @@ export default function CardPreview({
                 if (sawTouchRef.current) return;
                 // Already hovering (a re-enter from tilt-transform churn) — do
                 // NOT restart the open timer, or the churn would forever defer
-                // the zoom past HOVER_DELAY_MS.
+                // the dock past HOVER_DELAY_MS.
                 if (isHovered.current) return;
                 isHovered.current = true;
                 clearHoverTimeout();
                 hoverTimeoutRef.current = setTimeout(() => {
                     if (!isHovered.current) return;
-                    openZoom();
+                    openDock();
                 }, HOVER_DELAY_MS);
                 // The document watcher owns the close — it samples live geometry
                 // and is immune to the tilt's spurious mouseleave churn.
@@ -392,6 +323,7 @@ export default function CardPreview({
             }}
         >
             {children}
+            {/* Mobile long-press centered overlay (ADR 0009) — UNCHANGED. */}
             {showOverlay &&
                 createPortal(
                     <div
@@ -405,217 +337,24 @@ export default function CardPreview({
                     >
                         <div
                             className="flex flex-col rounded-2xl shadow-2xl bg-zinc-900/95 overflow-hidden max-h-[90vh] max-w-[90vw]"
-                            style={{ width: ZOOM_WIDTH * 1.5 }}
+                            style={{ width: OVERLAY_WIDTH * 1.5 }}
                             onTouchEnd={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <div
-                                className="relative w-full"
-                                style={{ aspectRatio: ART_CROP_RATIO }}
-                            >
-                                {imageSrc ? (
-                                    <img
-                                        src={imageSrc}
-                                        className="w-full h-full block select-none"
-                                        alt={cardName}
-                                        style={{
-                                            objectFit: "cover",
-                                            WebkitTouchCallout: "none",
-                                        }}
-                                    />
-                                ) : (
-                                    <TokenPlaceholder
-                                        name={displayName}
-                                        types={types}
-                                        subtypes={
-                                            cardInstance?.subtypes ??
-                                            def?.subtypes ??
-                                            []
-                                        }
-                                        power={effPower ?? basePower}
-                                        toughness={
-                                            effToughness ?? baseToughness
-                                        }
-                                        staticAbilities={
-                                            cardInstance?.staticAbilities ??
-                                            def?.staticAbilities ??
-                                            []
-                                        }
-                                    />
-                                )}
-                            </div>
-                            <div className="p-4 text-sm text-white space-y-2 overflow-y-auto">
-                                <div className="flex items-baseline justify-between gap-2">
-                                    <span className="font-semibold text-base">
-                                        {displayName}
-                                    </span>
-                                    {manaCost && (
-                                        <span className="shrink-0 text-base leading-none">
-                                            {formatOracleText(manaCost)}
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="text-zinc-300">{typeLine}</div>
-                                {oracleParagraphs && (
-                                    <div className="border-t border-zinc-700 pt-2 space-y-1.5 text-zinc-100">
-                                        {oracleParagraphs.map((p, i) => (
-                                            <div key={`oracle-${i}`}>
-                                                {formatOracleText(p)}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                {hasBody && (
-                                    <CardPreviewAbilities
-                                        abilities={bodyAbilities}
-                                    />
-                                )}
-                                {hasPT && (
-                                    <div className="text-right font-semibold text-base border-t border-zinc-700 pt-2 flex justify-end items-baseline gap-2">
-                                        <span
-                                            className={
-                                                ptModified
-                                                    ? "text-emerald-400"
-                                                    : "text-white"
-                                            }
-                                        >
-                                            {effPower ?? 0}/{effToughness ?? 0}
-                                        </span>
-                                        {ptModified && (
-                                            <span className="text-red-400 text-sm font-normal">
-                                                ({basePower}/{baseToughness})
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
-                                <CardPreviewCounters
-                                    counters={counterDisplays}
-                                />
-                                {colorDisplay && (
-                                    <div className="border-t border-zinc-700 pt-2 text-sm font-semibold text-[var(--color-accent-strong)]">
-                                        Color: {colorDisplay.name}
-                                    </div>
-                                )}
-                                {ownerName && (
-                                    <div className="text-zinc-400 border-t pt-2 text-sm italic">
-                                        Owner: {ownerName}
-                                    </div>
-                                )}
-                            </div>
+                            <CardPreviewBody {...sharedBody} size="md" />
                         </div>
                     </div>,
                     document.body
                 )}
-            {showZoom &&
-                createPortal(
-                    <div
-                        ref={zoomCallbackRef}
-                        className="pointer-events-none fixed z-100 flex flex-col rounded-2xl shadow-2xl bg-zinc-900/95 backdrop-blur-sm overflow-hidden"
-                        style={{
-                            top: position.top,
-                            left: position.left,
-                            width: ZOOM_WIDTH,
-                            maxHeight: `calc(100vh - ${VIEWPORT_PAD * 2}px)`,
-                            opacity: measured ? 1 : 0,
-                        }}
-                    >
-                        <div
-                            className="relative w-full"
-                            style={{ aspectRatio: ART_CROP_RATIO }}
-                        >
-                            {imageSrc ? (
-                                <>
-                                    <img
-                                        src={imageSrc}
-                                        className="w-full h-full block select-none"
-                                        alt={cardName}
-                                        style={{
-                                            objectFit: "cover",
-                                            WebkitTouchCallout: "none",
-                                        }}
-                                        onLoad={() => setZoomImgLoaded(true)}
-                                        onError={() => setZoomImgLoaded(true)}
-                                    />
-                                    {!zoomImgLoaded && <CardImageLoader />}
-                                </>
-                            ) : (
-                                <TokenPlaceholder
-                                    name={displayName}
-                                    types={types}
-                                    subtypes={
-                                        cardInstance?.subtypes ??
-                                        def?.subtypes ??
-                                        []
-                                    }
-                                    power={effPower ?? basePower}
-                                    toughness={effToughness ?? baseToughness}
-                                    staticAbilities={
-                                        cardInstance?.staticAbilities ??
-                                        def?.staticAbilities ??
-                                        []
-                                    }
-                                />
-                            )}
-                        </div>
-                        <div className="p-3 text-xs text-white space-y-2 overflow-y-auto">
-                            <div className="flex items-baseline justify-between gap-2">
-                                <span className="font-semibold truncate">
-                                    {displayName}
-                                </span>
-                                {manaCost && (
-                                    <span className="shrink-0 text-sm leading-none">
-                                        {formatOracleText(manaCost)}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="text-zinc-300">{typeLine}</div>
-                            {oracleParagraphs && (
-                                <div className="border-t border-zinc-700 pt-2 space-y-1.5 text-zinc-100">
-                                    {oracleParagraphs.map((p, i) => (
-                                        <div key={`oracle-${i}`}>
-                                            {formatOracleText(p)}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            {hasBody && (
-                                <CardPreviewAbilities
-                                    abilities={bodyAbilities}
-                                />
-                            )}
-                            {hasPT && (
-                                <div className="text-right font-semibold text-sm border-t border-zinc-700 pt-2 flex justify-end items-baseline gap-2">
-                                    <span
-                                        className={
-                                            ptModified
-                                                ? "text-emerald-400"
-                                                : "text-white"
-                                        }
-                                    >
-                                        {effPower ?? 0}/{effToughness ?? 0}
-                                    </span>
-                                    {ptModified && (
-                                        <span className="text-red-400 text-xs font-normal">
-                                            ({basePower}/{baseToughness})
-                                        </span>
-                                    )}
-                                </div>
-                            )}
-                            <CardPreviewCounters counters={counterDisplays} />
-                            {colorDisplay && (
-                                <div className="border-t border-zinc-700 pt-2 text-xs font-semibold text-[var(--color-accent-strong)]">
-                                    Color: {colorDisplay.name}
-                                </div>
-                            )}
-                            {ownerName && (
-                                <div className="text-zinc-400 border-t pt-2 text-xs italic">
-                                    Owner: {ownerName}
-                                </div>
-                            )}
-                        </div>
-                    </div>,
-                    document.body
-                )}
+            {/* Desktop hover preview — fixed center-left dock (#332). */}
+            {showDock && (
+                <CardPreviewDock
+                    {...sharedBody}
+                    size="sm"
+                    imageLoaded={imageSrc ? dockImgLoaded : true}
+                    onImageLoaded={() => setDockImgLoaded(true)}
+                />
+            )}
         </div>
     );
 }
