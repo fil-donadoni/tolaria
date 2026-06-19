@@ -142,9 +142,21 @@ import {
     pendelhaven,
     concordantCrossroads,
     gravitySphere,
+    aerathiBerserker,
+    frostGiant,
+    crawGiant,
+    wolverinePack,
+    chromium,
+    hundingGjornersen,
+    marhaultElsdragon,
 } from "../leg";
 import { getCardById, getCardByName, getAllCards } from "../../index";
-import { fireDelayedTriggers } from "../../../gre/phases";
+import {
+    fireDelayedTriggers,
+    emitBlockersConfirmedEvents,
+    advancePhase,
+} from "../../../gre/phases";
+import { recordBlockedAttackers } from "../../../gre/banding";
 import {
     lightningBolt,
     mountain,
@@ -157,6 +169,7 @@ import {
 } from "../lea";
 import {
     resolveTopOfStack,
+    removePermanentTo,
     applySourceStaticEffects,
     getCostModifiers,
     applyCostModifiers,
@@ -3750,5 +3763,188 @@ describe("Gravity Sphere (World — all creatures lose flying, CR 702.9)", () =>
             (c) => c.id === "theirs"
         )!;
         expect(slimTheirs.staticAbilities).not.toContain("flying");
+    });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// C3 — Rampage N (CR 702.23) — issue #380.
+//
+// Exercised through the REAL combat path: `emitBlockersConfirmedEvents` emits
+// one BLOCKERS_CONFIRMED per attacker-blocker pair and pushes the matching
+// triggers via `collectTriggers`, then `resolveTopOfStack` resolves the single
+// deduped Rampage trigger. That proves both the per-pair dedupe (one fire per
+// becoming-blocked) and the resolution-time blocker count (CR 702.23b).
+// ──────────────────────────────────────────────────────────────────────────
+describe("Rampage N (CR 702.23)", () => {
+    /** p1 fields the Rampage `attacker`; p2 fields `blockerCount` blockers, all
+     *  assigned to it, at DECLARE_BLOCKERS. Returns the live state plus the
+     *  attacker instance for buff assertions. */
+    function setupRampageCombat(
+        def: { id: string },
+        blockerCount: number
+    ): { state: GameState; attacker: CardInstanceState } {
+        const attacker = makeInstance(def.id, {
+            id: "rampager",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const blockerIds = Array.from(
+            { length: blockerCount },
+            (_, i) => `blk${i}`
+        );
+        const blockers = blockerIds.map((id) =>
+            makeInstance(grizzlyBears.id, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+                isBlocking: true,
+            })
+        );
+        const blockerAssignments: Record<string, string[]> = {};
+        for (const id of blockerIds) blockerAssignments[id] = ["rampager"];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: blockers }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["rampager"],
+                confirmed: true,
+                blockerAssignments,
+                blockersConfirmed: true,
+            },
+        });
+        recordBlockedAttackers(state);
+        return { state, attacker };
+    }
+
+    it("Aerathi Berserker (rampage 3) carries the keyword + factory trigger", () => {
+        expect(aerathiBerserker.staticAbilities).toContain("rampage 3");
+        expect(aerathiBerserker.triggeredAbilities?.[0].id).toBe("rampage-3");
+        expect(aerathiBerserker.triggeredAbilities?.[0].event).toBe(
+            "BLOCKERS_CONFIRMED"
+        );
+    });
+
+    it("all seven Rampage cards carry the keyword + a rampageTrigger", () => {
+        const cards: { def: typeof frostGiant; n: number }[] = [
+            { def: aerathiBerserker, n: 3 },
+            { def: frostGiant, n: 2 },
+            { def: crawGiant, n: 2 },
+            { def: wolverinePack, n: 2 },
+            { def: chromium, n: 2 },
+            { def: hundingGjornersen, n: 1 },
+            { def: marhaultElsdragon, n: 1 },
+        ];
+        for (const { def, n } of cards) {
+            expect(def.staticAbilities).toContain(`rampage ${n}`);
+            const trig = def.triggeredAbilities?.find(
+                (t) => t.id === `rampage-${n}`
+            );
+            expect(trig).toBeDefined();
+            expect(trig!.event).toBe("BLOCKERS_CONFIRMED");
+        }
+    });
+
+    it("blocked by ONE creature: no bonus (CR 702.23a — beyond the first)", () => {
+        const { state } = setupRampageCombat(frostGiant, 1);
+        emitBlockersConfirmedEvents(state);
+        // Exactly one Rampage trigger fires (one pair, one fire).
+        expect(
+            state.stack.filter((s) => s.triggeredAbilityId === "rampage-2")
+        ).toHaveLength(1);
+        resolveTopOfStack(state);
+        const atk = state.players[0].battlefield.find(
+            (c) => c.id === "rampager"
+        )!;
+        expect(getEffectivePower(state, atk)).toBe(4); // base 4/4, no boost
+        expect(getEffectiveToughness(state, atk)).toBe(4);
+    });
+
+    it("blocked by THREE: fires ONCE, +2N/+2N (CR 702.23a-b)", () => {
+        const { state } = setupRampageCombat(frostGiant, 3);
+        emitBlockersConfirmedEvents(state);
+        // Three pairs are emitted but the dedupe collapses Rampage to one fire.
+        expect(
+            state.stack.filter((s) => s.triggeredAbilityId === "rampage-2")
+        ).toHaveLength(1);
+        resolveTopOfStack(state);
+        const atk = state.players[0].battlefield.find(
+            (c) => c.id === "rampager"
+        )!;
+        // rampage 2 × (3 − 1) = +4/+4 → base 4/4 becomes 8/8.
+        expect(getEffectivePower(state, atk)).toBe(8);
+        expect(getEffectiveToughness(state, atk)).toBe(8);
+    });
+
+    it("rampage 3 scales: blocked by THREE → +6/+6 (Aerathi Berserker)", () => {
+        const { state } = setupRampageCombat(aerathiBerserker, 3);
+        emitBlockersConfirmedEvents(state);
+        resolveTopOfStack(state);
+        const atk = state.players[0].battlefield.find(
+            (c) => c.id === "rampager"
+        )!;
+        // base 2/4, rampage 3 × (3 − 1) = +6/+6 → 8/10.
+        expect(getEffectivePower(state, atk)).toBe(8);
+        expect(getEffectiveToughness(state, atk)).toBe(10);
+    });
+
+    it("blocker removed BEFORE resolution lowers the bonus (CR 702.23b)", () => {
+        const { state } = setupRampageCombat(frostGiant, 3);
+        emitBlockersConfirmedEvents(state);
+        // A blocker dies (e.g. to a removal spell) after blocks are declared but
+        // before the Rampage trigger resolves: it no longer counts.
+        removePermanentTo(state, "blk2", "graveyard");
+        resolveTopOfStack(state);
+        const atk = state.players[0].battlefield.find(
+            (c) => c.id === "rampager"
+        )!;
+        // Now only two live blockers → +2 × (2 − 1) = +2/+2 → 6/6.
+        expect(getEffectivePower(state, atk)).toBe(6);
+        expect(getEffectiveToughness(state, atk)).toBe(6);
+    });
+
+    it("boost wears off at end of turn (CR 514.2 cleanup)", () => {
+        const { state } = setupRampageCombat(frostGiant, 3);
+        emitBlockersConfirmedEvents(state);
+        resolveTopOfStack(state);
+        const atkBefore = state.players[0].battlefield.find(
+            (c) => c.id === "rampager"
+        )!;
+        expect(getEffectivePower(state, atkBefore)).toBe(8);
+        // Walk to the next turn's cleanup so the until-end-of-turn buff expires.
+        state.phase = "COMBAT_DAMAGE";
+        for (
+            let i = 0;
+            i < 12 && getEffectivePower(state, atkBefore) > 4;
+            i++
+        ) {
+            advancePhase(state);
+        }
+        const atkAfter = state.players[0].battlefield.find(
+            (c) => c.id === "rampager"
+        )!;
+        expect(getEffectivePower(state, atkAfter)).toBe(4);
+        expect(getEffectiveToughness(state, atkAfter)).toBe(4);
+    });
+
+    it("wire format: pumped P/T survives projectPublicState (CR 611 visible)", () => {
+        const { state } = setupRampageCombat(frostGiant, 3);
+        emitBlockersConfirmedEvents(state);
+        resolveTopOfStack(state);
+        const atk = state.players[0].battlefield.find(
+            (c) => c.id === "rampager"
+        )!;
+        expect(getEffectivePower(state, atk)).toBe(8);
+        expect(getEffectiveToughness(state, atk)).toBe(8);
+        // Re-run the assertion against the projected (slim) state.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "rampager"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(8);
+        expect(getEffectiveToughness(projected, slim)).toBe(8);
     });
 });

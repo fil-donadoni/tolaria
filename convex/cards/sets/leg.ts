@@ -32,6 +32,7 @@ import { tappedTrigger } from "../abilities/triggers/tappedTrigger";
 import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
+import { rampageTrigger } from "../abilities/triggers/rampageTrigger";
 import { manaCostForCardId } from "../manaCostLookup";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1651,7 +1652,8 @@ export const darkness: CardDefinition = {
 // Data + resolve() closures only; zero engine change (ADR 0014).
 //
 // Cards owned by feature clusters (#369 C1–C9) are NOT here:
-//   • C3 Rampage — Aerathi Berserker (rampage 3), Frost Giant (rampage 2).
+//   • C3 Rampage (#380, shipped) — Aerathi Berserker (rampage 3), Frost Giant
+//     (rampage 2). Now defined at the foot of this file via `rampageTrigger`.
 //   • C9 combat-cap World enchantment — Caverns of Despair ("no more than two
 //     creatures can attack / block each combat").
 //   • C5 named counters + upkeep cycle — Primordial Ooze (+1/+1 counters each
@@ -2273,7 +2275,8 @@ export const windsOfChange: CardDefinition = {
 // methods). Data + resolve() closures only; zero engine change (ADR 0014).
 //
 // Cards owned by feature clusters (#369 C1–C9) are NOT here:
-//   • C3 Rampage — Craw Giant (rampage 2), Wolverine Pack (rampage 2).
+//   • C3 Rampage (#380, shipped) — Craw Giant (rampage 2), Wolverine Pack
+//     (rampage 2). Now defined at the foot of this file via `rampageTrigger`.
 //   • C4 bands-with-other — Master of the Hunt (Wolves-of-the-Hunt token band),
 //     Shelkin Brownie ("loses all bands-with-other abilities").
 //   • C5 named counters — Cocoon (pupa counters), Whirling Dervish (+1/+1
@@ -2739,9 +2742,13 @@ export const sylvanParadise: CardDefinition = {
 //
 // Cards owned by feature clusters (#369 C1–C9) are NOT here:
 //   • Elder Dragon Legends (upkeep pay-or-sacrifice, C7): Arcades Sabboth,
-//     Chromium, Nicol Bolas, Palladia-Mors, Vaevictis Asmadi.
-//   • Rampage N (C3): Hunding Gjornersen, Marhault Elsdragon, and Gabriel
-//     Angelfire (its upkeep choice includes "rampage 3").
+//     Nicol Bolas, Palladia-Mors, Vaevictis Asmadi. (Chromium's Rampage 2 +
+//     Flying ship with C3 (#380) at the foot of this file; its upkeep
+//     pay-or-sacrifice still belongs to C7.)
+//   • Rampage N (C3, #380, shipped): Hunding Gjornersen (rampage 1) and
+//     Marhault Elsdragon (rampage 1) are now defined at the foot of this file.
+//     Gabriel Angelfire (its upkeep choice includes "rampage 3") still waits on
+//     its choice cluster; its Rampage piece reuses `rampageTrigger` when built.
 //   • Banding / bands-with-other (C4): Ayesha Tanaka.
 //   • Shroud / can't-be-targeted (C6): Bartel Runeaxe, Tetsuo Umezawa.
 //   • Named counters (C5): Rasputin Dreamweaver (dream counters).
@@ -3657,4 +3664,131 @@ export const pendelhaven: CardDefinition = {
             },
         },
     ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C3 — Rampage N (CR 702.23) — issue #380.
+//
+// "Rampage N means 'Whenever this creature becomes blocked, it gets +N/+N until
+// end of turn for each creature blocking it beyond the first.'" (CR 702.23a).
+// The bonus is computed as the ability resolves (CR 702.23b), so a blocker
+// removed after blocks are declared but before resolution lowers it. The
+// parametric keyword `"rampage N"` rides in `staticAbilities[]` (board-visible
+// reminder data); the matching triggered ability is built by the shared
+// `rampageTrigger(N)` factory (ADR 0002) — no per-card trigger code.
+//
+// All seven LEG Rampage creatures ship here. Chromium also has Flying (a static
+// keyword, expressible today) and an upkeep pay-or-sacrifice clause that belongs
+// to the C7 maintenance-cost cluster (#369); only its Rampage and Flying land
+// here, so it is partially complete until C7 attaches the upkeep trigger.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Aerathi Berserker — {2}{R}{R}{R} 2/4, Rampage 3.
+export const aerathiBerserker: CardDefinition = {
+    id: "06673800-22a7-4ee3-92fa-7c7cd4865d30",
+    name: "Aerathi Berserker",
+    oracleText:
+        "Rampage 3 (Whenever this creature becomes blocked, it gets +3/+3 until end of turn for each creature blocking it beyond the first.)",
+    manaCost: { X: 2, R: 3 },
+    types: ["Creature"],
+    subtypes: ["Human", "Berserker"],
+    power: 2,
+    toughness: 4,
+    staticAbilities: ["rampage 3"],
+    triggeredAbilities: [rampageTrigger(3)],
+};
+
+// Frost Giant — {3}{R}{R}{R} 4/4, Rampage 2.
+export const frostGiant: CardDefinition = {
+    id: "6955d54f-7b37-4e43-8183-51677fb1ee11",
+    name: "Frost Giant",
+    oracleText:
+        "Rampage 2 (Whenever this creature becomes blocked, it gets +2/+2 until end of turn for each creature blocking it beyond the first.)",
+    manaCost: { X: 3, R: 3 },
+    types: ["Creature"],
+    subtypes: ["Giant"],
+    power: 4,
+    toughness: 4,
+    staticAbilities: ["rampage 2"],
+    triggeredAbilities: [rampageTrigger(2)],
+};
+
+// Craw Giant — {3}{G}{G}{G}{G} 6/4, Trample, Rampage 2.
+export const crawGiant: CardDefinition = {
+    id: "707dadf0-735f-445d-9240-e49660913314",
+    name: "Craw Giant",
+    oracleText:
+        "Trample\nRampage 2 (Whenever this creature becomes blocked, it gets +2/+2 until end of turn for each creature blocking it beyond the first.)",
+    manaCost: { X: 3, G: 4 },
+    types: ["Creature"],
+    subtypes: ["Giant"],
+    power: 6,
+    toughness: 4,
+    staticAbilities: ["trample", "rampage 2"],
+    triggeredAbilities: [rampageTrigger(2)],
+};
+
+// Wolverine Pack — {2}{G}{G} 2/4, Rampage 2.
+export const wolverinePack: CardDefinition = {
+    id: "ba5aee52-095e-4c69-93eb-5adac11ed1fc",
+    name: "Wolverine Pack",
+    oracleText:
+        "Rampage 2 (Whenever this creature becomes blocked, it gets +2/+2 until end of turn for each creature blocking it beyond the first.)",
+    manaCost: { X: 2, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Wolverine"],
+    power: 2,
+    toughness: 4,
+    staticAbilities: ["rampage 2"],
+    triggeredAbilities: [rampageTrigger(2)],
+};
+
+// Chromium — {2}{W}{W}{U}{U}{B}{B} 7/7, Flying, Rampage 2. Elder Dragon Legend.
+// The upkeep "sacrifice unless you pay {W}{U}{B}" maintenance cost ships with
+// cluster C7 (#369); only Rampage + Flying are wired here.
+export const chromium: CardDefinition = {
+    id: "8cd7d7e1-f928-4429-9a59-ba0590a78e98",
+    name: "Chromium",
+    oracleText:
+        "Flying\nRampage 2 (Whenever this creature becomes blocked, it gets +2/+2 until end of turn for each creature blocking it beyond the first.)\nAt the beginning of your upkeep, sacrifice Chromium unless you pay {W}{U}{B}.",
+    manaCost: { X: 2, W: 2, U: 2, B: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Elder", "Dragon"],
+    power: 7,
+    toughness: 7,
+    staticAbilities: ["flying", "rampage 2"],
+    triggeredAbilities: [rampageTrigger(2)],
+};
+
+// Hunding Gjornersen — {3}{W}{U}{U} 5/4, Rampage 1. Legendary.
+export const hundingGjornersen: CardDefinition = {
+    id: "07d8e501-6857-4a52-a3b9-2bf0bee5b08c",
+    name: "Hunding Gjornersen",
+    oracleText:
+        "Rampage 1 (Whenever this creature becomes blocked, it gets +1/+1 until end of turn for each creature blocking it beyond the first.)",
+    manaCost: { X: 3, W: 1, U: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Warrior"],
+    power: 5,
+    toughness: 4,
+    staticAbilities: ["rampage 1"],
+    triggeredAbilities: [rampageTrigger(1)],
+};
+
+// Marhault Elsdragon — {3}{R}{R}{G} 4/6, Rampage 1. Legendary.
+export const marhaultElsdragon: CardDefinition = {
+    id: "67330004-6720-46d9-9de0-c79230110583",
+    name: "Marhault Elsdragon",
+    oracleText:
+        "Rampage 1 (Whenever this creature becomes blocked, it gets +1/+1 until end of turn for each creature blocking it beyond the first.)",
+    manaCost: { X: 3, R: 2, G: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Elf", "Warrior"],
+    power: 4,
+    toughness: 6,
+    staticAbilities: ["rampage 1"],
+    triggeredAbilities: [rampageTrigger(1)],
 };

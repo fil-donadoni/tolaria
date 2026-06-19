@@ -2429,6 +2429,21 @@ export interface TriggerStateView {
      *  `condition` on membership so an untap of a coffin holding nothing does
      *  not push a do-nothing trigger. Populated from `GameState.exileHeld`. */
     exileHeld?: ReadonlyArray<{ sourceId: string }>;
+    /** Read-only view of the live combat state (CR 509). Exposed so a
+     *  combat-keyed triggered ability can inspect the block graph at
+     *  trigger-check time — Rampage N (CR 702.23) reads `blockerAssignments`
+     *  to dedupe the per-pair BLOCKERS_CONFIRMED emission down to one fire per
+     *  becoming-blocked. Mirrors the corresponding `GameState.combat` fields;
+     *  undefined when no combat is in progress (and in synthetic test events). */
+    combat?: {
+        readonly attackerIds: ReadonlyArray<string>;
+        /** blockerId → attackerIds it is blocking (CR 509.2). Not pruned when a
+         *  blocker leaves the battlefield (CR 509.1h); consumers that need the
+         *  live count must re-check battlefield presence. */
+        readonly blockerAssignments: Readonly<Record<string, string[]>>;
+        /** Ids of attackers that became blocked this combat (CR 509.1h). */
+        readonly blockedAttackerIds?: ReadonlyArray<string>;
+    };
 }
 
 export interface TriggeredAbility {
