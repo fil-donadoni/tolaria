@@ -349,6 +349,16 @@ export type CardInstanceState = {
      *  graveyard/exile so post-death lookups can read the moment-of-death
      *  count. */
     counters?: Record<string, number>;
+    /** World-rule timestamp (CR 704.5m / 613.7m): the monotonic seq this
+     *  permanent was stamped with when it was first observed carrying the
+     *  World supertype. Lower = has been a world permanent longer; the
+     *  world-rule SBA keeps only the permanent(s) with the highest seq
+     *  (shortest time) and graveyards the rest. Permanents first seen in the
+     *  same SBA sweep share a seq, encoding a simultaneous tie. Assigned and
+     *  read only by `checkWorldRuleSBA`; cleared when the permanent leaves the
+     *  battlefield (a World permanent re-entering becomes a fresh world
+     *  permanent and is re-stamped). */
+    worldSeq?: number;
     /** Per-turn activation counter keyed by ability id (CR 602.5 — "activate
      *  this ability only once each turn"). Incremented on activation commit,
      *  reset at the active player's turn start. Read by the activation
@@ -1166,6 +1176,13 @@ export type GameState = {
     /** Monotonic counter advanced by each createToken() call. Generates
      *  deterministic `token-N` ids so replays reproduce the same identifiers. */
     nextTokenSeq?: number;
+    /** Monotonic counter backing the world-rule timestamp (CR 704.5m / 613.7m).
+     *  The world-rule SBA stamps every World permanent that lacks a
+     *  `worldSeq` with the current value, advancing the counter once per SBA
+     *  sweep that finds newly-arrived World permanents. All World permanents
+     *  first observed in the same sweep share one seq — that's the
+     *  "simultaneous tie" the world rule resolves by destroying all of them. */
+    nextWorldSeq?: number;
     /** Monotonic counter for card instance IDs. Each call to
      *  `allocInstanceId` increments this and returns the string form. */
     nextInstanceId?: number;
@@ -2876,6 +2893,11 @@ export function removePermanentTo(
         : [];
     creature.zone = toZone;
     creature.attachedTo = undefined;
+    // CR 704.5m — the world-rule timestamp is a battlefield-only property of
+    // the permanent. A card leaving play (even to graveyard/exile) becomes a
+    // new object on any re-entry (CR 400.7), so it must be re-stamped as a
+    // fresh world permanent — clear the stale seq on every departure.
+    delete creature.worldSeq;
     // CR 707.2 — a copy effect lasts only while the object is on the
     // battlefield. Restore the printed identity now (after LKI snapshots, so
     // death triggers still read the copied P/T) so the card re-casts and
