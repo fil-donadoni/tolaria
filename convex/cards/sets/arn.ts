@@ -2228,7 +2228,24 @@ export const mijaeDjinn: CardDefinition = {
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.includes(self.id),
             resolve: (ctx) => {
-                if (ctx.flipCoin()) return; // won: stays attacking
+                // CR 705.2 / ADR 0023 — the trigger flips on the stack at
+                // declare-attackers and PAUSES to reveal the coin before
+                // touching combat. `requestCoinFlip` draws the bit once,
+                // suspends the trigger (returns undefined), and on resume
+                // returns the persisted outcome (no re-roll). The caller MUST
+                // return early while suspended so the remove-from-combat + tap
+                // land only after the reveal, and only on a LOSE.
+                const won = ctx.requestCoinFlip({
+                    playerId: ctx.controller,
+                    choiceId: "mijae-djinn-attack-flip",
+                    heads: { consequence: "Mijae Djinn stays attacking" },
+                    tails: {
+                        consequence:
+                            "Remove Mijae Djinn from combat and tap it",
+                    },
+                });
+                if (won === undefined) return; // suspended after the flip
+                if (won) return; // won: stays attacking
                 const self: TargetSelection = {
                     type: "permanent",
                     id: ctx.sourceInstanceId,
