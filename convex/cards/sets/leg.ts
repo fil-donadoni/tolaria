@@ -29,6 +29,7 @@ import type {
 } from "../types";
 import { EFFECT_AFFECTS_SELF } from "../types";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
+import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
 import { tappedTrigger } from "../abilities/triggers/tappedTrigger";
 import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
@@ -3746,8 +3747,9 @@ export const wolverinePack: CardDefinition = {
 };
 
 // Chromium — {2}{W}{W}{U}{U}{B}{B} 7/7, Flying, Rampage 2. Elder Dragon Legend.
-// The upkeep "sacrifice unless you pay {W}{U}{B}" maintenance cost ships with
-// cluster C7 (#369); only Rampage + Flying are wired here.
+// Rampage + Flying shipped with C3 (#380); the C7 (#383) upkeep "sacrifice
+// unless you pay {W}{U}{B}" maintenance cost is wired here via
+// `payOrSacrificeUpkeepTrigger` (see the C7 section at the foot of this file).
 export const chromium: CardDefinition = {
     id: "8cd7d7e1-f928-4429-9a59-ba0590a78e98",
     name: "Chromium",
@@ -3760,7 +3762,15 @@ export const chromium: CardDefinition = {
     power: 7,
     toughness: 7,
     staticAbilities: ["flying", "rampage 2"],
-    triggeredAbilities: [rampageTrigger(2)],
+    triggeredAbilities: [
+        rampageTrigger(2),
+        payOrSacrificeUpkeepTrigger({
+            id: "chromium-upkeep",
+            cardName: "Chromium",
+            cost: { W: 1, U: 1, B: 1 },
+            costText: "{W}{U}{B}",
+        }),
+    ],
 };
 
 // Hunding Gjornersen — {3}{W}{U}{U} 5/4, Rampage 1. Legendary.
@@ -4166,4 +4176,374 @@ export const bartelRuneaxe: CardDefinition = {
 //     target only Walls" clause is also not expressible (no card in the pool
 //     carries a "Walls only" target restriction, so there is nothing to match
 //     against). Defer until the continuous combat-prevention primitive lands.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C7 — Upkeep "pay-or-sacrifice" maintenance cost (#383)
+//
+// The Legends Elder-Dragon drawback (CR 603.6a beginning-of-upkeep trigger +
+// CR 117.3a "do X unless you pay [cost]" intervening-cost pattern). At the
+// beginning of the controller's upkeep a triggered ability goes on the stack;
+// on resolution the controller MAY pay a cost, and if they don't (or can't),
+// the permanent is sacrificed/destroyed (CR 701.16 / 701.7). Each pay-or-not
+// decision is an independent trigger on the stack (CR 603.3b), so multiple
+// taxed permanents resolve their choices one at a time.
+//
+// ZERO engine change: the whole family is expressible with the existing
+// `phaseTrigger` factory + `requestMayPay` (the same pending-choice → mutation
+// path Energy Flux and Junún Efreet use) + `sacrifice` / `destroy` / `dealDamage`
+// primitives. The shared body lives in `payOrSacrificeUpkeepTrigger` below so
+// the five Elder Dragons + The Tabernacle's granted trigger don't repeat it
+// (the closure is extracted on the 2nd card per the project's helper-extraction
+// rule); Cosmic Horror's destroy-and-self-damage and Mold Demon's
+// sacrifice-as-cost ETB variants compose the same primitives inline.
+//
+// Cards shipped here:
+//   • Arcades Sabboth, Chromium (trigger added above), Nicol Bolas,
+//     Palladia-Mors, Vaevictis Asmadi — "sacrifice this unless you pay {C}{C}{C}".
+//   • Cosmic Horror — "destroy this unless you pay {3}{B}{B}{B}. If destroyed
+//     this way, it deals 7 damage to you" (destroy variant + self-damage rider).
+//   • Mold Demon — "When this enters, sacrifice it unless you sacrifice two
+//     Swamps" (ETB sacrifice-as-cost variant; not an upkeep trigger, but the
+//     same do-X-unless-you-pay shape — CR 603.6a ETB + CR 118.3 alternate cost).
+//   • The Tabernacle at Pendrell Vale — Legendary Land that GRANTS every
+//     creature "At the beginning of your upkeep, destroy this creature unless
+//     you pay {1}" via a `triggered-grant` static effect (CR 113.1 / 611),
+//     exactly like Energy Flux grants its tax to every artifact. Each creature's
+//     own controller pays at their own upkeep (CR 603.6a, `scope: "your"`).
+//
+// Deferred (need a primitive not yet built; documented at the section foot):
+//   Elder Spawn, Forethought Amulet, Primordial Ooze, Pit Scorpion,
+//   Takklemaggot — see the C7 deferred footer.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Shared resolve body for the Elder-Dragon "sacrifice this unless you pay
+ *  [cost]" upkeep trigger (CR 603.6a + CR 117.3a). Returns a `phaseTrigger`
+ *  bound to the UPKEEP step in the source controller's own scope. On
+ *  resolution the controller may pay `cost`; declining (or being unable to
+ *  pay) sacrifices the source permanent (CR 701.16). Reused by all five Elder
+ *  Dragons and — with `consequence: "destroy"` — by The Tabernacle's granted
+ *  trigger. */
+function payOrSacrificeUpkeepTrigger(args: {
+    id: string;
+    cardName: string;
+    cost: ManaCost;
+    costText: string;
+    /** "sacrifice" (Elder Dragons, CR 701.16) or "destroy" (Tabernacle's
+     *  granted tax, CR 701.7). Defaults to "sacrifice". */
+    consequence?: "sacrifice" | "destroy";
+}) {
+    const verb = args.consequence ?? "sacrifice";
+    return phaseTrigger({
+        id: args.id,
+        oracleText: `At the beginning of your upkeep, ${verb} ${args.cardName} unless you pay ${args.costText}.`,
+        phase: "UPKEEP",
+        scope: "your",
+        resolve: (ctx, _event, scopedPlayerId) => {
+            // CR 117.3a — the controller may pay the cost to keep the
+            // permanent; if they don't (or can't), it is sacrificed/destroyed.
+            const paid = ctx.requestMayPay({
+                playerId: scopedPlayerId,
+                choiceId: `${args.id}-${ctx.sourceInstanceId}`,
+                cost: args.cost,
+                prompt: `Pay ${args.costText} or ${verb} ${args.cardName}?`,
+            });
+            if (paid === undefined) return; // suspended for the choice
+            if (paid) return;
+            if (verb === "destroy") {
+                ctx.destroy({ type: "permanent", id: ctx.sourceInstanceId });
+            } else {
+                ctx.sacrifice(ctx.sourceInstanceId);
+            }
+        },
+    });
+}
+
+// Arcades Sabboth — {2}{G}{G}{W}{W}{U}{U} 7/7 Elder Dragon. C7 wires its Flying
+// keyword + the upkeep "sacrifice unless you pay {G}{W}{U}" tax (CR 603.6a +
+// CR 117.3a). Its +0/+2 untapped-non-attacker anthem and {W} pump are
+// free-tranche abilities (staticEffects / activated) owned by #369's mono /
+// multicolor batch — NOT part of the C7 maintenance-cost cluster — and are
+// added by that batch; the oracleText is the full card.
+export const arcadesSabboth: CardDefinition = {
+    id: "2c1dbc62-ceb5-4540-ae38-901e5deafc75",
+    name: "Arcades Sabboth",
+    oracleText:
+        "Flying\nAt the beginning of your upkeep, sacrifice Arcades Sabboth unless you pay {G}{W}{U}.\nEach untapped creature you control gets +0/+2 as long as it's not attacking.\n{W}: Arcades Sabboth gets +0/+1 until end of turn.",
+    manaCost: { X: 2, G: 2, W: 2, U: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Elder", "Dragon"],
+    power: 7,
+    toughness: 7,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        payOrSacrificeUpkeepTrigger({
+            id: "arcades-sabboth-upkeep",
+            cardName: "Arcades Sabboth",
+            cost: { G: 1, W: 1, U: 1 },
+            costText: "{G}{W}{U}",
+        }),
+    ],
+};
+
+// Nicol Bolas — {2}{U}{U}{B}{B}{R}{R} 7/7 Elder Dragon. C7 wires its Flying
+// keyword + the upkeep "sacrifice unless you pay {U}{B}{R}" tax (CR 603.6a +
+// CR 117.3a). Its "deals damage to an opponent → that player discards their
+// hand" trigger is a free-tranche ability owned by #369's batch — not part of
+// the C7 maintenance-cost cluster — and is added there; oracleText is full.
+export const nicolBolas: CardDefinition = {
+    id: "729feb73-4581-4f9d-ba47-bece72481b86",
+    name: "Nicol Bolas",
+    oracleText:
+        "Flying\nAt the beginning of your upkeep, sacrifice Nicol Bolas unless you pay {U}{B}{R}.\nWhenever Nicol Bolas deals damage to an opponent, that player discards their hand.",
+    manaCost: { X: 2, U: 2, B: 2, R: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Elder", "Dragon"],
+    power: 7,
+    toughness: 7,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        payOrSacrificeUpkeepTrigger({
+            id: "nicol-bolas-upkeep",
+            cardName: "Nicol Bolas",
+            cost: { U: 1, B: 1, R: 1 },
+            costText: "{U}{B}{R}",
+        }),
+    ],
+};
+
+// Palladia-Mors — {2}{R}{R}{G}{G}{W}{W} 7/7 Elder Dragon. Flying, trample +
+// the C7 upkeep tax. CR 603.6a + CR 117.3a.
+export const palladiaMors: CardDefinition = {
+    id: "ad64874d-ce33-4e0a-bcca-723f129ef415",
+    name: "Palladia-Mors",
+    oracleText:
+        "Flying, trample\nAt the beginning of your upkeep, sacrifice Palladia-Mors unless you pay {R}{G}{W}.",
+    manaCost: { X: 2, R: 2, G: 2, W: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Elder", "Dragon"],
+    power: 7,
+    toughness: 7,
+    staticAbilities: ["flying", "trample"],
+    triggeredAbilities: [
+        payOrSacrificeUpkeepTrigger({
+            id: "palladia-mors-upkeep",
+            cardName: "Palladia-Mors",
+            cost: { R: 1, G: 1, W: 1 },
+            costText: "{R}{G}{W}",
+        }),
+    ],
+};
+
+// Vaevictis Asmadi — {2}{B}{B}{R}{R}{G}{G} 7/7 Elder Dragon. C7 wires its Flying
+// keyword + the upkeep "sacrifice unless you pay {B}{R}{G}" tax (CR 603.6a +
+// CR 117.3a). Its three single-color +1/+0 pump abilities are free-tranche
+// activated abilities owned by #369's batch — not part of the C7 cluster — and
+// are added there; oracleText is the full card.
+export const vaevictisAsmadi: CardDefinition = {
+    id: "22ea73ec-1325-4437-a23f-dcda1767c713",
+    name: "Vaevictis Asmadi",
+    oracleText:
+        "Flying\nAt the beginning of your upkeep, sacrifice Vaevictis Asmadi unless you pay {B}{R}{G}.\n{B}: Vaevictis Asmadi gets +1/+0 until end of turn.\n{R}: Vaevictis Asmadi gets +1/+0 until end of turn.\n{G}: Vaevictis Asmadi gets +1/+0 until end of turn.",
+    manaCost: { X: 2, B: 2, R: 2, G: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Elder", "Dragon"],
+    power: 7,
+    toughness: 7,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        payOrSacrificeUpkeepTrigger({
+            id: "vaevictis-asmadi-upkeep",
+            cardName: "Vaevictis Asmadi",
+            cost: { B: 1, R: 1, G: 1 },
+            costText: "{B}{R}{G}",
+        }),
+    ],
+};
+
+// Cosmic Horror — {3}{B}{B}{B} 7/7 Horror, First strike. Destroy-variant of the
+// upkeep tax with a self-damage rider: "At the beginning of your upkeep,
+// destroy this creature unless you pay {3}{B}{B}{B}. If this creature is
+// destroyed this way, it deals 7 damage to you." CR 603.6a + CR 117.3a +
+// CR 701.7 destroy. The self-damage only fires on the destroy branch.
+export const cosmicHorror: CardDefinition = {
+    id: "18bc6ac2-19e0-4765-852b-e303a5bb4040",
+    name: "Cosmic Horror",
+    oracleText:
+        "First strike\nAt the beginning of your upkeep, destroy this creature unless you pay {3}{B}{B}{B}. If this creature is destroyed this way, it deals 7 damage to you.",
+    manaCost: { X: 3, B: 3 },
+    types: ["Creature"],
+    subtypes: ["Horror"],
+    power: 7,
+    toughness: 7,
+    staticAbilities: ["first strike"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "cosmic-horror-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, destroy this creature unless you pay {3}{B}{B}{B}. If this creature is destroyed this way, it deals 7 damage to you.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const paid = ctx.requestMayPay({
+                    playerId: scopedPlayerId,
+                    choiceId: `cosmic-horror-${ctx.sourceInstanceId}`,
+                    cost: { X: 3, B: 3 },
+                    prompt: "Pay {3}{B}{B}{B} or destroy Cosmic Horror?",
+                });
+                if (paid === undefined) return; // suspended
+                if (paid) return;
+                // CR 701.7 destroy; the 7-damage rider only fires if the
+                // creature is actually destroyed this way (an indestructible
+                // Cosmic Horror survives and deals no damage).
+                const destroyed = ctx.destroy({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+                if (destroyed) {
+                    ctx.dealDamage({ type: "player", id: scopedPlayerId }, 7);
+                }
+            },
+        }),
+    ],
+};
+
+// Mold Demon — {5}{B}{B} 6/6 Fungus Demon. ETB sacrifice-as-cost variant of the
+// do-X-unless-you-pay family: "When this creature enters, sacrifice it unless
+// you sacrifice two Swamps." Not an upkeep trigger, but the same shape — the
+// "pay" is an alternate cost (sacrifice two Swamps, CR 118.3) rather than mana.
+// CR 603.6a ETB + CR 701.16 sacrifice. Composes `requestMayPay` (the yes/no
+// gate) + a `sacrifice-permanents` `requestChoice` for the Swamp cost.
+export const moldDemon: CardDefinition = {
+    id: "649a33aa-7eac-4161-ae1a-fcbc758abccf",
+    name: "Mold Demon",
+    oracleText:
+        "When this creature enters, sacrifice it unless you sacrifice two Swamps.",
+    manaCost: { X: 5, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Fungus", "Demon"],
+    power: 6,
+    toughness: 6,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "mold-demon-etb",
+            oracleText:
+                "When this creature enters, sacrifice it unless you sacrifice two Swamps.",
+            scope: "self",
+            resolve: (ctx) => {
+                const controller = ctx.controller;
+                const swampIds = ctx.getBattlefieldIds(controller, {
+                    subtypes: "Swamp",
+                });
+                // Can't afford the cost → the only legal outcome is to
+                // sacrifice Mold Demon (CR 117.3a — an unpayable "unless"
+                // cost forces the consequence). No prompt with no real choice.
+                if (swampIds.length < 2) {
+                    ctx.sacrifice(ctx.sourceInstanceId);
+                    return;
+                }
+                const accept = ctx.requestMayPay({
+                    playerId: controller,
+                    choiceId: `mold-demon-${ctx.sourceInstanceId}`,
+                    prompt: "Sacrifice two Swamps to keep Mold Demon?",
+                });
+                if (accept === undefined) return; // suspended
+                if (!accept) {
+                    ctx.sacrifice(ctx.sourceInstanceId);
+                    return;
+                }
+                const picked = ctx.requestChoice({
+                    playerId: controller,
+                    choiceId: `mold-demon-${ctx.sourceInstanceId}-swamps`,
+                    kind: "sacrifice-permanents",
+                    zone: "battlefield",
+                    filter: { subtypes: "Swamp" },
+                    count: 2,
+                    prompt: "Sacrifice two Swamps.",
+                });
+                if (picked === undefined) return; // suspended
+                if (picked.length < 2) {
+                    // Failed to pay the full cost → sacrifice Mold Demon.
+                    ctx.sacrifice(ctx.sourceInstanceId);
+                    return;
+                }
+                for (const id of picked) ctx.sacrifice(id);
+            },
+        }),
+    ],
+};
+
+/** CR 205 — true if `target` is a Creature (The Tabernacle's affected set).
+ *  Reads live `types` so a permanent animated into a creature is taxed too;
+ *  the set is recomputed as creatures enter/leave (CR 611). */
+const IS_CREATURE: (
+    target: PermanentView,
+    source: PermanentView,
+    ctx: StaticEffectContext
+) => boolean = (target) => target.types.includes("Creature");
+
+// The Tabernacle at Pendrell Vale — Legendary Land. "All creatures have 'At the
+// beginning of your upkeep, destroy this creature unless you pay {1}.'" The
+// granted upkeep tax is attached to every creature (either player's) while the
+// Tabernacle is in play via a `triggered-grant` static effect (CR 113.1 / 611),
+// exactly like Energy Flux taxes every artifact. Each creature's controller, at
+// the start of their OWN upkeep, may pay {1} to keep it — otherwise it is
+// destroyed (CR 701.7). Each creature gets its own trigger on the stack so the
+// pay-or-destroy decision is independent per creature (CR 603.3b). Legendary
+// land → tapping for no mana; supertype carried as data (CR 205.4a), legend
+// rule applies once the C1 SBA lands.
+export const theTabernacleAtPendrellVale: CardDefinition = {
+    id: "64bc9b1d-5818-4d9e-b771-e49af4ff9a5c",
+    name: "The Tabernacle at Pendrell Vale",
+    oracleText:
+        'All creatures have "At the beginning of your upkeep, destroy this creature unless you pay {1}."',
+    types: ["Land"],
+    supertypes: ["Legendary"],
+    staticEffects: [
+        // CR 113.1 / 611 — grant the upkeep tax to every creature.
+        {
+            kind: "triggered-grant",
+            applies: IS_CREATURE,
+            abilityId: "tabernacle-upkeep",
+        },
+    ],
+    // The granted template lives here, NOT on `triggeredAbilities`, so the
+    // Tabernacle itself (a Land, not a creature) never fires it.
+    triggeredGrantTemplates: [
+        payOrSacrificeUpkeepTrigger({
+            id: "tabernacle-upkeep",
+            cardName: "this creature",
+            cost: { X: 1 },
+            costText: "{1}",
+            consequence: "destroy",
+        }),
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C7 deferred — need a primitive not yet built; each lands when its primitive
+// ships:
+//   • Elder Spawn — "At the beginning of your upkeep, sacrifice an Island. If
+//     you don't, sacrifice this and it deals 6 damage to you." The cost is a
+//     sacrifice (expressible), but the else-branch chains a sacrifice AND a
+//     self-damage like Cosmic Horror — shippable, but it also has an islandwalk
+//     /"can't attack unless defending player controls an Island" clause owned by
+//     a different cluster; deferred whole to avoid a partial card.
+//   • Forethought Amulet — "If a source would deal 4 or more damage to you,
+//     prevent all but 1" is a damage-prevention REPLACEMENT, not a pay-or-else
+//     trigger (mis-bucketed in the free-tranche note); owned by the prevention
+//     batch.
+//   • Primordial Ooze — "+1/+1 counter each upkeep, then pay {X} where X is its
+//     power or it doesn't attack/can't be blocked and deals damage to you" needs
+//     a power-scaled {X} pay-or-else with an attack-restriction else-branch (C5
+//     named-counter + variable-cost cluster).
+//   • Pit Scorpion — poison counters (C5 named-counter cluster), not a
+//     pay-or-sacrifice card.
+//   • Takklemaggot — multi-counter Aura that hops between creatures on death and
+//     pings the controller each upkeep; needs the named-counter + on-death
+//     re-attach machinery (C5), not the pay-or-sacrifice pattern.
 // ─────────────────────────────────────────────────────────────────────────────
