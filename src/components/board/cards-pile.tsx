@@ -43,6 +43,14 @@ type CardsPileProps = {
      *  library-pick modal so the chooser can collapse it to the board
      *  indicator without dismissing the Pending Choice. */
     onMinimize?: () => void;
+    /** Controlled-open mode (#336, portrait chips). When BOTH are provided the
+     *  pile renders ONLY its reveal dialog — the collapsed card-stack visual is
+     *  suppressed and the OWNER supplies the trigger (a tappable chip). This
+     *  reuses the entire reveal surface (fan/grid layout, inertial scroll, card
+     *  targeting) unchanged; only the collapsed affordance is swapped. Unlike
+     *  `forceOpen` the dialog stays dismissable. */
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
 };
 
 /** Resolves whether a single card renders face-down. A `faceUpIds` set (ADR
@@ -218,11 +226,20 @@ export default function CardsPile({
     selectedIds,
     footer,
     onMinimize,
+    open,
+    onOpenChange,
 }: CardsPileProps) {
+    // Controlled-open chip mode (#336): the owner drives `open` and supplies the
+    // trigger, so this component renders only the dialog.
+    const controlled = open !== undefined && onOpenChange !== undefined;
     const [internalOpen, setInternalOpen] = useState(false);
-    const isOpen = forceOpen || internalOpen;
+    const isOpen = forceOpen || (controlled ? open : internalOpen);
     const setIsOpen = (next: boolean) => {
         if (forceOpen) return;
+        if (controlled) {
+            onOpenChange(next);
+            return;
+        }
         setInternalOpen(next);
     };
 
@@ -231,7 +248,10 @@ export default function CardsPile({
         [cards]
     );
 
-    if (!cards.length) {
+    // In controlled (chip) mode the owner renders the trigger; this component
+    // contributes only the reveal dialog. An empty pile still needs a mounted
+    // dialog so the chip can open it (e.g. an empty exile), so fall through.
+    if (!cards.length && !controlled) {
         return (
             <div className="group w-(--card-w-sm) aspect-5/7 mb-2 flex justify-center items-center text-center p-2 border border-white/15 rounded-sm">
                 {zoneIcon ? (
@@ -279,9 +299,13 @@ export default function CardsPile({
 
     return (
         <>
-            <div className="cursor-pointer" onClick={() => setIsOpen(true)}>
-                {pileCards}
-            </div>
+            {/* Controlled (chip) mode suppresses the collapsed card stack — the
+                owner renders the trigger and only the dialog mounts here. */}
+            {!controlled && (
+                <div className="cursor-pointer" onClick={() => setIsOpen(true)}>
+                    {pileCards}
+                </div>
+            )}
 
             <GameDialog
                 open={isOpen}

@@ -5,7 +5,17 @@ import type { Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import CardsPile from "./cards-pile";
 
-export default function PlayerGraveyard({ player }: { player: Player }) {
+export default function PlayerGraveyard({
+    player,
+    open,
+    onOpenChange,
+}: {
+    player: Player;
+    /** Controlled-open (portrait chip, #336). When set the collapsed stack is
+     *  suppressed and the chip drives the reveal dialog. */
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+}) {
     const { gameId, playerId, pendingTarget } = useGameContext();
     const selectTarget = useMutation(api.game.selectTarget);
 
@@ -47,6 +57,8 @@ export default function PlayerGraveyard({ player }: { player: Player }) {
                     title="Graveyard"
                     zoneIcon={<GraveyardIcon className="w-8 h-8 opacity-60" />}
                     onCardClick={onCardClick}
+                    open={open}
+                    onOpenChange={onOpenChange}
                 />
             </div>
         </div>

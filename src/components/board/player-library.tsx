@@ -14,7 +14,17 @@ import CardsPile from "./cards-pile";
 import LibrarySearchConfirm from "./library-search-confirm";
 import { buildLibraryPileModel } from "~/lib/library-knowledge";
 
-export default function PlayerLibrary({ player }: { player: Player }) {
+export default function PlayerLibrary({
+    player,
+    open,
+    onOpenChange,
+}: {
+    player: Player;
+    /** Controlled-open (portrait chip, #336). Drives the normal library browse
+     *  dialog; an active library pick keeps using its own `forceOpen` modal. */
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+}) {
     const { gameId, playerId, debugAllActions, pendingChoices } =
         useGameContext();
     const draw = useMutation(api.game.drawCard);
@@ -118,6 +128,10 @@ export default function PlayerLibrary({ player }: { player: Player }) {
             // selection is untouched; restoring re-opens this same modal.
             forceOpen={isLibraryPick && !isMinimized}
             onMinimize={isLibraryPick ? minimize : undefined}
+            // Portrait chip control (#336) applies only to the normal browse —
+            // never while a blocking library pick owns the modal via forceOpen.
+            open={isLibraryPick ? undefined : open}
+            onOpenChange={isLibraryPick ? undefined : onOpenChange}
             // A full library has ~40-50 cards: the fan's 50% overlap merges
             // every amber selection ring into one solid strip and leaves only
             // thin slivers clickable. Lay the exposed cards out in a grid so

@@ -3517,6 +3517,59 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "UPKEEP",
         landCount: 0,
     },
+    {
+        // Portrait responsive board (#336). Best exercised in a NARROW PORTRAIT
+        // viewport (phone, or DevTools device mode < 768px portrait), where the
+        // right control column collapses to tappable chips and the hand scrolls:
+        //   • Pile/stack CHIPS: graveyard / library / exile + (when present) the
+        //     stack render as label+count chips instead of the side column. Tap
+        //     a chip → the SAME reveal / stack view opens. Both seats have a
+        //     populated graveyard so the GY chip opens a multi-card reveal.
+        //   • Hand SCROLL: "me" holds 8 cards (> 6), so the flat-overlap hand
+        //     scrolls horizontally instead of cramming — drag any card up to
+        //     cast / play it. Discard down to 6 and the scroll disappears.
+        //   • Long-press any card → the ADR-0009 centered preview overlay.
+        // On a wide/landscape viewport this is just a normal board with a full
+        // hand — the chips/scroll only appear in portrait.
+        label: "Responsive: portrait chips + hand scroll (8-card hand)",
+        cards: [
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Fireball", owner: "me" as const, zone: "hand" as const },
+            { name: "Disenchant", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Hill Giant", owner: "me" as const, zone: "hand" as const },
+            { name: "Gray Ogre", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Mountain",
+                owner: "me" as const,
+                zone: "hand" as const,
+                count: 2,
+            },
+            { name: "Mountain", owner: "me" as const, count: 3 },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+                count: 2,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "graveyard" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 20,
+    },
 ];
 
 type DebugPanelProps = {

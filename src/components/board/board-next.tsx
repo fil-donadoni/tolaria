@@ -3,12 +3,15 @@ import type { Player } from "~/types/game";
 import type { StackItem } from "~/types/game";
 import { fanLayout, type Placement } from "~/lib/board-layout";
 import { useGameContext } from "~/hooks/useGameContext";
+import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { ArrowAnchorProvider } from "~/hooks/useArrowAnchors";
 import { ArrowHighlightProvider } from "~/hooks/ArrowHighlightProvider";
 import BoardNextBattlefield from "./board-next-battlefield";
 import BoardNextPlayer from "./board-next-player";
 import BoardNextHand from "./board-next-hand";
+import BoardNextHandPortrait from "./board-next-hand-portrait";
 import BoardNextPiles from "./board-next-piles";
+import BoardNextPortraitChips from "./board-next-portrait-chips";
 import BoardNextArrows from "./board-next-arrows";
 import GameStack from "./game-stack";
 import PriorityIndicator from "./priority-indicator";
@@ -44,6 +47,10 @@ export default function BoardNext({
     // other hand stays presentational. `playerId` is the current viewer seat
     // (the solo viewer auto-follows priority, set by the Board orchestrator).
     const { playerId: viewerId, combat } = useGameContext();
+    // Portrait (#336): the right control column — pile columns + always-on stack
+    // panel — collapses to tappable chips so the board uses the full screen.
+    // Landscape/desktop keep the spatial piles and the floating stack.
+    const isPortrait = useIsPortrait();
 
     return (
         // A single LayoutGroup spans every zone so a card's shared-layout
@@ -60,13 +67,25 @@ export default function BoardNext({
                             <>
                                 <BoardNextPlayer player={opponent} side="top" />
                                 <div className="absolute left-0 right-0 top-0 h-[18%]">
-                                    <BoardNextHand
-                                        player={opponent}
-                                        interactive={opponent.id === viewerId}
-                                        layout={handLayout}
-                                        mirror
-                                        data-testid="zone-opponent-hand"
-                                    />
+                                    {isPortrait ? (
+                                        <BoardNextHandPortrait
+                                            player={opponent}
+                                            interactive={
+                                                opponent.id === viewerId
+                                            }
+                                            data-testid="zone-opponent-hand"
+                                        />
+                                    ) : (
+                                        <BoardNextHand
+                                            player={opponent}
+                                            interactive={
+                                                opponent.id === viewerId
+                                            }
+                                            layout={handLayout}
+                                            mirror
+                                            data-testid="zone-opponent-hand"
+                                        />
+                                    )}
                                 </div>
                                 <div className="absolute left-0 right-0 top-[18%] h-[32%]">
                                     <BoardNextBattlefield
@@ -88,27 +107,55 @@ export default function BoardNext({
                                         data-testid="zone-player-battlefield"
                                     />
                                 </div>
-                                <div className="absolute left-0 right-0 bottom-0 h-[18%]">
-                                    <BoardNextHand
-                                        player={me}
-                                        interactive={me.id === viewerId}
-                                        layout={handLayout}
-                                        data-testid="zone-player-hand"
-                                    />
+                                <div
+                                    className={
+                                        isPortrait
+                                            ? // Lifted clear of the pile chips
+                                              // (bottom-24) + the bottom action
+                                              // bar (#335) so the hand stays
+                                              // fully thumb-reachable.
+                                              "absolute left-0 right-0 bottom-32 h-[16%]"
+                                            : "absolute left-0 right-0 bottom-0 h-[18%]"
+                                    }
+                                >
+                                    {isPortrait ? (
+                                        <BoardNextHandPortrait
+                                            player={me}
+                                            interactive={me.id === viewerId}
+                                            data-testid="zone-player-hand"
+                                        />
+                                    ) : (
+                                        <BoardNextHand
+                                            player={me}
+                                            interactive={me.id === viewerId}
+                                            layout={handLayout}
+                                            data-testid="zone-player-hand"
+                                        />
+                                    )}
                                 </div>
                             </>
                         )}
 
-                        {/* Card piles (graveyard / library / exile) for both seats,
-                    reusing the existing pile components incl. their expanded
-                    reveal + inertial scroll (#255). */}
-                        <BoardNextPiles orderedPlayers={orderedPlayers} />
+                        {/* Card piles (graveyard / library / exile) for both seats.
+                    Landscape/desktop reuse the spatial pile columns (#255);
+                    portrait collapses them — and the stack — into tappable
+                    chips that open the SAME reveal / stack views (#336). */}
+                        {isPortrait ? (
+                            <BoardNextPortraitChips
+                                orderedPlayers={orderedPlayers}
+                                stackItems={stackItems}
+                            />
+                        ) : (
+                            <BoardNextPiles orderedPlayers={orderedPlayers} />
+                        )}
 
                         {/* Spatial chrome shared with the classic board. The
                     controller pod (phase + priority cue + actions) is mounted
                     by the Board orchestrator on the right edge (#331). */}
                         <PriorityIndicator />
-                        {stackItems.length > 0 && (
+                        {/* Portrait toggles the stack behind a chip (above);
+                    landscape/desktop keep it always-on. */}
+                        {!isPortrait && stackItems.length > 0 && (
                             <GameStack stack={stackItems} />
                         )}
                         {/* Our own SVG target arrows (replaces leader-line on the new
