@@ -1585,3 +1585,625 @@ export const darkness: CardDefinition = {
         ctx.preventAllCombatDamage();
     },
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Red free tranche (#374) — every mono-red Legends card expressible with
+// existing primitives (keywords, staticEffects / layer system, trigger
+// factories, prevention shields, delayed triggers, SpellContext methods).
+// Data + resolve() closures only; zero engine change (ADR 0014).
+//
+// Cards owned by feature clusters (#369 C1–C9) are NOT here:
+//   • C3 Rampage — Aerathi Berserker (rampage 3), Frost Giant (rampage 2).
+//   • C9 combat-cap World enchantment — Caverns of Despair ("no more than two
+//     creatures can attack / block each combat").
+//   • C5 named counters + upkeep cycle — Primordial Ooze (+1/+1 counters each
+//     upkeep, pay {X} or take X damage).
+//   • World rule (C2) — Gravity Sphere ("all creatures lose flying"), Land's
+//     Edge, Storm World. These carry the World supertype; like every other
+//     World-supertype LEG card they are deferred to the world-rule cluster so
+//     the supertype and its SBA ship together (mirrors the blue/black tranches).
+//
+// Out of scope for the whole set (per #369): Tempest Efreet (ante, ADR 0010).
+//
+// Cards that genuinely need an unbuilt primitive are SKIPPED (not built here):
+//   • Backdraft — "half the damage dealt by one of those sorcery spells this
+//     turn" needs a per-spell damage tally; no such surface exists.
+//   • Blazing Effigy — death damage = 3 + "damage dealt to this by other
+//     sources named Blazing Effigy this turn"; no per-source-name damage tally.
+//   • Chain Lightning — "that player may pay {R}{R}; if so, copy this spell" is
+//     a self-copy of a resolving spell with a may-pay gate; `copyStackItem`
+//     copies a DIFFERENT spell still on the stack, not the resolving one.
+//   • Crevasse — "creatures with mountainwalk can be blocked as though they
+//     didn't have mountainwalk" needs a global landwalk-suppression static
+//     (same gap flagged for Quagmire / Undertow in earlier tranches).
+//   • Crimson Manticore — "{R}, {T}: deal 1 damage to target attacking OR
+//     blocking creature"; `combatRoleFilter` admits only one role at a time, no
+//     combined "attacking-or-blocking" target filter.
+//   • Disharmony — "untap target attacking creature, remove it from combat,
+//     gain control of it until end of turn"; no "until end of turn" control-
+//     change condition (only controls-source / source-tapped-power conditions).
+//   • Falling Star — a physical-dexterity flip card; not implementable.
+//   • Feint — "tap all creatures blocking target attacker; prevent all combat
+//     damage by that creature and each creature blocking it" needs a per-attacker
+//     blocker-set combat-damage prevention with no primitive.
+//   • Firestorm Phoenix — its dies-replacement ("return to hand; until that
+//     player's next turn play with it revealed and can't play it") needs a
+//     can't-play + revealed-in-hand restriction with no primitive.
+//   • Pyrotechnics — "4 damage divided AS YOU CHOOSE among any number of
+//     targets"; only `dealDividedDamage` (divided EVENLY, Fireball) exists, no
+//     player-chosen damage division.
+//   • Quarum Trench Gnomes — "{T}: target Plains produces colorless mana
+//     instead of white (indefinitely)" needs a continuous tap-for-mana
+//     replacement; no mana-production override static.
+//   • Wall of Dust — "whenever this blocks a creature, that creature can't
+//     attack during its controller's next turn" needs an other-creature
+//     cross-turn attack-lock (same gap flagged for Demonic Torment in black).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// --- Vanilla / keyword creatures (CR 110.1 — pure data) -------------------
+
+// Crimson Kobolds — vanilla 0/1 Kobold (CR 110.1; cost {0}, CR 202.1).
+export const crimsonKobolds: CardDefinition = {
+    id: "13696657-aeef-4add-9a3b-8137fce01fe3",
+    name: "Crimson Kobolds",
+    oracleText: "",
+    manaCost: {},
+    types: ["Creature"],
+    subtypes: ["Kobold"],
+    power: 0,
+    toughness: 1,
+};
+
+// Crookshank Kobolds — vanilla 0/1 Kobold (CR 110.1).
+export const crookshankKobolds: CardDefinition = {
+    id: "7af6b119-7db4-49dd-aaa4-044b8c133f13",
+    name: "Crookshank Kobolds",
+    oracleText: "",
+    manaCost: {},
+    types: ["Creature"],
+    subtypes: ["Kobold"],
+    power: 0,
+    toughness: 1,
+};
+
+// Kobolds of Kher Keep — vanilla 0/1 Kobold (CR 110.1).
+export const koboldsOfKherKeep: CardDefinition = {
+    id: "df0320d9-7c2a-456a-9159-1b4fae67bfb5",
+    name: "Kobolds of Kher Keep",
+    oracleText: "",
+    manaCost: {},
+    types: ["Creature"],
+    subtypes: ["Kobold"],
+    power: 0,
+    toughness: 1,
+};
+
+// Raging Bull — vanilla 2/2 Ox (CR 110.1).
+export const ragingBull: CardDefinition = {
+    id: "ec10a51c-d2c3-4d14-9a71-9e59155bf980",
+    name: "Raging Bull",
+    oracleText: "",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Ox"],
+    power: 2,
+    toughness: 2,
+};
+
+// Mountain Yeti — mountainwalk (CR 702.19 landwalk variant) + protection from
+// white (CR 702.16).
+export const mountainYeti: CardDefinition = {
+    id: "09242f08-3bfc-4082-b32f-703c7fed62a0",
+    name: "Mountain Yeti",
+    oracleText:
+        "Mountainwalk (This creature can't be blocked as long as defending player controls a Mountain.)\nProtection from white",
+    manaCost: { X: 2, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Yeti"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["mountainwalk", "protection from white"],
+};
+
+// Wall of Earth — Defender (CR 702.3).
+export const wallOfEarth: CardDefinition = {
+    id: "c12e97c1-ca28-432a-8140-3f08bb4485a3",
+    name: "Wall of Earth",
+    oracleText: "Defender (This creature can't attack.)",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 6,
+    staticAbilities: ["defender"],
+};
+
+// Wall of Heat — Defender (CR 702.3).
+export const wallOfHeat: CardDefinition = {
+    id: "a38059a8-be69-4cc1-969b-951c610f2f11",
+    name: "Wall of Heat",
+    oracleText: "Defender (This creature can't attack.)",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 2,
+    toughness: 6,
+    staticAbilities: ["defender"],
+};
+
+// --- Lord / anthem creatures (CR 611 layer 7c + keyword grant) ------------
+
+// Kobold Taskmaster — "Other Kobold creatures you control get +1/+0."
+// (CR 611 filtered anthem excluding self.)
+export const koboldTaskmaster: CardDefinition = {
+    id: "1b9c63eb-8d4e-4d8b-8637-308459ef036b",
+    name: "Kobold Taskmaster",
+    oracleText: "Other Kobold creatures you control get +1/+0.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Kobold"],
+    power: 1,
+    toughness: 2,
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, source) =>
+                target.id !== source.id &&
+                target.controllerId === source.controllerId &&
+                target.subtypes.includes("Kobold"),
+            power: 1,
+            toughness: 0,
+        },
+    ],
+};
+
+// Kobold Drill Sergeant — "Other Kobold creatures you control get +0/+1 and
+// have trample." (CR 611 filtered anthem + keyword grant, excluding self.)
+export const koboldDrillSergeant: CardDefinition = {
+    id: "741b14f8-625d-41be-a734-0efe042a6ee8",
+    name: "Kobold Drill Sergeant",
+    oracleText:
+        "Other Kobold creatures you control get +0/+1 and have trample.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Kobold", "Soldier"],
+    power: 1,
+    toughness: 2,
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, source) =>
+                target.id !== source.id &&
+                target.controllerId === source.controllerId &&
+                target.subtypes.includes("Kobold"),
+            power: 0,
+            toughness: 1,
+        },
+        {
+            kind: "keyword-grant",
+            applies: (target, source) =>
+                target.id !== source.id &&
+                target.controllerId === source.controllerId &&
+                target.subtypes.includes("Kobold"),
+            keyword: "trample",
+        },
+    ],
+};
+
+// Kobold Overlord — first strike (CR 702.7) + "Other Kobold creatures you
+// control have first strike." (CR 611 keyword grant, excluding self.)
+export const koboldOverlord: CardDefinition = {
+    id: "490eeedb-9c03-4dc7-81fd-ae54a7932e4d",
+    name: "Kobold Overlord",
+    oracleText:
+        "First strike\nOther Kobold creatures you control have first strike.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Kobold"],
+    power: 1,
+    toughness: 2,
+    staticAbilities: ["first strike"],
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: (target, source) =>
+                target.id !== source.id &&
+                target.controllerId === source.controllerId &&
+                target.subtypes.includes("Kobold"),
+            keyword: "first strike",
+        },
+    ],
+};
+
+// Beasts of Bogardan — protection from red (CR 702.16) + "gets +1/+1 as long as
+// an opponent controls a nontoken white permanent." (CR 611.2c conditional
+// self-anthem.)
+const BEASTS_OF_BOGARDAN_ID = "f885d776-2953-4ed4-b63f-91dc2b42783b";
+
+export const beastsOfBogardan: CardDefinition = {
+    id: BEASTS_OF_BOGARDAN_ID,
+    name: "Beasts of Bogardan",
+    oracleText:
+        "Protection from red\nThis creature gets +1/+1 as long as an opponent controls a nontoken white permanent.",
+    manaCost: { X: 4, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Beast"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["protection from red"],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            // "This creature" — only the source itself (CR 611.2c).
+            applies: (target, source) => target.id === source.id,
+            condition: (source, state, ctx) =>
+                state.players.some((p) =>
+                    p.battlefield.some(
+                        (c) =>
+                            c.controllerId !== source.controllerId &&
+                            !c.isToken &&
+                            ctx.getColors(c).includes("W")
+                    )
+                ),
+            power: 1,
+            toughness: 1,
+        },
+    ],
+};
+
+// --- Activated-ability creatures (CR 605) ----------------------------------
+
+// Spinal Villain — "{T}: Destroy target blue creature." (CR 701.7 destroy on a
+// colour-restricted target, CR 202.2.)
+export const spinalVillain: CardDefinition = {
+    id: "d6d5e36f-0049-4be8-bf85-8dc0186339a4",
+    name: "Spinal Villain",
+    oracleText: "{T}: Destroy target blue creature.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Beast"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "spinal-villain-destroy",
+            oracleText: "{T}: Destroy target blue creature.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1, colorFilter: "U" },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") ctx.destroy(target);
+            },
+        },
+    ],
+};
+
+// Hyperion Blacksmith — "{T}: You may tap or untap target artifact an opponent
+// controls." (CR 701.20 tap/untap; the optional + the tap-or-untap pick are a
+// single option choice — choose tap, untap, or decline.)
+export const hyperionBlacksmith: CardDefinition = {
+    id: "44d499a9-fe7c-4a1a-9eb3-a7fd9f85ae08",
+    name: "Hyperion Blacksmith",
+    oracleText:
+        "{T}: You may tap or untap target artifact an opponent controls.",
+    manaCost: { X: 1, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Artificer"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "hyperion-blacksmith-tap-untap",
+            oracleText:
+                "{T}: You may tap or untap target artifact an opponent controls.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Artifact",
+                count: 1,
+                controller: "opponent",
+            },
+            resolveSteps: [
+                (ctx: SpellContext) => {
+                    const target = ctx.targets[0];
+                    if (target?.type !== "permanent") return;
+                    const pick = ctx.requestOptionChoice({
+                        playerId: ctx.controller,
+                        choiceId: "hyperion-tap-untap",
+                        prompt: "Tap or untap the target artifact?",
+                        options: [
+                            { id: "tap", label: "Tap" },
+                            { id: "untap", label: "Untap" },
+                            { id: "decline", label: "Do nothing" },
+                        ],
+                    });
+                    if (pick === undefined) return; // suspended
+                    if (pick === "tap") ctx.tap(target);
+                    else if (pick === "untap") ctx.untap(target);
+                },
+            ],
+        },
+    ],
+};
+
+// Wall of Opposition — Defender (CR 702.3) + "{1}: This creature gets +1/+0
+// until end of turn." (CR 611.1 repeatable temporary pump.)
+export const wallOfOpposition: CardDefinition = {
+    id: "2b3d1430-9978-4983-a4fd-d1fa8dea2169",
+    name: "Wall of Opposition",
+    oracleText:
+        "Defender (This creature can't attack.)\n{1}: This creature gets +1/+0 until end of turn.",
+    manaCost: { X: 3, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 6,
+    staticAbilities: ["defender"],
+    activatedAbilities: [
+        {
+            id: "wall-of-opposition-pump",
+            oracleText: "{1}: This creature gets +1/+0 until end of turn.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+
+// --- Auras (CR 303 — Enchant creature) ------------------------------------
+
+// Giant Strength — Enchanted creature gets +2/+2 (CR 303.4, 611).
+export const giantStrength: CardDefinition = {
+    id: "a86190bb-1f41-4128-b9fb-dfb1d178359d",
+    name: "Giant Strength",
+    oracleText: "Enchant creature\nEnchanted creature gets +2/+2.",
+    manaCost: { R: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, source) => target.id === source.attachedTo,
+            power: 2,
+            toughness: 2,
+        },
+    ],
+};
+
+// Immolation — Enchanted creature gets +2/-2 (CR 303.4, 611).
+export const immolation: CardDefinition = {
+    id: "9b3d34fa-398c-4ea0-a392-6690bd3a615c",
+    name: "Immolation",
+    oracleText: "Enchant creature\nEnchanted creature gets +2/-2.",
+    manaCost: { R: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, source) => target.id === source.attachedTo,
+            power: 2,
+            toughness: -2,
+        },
+    ],
+};
+
+// Eternal Warrior — Enchanted creature has vigilance (CR 303.4 keyword grant,
+// CR 702.21).
+export const eternalWarrior: CardDefinition = {
+    id: "97cdc38e-1d96-4de2-98e2-713f5d4d2180",
+    name: "Eternal Warrior",
+    oracleText: "Enchant creature\nEnchanted creature has vigilance.",
+    manaCost: { R: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: (target, source) => target.id === source.attachedTo,
+            keyword: "vigilance",
+        },
+    ],
+};
+
+// The Brute — "Enchanted creature gets +1/+0." + "{R}{R}{R}: Regenerate
+// enchanted creature." (CR 303.4 pt-buff + a host-aware regeneration ability,
+// CR 701.15a.)
+export const theBrute: CardDefinition = {
+    id: "f9ffb265-872f-47b3-974c-92bcbebd557e",
+    name: "The Brute",
+    oracleText:
+        "Enchant creature\nEnchanted creature gets +1/+0.\n{R}{R}{R}: Regenerate enchanted creature.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, source) => target.id === source.attachedTo,
+            power: 1,
+            toughness: 0,
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "the-brute-regenerate",
+            oracleText: "{R}{R}{R}: Regenerate enchanted creature.",
+            cost: { mana: { R: 3 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                const host = ctx.getAttachedToId();
+                if (host)
+                    ctx.applyRegenerationShield({
+                        type: "permanent",
+                        id: host,
+                    });
+            },
+        },
+    ],
+};
+
+// --- Pump / colour-change spells (CR 611.1, end-of-turn duration) ----------
+
+// Dwarven Song — "One or more target creatures become red until end of turn."
+// (CR 305.7 layer-5 colour override, end-of-turn duration; variable count,
+// CR 601.2c.)
+export const dwarvenSong: CardDefinition = {
+    id: "29a50f72-9524-4440-9380-9d3e0b693351",
+    name: "Dwarven Song",
+    oracleText: "One or more target creatures become red until end of turn.",
+    manaCost: { R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: { min: 1 } },
+    resolve: (ctx: SpellContext) => {
+        for (const target of ctx.targets) {
+            if (target.type === "permanent") {
+                ctx.setColorOverride(target, ["R"]);
+            }
+        }
+    },
+};
+
+// Blood Lust — "If target creature has toughness 5 or greater, it gets +4/-4
+// until end of turn. Otherwise, it gets +4/-X until end of turn, where X is its
+// toughness minus 1." (CR 611.1 temporary P/T; the toughness branch snapshots
+// effective toughness at resolution. The -X case always leaves toughness 1 —
+// +4/-(T-1) makes the new toughness T - (T-1) = 1.)
+export const bloodLust: CardDefinition = {
+    id: "fbbf1a9c-8b94-4ee7-92db-65b531149990",
+    name: "Blood Lust",
+    oracleText:
+        "If target creature has toughness 5 or greater, it gets +4/-4 until end of turn. Otherwise, it gets +4/-X until end of turn, where X is its toughness minus 1.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "permanent") return;
+        const toughness = ctx.getToughness(target);
+        const toughnessDelta = toughness >= 5 ? -4 : -(toughness - 1);
+        ctx.addTemporaryPTBuff(target, 4, toughnessDelta, {
+            phase: "end-of-turn",
+        });
+    },
+};
+
+// Glyph of Destruction — "Target blocking Wall you control gets +10/+0 until
+// end of combat. Prevent all damage that would be dealt to it this turn.
+// Destroy it at the beginning of the next end step." (CR 611.1 pump until end
+// of combat + CR 615 prevention shield + CR 603.7a delayed destroy.)
+export const glyphOfDestruction: CardDefinition = {
+    id: "8e9c153c-9224-491b-bc84-8a9f0a83ee5a",
+    name: "Glyph of Destruction",
+    oracleText:
+        "Target blocking Wall you control gets +10/+0 until end of combat. Prevent all damage that would be dealt to it this turn. Destroy it at the beginning of the next end step.",
+    manaCost: { R: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: "Creature",
+        count: 1,
+        controller: "you",
+        subtypeFilter: "Wall",
+        combatRoleFilter: "blocking",
+    },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "permanent") return;
+        ctx.addTemporaryPTBuff(target, 10, 0, { phase: "end-of-combat" });
+        // "Prevent all damage to it this turn" — a shield large enough to
+        // absorb any realistic turn's damage (CR 615, purged at end of turn).
+        ctx.preventNextNDamageToTarget(target, 9999, { phase: "end-of-turn" });
+        // "Destroy it at the beginning of the next end step" (CR 603.7a).
+        ctx.scheduleDelayedTrigger(
+            glyphOfDestruction.id,
+            "glyph-of-destruction-destroy",
+            "next-end-step",
+            { permanentId: target.id }
+        );
+    },
+    delayedTriggers: [
+        {
+            id: "glyph-of-destruction-destroy",
+            oracleText:
+                "At the beginning of the next end step, destroy the enchanted Wall.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                if (payload.permanentId)
+                    ctx.destroy({ type: "permanent", id: payload.permanentId });
+            },
+        },
+    ],
+};
+
+// --- Removal / modal spells (CR 700.2, 701.7) ------------------------------
+
+// Active Volcano — modal: "Destroy target blue permanent." OR "Return target
+// Island to its owner's hand." (CR 700.2 modal spell.)
+export const activeVolcano: CardDefinition = {
+    id: "ad402e65-6fac-4005-a2d4-592983df0c30",
+    name: "Active Volcano",
+    oracleText:
+        "Choose one —\n• Destroy target blue permanent.\n• Return target Island to its owner's hand.",
+    manaCost: { R: 1 },
+    types: ["Instant"],
+    modes: [
+        {
+            id: "destroy-blue",
+            label: "Destroy target blue permanent",
+            oracleText: "Destroy target blue permanent.",
+            targetRequirement: { type: "any", count: 1, colorFilter: "U" },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") ctx.destroy(target);
+            },
+        },
+        {
+            id: "return-island",
+            label: "Return target Island to its owner's hand",
+            oracleText: "Return target Island to its owner's hand.",
+            targetRequirement: {
+                type: "Land",
+                count: 1,
+                subtypeFilter: "Island",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") ctx.returnToHand(target);
+            },
+        },
+    ],
+};
+
+// --- Hand / library disruption (CR 121, 701.20) ----------------------------
+
+// Winds of Change — "Each player shuffles the cards from their hand into their
+// library, then draws that many cards." (Composed: count each hand, move
+// hand → library, shuffle, redraw that many. CR 701.20 / 121.1.)
+export const windsOfChange: CardDefinition = {
+    id: "186fd917-8d65-4de5-8546-a32a5f6d3bab",
+    name: "Winds of Change",
+    oracleText:
+        "Each player shuffles the cards from their hand into their library, then draws that many cards.",
+    manaCost: { R: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        for (const pid of ctx.allPlayerIds) {
+            const handSize = ctx.getHandSize(pid);
+            ctx.moveZone(pid, "hand", "library");
+            ctx.shuffleLibrary(pid);
+            ctx.drawCards(pid, handSize);
+        }
+    },
+};

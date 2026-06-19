@@ -3960,6 +3960,90 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // LEG red #374 — Kobold tribe / lords / anthems / auras. The three
+        // Kobold lords stack on the 0-cost Kobolds (Kobold Taskmaster +1/+0,
+        // Kobold Drill Sergeant +0/+1 & trample, Kobold Overlord first strike);
+        // Beasts of Bogardan grows while the opponent's white creature is out;
+        // Giant Strength / Immolation / Eternal Warrior auras are in hand to
+        // attach; The Brute pumps and can regenerate its host.
+        label: "LEG red #374: Kobold lords, Beasts of Bogardan, auras (Giant Strength, Immolation)",
+        cards: [
+            { name: "Kobold Taskmaster", owner: "me" as const },
+            { name: "Kobold Drill Sergeant", owner: "me" as const },
+            { name: "Kobold Overlord", owner: "me" as const },
+            { name: "Crimson Kobolds", owner: "me" as const },
+            { name: "Crookshank Kobolds", owner: "me" as const },
+            { name: "Kobolds of Kher Keep", owner: "me" as const },
+            { name: "Beasts of Bogardan", owner: "me" as const },
+            {
+                name: "Giant Strength",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Immolation",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Eternal Warrior",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "The Brute", owner: "me" as const, zone: "hand" as const },
+            { name: "Keepers of the Faith", owner: "opp" as const },
+            { name: "Mountain", owner: "me" as const, count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // LEG red #374 — removal / tricks / walls. Spinal Villain pings down a
+        // blue creature; Hyperion Blacksmith taps/untaps the opponent's
+        // artifact; Active Volcano destroys a blue permanent or bounces an
+        // Island; Blood Lust and Dwarven Song are combat tricks; Glyph of
+        // Destruction supercharges a blocking Wall (set the phase to combat to
+        // make it legal); Winds of Change refills both hands.
+        label: "LEG red #374: Spinal Villain, Hyperion Blacksmith, Active Volcano, Blood Lust, Glyph of Destruction",
+        cards: [
+            { name: "Spinal Villain", owner: "me" as const },
+            { name: "Hyperion Blacksmith", owner: "me" as const },
+            { name: "Wall of Opposition", owner: "me" as const },
+            { name: "Wall of Earth", owner: "me" as const },
+            {
+                name: "Active Volcano",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Blood Lust",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Dwarven Song",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Glyph of Destruction",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Winds of Change",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Azure Drake", owner: "opp" as const },
+            { name: "Ornithopter", owner: "opp" as const },
+            { name: "Island", owner: "opp" as const, count: 2 },
+            { name: "Mountain", owner: "me" as const, count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

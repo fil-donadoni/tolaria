@@ -70,11 +70,36 @@ import {
     cyclopeanMummy,
     greed,
     darkness,
+    crimsonKobolds,
+    crookshankKobolds,
+    koboldsOfKherKeep,
+    ragingBull,
+    mountainYeti,
+    wallOfEarth,
+    wallOfHeat,
+    koboldTaskmaster,
+    koboldDrillSergeant,
+    koboldOverlord,
+    beastsOfBogardan,
+    spinalVillain,
+    hyperionBlacksmith,
+    wallOfOpposition,
+    giantStrength,
+    immolation,
+    eternalWarrior,
+    theBrute,
+    dwarvenSong,
+    bloodLust,
+    glyphOfDestruction,
+    activeVolcano,
+    windsOfChange,
 } from "../leg";
 import { getCardById, getCardByName, getAllCards } from "../../index";
+import { fireDelayedTriggers } from "../../../gre/phases";
 import { lightningBolt, mountain, forest, island, swamp } from "../lea";
 import {
     resolveTopOfStack,
+    applySourceStaticEffects,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -1600,5 +1625,535 @@ describe("Darkness (prevent all combat damage this turn, CR 615)", () => {
         pushSpell(state, darkness.id, "p1");
         resolveTopOfStack(state);
         expect(state.preventAllCombatDamageThisTurn).toBe(true);
+    });
+});
+
+// ===========================================================================
+// Red free tranche (#374)
+// ===========================================================================
+
+describe("LEG red vanilla / keyword creatures (CR 110.1 / 702)", () => {
+    it("Kobolds are 0/1 with cost {0}", () => {
+        for (const k of [
+            crimsonKobolds,
+            crookshankKobolds,
+            koboldsOfKherKeep,
+        ]) {
+            expect(k.power).toBe(0);
+            expect(k.toughness).toBe(1);
+            expect(k.manaCost).toEqual({});
+            expect(k.subtypes).toContain("Kobold");
+        }
+    });
+    it("Raging Bull is a vanilla 2/2 Ox", () => {
+        expect(ragingBull.power).toBe(2);
+        expect(ragingBull.toughness).toBe(2);
+        expect(ragingBull.subtypes).toContain("Ox");
+        expect(ragingBull.staticAbilities ?? []).toHaveLength(0);
+    });
+    it("Mountain Yeti has mountainwalk + protection from white", () => {
+        expect(mountainYeti.staticAbilities).toContain("mountainwalk");
+        expect(mountainYeti.staticAbilities).toContain("protection from white");
+    });
+    it("Wall of Earth / Wall of Heat have defender", () => {
+        expect(wallOfEarth.staticAbilities).toContain("defender");
+        expect(wallOfHeat.staticAbilities).toContain("defender");
+    });
+});
+
+describe("Kobold Taskmaster (other Kobolds +1/+0, CR 611)", () => {
+    it("buffs other Kobolds but not itself (GRE + wire)", () => {
+        const lord = makeInstance(koboldTaskmaster.id, {
+            id: "lord",
+            controllerId: "p1",
+        });
+        const buddy = makeInstance(crimsonKobolds.id, {
+            id: "buddy",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lord, buddy] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, buddy)).toBe(1); // 0 + 1
+        expect(getEffectivePower(state, lord)).toBe(1); // unchanged (other only)
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "buddy"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(1);
+    });
+});
+
+describe("Kobold Drill Sergeant (other Kobolds +0/+1 and trample, CR 611)", () => {
+    it("buffs toughness and grants trample to other Kobolds (GRE + wire)", () => {
+        const sergeant = makeInstance(koboldDrillSergeant.id, {
+            id: "sgt",
+            controllerId: "p1",
+        });
+        const buddy = makeInstance(crookshankKobolds.id, {
+            id: "buddy",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sergeant, buddy] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Keyword grants are pushed onto matching permanents at ETB; replicate
+        // that here for a hand-built board.
+        applySourceStaticEffects(state, sergeant);
+        expect(getEffectiveToughness(state, buddy)).toBe(2); // 1 + 1
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "buddy"
+        )!;
+        expect(live.staticAbilities).toContain("trample");
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "buddy"
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(2);
+        expect(slim.staticAbilities).toContain("trample");
+    });
+});
+
+describe("Kobold Overlord (other Kobolds have first strike, CR 611/702.7)", () => {
+    it("grants first strike to other Kobolds and has it itself", () => {
+        expect(koboldOverlord.staticAbilities).toContain("first strike");
+        const lord = makeInstance(koboldOverlord.id, {
+            id: "lord",
+            controllerId: "p1",
+        });
+        const buddy = makeInstance(koboldsOfKherKeep.id, {
+            id: "buddy",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lord, buddy] }),
+                makePlayer("p2"),
+            ],
+        });
+        applySourceStaticEffects(state, lord);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "buddy"
+        )!;
+        expect(live.staticAbilities).toContain("first strike");
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "buddy"
+        )!;
+        expect(slim.staticAbilities).toContain("first strike");
+    });
+});
+
+describe("Beasts of Bogardan (+1/+1 vs nontoken white permanent, CR 611.2c)", () => {
+    it("gains +1/+1 only while an opponent controls a nontoken white permanent (GRE + wire)", () => {
+        const beast = makeInstance(beastsOfBogardan.id, {
+            id: "beast",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [beast] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, beast)).toBe(3); // base, no white opp
+        // White creature for the opponent (Keepers of the Faith is white).
+        const whiteOpp = makeInstance(keepersOfTheFaith.id, {
+            id: "wopp",
+            controllerId: "p2",
+        });
+        state.players[1].battlefield.push(whiteOpp);
+        expect(getEffectivePower(state, beast)).toBe(4); // 3 + 1
+        expect(getEffectiveToughness(state, beast)).toBe(4);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "beast"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(4);
+    });
+    it("a token white permanent does not switch it on", () => {
+        const beast = makeInstance(beastsOfBogardan.id, {
+            id: "beast",
+            controllerId: "p1",
+        });
+        const tokenWhite = makeInstance(keepersOfTheFaith.id, {
+            id: "tok",
+            controllerId: "p2",
+            isToken: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [beast] }),
+                makePlayer("p2", { battlefield: [tokenWhite] }),
+            ],
+        });
+        expect(getEffectivePower(state, beast)).toBe(3);
+    });
+});
+
+describe("Spinal Villain ({T}: destroy target blue creature, CR 701.7)", () => {
+    it("destroys a blue creature", () => {
+        const villain = makeInstance(spinalVillain.id, {
+            id: "villain",
+            controllerId: "p1",
+        });
+        const blueCreature = makeInstance(azureDrake.id, {
+            id: "drake",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [villain] }),
+                makePlayer("p2", { battlefield: [blueCreature] }),
+            ],
+        });
+        state.stack.push({
+            ...villain,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "spinal-villain-destroy",
+            targets: [{ type: "permanent", id: "drake" }],
+        } as StackItem);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "drake")
+        ).toBeUndefined();
+    });
+});
+
+describe("Hyperion Blacksmith ({T}: tap or untap opponent artifact, CR 701.20)", () => {
+    it("untaps a tapped opponent artifact when the controller chooses untap", () => {
+        const smith = makeInstance(hyperionBlacksmith.id, {
+            id: "smith",
+            controllerId: "p1",
+        });
+        // Use a registered artifact (Ornithopter from lea, 0-cost artifact).
+        const artifact = makeInstance(
+            "59cc9bdb-7cf2-4795-bac7-ffff605c9eb0", // Ornithopter (artifact)
+            {
+                id: "arti",
+                controllerId: "p2",
+                ownerId: "p2",
+                isTapped: true,
+            }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [smith] }),
+                makePlayer("p2", { battlefield: [artifact] }),
+            ],
+        });
+        state.stack.push({
+            ...smith,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "hyperion-blacksmith-tap-untap",
+            targets: [{ type: "permanent", id: "arti" }],
+        } as StackItem);
+        resolveTopOfStack(state); // suspends on the tap/untap option choice
+        answerChoice(state, ["untap"]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "arti")?.isTapped
+        ).toBe(false);
+    });
+});
+
+describe("Wall of Opposition ({1}: +1/+0 EOT, CR 611.1)", () => {
+    it("pumps power for the turn", () => {
+        const wall = makeInstance(wallOfOpposition.id, {
+            id: "wall",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wall] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, wall)).toBe(0);
+        state.stack.push({
+            ...wall,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "wall-of-opposition-pump",
+            targets: [],
+        } as StackItem);
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find((c) => c.id === "wall")!;
+        expect(getEffectivePower(state, live)).toBe(1);
+    });
+});
+
+describe("Giant Strength / Immolation / Eternal Warrior auras (CR 303.4)", () => {
+    function attach(auraDef: typeof giantStrength) {
+        const host = makeInstance("0ddb98e8-13fe-4786-83f7-b72c56db135a", {
+            id: "host",
+            controllerId: "p1",
+            power: 3,
+            toughness: 3,
+        }); // Hill Giant 3/3
+        const aura = makeInstance(auraDef.id, {
+            id: "aura",
+            controllerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Push the aura's keyword grants onto the host (ETB replication).
+        applySourceStaticEffects(state, aura);
+        return { state, host };
+    }
+    it("Giant Strength grants +2/+2 (GRE + wire)", () => {
+        const { state, host } = attach(giantStrength);
+        expect(getEffectivePower(state, host)).toBe(5);
+        expect(getEffectiveToughness(state, host)).toBe(5);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(5);
+    });
+    it("Immolation grants +2/-2", () => {
+        const { state, host } = attach(immolation);
+        expect(getEffectivePower(state, host)).toBe(5);
+        expect(getEffectiveToughness(state, host)).toBe(1);
+    });
+    it("Eternal Warrior grants vigilance (GRE + wire)", () => {
+        const { state } = attach(eternalWarrior);
+        const live = state.players[0].battlefield.find((c) => c.id === "host")!;
+        expect(live.staticAbilities).toContain("vigilance");
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(slim.staticAbilities).toContain("vigilance");
+    });
+});
+
+describe("The Brute (aura +1/+0 + {R}{R}{R} regenerate host, CR 303.4/701.15a)", () => {
+    it("buffs the host and the activated ability shields it", () => {
+        const host = makeInstance("0ddb98e8-13fe-4786-83f7-b72c56db135a", {
+            id: "host",
+            controllerId: "p1",
+            power: 3,
+            toughness: 3,
+        });
+        const aura = makeInstance(theBrute.id, {
+            id: "aura",
+            controllerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, host)).toBe(4); // 3 + 1
+        state.stack.push({
+            ...aura,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "the-brute-regenerate",
+            targets: [],
+        } as StackItem);
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find((c) => c.id === "host")!;
+        expect(live.regenerationShields ?? 0).toBeGreaterThan(0);
+    });
+});
+
+describe("Dwarven Song (creatures become red EOT, CR 305.7 layer 5)", () => {
+    it("makes targeted creatures red, surviving projection (wire format)", () => {
+        const lion = makeInstance(keepersOfTheFaith.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        }); // white creature
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lion] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, dwarvenSong.id, "p1", [
+            { type: "permanent", id: "lion" },
+        ]);
+        resolveTopOfStack(state);
+        expect(STATIC_EFFECT_CTX.getColors(lion)).toEqual(["R"]);
+
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "lion"
+        )!;
+        expect(STATIC_EFFECT_CTX.getColors(slim)).toEqual(["R"]);
+    });
+});
+
+describe("Blood Lust (+4/-4 if T>=5, else +4 power / toughness to 1, CR 611.1)", () => {
+    it("a high-toughness creature gets +4/-4", () => {
+        const wall = makeInstance(wallOfHeat.id, {
+            id: "wall",
+            controllerId: "p1",
+        }); // 2/6
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wall] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, bloodLust.id, "p1", [
+            { type: "permanent", id: "wall" },
+        ]);
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find((c) => c.id === "wall")!;
+        expect(getEffectivePower(state, live)).toBe(6); // 2 + 4
+        expect(getEffectiveToughness(state, live)).toBe(2); // 6 - 4
+    });
+    it("a low-toughness creature's toughness drops to 1", () => {
+        const giant = makeInstance("0ddb98e8-13fe-4786-83f7-b72c56db135a", {
+            id: "g",
+            controllerId: "p1",
+            power: 3,
+            toughness: 3,
+        }); // 3/3
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [giant] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, bloodLust.id, "p1", [{ type: "permanent", id: "g" }]);
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find((c) => c.id === "g")!;
+        expect(getEffectivePower(state, live)).toBe(7); // 3 + 4
+        expect(getEffectiveToughness(state, live)).toBe(1); // 3 - (3-1)
+    });
+});
+
+describe("Glyph of Destruction (Wall +10/+0 + prevent + delayed destroy, CR 611.1/615/603.7a)", () => {
+    it("pumps the Wall, shields it, and schedules its destruction at the next end step", () => {
+        const wall = makeInstance(wallOfEarth.id, {
+            id: "wall",
+            controllerId: "p1",
+            isBlocking: true,
+        }); // 0/6 Wall
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wall] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, glyphOfDestruction.id, "p1", [
+            { type: "permanent", id: "wall" },
+        ]);
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find((c) => c.id === "wall")!;
+        expect(getEffectivePower(state, live)).toBe(10); // 0 + 10
+        expect((state.delayedTriggers ?? []).length).toBe(1);
+
+        // Fire the delayed destroy at the next end step.
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "wall")
+        ).toBeUndefined();
+    });
+});
+
+describe("Active Volcano (modal: destroy blue / return Island, CR 700.2)", () => {
+    it("return-island mode bounces an Island to hand", () => {
+        const isl = makeInstance(island.id, {
+            id: "isl",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [isl] }),
+            ],
+        });
+        const item = pushSpell(state, activeVolcano.id, "p1", [
+            { type: "permanent", id: "isl" },
+        ]);
+        item.chosenModeId = "return-island";
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "isl")
+        ).toBeUndefined();
+        expect(state.players[1].hand.some((c) => c.id === "isl")).toBe(true);
+    });
+    it("destroy-blue mode destroys a blue permanent", () => {
+        const drake = makeInstance(azureDrake.id, {
+            id: "drake",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [drake] }),
+            ],
+        });
+        const item = pushSpell(state, activeVolcano.id, "p1", [
+            { type: "permanent", id: "drake" },
+        ]);
+        item.chosenModeId = "destroy-blue";
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "drake")
+        ).toBeUndefined();
+    });
+});
+
+describe("Winds of Change (each player shuffles hand into library, redraws, CR 701.20/121.1)", () => {
+    it("each player ends with the same hand size after the swap", () => {
+        const h1 = [
+            makeInstance(lightningBolt.id, { id: "h1a", zone: "hand" }),
+            makeInstance(lightningBolt.id, { id: "h1b", zone: "hand" }),
+        ];
+        const l1 = [
+            makeInstance(mountain.id, { id: "l1a", zone: "library" }),
+            makeInstance(mountain.id, { id: "l1b", zone: "library" }),
+            makeInstance(mountain.id, { id: "l1c", zone: "library" }),
+        ];
+        const h2 = [makeInstance(forest.id, { id: "h2a", zone: "hand" })];
+        const l2 = [
+            makeInstance(forest.id, { id: "l2a", zone: "library" }),
+            makeInstance(forest.id, { id: "l2b", zone: "library" }),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: h1, library: l1 }),
+                makePlayer("p2", { hand: h2, library: l2 }),
+            ],
+        });
+        pushSpell(state, windsOfChange.id, "p1");
+        resolveTopOfStack(state);
+        // Same count back (old hand size); total cards per player preserved.
+        expect(state.players[0].hand).toHaveLength(2);
+        expect(state.players[1].hand).toHaveLength(1);
+        expect(
+            state.players[0].hand.length + state.players[0].library.length
+        ).toBe(5);
+        expect(
+            state.players[1].hand.length + state.players[1].library.length
+        ).toBe(3);
     });
 });
