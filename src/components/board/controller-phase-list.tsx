@@ -41,9 +41,14 @@ export default function ControllerPhaseList({
                 </button>
             </div>
 
-            <div className="flex items-center px-3 py-1 text-[8px] uppercase tracking-wider text-white/30">
+            {/* Column heads aligned to the rows below: a YOU head over the
+             *  left stop column, the centered "Stop on" caption over the phase
+             *  names, and an OPP head over the right stop column. Same
+             *  `gap-2 px-3` + `w-6` gutters as ControllerPhaseRow so the heads
+             *  sit directly above their dots. */}
+            <div className="flex items-center gap-2 px-3 py-1 text-[8px] uppercase tracking-wider text-white/30">
                 <span className="w-6 text-center">You</span>
-                <span className="flex-1 pl-2">Stop on</span>
+                <span className="flex-1 text-center">Stop on</span>
                 <span className="w-6 text-center">Opp</span>
             </div>
 

@@ -1,0 +1,198 @@
+// Expanded phase list + stops (#333): the full turn-structure surface revealed
+// by the pod's CTA. Three contracts are tested here:
+//   1. Every phase in PHASE_GROUPS renders (content-sized list, nothing hidden).
+//   2. YOU / OPP column heads are present and each stop toggle routes through
+//      the SAME `useSkipPhasePreferences().toggle(phase, side)` path the old
+//      PhaseStepCell used — only the presentation moved.
+//   3. The panel is non-modal with click-away: a pointerdown outside the list
+//      (and outside the pod) closes it; one inside does not.
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { render, fireEvent, screen, within } from "@testing-library/react";
+import { GameContext } from "~/hooks/useGameContext";
+import { SkipPhasePrefsContext } from "~/hooks/useSkipPhasePreferences";
+import {
+    DEFAULT_SKIP_PREFS,
+    SKIPPABLE_PHASES,
+    type Side,
+} from "~/lib/skip-phase-prefs";
+import { PHASE_GROUPS } from "~/lib/phase-labels";
+import type { Phase } from "@convex/gre/types";
+
+// The real stop dot renders a Base UI Tooltip, irrelevant to the toggle
+// contract and flaky in jsdom. Stand it in with a plain button that surfaces
+// the aria-label + click so assertions stay on the contract.
+vi.mock("../phase-stop-dot", () => ({
+    default: ({
+        active,
+        onClick,
+        ariaLabel,
+    }: {
+        active: boolean;
+        onClick: () => void;
+        ariaLabel: string;
+    }) => (
+        <button
+            type="button"
+            aria-label={ariaLabel}
+            aria-pressed={active}
+            onClick={onClick}
+        />
+    ),
+}));
+
+const { default: ControllerPhaseList } =
+    await import("../controller-phase-list");
+const { default: ControllerPhasePanel } =
+    await import("../controller-phase-panel");
+
+type CtxOverrides = Partial<React.ContextType<typeof GameContext>>;
+
+function renderWith(
+    node: React.ReactNode,
+    ctx: CtxOverrides = {},
+    toggle: (phase: Phase, side: Side) => void = () => {}
+) {
+    const value = {
+        gameId: "game-id",
+        playerId: "me",
+        activePlayerId: "me",
+        priorityPlayerId: "me",
+        phase: "PRECOMBAT_MAIN",
+        turn: 1,
+        stackCount: 0,
+        allPlayers: [],
+        showAllCards: false,
+        debugAllActions: false,
+        ...ctx,
+    } as unknown as React.ContextType<typeof GameContext>;
+    return render(
+        <GameContext value={value}>
+            <SkipPhasePrefsContext
+                value={{ prefs: DEFAULT_SKIP_PREFS, toggle, reset: () => {} }}
+            >
+                {node}
+            </SkipPhasePrefsContext>
+        </GameContext>
+    );
+}
+
+const ALL_STEPS = PHASE_GROUPS.flatMap((g) => g.steps);
+
+describe("ControllerPhaseList — every phase visible", () => {
+    it("renders a row for every phase in the turn structure", () => {
+        renderWith(<ControllerPhaseList onClose={() => {}} />);
+        for (const step of ALL_STEPS) {
+            // Labels can collide with the collapsed pod elsewhere; here the
+            // list is the only thing rendered, so getAllByText >= 1 is enough.
+            expect(screen.getAllByText(step.label).length).toBeGreaterThan(0);
+        }
+    });
+
+    it("shows YOU and OPP column heads over the stop toggles", () => {
+        renderWith(<ControllerPhaseList onClose={() => {}} />);
+        expect(screen.getByText("You")).toBeTruthy();
+        expect(screen.getByText("Opp")).toBeTruthy();
+    });
+});
+
+describe("ControllerPhaseList — stop toggles route through the live model", () => {
+    it("toggling a YOU stop calls toggle(phase, 'self')", () => {
+        const toggle = vi.fn();
+        renderWith(<ControllerPhaseList onClose={() => {}} />, {}, toggle);
+        fireEvent.click(
+            screen.getByLabelText("Stop on my turn (PRECOMBAT_MAIN)")
+        );
+        expect(toggle).toHaveBeenCalledWith("PRECOMBAT_MAIN", "self");
+    });
+
+    it("toggling an OPP stop calls toggle(phase, 'opponent')", () => {
+        const toggle = vi.fn();
+        renderWith(<ControllerPhaseList onClose={() => {}} />, {}, toggle);
+        fireEvent.click(
+            screen.getByLabelText("Stop on opponent's turn (DRAW)")
+        );
+        expect(toggle).toHaveBeenCalledWith("DRAW", "opponent");
+    });
+
+    it("renders stop toggles for every skippable phase, both sides", () => {
+        renderWith(<ControllerPhaseList onClose={() => {}} />);
+        for (const phase of SKIPPABLE_PHASES) {
+            expect(
+                screen.getByLabelText(`Stop on my turn (${phase})`)
+            ).toBeTruthy();
+            expect(
+                screen.getByLabelText(`Stop on opponent's turn (${phase})`)
+            ).toBeTruthy();
+        }
+    });
+
+    it("does NOT render stop toggles for non-skippable phases (untap, cleanup)", () => {
+        renderWith(<ControllerPhaseList onClose={() => {}} />);
+        expect(screen.queryByLabelText("Stop on my turn (UNTAP)")).toBeNull();
+        expect(screen.queryByLabelText("Stop on my turn (CLEANUP)")).toBeNull();
+    });
+});
+
+describe("ControllerPhasePanel — non-modal click-away", () => {
+    it("closes on a pointerdown outside the list", () => {
+        const onClose = vi.fn();
+        renderWith(<ControllerPhasePanel onClose={onClose} />);
+        // A click on the surrounding board (document body) dismisses it.
+        fireEvent.pointerDown(document.body);
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("does NOT close on a pointerdown inside the list", () => {
+        const onClose = vi.fn();
+        renderWith(<ControllerPhasePanel onClose={onClose} />);
+        const dialog = screen.getByRole("dialog", { name: "Turn phases" });
+        fireEvent.pointerDown(within(dialog).getByText("Main Phase 1"));
+        expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it("does NOT close on a pointerdown inside the pod (CTA owns the toggle)", () => {
+        const onClose = vi.fn();
+        render(
+            <div data-controller-pod>
+                <button type="button" data-testid="cta">
+                    cta
+                </button>
+                <GameContext
+                    value={
+                        {
+                            gameId: "game-id",
+                            phase: "PRECOMBAT_MAIN",
+                            turn: 1,
+                        } as unknown as React.ContextType<typeof GameContext>
+                    }
+                >
+                    <SkipPhasePrefsContext
+                        value={{
+                            prefs: DEFAULT_SKIP_PREFS,
+                            toggle: () => {},
+                            reset: () => {},
+                        }}
+                    >
+                        <ControllerPhasePanel onClose={onClose} />
+                    </SkipPhasePrefsContext>
+                </GameContext>
+            </div>
+        );
+        fireEvent.pointerDown(screen.getByTestId("cta"));
+        expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it("is non-modal: no full-screen blocking overlay is rendered", () => {
+        const { container } = renderWith(
+            <ControllerPhasePanel onClose={() => {}} />
+        );
+        // The old modal used a `fixed inset-0` catch-all overlay that blocked
+        // the board. The non-modal panel must not render one.
+        const blockers = container.querySelectorAll(".inset-0");
+        expect(blockers.length).toBe(0);
+    });
+});
+
+beforeEach(() => {
+    vi.clearAllMocks();
+});
