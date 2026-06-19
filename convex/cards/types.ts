@@ -1313,6 +1313,22 @@ export interface SpellContext {
      *  for ids not currently in that owner's library or hand. */
     markKnownToAll: (zoneOwnerId: string, cardInstanceIds: string[]) => void;
 
+    /** Impulse-draw (ADR 0026, PRD #338 — slice 6). Exiles `cardInstanceId`
+     *  (owned by `ownerId`) FACE DOWN from `from`, granting knowledge to
+     *  `knowerId` alone (the controller of the effect). The card moves to its
+     *  owner's exile pile but its identity stays secret to everyone except
+     *  `knowerId`: opponents see a face-down card (CR 406.3 — a card exiled
+     *  face down is hidden from all players an effect doesn't let look at it).
+     *  Reuses the `knownTo` mechanism, NOT `faceDownOf` (which stays scoped to
+     *  battlefield morphs, CR 708). The projection re-derives the per-viewer
+     *  gate from `knownTo`. No-op for an id not currently in `from`. */
+    exileFaceDown: (
+        ownerId: string,
+        cardInstanceId: string,
+        from: "library" | "hand" | "graveyard",
+        knowerId: string
+    ) => void;
+
     /** Reveals `targetPlayerId`'s hand to the controller via a display-only
      *  pending choice (CR 401.4 — "look at"). Returns the revealed card ids
      *  on acknowledgement, `undefined` while suspended waiting for the

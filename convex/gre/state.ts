@@ -4907,6 +4907,19 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         markKnownToAll(zoneOwnerId: string, cardInstanceIds: string[]): void {
             grantKnowledgeToAll(state, zoneOwnerId, cardInstanceIds);
         },
+        // ADR 0026 / PRD #338 (slice 6) — impulse-draw: exile a card face down
+        // for `knowerId` alone to look at (CR 406.3). Reuses `knownTo` (NOT a
+        // new face-down-exile field; `faceDownOf` stays scoped to battlefield
+        // morphs). No-op if the card isn't in `from`.
+        exileFaceDown(
+            ownerId: string,
+            cardInstanceId: string,
+            from: "library" | "hand" | "graveyard",
+            knowerId: string
+        ): void {
+            const player = getPlayer(state, ownerId);
+            exileFaceDownCard(player, cardInstanceId, from, knowerId);
+        },
         revealHand(targetPlayerId: string): string[] | undefined {
             return ctx.requestChoice({
                 playerId: item.castById,
@@ -5037,6 +5050,43 @@ export function moveCard(
     const targetZone = player[toField] as CardInstanceState[];
     targetZone.push(card);
 
+    return card;
+}
+
+/** ADR 0026 / PRD #338 (slice 6) — exiles a card FACE DOWN for `knowerId` to
+ *  look at (impulse-draw, e.g. "exile the top card; you may look at it"). The
+ *  card moves to its owner's exile pile but, unlike a normal (face-up) exile,
+ *  its identity stays secret to everyone except `knowerId`: it is the controller
+ *  alone who is stamped into `knownTo`.
+ *
+ *  This deliberately does NOT route through `moveCard` (which treats exile as a
+ *  public zone and strips `knownTo`, CR 406 — exile is normally an open zone).
+ *  Face-down exile is the documented exception (CR 406.3): a card exiled face
+ *  down is hidden from all players except those an effect lets look at it. The
+ *  projection re-derives the per-viewer gate purely from `knownTo` — an exile
+ *  card with a non-empty `knownTo` is a face-down exile, hidden from non-knowers
+ *  and shown face-up only to the players in `knownTo`.
+ *
+ *  Reuses `knownTo` per ADR 0026 — NOT `faceDownOf`, which stays scoped to
+ *  battlefield morphs (CR 708). The real `card.id` is retained in state (no
+ *  vanilla-2/2 override); only the projection swaps it for a sentinel on the
+ *  wire. No-op if the card isn't in `from`. */
+export function exileFaceDownCard(
+    player: PlayerState,
+    cardInstanceId: string,
+    from: Exclude<Zone, "stack" | "battlefield">,
+    knowerId: string
+): CardInstanceState | null {
+    const fromField = ZONE_TO_FIELD[from];
+    const sourceZone = player[fromField] as CardInstanceState[];
+    const cardIndex = sourceZone.findIndex((c) => c.id === cardInstanceId);
+    if (cardIndex === -1) return null;
+
+    const [card] = sourceZone.splice(cardIndex, 1);
+    card.zone = "exile";
+    // The whole point of a face-down exile: knowledge is granted, not stripped.
+    card.knownTo = [knowerId];
+    player.exile.push(card);
     return card;
 }
 

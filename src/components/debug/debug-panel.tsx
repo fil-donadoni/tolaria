@@ -34,7 +34,7 @@ type PresetScenario = {
     cards: {
         name: string;
         owner: "me" | "opp";
-        zone?: "hand" | "battlefield" | "graveyard";
+        zone?: "hand" | "battlefield" | "graveyard" | "exile";
         tapped?: boolean;
         /** Number of copies to place in the zone. Default 1. */
         count?: number;
@@ -43,6 +43,9 @@ type PresetScenario = {
         /** Place face down (CR 708.2): a 2/2 colourless vanilla creature whose
          *  real identity is hidden from the opponent. Battlefield only. */
         faceDown?: boolean;
+        /** Exile face down (impulse-draw, CR 406.3, ADR 0026 slice 6): a card
+         *  in the exile pile known only to its controller. Exile zone only. */
+        faceDownExile?: boolean;
         /** Pre-seed counters (CR 122) on a battlefield permanent — e.g.
          *  `{ "+1/+1": 3 }` (Triskelion) or `{ doom: 2 }` (Armageddon Clock). */
         counters?: Record<string, number>;
@@ -100,6 +103,73 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         cards: [
             { name: "Glasses of Urza", owner: "me" as const },
             { name: "Mountain", owner: "me" as const, count: 2 },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Face-down exile / impulse-draw (ADR 0026 / PRD #338 slice 6, #342,
+        // CR 406.3). A card exiled FACE DOWN "you may look at" is known to its
+        // controller only — reusing the same knownTo mechanism, NOT faceDownOf.
+        //   • On "me"'s view, Lightning Bolt sits FACE-UP in "me"'s exile pile
+        //     (the controller may look at the card they exiled).
+        //   • Flip the viewer (solo mode follows priority — Pass once): on the
+        //     opponent's view, that same exile slot shows a FACE-DOWN card
+        //     (a 2/2 sentinel) — its identity is hidden from them.
+        //   • Contrast: the Grizzly Bears below is exiled face-up (normal
+        //     exile) and reads as itself to BOTH players.
+        label: "Knowledge: face-down exile is controller-only (impulse-draw)",
+        cards: [
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "exile" as const,
+                faceDownExile: true,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "exile" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Knowledge clear on unwitnessed discard (ADR 0026 / PRD #338 slice 4,
+        // #343). A look at the opponent's hand is cleared the moment that hand
+        // changes in a way the knower did not select:
+        //   • Right-click Glasses of Urza → "{T}: Look at target player's hand",
+        //     target the opponent, acknowledge the reveal. The opponent's two
+        //     cards now sit FACE-UP among their card backs on your side.
+        //   • Cast Mind Twist (the random-discard vehicle, Hymn-style) with
+        //     X = 1 targeting the opponent. The opponent discards one card at
+        //     random — a discard YOU did not pick.
+        //   • The whole opponent hand reverts to hidden card backs: a random /
+        //     unwitnessed change voids your identity→card map for the entire
+        //     hand (clear trigger #2), not just the discarded card.
+        //   • Flip the viewer (Pass once): the eye icon is gone from the
+        //     opponent's own view too. The owner always knows their own hand.
+        label: "Knowledge clear: random discard (Mind Twist) voids look at opponent hand (slice 4)",
+        cards: [
+            { name: "Glasses of Urza", owner: "me" as const },
+            {
+                name: "Mind Twist",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Island", owner: "me" as const, count: 2 },
             {
                 name: "Lightning Bolt",
                 owner: "opp" as const,
