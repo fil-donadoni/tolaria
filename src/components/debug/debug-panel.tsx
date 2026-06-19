@@ -115,6 +115,52 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Graveyard card picker dialog (#314, CR 109.2 / 400.7). A graveyard-
+        // zone target opens a selection dialog instead of forcing the player to
+        // hunt the board piles:
+        //   • Cast Animate Dead (controller: "any"). Both graveyards hold a
+        //     creature card, so the dialog FIRST asks "My graveyard" /
+        //     "Opponent's graveyard"; after the pick the card picker lists only
+        //     that graveyard's creatures. Choose one → it returns under your
+        //     control with the aura attached.
+        //   • Cast Resurrection (controller: "you"). Only your own graveyard is
+        //     eligible, so the choice step is skipped and the card picker opens
+        //     directly on your creatures.
+        //   • Cancel/ESC out of either dialog → target selection is cancelled,
+        //     no side effects.
+        label: "#314 Graveyard picker: Animate Dead (any) + Resurrection (you)",
+        cards: [
+            {
+                name: "Animate Dead",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Resurrection",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Gray Ogre",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Hill Giant",
+                owner: "opp" as const,
+                zone: "graveyard" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Counter display (CR 122) — verify counters render on the board and in
         // the card preview:
         //   • Grizzly Bears carries two +1/+1 counters (folds to 4/4 — the

@@ -21,6 +21,8 @@ import AutoPassController from "./auto-pass-controller";
 import GameOverDialog from "./game-over-dialog";
 import PauseMenuDialog from "./pause-menu-dialog";
 import TargetSelectionBanner from "./target-selection-banner";
+import GraveyardTargetDialog from "./graveyard-target-dialog";
+import { isGraveyardTargetForViewer } from "~/lib/graveyard-targets";
 import PaymentBanner from "./payment-banner";
 import PendingChoicePrompt from "./pending-choice-prompt";
 import MulliganPrompt from "./mulligan-prompt";
@@ -221,14 +223,26 @@ export default function Board({
                             stackItems={stackItems}
                         />
                         {pendingTarget &&
-                            pendingTarget.playerId === viewerId && (
+                            pendingTarget.playerId === viewerId &&
+                            (isGraveyardTargetForViewer(
+                                pendingTarget,
+                                viewerId
+                            ) ? (
+                                <GraveyardTargetDialog
+                                    pendingTarget={pendingTarget}
+                                    me={me}
+                                    allPlayers={allPlayers}
+                                    gameId={gameId}
+                                    playerId={viewerId}
+                                />
+                            ) : (
                                 <TargetSelectionBanner
                                     pendingTarget={pendingTarget}
                                     me={me}
                                     gameId={gameId}
                                     playerId={viewerId}
                                 />
-                            )}
+                            ))}
                         {pendingCast && pendingCast.playerId === viewerId && (
                             <PaymentBanner
                                 kind="cast"

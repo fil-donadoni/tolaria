@@ -1,0 +1,183 @@
+// Graveyard target dialog routing + cancel + disable-while-pending (#314).
+// Mirrors the board-next targeting-choice test's mutation-capture pattern.
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import type { CardInstance, PendingTarget, Player } from "~/types/game";
+
+type MutArgs = Record<string, unknown>;
+type MutFn = (args?: MutArgs) => Promise<void>;
+// selectTarget stays pending (promise never resolves) so the dialog's
+// in-flight `isPending` state is observable in the disable-while-pending test.
+const selectTarget = vi.fn<MutFn>(() => new Promise<void>(() => {}));
+const cancelTarget = vi.fn<MutFn>(() => Promise.resolve());
+const noop = vi.fn<MutFn>(() => Promise.resolve());
+
+const MUTATIONS: Record<string, ReturnType<typeof vi.fn>> = {
+    selectTarget,
+    cancelTarget,
+};
+
+vi.mock("convex/react", () => ({
+    useMutation: (ref: { _name: string }) => MUTATIONS[ref._name] ?? noop,
+    useQuery: () => undefined,
+}));
+
+vi.mock("@convex/_generated/api", () => {
+    const game: Record<string, { _name: string }> = {};
+    for (const n of ["selectTarget", "cancelTarget"]) game[n] = { _name: n };
+    return { api: { game } };
+});
+
+vi.mock("@convex/cards", () => ({
+    getCardById: (id: string) => ({ id, name: `Card ${id}` }),
+    tryGetCardById: (id: string) => ({ id, name: `Card ${id}` }),
+}));
+
+// Inert card image so the picker renders a clickable node without art loading.
+vi.mock("~/components/cards/card-image", () => ({
+    default: ({ card }: { card: { id: string } }) => (
+        <div data-testid={`card-img-${card.id}`} />
+    ),
+}));
+
+import GraveyardTargetDialog from "../graveyard-target-dialog";
+
+function gyCard(id: string, ownerId: string): CardInstance {
+    return {
+        id,
+        card: { id: `def-${id}` },
+        controllerId: ownerId,
+        ownerId,
+        zone: "graveyard",
+        isTapped: false,
+        types: ["Creature"],
+    } as CardInstance;
+}
+
+function player(id: string, name: string, graveyard: CardInstance[]): Player {
+    return {
+        id,
+        name,
+        bgColor: "#000",
+        life: 20,
+        hand: [],
+        library: { count: 0 },
+        graveyard,
+        exile: [],
+        battlefield: [],
+        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+    };
+}
+
+function pending(over: Partial<PendingTarget>): PendingTarget {
+    return {
+        playerId: "me",
+        cardInstanceId: "src",
+        targetType: "Creature",
+        count: 1,
+        zone: "graveyard",
+        selected: [],
+        ...over,
+    } as PendingTarget;
+}
+
+function renderDialog(
+    pt: PendingTarget,
+    players: Player[],
+    me: Player | undefined
+) {
+    return render(
+        <GraveyardTargetDialog
+            pendingTarget={pt}
+            me={me}
+            allPlayers={players}
+            gameId={"g1" as never}
+            playerId="me"
+        />
+    );
+}
+
+beforeEach(() => {
+    selectTarget.mockClear();
+    cancelTarget.mockClear();
+});
+afterEach(cleanup);
+
+describe("GraveyardTargetDialog routing (#314)", () => {
+    it("single eligible graveyard → card picker opens directly (no choice step)", () => {
+        const me = player("me", "Me", [gyCard("m1", "me")]);
+        const opp = player("opp", "Opp", []);
+        renderDialog(pending({ controller: "you" }), [me, opp], me);
+
+        // No graveyard-choice buttons; the card is directly pickable.
+        expect(screen.queryByText("My graveyard")).toBeNull();
+        expect(screen.getByTestId("card-img-m1")).toBeTruthy();
+    });
+
+    it("two eligible graveyards (controller: any) → choice step precedes the picker", () => {
+        const me = player("me", "Me", [gyCard("m1", "me")]);
+        const opp = player("opp", "Opp", [gyCard("o1", "opp")]);
+        renderDialog(pending({ controller: "any" }), [me, opp], me);
+
+        // Choice step shown; cards not yet listed.
+        expect(screen.getByText("My graveyard")).toBeTruthy();
+        expect(screen.getByText("Opponent's graveyard")).toBeTruthy();
+        expect(screen.queryByTestId("card-img-m1")).toBeNull();
+
+        // Pick the opponent's graveyard → only its card appears.
+        fireEvent.click(screen.getByText("Opponent's graveyard"));
+        expect(screen.getByTestId("card-img-o1")).toBeTruthy();
+        expect(screen.queryByTestId("card-img-m1")).toBeNull();
+    });
+
+    it("picking a card submits selectTarget with the owning player's id", () => {
+        const me = player("me", "Me", [gyCard("m1", "me")]);
+        const opp = player("opp", "Opp", [gyCard("o1", "opp")]);
+        renderDialog(pending({ controller: "any" }), [me, opp], me);
+
+        fireEvent.click(screen.getByText("Opponent's graveyard"));
+        fireEvent.click(screen.getByTestId("card-img-o1"));
+
+        expect(selectTarget).toHaveBeenCalledTimes(1);
+        expect(selectTarget.mock.calls[0][0]).toMatchObject({
+            gameId: "g1",
+            playerId: "me",
+            targetType: "graveyard-card",
+            targetId: "o1",
+            targetPlayerId: "opp",
+        });
+    });
+
+    it("cancelling the dialog (ESC) cancels target selection with no select call", () => {
+        const me = player("me", "Me", [gyCard("m1", "me")]);
+        renderDialog(pending({ controller: "you" }), [me], me);
+
+        fireEvent.keyDown(document, { key: "Escape" });
+        expect(cancelTarget).toHaveBeenCalledTimes(1);
+        expect(cancelTarget.mock.calls[0][0]).toMatchObject({
+            gameId: "g1",
+            playerId: "me",
+        });
+        expect(selectTarget).not.toHaveBeenCalled();
+    });
+
+    it("buttons disable while the selectTarget mutation is in flight", () => {
+        const me = player("me", "Me", [gyCard("m1", "me"), gyCard("m2", "me")]);
+        renderDialog(pending({ controller: "you" }), [me], me);
+
+        const firstBtn = screen.getByTestId("card-img-m1").closest("button")!;
+        const secondBtn = screen.getByTestId("card-img-m2").closest("button")!;
+        expect(firstBtn.disabled).toBe(false);
+
+        // Fire the mutation — it stays pending (promise unresolved).
+        fireEvent.click(firstBtn);
+        expect(selectTarget).toHaveBeenCalledTimes(1);
+        // Both picker buttons must now be disabled.
+        expect(firstBtn.disabled).toBe(true);
+        expect(secondBtn.disabled).toBe(true);
+
+        // A second click while pending is a no-op.
+        fireEvent.click(secondBtn);
+        expect(selectTarget).toHaveBeenCalledTimes(1);
+    });
+});
