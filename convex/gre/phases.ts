@@ -1574,6 +1574,31 @@ function tickAllDurations(state: GameState): void {
         }
     }
 
+    // Temporarily removed keywords (CR 611.1b layer 6 — Shelkin Brownie /
+    // Tolaria "loses banding / 'bands with other' until end of turn"). On
+    // expiry, push one occurrence of the keyword back into `staticAbilities`
+    // (CR 113.1 — a native duplicate present at strip time is not double-added,
+    // since each stripped occurrence was recorded separately). Mirrors the
+    // `grantedStaticAbilities` purge above.
+    for (const p of state.players) {
+        for (const card of p.battlefield) {
+            if (!card.temporaryRemovedKeywords?.length) continue;
+            const kept: typeof card.temporaryRemovedKeywords = [];
+            for (const entry of card.temporaryRemovedKeywords) {
+                const next = tickDuration(entry.duration, view);
+                if (next === null) {
+                    card.staticAbilities = [
+                        ...card.staticAbilities,
+                        entry.keyword,
+                    ];
+                } else {
+                    kept.push({ ...entry, duration: next });
+                }
+            }
+            card.temporaryRemovedKeywords = kept.length > 0 ? kept : undefined;
+        }
+    }
+
     // One-shot prevention effects (e.g. Circle of Protection). An effect
     // that hasn't been consumed by the time its duration expires simply
     // wears off.

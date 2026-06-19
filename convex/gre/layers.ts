@@ -69,6 +69,15 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
     hasSubtype(card: PermanentView, subtype: string): boolean {
         return card.subtypes.includes(subtype);
     },
+    hasSupertype(card: PermanentView, supertype: string): boolean {
+        // CR 205.4 — supertypes live on the (possibly copied / tokenized) card
+        // definition, not on the instance's mutable `types`/`subtypes` arrays.
+        const embedded = (card.card as { supertypes?: string[] }).supertypes;
+        if (embedded) return embedded.includes(supertype);
+        const cardId = (card.card as { id?: string }).id;
+        const def = cardId ? tryGetCardById(cardId) : undefined;
+        return def?.supertypes?.includes(supertype as never) ?? false;
+    },
     getPrintedTypes(card: PermanentView): CardType[] {
         // CR 205.2 — printed type line from the card definition; ignores the
         // live `types` array (which type-add / animate effects mutate).

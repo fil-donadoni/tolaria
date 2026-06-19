@@ -5,16 +5,15 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { CardInstance, Combat } from "~/types/game";
 import { getCardById } from "@convex/cards";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
-
-const hasBanding = (c: CardInstance): boolean =>
-    c.staticAbilities?.includes("banding") ?? false;
+import { hasBandingLike, canFormBand } from "~/lib/banding";
 
 /**
  * Band-formation control shown to the attacking player during attacker
- * declaration (CR 702.21e). A band groups 2+ attackers — at least one with
- * banding and at most one without — that attack and are blocked as a unit. The
- * panel only appears once a band is actually possible (a selected banding
- * attacker plus another selected attacker).
+ * declaration (CR 702.21e / 702.22j). A band groups 2+ attackers — for plain
+ * banding, at least one with banding and at most one without; for "bands with
+ * other [quality]", every member sharing the quality — that attack and are
+ * blocked as a unit. The panel only appears once a band is actually possible (a
+ * selected banding / bands-with-other attacker plus another selected attacker).
  */
 export default function BandFormationPanel({
     combat,
@@ -38,7 +37,7 @@ export default function BandFormationPanel({
     const ungrouped = attackers.filter((c) => !bandedIds.has(c.id));
 
     // Only worth showing when a fresh band is still formable.
-    if (ungrouped.length < 2 || !ungrouped.some(hasBanding)) {
+    if (ungrouped.length < 2 || !ungrouped.some(hasBandingLike)) {
         if (bands.length === 0) return null;
     }
 
@@ -50,9 +49,7 @@ export default function BandFormationPanel({
     const chosen = selected
         .map((id) => attackers.find((a) => a.id === id))
         .filter((c): c is CardInstance => !!c && !bandedIds.has(c.id));
-    const nonBanding = chosen.filter((c) => !hasBanding(c));
-    const canCreate =
-        chosen.length >= 2 && chosen.some(hasBanding) && nonBanding.length <= 1;
+    const canCreate = canFormBand(chosen);
 
     const handleCreate = async () => {
         if (busy || !canCreate) return;
@@ -101,7 +98,7 @@ export default function BandFormationPanel({
                                     }`}
                                 >
                                     {getCardById(c.card.id).name}
-                                    {hasBanding(c) ? " ⟡" : ""}
+                                    {hasBandingLike(c) ? " ⟡" : ""}
                                 </button>
                             );
                         })}

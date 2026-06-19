@@ -228,6 +228,16 @@ export type CardInstanceState = {
      *  layer 6). Each entry records the removed keyword and the source that
      *  removed it so `unapplySourceStaticEffects` can restore it. */
     removedKeywords?: { keyword: string; sourceId: string }[];
+    /** Keywords removed for a limited duration by a one-shot effect (CR 611.1b
+     *  layer 6 — Shelkin Brownie / Tolaria stripping banding and "bands with
+     *  other" abilities until end of turn). Each entry records the keyword
+     *  spliced out of `staticAbilities` and the `duration` after which it is
+     *  restored. Purged at the same phase boundary as `grantedStaticAbilities`;
+     *  on expiry one occurrence of the keyword is pushed back so a native
+     *  duplicate isn't double-restored (CR 113.1). Distinct from
+     *  `removedKeywords`, which is source-keyed and tied to a continuous static
+     *  effect's lifetime rather than a fixed duration. */
+    temporaryRemovedKeywords?: { keyword: string; duration: Duration }[];
     /** Instance ids of `ability-loss` static-effect sources that have stripped
      *  this permanent of ALL its abilities (CR 613.1f — "loses all abilities",
      *  Titania's Song). While non-empty: native activated abilities don't
@@ -4426,6 +4436,37 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     ability,
                     duration: resolveDuration(duration, item.castById, state),
                 },
+            ];
+        },
+        // CR 611.1b layer 6: removes every keyword matching `predicate` from
+        // `staticAbilities` for the duration, recording each on
+        // `temporaryRemovedKeywords` so the phase-boundary purge restores it on
+        // expiry. The duration-scoped inverse of `grantStaticAbility`. Used by
+        // Shelkin Brownie / Tolaria to strip banding and "bands with other"
+        // abilities until end of turn.
+        removeStaticAbilities(
+            target: TargetSelection,
+            predicate: (keyword: string) => boolean,
+            duration: DurationSpec
+        ): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            const resolved = resolveDuration(duration, item.castById, state);
+            const kept: string[] = [];
+            const removedNow: { keyword: string; duration: Duration }[] = [];
+            for (const kw of found.card.staticAbilities) {
+                if (predicate(kw)) {
+                    removedNow.push({ keyword: kw, duration: resolved });
+                } else {
+                    kept.push(kw);
+                }
+            }
+            if (removedNow.length === 0) return;
+            found.card.staticAbilities = kept;
+            found.card.temporaryRemovedKeywords = [
+                ...(found.card.temporaryRemovedKeywords ?? []),
+                ...removedNow,
             ];
         },
         // CR 208.2, 611.1: turns the target permanent into a creature with

@@ -111,7 +111,6 @@ import {
     getMaxBlockTargets,
 } from "./gre/combat";
 import {
-    hasBanding,
     getEffectiveBlockGraph,
     outstandingDamageAssigner,
     isLegalBandComposition,
@@ -2810,7 +2809,9 @@ export const toggleAttacker = mutation({
                                 player.battlefield.find((c) => c.id === id)
                             )
                             .filter((c): c is NonNullable<typeof c> => !!c);
-                        return members.some(hasBanding);
+                        // CR 702.21e / 702.22j — the surviving members must
+                        // still form a legal band (plain or bands-with-other).
+                        return isLegalBandComposition(members);
                     });
                 if (state.combat.bands.length === 0) {
                     state.combat.bands = undefined;

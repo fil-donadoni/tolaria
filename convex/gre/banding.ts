@@ -1,5 +1,6 @@
 import type { CardInstanceState, GameState } from "./state";
 import { getPlayer, getOpponentId } from "./state";
+import { tryGetCardById } from "../cards";
 
 /**
  * Banding combat helpers (CR 702.21).
@@ -22,6 +23,85 @@ export function hasBanding(card: CardInstanceState): boolean {
     return card.staticAbilities.includes("banding");
 }
 
+/**
+ * "Bands with other [quality]" (CR 702.22j). The restricted banding variant is
+ * encoded as a parametric keyword string on `staticAbilities`:
+ *
+ *   - `"bands with other:legendary"`               — the [quality] is "legendary"
+ *   - `"bands with other:name=Wolves of the Hunt"` — the [quality] is "creatures
+ *                                                     named Wolves of the Hunt"
+ *
+ * Only those two quality shapes appear in Legends, so the matcher handles
+ * exactly them. A creature may carry several such keywords at once (e.g. a
+ * grant-land plus a printed one); each is an independent band-eligibility lane.
+ */
+export const BANDS_WITH_OTHER_PREFIX = "bands with other:";
+
+/** Quality required of every band member by a "bands with other [Q]" keyword. */
+export type BandQuality =
+    | { kind: "legendary" }
+    | { kind: "name"; name: string };
+
+/** Parse the [quality] out of a single `staticAbilities` entry, or undefined if
+ *  the entry is not a bands-with-other keyword. */
+export function parseBandsWithOtherQuality(
+    keyword: string
+): BandQuality | undefined {
+    if (!keyword.startsWith(BANDS_WITH_OTHER_PREFIX)) return undefined;
+    const q = keyword.slice(BANDS_WITH_OTHER_PREFIX.length);
+    if (q === "legendary") return { kind: "legendary" };
+    if (q.startsWith("name=")) return { kind: "name", name: q.slice(5) };
+    return undefined;
+}
+
+/** Every "bands with other [Q]" quality currently on `card`. */
+export function getBandsWithOtherQualities(
+    card: CardInstanceState
+): BandQuality[] {
+    const out: BandQuality[] = [];
+    for (const kw of card.staticAbilities) {
+        const q = parseBandsWithOtherQuality(kw);
+        if (q) out.push(q);
+    }
+    return out;
+}
+
+/** True if `card` has at least one "bands with other [Q]" keyword (CR 702.22j).
+ *  For damage-assignment authority (CR 702.22j-k) a creature with this variant
+ *  counts as a banding creature, exactly like plain banding. */
+export function hasBandsWithOther(card: CardInstanceState): boolean {
+    return card.staticAbilities.some((kw) =>
+        kw.startsWith(BANDS_WITH_OTHER_PREFIX)
+    );
+}
+
+/** A creature whose presence in a combat gives its controller damage-assignment
+ *  authority (CR 702.22j-k): plain banding OR any bands-with-other variant. */
+export function grantsDamageAssignment(card: CardInstanceState): boolean {
+    return hasBanding(card) || hasBandsWithOther(card);
+}
+
+/** Resolve a permanent's (possibly copied / tokenized) card definition for
+ *  reading the supertype / name a band quality keys off (CR 707.2). Tokens
+ *  carry these on their synthesized def, so the registry lookup covers them. */
+function bandDefinition(card: CardInstanceState) {
+    const cardId = (card.card as { id?: string }).id;
+    return cardId ? tryGetCardById(cardId) : null;
+}
+
+/** True if `card` satisfies the band `quality` (CR 702.22j). "legendary" reads
+ *  the Legendary supertype; "name=X" reads the (copied) printed name. */
+export function matchesBandQuality(
+    card: CardInstanceState,
+    quality: BandQuality
+): boolean {
+    const def = bandDefinition(card);
+    if (quality.kind === "legendary") {
+        return def?.supertypes?.includes("Legendary") ?? false;
+    }
+    return def?.name === quality.name;
+}
+
 /** The member ids of the band `attackerId` belongs to, or undefined if it is
  *  not part of a declared band. */
 export function getBandMembers(
@@ -32,14 +112,32 @@ export function getBandMembers(
         ?.memberIds;
 }
 
-/** True if `members` form a legal band (CR 702.21e): 2+ creatures, at least
- *  one with banding and at most one without. Shared by the createBand mutation
- *  and its tests. */
+/** True if `members` form a legal band (CR 702.21e / 702.22j). Two lanes:
+ *
+ *  - **Plain banding (CR 702.21e):** 2+ creatures, at least one with banding and
+ *    at most one without banding.
+ *  - **Bands with other [quality] (CR 702.22j):** 2+ creatures where some
+ *    member has "bands with other [Q]" and EVERY member satisfies that same
+ *    quality [Q]. Unlike plain banding there is no "at most one without"
+ *    relaxation — all members must share the quality.
+ *
+ *  A band is legal if it satisfies either lane. Shared by the createBand
+ *  mutation and its tests. */
 export function isLegalBandComposition(members: CardInstanceState[]): boolean {
     if (members.length < 2) return false;
+    // CR 702.21e — plain banding.
     const banding = members.filter(hasBanding).length;
-    const nonBanding = members.length - banding;
-    return banding >= 1 && nonBanding <= 1;
+    if (banding >= 1 && members.length - banding <= 1) return true;
+    // CR 702.22j — bands with other [quality]: some member grants the variant
+    // and every member satisfies that member's quality.
+    for (const member of members) {
+        for (const quality of getBandsWithOtherQualities(member)) {
+            if (members.every((m) => matchesBandQuality(m, quality))) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 export type BlockGraph = {
@@ -99,10 +197,10 @@ export function recordBlockedAttackers(state: GameState): void {
 
 /**
  * Determines which player assigns `source`'s combat damage among
- * `targetCreatureIds` (CR 702.21j-k). If any target is a creature with
- * banding, authority shifts to that target's controller (the opponent of the
- * source); otherwise the source's own controller assigns. Returns `source`'s
- * controller when there is no shift.
+ * `targetCreatureIds` (CR 702.21j-k / 702.22j-k). If any target is a creature
+ * with banding OR "bands with other [quality]", authority shifts to that
+ * target's controller (the opponent of the source); otherwise the source's own
+ * controller assigns. Returns `source`'s controller when there is no shift.
  */
 export function getDamageAssignerId(
     state: GameState,
@@ -113,7 +211,7 @@ export function getDamageAssignerId(
     const opponent = getPlayer(state, opponentId);
     const anyBandingTarget = targetCreatureIds.some((id) => {
         const target = opponent.battlefield.find((c) => c.id === id);
-        return target ? hasBanding(target) : false;
+        return target ? grantsDamageAssignment(target) : false;
     });
     return anyBandingTarget ? opponentId : source.controllerId;
 }

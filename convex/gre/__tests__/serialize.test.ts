@@ -236,6 +236,14 @@ describe("game_state serialize round-trip", () => {
         lion.untapLockedBy = ["gremlin-1"];
         lion.counters = { "+1/+1": 1, "+1/+0": 2 };
         lion.grantedStaticAbilities = [{ ability: "flying", auraId: "aura-1" }];
+        // CR 611.1b — duration-scoped keyword removal (Shelkin Brownie / Tolaria, #381).
+        lion.temporaryRemovedKeywords = [
+            {
+                keyword: "bands with other:legendary",
+                duration: { phase: "end-of-turn" },
+            },
+            { keyword: "banding", duration: { phase: "end-of-turn" } },
+        ];
         lion.grantedActivatedAbilities = [
             { sourceCardId: "src", abilityId: "ability", auraId: "aura-1" },
         ];
@@ -303,6 +311,13 @@ describe("game_state serialize round-trip", () => {
         expect(got.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
         expect(got.grantedStaticAbilities).toEqual([
             { ability: "flying", auraId: "aura-1" },
+        ]);
+        expect(got.temporaryRemovedKeywords).toEqual([
+            {
+                keyword: "bands with other:legendary",
+                duration: { phase: "end-of-turn" },
+            },
+            { keyword: "banding", duration: { phase: "end-of-turn" } },
         ]);
         expect(got.grantedActivatedAbilities).toEqual([
             { sourceCardId: "src", abilityId: "ability", auraId: "aura-1" },

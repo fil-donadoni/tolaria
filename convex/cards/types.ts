@@ -976,6 +976,19 @@ export interface SpellContext {
         ability: string,
         duration: DurationSpec
     ) => void;
+    /** Removes every keyword static ability matching `predicate` from a
+     *  permanent for a limited duration (CR 611.1b layer 6). Each removed
+     *  keyword is spliced out of `staticAbilities` so combat / rules checks stop
+     *  seeing it at read time; the phase-boundary purge restores it when
+     *  `duration` expires. The duration-scoped counterpart of
+     *  `grantStaticAbility`. No-op if the target has left the battlefield. Used
+     *  by Shelkin Brownie ("loses all 'bands with other' abilities until end of
+     *  turn") and Tolaria (also strips plain banding). */
+    removeStaticAbilities: (
+        target: TargetSelection,
+        predicate: (keyword: string) => boolean,
+        duration: DurationSpec
+    ) => void;
     /** Turns the target permanent into a creature with the specified base
      *  P/T and optional subtype until `spec.duration` expires (CR 208.2,
      *  611.1). If the permanent is not already a Creature, "Creature" is
@@ -1530,6 +1543,12 @@ export interface StaticEffectContext {
     isCreature: (card: PermanentView) => boolean;
     /** True if card has the given subtype. */
     hasSubtype: (card: PermanentView, subtype: string) => boolean;
+    /** True if card has the given supertype (CR 205.4 — Legendary, World, Snow,
+     *  Basic). Read from the (possibly copied / tokenized) card definition. Used
+     *  by predicates that filter on a supertype the live `types`/`subtypes`
+     *  arrays don't carry — e.g. the LEG bands-with-other grant-lands' "legendary
+     *  creatures you control". */
+    hasSupertype: (card: PermanentView, supertype: string) => boolean;
     /** Printed mana value of a card (CR 202.3). X in the printed cost
      *  counts as 0 for permanents on the battlefield (the chosen X is not
      *  preserved). Used by characteristic-defining abilities that key off
