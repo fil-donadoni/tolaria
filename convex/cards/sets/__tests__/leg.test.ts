@@ -160,6 +160,13 @@ import {
     spectralCloak,
     antiMagicAura,
     bartelRuneaxe,
+    arcadesSabboth,
+    nicolBolas,
+    palladiaMors,
+    vaevictisAsmadi,
+    cosmicHorror,
+    moldDemon,
+    theTabernacleAtPendrellVale,
 } from "../leg";
 import { getCardById, getCardByName, getAllCards } from "../../index";
 import { getLegalTargets } from "../../../gre/rules";
@@ -188,6 +195,8 @@ import {
     resolveTopOfStack,
     removePermanentTo,
     applySourceStaticEffects,
+    unapplySourceStaticEffects,
+    applyExistingGrantsTo,
     getCostModifiers,
     applyCostModifiers,
     normalizeManaCost,
@@ -195,6 +204,9 @@ import {
     type GameState,
     type StackItem,
 } from "../../../gre/state";
+import { collectTriggers } from "../../../gre/triggers";
+import { effectiveTriggeredAbilities } from "../../../gre/copy";
+import { applyMayPaySubmit } from "../../../gre/pendingChoiceSubmit";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -4464,5 +4476,418 @@ describe("Bartel Runeaxe (can't be targeted by Aura spells, CR 109.5)", () => {
             true
         ).map((t) => t.id);
         expect(boltSpell).toContain("bartel");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C7 — Upkeep "pay-or-sacrifice" maintenance cost (#383)
+//
+// CR 603.6a beginning-of-upkeep trigger + CR 117.3a "do X unless you pay
+// [cost]". The five Elder Dragons sacrifice unless their controller pays a
+// three-color cost; Cosmic Horror destroys-and-self-pings; Mold Demon's ETB
+// sacrifices unless you sacrifice two Swamps; The Tabernacle grants the
+// destroy-unless-pay-{1} tax to every creature (CR 113.1 triggered-grant).
+// Mirrors Junún Efreet (arn) and Energy Flux (atq).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const UPKEEP_C7 = (playerId: string): StackItem["triggerEvent"] =>
+    ({
+        type: "PHASE_BEGIN" as const,
+        phase: "UPKEEP" as const,
+        activePlayerId: playerId,
+    }) as StackItem["triggerEvent"];
+
+const ENTERED_C7 = (source: CardInstanceState): StackItem["triggerEvent"] =>
+    ({
+        type: "PERMANENT_ENTERED" as const,
+        instanceId: source.id,
+        controllerId: source.controllerId,
+        types: source.types,
+    }) as StackItem["triggerEvent"];
+
+/** Gives p1 a full mana pool of `n` of each color (enough to pay any three-
+ *  color upkeep cost in this cluster). */
+function fillManaPool(state: GameState, n = 5): void {
+    state.players[0].manaPool = { W: n, U: n, B: n, R: n, G: n, C: n };
+}
+
+describe("Elder Dragon Legends (upkeep: sacrifice unless pay {C}{C}{C}, CR 603.6a / 117.3a / 701.16)", () => {
+    const dragons = [
+        { def: arcadesSabboth, ability: "arcades-sabboth-upkeep" },
+        { def: chromium, ability: "chromium-upkeep" },
+        { def: nicolBolas, ability: "nicol-bolas-upkeep" },
+        { def: palladiaMors, ability: "palladia-mors-upkeep" },
+        { def: vaevictisAsmadi, ability: "vaevictis-asmadi-upkeep" },
+    ] as const;
+
+    function setup(def: (typeof dragons)[number]["def"]) {
+        const dragon = makeInstance(def.id, {
+            id: "dragon",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [dragon] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, dragon };
+    }
+
+    for (const { def, ability } of dragons) {
+        describe(def.name, () => {
+            it("declining the payment sacrifices it (CR 701.16)", () => {
+                const { state, dragon } = setup(def);
+                resolveTrigger(state, dragon, ability, UPKEEP_C7("p1"));
+                answerChoice(state, ["decline"]);
+                expect(state.players[0].battlefield).toHaveLength(0);
+                expect(
+                    state.players[0].graveyard.some((c) => c.id === "dragon")
+                ).toBe(true);
+            });
+
+            it("paying the cost keeps it on the battlefield (CR 118)", () => {
+                const { state, dragon } = setup(def);
+                fillManaPool(state);
+                resolveTrigger(state, dragon, ability, UPKEEP_C7("p1"));
+                answerChoice(state, ["yes"]);
+                expect(
+                    state.players[0].battlefield.some((c) => c.id === "dragon")
+                ).toBe(true);
+            });
+
+            it("carries the upkeep trigger in its definition", () => {
+                expect(
+                    def.triggeredAbilities?.some((a) => a.id === ability)
+                ).toBe(true);
+            });
+        });
+    }
+
+    it("fires only at the controller's OWN upkeep (scope: your, CR 603.6a)", () => {
+        const dragon = makeInstance(chromium.id, {
+            id: "chr",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [dragon] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(
+            collectTriggers(state, [UPKEEP_C7("p1") as never]).some(
+                (t) => t.triggeredAbilityId === "chromium-upkeep"
+            )
+        ).toBe(true);
+        expect(
+            collectTriggers(state, [UPKEEP_C7("p2") as never]).some(
+                (t) => t.triggeredAbilityId === "chromium-upkeep"
+            )
+        ).toBe(false);
+    });
+
+    it("backend integration: declining via applyMayPaySubmit sacrifices it (GRE → mutation → state)", () => {
+        const dragon = makeInstance(nicolBolas.id, {
+            id: "bolas",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [dragon] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push(...collectTriggers(state, [UPKEEP_C7("p1") as never]));
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends at may-pay
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.playerId).toBe("p1");
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.players[0].battlefield.some((c) => c.id === "bolas")).toBe(
+            false
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === "bolas")).toBe(
+            true
+        );
+    });
+
+    it("backend integration: paying via applyMayPaySubmit keeps it and spends mana", () => {
+        const dragon = makeInstance(palladiaMors.id, {
+            id: "pm",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [dragon] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.players[0].manaPool = { W: 1, U: 0, B: 0, R: 1, G: 1, C: 0 };
+        state.stack.push(...collectTriggers(state, [UPKEEP_C7("p1") as never]));
+        expect(resolveTopOfStack(state)).toBeNull();
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.players[0].battlefield.some((c) => c.id === "pm")).toBe(
+            true
+        );
+        // {R}{G}{W} consumed.
+        expect(state.players[0].manaPool.R).toBe(0);
+        expect(state.players[0].manaPool.G).toBe(0);
+        expect(state.players[0].manaPool.W).toBe(0);
+    });
+});
+
+describe("Cosmic Horror (upkeep: destroy unless pay {3}{B}{B}{B}, then 7 to you, CR 603.6a / 701.7)", () => {
+    function setup() {
+        const horror = makeInstance(cosmicHorror.id, {
+            id: "horror",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [horror] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, horror };
+    }
+
+    it("declining destroys it AND deals 7 damage to its controller", () => {
+        const { state, horror } = setup();
+        resolveTrigger(state, horror, "cosmic-horror-upkeep", UPKEEP_C7("p1"));
+        answerChoice(state, ["decline"]);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard.some((c) => c.id === "horror")).toBe(
+            true
+        );
+        expect(state.players[0].life).toBe(13); // 20 - 7
+    });
+
+    it("paying keeps it and deals no damage", () => {
+        const { state, horror } = setup();
+        fillManaPool(state);
+        resolveTrigger(state, horror, "cosmic-horror-upkeep", UPKEEP_C7("p1"));
+        answerChoice(state, ["yes"]);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "horror")
+        ).toBe(true);
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("has first strike", () => {
+        expect(cosmicHorror.staticAbilities).toContain("first strike");
+    });
+});
+
+describe("Mold Demon (ETB: sacrifice unless you sacrifice two Swamps, CR 603.6a / 118.3)", () => {
+    function setup(swampCount: number) {
+        const demon = makeInstance(moldDemon.id, {
+            id: "demon",
+            controllerId: "p1",
+        });
+        const swamps = Array.from({ length: swampCount }, (_, i) =>
+            makeInstance(swamp.id, { id: `swamp-${i}`, controllerId: "p1" })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [demon, ...swamps] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, demon };
+    }
+
+    it("sacrifices two Swamps and keeps Mold Demon when the controller pays", () => {
+        const { state } = setup(2);
+        resolveTrigger(
+            state,
+            state.players[0].battlefield[0],
+            "mold-demon-etb",
+            ENTERED_C7(state.players[0].battlefield[0])
+        );
+        answerChoice(state, ["yes"]); // accept the sacrifice cost
+        answerChoice(state, ["swamp-0", "swamp-1"]); // pick the two Swamps
+        const bf = state.players[0].battlefield;
+        expect(bf.some((c) => c.id === "demon")).toBe(true);
+        expect(bf.some((c) => c.subtypes.includes("Swamp"))).toBe(false);
+    });
+
+    it("declining the cost sacrifices Mold Demon", () => {
+        const { state } = setup(2);
+        resolveTrigger(
+            state,
+            state.players[0].battlefield[0],
+            "mold-demon-etb",
+            ENTERED_C7(state.players[0].battlefield[0])
+        );
+        answerChoice(state, ["decline"]);
+        const bf = state.players[0].battlefield;
+        expect(bf.some((c) => c.id === "demon")).toBe(false);
+        // The two Swamps remain.
+        expect(bf.filter((c) => c.subtypes.includes("Swamp"))).toHaveLength(2);
+        expect(state.players[0].graveyard.some((c) => c.id === "demon")).toBe(
+            true
+        );
+    });
+
+    it("auto-sacrifices when fewer than two Swamps are available (no real choice)", () => {
+        const { state } = setup(1);
+        resolveTrigger(
+            state,
+            state.players[0].battlefield[0],
+            "mold-demon-etb",
+            ENTERED_C7(state.players[0].battlefield[0])
+        );
+        // Unpayable cost forces the consequence with no prompt.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].battlefield.some((c) => c.id === "demon")).toBe(
+            false
+        );
+    });
+});
+
+// The Tabernacle at Pendrell Vale — grants the destroy-unless-pay-{1} tax to
+// every creature (CR 113.1 triggered-grant + CR 611 filtered set + CR 603.6a).
+function withTabernacle(creatureController: "p1" | "p2" = "p1"): {
+    state: GameState;
+    tabernacle: CardInstanceState;
+    bear: CardInstanceState;
+} {
+    const tabernacle = makeInstance(theTabernacleAtPendrellVale.id, {
+        id: "tab",
+        controllerId: "p1",
+        zone: "battlefield",
+    });
+    const bear = makeInstance(grizzlyBears.id, {
+        id: "bear",
+        controllerId: creatureController,
+        zone: "battlefield",
+    });
+    const state = makeState();
+    state.players[0].battlefield.push(tabernacle);
+    state.players[creatureController === "p1" ? 0 : 1].battlefield.push(bear);
+    applySourceStaticEffects(state, tabernacle);
+    return { state, tabernacle, bear };
+}
+
+describe("The Tabernacle at Pendrell Vale (CR 113.1 triggered-grant + CR 603.6a upkeep tax)", () => {
+    it("declares a triggered-grant static and the granted template (not on triggeredAbilities)", () => {
+        const kinds = (theTabernacleAtPendrellVale.staticEffects ?? []).map(
+            (e) => e.kind
+        );
+        expect(kinds).toContain("triggered-grant");
+        expect(
+            theTabernacleAtPendrellVale.triggeredAbilities ?? []
+        ).toHaveLength(0);
+        expect(
+            theTabernacleAtPendrellVale.triggeredGrantTemplates?.some(
+                (t) => t.id === "tabernacle-upkeep"
+            )
+        ).toBe(true);
+    });
+
+    it("grants the upkeep tax to every creature in play (CR 611 filtered set)", () => {
+        const { bear } = withTabernacle();
+        expect(
+            effectiveTriggeredAbilities(bear).some(
+                (a) => a.id === "tabernacle-upkeep"
+            )
+        ).toBe(true);
+    });
+
+    it("does NOT grant the tax to a non-creature (the Tabernacle itself stays untaxed)", () => {
+        const { tabernacle } = withTabernacle();
+        expect(
+            effectiveTriggeredAbilities(tabernacle).some(
+                (a) => a.id === "tabernacle-upkeep"
+            )
+        ).toBe(false);
+    });
+
+    it("fires the granted trigger at the creature controller's own upkeep (scope: your)", () => {
+        const { state, bear } = withTabernacle("p1");
+        const triggers = collectTriggers(state, [UPKEEP_C7("p1") as never]);
+        expect(
+            triggers.some(
+                (t) =>
+                    t.triggeredAbilityId === "tabernacle-upkeep" &&
+                    t.triggerSourceId === bear.id
+            )
+        ).toBe(true);
+        // Not on the OTHER player's upkeep.
+        expect(
+            collectTriggers(state, [UPKEEP_C7("p2") as never]).some(
+                (t) => t.triggeredAbilityId === "tabernacle-upkeep"
+            )
+        ).toBe(false);
+    });
+
+    it("paying {1} keeps the creature (CR 118)", () => {
+        const { state } = withTabernacle("p1");
+        state.players[0].manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 1 };
+        state.stack.push(...collectTriggers(state, [UPKEEP_C7("p1") as never]));
+        expect(resolveTopOfStack(state)).toBeNull();
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.players[0].battlefield.some((c) => c.id === "bear")).toBe(
+            true
+        );
+        expect(state.players[0].manaPool.C).toBe(0);
+    });
+
+    it("backend integration: declining destroys the creature (CR 701.7)", () => {
+        const { state } = withTabernacle("p1");
+        state.stack.push(...collectTriggers(state, [UPKEEP_C7("p1") as never]));
+        expect(resolveTopOfStack(state)).toBeNull();
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.players[0].battlefield.some((c) => c.id === "bear")).toBe(
+            false
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === "bear")).toBe(
+            true
+        );
+    });
+
+    it("grants the tax to a creature that ENTERS after the Tabernacle (applyExistingGrantsTo)", () => {
+        const { state } = withTabernacle("p1");
+        const ogre = makeInstance(grizzlyBears.id, {
+            id: "ogre",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        state.players[1].battlefield.push(ogre);
+        applyExistingGrantsTo(state, ogre);
+        expect(
+            effectiveTriggeredAbilities(ogre).some(
+                (a) => a.id === "tabernacle-upkeep"
+            )
+        ).toBe(true);
+    });
+
+    it("removes the grant when the Tabernacle leaves play (unapplySourceStaticEffects)", () => {
+        const { state, tabernacle, bear } = withTabernacle("p1");
+        unapplySourceStaticEffects(state, tabernacle);
+        expect(
+            effectiveTriggeredAbilities(bear).some(
+                (a) => a.id === "tabernacle-upkeep"
+            )
+        ).toBe(false);
+    });
+
+    it("wire format: the granted tax survives projectPublicState", () => {
+        const { state, bear } = withTabernacle("p1");
+        expect(
+            effectiveTriggeredAbilities(bear).some(
+                (a) => a.id === "tabernacle-upkeep"
+            )
+        ).toBe(true);
+        const projected = projectPublicState(state, 1, "p1");
+        const projBear = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(
+            projBear.grantedTriggeredAbilities?.some(
+                (g) => g.abilityId === "tabernacle-upkeep"
+            )
+        ).toBe(true);
     });
 });

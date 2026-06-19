@@ -4351,6 +4351,33 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // C7 #383: upkeep "pay-or-sacrifice" maintenance cost. Loads at the
+        // start of "me"'s UPKEEP with an Elder Dragon (Chromium) on the
+        // battlefield + a Tabernacle taxing every creature:
+        //   • Chromium's "sacrifice unless you pay {W}{U}{B}" and the
+        //     Tabernacle's granted "destroy unless you pay {1}" each go on the
+        //     stack at upkeep (one trigger per taxed creature, CR 603.3b).
+        //   • The 6 lands cover {W}{U}{B} + {1} + {1}; pay all to keep the
+        //     board, or decline a may-pay to watch the creature die.
+        //   • Grizzly Bears (yours) and the opponent's Pearled Unicorn are
+        //     also taxed by the Tabernacle — the opponent pays at THEIR upkeep.
+        label: "LEG C7 #383: upkeep pay-or-sacrifice — Chromium (pay {W}{U}{B}) + Tabernacle taxes every creature (CR 603.6a)",
+        cards: [
+            { name: "Chromium", owner: "me" as const },
+            {
+                name: "The Tabernacle at Pendrell Vale",
+                owner: "me" as const,
+            },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, count: 2 },
+            { name: "Island", owner: "me" as const, count: 2 },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Pearled Unicorn", owner: "opp" as const },
+        ],
+        phase: "UPKEEP",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
