@@ -20,7 +20,7 @@ import {
 import { preloadCardImages } from "~/lib/image-preload";
 import { computeSoloViewerId } from "~/lib/priority";
 import BoardNext from "./board-next";
-import ActionBar from "./action-bar";
+import ControllerPod from "./controller-pod";
 import AutoPassController from "./auto-pass-controller";
 import GameOverDialog from "./game-over-dialog";
 import PauseMenuDialog from "./pause-menu-dialog";
@@ -299,7 +299,7 @@ export default function Board({
                                     allPlayers={allPlayers}
                                 />
                             )}
-                            <ActionBar
+                            <ControllerPod
                                 onOpenMenu={() => setPauseMenuOpen(true)}
                             />
                             {gameOver && (

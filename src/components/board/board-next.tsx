@@ -11,7 +11,6 @@ import BoardNextHand from "./board-next-hand";
 import BoardNextPiles from "./board-next-piles";
 import BoardNextArrows from "./board-next-arrows";
 import GameStack from "./game-stack";
-import PhaseTracker from "./phase-tracker";
 import PriorityIndicator from "./priority-indicator";
 
 type BoardNextProps = {
@@ -105,9 +104,10 @@ export default function BoardNext({
                     reveal + inertial scroll (#255). */}
                         <BoardNextPiles orderedPlayers={orderedPlayers} />
 
-                        {/* Spatial chrome shared with the classic board. */}
+                        {/* Spatial chrome shared with the classic board. The
+                    controller pod (phase + priority cue + actions) is mounted
+                    by the Board orchestrator on the right edge (#331). */}
                         <PriorityIndicator />
-                        <PhaseTracker />
                         {stackItems.length > 0 && (
                             <GameStack stack={stackItems} />
                         )}
