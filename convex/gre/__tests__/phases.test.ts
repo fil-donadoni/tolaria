@@ -2099,5 +2099,36 @@ describe("cleanup discard (CR 514.1)", () => {
                 state.players[0].battlefield[0].damageMarked
             ).toBeUndefined();
         });
+
+        // ADR 0026 / PRD #338 (slice 4), clear trigger #2 — the CR 514.1 cleanup
+        // discard is chosen-and-witnessed by the OWNER (p1) but not by a non-owner
+        // knower (p2). The whole remaining hand reverts to hidden for p2; the
+        // owner's own knowledge is untouched.
+        it("clears non-owner knownTo over the whole remaining hand (ADR 0026 slice 4)", () => {
+            const hand = handOf(9);
+            // p2 legitimately learned p1's hand (e.g. via Glasses of Urza).
+            for (const c of hand) c.knownTo = ["p2"];
+            const state = makeGameState({
+                phase: "END_STEP",
+                turn: 1,
+                activePlayerId: "p1",
+                players: [
+                    makePlayer({ id: "p1", hand }),
+                    makePlayer({ id: "p2" }),
+                ],
+            });
+            advancePhase(state);
+            // Discard down to 7 — p1 chooses two cards.
+            finalizeCleanupDiscard(state, [
+                state.players[0].hand[0].id,
+                state.players[0].hand[1].id,
+            ]);
+
+            // Every card still in p1's hand is no longer known to p2.
+            expect(state.players[0].hand.length).toBe(7);
+            for (const c of state.players[0].hand) {
+                expect(c.knownTo).toBeUndefined();
+            }
+        });
     });
 });
