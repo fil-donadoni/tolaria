@@ -4309,6 +4309,48 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // LEG C6 (#382) — shroud / "can't be the target" static (CR 702.18 /
+        // 611 / 113.3 / 109.5). Three demonstrations on one board:
+        //   • Bartel Runeaxe (Legendary 6/5, you control) can't be the target
+        //     of AURA SPELLS: try to cast Spectral Cloak on it → it is NOT a
+        //     legal target (greyed / un-clickable). A non-Aura spell like
+        //     Lightning Bolt CAN target it.
+        //   • Cast Spectral Cloak onto your UNTAPPED Pearled Unicorn → it gains
+        //     shroud: Lightning Bolt can no longer target it. Tap the Unicorn
+        //     (e.g. attack) and the shroud blinks off — it becomes targetable
+        //     again (live CR 611 read of the host's tap state).
+        //   • Cast Anti-Magic Aura onto the opponent's Grizzly Bears → it can't
+        //     be the target of SPELLS (Lightning Bolt is blocked) but activated
+        //     abilities still hit it, and no further Aura can be attached.
+        label: "LEG C6 #382: shroud / can't-be-targeted — Spectral Cloak + Anti-Magic Aura + Bartel Runeaxe (CR 702.18)",
+        cards: [
+            { name: "Bartel Runeaxe", owner: "me" as const },
+            { name: "Pearled Unicorn", owner: "me" as const },
+            {
+                name: "Spectral Cloak",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Anti-Magic Aura",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            // U for the two Auras (Spectral Cloak {U}{U}, Anti-Magic Aura
+            // {X}{U}) and R for Lightning Bolt.
+            { name: "Island", owner: "me" as const, count: 3 },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

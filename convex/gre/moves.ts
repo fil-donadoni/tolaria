@@ -337,7 +337,11 @@ function enumerateTargetTuples(
         sourceColors,
         player.id,
         chosenX,
-        card.types
+        card.types,
+        card.subtypes,
+        // moves.ts enumerates legal targets for casting a spell from hand, so
+        // the source is always a spell (vs an activated ability).
+        true
     );
     const { min, max } = targetCount(effReq, chosenX);
     if (max === 0) return [[]];

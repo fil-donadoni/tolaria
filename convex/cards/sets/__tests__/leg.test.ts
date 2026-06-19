@@ -157,8 +157,13 @@ import {
     masterOfTheHunt,
     shelkinBrownie,
     tolaria,
+    spectralCloak,
+    antiMagicAura,
+    bartelRuneaxe,
 } from "../leg";
 import { getCardById, getCardByName, getAllCards } from "../../index";
+import { getLegalTargets } from "../../../gre/rules";
+import { isGuardedAgainst } from "../../../gre/permanentGuard";
 import {
     fireDelayedTriggers,
     emitBlockersConfirmedEvents,
@@ -4187,5 +4192,277 @@ describe("Tolaria (strip banding + bands-with-other, upkeep-only, CR 611.1b)", (
         finalizeCleanup(state);
         expect(target.staticAbilities).toContain("banding");
         expect(target.staticAbilities).toContain("bands with other:legendary");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C6 — Shroud / "can't be the target" static (#382)
+//
+// CR 702.18 (shroud) / 611 (continuous guard) / 113.3 (spell-vs-ability) /
+// 109.5 (source characteristics). Each card declares a `permanent-guard`
+// `cantBeTargeted` static effect; the targeting gates (`getLegalTargets`,
+// `selectTarget`) read it live. Tests assert the gate excludes the guarded
+// permanent under the card's condition, and that the exclusion survives the
+// wire-format projection.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CREATURE_REQ = { type: "Creature", count: 1 } as const;
+
+describe("Spectral Cloak (shroud while untapped, CR 702.18 / 611)", () => {
+    it("declares a cantBeTargeted guard scoped to the untapped host", () => {
+        expect(spectralCloak.subtypes).toContain("Aura");
+        const guard = spectralCloak.staticEffects?.find(
+            (e) => e.kind === "permanent-guard"
+        );
+        expect(guard).toBeDefined();
+        expect((guard as { cantBeTargeted?: boolean }).cantBeTargeted).toBe(
+            true
+        );
+    });
+
+    it("excludes the untapped enchanted creature from getLegalTargets", () => {
+        const bear = makeInstance(jasmineBoreal.id, {
+            id: "bear",
+            isTapped: false,
+        });
+        const cloak = makeInstance(spectralCloak.id, {
+            id: "cloak",
+            attachedTo: "bear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear, cloak] }),
+                makePlayer("p2"),
+            ],
+        });
+        // A spell trying to target a creature: the cloaked bear is not legal.
+        const legal = getLegalTargets(
+            state,
+            CREATURE_REQ,
+            [],
+            "p1",
+            undefined,
+            ["Instant"],
+            [],
+            true
+        ).map((t) => t.id);
+        expect(legal).not.toContain("bear");
+    });
+
+    it("stops guarding once the host taps (live read of CR 611)", () => {
+        const bear = makeInstance(jasmineBoreal.id, {
+            id: "bear",
+            isTapped: true,
+        });
+        const cloak = makeInstance(spectralCloak.id, {
+            id: "cloak",
+            attachedTo: "bear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear, cloak] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(
+            isGuardedAgainst(state, bear, "cantBeTargeted", {
+                isSpell: true,
+            })
+        ).toBe(false);
+        const legal = getLegalTargets(
+            state,
+            CREATURE_REQ,
+            [],
+            "p1",
+            undefined,
+            ["Instant"],
+            [],
+            true
+        ).map((t) => t.id);
+        expect(legal).toContain("bear");
+    });
+
+    it("shroud exclusion survives the wire-format projection (#382)", () => {
+        const bear = makeInstance(jasmineBoreal.id, {
+            id: "bear",
+            isTapped: false,
+        });
+        const cloak = makeInstance(spectralCloak.id, {
+            id: "cloak",
+            attachedTo: "bear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear, cloak] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBear = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        // The guard reads card definitions by id from the registry, so the
+        // restriction must hold on the slim projected state too.
+        expect(
+            isGuardedAgainst(projected, slimBear, "cantBeTargeted", {
+                isSpell: true,
+            })
+        ).toBe(true);
+    });
+});
+
+describe("Anti-Magic Aura (can't be targeted by spells, CR 113.3)", () => {
+    it("declares a spell-only cantBeTargeted guard plus cantBeEnchanted", () => {
+        const guards = (antiMagicAura.staticEffects ?? []).filter(
+            (e) => e.kind === "permanent-guard"
+        );
+        const noTarget = guards.find(
+            (g) => (g as { cantBeTargeted?: boolean }).cantBeTargeted
+        ) as { targetSourceMustBeSpell?: boolean } | undefined;
+        expect(noTarget?.targetSourceMustBeSpell).toBe(true);
+        const noEnchant = guards.find(
+            (g) => (g as { cantBeEnchanted?: boolean }).cantBeEnchanted
+        );
+        expect(noEnchant).toBeDefined();
+    });
+
+    it("blocks a spell source but allows an ability source", () => {
+        const bear = makeInstance(jasmineBoreal.id, { id: "bear" });
+        const aura = makeInstance(antiMagicAura.id, {
+            id: "aura",
+            attachedTo: "bear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Spell source → guarded.
+        expect(
+            isGuardedAgainst(state, bear, "cantBeTargeted", { isSpell: true })
+        ).toBe(true);
+        // Activated/triggered ability source → NOT guarded (CR 113.3).
+        expect(
+            isGuardedAgainst(state, bear, "cantBeTargeted", { isSpell: false })
+        ).toBe(false);
+    });
+
+    it("excludes the host from getLegalTargets for a spell (sourceIsSpell)", () => {
+        const bear = makeInstance(jasmineBoreal.id, { id: "bear" });
+        const aura = makeInstance(antiMagicAura.id, {
+            id: "aura",
+            attachedTo: "bear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        const spellLegal = getLegalTargets(
+            state,
+            CREATURE_REQ,
+            [],
+            "p1",
+            undefined,
+            ["Sorcery"],
+            [],
+            true
+        ).map((t) => t.id);
+        expect(spellLegal).not.toContain("bear");
+        // An ability (sourceIsSpell = false) can still target it.
+        const abilityLegal = getLegalTargets(
+            state,
+            CREATURE_REQ,
+            [],
+            "p1",
+            undefined,
+            ["Artifact"],
+            [],
+            false
+        ).map((t) => t.id);
+        expect(abilityLegal).toContain("bear");
+    });
+});
+
+describe("Bartel Runeaxe (can't be targeted by Aura spells, CR 109.5)", () => {
+    it("is a vigilant Legendary 6/5 with an Aura-spell guard", () => {
+        expect(bartelRuneaxe.supertypes).toContain("Legendary");
+        expect(bartelRuneaxe.staticAbilities).toContain("vigilance");
+        const guard = bartelRuneaxe.staticEffects?.find(
+            (e) => e.kind === "permanent-guard"
+        ) as
+            | {
+                  targetSourceSubtypeFilter?: string[];
+                  targetSourceMustBeSpell?: boolean;
+              }
+            | undefined;
+        expect(guard?.targetSourceMustBeSpell).toBe(true);
+        expect(guard?.targetSourceSubtypeFilter).toContain("Aura");
+    });
+
+    it("blocks an Aura spell but not a non-Aura spell or an Aura ability", () => {
+        const bartel = makeInstance(bartelRuneaxe.id, { id: "bartel" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bartel] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Aura spell → guarded.
+        expect(
+            isGuardedAgainst(state, bartel, "cantBeTargeted", {
+                subtypes: ["Aura"],
+                isSpell: true,
+            })
+        ).toBe(true);
+        // Non-Aura spell (e.g. Lightning Bolt) → NOT guarded.
+        expect(
+            isGuardedAgainst(state, bartel, "cantBeTargeted", {
+                subtypes: [],
+                isSpell: true,
+            })
+        ).toBe(false);
+        // An ability whose source happens to carry the Aura subtype → NOT
+        // guarded (the clause is "Aura SPELLS", CR 113.3).
+        expect(
+            isGuardedAgainst(state, bartel, "cantBeTargeted", {
+                subtypes: ["Aura"],
+                isSpell: false,
+            })
+        ).toBe(false);
+    });
+
+    it("getLegalTargets excludes Bartel for an Aura spell only", () => {
+        const bartel = makeInstance(bartelRuneaxe.id, { id: "bartel" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bartel] }),
+                makePlayer("p2"),
+            ],
+        });
+        const auraSpell = getLegalTargets(
+            state,
+            CREATURE_REQ,
+            [],
+            "p1",
+            undefined,
+            ["Enchantment"],
+            ["Aura"],
+            true
+        ).map((t) => t.id);
+        expect(auraSpell).not.toContain("bartel");
+        const boltSpell = getLegalTargets(
+            state,
+            CREATURE_REQ,
+            [],
+            "p1",
+            undefined,
+            ["Instant"],
+            [],
+            true
+        ).map((t) => t.id);
+        expect(boltSpell).toContain("bartel");
     });
 });

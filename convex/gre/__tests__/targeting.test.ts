@@ -7,7 +7,8 @@ import {
     type GameState,
     type StackItem,
 } from "../state";
-import { getLegalTargets } from "../rules";
+import { getLegalTargets, getPendingTargetSourceSubtypes } from "../rules";
+import { isGuardedAgainst } from "../permanentGuard";
 import type { CardType, TargetRequirement } from "../../cards/types";
 import { getCardById, tryGetCardById } from "../../cards";
 
@@ -974,5 +975,112 @@ describe("spell resolution: Counterspell (CR 701.5a)", () => {
         expect(state.stack[0].id).toBe(bolt.id);
         // Counterspell still goes to p1's graveyard
         expect(getPlayer(state, "p1").graveyard).toHaveLength(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Shroud / "can't be the target" backend gate (#382, CR 702.18 / 611 / 109.5)
+//
+// Mirrors the exact decision the `selectTarget` mutation makes server-side:
+// locate the pending source's types + subtypes + spell-vs-ability, then call
+// `isGuardedAgainst("cantBeTargeted", source)`. This is the authoritative
+// rejection — `selectTarget` throws when it returns true.
+// ---------------------------------------------------------------------------
+
+describe("can't-be-targeted backend gate (#382)", () => {
+    // Real shipped C6 cards (registry-resolved by id).
+    const SPECTRAL_CLOAK = "fadfa9f9-d096-4083-8630-1c18928133ff";
+    const ANTI_MAGIC_AURA = "6f78c1e2-e38f-431b-8864-8aad982e9912";
+    const BARTEL_RUNEAXE = "9beccf09-c024-408b-9f84-fe2c7462babb";
+
+    it("getPendingTargetSourceSubtypes reads the cast source's subtypes", () => {
+        // A spell waiting in hand carrying the Aura subtype.
+        const auraSpell = makeCard({
+            id: ANTI_MAGIC_AURA,
+            zone: "hand",
+            subtypes: ["Aura"],
+        });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", hand: [auraSpell] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        expect(
+            getPendingTargetSourceSubtypes(state, auraSpell.id, "cast")
+        ).toEqual(["Aura"]);
+    });
+
+    it("rejects a spell targeting an untapped Spectral-Cloaked creature", () => {
+        const bear = makeCard({
+            id: "bear",
+            card: CREATURE,
+            isTapped: false,
+        });
+        const cloak = makeCard({
+            id: "cloak",
+            card: { id: SPECTRAL_CLOAK },
+        });
+        // makeCard does not spread arbitrary overrides — set the host link.
+        cloak.attachedTo = "bear";
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [bear, cloak] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        // Server gate: a spell source can't pick the cloaked bear.
+        expect(
+            isGuardedAgainst(state, bear, "cantBeTargeted", { isSpell: true })
+        ).toBe(true);
+    });
+
+    it("Anti-Magic Aura host: rejects spell, accepts ability", () => {
+        const bear = makeCard({ id: "bear", card: CREATURE });
+        const aura = makeCard({
+            id: "aura",
+            card: { id: ANTI_MAGIC_AURA },
+        });
+        aura.attachedTo = "bear";
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [bear, aura] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        expect(
+            isGuardedAgainst(state, bear, "cantBeTargeted", { isSpell: true })
+        ).toBe(true);
+        // An activated/triggered ability source is NOT a spell (CR 113.3).
+        expect(
+            isGuardedAgainst(state, bear, "cantBeTargeted", { isSpell: false })
+        ).toBe(false);
+    });
+
+    it("Bartel Runeaxe: rejects an Aura spell only", () => {
+        const bartel = makeCard({
+            id: "bartel",
+            card: { id: BARTEL_RUNEAXE },
+        });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [bartel] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        // Aura spell → rejected.
+        expect(
+            isGuardedAgainst(state, bartel, "cantBeTargeted", {
+                subtypes: ["Aura"],
+                isSpell: true,
+            })
+        ).toBe(true);
+        // Non-Aura spell → accepted.
+        expect(
+            isGuardedAgainst(state, bartel, "cantBeTargeted", {
+                subtypes: [],
+                isSpell: true,
+            })
+        ).toBe(false);
     });
 });

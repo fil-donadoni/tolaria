@@ -156,7 +156,12 @@ function hasEnoughLegalTargets(
         state,
         requirement,
         sourceColors,
-        player.id
+        player.id,
+        undefined,
+        card.types,
+        card.subtypes,
+        // hasEnoughLegalTargets gates the Cast UI — the source is a spell.
+        true
     );
     return legalTargets.length >= required;
 }
@@ -430,7 +435,11 @@ export function getLegalTargets(
     sourceColors: readonly Color[] = [],
     casterId?: string,
     chosenX?: number,
-    sourceTypes: readonly CardType[] = []
+    sourceTypes: readonly CardType[] = [],
+    /** Source subtypes + spell-vs-ability, for `cantBeTargeted` guards that
+     *  narrow by them ("Aura spells", "spells only" — CR 109.5 / 113.3). */
+    sourceSubtypes: readonly string[] = [],
+    sourceIsSpell?: boolean
 ): TargetSelection[] {
     const targets: TargetSelection[] = [];
 
@@ -638,10 +647,15 @@ export function getLegalTargets(
                 // spells/abilities of the stated quality.
                 if (isProtectedFromColors(card, sourceColors)) continue;
                 // CR 611 — a continuous `permanent-guard` may bar targeting
-                // entirely (Guardian Beast: "can't be the targets of spells or
-                // abilities" while it is untapped). Read live.
+                // entirely (Guardian Beast / shroud: "can't be the target of
+                // spells or abilities"), or narrowed by source quality ("Aura
+                // spells", "spells only" — CR 109.5 / 113.3). Read live.
                 if (
-                    isGuardedAgainst(state, card, "cantBeTargeted", sourceTypes)
+                    isGuardedAgainst(state, card, "cantBeTargeted", {
+                        types: sourceTypes,
+                        subtypes: sourceSubtypes,
+                        isSpell: sourceIsSpell,
+                    })
                 )
                     continue;
                 targets.push({ type: "permanent", id: card.id });
@@ -742,6 +756,35 @@ export function getPendingTargetSourceTypes(
         for (const p of state.players) {
             const c = p.hand.find((x) => x.id === cardInstanceId);
             if (c) return [...c.types];
+        }
+    }
+    return [];
+}
+
+/** Subtypes of the source whose target-selection is in progress (CR 109.5).
+ *  Counterpart of `getPendingTargetSourceTypes`, used to enforce
+ *  subtype-filtered targeting guards ("can't be the target of Aura spells" —
+ *  Bartel Runeaxe / Tetsuo Umezawa). Same source-location logic: copy-retarget
+ *  → the spell copy on the stack; ability → the battlefield permanent; cast →
+ *  the hand card. Returns an empty array if the source can't be located. */
+export function getPendingTargetSourceSubtypes(
+    state: GameState,
+    cardInstanceId: string,
+    kind: "cast" | "ability" | "copy-retarget"
+): string[] {
+    if (kind === "copy-retarget") {
+        const si = state.stack.find((x) => x.id === cardInstanceId);
+        return si ? [...si.subtypes] : [];
+    }
+    if (kind === "ability") {
+        for (const p of state.players) {
+            const c = p.battlefield.find((x) => x.id === cardInstanceId);
+            if (c) return [...c.subtypes];
+        }
+    } else {
+        for (const p of state.players) {
+            const c = p.hand.find((x) => x.id === cardInstanceId);
+            if (c) return [...c.subtypes];
         }
     }
     return [];

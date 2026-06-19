@@ -34,6 +34,22 @@ interface BattlefieldView {
     players: ReadonlyArray<{ battlefield: ReadonlyArray<CardInstanceState> }>;
 }
 
+/** The spell/ability source attempting a guarded targeting action (CR 109.5).
+ *  Consulted by `cantBeTargeted` guards that narrow by the source's
+ *  characteristics: card types (Artifact Ward), subtypes ("Aura spells" —
+ *  Bartel Runeaxe / Tetsuo Umezawa), or spell-vs-ability ("can't be the target
+ *  of spells" — Anti-Magic Aura). Unfiltered guards (Guardian Beast / shroud)
+ *  ignore every field and block all sources. */
+export interface GuardActionSource {
+    /** Card types of the source (CR 109.5). */
+    types?: ReadonlyArray<string>;
+    /** Subtypes of the source (e.g. `["Aura"]` for an Aura spell). */
+    subtypes?: ReadonlyArray<string>;
+    /** True if the source is a spell on the stack / being cast; false for an
+     *  activated or triggered ability. */
+    isSpell?: boolean;
+}
+
 type GuardClause = keyof Pick<
     StaticPermanentGuard,
     | "cantBeTargeted"
@@ -49,18 +65,30 @@ type GuardClause = keyof Pick<
  *  hook). CR 611 — a continuous effect from a source applies only while that
  *  source is on the battlefield, which is exactly the iteration set here.
  *
- *  `actionSourceTypes` — the card types of the spell/ability source attempting
- *  the guarded action (CR 109.5). Only consulted by guards that carry a
- *  `targetSourceTypeFilter` (Artifact Ward's "abilities from artifact
- *  sources"): such a guard applies only when the source's types intersect the
- *  filter. Unfiltered guards (Guardian Beast) ignore this argument and block
- *  every source. */
+ *  `actionSource` — the spell/ability source attempting the guarded action
+ *  (CR 109.5). Accepts either a bare `string[]` of the source's card types
+ *  (legacy callers) or a `GuardActionSource` carrying types, subtypes, and
+ *  whether the source is a spell. Only consulted by `cantBeTargeted` guards
+ *  that carry a source filter:
+ *    - `targetSourceTypeFilter`    — Artifact Ward ("abilities from artifact
+ *                                    sources"): source's TYPES must intersect.
+ *    - `targetSourceSubtypeFilter` — Bartel Runeaxe / Tetsuo Umezawa ("Aura
+ *                                    spells"): source's SUBTYPES must intersect.
+ *    - `targetSourceMustBeSpell`   — Anti-Magic Aura ("can't be the target of
+ *                                    spells"): source must be a spell.
+ *  A filtered guard whose filter can't be satisfied (e.g. no source info, or
+ *  an ability when the guard is spell-only) does not match and is skipped.
+ *  Unfiltered guards (Guardian Beast / shroud) ignore `actionSource` entirely
+ *  and block every source. */
 export function isGuardedAgainst(
     state: BattlefieldView,
     target: CardInstanceState,
     clause: GuardClause,
-    actionSourceTypes?: ReadonlyArray<string>
+    actionSource?: ReadonlyArray<string> | GuardActionSource
 ): boolean {
+    const src: GuardActionSource = Array.isArray(actionSource)
+        ? { types: actionSource as ReadonlyArray<string> }
+        : ((actionSource as GuardActionSource | undefined) ?? {});
     for (const player of state.players) {
         for (const source of player.battlefield) {
             const cardId = (source.card as { id?: string }).id;
@@ -70,20 +98,40 @@ export function isGuardedAgainst(
             for (const effect of effects) {
                 if (effect.kind !== "permanent-guard") continue;
                 if (!effect[clause]) continue;
-                // CR 109.5 source-type narrowing (Artifact Ward): a filtered
-                // `cantBeTargeted` guard applies only to sources whose types
-                // intersect the filter. With no source types provided (e.g.
-                // synthetic / non-targeting callers) a filtered guard can't
-                // match and is skipped.
-                if (
-                    clause === "cantBeTargeted" &&
-                    effect.targetSourceTypeFilter
-                ) {
-                    const types = actionSourceTypes ?? [];
-                    const intersects = effect.targetSourceTypeFilter.some((t) =>
-                        types.includes(t)
-                    );
-                    if (!intersects) continue;
+                if (clause === "cantBeTargeted") {
+                    // CR 109.5 source-type narrowing (Artifact Ward): a filtered
+                    // guard applies only to sources whose types intersect the
+                    // filter. No source types ⇒ a typed filter can't match.
+                    if (effect.targetSourceTypeFilter) {
+                        const types = src.types ?? [];
+                        if (
+                            !effect.targetSourceTypeFilter.some((t) =>
+                                types.includes(t)
+                            )
+                        )
+                            continue;
+                    }
+                    // CR 109.5 source-subtype narrowing ("Aura spells"): the
+                    // source's subtypes must intersect the filter.
+                    if (effect.targetSourceSubtypeFilter) {
+                        const subtypes = src.subtypes ?? [];
+                        if (
+                            !effect.targetSourceSubtypeFilter.some((s) =>
+                                subtypes.includes(s)
+                            )
+                        )
+                            continue;
+                    }
+                    // CR 113.3 spell-only narrowing (Anti-Magic Aura): the
+                    // guard ignores activated/triggered abilities. When the
+                    // caller doesn't say (isSpell undefined) we don't skip, so
+                    // the guard stays conservative for synthetic callers.
+                    if (
+                        effect.targetSourceMustBeSpell &&
+                        src.isSpell === false
+                    ) {
+                        continue;
+                    }
                 }
                 if (effect.applies(target, source, STATIC_EFFECT_CTX)) {
                     return true;

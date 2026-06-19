@@ -18,6 +18,7 @@ import {
     matchesTargetRequirement,
     isTapLockedBySummoningSickness,
 } from "~/lib/card-utils";
+import { isUntargetableByPending } from "~/lib/targeting";
 import { outstandingDamageAssigner } from "~/lib/priority";
 import { extractMutationError, type MutationError } from "~/lib/mutation-error";
 import type { ActivatableAbility } from "~/components/board/battlefield-card";
@@ -71,6 +72,7 @@ export function useBattlefieldInteraction(player: Player) {
         pendingTarget,
         pendingChoices,
         combat,
+        allPlayers,
     } = useGameContext();
     const isMe = player.id === playerId;
 
@@ -259,7 +261,16 @@ export function useBattlefieldInteraction(player: Player) {
         if (
             isSelectingTarget &&
             pendingTarget &&
-            matchesTargetRequirement(card, pendingTarget.targetType)
+            matchesTargetRequirement(card, pendingTarget.targetType) &&
+            // CR 702.18 / 611 — don't fire selectTarget for a shrouded /
+            // "can't be the target" permanent; the server would reject it
+            // anyway (#382).
+            !isUntargetableByPending(
+                allPlayers,
+                card,
+                pendingTarget.cardInstanceId,
+                pendingTarget.kind
+            )
         ) {
             guardMutation(
                 selectTarget({
