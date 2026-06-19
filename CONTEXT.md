@@ -61,6 +61,17 @@ _Avoid_: Removed from game (old terminology)
 The zone where **Spells** and **Abilities** wait to **Resolve**. Last-in, first-out.
 _Avoid_: Queue
 
+**Hidden Zone**:
+A **Zone** whose card identities are not public: **Library**, **Hand**, and face-down cards in **Exile**. Identity in a hidden zone is governed by **Card Knowledge**.
+_Avoid_: Secret zone, private zone
+
+**Card Knowledge** (`knownTo`):
+The set of **Players** who currently know the identity of a specific **Card Instance** while it sits in a **Hidden Zone**. Persists on the instance across hidden→hidden moves (e.g. drawing a card whose top-of-**Library** identity an opponent had seen). Granted by _look_ effects (to the looker) and _reveal_ effects (to all). Cleared by an uncertainty event: a **Library** shuffle (whole library), a random or owner-chosen discard (all non-owner viewers, whole hand), or the card entering a public **Zone** (which makes it universally known anyway, so the stale set is emptied). Note: a **Player** never auto-knows their own **Library** order — only cards they precisely positioned (e.g. scry) are `knownTo` them.
+_Avoid_: Revealed (that's one source of knowledge, not the state), Visible
+
+**Look** (vs **Reveal**):
+_Look_ at a card → only the looking **Player** gains **Card Knowledge**. _Reveal_ a card → all **Players** gain it. Both persist until an uncertainty event clears them.
+
 ### Cards
 
 **Permanent**:
