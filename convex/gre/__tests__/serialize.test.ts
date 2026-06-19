@@ -146,6 +146,30 @@ describe("game_state serialize round-trip", () => {
         }
     });
 
+    // ADR 0026 / PRD #338 — persistent per-viewer card knowledge survives the
+    // DB round trip on both library (3-tuple form) and hand cards.
+    it("preserves knownTo on library and hand cards across the round trip", () => {
+        const state = freshState();
+        // Top library card known to p1 (e.g. scry-to-top / reorder).
+        state.players[0].library[0].knownTo = ["p1"];
+        // A hand card known to an opponent (e.g. Duress — future slice, but
+        // the field must already round-trip).
+        state.players[0].hand[0].knownTo = ["p2"];
+        const expanded = expandState(compactState(state));
+        expect(expanded.players[0].library[0].knownTo).toEqual(["p1"]);
+        expect(expanded.players[0].hand[0].knownTo).toEqual(["p2"]);
+        // An unknown library card stays compact (2-tuple) and has no knownTo.
+        expect(expanded.players[0].library[1].knownTo).toBeUndefined();
+    });
+
+    it("keeps the compact library entry a 2-tuple when knownTo is empty", () => {
+        const state = freshState();
+        const compact = compactState(state);
+        const lib = (compact.players as Array<Record<string, unknown>>)[0]
+            .library as Array<unknown[]>;
+        expect(lib[0]).toHaveLength(2);
+    });
+
     // Exhaustive wire-format invariant: every non-default transient field on a
     // battlefield permanent must survive the compact → expand round trip.
     // Each property mirrored here is read by GRE rules / layer system /

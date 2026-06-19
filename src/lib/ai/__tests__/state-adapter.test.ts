@@ -91,7 +91,7 @@ describe("projectedToGameState (issue #110)", () => {
 
     it("keeps an empty wire count as an empty library (deck-out preserved)", () => {
         const p = projected();
-        p.players[0].library = { count: 0 };
+        p.players[0].library = { count: 0, known: [] };
         const gs = projectedToGameState(p);
         expect(gs.players.find((x) => x.id === "bot")!.library).toHaveLength(0);
     });

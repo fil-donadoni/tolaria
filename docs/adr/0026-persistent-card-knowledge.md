@@ -37,11 +37,11 @@ make projection a pure function of it.
 - **`knownTo?: string[]`** on `CardInstanceState` — the set of player ids that
   currently know this instance's identity while it sits in a hidden zone. One
   field serves both information classes:
-  - _look_ effects add the **looker** only.
-  - _reveal_ effects add **all** players.
-  - face-down exile (impulse-draw) adds the **controller** — reusing
-    `knownTo`, **not** a parallel mechanism. `faceDownOf` stays scoped to
-    battlefield morphs.
+    - _look_ effects add the **looker** only.
+    - _reveal_ effects add **all** players.
+    - face-down exile (impulse-draw) adds the **controller** — reusing
+      `knownTo`, **not** a parallel mechanism. `faceDownOf` stays scoped to
+      battlefield morphs.
 
 - **Persistence.** `knownTo` lives on the instance and **persists across
   hidden→hidden moves** (drawing a card whose top-of-library identity an
@@ -50,18 +50,18 @@ make projection a pure function of it.
 
 - **Clear triggers** (the single principle: knowledge of viewer V over hidden
   zone Z is cleared when Z changes in a way V did not choose-and-witness):
-  1. **Shuffle library** → clear all viewers, whole library (CR 701.20).
-  2. **Random or owner-chosen discard** (Hymn-style, and any discard the
-     knower did not select) → clear all non-owner viewers, whole hand.
-  3. **Entering a public zone** (stack/battlefield/graveyard/exile-face-up) →
-     empty that instance's `knownTo`. The zone makes identity universally
-     known anyway; emptying ensures a later return to a hidden zone is hidden
-     unless **freshly** re-granted by precise positioning. Stale `knownTo`
-     never resurrects.
+    1. **Shuffle library** → clear all viewers, whole library (CR 701.20).
+    2. **Random or owner-chosen discard** (Hymn-style, and any discard the
+       knower did not select) → clear all non-owner viewers, whole hand.
+    3. **Entering a public zone** (stack/battlefield/graveyard/exile-face-up) →
+       empty that instance's `knownTo`. The zone makes identity universally
+       known anyway; emptying ensures a later return to a hidden zone is hidden
+       unless **freshly** re-granted by precise positioning. Stale `knownTo`
+       never resurrects.
 
-  Implemented as one helper `clearKnowledge(zoneCards, selectorId | null)`
-  invoked by the mutation primitives; `selectorId = null` (random) clears
-  everyone except the owner.
+    Implemented as one helper `clearKnowledge(zoneCards, selectorId | null)`
+    invoked by the mutation primitives; `selectorId = null` (random) clears
+    everyone except the owner.
 
 - **Owner never auto-knows their own library order.** A player sees their own
   library cards only where they are `knownTo` them (e.g. scry-to-top). This is
@@ -79,15 +79,15 @@ make projection a pure function of it.
 - **Projection** (`projectPublicState`, per `viewerId`) reveals identity iff
   the zone is public, OR the viewer owns the hand, OR `viewer ∈ knownTo`. Wire
   shapes:
-  - Library: `{ count, known: Array<{ index; card }> }` — sparse, only
-    `knownTo`-viewer cards, `index` from top.
-  - Hand: `(SlimCard | null)[]` — known slots carry identity, length
-    preserved.
-  - Own-hand cards gain a derived `seenByOpponent: boolean` (≥1 non-owner in
-    `knownTo`) → drives the Arena-style **eye icon**, rendered per-card only on
-    the specific known cards.
-  - Raw `knownTo` is **never** sent to the client — only identity gating + the
-    derived flag.
+    - Library: `{ count, known: Array<{ index; card }> }` — sparse, only
+      `knownTo`-viewer cards, `index` from top.
+    - Hand: `(SlimCard | null)[]` — known slots carry identity, length
+      preserved.
+    - Own-hand cards gain a derived `seenByOpponent: boolean` (≥1 non-owner in
+      `knownTo`) → drives the Arena-style **eye icon**, rendered per-card only on
+      the specific known cards.
+    - Raw `knownTo` is **never** sent to the client — only identity gating + the
+      derived flag.
 
 ## Rationale
 

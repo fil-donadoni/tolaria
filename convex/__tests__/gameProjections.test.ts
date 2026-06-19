@@ -89,16 +89,17 @@ describe("projectPublicState (CR: shape contract)", () => {
         expect(result.seq).toBe(42);
     });
 
-    it("reduces own library to { count } (not an array)", () => {
+    it("reduces own library to { count, known } (not an array)", () => {
         const me = result.players.find((p) => p.id === "p1")!;
         expect(Array.isArray(me.library)).toBe(false);
-        expect(me.library).toEqual({ count: 1 });
+        // ADR 0026 — no card is `knownTo` the viewer, so `known` is empty.
+        expect(me.library).toEqual({ count: 1, known: [] });
     });
 
-    it("reduces opponent library to { count } (not an array)", () => {
+    it("reduces opponent library to { count, known } (not an array)", () => {
         const opp = result.players.find((p) => p.id === "p2")!;
         expect(Array.isArray(opp.library)).toBe(false);
-        expect(opp.library).toEqual({ count: 2 });
+        expect(opp.library).toEqual({ count: 2, known: [] });
     });
 
     it("keeps own hand as array of slim cards with legalActions", () => {
@@ -520,5 +521,72 @@ describe("projectPublicState legal actions timing", () => {
         const result = projectPublicState(state, 1, "p1", true);
         const me = result.players.find((p) => p.id === "p1")!;
         expect(me.hand[0]!.legalActions.length).toBeGreaterThan(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Persistent card knowledge — ADR 0026 / PRD #338
+// ---------------------------------------------------------------------------
+describe("projectPublicState — knownTo (ADR 0026)", () => {
+    it("exposes a viewer-known library card sparsely at its top index", () => {
+        const state = makeState();
+        // p1 knows p1-l1 at the top of their own library.
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        p1.library[0].knownTo = ["p1"];
+
+        const instanceId = p1.library[0].id; // "p1-l1"
+        const defId = (p1.library[0].card as { id: string }).id; // "def-p1-l1"
+        const forP1 = projectPublicState(state, 1, "p1");
+        const lib = forP1.players.find((p) => p.id === "p1")!.library;
+        expect(lib.count).toBe(1);
+        expect(lib.known).toHaveLength(1);
+        expect(lib.known[0].index).toBe(0);
+        expect(lib.known[0].card.id).toBe(instanceId);
+        expect(lib.known[0].card.card.id).toBe(defId);
+    });
+
+    it("hides a known library card from a viewer not in knownTo", () => {
+        const state = makeState();
+        state.players.find((p) => p.id === "p1")!.library[0].knownTo = ["p1"];
+        const forP2 = projectPublicState(state, 1, "p2");
+        const lib = forP2.players.find((p) => p.id === "p1")!.library;
+        expect(lib.known).toEqual([]);
+    });
+
+    it("never emits raw knownTo on a projected library card", () => {
+        const state = makeState();
+        state.players.find((p) => p.id === "p1")!.library[0].knownTo = ["p1"];
+        const forP1 = projectPublicState(state, 1, "p1");
+        const card = forP1.players.find((p) => p.id === "p1")!.library.known[0]
+            .card;
+        expect((card as { knownTo?: string[] }).knownTo).toBeUndefined();
+    });
+
+    it("flags own-hand cards seenByOpponent and reveals known opponent-hand slots", () => {
+        const state = makeState();
+        // p2 knows p1's first hand card (e.g. Duress — future slice).
+        state.players.find((p) => p.id === "p1")!.hand[0].knownTo = ["p2"];
+
+        // p1's own view: the known card carries seenByOpponent; the other does not.
+        const forP1 = projectPublicState(state, 1, "p1");
+        const myHand = forP1.players.find((p) => p.id === "p1")!.hand;
+        expect(myHand[0]!.seenByOpponent).toBe(true);
+        expect(myHand[1]!.seenByOpponent).toBeUndefined();
+
+        // p2's view of p1's hand: known slot carries identity, rest are null.
+        const forP2 = projectPublicState(state, 1, "p2");
+        const oppHand = forP2.players.find((p) => p.id === "p1")!.hand;
+        expect(oppHand).toHaveLength(2);
+        expect(oppHand[0]).not.toBeNull();
+        expect(oppHand[1]).toBeNull();
+        expect((oppHand[0] as { knownTo?: string[] }).knownTo).toBeUndefined();
+    });
+
+    it("does NOT flag seenByOpponent when only the owner knows a hand card", () => {
+        const state = makeState();
+        state.players.find((p) => p.id === "p1")!.hand[0].knownTo = ["p1"];
+        const forP1 = projectPublicState(state, 1, "p1");
+        const myHand = forP1.players.find((p) => p.id === "p1")!.hand;
+        expect(myHand[0]!.seenByOpponent).toBeUndefined();
     });
 });

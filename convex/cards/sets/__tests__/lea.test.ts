@@ -1644,14 +1644,14 @@ describe("Demonic Tutor (search library, put into hand, CR 701.19)", () => {
         resolveTopOfStack(state);
 
         const forP1 = projectPublicState(state, 1, "p1");
-        expect(forP1.players[0].library).toEqual({ count: 2 });
+        expect(forP1.players[0].library).toEqual({ count: 2, known: [] });
         expect(forP1.players[0].librarySearch?.map((c) => c.id)).toEqual([
             "wanted",
             "filler",
         ]);
         const forP2 = projectPublicState(state, 1, "p2");
         expect(forP2.players[0].librarySearch).toBeUndefined();
-        expect(forP2.players[0].library).toEqual({ count: 2 });
+        expect(forP2.players[0].library).toEqual({ count: 2, known: [] });
     });
 
     it("moves the chosen card into the caster's hand and shuffles library", () => {
@@ -16714,11 +16714,98 @@ describe("Natural Selection (peek top 3 + reorder + optional shuffle, CR 401.4)"
             "c2",
             "c3",
         ]);
-        expect(forP1.players[1].library).toEqual({ count: 4 });
+        // Mid-choice, no card is yet `knownTo` (the reorder hasn't resolved).
+        expect(forP1.players[1].library).toEqual({ count: 4, known: [] });
 
         // p2 (not the chooser) should NOT see the peek
         const forP2 = projectPublicState(state, 1, "p2");
         expect(forP2.players[1].libraryPeek).toBeUndefined();
+    });
+
+    // ADR 0026 / PRD #338 — persistent knowledge: the cards the chooser
+    // precisely positioned stay known to the chooser only after the choice
+    // resolves, unless they shuffle.
+    it("stamps the reordered top cards knownTo the chooser when not shuffling", () => {
+        const state = setup();
+        resolveTopOfStack(state);
+        commitHead(state, ["c3", "c1", "c2"]);
+        resolveTopOfStack(state);
+        commitHead(state, ["no"]); // decline shuffle
+        resolveTopOfStack(state);
+
+        const lib = state.players[1].library;
+        // The 3 reordered cards are known to the chooser (p1) and survive.
+        expect(lib[0].knownTo).toEqual(["p1"]);
+        expect(lib[1].knownTo).toEqual(["p1"]);
+        expect(lib[2].knownTo).toEqual(["p1"]);
+        // The untouched 4th card is not known to anyone.
+        expect(lib[3].knownTo).toBeUndefined();
+    });
+
+    it("clears all knowledge of the library when the chooser shuffles", () => {
+        const state = setup();
+        resolveTopOfStack(state);
+        commitHead(state, ["c2", "c3", "c1"]);
+        resolveTopOfStack(state);
+        commitHead(state, ["yes"]); // shuffle
+        resolveTopOfStack(state);
+
+        for (const c of state.players[1].library) {
+            expect(c.knownTo).toBeUndefined();
+        }
+    });
+
+    it("wire format: known cards reach the chooser's library.known[], hidden from opponent", () => {
+        const state = setup();
+        resolveTopOfStack(state);
+        commitHead(state, ["c3", "c1", "c2"]);
+        resolveTopOfStack(state);
+        commitHead(state, ["no"]);
+        resolveTopOfStack(state);
+
+        // p1 (the chooser) sees the 3 known cards at their top indices.
+        const forP1 = projectPublicState(state, 1, "p1");
+        const known = forP1.players[1].library.known;
+        expect(forP1.players[1].library.count).toBe(4);
+        expect(known.map((k) => k.index)).toEqual([0, 1, 2]);
+        expect(known.map((k) => k.card.id)).toEqual(["c3", "c1", "c2"]);
+        // Raw knownTo must never cross the wire.
+        for (const k of known) {
+            expect((k.card as { knownTo?: string[] }).knownTo).toBeUndefined();
+        }
+
+        // p2 (the library owner, not the knower) sees only the count — no
+        // known cards (a player does not auto-know their own library order).
+        const forP2 = projectPublicState(state, 1, "p2");
+        expect(forP2.players[1].library.count).toBe(4);
+        expect(forP2.players[1].library.known).toEqual([]);
+    });
+
+    // Integration mandate (project rule): the full GRE → serialize (DB) →
+    // projection path for a knowledge-granting effect. Knowledge stamped by
+    // resolution must survive a DB round trip and still project correctly.
+    it("end-to-end: knownTo survives the DB round trip and projects to the chooser only", () => {
+        const state = setup();
+        resolveTopOfStack(state);
+        commitHead(state, ["c3", "c1", "c2"]);
+        resolveTopOfStack(state);
+        commitHead(state, ["no"]);
+        resolveTopOfStack(state);
+
+        // Persist → reload (compact → expand), as saveGameState would.
+        const reloaded = expandState(compactState(state));
+        expect(reloaded.players[1].library[0].knownTo).toEqual(["p1"]);
+
+        // Project the reloaded state: chooser sees the known cards, opponent
+        // does not, and raw knownTo never crosses the wire.
+        const forP1 = projectPublicState(reloaded, 1, "p1");
+        expect(forP1.players[1].library.known.map((k) => k.card.id)).toEqual([
+            "c3",
+            "c1",
+            "c2",
+        ]);
+        const forP2 = projectPublicState(reloaded, 1, "p2");
+        expect(forP2.players[1].library.known).toEqual([]);
     });
 });
 

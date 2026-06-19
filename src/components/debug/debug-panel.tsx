@@ -2829,7 +2829,7 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
-        label: "Natural Selection + Glasses of Urza (peek/reorder/reveal, CR 401.4)",
+        label: "Natural Selection + Glasses of Urza (peek/reorder + persistent knownTo, ADR 0026)",
         cards: [
             {
                 name: "Natural Selection",

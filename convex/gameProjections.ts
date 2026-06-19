@@ -16,8 +16,22 @@ export type SlimCardInstance = Omit<CardInstanceState, "card"> & {
     card: { id: string };
 };
 
-/** Hand card in projected state: slim + legalActions attached. */
-export type SlimHandCard = SlimCardInstance & { legalActions: CardAction[] };
+/** Hand card in projected state: slim + legalActions attached. ADR 0026 — own
+ *  hand cards carry a derived `seenByOpponent` flag (≥1 non-owner in `knownTo`)
+ *  driving the Arena-style eye icon. Raw `knownTo` is stripped before this. */
+export type SlimHandCard = SlimCardInstance & {
+    legalActions: CardAction[];
+    seenByOpponent?: boolean;
+};
+
+/** ADR 0026 / PRD #338 — one viewer-known library card, projected sparsely.
+ *  `index` is the position from the top of the library (0 = top). */
+export type KnownLibraryCard = { index: number; card: SlimCardInstance };
+
+/** Projected library wire shape (ADR 0026). `count` is the full size; `known`
+ *  carries only the cards the viewer legitimately knows (`viewer ∈ knownTo`),
+ *  each at its top-relative `index`. Empty `known` for a fully hidden library. */
+export type PublicLibrary = { count: number; known: KnownLibraryCard[] };
 
 /** StackItem slimmed to { id } card ref. */
 export type SlimStackItem = Omit<StackItem, "card"> & { card: { id: string } };
@@ -52,7 +66,7 @@ export type PublicPlayer = Omit<
     | "grantedAbilities"
 > & {
     hand: (SlimHandCard | null)[];
-    library: { count: number };
+    library: PublicLibrary;
     librarySearch?: SlimCardInstance[];
     libraryPeek?: SlimCardInstance[];
     revealedHand?: SlimCardInstance[];
@@ -109,7 +123,36 @@ function slimCard<
     T extends { card: { id?: string } | Record<string, unknown> },
 >(instance: T): Omit<T, "card"> & { card: { id: string } } {
     const id = (instance.card as { id?: string }).id ?? "";
-    return { ...instance, card: { id } };
+    const slimmed = { ...instance, card: { id } };
+    // ADR 0026 — the raw per-viewer knowledge set must NEVER cross the wire;
+    // identity is gated upstream and the eye flag is derived separately.
+    delete (slimmed as { knownTo?: string[] }).knownTo;
+    return slimmed;
+}
+
+/** ADR 0026 — true iff a non-owner currently knows this card's identity. Drives
+ *  the own-hand eye icon (`seenByOpponent`). */
+function hasNonOwnerKnower(card: CardInstanceState): boolean {
+    return (card.knownTo ?? []).some((id) => id !== card.ownerId);
+}
+
+/** ADR 0026 / PRD #338 — projects a library to the sparse wire shape for one
+ *  viewer: `count` is the full size, `known` carries only the cards where
+ *  `viewer ∈ knownTo`, each at its top-relative `index` (0 = top). The owner
+ *  does NOT auto-know their own order; gating is purely by `knownTo`. Raw
+ *  `knownTo` never crosses the wire (each card is slimmed). */
+function projectLibrary(
+    library: CardInstanceState[],
+    viewerId: string
+): PublicLibrary {
+    const known: KnownLibraryCard[] = [];
+    for (let index = 0; index < library.length; index++) {
+        const card = library[index];
+        if (card.knownTo?.includes(viewerId)) {
+            known.push({ index, card: slimCard(card) });
+        }
+    }
+    return { count: library.length, known };
 }
 
 /** Projects one battlefield permanent for a given viewer. The battlefield is
@@ -257,7 +300,11 @@ export function projectPublicState(
             battlefield: player.battlefield.map((c) =>
                 projectBattlefieldCard(c, viewerId)
             ),
-            library: { count: player.library.length },
+            // ADR 0026 — sparse library: only cards the viewer knows
+            // (`viewer ∈ knownTo`) cross the wire, each at its top-relative
+            // index. Raw `knownTo` is never emitted. The owner does NOT
+            // auto-know their own order — gating is purely by `knownTo`.
+            library: projectLibrary(player.library, viewerId),
             librarySearch,
             libraryPeek,
             revealedHand,
@@ -275,13 +322,23 @@ export function projectPublicState(
                             card,
                             allActions
                         ),
+                        // ADR 0026 — eye icon: any non-owner knows this card.
+                        ...(hasNonOwnerKnower(card)
+                            ? { seenByOpponent: true }
+                            : {}),
                     })
                 ),
             };
         }
+        // ADR 0026 — opponent hand: known slots carry identity, the rest stay
+        // null. Length is preserved so the back-count is unchanged.
         return {
             ...common,
-            hand: player.hand.map(() => null),
+            hand: player.hand.map((card): SlimHandCard | null =>
+                card.knownTo?.includes(viewerId)
+                    ? { ...slimCard(card), legalActions: [] }
+                    : null
+            ),
         };
     });
 

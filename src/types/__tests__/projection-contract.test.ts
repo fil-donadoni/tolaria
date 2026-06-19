@@ -79,7 +79,9 @@ describe("projection ↔ frontend Player contract", () => {
         // Runtime sanity checks that mirror the runtime bugs caught in Oct 2026:
         //   - PlayerLibrary crashed because library was { count } at runtime.
         //   - PlayerHand crashed because opponent hand was (CardInstance | null)[].
-        expect(asFrontend[0].library).toEqual({ count: 1 });
+        // ADR 0026 — library is the sparse { count, known } shape; no card
+        // is `knownTo` the viewer here, so `known` is empty.
+        expect(asFrontend[0].library).toEqual({ count: 1, known: [] });
         expect(
             (asFrontend[1].hand as (unknown | null)[]).every((c) => c === null)
         ).toBe(true);

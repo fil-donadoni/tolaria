@@ -25,7 +25,11 @@ import type { Zone } from "./types";
 import type { CardType, ManaCost } from "../cards/types";
 
 type CompactCard = Record<string, unknown>;
-type LibraryEntry = readonly [string, string]; // [instanceId, cardId]
+// [instanceId, cardId] for the common case; a third element carries persistent
+// per-viewer knowledge (ADR 0026 / PRD #338 — scry-to-top etc.) when present.
+type LibraryEntry =
+    | readonly [string, string]
+    | readonly [string, string, string[]];
 
 const MANA_KEYS = ["W", "U", "B", "R", "G", "C"] as const;
 
@@ -156,6 +160,8 @@ function compactCard(
     if (card.faceDown) out.faceDown = true;
     if (card.faceDownOf) out.faceDownOf = card.faceDownOf;
     if (card.createdBy) out.createdBy = card.createdBy;
+    // ADR 0026 / PRD #338 — persistent per-viewer card knowledge.
+    if (card.knownTo?.length) out.knownTo = card.knownTo;
     return out;
 }
 
@@ -310,6 +316,7 @@ function expandCard(
     if (compact.faceDown) result.faceDown = true;
     if (compact.faceDownOf) result.faceDownOf = compact.faceDownOf as string;
     if (compact.createdBy) result.createdBy = compact.createdBy as string;
+    if (compact.knownTo) result.knownTo = compact.knownTo as string[];
     return result;
 }
 
@@ -317,7 +324,14 @@ function expandCard(
  *  We compress each to `[instanceId, cardId]`; everything else is derived
  *  from the card def and the owning player. */
 function compactLibrary(library: CardInstanceState[]): LibraryEntry[] {
-    return library.map((c) => [c.id, (c.card as { id?: string }).id ?? ""]);
+    return library.map((c) => {
+        const cardId = (c.card as { id?: string }).id ?? "";
+        // ADR 0026 — preserve persistent knowledge across the DB boundary;
+        // omit the third element for the overwhelmingly common unknown card.
+        return c.knownTo?.length
+            ? ([c.id, cardId, c.knownTo] as const)
+            : ([c.id, cardId] as const);
+    });
 }
 
 function expandLibrary(
@@ -333,7 +347,9 @@ function expandLibrary(
                 zone: "library",
             });
         }
-        const [id, cardId] = entry as LibraryEntry;
+        const [id, cardId, knownTo] = entry as
+            | readonly [string, string]
+            | readonly [string, string, string[]];
         const def = tryGetCardById(cardId);
         const card: CardInstanceState = {
             id,
@@ -350,6 +366,7 @@ function expandLibrary(
         };
         if (def?.power !== undefined) card.power = def.power;
         if (def?.toughness !== undefined) card.toughness = def.toughness;
+        if (knownTo?.length) card.knownTo = [...knownTo];
         return card;
     });
 }
