@@ -3283,7 +3283,12 @@ export const setDamageAssignment = mutation({
         }
         if (!source) throw new Error("Damage source not on battlefield");
 
-        const power = Math.max(0, source.power ?? 0);
+        // CR 510.1c: the assignable budget is the source's combat damage, i.e.
+        // its EFFECTIVE power after the layer pipeline (CR 613.4, including
+        // temporary P/T mods from combat tricks). Reading the raw base `power`
+        // field ignores buffs like Giant Growth and wrongly rejects legal
+        // assignments.
+        const power = Math.max(0, getEffectivePower(state, source));
         const total = Object.values(assignments).reduce((sum, n) => sum + n, 0);
         if (total > power) {
             throw new Error(

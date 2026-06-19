@@ -3726,6 +3726,35 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 3,
     },
+    {
+        // Combat damage assignment uses EFFECTIVE power (issue #366,
+        // CR 510.1c / 613.4). A multi-blocked attacker buffed by a combat
+        // trick must assign its EFFECTIVE power, not its base power.
+        //   • Attack with Elvish Archers (2/1, first strike). Opponent blocks
+        //     with BOTH Savannah Lions (2/1) and Pearled Unicorn (2/2).
+        //   • Before the first-strike damage step, cast Giant Growth on Elvish
+        //     Archers (Forest covers {G}) → it becomes 5/4.
+        //   • In the damage-assignment prompt the budget reads "Elvish Archers
+        //     (5 dmg)" / "0/5" — the effective power, NOT the base 2.
+        //   • The +/- buttons let you split up to 5 across the two blockers
+        //     (e.g. 1 to Lions, 4 to Unicorn), and the server accepts it.
+        //     Before the fix the prompt clamped at 2 and threw "Damage total
+        //     exceeds source power".
+        label: "#366 Combat damage uses effective power (Giant Growth on multi-blocked attacker)",
+        cards: [
+            { name: "Elvish Archers", owner: "me" as const },
+            {
+                name: "Giant Growth",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Forest", owner: "me" as const },
+            { name: "Savannah Lions", owner: "opp" as const },
+            { name: "Pearled Unicorn", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
