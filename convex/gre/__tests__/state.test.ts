@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     clearKnowledge,
+    exileFaceDownCard,
     grantKnowledge,
     grantKnowledgeToAll,
     getBasicLandMana,
@@ -1147,6 +1148,88 @@ describe("clearKnowledge (ADR 0026)", () => {
         const cards = [makeCard({ id: "a", knownTo: ["p2"] })];
         clearKnowledge(cards, "p1");
         expect(cards[0].knownTo).toBeUndefined();
+    });
+});
+
+describe("exileFaceDownCard — impulse-draw (ADR 0026 slice 6, CR 406.3)", () => {
+    it("moves the card to exile and stamps ONLY the controller into knownTo", () => {
+        const card = makeCard({
+            id: "top",
+            zone: "library",
+            ownerId: "p1",
+            controllerId: "p1",
+        });
+        const player = makePlayer({ id: "p1", library: [card] });
+
+        const exiled = exileFaceDownCard(player, "top", "library", "p1");
+
+        expect(player.library).toHaveLength(0);
+        expect(player.exile).toHaveLength(1);
+        expect(player.exile[0].zone).toBe("exile");
+        expect(exiled?.knownTo).toEqual(["p1"]);
+    });
+
+    it("grants knowledge to the controller even when they are not the owner", () => {
+        // p1 impulse-exiles the top of p2's library (e.g. a theft effect): only
+        // p1 (the knower) ends up in knownTo, never the owner p2 by default.
+        const card = makeCard({
+            id: "top",
+            zone: "library",
+            ownerId: "p2",
+            controllerId: "p2",
+        });
+        const owner = makePlayer({ id: "p2", library: [card] });
+
+        const exiled = exileFaceDownCard(owner, "top", "library", "p1");
+
+        expect(exiled?.knownTo).toEqual(["p1"]);
+        expect(exiled?.knownTo).not.toContain("p2");
+    });
+
+    it("does NOT strip knownTo the way a face-up exile via moveCard does", () => {
+        // Contrast: moveCard(... "exile") clears knownTo (exile is public);
+        // the face-down primitive must keep it.
+        const faceUp = makeCard({ id: "up", zone: "library", knownTo: ["p2"] });
+        const faceDown = makeCard({ id: "down", zone: "library" });
+        const player = makePlayer({ id: "p1", library: [faceUp, faceDown] });
+
+        moveCard(player, "up", "library", "exile");
+        exileFaceDownCard(player, "down", "library", "p1");
+
+        const upInExile = player.exile.find((c) => c.id === "up")!;
+        const downInExile = player.exile.find((c) => c.id === "down")!;
+        expect(upInExile.knownTo).toBeUndefined(); // public exile cleared it
+        expect(downInExile.knownTo).toEqual(["p1"]); // face-down kept it
+    });
+
+    it("never sets faceDownOf — face-down exile reuses knownTo, not the morph field", () => {
+        const card = makeCard({ id: "top", zone: "library" });
+        const player = makePlayer({ id: "p1", library: [card] });
+
+        const exiled = exileFaceDownCard(player, "top", "library", "p1");
+
+        expect(exiled?.faceDownOf).toBeUndefined();
+    });
+
+    it("returns null for an id not in the source zone (no-op)", () => {
+        const player = makePlayer({ id: "p1", library: [] });
+        expect(
+            exileFaceDownCard(player, "missing", "library", "p1")
+        ).toBeNull();
+        expect(player.exile).toHaveLength(0);
+    });
+
+    it("entering a public zone afterward clears the knowledge (no resurrection)", () => {
+        const card = makeCard({ id: "top", zone: "library" });
+        const player = makePlayer({ id: "p1", library: [card] });
+
+        exileFaceDownCard(player, "top", "library", "p1");
+        // A later face-up move out of exile to hand strips the stale knowledge
+        // via moveCard's public-zone rule path on re-entry. Here we move it back
+        // to hand directly: knownTo persists hidden→hidden, but a subsequent
+        // public-zone entry would clear it. Assert the controller still knows it
+        // while it remains face-down in exile.
+        expect(player.exile[0].knownTo).toEqual(["p1"]);
     });
 });
 

@@ -9,7 +9,7 @@ import { getPendingChoiceMax } from "./gre/state";
 import type { CardAction } from "./gre/types";
 import type { ActivatedAbility, ManaCost } from "./cards/types";
 import { getLegalActions } from "./gre/rules";
-import { tryGetCardById } from "./cards";
+import { FACE_DOWN_CARD_ID, tryGetCardById } from "./cards";
 
 /** CardInstanceState with the static card def stripped to { id } only. */
 export type SlimCardInstance = Omit<CardInstanceState, "card"> & {
@@ -178,6 +178,29 @@ function projectBattlefieldCard(
     return slimmed;
 }
 
+/** ADR 0026 / PRD #338 (slice 6) — projects one exile card for a given viewer.
+ *  Exile is normally a public, open zone (CR 406): every viewer sees the real
+ *  identity, so `knownTo` is stripped on a face-up exile move and this returns
+ *  the card unchanged. The exception is a FACE-DOWN exile (impulse-draw,
+ *  CR 406.3): the impulse primitive leaves a non-empty `knownTo` on the
+ *  instance, marking it secret. For those, identity is gated per-viewer exactly
+ *  like a hidden zone — a viewer in `knownTo` sees the real id; everyone else
+ *  sees the face-down sentinel with the true id (and `faceDownOf`, defensively)
+ *  stripped, so it never crosses the wire. */
+function projectExileCard(
+    card: CardInstanceState,
+    viewerId: string
+): SlimCardInstance {
+    // No knowledge stamped → ordinary face-up exile, public to all.
+    if (!card.knownTo || card.knownTo.length === 0) return slimCard(card);
+    // Face-down exile: a viewer who is allowed to look sees the real card.
+    if (card.knownTo.includes(viewerId)) return slimCard(card);
+    // Everyone else sees a face-down card with the identity hidden.
+    const slimmed = slimCard({ ...card, card: { id: FACE_DOWN_CARD_ID } });
+    delete (slimmed as { faceDownOf?: string }).faceDownOf;
+    return slimmed;
+}
+
 /** Hydrate a granted ability instance with its template data for the wire. */
 function hydrateGrantedAbility(
     instance: GrantedAbilityInstance
@@ -296,7 +319,9 @@ export function projectPublicState(
         const common = {
             ...player,
             graveyard: player.graveyard.map(slimCard),
-            exile: player.exile.map(slimCard),
+            // ADR 0026 — face-down exile (impulse-draw) is gated per-viewer by
+            // `knownTo`; ordinary face-up exile is public to all.
+            exile: player.exile.map((c) => projectExileCard(c, viewerId)),
             battlefield: player.battlefield.map((c) =>
                 projectBattlefieldCard(c, viewerId)
             ),

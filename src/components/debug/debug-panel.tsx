@@ -34,7 +34,7 @@ type PresetScenario = {
     cards: {
         name: string;
         owner: "me" | "opp";
-        zone?: "hand" | "battlefield" | "graveyard";
+        zone?: "hand" | "battlefield" | "graveyard" | "exile";
         tapped?: boolean;
         /** Number of copies to place in the zone. Default 1. */
         count?: number;
@@ -43,6 +43,9 @@ type PresetScenario = {
         /** Place face down (CR 708.2): a 2/2 colourless vanilla creature whose
          *  real identity is hidden from the opponent. Battlefield only. */
         faceDown?: boolean;
+        /** Exile face down (impulse-draw, CR 406.3, ADR 0026 slice 6): a card
+         *  in the exile pile known only to its controller. Exile zone only. */
+        faceDownExile?: boolean;
         /** Pre-seed counters (CR 122) on a battlefield permanent — e.g.
          *  `{ "+1/+1": 3 }` (Triskelion) or `{ doom: 2 }` (Armageddon Clock). */
         counters?: Record<string, number>;
@@ -109,6 +112,34 @@ const PRESET_SCENARIOS: PresetScenario[] = [
                 name: "Grizzly Bears",
                 owner: "opp" as const,
                 zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Face-down exile / impulse-draw (ADR 0026 / PRD #338 slice 6, #342,
+        // CR 406.3). A card exiled FACE DOWN "you may look at" is known to its
+        // controller only — reusing the same knownTo mechanism, NOT faceDownOf.
+        //   • On "me"'s view, Lightning Bolt sits FACE-UP in "me"'s exile pile
+        //     (the controller may look at the card they exiled).
+        //   • Flip the viewer (solo mode follows priority — Pass once): on the
+        //     opponent's view, that same exile slot shows a FACE-DOWN card
+        //     (a 2/2 sentinel) — its identity is hidden from them.
+        //   • Contrast: the Grizzly Bears below is exiled face-up (normal
+        //     exile) and reads as itself to BOTH players.
+        label: "Knowledge: face-down exile is controller-only (impulse-draw)",
+        cards: [
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "exile" as const,
+                faceDownExile: true,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "exile" as const,
             },
         ],
         phase: "PRECOMBAT_MAIN",

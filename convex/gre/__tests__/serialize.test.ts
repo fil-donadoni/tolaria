@@ -171,6 +171,23 @@ describe("game_state serialize round-trip", () => {
         expect(expanded.players[0].library[0].knownTo).toEqual(["p1", "p2"]);
     });
 
+    // ADR 0026 slice 6 (#342) — a face-down exiled card (impulse-draw) is an
+    // exile-zone card carrying a non-empty knownTo; the knowledge must survive
+    // the DB round trip so the controller keeps seeing it after a reload.
+    it("preserves knownTo on a face-down exiled card across the round trip", () => {
+        const state = freshState();
+        const exiled = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+            knownTo: ["p1"],
+        });
+        state.players[0].exile.push(exiled);
+        const expanded = expandState(compactState(state));
+        const got = expanded.players[0].exile.find((c) => c.id === exiled.id)!;
+        expect(got.knownTo).toEqual(["p1"]);
+    });
+
     it("keeps the compact library entry a 2-tuple when knownTo is empty", () => {
         const state = freshState();
         const compact = compactState(state);

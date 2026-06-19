@@ -49,6 +49,7 @@ import {
     processPendingActionTriggers,
     allocInstanceId,
     tapPermanent,
+    exileFaceDownCard,
 } from "./gre/state";
 import {
     buildAutoTapSources,
@@ -4781,7 +4782,8 @@ export const debugSetupScenario = mutation({
                     v.union(
                         v.literal("hand"),
                         v.literal("battlefield"),
-                        v.literal("graveyard")
+                        v.literal("graveyard"),
+                        v.literal("exile")
                     )
                 ),
                 tapped: v.optional(v.boolean()),
@@ -4792,6 +4794,11 @@ export const debugSetupScenario = mutation({
                  *  colourless vanilla creature whose real identity is hidden
                  *  from the opponent. Battlefield only. */
                 faceDown: v.optional(v.boolean()),
+                /** Exile this card FACE DOWN (impulse-draw, CR 406.3,
+                 *  ADR 0026 slice 6): a card in the exile pile whose identity
+                 *  is known only to its controller (`knownTo`). Exile zone
+                 *  only. */
+                faceDownExile: v.optional(v.boolean()),
                 /** Pre-seed counters (CR 122) on a battlefield permanent —
                  *  e.g. `{ "+1/+1": 3 }` for Triskelion or `{ doom: 2 }` for
                  *  Armageddon Clock. Keyed by counter type. Battlefield only. */
@@ -4832,19 +4839,21 @@ export const debugSetupScenario = mutation({
         const p1 = state.players[0];
         const p2 = state.players[1];
 
-        // Clear battlefields, hands, graveyards
+        // Clear battlefields, hands, graveyards, exile
         p1.battlefield = [];
         p2.battlefield = [];
         p1.hand = [];
         p2.hand = [];
         p1.graveyard = [];
         p2.graveyard = [];
+        p1.exile = [];
+        p2.exile = [];
 
         // Helper to create an instance from a card name
         function makeInstance(
             cardName: string,
             controllerId: string,
-            zone: "hand" | "battlefield" | "library" | "graveyard",
+            zone: "hand" | "battlefield" | "library" | "graveyard" | "exile",
             opts?: { tapped?: boolean }
         ) {
             const def = getCardByName(cardName);
@@ -4877,6 +4886,19 @@ export const debugSetupScenario = mutation({
                     player.hand.push(instance);
                 } else if (zone === "graveyard") {
                     player.graveyard.push(instance);
+                } else if (zone === "exile") {
+                    player.exile.push(instance as CardInstanceState);
+                    // ADR 0026 slice 6 — face-down exile (impulse-draw): stamp
+                    // the card known to its controller only via the primitive
+                    // (reuses knownTo; opponents see a face-down card).
+                    if (entry.faceDownExile) {
+                        exileFaceDownCard(
+                            player,
+                            instance.id,
+                            "exile",
+                            player.id
+                        );
+                    }
                 } else {
                     if (entry.damageMarked && entry.damageMarked > 0) {
                         (instance as CardInstanceState).damageMarked =
