@@ -1364,3 +1364,249 @@ describe("selectRolloutMove — plays the combat-trick ambush (issue #223)", () 
         expect(chosen.kind).toBe("pass");
     });
 });
+
+// ---------------------------------------------------------------------------
+// Self-harm removal tie-break (issue #365). A one-sided removal / destruction
+// Spell aimed at the bot's OWN beneficial Permanent is pure self-harm. The leaf
+// eval now registers the loss (evaluate.ts), but a thin loss can still tie
+// `pass` or an enemy-target cast inside OUTCOME_EPS on rollout noise — the
+// reported destroy-own-Castle case. `selectRootMove` must (1) prefer the
+// enemy-target cast of the same Spell, else (2) hold (pass). Real enumerated
+// moves so target tuples / tap plans are valid and the probe resolves the
+// actual spell; synthetic edges so the fire / no-fire conditions are
+// deterministic without rollout variance.
+// ---------------------------------------------------------------------------
+describe("selectRootMove — self-harm removal tie-break (issue #365)", () => {
+    const DISENCHANT = getCardByName("Disenchant").id; // {1}{W} destroy art/ench
+    const SWORDS = getCardByName("Swords to Plowshares").id; // {W} exile creature
+    const CASTLE = getCardByName("Castle").id; // own buff Enchantment
+    const TOME = getCardByName("Jayemdae Tome").id; // enemy card-draw Artifact
+    const UNICORN = getCardByName("Pearled Unicorn").id; // 2/2 vanilla
+    const PLAINS = getCardByName("Plains").id;
+
+    function plains(controllerId: string, id: string) {
+        return makeInstance(PLAINS, {
+            controllerId,
+            ownerId: controllerId,
+            id,
+        });
+    }
+
+    function rootOf(
+        edges: { move: Move; meanReward: number; meanMargin: number }[]
+    ): Node {
+        const children = new Map<string, Edge>();
+        edges.forEach((e, i) => {
+            const visits = 100;
+            children.set(`${e.move.kind}:${i}`, {
+                move: e.move,
+                mover: "p1",
+                node: { children: new Map() },
+                visits,
+                totalReward: e.meanReward * visits,
+                totalMargin: e.meanMargin * visits,
+                avail: visits,
+            });
+        });
+        return { children };
+    }
+
+    /** Find the enumerated cast-spell move for `cardInstanceId` whose single
+     *  target is `targetId` (a permanent on either battlefield). */
+    function castAt(
+        state: GameState,
+        cardInstanceId: string,
+        targetId: string
+    ): Move {
+        const move = enumerateMoves(state, "p1").find(
+            (m) =>
+                m.kind === "cast-spell" &&
+                m.cardInstanceId === cardInstanceId &&
+                m.targets.length === 1 &&
+                m.targets[0]?.id === targetId
+        );
+        if (!move) throw new Error(`no cast move for ${targetId}`);
+        return move;
+    }
+
+    describe("Disenchant: own Castle vs enemy Tome", () => {
+        // Bot p1 holds Disenchant + 2 Plains, controls its own Castle, opponent
+        // controls a Jayemdae Tome. Both are legal targets (CR 115.4).
+        function rootState(): GameState {
+            return makeState({
+                phase: "PRECOMBAT_MAIN",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                players: [
+                    makePlayer("p1", {
+                        hand: [
+                            makeInstance(DISENCHANT, {
+                                id: "dis",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "hand",
+                            }),
+                        ],
+                        battlefield: [
+                            makeInstance(CASTLE, {
+                                id: "castle",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                            }),
+                            plains("p1", "pl1"),
+                            plains("p1", "pl2"),
+                        ],
+                    }),
+                    makePlayer("p2", {
+                        battlefield: [
+                            makeInstance(TOME, {
+                                id: "tome",
+                                controllerId: "p2",
+                                ownerId: "p2",
+                            }),
+                        ],
+                    }),
+                ],
+            });
+        }
+
+        it("FIRE: prefers the enemy Tome over the bot's own Castle when outcome-equal", () => {
+            const state = rootState();
+            const ownCastle = castAt(state, "dis", "castle");
+            const enemyTome = castAt(state, "dis", "tome");
+            // Reported trace shape: self-target edged the alternatives on
+            // meanMargin (noise) at an equal mean reward — must not stand.
+            const root = rootOf([
+                { move: ownCastle, meanReward: 0.54, meanMargin: 89 },
+                { move: enemyTome, meanReward: 0.54, meanMargin: 87 },
+                { move: { kind: "pass" }, meanReward: 0.54, meanMargin: 87 },
+            ]);
+            const chosen = selectRootMove(
+                root,
+                [ownCastle, enemyTome, { kind: "pass" }],
+                state,
+                "p1"
+            );
+            expect(chosen.kind).toBe("cast-spell");
+            if (chosen.kind !== "cast-spell") throw new Error("kind");
+            expect(chosen.targets[0]?.id).toBe("tome");
+        });
+
+        it("NO-FIRE: keeps the enemy Tome target when it is the robust pick", () => {
+            const state = rootState();
+            const ownCastle = castAt(state, "dis", "castle");
+            const enemyTome = castAt(state, "dis", "tome");
+            // The enemy cast genuinely out-rewards — it is the lone contender and
+            // wins on its own; the tie-break is never consulted.
+            const root = rootOf([
+                { move: enemyTome, meanReward: 0.7, meanMargin: 120 },
+                { move: ownCastle, meanReward: 0.5, meanMargin: 89 },
+            ]);
+            const chosen = selectRootMove(
+                root,
+                [enemyTome, ownCastle],
+                state,
+                "p1"
+            );
+            expect(chosen.kind).toBe("cast-spell");
+            if (chosen.kind !== "cast-spell") throw new Error("kind");
+            expect(chosen.targets[0]?.id).toBe("tome");
+        });
+    });
+
+    describe("only own beneficial target available → pass", () => {
+        // No enemy artifact/enchantment: Disenchant's ONLY legal target is the
+        // bot's own Castle. The bot must hold the Spell, not destroy its own.
+        function rootState(): GameState {
+            return makeState({
+                phase: "PRECOMBAT_MAIN",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                players: [
+                    makePlayer("p1", {
+                        hand: [
+                            makeInstance(DISENCHANT, {
+                                id: "dis",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "hand",
+                            }),
+                        ],
+                        battlefield: [
+                            makeInstance(CASTLE, {
+                                id: "castle",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                            }),
+                            plains("p1", "pl1"),
+                            plains("p1", "pl2"),
+                        ],
+                    }),
+                    makePlayer("p2", {}),
+                ],
+            });
+        }
+
+        it("FIRE: passes rather than destroying its own Castle", () => {
+            const state = rootState();
+            const ownCastle = castAt(state, "dis", "castle");
+            const root = rootOf([
+                { move: ownCastle, meanReward: 0.54, meanMargin: 89 },
+                { move: { kind: "pass" }, meanReward: 0.54, meanMargin: 87 },
+            ]);
+            expect(
+                selectRootMove(root, [ownCastle, { kind: "pass" }], state, "p1")
+                    .kind
+            ).toBe("pass");
+        });
+    });
+
+    describe("Swords to Plowshares: own creature vs enemy creature", () => {
+        function rootState(): GameState {
+            return makeState({
+                phase: "PRECOMBAT_MAIN",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                players: [
+                    makePlayer("p1", {
+                        hand: [
+                            makeInstance(SWORDS, {
+                                id: "stp",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "hand",
+                            }),
+                        ],
+                        battlefield: [
+                            creature(UNICORN, "p1", "myUnicorn"),
+                            plains("p1", "pl1"),
+                        ],
+                    }),
+                    makePlayer("p2", {
+                        battlefield: [creature(UNICORN, "p2", "oppUnicorn")],
+                    }),
+                ],
+            });
+        }
+
+        it("FIRE: exiles the enemy creature, never the bot's own", () => {
+            const state = rootState();
+            const ownU = castAt(state, "stp", "myUnicorn");
+            const enemyU = castAt(state, "stp", "oppUnicorn");
+            const root = rootOf([
+                { move: ownU, meanReward: 0.53, meanMargin: 5 },
+                { move: enemyU, meanReward: 0.53, meanMargin: 3 },
+                { move: { kind: "pass" }, meanReward: 0.53, meanMargin: 3 },
+            ]);
+            const chosen = selectRootMove(
+                root,
+                [ownU, enemyU, { kind: "pass" }],
+                state,
+                "p1"
+            );
+            expect(chosen.kind).toBe("cast-spell");
+            if (chosen.kind !== "cast-spell") throw new Error("kind");
+            expect(chosen.targets[0]?.id).toBe("oppUnicorn");
+        });
+    });
+});

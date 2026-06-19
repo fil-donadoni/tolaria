@@ -87,6 +87,29 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Bot self-harm removal (issue #365). The bot (opp) holds Disenchant with
+        // two legal targets: its OWN Castle (a +0/+2 buff Enchantment) and your
+        // Jayemdae Tome (a card-advantage Artifact). The bot must NEVER Disenchant
+        // its own Castle — with an enemy target present it takes the Tome; with
+        // only its own beneficial target it holds the Spell (passes). Pass
+        // priority to the bot and watch its move (Debug → AI trace shows the
+        // candidates: destroy-own-Castle must rank below the Tome cast / pass).
+        label: "Bot: never Disenchant its own Castle — takes enemy Tome instead (#365)",
+        cards: [
+            {
+                name: "Disenchant",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Castle", owner: "opp" as const },
+            { name: "Plains", owner: "opp" as const, count: 2 },
+            { name: "Pearled Unicorn", owner: "opp" as const },
+            { name: "Jayemdae Tome", owner: "me" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
         // Persistent hand knowledge (ADR 0026 / PRD #338 slice 3, #341). A look
         // at an opponent's hand stays known to the looker after it resolves:
         //   • Right-click Glasses of Urza → "{T}: Look at target player's hand",

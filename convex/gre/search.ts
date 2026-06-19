@@ -1186,6 +1186,88 @@ function isManaDorkCast(state: GameState, move: Move, botId?: string): boolean {
     return isCreature(card) && hasManaAbility(card);
 }
 
+// --- Self-harm removal guard (issue #365) ----------------------------------
+// A one-sided removal / destruction Spell (Disenchant, Swords to Plowshares,
+// any `destroy-target` effect) aimed at the caster's OWN beneficial Permanent
+// is pure self-harm: the bot loses a useful Permanent for no upside. The leaf
+// eval now values non-creature beneficial Permanents (evaluate.ts, issue #365),
+// so destroying one DOES register as a material loss — but a thin loss can still
+// be buried under rollout noise inside `OUTCOME_EPS`, leaving the self-targeted
+// cast outcome-equal with `pass` (the reported trace: destroy-own-Castle at
+// meanMargin ~89 vs pass ~87). Legal-target enumeration correctly keeps own
+// Permanents (rules-correct, CR 115.4); the friendly-vs-enemy preference is a
+// SCORING / SELECTION concern handled here, NOT a legality change.
+
+/** Whether `move` casts a Spell whose targets are all on the CASTER's own
+ *  battlefield (every target is a Permanent the bot controls). A no-target or
+ *  player-targeting cast returns false. Pure read of `state`. */
+function targetsOnlyOwnPermanents(
+    state: GameState,
+    move: Move,
+    botId: string
+): boolean {
+    if (move.kind !== "cast-spell" || move.targets.length === 0) return false;
+    const me = state.players.find((p) => p.id === botId);
+    if (!me) return false;
+    return move.targets.every((t) => me.battlefield.some((c) => c.id === t.id));
+}
+
+/** The change in the bot's own material margin caused by RESOLVING `move`, from
+ *  `botId`'s view (negative = the bot is worse off). Probes on a clone exactly
+ *  as `botExtraTurnGrantDelta` / `buildTrace` do: apply the move, settle the
+ *  stack, and diff `materialMargin` before vs after. Used to detect a cast that
+ *  only harms the bot's own board (a self-targeted removal). A throw means the
+ *  resolution could not be simulated — treat as no measurable change (0). */
+function resolvedMarginDelta(
+    state: GameState,
+    move: Move,
+    botId: string
+): number {
+    const before = materialMargin(state, botId);
+    const probe = cloneGameState(state);
+    try {
+        applyMoveInSearch(probe, botId, move);
+        settleStackForBreakdown(probe);
+    } catch {
+        return 0;
+    }
+    return materialMargin(probe, botId) - before;
+}
+
+/** Whether `move` is a SELF-HARM removal cast: it targets only the bot's own
+ *  Permanents AND resolving it strictly lowers the bot's material margin (issue
+ *  #365). Effect-keyed (the resolved margin drop), NOT a per-card list, so it
+ *  covers Disenchant, Swords to Plowshares, and any future one-sided removal —
+ *  while a beneficial self-target (a sacrifice-for-value, removing a liability)
+ *  raises or holds the margin and is correctly NOT flagged. */
+function isSelfHarmRemovalCast(
+    state: GameState,
+    move: Move,
+    botId: string
+): boolean {
+    if (!targetsOnlyOwnPermanents(state, move, botId)) return false;
+    return resolvedMarginDelta(state, move, botId) < 0;
+}
+
+/** Whether `move` casts the SAME card as `ref` (same `cardInstanceId` and chosen
+ *  mode) but at a DIFFERENT, non-self-harming target — the enemy-target variant
+ *  of the self-targeted removal. The friendly-vs-enemy preference: when both a
+ *  self-target and an enemy-target cast of the same Spell are outcome-equal, take
+ *  the enemy one (issue #365). */
+function isAlternativeTargetCast(
+    state: GameState,
+    move: Move,
+    ref: Move,
+    botId: string
+): boolean {
+    if (move.kind !== "cast-spell" || ref.kind !== "cast-spell") return false;
+    if (move.cardInstanceId !== ref.cardInstanceId) return false;
+    if (move.chosenModeId !== ref.chosenModeId) return false;
+    if (move.targets.length === 0) return false;
+    // Not itself self-harm (an enemy target, or a beneficial own target).
+    return !isSelfHarmRemovalCast(state, move, botId);
+}
+
 export function selectRootMove(
     root: Node,
     moves: Move[],
@@ -1295,6 +1377,39 @@ export function selectRootMove(
                 }))
                 .reduce((m, x) => (x.delta > m.delta ? x : m)).e;
         }
+    }
+
+    // Self-harm removal tie-break (issue #365). A one-sided removal / destruction
+    // Spell aimed at the bot's OWN beneficial Permanent is pure self-harm: it
+    // loses a useful Permanent for no upside. The eval now registers that loss
+    // (evaluate.ts), but a thin loss can still tie `pass` (or an enemy-target
+    // cast) inside `OUTCOME_EPS` on rollout noise — the reported destroy-own-
+    // Castle case. When the robust pick IS such a self-harm cast, redirect it:
+    //   1. prefer an outcome-equal cast of the SAME Spell at a non-self-harming
+    //      (enemy / beneficial) target — the friendly-vs-enemy preference; else
+    //   2. prefer an outcome-equal `pass` — hold the Spell over destroying own
+    //      board.
+    // Pulled from the FULL `pool` on outcome-equality alone (not the visit band),
+    // as the land-drop / hold-trick rules are: the alternative is the
+    // lower-variance, lower-visit line. Fires ONLY among outcome-equal
+    // contenders, so a self-target with REAL value (a genuine sacrifice-for-
+    // value) is NOT flagged by `isSelfHarmRemovalCast` (its resolved margin does
+    // not drop) and never reaches here.
+    if (
+        rootState &&
+        botId &&
+        isSelfHarmRemovalCast(rootState, best.move, botId)
+    ) {
+        const enemyTarget = pool.find(
+            (e) =>
+                mean(e) >= bestMean - OUTCOME_EPS &&
+                isAlternativeTargetCast(rootState, e.move, best.move, botId)
+        );
+        if (enemyTarget) return enemyTarget.move;
+        const hold = pool.find(
+            (e) => e.move.kind === "pass" && mean(e) >= bestMean - OUTCOME_EPS
+        );
+        if (hold) return hold.move;
     }
 
     // Free-development tie-break (ADR 0020 §1, issue #206; extended for free
