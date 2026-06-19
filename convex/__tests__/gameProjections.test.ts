@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { projectFullState, projectPublicState } from "../gameProjections";
 import { computeSoloViewerId } from "../soloViewer";
-import { drawCard, removeFromZone } from "../gre/state";
+import { drawCard, exileFaceDownCard, removeFromZone } from "../gre/state";
+import { FACE_DOWN_CARD_ID } from "../cards";
 import type { CardInstanceState, GameState, PlayerState } from "../gre/state";
 
 function makeCard(
@@ -718,5 +719,79 @@ describe("projectPublicState — knownTo (ADR 0026)", () => {
         expect(forP2.players.find((p) => p.id === "p2")!.library.known).toEqual(
             []
         );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Face-down exile / impulse-draw — ADR 0026 / PRD #338 (slice 6, #342)
+// Exile is normally public; a face-down exile is the CR 406.3 exception, gated
+// per-viewer by `knownTo` exactly like a hidden zone.
+// ---------------------------------------------------------------------------
+describe("projectPublicState — face-down exile (ADR 0026 slice 6, CR 406.3)", () => {
+    // End-to-end through the real primitive: p1 impulse-exiles their own top
+    // card. Their projection reveals it; the opponent's hides it.
+    function stateWithFaceDownExile() {
+        const state = makeState();
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        exileFaceDownCard(p1, p1.library[0].id, "library", "p1");
+        return state;
+    }
+
+    it("reveals the exiled card's real identity to the controller", () => {
+        const state = stateWithFaceDownExile();
+        const exiledId = state.players.find((p) => p.id === "p1")!.exile[0].id;
+        const defId = "def-p1-l1";
+
+        const forP1 = projectPublicState(state, 1, "p1");
+        const exile = forP1.players.find((p) => p.id === "p1")!.exile;
+        expect(exile).toHaveLength(1);
+        expect(exile[0].id).toBe(exiledId);
+        expect(exile[0].card.id).toBe(defId); // real identity, not the sentinel
+    });
+
+    it("hides the exiled card's identity from the opponent (face-down sentinel)", () => {
+        const state = stateWithFaceDownExile();
+        const exiledId = state.players.find((p) => p.id === "p1")!.exile[0].id;
+
+        const forP2 = projectPublicState(state, 1, "p2");
+        const exile = forP2.players.find((p) => p.id === "p1")!.exile;
+        // The card is still present (a face-down card the opponent can count),
+        // but its identity is the sentinel, not the real def.
+        expect(exile).toHaveLength(1);
+        expect(exile[0].id).toBe(exiledId);
+        expect(exile[0].card.id).toBe(FACE_DOWN_CARD_ID);
+        expect(exile[0].card.id).not.toBe("def-p1-l1");
+    });
+
+    it("never emits raw knownTo on a face-down exiled card, for either viewer", () => {
+        const state = stateWithFaceDownExile();
+        const forP1 = projectPublicState(state, 1, "p1");
+        const forP2 = projectPublicState(state, 1, "p2");
+        const p1Card = forP1.players.find((p) => p.id === "p1")!.exile[0];
+        const p2Card = forP2.players.find((p) => p.id === "p1")!.exile[0];
+        expect((p1Card as { knownTo?: string[] }).knownTo).toBeUndefined();
+        expect((p2Card as { knownTo?: string[] }).knownTo).toBeUndefined();
+    });
+
+    it("does not strip faceDownOf-style leaks for the opponent", () => {
+        const state = stateWithFaceDownExile();
+        const forP2 = projectPublicState(state, 1, "p2");
+        const p2Card = forP2.players.find((p) => p.id === "p1")!.exile[0];
+        expect((p2Card as { faceDownOf?: string }).faceDownOf).toBeUndefined();
+    });
+
+    it("keeps an ordinary face-up exiled card public to all viewers", () => {
+        // A card sent to exile via the normal path has no knownTo, so it stays
+        // public — the face-down gate only triggers on non-empty knownTo.
+        const state = makeState();
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        const faceUp = makeCard("p1-x1", { zone: "exile" });
+        p1.exile.push(faceUp);
+
+        const forP2 = projectPublicState(state, 1, "p2");
+        const card = forP2.players
+            .find((p) => p.id === "p1")!
+            .exile.find((c) => c.id === "p1-x1")!;
+        expect(card.card.id).toBe("def-p1-x1"); // real identity to everyone
     });
 });
