@@ -299,12 +299,133 @@ export function checkSourceTappedEffects(state: GameState): void {
     }
 }
 
+/** Reads a permanent's current definition (honoring copy effects, which
+ *  overwrite `card.card.id` — CR 707.2). Returns null when the id is missing
+ *  or unregistered (tokens with synthesized defs are still registered). */
+function permanentDefinition(card: CardInstanceState) {
+    const cardId = (card.card as { id?: string }).id;
+    return cardId ? tryGetCardById(cardId) : null;
+}
+
+/** CR 205.4a — true when the permanent currently has the Legendary supertype.
+ *  The supertype lives on the (possibly copied) card definition, not on the
+ *  instance; a Clone copying a Legendary creature reads Legendary here. */
+function isLegendaryPermanent(card: CardInstanceState): boolean {
+    return (
+        permanentDefinition(card)?.supertypes?.includes("Legendary") ?? false
+    );
+}
+
+/** The name the legend rule groups on (CR 704.5j keys off name). Read from the
+ *  copied definition so Vesuvan Doppelganger / Clone group with the original.
+ *  Undefined when the definition is missing (defensive — never groups). */
+function legendName(card: CardInstanceState): string | undefined {
+    return permanentDefinition(card)?.name;
+}
+
+/** CR 704.5j (modern, per-controller "legend rule") — if a player controls two
+ *  or more legendary permanents with the same name, that player chooses one of
+ *  them and the rest are put into their owners' graveyards. The choice (which
+ *  duplicate to keep) is a genuine tactical decision (the copies can differ in
+ *  counters, attached auras, tap/damage state), so per ADR 0003 it is always
+ *  surfaced as a prompt — never auto-resolved.
+ *
+ *  This enqueues at most one `legend-keep` PendingChoice per call (the first
+ *  offending controller/name group found). The submit path
+ *  (`finalizeLegendKeep`) re-runs `checkStateBasedActions`, so a board with
+ *  several simultaneous violations is drained one prompt at a time. Returns
+ *  true when a prompt was enqueued (the caller must suspend — priority is
+ *  frozen while a choice is pending). */
+export function checkLegendRuleSBA(state: GameState): boolean {
+    // A pending choice already freezes the game; don't stack another.
+    if ((state.pendingChoices?.length ?? 0) > 0) return false;
+    for (const player of state.players) {
+        // Group this controller's legendary permanents by name.
+        const byName = new Map<string, string[]>();
+        for (const card of player.battlefield) {
+            if (!isLegendaryPermanent(card)) continue;
+            const name = legendName(card);
+            if (name === undefined) continue;
+            const ids = byName.get(name) ?? [];
+            ids.push(card.id);
+            byName.set(name, ids);
+        }
+        for (const [name, ids] of byName) {
+            if (ids.length < 2) continue;
+            // Found a violation — enqueue a keep-one prompt for this
+            // controller and stop. Remaining violations resolve on the next
+            // SBA sweep after this choice is committed.
+            state.pendingChoices = [
+                ...(state.pendingChoices ?? []),
+                {
+                    stackItemId: "", // SBA-level (no stack item)
+                    step: 0,
+                    choiceId: `legend-keep-${player.id}-${name}`,
+                    playerId: player.id,
+                    zoneOwnerId: player.id,
+                    kind: "legend-keep",
+                    zone: "battlefield",
+                    count: 1,
+                    candidateIds: ids,
+                    prompt:
+                        ids.length === 2
+                            ? `Choose which ${name} to keep (the other is put into its owner's graveyard).`
+                            : `Choose which ${name} to keep (the rest are put into their owners' graveyards).`,
+                },
+            ];
+            state.priorityPlayerId = player.id;
+            return true;
+        }
+    }
+    return false;
+}
+
+/** Commits a `legend-keep` PendingChoice (CR 704.5j, #378): the chooser's
+ *  single selected duplicate stays; every other candidate (the same-name group
+ *  recorded on the choice) is put into its owner's graveyard. Drops the head
+ *  choice and re-runs the SBA loop so further violations (or deaths triggered
+ *  by these departures) are processed. No-op if the head is not a legend-keep
+ *  phase-level choice. */
+export function finalizeLegendKeep(
+    state: GameState,
+    selectedIds: string[]
+): void {
+    const queue = state.pendingChoices ?? [];
+    const head = queue[0];
+    if (!head || head.kind !== "legend-keep" || head.stackItemId !== "") {
+        return;
+    }
+    const kept = selectedIds[0];
+    // Put every same-name duplicate except the kept one into its owner's
+    // graveyard (CR 704.5j — "owners' graveyards"; this is a zone change, not
+    // a destroy, so indestructible/regeneration do not apply).
+    for (const id of head.candidateIds ?? []) {
+        if (id === kept) continue;
+        removePermanentTo(state, id, "graveyard");
+    }
+    queue.shift();
+    state.pendingChoices = queue.length > 0 ? queue : undefined;
+    // Re-run SBAs: the departures may have created new violations, dropped a
+    // creature to 0 toughness, ended the game, etc. (CR 704.3 — repeat until
+    // no SBA applies). Priority is restored to the active player only once the
+    // sweep settles with no further pending choice.
+    checkStateBasedActions(state);
+    if ((state.pendingChoices?.length ?? 0) === 0 && !state.gameOver) {
+        state.priorityPlayerId = state.activePlayerId;
+    }
+}
+
 export function checkStateBasedActions(state: GameState): void {
     checkAuraAttachmentSBA(state);
     checkConditionalControlChanges(state);
     checkSourceTappedEffects(state);
     checkZeroToughnessSBA(state);
     checkTokenExistenceSBA(state);
+    // CR 704.5j — legend rule. Enqueues a keep-one prompt and returns early;
+    // priority is frozen until the controller commits via finalizeLegendKeep.
+    // Run before game-over so a legend death that would change life totals is
+    // resolved first; the choice itself suspends the rest of the sweep.
+    if (checkLegendRuleSBA(state)) return;
     checkGameOverSBA(state);
     if (state.gameOver) return;
     // CR 117.5: state triggers go on the stack after SBA. Don't scan if the

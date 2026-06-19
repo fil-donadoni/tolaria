@@ -24,7 +24,7 @@ import {
     finalizeDrawLookKeep,
     finalizeUntapPick,
 } from "./phases";
-import { checkStateBasedActions } from "./sba";
+import { checkStateBasedActions, finalizeLegendKeep } from "./sba";
 import { applyMulliganBottomChoice } from "./mulligan";
 
 export type SubmitChoiceArgs = {
@@ -368,6 +368,19 @@ export function applyPendingChoiceSubmit(
         // CR 614 (Aladdin's Lamp) — phase-level draw replacement. The reorder +
         // draw + priority resumption live in `finalizeDrawLookKeep`.
         finalizeDrawLookKeep(state, args.cardInstanceIds);
+        return;
+    }
+
+    if (head.kind === "legend-keep" && head.stackItemId === "") {
+        // CR 704.5j (#378) — SBA-level keep-one. The submission must be exactly
+        // one of the recorded same-name duplicates; the battlefield zone check
+        // above already verified it is on the chooser's battlefield. The
+        // graveyard moves, queue shift, SBA re-sweep, and priority resumption
+        // live in `finalizeLegendKeep`.
+        if (!head.candidateIds?.includes(args.cardInstanceIds[0])) {
+            throw new Error("Card is not an eligible choice");
+        }
+        finalizeLegendKeep(state, args.cardInstanceIds);
         return;
     }
 

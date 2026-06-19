@@ -388,6 +388,15 @@ export function chooseResolution(choice: OwedChoice): string[] {
                 .slice(0, min)
                 .map((c) => c.id);
 
+        // Legend rule (CR 704.5j, #378): keep exactly one of the same-name
+        // duplicates; the rest go to the graveyard. Minimal-legal default
+        // (ADR 0016) — keep the best-valued copy so the bot sheds the weaker
+        // duplicate. Smart keep-which (counters / attached auras) is deferred.
+        case "legend-keep":
+            return bestFirst(candidates)
+                .slice(0, min)
+                .map((c) => c.id);
+
         // "As it enters, choose …" body selection (CR 614.12 — Primal Clay,
         // Shapeshifter). The options are appended to `candidates` as neutral-
         // value picks in `buildOwedChoice`; a minimal-legal default (ADR 0016)

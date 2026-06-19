@@ -53,7 +53,13 @@ export type ZonePickKind =
     // (`candidateIds`) and keeps one to draw; the rest are bottomed in a
     // random order. A phase-level choice (stackItemId === "") raised by the
     // draw step's replacement, committed by `finalizeDrawLookKeep`.
-    | "draw-look-keep";
+    | "draw-look-keep"
+    // Legend rule (CR 704.5j, #378): when a controller has 2+ legendary
+    // permanents that share a name, they keep exactly one (`candidateIds` are
+    // the same-name duplicates) and the rest go to their owners' graveyards.
+    // An SBA-level choice (stackItemId === "") raised by `checkLegendRuleSBA`,
+    // committed by `finalizeLegendKeep`.
+    | "legend-keep";
 /** CR 702.26 — condition under which a phased-out bundle phases back in. A
  *  discriminated union so future phasing variants stay expressible:
  *   - `source-leaves` (Oubliette): phase in when the named source leaves the

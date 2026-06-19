@@ -20,6 +20,9 @@ export const CLIENT_BUFFERED_KINDS: ReadonlySet<PendingChoiceKind> =
         "choose-permanents",
         "choose-damage-target",
         "option-pick",
+        // Legend rule keep-one (CR 704.5j, #378) — battlefield pick of exactly
+        // one same-name legendary to keep.
+        "legend-keep",
     ]);
 
 export function isClientBufferedKind(kind: PendingChoiceKind): boolean {

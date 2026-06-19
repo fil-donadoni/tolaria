@@ -22,6 +22,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "choose-hand-card": "Cast face down",
     "choose-damage-target": "Choose target",
     "draw-look-keep": "Keep",
+    // legend rule (CR 704.5j)
+    "legend-keep": "Legend rule",
     // yes-no family
     "may-pay": "Optional",
     // order family
