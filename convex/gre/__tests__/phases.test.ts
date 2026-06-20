@@ -515,6 +515,31 @@ describe("advancePhase", () => {
             expect(state.activePlayerId).toBe("p1");
         });
 
+        it("Arboria (CR 508.1c): freezes the outgoing player's qualifying-action flag into lastTurn and resets thisTurn", () => {
+            const state = makeGameState({
+                phase: "END_STEP",
+                activePlayerId: "p1",
+            });
+            // p1 (active, ending their turn) took a qualifying action.
+            state.players[0].qualifyingActionThisTurn = true;
+            advancePhase(state);
+            // p1's turn ended → flag frozen into lastTurn, thisTurn cleared.
+            const p1 = state.players.find((p) => p.id === "p1")!;
+            expect(p1.qualifyingActionLastTurn).toBe(true);
+            expect(p1.qualifyingActionThisTurn).toBeUndefined();
+        });
+
+        it("Arboria (CR 508.1c): an idle turn freezes a falsy lastTurn, forbidding attacks next turn", () => {
+            const state = makeGameState({
+                phase: "END_STEP",
+                activePlayerId: "p1",
+            });
+            // p1 did nothing this turn (flag never set).
+            advancePhase(state);
+            const p1 = state.players.find((p) => p.id === "p1")!;
+            expect(p1.qualifyingActionLastTurn).toBeFalsy();
+        });
+
         it("turn counter increments correctly across multiple turns", () => {
             const state = makeGameState({
                 phase: "END_STEP",

@@ -431,6 +431,8 @@ type CompactPlayer = {
     grantedAbilities?: PlayerState["grantedAbilities"];
     skipNextTurn?: boolean;
     maxHandSizeOverride?: number | "unlimited";
+    qualifyingActionThisTurn?: boolean;
+    qualifyingActionLastTurn?: boolean;
 };
 
 function compactPlayer(player: PlayerState): CompactPlayer {
@@ -470,6 +472,13 @@ function compactPlayer(player: PlayerState): CompactPlayer {
     if (player.skipNextTurn) out.skipNextTurn = true;
     if (player.maxHandSizeOverride !== undefined) {
         out.maxHandSizeOverride = player.maxHandSizeOverride;
+    }
+    // Arboria (CR 508.1c) — per-turn qualifying-action history.
+    if (player.qualifyingActionThisTurn) {
+        out.qualifyingActionThisTurn = true;
+    }
+    if (player.qualifyingActionLastTurn) {
+        out.qualifyingActionLastTurn = true;
     }
     return out;
 }
@@ -517,6 +526,12 @@ function expandPlayer(player: CompactPlayer): PlayerState {
     if (player.skipNextTurn) result.skipNextTurn = true;
     if (player.maxHandSizeOverride !== undefined) {
         result.maxHandSizeOverride = player.maxHandSizeOverride;
+    }
+    if (player.qualifyingActionThisTurn) {
+        result.qualifyingActionThisTurn = true;
+    }
+    if (player.qualifyingActionLastTurn) {
+        result.qualifyingActionLastTurn = true;
     }
     return result;
 }

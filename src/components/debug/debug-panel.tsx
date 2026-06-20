@@ -130,6 +130,44 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // C9 global combat cap — Caverns of Despair (#386). The World
+        // enchantment caps DECLARED attackers (and blockers) at two each
+        // combat:
+        //   • You control Caverns of Despair and three Grizzly Bears, already
+        //     in DECLARE_ATTACKERS on your turn.
+        //   • Declare two Bears as attackers — fine. Try to add the third and
+        //     the server rejects it ("No more than 2 creatures can attack each
+        //     combat").
+        //   • The opponent's three Bears can likewise block only two attackers.
+        label: "C9: Caverns of Despair caps attackers/blockers at 2 (#386)",
+        cards: [
+            { name: "Caverns of Despair", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const, count: 3 },
+            { name: "Grizzly Bears", owner: "opp" as const, count: 3 },
+        ],
+        phase: "DECLARE_ATTACKERS",
+        landCount: 0,
+    },
+    {
+        // C9 defender-history attack restriction — Arboria (#386). "Creatures
+        // can't attack a player unless that player cast a spell or put a
+        // nontoken permanent onto the battlefield during their last turn."
+        //   • You control Arboria and two Grizzly Bears, in DECLARE_ATTACKERS.
+        //   • The opponent took no qualifying action on their last turn, so
+        //     your Bears CAN'T be declared as attackers against them — the
+        //     attack is illegal until the opponent acts on their own turn.
+        //   • Pass the turn, let the bot cast a spell / drop a permanent, and on
+        //     your next turn the restriction lifts and the Bears can attack.
+        label: "C9: Arboria blocks attacks vs an idle player (#386)",
+        cards: [
+            { name: "Arboria", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "DECLARE_ATTACKERS",
+        landCount: 0,
+    },
+    {
         // The Dark (DRK) walking skeleton (#410). Registers the `drk` set with
         // three vanilla creatures and proves the full pipeline end-to-end:
         //   • Squire (1/2, {1}{W}), Goblin Hero (2/2, {2}{R}) and Scarwood

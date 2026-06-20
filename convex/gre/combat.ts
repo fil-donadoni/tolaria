@@ -12,6 +12,49 @@ import {
     evaluateAttackerKeywords,
 } from "./combatRegistry";
 
+/** Card definition ids of the Legends World enchantments that impose global
+ *  combat caps / conditional attack restrictions (cluster C9, #386). Kept here
+ *  so the engine recognises them without a string-parsing pass — they carry no
+ *  per-card predicate, the rule is global. */
+export const CAVERNS_OF_DESPAIR_ID = "a1034a02-36cf-4586-a001-9dc3fb76e904";
+export const ARBORIA_ID = "acb3e93c-a1d3-458f-b8c3-c426cd359fa4";
+
+/** True when any permanent with the given card id is on any player's
+ *  battlefield. Used for global World-enchantment effects (CR 109.2 — the
+ *  effect applies regardless of controller). */
+function isCardOnBattlefield(state: GameState, cardId: string): boolean {
+    return state.players.some((p) =>
+        p.battlefield.some((c) => (c.card as { id?: string }).id === cardId)
+    );
+}
+
+/** Caverns of Despair (CR 508.1a / 509.1a) — the global cap on how many
+ *  creatures may be declared as attackers each combat. Returns the cap (2)
+ *  when a Caverns of Despair is in play, else `undefined` (no cap). */
+export function getAttackerCap(state: GameState): number | undefined {
+    return isCardOnBattlefield(state, CAVERNS_OF_DESPAIR_ID) ? 2 : undefined;
+}
+
+/** Caverns of Despair (CR 509.1a) — the global cap on how many creatures may
+ *  be declared as blockers each combat. Returns the cap (2) when a Caverns of
+ *  Despair is in play, else `undefined` (no cap). */
+export function getBlockerCap(state: GameState): number | undefined {
+    return isCardOnBattlefield(state, CAVERNS_OF_DESPAIR_ID) ? 2 : undefined;
+}
+
+/** Arboria (CR 508.1c) — true when a creature can't be declared as an attacker
+ *  against `defenderId` because an Arboria is in play and that player took no
+ *  qualifying action (cast a spell / put a nontoken permanent onto the
+ *  battlefield) during their last turn. */
+export function arboriaForbidsAttack(
+    state: GameState,
+    defenderId: string
+): boolean {
+    if (!isCardOnBattlefield(state, ARBORIA_ID)) return false;
+    const defender = state.players.find((p) => p.id === defenderId);
+    return !defender?.qualifyingActionLastTurn;
+}
+
 export type AttackerValidation =
     | { eligible: true }
     | { eligible: false; reason: string };
@@ -62,6 +105,21 @@ export function validateAttackerEligibility(
             if (!r.predicate(card, defenderBattlefield)) {
                 return { eligible: false, reason: r.oracleText };
             }
+        }
+    }
+    // Arboria (CR 508.1c) — "Creatures can't attack a player unless that player
+    // cast a spell or put a nontoken permanent onto the battlefield during
+    // their last turn." A defender-history attack restriction; global, so it
+    // lives in the engine rather than on the attacker's staticEffects[].
+    if (state) {
+        const defenderId = state.players.find(
+            (p) => p.id !== card.controllerId
+        )?.id;
+        if (defenderId && arboriaForbidsAttack(state, defenderId)) {
+            return {
+                eligible: false,
+                reason: "Arboria: that player took no qualifying action during their last turn",
+            };
         }
     }
     // Island Sanctuary: defender can only be attacked by flying/islandwalk

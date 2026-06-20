@@ -1771,6 +1771,13 @@ function revertAnimation(card: CardInstanceState): void {
  *  and skip their entire turn — advance to the following player instead. */
 function advanceTurn(state: GameState): void {
     state.turn += 1;
+    // Arboria (CR 508.1c) — freeze the just-ended turn's qualifying-action
+    // flag for the OUTGOING active player so "during their last turn" reads a
+    // stable value once it's no longer their turn. Captured before the active
+    // player swaps below.
+    const outgoing = getPlayer(state, state.activePlayerId);
+    outgoing.qualifyingActionLastTurn = outgoing.qualifyingActionThisTurn;
+    outgoing.qualifyingActionThisTurn = undefined;
     if (state.extraTurns && state.extraTurns.length > 0) {
         const nextActive = state.extraTurns[state.extraTurns.length - 1];
         state.extraTurns = state.extraTurns.slice(0, -1);

@@ -110,6 +110,8 @@ import {
     mustAttack,
     getRequiredBlockerAssignments,
     getMaxBlockTargets,
+    getAttackerCap,
+    getBlockerCap,
 } from "./gre/combat";
 import {
     getEffectiveBlockGraph,
@@ -2844,10 +2846,23 @@ export const toggleAttacker = mutation({
             // Select — must be eligible
             const validation = validateAttackerEligibility(
                 card,
-                defenderBattlefield
+                defenderBattlefield,
+                state
             );
             if (!validation.eligible) {
                 throw new Error(validation.reason);
+            }
+            // Caverns of Despair (CR 508.1a) — no more than two creatures can
+            // be declared as attackers each combat. The cap is global; reject
+            // the declaration that would push the count past it.
+            const attackerCap = getAttackerCap(state);
+            if (
+                attackerCap !== undefined &&
+                state.combat.attackerIds.length >= attackerCap
+            ) {
+                throw new Error(
+                    `No more than ${attackerCap} creatures can attack each combat (Caverns of Despair)`
+                );
             }
             state.combat.attackerIds.push(args.cardInstanceId);
         }
@@ -3160,6 +3175,24 @@ export const assignBlockerTarget = mutation({
 
         const blockerId = state.combat.pendingBlockerId;
         const existing = state.combat.blockerAssignments[blockerId] ?? [];
+        // Caverns of Despair (CR 509.1a) — no more than two creatures can be
+        // declared as blockers each combat. The cap counts distinct blocking
+        // creatures, not blocking assignments; a creature already blocking may
+        // still take a second attacker (Two-Headed Giant) without consuming a
+        // new slot. Reject only a NEW blocker that would push the count past
+        // the cap.
+        const blockerCap = getBlockerCap(state);
+        if (
+            blockerCap !== undefined &&
+            existing.length === 0 &&
+            Object.keys(state.combat.blockerAssignments).filter(
+                (id) => (state.combat!.blockerAssignments[id] ?? []).length > 0
+            ).length >= blockerCap
+        ) {
+            throw new Error(
+                `No more than ${blockerCap} creatures can block each combat (Caverns of Despair)`
+            );
+        }
         const maxAttackers = blocker ? getMaxBlockTargets(blocker) : 1;
         if (existing.length >= maxAttackers) {
             throw new Error(

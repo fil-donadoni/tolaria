@@ -1773,7 +1773,8 @@ export const darkness: CardDefinition = {
 //   • C3 Rampage (#380, shipped) — Aerathi Berserker (rampage 3), Frost Giant
 //     (rampage 2). Now defined at the foot of this file via `rampageTrigger`.
 //   • C9 combat-cap World enchantment — Caverns of Despair ("no more than two
-//     creatures can attack / block each combat").
+//     creatures can attack / block each combat") SHIPPED in the C9 section at
+//     the foot of this file (#386).
 //   • C5 named counters + upkeep cycle — Primordial Ooze (+1/+1 counters each
 //     upkeep, pay {X} or take X damage).
 //   • World rule (C2) — Gravity Sphere ("all creatures lose flying"), Land's
@@ -2403,7 +2404,8 @@ export const windsOfChange: CardDefinition = {
 //     carry the World supertype; like every other World-supertype LEG card they
 //     are deferred to the world-rule cluster so the supertype and its SBA ship
 //     together (mirrors the blue/black/red tranches).
-//   • C9 conditional attack restriction (World) — Arboria.
+//   • C9 conditional attack restriction (World) — Arboria. SHIPPED in the C9
+//     section at the foot of this file (#386).
 //
 // Out of scope for the whole set (per #369): Rebirth (ante, ADR 0010).
 //
@@ -5197,4 +5199,58 @@ export const inTheEyeOfChaos: CardDefinition = {
             },
         }),
     ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C9 — Global combat caps + conditional attack restriction (#386)
+//
+// Two World enchantments (CR 205.4 World supertype; the world-rule SBA shipped
+// in C2, #379) that reshape combat declarations GLOBALLY rather than per-card.
+// Their rules can't ride a per-attacker `staticEffects[]` predicate (ADR 0006)
+// because the predicate sees only one creature at a time — a count cap and a
+// defender-history restriction are decisions the engine makes with full combat
+// context. So the engine recognises these two cards by id (`combat.ts`:
+// CAVERNS_OF_DESPAIR_ID / ARBORIA_ID) and applies the rule at declaration time:
+//
+//   • Caverns of Despair (CR 508.1a / 509.1a) — caps DECLARED attackers and
+//     blockers at two each per combat. Enforced server-side in the
+//     declareAttacker / assignBlocker mutations and in the bot's move
+//     enumeration (`moves.ts`).
+//   • Arboria (CR 508.1c) — a defender-history attack restriction. A player can
+//     be attacked only if they cast a spell or put a NONTOKEN permanent onto
+//     the battlefield during their last turn. The per-player history rides two
+//     PlayerState flags (`qualifyingActionThisTurn` set by emitSpellCastEvent /
+//     emitPermanentEntered, frozen into `qualifyingActionLastTurn` at
+//     advanceTurn) and is read in `validateAttackerEligibility`.
+//
+// ZERO new SpellContext primitive: the rule is engine logic keyed off the card
+// id, not a card-shaped effect. The ids below MUST match the constants in
+// `convex/gre/combat.ts`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Caverns of Despair — {2}{R}{R} World Enchantment. "No more than two creatures
+// can attack each combat. No more than two creatures can block each combat."
+// (CR 508.1a / 509.1a — global declaration caps; engine-enforced by id.)
+export const cavernsOfDespair: CardDefinition = {
+    id: "a1034a02-36cf-4586-a001-9dc3fb76e904",
+    name: "Caverns of Despair",
+    oracleText:
+        "No more than two creatures can attack each combat.\nNo more than two creatures can block each combat.",
+    manaCost: { X: 2, R: 2 },
+    types: ["Enchantment"],
+    supertypes: ["World"],
+};
+
+// Arboria — {2}{G}{G} World Enchantment. "Creatures can't attack a player
+// unless that player cast a spell or put a nontoken permanent onto the
+// battlefield during their last turn." (CR 508.1c — defender-history attack
+// restriction; engine-enforced by id via per-player turn-history flags.)
+export const arboria: CardDefinition = {
+    id: "acb3e93c-a1d3-458f-b8c3-c426cd359fa4",
+    name: "Arboria",
+    oracleText:
+        "Creatures can't attack a player unless that player cast a spell or put a nontoken permanent onto the battlefield during their last turn.",
+    manaCost: { X: 2, G: 2 },
+    types: ["Enchantment"],
+    supertypes: ["World"],
 };

@@ -177,6 +177,8 @@ import {
     divineIntervention,
     netherVoid,
     inTheEyeOfChaos,
+    cavernsOfDespair,
+    arboria,
 } from "../leg";
 import { getCardById, getCardByName, getAllCards } from "../../index";
 import { getLegalTargets } from "../../../gre/rules";
@@ -222,9 +224,16 @@ import {
     getEffectiveToughness,
     STATIC_EFFECT_CTX,
 } from "../../../gre/layers";
-import { validateBlockerEligibility } from "../../../gre/combat";
+import {
+    validateBlockerEligibility,
+    validateAttackerEligibility,
+    getAttackerCap,
+    getBlockerCap,
+    arboriaForbidsAttack,
+} from "../../../gre/combat";
 import { checkStateBasedActions } from "../../../gre/sba";
 import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
+import { emitSpellCastEvent, emitPermanentEntered } from "../../../gre/state";
 import { projectPublicState } from "../../../gameProjections";
 import {
     makeInstance,
@@ -5787,5 +5796,187 @@ describe("In the Eye of Chaos (counter instants unless controller pays mana valu
         // Paid {1} → the spell stays on the stack to resolve normally.
         expect(state.stack.find((s) => s.id === spell.id)).toBeDefined();
         expect(state.players[1].manaPool.R).toBe(4); // {1} paid from generic
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C9 — Global combat caps + conditional attack restriction (#386)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Caverns of Despair (CR 508.1a / 509.1a — global combat caps)", () => {
+    it("has the correct definition shape", () => {
+        expect(cavernsOfDespair.supertypes).toEqual(["World"]);
+        expect(cavernsOfDespair.types).toEqual(["Enchantment"]);
+        expect(cavernsOfDespair.manaCost).toEqual({ X: 2, R: 2 });
+    });
+
+    it("imposes no cap when not on the battlefield", () => {
+        const state = makeState();
+        expect(getAttackerCap(state)).toBeUndefined();
+        expect(getBlockerCap(state)).toBeUndefined();
+    });
+
+    it("caps declared attackers and blockers at two when in play (CR 508.1a / 509.1a)", () => {
+        const caverns = makeInstance(cavernsOfDespair.id, {
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [caverns] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getAttackerCap(state)).toBe(2);
+        expect(getBlockerCap(state)).toBe(2);
+    });
+
+    it("third attacker is illegal under the cap; first two are legal", () => {
+        const caverns = makeInstance(cavernsOfDespair.id, {
+            controllerId: "p2",
+        });
+        const mk = () =>
+            makeInstance(amrouKithkin.id, {
+                controllerId: "p1",
+                isSummoningSick: false,
+            });
+        const [a, b, c] = [mk(), mk(), mk()];
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            players: [
+                makePlayer("p1", { battlefield: [a, b, c] }),
+                makePlayer("p2", { battlefield: [caverns] }),
+            ],
+        });
+        const cap = getAttackerCap(state)!;
+        // Simulate the mutation's count check: 0 and 1 already-declared pass,
+        // 2 already-declared (declaring the third) fails.
+        expect(0 < cap).toBe(true);
+        expect(1 < cap).toBe(true);
+        expect(2 < cap).toBe(false);
+        // The creatures themselves are individually eligible (the cap is the
+        // only blocker, applied on count, not per-creature legality).
+        expect(validateAttackerEligibility(a, [], state).eligible).toBe(true);
+    });
+
+    it("definition survives projection carrying the World supertype", () => {
+        const caverns = makeInstance(cavernsOfDespair.id, {
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [caverns] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        // The cap is still recognised after the wire format strips card.card to
+        // { id } — the engine re-hydrates the definition from the registry.
+        expect(getAttackerCap(projected as unknown as typeof state)).toBe(2);
+        expect(getBlockerCap(projected as unknown as typeof state)).toBe(2);
+    });
+});
+
+describe("Arboria (CR 508.1c — defender-history attack restriction)", () => {
+    it("has the correct definition shape", () => {
+        expect(arboria.supertypes).toEqual(["World"]);
+        expect(arboria.types).toEqual(["Enchantment"]);
+        expect(arboria.manaCost).toEqual({ X: 2, G: 2 });
+    });
+
+    it("does not restrict attacks when not on the battlefield", () => {
+        const state = makeState();
+        expect(arboriaForbidsAttack(state, "p2")).toBe(false);
+    });
+
+    it("forbids attacking a defender who took no qualifying action last turn", () => {
+        const arb = makeInstance(arboria.id, { controllerId: "p1" });
+        const attacker = makeInstance(amrouKithkin.id, {
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [arb, attacker] }),
+                // p2 took no qualifying action last turn.
+                makePlayer("p2", { qualifyingActionLastTurn: false }),
+            ],
+        });
+        expect(arboriaForbidsAttack(state, "p2")).toBe(true);
+        const v = validateAttackerEligibility(attacker, [], state);
+        expect(v.eligible).toBe(false);
+    });
+
+    it("allows attacking a defender who cast a spell / played a permanent last turn", () => {
+        const arb = makeInstance(arboria.id, { controllerId: "p1" });
+        const attacker = makeInstance(amrouKithkin.id, {
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [arb, attacker] }),
+                makePlayer("p2", { qualifyingActionLastTurn: true }),
+            ],
+        });
+        expect(arboriaForbidsAttack(state, "p2")).toBe(false);
+        expect(validateAttackerEligibility(attacker, [], state).eligible).toBe(
+            true
+        );
+    });
+
+    it("qualifying-action history survives projection (wire format)", () => {
+        const arb = makeInstance(arboria.id, { controllerId: "p1" });
+        const attacker = makeInstance(amrouKithkin.id, {
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [arb, attacker] }),
+                makePlayer("p2", { qualifyingActionLastTurn: false }),
+            ],
+        });
+        const projected = projectPublicState(
+            state,
+            1,
+            "p1"
+        ) as unknown as typeof state;
+        expect(arboriaForbidsAttack(projected, "p2")).toBe(true);
+    });
+});
+
+describe("Arboria qualifying-action tracking (CR 508.1c plumbing)", () => {
+    it("casting a spell sets the caster's qualifyingActionThisTurn flag", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const spell = pushSpell(state, amrouKithkin.id, "p1");
+        emitSpellCastEvent(state, spell);
+        expect(state.players[0].qualifyingActionThisTurn).toBe(true);
+        expect(state.players[1].qualifyingActionThisTurn).toBeUndefined();
+    });
+
+    it("a nontoken permanent ETB sets the controller's flag; a token does not", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const nontoken = makeInstance(amrouKithkin.id, { controllerId: "p2" });
+        emitPermanentEntered(state, nontoken);
+        expect(state.players[1].qualifyingActionThisTurn).toBe(true);
+
+        const fresh = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const token = makeInstance(amrouKithkin.id, {
+            controllerId: "p2",
+            isToken: true,
+        });
+        emitPermanentEntered(fresh, token);
+        expect(fresh.players[1].qualifyingActionThisTurn).toBeUndefined();
     });
 });
