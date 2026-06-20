@@ -782,8 +782,16 @@ export interface SpellContext {
     counter: (target: TargetSelection) => void;
     /** Player discards `amount` cards chosen uniformly at random (CR 701.8a).
      *  Capped at current hand size — no-op on an empty hand. Randomness is
-     *  drawn from the game's seeded PRNG so replays reproduce the same picks. */
-    discardAtRandom: (playerId: string, amount: number) => void;
+     *  drawn from the game's seeded PRNG so replays reproduce the same picks.
+     *  `requireType` restricts the candidate pool to cards whose printed types
+     *  include that type (CR 701.8a — Rag Man: "discards a creature card at
+     *  random"); the random pick is taken only from matching cards, and the
+     *  effect is a no-op when none match. */
+    discardAtRandom: (
+        playerId: string,
+        amount: number,
+        requireType?: CardType
+    ) => void;
     /** Adds mana to the caster's mana pool (CR 106.1, 605.4). Mirrors the
      *  mana-ability primitive; used by "add ~" spells like Dark Ritual. */
     addMana: (cost: ManaCost) => void;
@@ -1061,6 +1069,16 @@ export interface SpellContext {
      *  delayed triggers. Returns false for players and for permanents no
      *  longer on the battlefield. */
     hasAttackedThisTurn: (target: TargetSelection) => boolean;
+    /** True if the target permanent is summoning-sick (CR 302.6 — entered under
+     *  its controller's control after their most recent turn began). Used to
+     *  identify creatures that "couldn't attack" this turn (Season of the
+     *  Witch). False for players / permanents off the battlefield. */
+    isSummoningSick: (target: TargetSelection) => boolean;
+    /** True if the target permanent's printed `staticAbilities` include
+     *  `ability` (CR 702). Used to identify keyword-bearing creatures inside a
+     *  resolve body (Season of the Witch's "couldn't attack" defender check).
+     *  False for players / permanents off the battlefield. */
+    hasStaticAbility: (target: TargetSelection, ability: string) => boolean;
     /** Prevents all combat damage for the remainder of this turn (CR 615,
      *  Fog). Cleared at CLEANUP. Non-combat damage is unaffected. */
     preventAllCombatDamage: () => void;
@@ -1467,10 +1485,15 @@ export interface SpellContext {
      *  registry (CR 108.1). Used to compute eligibility for effects that
      *  inspect hand cards (Illusionary Mask: "a creature card whose mana cost
      *  could be paid by the {X} spent"). `manaValue` folds X to 0 (CR 202.3b).
-     *  Empty for an empty hand. */
-    getHandCards: (
-        playerId: string
-    ) => Array<{ id: string; types: CardType[]; manaValue: number }>;
+     *  `colors` are the card's mana-cost-derived colors (CR 202.2) — read by
+     *  hand-inspecting effects that count by color (Inquisition: "white cards
+     *  in their hand"). Empty for an empty hand. */
+    getHandCards: (playerId: string) => Array<{
+        id: string;
+        types: CardType[];
+        manaValue: number;
+        colors: Color[];
+    }>;
 
     /** Characteristics of every card in `playerId`'s library, read from the
      *  card registry (CR 108.1). Mirrors `getHandCards`; used to precompute the
@@ -1482,6 +1505,18 @@ export interface SpellContext {
     getLibraryCards: (
         playerId: string
     ) => Array<{ id: string; types: CardType[]; manaValue: number }>;
+
+    /** Characteristics of every card in `playerId`'s graveyard, read from the
+     *  card registry (CR 108.1). Mirrors `getHandCards`; used by effects that
+     *  count graveyard cards by type/colour (Nameless Race: "white cards in
+     *  their graveyards"). `colors` are mana-cost-derived (CR 202.2); empty for
+     *  an empty graveyard. */
+    getGraveyardCards: (playerId: string) => Array<{
+        id: string;
+        types: CardType[];
+        manaValue: number;
+        colors: Color[];
+    }>;
 
     /** Casts a card from the caster's hand face down as a 2/2 colourless
      *  creature spell paying no mana cost (CR 708.2 / 707; Illusionary Mask).
@@ -2215,7 +2250,8 @@ export type GameEventType =
     | "STATE_CHECK"
     | "TRIGGER_FIZZLED"
     | "ATTACKERS_DECLARED"
-    | "BLOCKERS_CONFIRMED";
+    | "BLOCKERS_CONFIRMED"
+    | "ATTACKER_UNBLOCKED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -2486,6 +2522,19 @@ export interface BlockersConfirmedEvent {
     blockerSubtypes: ReadonlyArray<string>;
 }
 
+/** CR 509.1h — an attacker that remained UNBLOCKED after blocks were
+ *  declared. Emitted once per unblocked attacker alongside the per-pair
+ *  BLOCKERS_CONFIRMED events, so "whenever this creature attacks and isn't
+ *  blocked" triggers (Murk Dwellers, Merchant Ship) can fire exactly once at
+ *  the same point the block graph is finalized. */
+export interface AttackerUnblockedEvent {
+    type: "ATTACKER_UNBLOCKED";
+    attackerId: string;
+    attackerControllerId: string;
+    attackerTypes: ReadonlyArray<CardType>;
+    attackerSubtypes: ReadonlyArray<string>;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
@@ -2499,7 +2548,8 @@ export type GameEvent =
     | StateCheckEvent
     | TriggerFizzledEvent
     | AttackersDeclaredEvent
-    | BlockersConfirmedEvent;
+    | BlockersConfirmedEvent
+    | AttackerUnblockedEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can

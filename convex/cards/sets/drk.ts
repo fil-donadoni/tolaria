@@ -25,6 +25,7 @@ import type {
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { stateTrigger } from "../abilities/triggers/stateTrigger";
 import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
+import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vanilla creatures (CR 302 — Creature cards with no rules text are pure data:
@@ -1118,6 +1119,616 @@ export const waterWurm: CardDefinition = {
             },
         },
     ],
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// BLACK free tranche (#413) — all 17 DRK Black cards. Every card is expressible
+// with shipped primitives plus three small orthogonal engine reads/writes
+// (getHandCards colours, discardAtRandom type filter, failToEnter) and one new
+// combat event (ATTACKER_UNBLOCKED). Modern Scryfall oracle (ADR 0004); stats
+// validated against DRK.json.
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Ashes to Ashes — "Exile two target nonartifact creatures. Ashes to Ashes
+// deals 5 damage to you." (CR 701.18 exile two distinct creature targets, CR
+// 601.2c; `excludeTypes: "Artifact"` enforces "nonartifact"; CR 119 the 5
+// damage to the caster.)
+export const ashesToAshes: CardDefinition = {
+    id: "f8b1c2d3-4e5f-4a6b-8c7d-9e0f1a2b3c40",
+    name: "Ashes to Ashes",
+    oracleText:
+        "Exile two target nonartifact creatures. Ashes to Ashes deals 5 damage to you.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "Creature",
+        count: 2,
+        excludeTypes: "Artifact",
+    },
+    resolve: (ctx: SpellContext) => {
+        for (const target of ctx.targets) {
+            if (target.type === "permanent") ctx.exile(target);
+        }
+        ctx.dealDamage({ type: "player", id: ctx.controller }, 5);
+    },
+};
+
+// Banshee — "{X}, {T}: This creature deals half X damage, rounded down, to any
+// target, and half X damage, rounded up, to you." (CR 605 activated ability
+// with an {X} cost read at activation via `ctx.getX()`; CR 115.4 "any target";
+// CR 119 the floor/ceil split of half X.)
+export const banshee: CardDefinition = {
+    id: "a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c50",
+    name: "Banshee",
+    oracleText:
+        "{X}, {T}: This creature deals half X damage, rounded down, to any target, and half X damage, rounded up, to you.",
+    manaCost: { X: 2, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Spirit"],
+    power: 0,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "banshee-half-x",
+            oracleText:
+                "{X}, {T}: This creature deals half X damage, rounded down, to any target, and half X damage, rounded up, to you.",
+            cost: { tap: true, mana: { X: 1 } },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const x = ctx.getX();
+                const toTarget = Math.floor(x / 2);
+                const toSelf = Math.ceil(x / 2);
+                const [target] = ctx.targets;
+                if (
+                    toTarget > 0 &&
+                    (target?.type === "player" || target?.type === "permanent")
+                ) {
+                    ctx.dealDamage(target, toTarget);
+                }
+                if (toSelf > 0) {
+                    ctx.dealDamage(
+                        { type: "player", id: ctx.controller },
+                        toSelf
+                    );
+                }
+            },
+        },
+    ],
+};
+
+// Bog Imp — vanilla flier (CR 702.9). Keyword on `staticAbilities[]`.
+export const bogImp: CardDefinition = {
+    id: "b2c3d4e5-6f7a-4b8c-9d0e-1f2a3b4c5d60",
+    name: "Bog Imp",
+    oracleText: "Flying",
+    manaCost: { X: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Imp"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flying"],
+};
+
+// Bog Rats — "This creature can't be blocked by Walls." (CR 509.1b block
+// restriction, `side: "attacker"`: a candidate blocker that is a Wall is
+// rejected. CR 205.3 the Wall subtype.)
+export const bogRats: CardDefinition = {
+    id: "c3d4e5f6-7a8b-4c9d-8e1f-2a3b4c5d6e70",
+    name: "Bog Rats",
+    oracleText: "This creature can't be blocked by Walls.",
+    manaCost: { B: 1 },
+    types: ["Creature"],
+    subtypes: ["Rat"],
+    power: 1,
+    toughness: 1,
+    staticEffects: [
+        {
+            kind: "block-restriction",
+            id: "bog-rats-no-wall-blockers",
+            oracleText: "This creature can't be blocked by Walls.",
+            side: "attacker",
+            // self = Bog Rats (attacker), opponent = candidate blocker. The
+            // block is legal unless the blocker is a Wall.
+            predicate: (_self, opponent) => !opponent.subtypes.includes("Wall"),
+        },
+    ],
+};
+
+// Curse Artifact — Aura enchant artifact. "At the beginning of the upkeep of
+// enchanted artifact's controller, this Aura deals 2 damage to that player
+// unless they sacrifice that artifact." (CR 603.6a upkeep trigger scoped to the
+// HOST's controller + CR 117.3a do-X-unless-you-sacrifice; mirrors Erosion's
+// host-controller scope, but the "unless" is a sacrifice of the host, not a
+// mana/life payment, and the consequence is 2 damage rather than destroy.)
+export const curseArtifact: CardDefinition = {
+    id: "d4e5f6a7-8b9c-4d0e-9f2a-3b4c5d6e7f80",
+    name: "Curse Artifact",
+    oracleText:
+        "Enchant artifact\nAt the beginning of the upkeep of enchanted artifact's controller, this Aura deals 2 damage to that player unless they sacrifice that artifact.",
+    manaCost: { X: 2, B: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Artifact", count: 1 },
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "curse-artifact-upkeep",
+            oracleText:
+                "At the beginning of the upkeep of enchanted artifact's controller, this Aura deals 2 damage to that player unless they sacrifice that artifact.",
+            phase: "UPKEEP",
+            scope: "host-controller",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const hostId = ctx.getAttachedToId();
+                if (hostId === undefined) return; // host gone — nothing to do
+                // CR 117.3a — offer to sacrifice the enchanted artifact;
+                // declining (or being unable) takes 2 damage.
+                const sacrifice = ctx.requestMayPay({
+                    playerId: scopedPlayerId,
+                    choiceId: `curse-artifact-${ctx.sourceInstanceId}`,
+                    prompt: "Sacrifice the enchanted artifact to avoid 2 damage?",
+                });
+                if (sacrifice === undefined) return; // suspended
+                if (sacrifice) {
+                    ctx.sacrifice(hostId);
+                    return;
+                }
+                ctx.dealDamage({ type: "player", id: scopedPlayerId }, 2);
+            },
+        }),
+    ],
+};
+
+// Eater of the Dead — "{0}: If this creature is tapped, exile target creature
+// card from a graveyard and untap this creature." (CR 605 activated ability
+// with a free {0} cost gated on the source being tapped via `canActivate`; CR
+// 701.18 exile the graveyard-card target; CR 701.20b untap. The famous "untap
+// loop" is harmless here — each activation requires a distinct creature card in
+// a graveyard, so it terminates when graveyards run dry.)
+export const eaterOfTheDead: CardDefinition = {
+    id: "e5f6a7b8-9c0d-4e1f-8a3b-4c5d6e7f8a90",
+    name: "Eater of the Dead",
+    oracleText:
+        "{0}: If this creature is tapped, exile target creature card from a graveyard and untap this creature.",
+    manaCost: { X: 4, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Horror"],
+    power: 3,
+    toughness: 4,
+    activatedAbilities: [
+        {
+            id: "eater-of-the-dead-exile-untap",
+            oracleText:
+                "{0}: If this creature is tapped, exile target creature card from a graveyard and untap this creature.",
+            cost: {},
+            useStack: true,
+            // CR 605 — the "if tapped" clause gates legality; activating while
+            // untapped is illegal.
+            canActivate: (source) => source.isTapped === true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                zone: "graveyard",
+                controller: "any",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (!t || t.type !== "graveyard-card" || !t.playerId) return;
+                ctx.moveCardById(t.playerId, t.id, "graveyard", "exile");
+                ctx.untap({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
+
+// Frankenstein's Monster — DEFERRED (TODO(#413)). "As this creature enters,
+// exile X creature cards from your graveyard. ... For each creature card exiled
+// this way, this creature enters with a +2/+0, +1/+1, or +0/+2 counter on it."
+// Needs an "as it enters, choose-and-exile X cards from YOUR GRAVEYARD" pick at
+// resolution: a graveyard-zone `requestChoice` kind. The PendingChoice zone-pick
+// plumbing (requestChoice `zone` union, the submit-validator zone branches in
+// `pendingChoiceSubmit.ts`) supports battlefield/hand/library only — there is no
+// graveyard pick. Modeling the exile as cast-time TARGETS would change the
+// timing semantics ("as it enters" → targeted on the stack) and the per-counter
+// choice cadence, so it would be a fake. The counter placement and CDA-from-
+// counters parts are all shipped; only the graveyard pick is missing. Defer the
+// whole card until the graveyard-pick choice kind lands. NOT registered (no
+// exported CardDefinition) to keep the pool honest.
+
+// Grave Robbers — "{B}, {T}: Exile target artifact card from a graveyard. You
+// gain 2 life." (CR 605 activated ability; CR 701.18 exile the graveyard-card
+// target filtered to artifacts; CR 119.3 lifegain.)
+export const graveRobbers: CardDefinition = {
+    id: "a7b8c9d0-1e2f-4a3b-8c5d-6e7f8a9b0c10",
+    name: "Grave Robbers",
+    oracleText:
+        "{B}, {T}: Exile target artifact card from a graveyard. You gain 2 life.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Rogue"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "grave-robbers-exile-artifact",
+            oracleText:
+                "{B}, {T}: Exile target artifact card from a graveyard. You gain 2 life.",
+            cost: { tap: true, mana: { B: 1 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Artifact",
+                count: 1,
+                zone: "graveyard",
+                controller: "any",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (!t || t.type !== "graveyard-card" || !t.playerId) return;
+                ctx.moveCardById(t.playerId, t.id, "graveyard", "exile");
+                ctx.gainLife(ctx.controller, 2);
+            },
+        },
+    ],
+};
+
+// Inquisition — "Target player reveals their hand. Inquisition deals damage to
+// that player equal to the number of white cards in their hand." (CR 701.x
+// reveal; CR 202.2 colour count via `getHandCards().colors`; CR 119 damage.)
+export const inquisition: CardDefinition = {
+    id: "b8c9d0e1-2f3a-4b4c-9d6e-7f8a9b0c1d20",
+    name: "Inquisition",
+    oracleText:
+        "Target player reveals their hand. Inquisition deals damage to that player equal to the number of white cards in their hand.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const [target] = ctx.targets;
+        if (target?.type !== "player") return;
+        const playerId = target.id;
+        ctx.revealHand(playerId);
+        const whiteCount = ctx
+            .getHandCards(playerId)
+            .filter((c) => c.colors.includes("W")).length;
+        if (whiteCount > 0)
+            ctx.dealDamage({ type: "player", id: playerId }, whiteCount);
+    },
+};
+
+// Marsh Gas — "All creatures get -2/-0 until end of turn." (CR 611.2 temporary
+// P/T mod on every creature; mirrors Holy Light's iterate-all-creatures shape.)
+export const marshGas: CardDefinition = {
+    id: "c9d0e1f2-3a4b-4c5d-8e7f-8a9b0c1d2e30",
+    name: "Marsh Gas",
+    oracleText: "All creatures get -2/-0 until end of turn.",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        for (const pid of ctx.allPlayerIds) {
+            for (const id of ctx.getBattlefieldIds(pid, {
+                types: "Creature",
+            })) {
+                ctx.addTemporaryPTBuff({ type: "permanent", id }, -2, 0, {
+                    phase: "end-of-turn",
+                });
+            }
+        }
+    },
+};
+
+// Murk Dwellers — "Whenever this creature attacks and isn't blocked, it gets
+// +2/+0 until end of combat." (CR 509.1h — the new ATTACKER_UNBLOCKED combat
+// event fires once per unblocked attacker when the block graph is finalized;
+// CR 611.2 the +2/+0 pump scoped to end of combat.)
+export const murkDwellers: CardDefinition = {
+    id: "d0e1f2a3-4b5c-4d6e-9f8a-9b0c1d2e3f40",
+    name: "Murk Dwellers",
+    oracleText:
+        "Whenever this creature attacks and isn't blocked, it gets +2/+0 until end of combat.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        {
+            id: "murk-dwellers-unblocked-pump",
+            oracleText:
+                "Whenever this creature attacks and isn't blocked, it gets +2/+0 until end of combat.",
+            event: "ATTACKER_UNBLOCKED",
+            matches: (event, self) =>
+                event.type === "ATTACKER_UNBLOCKED" &&
+                event.attackerId === self.id,
+            resolve: (ctx) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    2,
+                    0,
+                    { phase: "end-of-combat" }
+                );
+            },
+        },
+    ],
+};
+
+// Nameless Race — "Trample\nAs this creature enters, pay any amount of life.
+// The amount you pay can't be more than the total number of white nontoken
+// permanents your opponents control plus the total number of white cards in
+// their graveyards.\nNameless Race's power and toughness are each equal to the
+// life paid as it entered." (CR 702.19 trample; CR 614.12 "as it enters" pay-
+// life choice capped by an opponent-board count; CR 604.3 the CDA reading the
+// paid amount, stored as a named counter so it survives the wire projection.)
+// The cap and the paid amount are computed in a `resolveSteps` body; the chosen
+// amount is written as "life-paid" counters and the base P/T is set from it via
+// `setSelfBody`.
+export const namelessRace: CardDefinition = {
+    id: "e1f2a3b4-5c6d-4e7f-8a9b-0c1d2e3f4a50",
+    name: "Nameless Race",
+    oracleText:
+        "Trample\nAs this creature enters, pay any amount of life. The amount you pay can't be more than the total number of white nontoken permanents your opponents control plus the total number of white cards in their graveyards.\nNameless Race's power and toughness are each equal to the life paid as it entered.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    power: 0,
+    toughness: 0,
+    staticAbilities: ["trample"],
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            // CR 614.12 — compute the cap: white nontoken permanents opponents
+            // control + white cards in their graveyards.
+            let cap = 0;
+            for (const pid of ctx.allPlayerIds) {
+                if (pid === ctx.controller) continue;
+                cap += ctx.getBattlefieldIds(pid, {
+                    colors: "W",
+                    isToken: false,
+                }).length;
+                cap += ctx
+                    .getGraveyardCards(pid)
+                    .filter((c) => c.colors.includes("W")).length;
+            }
+            // The player also can't pay more life than they have (CR 118.4 —
+            // can't pay life you don't have).
+            const maxPayable = Math.min(cap, ctx.getLife(ctx.controller));
+            if (maxPayable <= 0) {
+                // Enters as a 0/0; the lethal-toughness SBA puts it in the
+                // graveyard immediately (CR 704.5f). Nothing to choose.
+                ctx.setSelfBody({ power: 0, toughness: 0 });
+                return;
+            }
+            const options = Array.from({ length: maxPayable + 1 }, (_, n) => ({
+                id: String(n),
+                label: `Pay ${n} life`,
+            }));
+            const choice = ctx.requestOptionChoice({
+                playerId: ctx.controller,
+                choiceId: `nameless-race-life-${ctx.sourceInstanceId}`,
+                options,
+                prompt: "Pay any amount of life (caps Nameless Race's P/T).",
+            });
+            if (choice === undefined) return; // suspended
+            const paid = Number(choice);
+            if (paid > 0) ctx.loseLife(ctx.controller, paid);
+            // CR 604.3 — base P/T set from the life paid as it entered.
+            ctx.setSelfBody({ power: paid, toughness: paid });
+        },
+    ],
+};
+
+// Rag Man — "{B}{B}{B}, {T}: Target opponent reveals their hand and discards a
+// creature card at random. Activate only during your turn." (CR 605 activated
+// ability with `controllerTurnOnly`; CR 701.x reveal; CR 701.8a the filtered
+// random discard via `discardAtRandom(..., "Creature")`.)
+export const ragMan: CardDefinition = {
+    id: "f2a3b4c5-6d7e-4f8a-9b0c-1d2e3f4a5b60",
+    name: "Rag Man",
+    oracleText:
+        "{B}{B}{B}, {T}: Target opponent reveals their hand and discards a creature card at random. Activate only during your turn.",
+    manaCost: { X: 2, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Minion"],
+    power: 2,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "rag-man-discard",
+            oracleText:
+                "{B}{B}{B}, {T}: Target opponent reveals their hand and discards a creature card at random. Activate only during your turn.",
+            cost: { tap: true, mana: { B: 3 } },
+            useStack: true,
+            controllerTurnOnly: true,
+            targetRequirement: {
+                type: "player",
+                controller: "opponent",
+                count: 1,
+            },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (target?.type !== "player") return;
+                ctx.revealHand(target.id);
+                ctx.discardAtRandom(target.id, 1, "Creature");
+            },
+        },
+    ],
+};
+
+// Season of the Witch — "At the beginning of your upkeep, sacrifice this
+// enchantment unless you pay 2 life.\nAt the beginning of the end step, destroy
+// all untapped creatures that didn't attack this turn, except for creatures
+// that couldn't attack." (CR 603.6a + CR 118.4 upkeep pay-2-life-or-sacrifice;
+// CR 603.6a each end step a mass destroy of untapped creatures that didn't
+// attack — excepting those that "couldn't attack": creatures with defender or
+// that were summoning-sick this turn.)
+export const seasonOfTheWitch: CardDefinition = {
+    id: "a3b4c5d6-7e8f-4a9b-8c1d-2e3f4a5b6c70",
+    name: "Season of the Witch",
+    oracleText:
+        "At the beginning of your upkeep, sacrifice this enchantment unless you pay 2 life.\nAt the beginning of the end step, destroy all untapped creatures that didn't attack this turn, except for creatures that couldn't attack.",
+    manaCost: { B: 3 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "season-of-the-witch-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice this enchantment unless you pay 2 life.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                const controller = ctx.controller;
+                // CR 118.4 — can't pay 2 life you don't have: forced sacrifice.
+                if (ctx.getLife(controller) < 2) {
+                    ctx.sacrifice(ctx.sourceInstanceId);
+                    return;
+                }
+                const pay = ctx.requestMayPay({
+                    playerId: controller,
+                    choiceId: `season-of-the-witch-${ctx.sourceInstanceId}`,
+                    prompt: "Pay 2 life to keep Season of the Witch?",
+                });
+                if (pay === undefined) return; // suspended
+                if (pay) {
+                    ctx.loseLife(controller, 2);
+                    return;
+                }
+                ctx.sacrifice(ctx.sourceInstanceId);
+            },
+        }),
+        phaseTrigger({
+            id: "season-of-the-witch-end-step",
+            oracleText:
+                "At the beginning of the end step, destroy all untapped creatures that didn't attack this turn, except for creatures that couldn't attack.",
+            phase: "END_STEP",
+            scope: "each",
+            resolve: (ctx) => {
+                // CR 603.6a — every untapped creature that didn't attack this
+                // turn and could have attacked is destroyed. "Couldn't attack"
+                // is approximated by the two structural reasons in this pool: a
+                // creature with defender, or one that was summoning-sick this
+                // turn (CR 508.1a). Tapped creatures are excluded by the
+                // `tapped: false` filter (CR 508.1g).
+                for (const pid of ctx.allPlayerIds) {
+                    for (const id of ctx.getBattlefieldIds(pid, {
+                        types: "Creature",
+                        tapped: false,
+                    })) {
+                        const ref = { type: "permanent" as const, id };
+                        if (ctx.hasAttackedThisTurn(ref)) continue;
+                        if (ctx.hasStaticAbility(ref, "defender")) continue;
+                        if (ctx.isSummoningSick(ref)) continue;
+                        ctx.destroy(ref);
+                    }
+                }
+            },
+        }),
+    ],
+};
+
+// The Fallen — "At the beginning of your upkeep, this creature deals 1 damage to
+// each opponent and planeswalker it has dealt damage to this game." (CR 603.6a
+// upkeep trigger; "dealt damage to this game" is tracked with a named flag
+// counter — a `damageDealtTrigger` stamps "fallen-marked" the first time The
+// Fallen damages an opponent, and the upkeep trigger deals 1 to that opponent
+// while the flag is set. Planeswalkers are out of scope, so only the opponent
+// player is tracked — exactly one opponent in a 2-player game.)
+export const theFallen: CardDefinition = {
+    id: "b4c5d6e7-8f9a-4b0c-9d2e-3f4a5b6c7d80",
+    name: "The Fallen",
+    oracleText:
+        "At the beginning of your upkeep, this creature deals 1 damage to each opponent and planeswalker it has dealt damage to this game.",
+    manaCost: { X: 1, B: 3 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 2,
+    toughness: 3,
+    triggeredAbilities: [
+        // Stamp a persistent "has dealt damage to an opponent this game" flag
+        // the first (and every) time The Fallen deals damage to a player.
+        damageDealtTrigger({
+            id: "the-fallen-mark",
+            oracleText:
+                "Marks each opponent The Fallen has dealt damage to this game.",
+            source: "self",
+            target: { kind: "player", player: { relation: "opponent" } },
+            resolve: (ctx) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "fallen-marked",
+                    1
+                );
+            },
+        }),
+        phaseTrigger({
+            id: "the-fallen-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, this creature deals 1 damage to each opponent and planeswalker it has dealt damage to this game.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                // The flag is a non-zero "fallen-marked" counter (set on first
+                // damage). One opponent in a 2-player game.
+                const marked =
+                    ctx.getCounterCount(
+                        { type: "permanent", id: ctx.sourceInstanceId },
+                        "fallen-marked"
+                    ) > 0;
+                if (!marked) return;
+                for (const pid of ctx.allPlayerIds) {
+                    if (pid === ctx.controller) continue;
+                    ctx.dealDamage({ type: "player", id: pid }, 1);
+                }
+            },
+        }),
+    ],
+};
+
+// Uncle Istvan — "Prevent all damage that would be dealt to this creature by
+// creatures." (CR 615 — a continuous damage-prevention replacement that
+// consumes any damage event whose source is a creature and whose target is
+// Uncle Istvan; the Desert Nomads shape but filtered on `sourceTypes` rather
+// than `sourceSubtypes`.)
+export const uncleIstvan: CardDefinition = {
+    id: "c5d6e7f8-9a0b-4c1d-8e3f-4a5b6c7d8e90",
+    name: "Uncle Istvan",
+    oracleText:
+        "Prevent all damage that would be dealt to this creature by creatures.",
+    manaCost: { X: 1, B: 3 },
+    types: ["Creature"],
+    subtypes: ["Human"],
+    power: 1,
+    toughness: 3,
+    replacementEffects: [
+        {
+            id: "uncle-istvan-prevent-creature-damage",
+            oracleText:
+                "Prevent all damage that would be dealt to this creature by creatures.",
+            eventKind: "damage",
+            appliesTo: (event, self) =>
+                event.kind === "damage" &&
+                event.target.type === "permanent" &&
+                event.target.id === self.id &&
+                event.sourceTypes.includes("Creature"),
+            replace: () => ({ kind: "consumed" }),
+        },
+    ],
+};
+
+// Word of Binding — "Tap X target creatures." (CR 601.2c a variable number of
+// creature targets fixed at announcement by X; CR 701.20a tap each.)
+export const wordOfBinding: CardDefinition = {
+    id: "d6e7f8a9-0b1c-4d2e-9f4a-5b6c7d8e9f00",
+    name: "Word of Binding",
+    oracleText: "Tap X target creatures.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Sorcery"],
+    // CR 601.2c — "X target creatures": the number of targets equals X. The
+    // engine resolves the count from `chosenX` at announcement.
+    targetRequirement: { type: "Creature", count: "X" },
+    resolve: (ctx: SpellContext) => {
+        for (const target of ctx.targets) {
+            if (target.type === "permanent") ctx.tap(target);
+        }
+    },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

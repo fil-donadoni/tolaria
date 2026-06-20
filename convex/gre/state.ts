@@ -4268,8 +4268,12 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             item.zone = "graveyard";
             owner.graveyard.push(item);
         },
-        discardAtRandom(playerId: string, amount: number): void {
-            discardCardsAtRandom(state, playerId, amount);
+        discardAtRandom(
+            playerId: string,
+            amount: number,
+            requireType?: CardType
+        ): void {
+            discardCardsAtRandom(state, playerId, amount, requireType);
         },
         addMana(cost: CardManaCost): void {
             const player = getPlayer(state, item.castById);
@@ -4674,6 +4678,18 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (target.type !== "permanent") return false;
             const found = findOnBattlefield(state, target.id);
             return found?.card.hasAttackedThisTurn === true;
+        },
+
+        isSummoningSick(target: TargetSelection): boolean {
+            if (target.type !== "permanent") return false;
+            const found = findOnBattlefield(state, target.id);
+            return found?.card.isSummoningSick === true;
+        },
+
+        hasStaticAbility(target: TargetSelection, ability: string): boolean {
+            if (target.type !== "permanent") return false;
+            const found = findOnBattlefield(state, target.id);
+            return found?.card.staticAbilities.includes(ability) === true;
         },
 
         preventAllCombatDamage(): void {
@@ -5356,9 +5372,12 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 prompt: `Look at ${getPlayer(state, targetPlayerId).name}'s hand.`,
             });
         },
-        getHandCards(
-            playerId: string
-        ): Array<{ id: string; types: CardType[]; manaValue: number }> {
+        getHandCards(playerId: string): Array<{
+            id: string;
+            types: CardType[];
+            manaValue: number;
+            colors: Color[];
+        }> {
             return getPlayer(state, playerId).hand.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
                 const def = cardId ? tryGetCardById(cardId) : undefined;
@@ -5366,6 +5385,8 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     id: c.id,
                     types: def?.types ?? c.types,
                     manaValue: manaValue(def?.manaCost),
+                    // CR 202.2 — mana-cost-derived colors of the hand card.
+                    colors: getColorsFromCost(def?.manaCost),
                 };
             });
         },
@@ -5382,6 +5403,26 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     id: c.id,
                     types: def?.types ?? c.types,
                     manaValue: manaValue(def?.manaCost),
+                };
+            });
+        },
+        // CR 108.1 — graveyard card characteristics from the registry. Mirrors
+        // `getHandCards`; used by effects that count graveyard cards by colour
+        // (Nameless Race: "white cards in their graveyards").
+        getGraveyardCards(playerId: string): Array<{
+            id: string;
+            types: CardType[];
+            manaValue: number;
+            colors: Color[];
+        }> {
+            return getPlayer(state, playerId).graveyard.map((c) => {
+                const cardId = (c.card as { id?: string }).id;
+                const def = cardId ? tryGetCardById(cardId) : undefined;
+                return {
+                    id: c.id,
+                    types: def?.types ?? c.types,
+                    manaValue: manaValue(def?.manaCost),
+                    colors: getColorsFromCost(def?.manaCost),
                 };
             });
         },
@@ -5656,13 +5697,29 @@ export function payDiscardLastDrawn(player: PlayerState): void {
 export function discardCardsAtRandom(
     state: GameState,
     playerId: string,
-    amount: number
+    amount: number,
+    requireType?: CardType
 ): void {
     const player = getPlayer(state, playerId);
+    // CR 701.8a — when a type is required (Rag Man: "a creature card at
+    // random"), the random pick is drawn only from the matching subset.
+    const candidateId = (): string | undefined => {
+        if (requireType === undefined) {
+            if (player.hand.length === 0) return undefined;
+            return player.hand[randomInt(state, player.hand.length)].id;
+        }
+        const matching = player.hand.filter((c) => {
+            const cardId = (c.card as { id?: string }).id;
+            const def = cardId ? tryGetCardById(cardId) : undefined;
+            return (def?.types ?? c.types).includes(requireType);
+        });
+        if (matching.length === 0) return undefined;
+        return matching[randomInt(state, matching.length)].id;
+    };
     const picks = Math.min(amount, player.hand.length);
     for (let i = 0; i < picks; i++) {
-        const idx = randomInt(state, player.hand.length);
-        const cardId = player.hand[idx].id;
+        const cardId = candidateId();
+        if (cardId === undefined) break;
         // CR 614 — Library of Leng's "may put it on top of library instead"
         // intercepts each discard. If the replacement consumes the event the
         // card has already been routed elsewhere; skip the default discard.

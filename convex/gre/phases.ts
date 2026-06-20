@@ -1146,6 +1146,9 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
     const defenderId = getOpponentId(state, state.activePlayerId);
     const defender = getPlayer(state, defenderId);
 
+    // Track which attackers got at least one blocker so we can emit a
+    // CR 509.1h "attacker remained unblocked" event for the rest.
+    const blockedAttackerIds = new Set<string>();
     for (const [blockerId, attackerIds] of Object.entries(
         state.combat.blockerAssignments
     )) {
@@ -1158,6 +1161,7 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
                 activePlayer.battlefield.find((c) => c.id === attackerId) ??
                 defender.battlefield.find((c) => c.id === attackerId);
             if (!attacker) continue;
+            blockedAttackerIds.add(attacker.id);
             events.push({
                 type: "BLOCKERS_CONFIRMED",
                 attackerId: attacker.id,
@@ -1170,6 +1174,22 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
                 blockerSubtypes: blocker.subtypes,
             });
         }
+    }
+    // CR 509.1h — one ATTACKER_UNBLOCKED event per attacker with no assigned
+    // blocker (Murk Dwellers' "attacks and isn't blocked" pump).
+    for (const attackerId of state.combat.attackerIds) {
+        if (blockedAttackerIds.has(attackerId)) continue;
+        const attacker =
+            activePlayer.battlefield.find((c) => c.id === attackerId) ??
+            defender.battlefield.find((c) => c.id === attackerId);
+        if (!attacker) continue;
+        events.push({
+            type: "ATTACKER_UNBLOCKED",
+            attackerId: attacker.id,
+            attackerControllerId: attacker.controllerId,
+            attackerTypes: attacker.types,
+            attackerSubtypes: attacker.subtypes,
+        });
     }
     if (events.length === 0) return;
     const triggers = collectTriggers(state, events);
