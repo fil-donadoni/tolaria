@@ -261,6 +261,11 @@ function controlConditionHolds(
         // Aladdin: holds while the gainer still controls the source.
         return source.controllerId === cond.controllerId;
     }
+    if (cond.kind === "source-tapped") {
+        // Preacher (CR 611.2b): holds purely while the source stays tapped —
+        // no power constraint.
+        return source.isTapped === true;
+    }
     // Old Man of the Sea: holds while the source is tapped and its power is
     // still >= the controlled creature's power.
     if (!source.isTapped) return false;

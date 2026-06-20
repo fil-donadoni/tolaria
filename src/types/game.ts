@@ -98,6 +98,10 @@ export interface CardInstance {
     isSummoningSick?: boolean;
     isAttacking?: boolean;
     isBlocking?: boolean;
+    /** Set once this creature has been declared as an attacker this turn
+     *  (CR 506.2). Persists through CLEANUP. Read by the UI to gate "target
+     *  player who attacked this turn" clickability (Fire and Brimstone). */
+    hasAttackedThisTurn?: boolean;
     /** Damage marked on this creature this turn (CR 120.3). Cleared at CLEANUP. */
     damageMarked?: number;
     /** Id of the permanent this card is attached to (CR 303.4b). Only set

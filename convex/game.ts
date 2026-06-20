@@ -1710,6 +1710,9 @@ export const announceCast = mutation({
                               : [activeTargetRequirement.spellTypeFilter],
                       }
                     : {}),
+                ...(activeTargetRequirement.playerAttackedThisTurn
+                    ? { playerAttackedThisTurn: true }
+                    : {}),
             };
 
             await saveGameState(
@@ -2608,8 +2611,17 @@ export const selectTarget = mutation({
             if (pt.colorFilter) {
                 throw new Error("Players have no color");
             }
-            const found = state.players.some((p) => p.id === args.targetId);
+            const found = state.players.find((p) => p.id === args.targetId);
             if (!found) throw new Error("Invalid player target");
+            // CR 506.2 — "target player who attacked this turn" (Fire and
+            // Brimstone): the chosen player must control a creature flagged as
+            // having attacked this turn.
+            if (
+                pt.playerAttackedThisTurn &&
+                !found.battlefield.some((c) => c.hasAttackedThisTurn)
+            ) {
+                throw new Error("Target player did not attack this turn");
+            }
         } else {
             // "spell" target (CR 114.1): must match a stack item.
             if (

@@ -59,7 +59,13 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
         !!pendingTarget &&
         pendingTarget.playerId === playerId &&
         (pendingTarget.targetType === "player" ||
-            pendingTarget.targetType === "any");
+            pendingTarget.targetType === "any") &&
+        // CR 506.2 — "target player who attacked this turn" (Fire and
+        // Brimstone): a player is only clickable when they control a creature
+        // flagged as having attacked. The server enforces this too, but gating
+        // clickability keeps the Arena-style UX honest.
+        (!pendingTarget.playerAttackedThisTurn ||
+            player.battlefield.some((c) => c.hasAttackedThisTurn));
 
     // Mid-resolution "any target of an opponent's choice" (CR 115.4 / 608.2,
     // Cuombajj Witches). The chooser (viewer == choice.playerId) may pick a

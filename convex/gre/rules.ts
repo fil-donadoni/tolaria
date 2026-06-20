@@ -666,6 +666,14 @@ export function getLegalTargets(
     // Players have no color, so colorFilter excludes them.
     if ((wantsAny || reqTypes.includes("player")) && !colorFilter) {
         for (const player of state.players) {
+            // CR 506.2 — "target player who attacked this turn": a player
+            // attacked iff they control a creature flagged as having attacked.
+            if (
+                requirement.playerAttackedThisTurn &&
+                !player.battlefield.some((c) => c.hasAttackedThisTurn)
+            ) {
+                continue;
+            }
             targets.push({ type: "player", id: player.id });
         }
     }
