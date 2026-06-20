@@ -69,6 +69,7 @@ import {
     horrorOfHorrors,
     cyclopeanMummy,
     greed,
+    sylvanLibrary,
     darkness,
     crimsonKobolds,
     crookshankKobolds,
@@ -273,6 +274,198 @@ function answerChoice(state: GameState, picks: string[]): void {
     state.pendingChoices = undefined;
     resolveTopOfStack(state);
 }
+
+// ---------------------------------------------------------------------------
+// Sylvan Library — draw-step extra draws + per-card pay-4-or-topdeck.
+// ---------------------------------------------------------------------------
+
+const drawStepEvent: StackItem["triggerEvent"] = {
+    type: "PHASE_BEGIN",
+    phase: "DRAW",
+    activePlayerId: "p1",
+};
+
+/** Builds a p1 board with Sylvan Library, a hand, a library, a `drawnThisTurn`
+ *  tally, and a life total. Filler cards reuse `greed.id` (art only). */
+function makeSylvanState(opts: {
+    handIds: string[];
+    libIds: string[];
+    drawnThisTurn: string[];
+    life?: number;
+}): { state: GameState; sylvan: CardInstanceState } {
+    const sylvan = makeInstance(sylvanLibrary.id, {
+        id: "sylvan",
+        controllerId: "p1",
+    });
+    const hand = opts.handIds.map((id) =>
+        makeInstance(greed.id, { id, controllerId: "p1", zone: "hand" })
+    );
+    const library = opts.libIds.map((id) =>
+        makeInstance(greed.id, { id, controllerId: "p1", zone: "library" })
+    );
+    const state = makeState({
+        players: [
+            makePlayer("p1", {
+                battlefield: [sylvan],
+                hand,
+                library,
+                drawnThisTurn: opts.drawnThisTurn,
+                life: opts.life ?? 20,
+            }),
+            makePlayer("p2"),
+        ],
+    });
+    return { state, sylvan };
+}
+
+describe("Sylvan Library (draw step: draw two, pay 4 life or topdeck each)", () => {
+    it("draws two, scopes the pick to cards drawn this turn, pays for one and topdecks the other", () => {
+        // h0 was drawn this turn (e.g. the turn-based draw); x9 was not.
+        const { state, sylvan } = makeSylvanState({
+            handIds: ["h0", "x9"],
+            libIds: ["l0", "l1", "l2"],
+            drawnThisTurn: ["h0"],
+        });
+        resolveTrigger(
+            state,
+            sylvan,
+            "sylvan-library-draw-step",
+            drawStepEvent
+        );
+        // Step 0 — "you may draw two additional cards".
+        answerChoice(state, ["draw"]);
+        const p1 = () => state.players[0];
+        // Drew l0, l1 exactly once (library 3 → 1, hand 2 → 4).
+        expect(p1().library.length).toBe(1);
+        expect(p1().hand.map((c) => c.id)).toEqual(["h0", "x9", "l0", "l1"]);
+        // The pick is restricted to cards drawn this turn — x9 is excluded.
+        expect(state.pendingChoices?.[0]?.choiceId).toBe("sylvan-pick");
+        expect(state.pendingChoices?.[0]?.candidateIds).toEqual([
+            "h0",
+            "l0",
+            "l1",
+        ]);
+
+        answerChoice(state, ["l0", "l1"]); // choose two
+        answerChoice(state, ["pay"]); // l0 — pay 4 life, keep it
+        answerChoice(state, ["top"]); // l1 — put on top of library
+
+        expect(p1().life).toBe(16);
+        expect(p1().hand.map((c) => c.id)).toEqual(["h0", "x9", "l0"]);
+        expect(p1().library[0]?.id).toBe("l1"); // back on top
+        expect(state.stack.length).toBe(0);
+    });
+
+    it("declining the draw ends the resolution with no choices and no changes", () => {
+        const { state, sylvan } = makeSylvanState({
+            handIds: ["h0"],
+            libIds: ["l0", "l1"],
+            drawnThisTurn: ["h0"],
+        });
+        resolveTrigger(
+            state,
+            sylvan,
+            "sylvan-library-draw-step",
+            drawStepEvent
+        );
+        answerChoice(state, ["decline"]);
+        const p1 = state.players[0];
+        expect(p1.hand.map((c) => c.id)).toEqual(["h0"]);
+        expect(p1.library.length).toBe(2);
+        expect(p1.life).toBe(20);
+        expect(state.pendingChoices?.length ?? 0).toBe(0);
+        expect(state.stack.length).toBe(0);
+    });
+
+    it("forces a topdeck when the player can't pay 4 life again (sequential CR 119.4)", () => {
+        const { state, sylvan } = makeSylvanState({
+            handIds: ["h0"],
+            libIds: ["l0", "l1"],
+            drawnThisTurn: ["h0"],
+            life: 6,
+        });
+        resolveTrigger(
+            state,
+            sylvan,
+            "sylvan-library-draw-step",
+            drawStepEvent
+        );
+        answerChoice(state, ["draw"]); // draw l0, l1
+        answerChoice(state, ["h0", "l0"]); // choose two
+        answerChoice(state, ["pay"]); // h0 — pay 4 (life 6 → 2)
+        // Second card: life is now 2 (< 4), so it is auto-topdecked with NO
+        // further prompt — the resolution is already complete.
+        const p1 = state.players[0];
+        expect(p1.life).toBe(2);
+        expect(state.pendingChoices?.length ?? 0).toBe(0);
+        expect(p1.library[0]?.id).toBe("l0"); // forced onto the library
+        expect(p1.hand.map((c) => c.id)).toEqual(["h0", "l1"]);
+        expect(state.stack.length).toBe(0);
+    });
+
+    it("drives the full draw → pick → pay/topdeck chain through the real submit mutations", () => {
+        // Integration: every choice resumes via the production
+        // `applyPendingChoiceSubmit` (not the test injector), so the
+        // candidateIds allow-list and option legality are exercised end-to-end.
+        const { state, sylvan } = makeSylvanState({
+            handIds: ["h0"],
+            libIds: ["l0", "l1", "l2"],
+            drawnThisTurn: ["h0"],
+        });
+        resolveTrigger(
+            state,
+            sylvan,
+            "sylvan-library-draw-step",
+            drawStepEvent
+        );
+        const submit = (ids: string[]) => {
+            const head = state.pendingChoices![0];
+            applyPendingChoiceSubmit(state, {
+                playerId: head.playerId,
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ids,
+            });
+        };
+        submit(["draw"]); // option-pick: draw two (l0, l1)
+        // A card NOT drawn this turn is rejected by the candidateIds allow-list.
+        expect(() => submit(["l2"])).toThrow();
+        submit(["h0", "l1"]); // choose-hand-card: two drawn-this-turn cards
+        submit(["top"]); // h0 → top of library
+        submit(["pay"]); // l1 → pay 4 life, keep
+
+        const p1 = state.players[0];
+        expect(p1.life).toBe(16);
+        expect(p1.library[0]?.id).toBe("h0");
+        expect(p1.hand.map((c) => c.id)).toEqual(["l0", "l1"]);
+        expect(state.stack.length).toBe(0);
+        expect(state.pendingChoices?.length ?? 0).toBe(0);
+    });
+
+    it("the life payment and library top survive the wire projection", () => {
+        const { state, sylvan } = makeSylvanState({
+            handIds: ["h0"],
+            libIds: ["l0", "l1"],
+            drawnThisTurn: ["h0"],
+        });
+        resolveTrigger(
+            state,
+            sylvan,
+            "sylvan-library-draw-step",
+            drawStepEvent
+        );
+        answerChoice(state, ["draw"]);
+        answerChoice(state, ["h0", "l0"]);
+        answerChoice(state, ["pay"]); // h0 — pay 4
+        answerChoice(state, ["top"]); // l0 — topdeck
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(16);
+        expect(projected.players[0].library.count).toBe(1);
+        // h0 paid (kept), l0 topdecked, l1 still in hand → 2 cards in hand.
+        expect(projected.players[0].hand.length).toBe(2);
+    });
+});
 
 // ---------------------------------------------------------------------------
 // Registry parity (ADR 0014) — the `leg` set is registered.

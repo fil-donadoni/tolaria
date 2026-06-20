@@ -4378,6 +4378,45 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "UPKEEP",
         landCount: 0,
     },
+    {
+        // ARN Erhnam Djinn (CR 603.6a upkeep trigger + CR 702.13 forestwalk).
+        // Loads at "me"'s UPKEEP with Erhnam Djinn out, the opponent holding a
+        // plain creature and a Wall, plus an opponent Forest:
+        //   • Erhnam's trigger goes on the stack; resolving it prompts a target
+        //     — only the non-Wall creature (Grizzly Bears) is selectable; the
+        //     Wall of Swords is excluded.
+        //   • The chosen creature gains forestwalk "until your next upkeep". It
+        //     is the OPPONENT's creature, so this is the classic drawback: their
+        //     creature can't be blocked while you control a Forest (here the
+        //     Forest is theirs, so it gives YOUR future blocks the slip — load
+        //     mirrors the printed downside).
+        label: "ARN Erhnam Djinn: upkeep grants an opponent's non-Wall creature forestwalk (Wall excluded)",
+        cards: [
+            { name: "Erhnam Djinn", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Wall of Swords", owner: "opp" as const },
+            { name: "Forest", owner: "opp" as const },
+        ],
+        phase: "UPKEEP",
+        landCount: 0,
+    },
+    {
+        // LEG Sylvan Library (CR 603.6a draw-step trigger + CR 118.4 life pay).
+        // Loads at "me"'s UPKEEP on turn 2 (turn 1 skips the draw step) with
+        // Sylvan Library out and a stocked library:
+        //   • Pass priority to reach the draw step. After the turn-based draw,
+        //     Sylvan's trigger asks "draw two additional cards?".
+        //   • Draw two → choose two of the cards drawn this turn. For each, pay
+        //     4 life to keep it or put it back on top of the library.
+        //   • Decline, or pay both (watch the life total drop 8), or topdeck
+        //     both to replicate declining with extra information.
+        label: "LEG Sylvan Library: draw step — draw two, then pay 4 life or topdeck each card drawn this turn",
+        cards: [{ name: "Sylvan Library", owner: "me" as const }],
+        phase: "UPKEEP",
+        landCount: 3,
+        libraryCount: 12,
+        turn: 2,
+    },
 ];
 
 type DebugPanelProps = {

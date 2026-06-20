@@ -362,7 +362,7 @@ export const serendibDjinn: CardDefinition = {
 // same DurationSpec Xenic Poltergeist uses — scoped to Erhnam's controller, so
 // the keyword falls off as that player's next upkeep begins.
 export const erhnamDjinn: CardDefinition = {
-    id: "a1b20fb7-90f3-442c-b105-dfcaf619348d",
+    id: "42bc0c3f-0a52-4bdc-83da-6484bf3102f3",
     name: "Erhnam Djinn",
     oracleText:
         "At the beginning of your upkeep, target non-Wall creature an opponent controls gains forestwalk until your next upkeep. (It can't be blocked as long as defending player controls a Forest.)",

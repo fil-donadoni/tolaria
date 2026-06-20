@@ -1368,6 +1368,13 @@ export interface SpellContext {
      *  without moving them (CR 401.4). */
     peekLibraryTop: (playerId: string, n: number) => string[];
 
+    /** Moves a card from `playerId`'s hand to the TOP of their library (CR
+     *  121.1 — top is the next card drawn). Returns false if the card isn't in
+     *  hand. Sylvan Library's "put the card on top of your library" uses this. */
+    moveHandCardToLibraryTop: (
+        playerId: string,
+        cardInstanceId: string
+    ) => boolean;
     /** Reorders the top cards of `playerId`'s library so they match the order
      *  given by `orderedIds` (CR 401). All ids must already be in the top N. */
     reorderLibraryTop: (playerId: string, orderedIds: string[]) => void;

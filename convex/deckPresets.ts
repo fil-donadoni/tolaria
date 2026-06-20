@@ -281,6 +281,59 @@ const robots: DeckPreset = {
     ],
 };
 
+const erhnamgeddon: DeckPreset = {
+    presetId: "erhnamgeddon",
+    name: "Erhnamgeddon",
+    format: "Freeform",
+    description:
+        "GWU aggro-control: efficient beaters, then Armageddon under a board lead.",
+    colors: ["G", "W", "U"],
+    cards: [
+        ...times(4, "5712e87a-2381-4f5b-a853-6973841f9bf1", "Argothian Pixies"),
+        ...times(3, "42bc0c3f-0a52-4bdc-83da-6484bf3102f3", "Erhnam Djinn"),
+        ...times(4, "d05b92bd-797e-413f-a8b0-32e0937a1ee0", "Savannah Lions"),
+        ...times(2, "f8ac5006-91bd-4803-93da-f87cf196dd2f", "Serra Angel"),
+        ...times(1, "b0faa7f2-b547-42c4-a810-839da50dadfe", "Black Lotus"),
+        ...times(1, "b0e1427c-05cd-465b-be59-97ed6e39f7ba", "Mox Emerald"),
+        ...times(1, "92bcd1ce-19b1-4d78-8b09-95242ca08d76", "Mox Jet"),
+        ...times(1, "8ebe4be7-e12a-4596-a899-fbd5b152e879", "Mox Pearl"),
+        ...times(1, "82da0972-b17b-4600-9efd-e9430a0db04b", "Mox Sapphire"),
+        ...times(1, "c4300d24-1cae-4dd5-be7e-38cc677cf5bd", "Sol Ring"),
+        ...times(1, "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b", "Ancestral Recall"),
+        // Mana Drain → 2nd Counterspell (Mana Drain not implemented).
+        ...times(2, "0df55e3f-14de-46ef-b6b1-616618724d9e", "Counterspell"),
+        ...times(4, "2722d7e2-61c6-4934-9c21-875ee78fd06c", "Disenchant"),
+        // Chaos Orb → 2nd Psionic Blast (Chaos Orb out of scope, ADR 0010).
+        ...times(2, "a6a86e6e-bfff-46af-9d36-c912901fea92", "Psionic Blast"),
+        ...times(
+            4,
+            "386ea9eb-abc1-4862-aa2d-8fb808d79490",
+            "Swords to Plowshares"
+        ),
+        ...times(1, "5b6ddce7-b9c5-431d-a0b0-46d4aa93cbcb", "Armageddon"),
+        ...times(1, "6f9ea46a-411f-40ce-a873-a905180093f4", "Balance"),
+        ...times(1, "62b19a12-6914-430e-81ce-dcfca47884df", "Braingeyser"),
+        ...times(1, "711d4d54-5520-4de8-9b93-79902ed8e562", "Demonic Tutor"),
+        ...times(1, "eee9e106-a248-49d2-b8c8-6bbcd56ce739", "Mind Twist"),
+        ...times(1, "badc73ec-3728-4246-90c7-5f4eb7051ed5", "Regrowth"),
+        ...times(1, "e0139f60-d48e-46fb-9f5a-1e3d7558c834", "Time Walk"),
+        ...times(1, "9a49dc44-616e-4bdd-8220-0bb71eccc512", "Timetwister"),
+        ...times(1, "6ada256f-2e55-4c1f-b4d3-d7b10b498956", "Sylvan Library"),
+        ...times(3, "f4e32327-380d-471e-813b-4c27477787ce", "City of Brass"),
+        ...times(
+            1,
+            "ee266113-34ce-4189-84e7-ee2c86a2722c",
+            "Library of Alexandria"
+        ),
+        ...times(4, "a696c5b6-f216-454d-8029-74e84bbd1428", "Mishra's Factory"),
+        ...times(3, "94f7e24c-2546-41b6-81ad-5e920b07e64e", "Savannah"),
+        ...times(1, "bebe39d4-21fb-46a4-a1ec-b97102e46c15", "Scrubland"),
+        ...times(1, "e7880157-7f27-4f1b-9cdc-ab36a6252376", "Strip Mine"),
+        ...times(3, "a9c6c759-aabf-44e7-ba8c-33c5df232b56", "Tropical Island"),
+        ...times(4, "a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb", "Tundra"),
+    ],
+};
+
 export const PRESET_DECKS: DeckPreset[] = [
     whiteWeenie,
     monoRedBurn,
@@ -290,4 +343,5 @@ export const PRESET_DECKS: DeckPreset[] = [
     gueddon,
     monoBlack,
     robots,
+    erhnamgeddon,
 ];

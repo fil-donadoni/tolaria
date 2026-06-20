@@ -5073,6 +5073,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         getDrawnThisTurnIds(playerId: string): string[] {
             return [...(getPlayer(state, playerId).drawnThisTurn ?? [])];
         },
+        moveHandCardToLibraryTop(
+            playerId: string,
+            cardInstanceId: string
+        ): boolean {
+            return putHandCardOnTopOfLibrary(
+                getPlayer(state, playerId),
+                cardInstanceId
+            );
+        },
         recallChoice(choiceId: string): string[] | undefined {
             // Scan the stack item's collected answers for any earlier step's
             // entry matching this choiceId (keys are `${step}:${choiceId}`).
@@ -5347,6 +5356,22 @@ export function drawCard(player: PlayerState): CardInstanceState | null {
 /** Moves a card between player zones (not stack). Returns the moved card.
  *  Card is appended to the destination zone (library push = bottom, since
  *  drawCard reads from index 0). */
+/** Moves a card from a player's hand to the TOP of their library (CR 121.1 —
+ *  top = index 0, where `drawCard` reads). Returns false if the card isn't in
+ *  hand. Shared by the SpellContext primitive (Sylvan Library) and the discard
+ *  replacement (Library of Leng). */
+export function putHandCardOnTopOfLibrary(
+    player: PlayerState,
+    cardInstanceId: string
+): boolean {
+    const idx = player.hand.findIndex((c) => c.id === cardInstanceId);
+    if (idx === -1) return false;
+    const [card] = player.hand.splice(idx, 1);
+    card.zone = "library";
+    player.library.unshift(card);
+    return true;
+}
+
 export function moveCard(
     player: PlayerState,
     cardInstanceId: string,

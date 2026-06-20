@@ -19,6 +19,7 @@ import {
     serendibEfreet,
     jununEfreet,
     serendibDjinn,
+    erhnamDjinn,
     hasranOgress,
     elHajjaj,
     khabalGhoul,
@@ -670,6 +671,116 @@ describe("Serendib Djinn (upkeep: sac a land, Island → 3 damage)", () => {
         );
         answerChoice(state, ["mtn"]);
         expect(state.players[0].life).toBe(20);
+    });
+});
+
+describe("Erhnam Djinn (upkeep: target non-Wall creature gains forestwalk)", () => {
+    function setup() {
+        const erhnam = makeInstance(erhnamDjinn.id, {
+            id: "erhnam",
+            controllerId: "p1",
+        });
+        const forestP1 = makeInstance(forest.id, {
+            id: "fp1",
+            controllerId: "p1",
+        });
+        const blocker = makeInstance(serendibEfreet.id, {
+            id: "blk",
+            controllerId: "p1",
+            subtypes: ["Wizard"], // a non-Wall blocker for p1
+        });
+        const bear = makeInstance(serendibEfreet.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const wall = makeInstance(serendibEfreet.id, {
+            id: "wall",
+            controllerId: "p2",
+            ownerId: "p2",
+            subtypes: ["Wall"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [erhnam, forestP1, blocker] }),
+                makePlayer("p2", { battlefield: [bear, wall] }),
+            ],
+        });
+        return { state, erhnam, bear, wall, blocker };
+    }
+
+    it("offers only non-Wall opponent creatures, then grants forestwalk until your next upkeep", () => {
+        const { state, erhnam } = setup();
+        resolveTrigger(
+            state,
+            erhnam,
+            "erhnam-djinn-forestwalk",
+            upkeepEvent("p1")
+        );
+        // CR 603.3d — the Wall is excluded from the candidate targets.
+        expect(state.pendingChoices?.[0]?.candidateIds).toEqual(["bear"]);
+
+        answerChoice(state, ["bear"]);
+        const target = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(target.staticAbilities).toContain("forestwalk");
+        // "Until your next upkeep" — scoped to Erhnam's controller (p1).
+        expect(target.grantedStaticAbilities).toContainEqual({
+            ability: "forestwalk",
+            duration: { phase: "upkeep", playerId: "p1" },
+        });
+    });
+
+    it("makes the target unblockable while the defender controls a Forest (CR 702.13b)", () => {
+        const { state, erhnam, blocker } = setup();
+        resolveTrigger(
+            state,
+            erhnam,
+            "erhnam-djinn-forestwalk",
+            upkeepEvent("p1")
+        );
+        answerChoice(state, ["bear"]);
+        const attacker = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        // p1 (the defender) controls a Forest → forestwalk blocks the block.
+        expect(
+            validateBlockerEligibility(
+                attacker,
+                blocker,
+                state.players[0].battlefield,
+                state
+            ).eligible
+        ).toBe(false);
+        // Remove the Forest → the creature can be blocked again.
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== "fp1"
+        );
+        expect(
+            validateBlockerEligibility(
+                attacker,
+                blocker,
+                state.players[0].battlefield,
+                state
+            ).eligible
+        ).toBe(true);
+    });
+
+    it("forestwalk survives the wire projection (visible static ability)", () => {
+        const { state, erhnam } = setup();
+        resolveTrigger(
+            state,
+            erhnam,
+            "erhnam-djinn-forestwalk",
+            upkeepEvent("p1")
+        );
+        answerChoice(state, ["bear"]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(slim.staticAbilities).toContain("forestwalk");
     });
 });
 

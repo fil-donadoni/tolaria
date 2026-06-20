@@ -36,17 +36,13 @@ import type {
 import { tryGetCardById } from "../cards";
 import { getColorsFromCost } from "../cards/colors";
 import { turnFaceUp } from "./faceDown";
-import type {
-    CardInstanceState,
-    DamageRedirection,
-    GameState,
-    PlayerState,
-} from "./state";
+import type { CardInstanceState, DamageRedirection, GameState } from "./state";
 import {
     bumpDamageDealtToPlayer,
     getPlayer,
     matchesPermanentFilter,
     moveCard,
+    putHandCardOnTopOfLibrary,
     removePermanentTo,
 } from "./state";
 
@@ -182,16 +178,11 @@ function buildApplyCtx(
             }
             return candidateIds.length;
         },
-        moveHandCardToLibraryTop: (playerId, cardInstanceId) => {
-            const player: PlayerState = getPlayer(state, playerId);
-            const idx = player.hand.findIndex((c) => c.id === cardInstanceId);
-            if (idx === -1) return false;
-            const [card] = player.hand.splice(idx, 1);
-            card.zone = "library";
-            // Top of library = index 0 (drawCard reads from index 0).
-            player.library.unshift(card);
-            return true;
-        },
+        moveHandCardToLibraryTop: (playerId, cardInstanceId) =>
+            putHandCardOnTopOfLibrary(
+                getPlayer(state, playerId),
+                cardInstanceId
+            ),
         revealHandCard: () => {
             // CR 701.15 reveal: publicly note the card's identity. Currently a
             // no-op for state — the replacement caller already inspects the

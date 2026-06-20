@@ -82,6 +82,20 @@ describe("game_state serialize round-trip", () => {
         expect(got.worldSeq).toBe(3);
     });
 
+    it("preserves the per-turn draw tally (Sylvan Library, CR 121.1)", () => {
+        const state = freshState();
+        state.players[0].drawnThisTurn = ["card-a", "card-b", "card-c"];
+        const expanded = expandState(compactState(state));
+        expect(expanded.players[0].drawnThisTurn).toEqual([
+            "card-a",
+            "card-b",
+            "card-c",
+        ]);
+        // Absent when empty (omitted rather than serialized as []).
+        const empty = expandState(compactState(freshState()));
+        expect(empty.players[0].drawnThisTurn).toBeUndefined();
+    });
+
     it("preserves a non-zero mana pool", () => {
         const state = freshState();
         state.players[0].manaPool = { W: 0, U: 0, B: 0, R: 3, G: 1, C: 0 };

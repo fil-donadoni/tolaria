@@ -26,6 +26,7 @@ import type {
     PermanentView,
     StaticEffectContext,
     Color,
+    GameEvent,
 } from "../types";
 import { EFFECT_AFFECTS_SELF } from "../types";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
@@ -1614,6 +1615,116 @@ export const cyclopeanMummy: CardDefinition = {
     ],
 };
 
+// Sylvan Library — "At the beginning of your draw step, you may draw two
+// additional cards. If you do, choose two cards in your hand drawn this turn.
+// For each of those cards, pay 4 life or put the card on top of your library."
+// (CR 603.6a draw-step trigger, CR 121.1 draw, CR 118.4 life payment.)
+//
+// Resolved in steps (CR 608.2) because the draw is IRREVERSIBLE and must run
+// once, before the per-card pay-or-topdeck choices that suspend — a single
+// `resolve` would re-draw on every resume (the Bazaar of Baghdad bug). Steps:
+//   0. may-draw decision; if accepted, draw two (isolated → drawn once).
+//   1. choose up to two cards drawn this turn that are still in hand.
+//   2. & 3. per-card: pay 4 life to keep it, or put it on top of the library.
+// Each pay-or-topdeck is its OWN step so the second card's life check (CR 119.4
+// "can't pay life you don't have") sees the first payment already applied — a
+// single step would re-apply the first payment when the second one suspends.
+// `recallChoice` carries the may-draw answer and the two picked ids across
+// steps (per-step choice keys can't be re-read by a later step otherwise).
+const decideSylvanCard = (ctx: SpellContext, index: number): void => {
+    const controller = ctx.controller;
+    const picks = ctx.recallChoice("sylvan-pick");
+    if (!picks || index >= picks.length) return;
+    const cardId = picks[index];
+    // The card may have left hand between the pick and now; only act if it's
+    // still a card in hand drawn this turn.
+    if (!ctx.getHandIds(controller).includes(cardId)) return;
+    let choice: string | undefined;
+    if (ctx.getLife(controller) >= 4) {
+        choice = ctx.requestOptionChoice({
+            playerId: controller,
+            choiceId: `sylvan-decide-${index}`,
+            options: [
+                { id: "pay", label: "Pay 4 life" },
+                { id: "top", label: "Put on top of library" },
+            ],
+            prompt: "Sylvan Library: pay 4 life to keep this card, or put it on top of your library?",
+        });
+        if (choice === undefined) return; // suspended
+    } else {
+        // CR 119.4 — with fewer than 4 life the "pay 4 life" option is
+        // unavailable, so the card is put on top of the library.
+        choice = "top";
+    }
+    if (choice === "pay") ctx.loseLife(controller, 4);
+    else ctx.moveHandCardToLibraryTop(controller, cardId);
+};
+
+export const sylvanLibrary: CardDefinition = {
+    id: "6ada256f-2e55-4c1f-b4d3-d7b10b498956",
+    name: "Sylvan Library",
+    oracleText:
+        "At the beginning of your draw step, you may draw two additional cards. If you do, choose two cards in your hand drawn this turn. For each of those cards, pay 4 life or put the card on top of your library.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        {
+            id: "sylvan-library-draw-step",
+            oracleText:
+                "At the beginning of your draw step, you may draw two additional cards. If you do, choose two cards in your hand drawn this turn. For each of those cards, pay 4 life or put the card on top of your library.",
+            event: "PHASE_BEGIN",
+            matches: (event: GameEvent, self: PermanentView) =>
+                event.type === "PHASE_BEGIN" &&
+                event.phase === "DRAW" &&
+                event.activePlayerId === self.controllerId,
+            resolveSteps: [
+                // Step 0 — "you may draw two additional cards" (CR 121.1).
+                // Isolated so the draw never re-runs on a later suspension.
+                (ctx: SpellContext) => {
+                    const accept = ctx.requestOptionChoice({
+                        playerId: ctx.controller,
+                        choiceId: "sylvan-may",
+                        options: [
+                            { id: "draw", label: "Draw two cards" },
+                            { id: "decline", label: "Don't draw" },
+                        ],
+                        prompt: "Sylvan Library: draw two additional cards?",
+                    });
+                    if (accept === undefined) return; // suspended
+                    if (accept === "draw") ctx.drawCards(ctx.controller, 2);
+                },
+                // Step 1 — "choose two cards in your hand drawn this turn".
+                // No side effect; the pick is read back by the decide steps.
+                (ctx: SpellContext) => {
+                    if (ctx.recallChoice("sylvan-may")?.[0] !== "draw") return;
+                    const controller = ctx.controller;
+                    const hand = new Set(ctx.getHandIds(controller));
+                    const pool = ctx
+                        .getDrawnThisTurnIds(controller)
+                        .filter((id) => hand.has(id));
+                    const count = Math.min(2, pool.length);
+                    if (count === 0) return;
+                    const picks = ctx.requestChoice({
+                        playerId: controller,
+                        choiceId: "sylvan-pick",
+                        kind: "choose-hand-card",
+                        zone: "hand",
+                        candidateIds: pool,
+                        count,
+                        prompt: `Choose ${count} card${count === 1 ? "" : "s"} drawn this turn.`,
+                    });
+                    if (picks === undefined) return; // suspended
+                },
+                // Steps 2 & 3 — resolve the pay-or-topdeck for each chosen card
+                // in turn (CR 118.4 / 121.1). Separate steps so the second
+                // card's life check sees the first card's payment.
+                (ctx: SpellContext) => decideSylvanCard(ctx, 0),
+                (ctx: SpellContext) => decideSylvanCard(ctx, 1),
+            ],
+        },
+    ],
+};
+
 // Greed — "{B}, Pay 2 life: Draw a card." (CR 118.4 life payment + CR 121.1
 // draw.)
 export const greed: CardDefinition = {
@@ -2324,9 +2435,6 @@ export const windsOfChange: CardDefinition = {
 //   • Subdue — "prevent all combat damage that would be dealt BY target
 //     creature" needs a per-source combat-damage prevention; only the global
 //     Fog-style `preventAllCombatDamage` exists.
-//   • Sylvan Library — its draw-step "draw two extra, then pay 4 life or top-
-//     deck each card drawn this turn" needs a cards-drawn-this-turn tally that
-//     is not surfaced; deferred to keep this batch low-risk.
 //   • Untamed Wilds — "search your library for a basic land card" needs a
 //     basic-supertype filter on hidden library cards; `getLibraryCards` exposes
 //     only id/types/manaValue, so the candidate allow-list can't isolate
