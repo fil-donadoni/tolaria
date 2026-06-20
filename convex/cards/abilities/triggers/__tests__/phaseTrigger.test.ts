@@ -309,7 +309,7 @@ describe("phaseTrigger factory", () => {
             },
         });
         const ctx = { controller: "p1" } as unknown as SpellContext;
-        ability.resolve(ctx, makeEvent({ activePlayerId: "p2" }));
+        ability.resolve!(ctx, makeEvent({ activePlayerId: "p2" }));
         expect(received).toBe("p2");
     });
 
@@ -325,7 +325,7 @@ describe("phaseTrigger factory", () => {
             },
         });
         const ctx = { controller: "p1" } as unknown as SpellContext;
-        ability.resolve(ctx, makeEvent({ activePlayerId: "p1" }));
+        ability.resolve!(ctx, makeEvent({ activePlayerId: "p1" }));
         expect(received).toBe("p1");
     });
 
@@ -348,7 +348,7 @@ describe("phaseTrigger factory", () => {
             getController: (t: { id: string }) =>
                 t.id === "host-1" ? "p2" : "?",
         } as unknown as SpellContext;
-        ability.resolve(ctx, makeEvent({ activePlayerId: "p2" }));
+        ability.resolve!(ctx, makeEvent({ activePlayerId: "p2" }));
         expect(received).toBe("p2");
     });
 
@@ -368,7 +368,7 @@ describe("phaseTrigger factory", () => {
             sourceInstanceId: "aura-1",
             getAttachedTo: () => undefined,
         } as unknown as SpellContext;
-        ability.resolve(ctx, makeEvent());
+        ability.resolve!(ctx, makeEvent());
         expect(resolved).toBe(false);
     });
 });

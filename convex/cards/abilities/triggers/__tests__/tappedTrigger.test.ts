@@ -231,7 +231,7 @@ describe("tappedTrigger factory (CR 701.20a / 605)", () => {
             permanentSubtypes: ["Forest"],
         });
         const fakeCtx = {} as Parameters<typeof resolveBody>[0];
-        t.resolve(fakeCtx, event);
+        t.resolve!(fakeCtx, event);
         expect(resolveBody).toHaveBeenCalledWith(fakeCtx, event, {
             id: "land",
             controllerId: "p1",
@@ -255,7 +255,7 @@ describe("tappedTrigger factory (CR 701.20a / 605)", () => {
             phase: "UPKEEP",
             activePlayerId: "p1",
         };
-        t.resolve({} as never, phase);
+        t.resolve!({} as never, phase);
         expect(resolveBody).not.toHaveBeenCalled();
     });
 });

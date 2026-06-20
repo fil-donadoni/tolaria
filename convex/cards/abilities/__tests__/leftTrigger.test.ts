@@ -345,7 +345,7 @@ describe("leftTrigger — resolve payload (CR 603.10 last-known-info)", () => {
         const fakeCtx = {} as Parameters<
             NonNullable<typeof ability.resolve>
         >[0];
-        ability.resolve(
+        ability.resolve!(
             fakeCtx,
             leftEvent({
                 instanceId: "aura-1",
@@ -381,7 +381,7 @@ describe("leftTrigger — resolve payload (CR 603.10 last-known-info)", () => {
         const fakeCtx = {} as Parameters<
             NonNullable<typeof ability.resolve>
         >[0];
-        ability.resolve(fakeCtx, {
+        ability.resolve!(fakeCtx, {
             type: "PHASE_BEGIN",
             phase: "END_STEP",
             activePlayerId: "p1",

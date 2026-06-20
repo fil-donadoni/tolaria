@@ -1213,6 +1213,19 @@ export interface SpellContext {
         prompt: string;
     }) => string | undefined;
 
+    /** Reads back an answer collected by an EARLIER resolution step of the same
+     *  stack item (CR 608.2 stepped resolution). `requestChoice` /
+     *  `requestMayPay` key their answers under `${step}:${choiceId}`, so a later
+     *  step cannot re-read a prior step's pick by calling the request again
+     *  (that would re-prompt under a new key). This scans `collectedChoices` for
+     *  any step's entry matching `choiceId` and returns the stored value array
+     *  (a single-option pick is `[optionId]`, a may-pay is `["yes"]`/`["no"]`).
+     *  Returns undefined if no earlier step recorded that choiceId. Choice ids
+     *  must be unique within a resolution for this to be unambiguous. Sylvan
+     *  Library uses it to carry the "did I draw?" and "which two cards" answers
+     *  forward to the per-card pay-or-topdeck steps. */
+    recallChoice: (choiceId: string) => string[] | undefined;
+
     /** Flips a coin and PAUSES resolution to reveal the outcome before the
      *  consequence is applied (CR 705.2, ADR 0023). Unlike `flipCoin` (which
      *  draws a bit synchronously and returns immediately), this enqueues a
@@ -1295,6 +1308,14 @@ export interface SpellContext {
 
     /** Ids of cards in `playerId`'s hand. */
     getHandIds: (playerId: string) => string[];
+
+    /** Instance ids of the cards `playerId` has drawn so far this turn, in draw
+     *  order (CR 121.1). Tracked by every draw path and reset at turn start.
+     *  Includes cards that have since left the hand — callers that need "drawn
+     *  this turn AND still in hand" must intersect with `getHandIds`. Sylvan
+     *  Library reads this to scope its "choose two cards in your hand drawn this
+     *  turn" pick. */
+    getDrawnThisTurnIds: (playerId: string) => string[];
 
     /** Sacrifices a permanent controlled by its current controller (CR 701.16).
      *  No-op if the id is not on the battlefield. */
@@ -2509,8 +2530,19 @@ export interface TriggeredAbility {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
-    /** Effect run when the trigger resolves from the stack. */
-    resolve: (ctx: SpellContext, event: GameEvent) => void;
+    /** Effect run when the trigger resolves from the stack. Optional when
+     *  `resolveSteps` is supplied instead. */
+    resolve?: (ctx: SpellContext, event: GameEvent) => void;
+    /** Multi-step resolution (CR 608.2), mirror of `CardDefinition.resolveSteps`
+     *  and `ActivatedAbility.resolveSteps`. The engine runs the step closures in
+     *  order, checkpointing `resolutionStep` so a `requestChoice` suspension
+     *  resumes the SAME step and never re-runs completed steps. Use when a
+     *  trigger commits an irreversible action (a draw) BEFORE a later choice
+     *  that can suspend — a single `resolve` would re-run the action on every
+     *  resume (the Bazaar of Baghdad re-draw class of bug). Sylvan Library's
+     *  draw-step "draw two, then pay-or-topdeck each" is the first consumer.
+     *  Steps receive only `ctx`; read the trigger scope via `ctx.controller`. */
+    resolveSteps?: ((ctx: SpellContext) => void)[];
     /** Retained when this permanent becomes a copy of another (CR 707.9d —
      *  "except it has this ability"). Vesuvan Doppelganger's upkeep re-copy
      *  trigger sets this so it keeps functioning after the copy overwrites the

@@ -126,7 +126,7 @@ describe("abilityActivatedTrigger factory (CR 602.1)", () => {
         });
         const ev = makeEvent({ permanentId: "art", controllerId: "p2" });
         // ctx is unused by this body; cast a minimal stub.
-        t.resolve({} as never, ev);
+        t.resolve!({} as never, ev);
         expect(body).toHaveBeenCalledTimes(1);
         const payload = body.mock.calls[0][2];
         expect(payload).toEqual({

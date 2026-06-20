@@ -1782,6 +1782,9 @@ function advanceTurn(state: GameState): void {
     // "The last card you drew this turn" (Jandor's Ring) is turn-scoped —
     // clear the tracker so a draw on a prior turn can't pay this turn's cost.
     for (const p of state.players) p.lastDrawnCardId = undefined;
+    // The full per-turn draw tally (Sylvan Library "cards drawn this turn") is
+    // turn-scoped too — clear it so a prior turn's draws can't be chosen.
+    for (const p of state.players) p.drawnThisTurn = undefined;
     // CR 614 — Aladdin's Lamp's draw replacement is "this turn"; any entry not
     // consumed by a draw expires when the next turn begins.
     state.drawLookReplacements = undefined;

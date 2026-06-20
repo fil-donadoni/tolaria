@@ -235,7 +235,7 @@ describe("enteredTrigger factory", () => {
             controllerId: "p2",
             types: ["Creature", "Artifact"] as CardType[],
         });
-        ability.resolve({} as SpellContext, event);
+        ability.resolve!({} as SpellContext, event);
         expect(seen).toHaveBeenCalledWith({
             id: "newbie",
             controllerId: "p2",
@@ -256,7 +256,7 @@ describe("enteredTrigger factory", () => {
             phase: "UPKEEP" as const,
             activePlayerId: "p1",
         };
-        ability.resolve({} as SpellContext, phaseEvent);
+        ability.resolve!({} as SpellContext, phaseEvent);
         expect(seen).not.toHaveBeenCalled();
     });
 });

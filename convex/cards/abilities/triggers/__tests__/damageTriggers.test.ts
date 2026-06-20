@@ -271,7 +271,7 @@ describe("damageDealtTrigger (CR 120.3 / 603.4)", () => {
             },
         });
         // Invoke resolve directly with a synthetic event.
-        ab.resolve({} as never, makeEvent({ amount: 5, sourceColors: ["R"] }));
+        ab.resolve!({} as never, makeEvent({ amount: 5, sourceColors: ["R"] }));
         expect(seen).toEqual({ amount: 5, colors: ["R"] });
     });
 });

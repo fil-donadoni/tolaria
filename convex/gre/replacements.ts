@@ -159,6 +159,11 @@ function buildApplyCtx(
                 );
                 // Track the last card drawn this turn (CR — Jandor's Ring).
                 player.lastDrawnCardId = drawn.id;
+                // Full per-turn draw tally (CR 121.1) — Sylvan Library.
+                player.drawnThisTurn = [
+                    ...(player.drawnThisTurn ?? []),
+                    drawn.id,
+                ];
             }
         },
         autoSacrifice: (playerId, count, filter) => {

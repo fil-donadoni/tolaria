@@ -254,7 +254,7 @@ describe("diedTrigger factory", () => {
             creaturePower: 7,
             creatureToughness: 3,
         });
-        ability.resolve({} as SpellContext, event);
+        ability.resolve!({} as SpellContext, event);
         expect(seen).toHaveBeenCalledWith({
             id: "victim",
             controllerId: "p2",
@@ -274,7 +274,7 @@ describe("diedTrigger factory", () => {
             scope: "any",
             resolve: (_ctx, _event, dead) => seen(dead.combatPartnerIds),
         });
-        ability.resolve(
+        ability.resolve!(
             {} as SpellContext,
             makeEvent({ combatPartnerIds: ["a", "b"] })
         );

@@ -196,7 +196,7 @@ describe("spellCastTrigger — derived payload at resolve", () => {
             spellSubtypes: ["Goblin"],
             spellColors: ["R"],
         });
-        trig.resolve(fakeCtx, event);
+        trig.resolve!(fakeCtx, event);
         expect(derived).toEqual({
             instanceId: "x",
             casterId: "p2",

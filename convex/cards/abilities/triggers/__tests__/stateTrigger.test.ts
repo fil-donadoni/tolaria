@@ -146,7 +146,7 @@ describe("stateTrigger factory (CR 603.8)", () => {
         });
         const fakeCtx = { sourceInstanceId: "self" } as never;
         const ev: GameEvent = { type: "STATE_CHECK" };
-        ability.resolve(fakeCtx, ev);
+        ability.resolve!(fakeCtx, ev);
         expect(userResolve).toHaveBeenCalledWith(fakeCtx);
     });
 });

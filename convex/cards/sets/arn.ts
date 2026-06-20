@@ -353,6 +353,69 @@ export const serendibDjinn: CardDefinition = {
     ],
 };
 
+// Erhnam Djinn — "At the beginning of your upkeep, target non-Wall creature an
+// opponent controls gains forestwalk until your next upkeep." (CR 603.6a upkeep
+// trigger, CR 702.13 forestwalk evasion, CR 611.1b layer-6 keyword grant.) The
+// target is chosen imperatively in the resolve body (triggered abilities model
+// targeting via `requestChoice`, not a `targetRequirement`). The grant duration
+// `{ phase: "upkeep", player: "controller" }` is "until your next upkeep" — the
+// same DurationSpec Xenic Poltergeist uses — scoped to Erhnam's controller, so
+// the keyword falls off as that player's next upkeep begins.
+export const erhnamDjinn: CardDefinition = {
+    id: "a1b20fb7-90f3-442c-b105-dfcaf619348d",
+    name: "Erhnam Djinn",
+    oracleText:
+        "At the beginning of your upkeep, target non-Wall creature an opponent controls gains forestwalk until your next upkeep. (It can't be blocked as long as defending player controls a Forest.)",
+    manaCost: { X: 3, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Djinn"],
+    power: 4,
+    toughness: 5,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "erhnam-djinn-forestwalk",
+            oracleText:
+                "At the beginning of your upkeep, target non-Wall creature an opponent controls gains forestwalk until your next upkeep.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const opponentId = ctx.allPlayerIds.find(
+                    (p) => p !== scopedPlayerId
+                );
+                if (!opponentId) return;
+                // Non-Wall creatures the opponent controls are the legal
+                // targets (CR 603.3d). No legal target → the trigger does
+                // nothing (it still went on the stack, CR 603.3b).
+                const candidates = ctx
+                    .getBattlefieldIds(opponentId, { types: "Creature" })
+                    .filter(
+                        (id) =>
+                            !ctx.hasSubtype({ type: "permanent", id }, "Wall")
+                    );
+                if (candidates.length === 0) return;
+                const picks = ctx.requestChoice({
+                    playerId: scopedPlayerId,
+                    choiceId: `erhnam-djinn-${ctx.sourceInstanceId}`,
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    zoneOwnerId: opponentId,
+                    candidateIds: candidates,
+                    count: 1,
+                    prompt: "Erhnam Djinn: choose a non-Wall creature an opponent controls.",
+                });
+                if (picks === undefined) return; // suspended
+                const targetId = picks[0];
+                if (!targetId) return;
+                ctx.grantStaticAbility(
+                    { type: "permanent", id: targetId },
+                    "forestwalk",
+                    { phase: "upkeep", player: "controller" }
+                );
+            },
+        }),
+    ],
+};
+
 export const hasranOgress: CardDefinition = {
     id: "9f310cf5-0985-4826-9779-19a713089d6d",
     name: "Hasran Ogress",
@@ -2550,8 +2613,6 @@ export const aladdinsLamp: CardDefinition = {
 //     needs a turn-scoped cant-be-regenerated marker primitive.
 //   • Sindbad — "{T}: Draw a card and reveal it. If it isn't a land, discard
 //     it" needs to inspect the just-drawn card's types from a resolve body.
-//   • Erhnam Djinn — grants forestwalk "until your next upkeep"; DurationSpec
-//     has no until-your-next-upkeep option yet.
 //   • Diamond Valley — "{T}, Sacrifice a creature:" is a choose-another-to-
 //     sacrifice activation cost, not yet modelled for activated abilities.
 //   • Merchant Ship — "attacks and isn't blocked, gain 2 life" needs an

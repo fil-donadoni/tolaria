@@ -625,6 +625,13 @@ export type PlayerState = {
      *  this turn"). Stale when that card has since left the hand — consumers
      *  must re-check the card is still in hand before using it. */
     lastDrawnCardId?: string;
+    /** Instance ids of every card this player has drawn during the current turn,
+     *  in draw order (CR 121.1). Appended by every draw path; cleared at the
+     *  start of each turn (`advanceTurn`). Unlike `lastDrawnCardId` (only the
+     *  most recent), this is the full tally — read by Sylvan Library's "cards in
+     *  your hand drawn this turn". Entries may name cards that have since left
+     *  the hand; consumers intersect with the current hand when needed. */
+    drawnThisTurn?: string[];
     /** Count of turns this player has taken so far in the game (CR 500.1).
      *  Starting player begins at 1 once UNTAP begins; the non-starting player
      *  reaches 1 when their first turn starts. Extra turns (CR 500.7)
@@ -1755,9 +1762,28 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     return top;
                 }
             }
-            const ctx = buildSpellContext(state, top);
-            ability.resolve(ctx, top.triggerEvent);
-            if ((state.pendingChoices?.length ?? 0) > 0) return null;
+            // Stepped triggered-ability resolve (CR 608.2) — mirror of the
+            // stepped spell/activated paths. `resolutionStep` is checkpointed so
+            // a `requestChoice` suspension resumes the SAME step and earlier
+            // steps never re-run. Lets a trigger commit an irreversible draw
+            // (Sylvan Library's "draw two") in its own step, isolated from the
+            // later pay-or-topdeck choices that suspend.
+            if (ability.resolveSteps && ability.resolveSteps.length > 0) {
+                const start = top.resolutionStep ?? 0;
+                for (let i = start; i < ability.resolveSteps.length; i++) {
+                    top.resolutionStep = i;
+                    const ctx = buildSpellContext(state, top);
+                    ability.resolveSteps[i](ctx);
+                    if ((state.pendingChoices?.length ?? 0) > 0) {
+                        return null; // suspended — wait for the choice submit
+                    }
+                }
+                delete top.resolutionStep;
+            } else if (ability.resolve) {
+                const ctx = buildSpellContext(state, top);
+                ability.resolve(ctx, top.triggerEvent);
+                if ((state.pendingChoices?.length ?? 0) > 0) return null;
+            }
         }
         delete top.collectedChoices;
         state.stack.pop();
@@ -5044,6 +5070,19 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         getHandIds(playerId: string): string[] {
             return getPlayer(state, playerId).hand.map((c) => c.id);
         },
+        getDrawnThisTurnIds(playerId: string): string[] {
+            return [...(getPlayer(state, playerId).drawnThisTurn ?? [])];
+        },
+        recallChoice(choiceId: string): string[] | undefined {
+            // Scan the stack item's collected answers for any earlier step's
+            // entry matching this choiceId (keys are `${step}:${choiceId}`).
+            const cc = item.collectedChoices;
+            if (!cc) return undefined;
+            for (const key of Object.keys(cc)) {
+                if (key.endsWith(`:${choiceId}`)) return cc[key];
+            }
+            return undefined;
+        },
         // CR 701.16: to sacrifice a permanent is for its controller to put
         // it into its owner's graveyard. Indestructible does not prevent
         // sacrifice (CR 701.16a). No-op if the id is not on the battlefield.
@@ -5299,6 +5338,9 @@ export function drawCard(player: PlayerState): CardInstanceState | null {
     // Track the most recent draw this turn (CR — "the last card you drew this
     // turn"). Reset at turn start in advanceTurn. Used by Jandor's Ring.
     player.lastDrawnCardId = drawn.id;
+    // Full per-turn draw tally (CR 121.1) — Sylvan Library "cards drawn this
+    // turn". Reset alongside lastDrawnCardId at turn start.
+    player.drawnThisTurn = [...(player.drawnThisTurn ?? []), drawn.id];
     return drawn;
 }
 
