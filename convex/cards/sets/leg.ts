@@ -686,9 +686,12 @@ export const visions: CardDefinition = {
 //     deferred — see the C6 section footer for the per-card reasons.
 //   • C7 upkeep pay-or-sacrifice — Elder Spawn ("unless you sacrifice an
 //     Island, sacrifice this and it deals 6 damage to you").
-//   • C8 cast-tax counter-unless-pay — In the Eye of Chaos (World), Invoke
-//     Prejudice (counter an opponent's off-color creature spell unless they pay
-//     its mana value). Same cast-tax family — defer to C8.
+//   • C8 cast-tax counter-unless-pay — Nether Void and In the Eye of Chaos
+//     (both World) SHIPPED in the C8 section at the foot of this file (#385).
+//     Invoke Prejudice (counter an opponent's off-color creature spell unless
+//     they pay its mana value) is the same cast-tax family but adds an off-color
+//     spell filter; it stays deferred to keep #385 scoped to the two World
+//     enchantments.
 //   • World rule (C2) / no continuous-reveal static — Field of Dreams ("play
 //     with the top card of libraries revealed": needs a continuous top-of-
 //     library reveal static that does not exist yet).
@@ -5089,3 +5092,109 @@ export const divineIntervention: CardDefinition = {
 //     Aura) — noted in the C7 deferral block above; both need machinery beyond
 //     plain named counters.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C8 — Cast-tax "counter unless pay" World enchantments (#385)
+//
+// Two World enchantments (CR 205.4 World supertype; the world rule SBA shipped
+// in C2, #379) that tax every relevant spell as it is cast: a triggered ability
+// (CR 603.2 / 601.2i "whenever a player casts a spell") goes on the stack ABOVE
+// the cast spell, and on resolution the spell's controller MAY pay a tax
+// (CR 117.3a) — paying lets the spell remain on the stack and resolve normally,
+// declining (or being unable to pay) counters it (CR 701.5a).
+//
+// ZERO engine change — this is the SAME composition Force Spike already uses
+// (counter target spell unless its controller pays {1}), only fired from a
+// SPELL_CAST trigger instead of a targeted instant:
+//   spellCastTrigger (CR 601.2i) → ctx.requestMayPay (CR 117.3a, the C7
+//   pending-may-pay → submitMayPay path) → ctx.counter on decline (CR 701.5a).
+// No new SpellContext primitive, no new GameState field: the pay choice rides
+// the existing `pendingChoices` may-pay queue, so serialization is untouched.
+//
+// Cards shipped here:
+//   • Nether Void — "Whenever a player casts a spell, counter it unless that
+//     player pays {3}." Flat {3} on every spell, any caster.
+//   • In the Eye of Chaos — "Whenever a player casts an instant spell, counter
+//     it unless that player pays {X}, where X is its mana value." Restricted to
+//     instants; the tax is the cast spell's mana value, read at resolution from
+//     the still-on-stack spell (CR 202.3 / 601.2b — getManaValue folds in the
+//     chosen X), so an X spell taxes by its total cost on the stack.
+//
+// NOT a self-counter loop: the trigger filters by spell type, and neither
+// enchantment is an instant (In the Eye of Chaos) nor — being a permanent
+// already resolved onto the battlefield — on the stack when it fires.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Nether Void — {3}{B} World Enchantment. "Whenever a player casts a spell,
+// counter it unless that player pays {3}." (CR 601.2i cast trigger → CR 117.3a
+// may-pay billed to the spell's controller → CR 701.5a counter on decline.)
+export const netherVoid: CardDefinition = {
+    id: "481ea771-cfa8-526f-95d2-602953bcfaa1",
+    name: "Nether Void",
+    oracleText:
+        "Whenever a player casts a spell, counter it unless that player pays {3}.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Enchantment"],
+    supertypes: ["World"],
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "nether-void-tax",
+            oracleText:
+                "Whenever a player casts a spell, counter it unless that player pays {3}.",
+            scope: "any",
+            resolve: (ctx, _event, spell) => {
+                // CR 117.3a — the spell's controller may pay {3} to keep it;
+                // declining (or being unable to pay) counters it (CR 701.5a).
+                const paid = ctx.requestMayPay({
+                    playerId: spell.casterId,
+                    choiceId: `nether-void-pay-${spell.instanceId}`,
+                    cost: { X: 3 },
+                    prompt: "Pay {3} or your spell is countered (Nether Void)?",
+                });
+                if (paid === undefined) return; // suspended on the may-pay
+                if (!paid) ctx.counter({ type: "spell", id: spell.instanceId });
+            },
+        }),
+    ],
+};
+
+// In the Eye of Chaos — {2}{U} World Enchantment. "Whenever a player casts an
+// instant spell, counter it unless that player pays {X}, where X is its mana
+// value." (CR 601.2i cast trigger restricted to instants → CR 117.3a may-pay
+// taxed at the cast spell's mana value → CR 701.5a counter on decline.)
+export const inTheEyeOfChaos: CardDefinition = {
+    id: "0ddb65ad-b6ff-5b5a-8a17-7cd7a7da484f",
+    name: "In the Eye of Chaos",
+    oracleText:
+        "Whenever a player casts an instant spell, counter it unless that player pays {X}, where X is its mana value.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Enchantment"],
+    supertypes: ["World"],
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "in-the-eye-of-chaos-tax",
+            oracleText:
+                "Whenever a player casts an instant spell, counter it unless that player pays {X}, where X is its mana value.",
+            scope: "any",
+            filter: { types: ["Instant"] },
+            resolve: (ctx, _event, spell) => {
+                // CR 202.3 / 601.2b — the tax equals the cast spell's mana
+                // value, read from the still-on-stack spell (getManaValue folds
+                // in any chosen X). An MV-0 instant taxes {0}: a zero cost is
+                // trivially paid, so the may-pay resolves with no real choice.
+                const mv = ctx.getManaValue({
+                    type: "spell",
+                    id: spell.instanceId,
+                });
+                const paid = ctx.requestMayPay({
+                    playerId: spell.casterId,
+                    choiceId: `in-the-eye-of-chaos-pay-${spell.instanceId}`,
+                    cost: { X: mv },
+                    prompt: `Pay {${mv}} or your instant is countered (In the Eye of Chaos)?`,
+                });
+                if (paid === undefined) return; // suspended on the may-pay
+                if (!paid) ctx.counter({ type: "spell", id: spell.instanceId });
+            },
+        }),
+    ],
+};
