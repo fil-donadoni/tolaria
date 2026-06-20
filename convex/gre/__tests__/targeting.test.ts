@@ -219,6 +219,30 @@ describe("getLegalTargets", () => {
         expect(targets.every((t) => t.type === "player")).toBe(true);
     });
 
+    it("playerAttackedThisTurn filters players to those who attacked (CR 506.2)", () => {
+        // p2 controls a creature flagged as having attacked; p1 controls none.
+        const attacker = makeCard({
+            id: "atk",
+            card: CREATURE,
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        attacker.hasAttackedThisTurn = true;
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1" }),
+                makePlayer({ id: "p2", battlefield: [attacker] }),
+            ],
+        });
+        const req: TargetRequirement = {
+            type: "player",
+            count: 1,
+            playerAttackedThisTurn: true,
+        };
+        const targets = getLegalTargets(state, req);
+        expect(targets).toEqual([{ type: "player", id: "p2" }]);
+    });
+
     it("artifact creature matches both Artifact and Creature requirements", () => {
         const golem = makeCard({ id: "golem", card: ARTIFACT_CREATURE });
         const state = makeGameState({

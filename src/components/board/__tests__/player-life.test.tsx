@@ -50,12 +50,16 @@ function renderWithContext(
     {
         viewerId = "p2",
         pendingChoices,
+        pendingTarget,
         buffer,
     }: {
         viewerId?: string;
         pendingChoices?: NonNullable<
             React.ContextType<typeof GameContext>
         >["pendingChoices"];
+        pendingTarget?: NonNullable<
+            React.ContextType<typeof GameContext>
+        >["pendingTarget"];
         buffer?: PendingChoiceBuffer;
     } = {}
 ) {
@@ -71,6 +75,7 @@ function renderWithContext(
         showAllCards: false,
         debugAllActions: false,
         pendingChoices,
+        pendingTarget,
     } as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>
@@ -137,5 +142,45 @@ describe("PlayerLife — choose-damage-target (Cuombajj Witches, CR 115.4)", () 
         });
         fireEvent.click(container.firstChild as Element);
         expect(buffer.toggle).not.toHaveBeenCalled();
+    });
+});
+
+// Fire and Brimstone (CR 506.2): "target player who attacked this turn". The
+// nameplate must only be clickable for players who control a creature flagged
+// as having attacked.
+const attackedThisTurnTarget = {
+    playerId: "p2",
+    cardInstanceId: "fab",
+    targetType: "player" as const,
+    count: 1,
+    selected: [],
+    playerAttackedThisTurn: true,
+};
+
+describe("PlayerLife — playerAttackedThisTurn filter (Fire and Brimstone)", () => {
+    it("is clickable for a player who attacked this turn", () => {
+        selectTargetSpy.mockClear();
+        const attacker = makePlayer("p1", {
+            battlefield: [{ id: "atk", hasAttackedThisTurn: true } as never],
+        });
+        const { container } = renderWithContext(attacker, {
+            viewerId: "p2",
+            pendingTarget: attackedThisTurnTarget,
+        });
+        fireEvent.click(container.firstChild as Element);
+        expect(selectTargetSpy).toHaveBeenCalled();
+    });
+
+    it("is NOT clickable for a player who did not attack", () => {
+        selectTargetSpy.mockClear();
+        const idle = makePlayer("p1", {
+            battlefield: [{ id: "idle" } as never],
+        });
+        const { container } = renderWithContext(idle, {
+            viewerId: "p2",
+            pendingTarget: attackedThisTurnTarget,
+        });
+        fireEvent.click(container.firstChild as Element);
+        expect(selectTargetSpy).not.toHaveBeenCalled();
     });
 });

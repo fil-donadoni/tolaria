@@ -182,6 +182,13 @@ export interface TargetRequirement {
      *  and other type-restricted spell-targeting effects. Single string is
      *  shorthand for one type. Ignored for non-spell target types. */
     spellTypeFilter?: CardType | CardType[];
+    /** Restricts legal PLAYER targets to players who attacked this turn
+     *  (CR 506.2). A player "attacked this turn" iff they control a creature
+     *  whose `hasAttackedThisTurn` flag is set (the flag persists from declare
+     *  attackers through CLEANUP — see `phases.ts`). Used by Fire and Brimstone
+     *  ("target player who attacked this turn"). Ignored for non-player target
+     *  types. */
+    playerAttackedThisTurn?: boolean;
 }
 
 /** "For as long as" condition on a conditional control change (CR 611.2b).
@@ -194,10 +201,13 @@ export interface TargetRequirement {
  *    the source permanent (Aladdin — "for as long as you control this").
  *  - `source-tapped-and-power-ge`: holds while the source is tapped and its
  *    effective power is >= the controlled permanent's effective power
- *    (Old Man of the Sea). */
+ *    (Old Man of the Sea).
+ *  - `source-tapped`: holds while the source is simply tapped, with no power
+ *    constraint (Preacher — "for as long as this creature remains tapped"). */
 export type ControlChangeCondition =
     | { kind: "controller-controls-source"; controllerId: string }
-    | { kind: "source-tapped-and-power-ge" };
+    | { kind: "source-tapped-and-power-ge" }
+    | { kind: "source-tapped" };
 
 export interface TargetSelection {
     /** "permanent" = battlefield card, "player" = player, "spell" = stack
@@ -1562,6 +1572,14 @@ export interface PermanentView {
  *  full GameState so layer computation stays pure. */
 export interface StaticEffectStateView {
     players: ReadonlyArray<{ battlefield: ReadonlyArray<PermanentView> }>;
+    /** The player whose turn it currently is (CR 102.1). Optional because the
+     *  layer system reads it best-effort: it is a top-level `GameState` field
+     *  that survives the wire projection (`PublicGameState` keeps every
+     *  GameState key except `players`/`stack`), so turn-conditional
+     *  characteristic-defining abilities — e.g. Angry Mob, whose P/T is
+     *  "2 plus opponents' Swamps during your turn, 2 otherwise" — can read it
+     *  identically server-side and after `projectPublicState`. */
+    activePlayerId?: string;
 }
 
 export interface StaticEffectContext {

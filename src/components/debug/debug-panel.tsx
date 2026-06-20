@@ -95,6 +95,112 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // DRK White free tranche (#411) — Angry Mob CDA (CR 604.3). Angry Mob is
+        // a 0/0 body whose P/T reads "2 + opponents' Swamps during your turn,
+        // 2 otherwise":
+        //   • On your turn, with the opponent's three Swamps in play, Angry Mob
+        //     shows 5/5. End the turn (pass to the bot) and it drops to 2/2.
+        label: "DRK White: Angry Mob — 2 + opponents' Swamps on your turn (#411)",
+        cards: [
+            { name: "Angry Mob", owner: "me" as const },
+            { name: "Swamp", owner: "opp" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // DRK White free tranche (#411) — activated-ability creatures. Exercise:
+        //   • Exorcist: {1}{W},{T} destroys the opponent's Black Knight.
+        //   • Witch Hunter: {T} pings a player; {1}{W}{W},{T} bounces a creature.
+        // (Miracle Worker needs an Aura already attached to your creature, which
+        // the scenario seeder can't wire — its behavior is covered by tests.)
+        label: "DRK White: Exorcist / Witch Hunter activated (#411)",
+        cards: [
+            { name: "Exorcist", owner: "me" as const },
+            { name: "Witch Hunter", owner: "me" as const },
+            { name: "Black Knight", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Plains", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // DRK White free tranche (#411) — Preacher control gain (CR 611.2b).
+        // Preacher starts tapped (its {T} cost paid). Activate "gain control of
+        // target creature of an opponent's choice they control": target the bot,
+        // it picks its creature, control moves to you for as long as Preacher
+        // stays tapped (the "may choose not to untap" clause keeps it locked).
+        label: "DRK White: Preacher — steal a creature while tapped (#411)",
+        cards: [
+            {
+                name: "Preacher",
+                owner: "me" as const,
+                tapped: true as const,
+            },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Plains", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // DRK White free tranche (#411) — spells. Cast in your main / combat:
+        //   • Tivadar's Crusade: destroy all Goblins (the bot's Scarwood Goblins).
+        //   • Holy Light: nonwhite creatures get -1/-1 (kills the bot's bears).
+        //   • Dust to Dust: exile two of the bot's artifacts.
+        //   • Martyr's Cry: exile all white creatures, draw per exiled.
+        label: "DRK White: Tivadar's Crusade / Holy Light / Dust to Dust / Martyr's Cry (#411)",
+        cards: [
+            {
+                name: "Tivadar's Crusade",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Holy Light",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Dust to Dust",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Martyr's Cry",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "White Knight", owner: "me" as const },
+            { name: "Scarwood Goblins", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const, count: 2 },
+            { name: "Ornithopter", owner: "opp" as const, count: 2 },
+            { name: "Plains", owner: "me" as const, count: 5 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // DRK White free tranche (#411) — Fire and Brimstone (CR 506.2). The
+        // instant may only target a player who attacked this turn. Set up combat
+        // (the bot's bears attack), then cast Fire and Brimstone targeting the
+        // attacking player: 4 damage to them and 4 to you. Only attacking
+        // players are clickable.
+        label: "DRK White: Fire and Brimstone — 4 to an attacker + 4 to you (#411)",
+        cards: [
+            {
+                name: "Fire and Brimstone",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Plains", owner: "me" as const, count: 5 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Auto-tap partial coverage (issue #321). Pure-mana sources alone can't
         // cover the cost, but a manual sacrifice source (Black Lotus) is also
         // present:

@@ -1018,6 +1018,10 @@ export type PendingTarget = {
      *  TargetRequirement.spellTypeFilter. Used by Fork ("target instant or
      *  sorcery spell"). Ignored for non-spell target types. */
     spellTypeFilter?: CardType[];
+    /** Restricts legal PLAYER targets to players who attacked this turn
+     *  (CR 506.2). Propagated from TargetRequirement.playerAttackedThisTurn.
+     *  Used by Fire and Brimstone. Ignored for non-player target types. */
+    playerAttackedThisTurn?: boolean;
     /** Zone the target lives in (CR 109.2). Default "battlefield" — set to
      *  "graveyard" for reanimation/recursion spells like Regrowth. Propagated
      *  from TargetRequirement.zone. */
