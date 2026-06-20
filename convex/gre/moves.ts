@@ -33,6 +33,8 @@ import {
     getMaxBlockTargets,
     validateAttackerEligibility,
     validateBlockerEligibility,
+    getAttackerCap,
+    getBlockerCap,
 } from "./combat";
 import { getInstanceManaCost, tryGetCardById } from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
@@ -544,11 +546,18 @@ function enumerateAttackerMoves(state: GameState, player: PlayerState): Move[] {
     const optional = eligible.filter((c) => !required.has(c.id));
     const requiredIds = [...required];
 
-    // Each optional subset, always unioned with the forced attackers.
-    return powerSet(optional).map((subset) => ({
-        kind: "declare-attackers" as const,
-        attackerIds: [...requiredIds, ...subset.map((c) => c.id)],
-    }));
+    // Caverns of Despair (CR 508.1a) — cap the number of declared attackers.
+    const cap = getAttackerCap(state);
+
+    // Each optional subset, always unioned with the forced attackers. Drop any
+    // subset whose total declared attackers would exceed the global cap.
+    return powerSet(optional)
+        .map((subset) => [...requiredIds, ...subset.map((c) => c.id)])
+        .filter((ids) => cap === undefined || ids.length <= cap)
+        .map((attackerIds) => ({
+            kind: "declare-attackers" as const,
+            attackerIds,
+        }));
 }
 
 function enumerateBlockerMoves(state: GameState, player: PlayerState): Move[] {
@@ -609,7 +618,19 @@ function enumerateBlockerMoves(state: GameState, player: PlayerState): Move[] {
         if (combos.length >= MAX_COMBINATIONS) break;
     }
 
-    return combos.map((assignments) => ({
+    // Caverns of Despair (CR 509.1a) — drop combos that declare more than the
+    // cap distinct blocking creatures.
+    const blockerCap = getBlockerCap(state);
+    const capped =
+        blockerCap === undefined
+            ? combos
+            : combos.filter(
+                  (assignments) =>
+                      new Set(assignments.map((a) => a.blockerId)).size <=
+                      blockerCap
+              );
+
+    return capped.map((assignments) => ({
         kind: "declare-blockers" as const,
         assignments,
     }));

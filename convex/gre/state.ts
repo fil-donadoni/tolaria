@@ -662,6 +662,16 @@ export type PlayerState = {
      *  Read by the cleanup discard step (CR 514.1) via
      *  `effectiveMaxHandSize`. */
     maxHandSizeOverride?: number | "unlimited";
+    /** Arboria (CR 508.1c) — per-turn history of whether this player cast a
+     *  spell or put a nontoken permanent onto the battlefield during their
+     *  CURRENT turn. Set by `emitSpellCastEvent` / `emitPermanentEntered`,
+     *  frozen into `qualifyingActionLastTurn` and reset by `advanceTurn`. */
+    qualifyingActionThisTurn?: boolean;
+    /** Arboria (CR 508.1c) — the frozen value of `qualifyingActionThisTurn`
+     *  from this player's most recently completed turn. When false/undefined
+     *  the player "took no qualifying action last turn", so Arboria forbids
+     *  attacks against them until after their next turn. */
+    qualifyingActionLastTurn?: boolean;
 };
 
 export type StackItem = CardInstanceState & {
@@ -2016,6 +2026,15 @@ export function emitPermanentEntered(
     card: { id: string; controllerId: string; types: CardType[]; card: unknown }
 ): void {
     const cardId = (card.card as { id?: string }).id;
+    // Arboria (CR 508.1c) — putting a NONTOKEN permanent onto the battlefield
+    // is a qualifying action for its controller this turn (a token does not
+    // count). Unlocks attacks against them on the opponent's following turn.
+    if (!(card as { isToken?: boolean }).isToken) {
+        const controller = state.players.find(
+            (p) => p.id === card.controllerId
+        );
+        if (controller) controller.qualifyingActionThisTurn = true;
+    }
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
         {
@@ -3211,6 +3230,10 @@ export function returnExiledForSource(
 export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     const cardId = (item.card as { id?: string }).id;
     if (!cardId) return;
+    // Arboria (CR 508.1c) — record that this player cast a spell this turn,
+    // unlocking attacks against them on the opponent's following turn.
+    const caster = state.players.find((p) => p.id === item.castById);
+    if (caster) caster.qualifyingActionThisTurn = true;
     const def = tryGetCardById(cardId);
     const colors = def?.manaCost ? getColorsFromCost(def.manaCost) : [];
     state.pendingEvents = [

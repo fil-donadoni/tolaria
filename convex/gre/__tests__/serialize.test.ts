@@ -936,6 +936,17 @@ describe("optional field round-trip smoke tests", () => {
         expect(got.players[1].maxHandSizeOverride).toBe(10);
     });
 
+    it("Arboria qualifying-action history on PlayerState (CR 508.1c)", () => {
+        const state = freshState();
+        state.players[0].qualifyingActionThisTurn = true;
+        state.players[1].qualifyingActionLastTurn = true;
+        const got = roundTrip(state);
+        expect(got.players[0].qualifyingActionThisTurn).toBe(true);
+        expect(got.players[0].qualifyingActionLastTurn).toBeUndefined();
+        expect(got.players[1].qualifyingActionLastTurn).toBe(true);
+        expect(got.players[1].qualifyingActionThisTurn).toBeUndefined();
+    });
+
     it("lastDrawnCardId on PlayerState (Jandor's Ring discard cost)", () => {
         const state = freshState();
         state.players[0].lastDrawnCardId = "drawn-instance-id";
