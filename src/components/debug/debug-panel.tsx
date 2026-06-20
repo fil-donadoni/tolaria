@@ -68,6 +68,68 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // C8 cast-tax World enchantment — Nether Void (#385). The lock sits on
+        // the battlefield; every spell cast by EITHER player triggers
+        // "counter it unless that player pays {3}":
+        //   • Cast Lightning Bolt (or Disenchant) — Nether Void's trigger goes
+        //     on the stack above it; on resolution you're prompted to pay {3}.
+        //   • Pay {3} → the spell resolves; decline → it's countered.
+        // Lands are present so you can choose to pay or not.
+        label: "C8: Nether Void taxes every spell {3} (#385)",
+        cards: [
+            { name: "Nether Void", owner: "me" as const },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Disenchant",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+            { name: "Plains", owner: "me" as const, count: 4 },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "opp" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // C8 cast-tax World enchantment — In the Eye of Chaos (#385). The lock
+        // taxes ONLY instants, at the cast spell's mana value:
+        //   • Cast Lightning Bolt (mana value 1) → prompted to pay {1}.
+        //   • Cast Reset (mana value 2) → prompted to pay {2}.
+        //   • Cast a sorcery (Disenchant is an instant; use a sorcery to see it
+        //     pass untaxed) — no trigger; it resolves freely.
+        // Pay → the instant resolves; decline → it's countered (CR 701.5a).
+        label: "C8: In the Eye of Chaos taxes instants at mana value (#385)",
+        cards: [
+            { name: "In the Eye of Chaos", owner: "me" as const },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Reset", owner: "me" as const, zone: "hand" as const },
+            { name: "Island", owner: "me" as const, count: 4 },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "opp" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // The Dark (DRK) walking skeleton (#410). Registers the `drk` set with
         // three vanilla creatures and proves the full pipeline end-to-end:
         //   • Squire (1/2, {1}{W}), Goblin Hero (2/2, {2}{R}) and Scarwood

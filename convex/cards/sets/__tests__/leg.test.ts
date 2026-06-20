@@ -175,6 +175,8 @@ import {
     primordialOoze,
     rasputinDreamweaver,
     divineIntervention,
+    netherVoid,
+    inTheEyeOfChaos,
 } from "../leg";
 import { getCardById, getCardByName, getAllCards } from "../../index";
 import { getLegalTargets } from "../../../gre/rules";
@@ -5506,5 +5508,284 @@ describe("Divine Intervention (counter-driven game draw, CR 122 / 104.4a)", () =
         expect(state.gameOver?.reason).toBe("draw");
         expect(state.gameOver?.winnerId).toBe("");
         expect(state.gameOver?.loserId).toBe("");
+    });
+});
+
+// ===========================================================================
+// C8 — Cast-tax "counter unless pay" World enchantments (#385)
+//
+// A SPELL_CAST trigger (CR 601.2i) on a World enchantment goes on the stack
+// above the freshly-cast spell; on resolution it bills the spell's controller a
+// may-pay tax (CR 117.3a) and, on decline (or inability to pay), counters the
+// spell (CR 701.5a). Same composition as Force Spike, fired from a trigger.
+// ===========================================================================
+
+/** Build the SPELL_CAST trigger payload the spellCastTrigger.resolve reads back
+ *  (mirrors what the engine snapshots on cast — CR 601.2i / 603.10). */
+function castEvent(
+    casterId: string,
+    spell: StackItem,
+    types: ReadonlyArray<string>
+): StackItem["triggerEvent"] {
+    return {
+        type: "SPELL_CAST",
+        casterId,
+        spellInstanceId: spell.id,
+        spellCardId: (spell.card as { id: string }).id,
+        spellTypes: types,
+        spellSubtypes: [],
+        spellColors: [],
+    } as StackItem["triggerEvent"];
+}
+
+describe("Nether Void (counter any spell unless its controller pays {3}, CR 117.3a / 701.5a)", () => {
+    it("is a World enchantment (CR 205.4) — supertype carried as data", () => {
+        expect(netherVoid.supertypes).toEqual(["World"]);
+        expect(netherVoid.types).toEqual(["Enchantment"]);
+        expect(netherVoid.manaCost).toEqual({ X: 3, B: 1 });
+    });
+
+    it("suspends on a may-pay billed to the spell's controller, then counters on decline", () => {
+        const nv = makeInstance(netherVoid.id, {
+            id: "nv",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [nv] }),
+                makePlayer("p2"),
+            ],
+        });
+        // p2 casts a sorcery (any spell type is taxed).
+        const spell = pushSpell(state, acidRain.id, "p2");
+        resolveTrigger(
+            state,
+            nv,
+            "nether-void-tax",
+            castEvent("p2", spell, ["Sorcery"])
+        );
+        // Suspended on a {3} may-pay aimed at the spell's controller (p2).
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.playerId).toBe("p2");
+        expect(head.cost).toEqual({ X: 3 });
+        // Decline → the spell is countered (CR 701.5a).
+        answerChoice(state, ["no"]);
+        expect(state.stack.find((s) => s.id === spell.id)).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === spell.id)).toBe(
+            true
+        );
+    });
+
+    it("lets the spell remain when its controller pays {3}", () => {
+        const nv = makeInstance(netherVoid.id, {
+            id: "nv",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [nv] }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(state, acidRain.id, "p2");
+        resolveTrigger(
+            state,
+            nv,
+            "nether-void-tax",
+            castEvent("p2", spell, ["Sorcery"])
+        );
+        answerChoice(state, ["yes"]);
+        // Paid → the spell survives on the stack to resolve normally.
+        expect(state.stack.find((s) => s.id === spell.id)).toBeDefined();
+    });
+
+    it("taxes instants too (any spell type), at the same flat {3}", () => {
+        const nv = makeInstance(netherVoid.id, {
+            id: "nv",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [nv] }),
+                makePlayer("p2"),
+            ],
+        });
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        resolveTrigger(
+            state,
+            nv,
+            "nether-void-tax",
+            castEvent("p2", bolt, ["Instant"])
+        );
+        expect(state.pendingChoices![0].cost).toEqual({ X: 3 });
+    });
+});
+
+describe("In the Eye of Chaos (counter instants unless controller pays mana value, CR 117.3a / 202.3)", () => {
+    it("is a World enchantment (CR 205.4) — supertype carried as data", () => {
+        expect(inTheEyeOfChaos.supertypes).toEqual(["World"]);
+        expect(inTheEyeOfChaos.types).toEqual(["Enchantment"]);
+        expect(inTheEyeOfChaos.manaCost).toEqual({ X: 2, U: 1 });
+    });
+
+    it("taxes an instant at its mana value, then counters on decline", () => {
+        const eye = makeInstance(inTheEyeOfChaos.id, {
+            id: "eye",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [eye] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Reset is a {U}{U} instant — mana value 2.
+        const spell = pushSpell(state, reset.id, "p2");
+        resolveTrigger(
+            state,
+            eye,
+            "in-the-eye-of-chaos-tax",
+            castEvent("p2", spell, ["Instant"])
+        );
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.playerId).toBe("p2");
+        // Tax = the spell's mana value (Reset = 2), not a flat amount.
+        expect(head.cost).toEqual({ X: 2 });
+        answerChoice(state, ["no"]);
+        expect(state.stack.find((s) => s.id === spell.id)).toBeUndefined();
+    });
+
+    it("folds the chosen X into the mana value of an X instant (CR 601.2b)", () => {
+        const eye = makeInstance(inTheEyeOfChaos.id, {
+            id: "eye",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [eye] }),
+                makePlayer("p2"),
+            ],
+        });
+        // partWater is {X}{U} — base mana value 1 ({U}) plus the chosen X.
+        const spell = pushSpell(state, partWater.id, "p2");
+        spell.chosenX = 4;
+        resolveTrigger(
+            state,
+            eye,
+            "in-the-eye-of-chaos-tax",
+            castEvent("p2", spell, ["Instant"])
+        );
+        // Mana value on the stack = {U}(1) + chosen X(4) = 5 (CR 202.3b).
+        expect(state.pendingChoices![0].cost).toEqual({ X: 5 });
+    });
+
+    it("ignores non-instant spells — a sorcery is not taxed", () => {
+        const eye = makeInstance(inTheEyeOfChaos.id, {
+            id: "eye",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [eye] }),
+                makePlayer("p2"),
+            ],
+        });
+        // collectTriggers (the real fire path) must NOT raise the trigger for a
+        // sorcery — the SpellFilter restricts to instants (CR 601.2i).
+        const sorcery = pushSpell(state, acidRain.id, "p2");
+        const fired = collectTriggers(state, [
+            castEvent("p2", sorcery, ["Sorcery"]) as never,
+        ]);
+        expect(
+            fired.some(
+                (t) => t.triggeredAbilityId === "in-the-eye-of-chaos-tax"
+            )
+        ).toBe(false);
+        // An instant DOES fire it.
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        const firedInstant = collectTriggers(state, [
+            castEvent("p2", bolt, ["Instant"]) as never,
+        ]);
+        expect(
+            firedInstant.some(
+                (t) => t.triggeredAbilityId === "in-the-eye-of-chaos-tax"
+            )
+        ).toBe(true);
+    });
+
+    it("backend integration: declining via applyMayPaySubmit counters the instant (GRE → mutation → stack)", () => {
+        const eye = makeInstance(inTheEyeOfChaos.id, {
+            id: "eye",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [eye] }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        // Place the trigger above the cast spell and resolve it — it suspends on
+        // the may-pay (the same shape submitMayPay drives in convex/game.ts).
+        state.stack.push({
+            ...eye,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "in-the-eye-of-chaos-tax",
+            triggerSourceId: eye.id,
+            triggerEvent: castEvent("p2", spell, ["Instant"]),
+            targets: [],
+        } as StackItem);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended at may-pay
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.playerId).toBe("p2");
+        // submitMayPay's core: decline → resume → counter the cast spell.
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.stack.find((s) => s.id === spell.id)).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === spell.id)).toBe(
+            true
+        );
+    });
+
+    it("backend integration: paying via applyMayPaySubmit keeps the instant and spends mana", () => {
+        const eye = makeInstance(inTheEyeOfChaos.id, {
+            id: "eye",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [eye] }),
+                makePlayer("p2", {
+                    manaPool: { W: 0, U: 0, B: 0, R: 5, G: 0, C: 0 },
+                }),
+            ],
+        });
+        // Lightning Bolt = mana value 1 → tax {1}.
+        const spell = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        state.stack.push({
+            ...eye,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "in-the-eye-of-chaos-tax",
+            triggerSourceId: eye.id,
+            triggerEvent: castEvent("p2", spell, ["Instant"]),
+            targets: [],
+        } as StackItem);
+        expect(resolveTopOfStack(state)).toBeNull();
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        // Paid {1} → the spell stays on the stack to resolve normally.
+        expect(state.stack.find((s) => s.id === spell.id)).toBeDefined();
+        expect(state.players[1].manaPool.R).toBe(4); // {1} paid from generic
     });
 });
