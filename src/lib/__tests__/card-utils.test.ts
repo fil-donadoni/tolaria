@@ -610,4 +610,29 @@ describe("matchesPermanentFilter (client mirror — colors + tapped)", () => {
             matchesPermanentFilter(card, { colors: ["U"], tapped: true })
         ).toBe(true);
     });
+
+    // DRK Flood (#412): "target creature without flying" — the excludeAbility
+    // mirror of requireAbility, used for the keyword target filter.
+    it("rejects a flyer under excludeAbility:flying (Flood)", () => {
+        const flyer = makeCardInstance({
+            types: ["Creature"],
+            staticAbilities: ["flying"],
+        });
+        const ground = makeCardInstance({
+            types: ["Creature"],
+            staticAbilities: [],
+        });
+        expect(
+            matchesPermanentFilter(flyer, {
+                types: "Creature",
+                excludeAbility: "flying",
+            })
+        ).toBe(false);
+        expect(
+            matchesPermanentFilter(ground, {
+                types: "Creature",
+                excludeAbility: "flying",
+            })
+        ).toBe(true);
+    });
 });
