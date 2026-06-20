@@ -385,6 +385,9 @@ export function evaluate(state: GameState, playerId: string): number {
     // remain ordered by how decisive they are. The Danger Clock is omitted in
     // terminal positions — the outcome already dominates and the race is moot.
     if (state.gameOver) {
+        // CR 104.4a — a drawn game is a neutral terminal: neither a win nor a
+        // loss for either player (Divine Intervention).
+        if (state.gameOver.isDraw) return 0;
         if (state.gameOver.winnerId === playerId) return WIN_SCORE + margin;
         if (state.gameOver.loserId === playerId) return -WIN_SCORE + margin;
     }

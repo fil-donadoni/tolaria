@@ -168,6 +168,13 @@ import {
     cosmicHorror,
     moldDemon,
     theTabernacleAtPendrellVale,
+    spiritShackle,
+    venarianGold,
+    cocoon,
+    whirlingDervish,
+    primordialOoze,
+    rasputinDreamweaver,
+    divineIntervention,
 } from "../leg";
 import { getCardById, getCardByName, getAllCards } from "../../index";
 import { getLegalTargets } from "../../../gre/rules";
@@ -5082,5 +5089,422 @@ describe("The Tabernacle at Pendrell Vale (CR 113.1 triggered-grant + CR 603.6a 
                 (g) => g.abilityId === "tabernacle-upkeep"
             )
         ).toBe(true);
+    });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// C5 — Named counters + counter-driven triggers (#384, CR 122).
+// ═════════════════════════════════════════════════════════════════════════════
+
+const UPKEEP_C5 = (playerId: string): StackItem["triggerEvent"] =>
+    ({
+        type: "PHASE_BEGIN" as const,
+        phase: "UPKEEP" as const,
+        activePlayerId: playerId,
+    }) as StackItem["triggerEvent"];
+
+const END_STEP_C5 = (playerId: string): StackItem["triggerEvent"] =>
+    ({
+        type: "PHASE_BEGIN" as const,
+        phase: "END_STEP" as const,
+        activePlayerId: playerId,
+    }) as StackItem["triggerEvent"];
+
+describe("named counters: add / remove / count independent of +1/+1 (CR 122.6)", () => {
+    it("named counters are stored and read separately from +1/+1, and P/T counters annihilate (CR 704.5q)", () => {
+        // A vanilla bear carrying named counters AND P/T counters.
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            counters: { sleep: 2, "+1/+1": 3, "-1/-1": 1 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        // The named "sleep" counters are inert to layer 7d.
+        expect(bear.counters?.sleep).toBe(2);
+        // CR 704.5q — +1/+1 and -1/-1 annihilate via SBA, leaving +2/+2.
+        checkStateBasedActions(state);
+        expect(bear.counters?.["+1/+1"]).toBe(2);
+        expect(bear.counters?.["-1/-1"]).toBeUndefined();
+        // Named counters untouched by the annihilation SBA.
+        expect(bear.counters?.sleep).toBe(2);
+    });
+});
+
+describe("Spirit Shackle (becomes-tapped → -0/-2 counter, CR 701.20a / 122.1 / 613.4d)", () => {
+    function setup() {
+        const creature = makeInstance(grizzlyBears.id, {
+            id: "creature",
+            controllerId: "p2",
+            power: 2,
+            toughness: 2,
+        });
+        const aura = makeInstance(spiritShackle.id, {
+            id: "shackle",
+            controllerId: "p1",
+            attachedTo: "creature",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [aura] }),
+                makePlayer("p2", { battlefield: [creature] }),
+            ],
+        });
+        return { state, creature, aura };
+    }
+
+    it("puts a -0/-2 counter on the host when it becomes tapped, dropping its toughness", () => {
+        const { state, creature } = setup();
+        expect(getEffectiveToughness(state, creature)).toBe(2);
+        const tapEvent: StackItem["triggerEvent"] = {
+            type: "PERMANENT_TAPPED",
+            permanentId: "creature",
+            controllerId: "p2",
+            permanentTypes: creature.types,
+            permanentSubtypes: creature.subtypes,
+            forMana: false,
+        } as StackItem["triggerEvent"];
+        const aura = state.players[0].battlefield[0];
+        resolveTrigger(state, aura, "spirit-shackle-tap", tapEvent);
+        expect(creature.counters?.["-0/-2"]).toBe(1);
+        // CR 613.4d — the -0/-2 counter rides layer 7d.
+        expect(getEffectiveToughness(state, creature)).toBe(0);
+    });
+
+    it("the -0/-2 toughness drop survives projection (wire format)", () => {
+        const { state, creature } = setup();
+        creature.counters = { "-0/-2": 1 };
+        expect(getEffectiveToughness(state, creature)).toBe(0);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "creature"
+        )!;
+        expect(slim.counters?.["-0/-2"]).toBe(1);
+        expect(getEffectiveToughness(projected, slim)).toBe(0);
+    });
+});
+
+describe("Venarian Gold (sleep counters: ETB tap + counter-gated does-not-untap + upkeep removal, CR 122 / 502.1)", () => {
+    function setup(sleep = 2) {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "host",
+            controllerId: "p2",
+        });
+        const aura = makeInstance(venarianGold.id, {
+            id: "gold",
+            controllerId: "p1",
+            attachedTo: "host",
+            counters: undefined,
+        });
+        if (sleep > 0) host.counters = { sleep };
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [aura] }),
+                makePlayer("p2", { battlefield: [host] }),
+            ],
+        });
+        return { state, host, aura };
+    }
+
+    it("grants the host does-not-untap while it carries a sleep counter", () => {
+        const { state, host, aura } = setup(2);
+        // Layer-6 keyword grant is pushed onto the host when the aura's static
+        // effects are applied (the `applies` predicate reads host.counters.sleep).
+        applySourceStaticEffects(state, aura);
+        expect(host.staticAbilities).toContain("does-not-untap");
+    });
+
+    it("does NOT grant does-not-untap when the host has no sleep counter", () => {
+        const { state, host, aura } = setup(0);
+        applySourceStaticEffects(state, aura);
+        expect(host.staticAbilities).not.toContain("does-not-untap");
+    });
+
+    it("upkeep removes one sleep counter from the host (host-controller scope)", () => {
+        const { state, aura } = setup(2);
+        resolveTrigger(state, aura, "venarian-gold-upkeep", UPKEEP_C5("p2"));
+        expect(state.players[1].battlefield[0].counters?.sleep).toBe(1);
+    });
+
+    it("sleep counters survive projection (wire format)", () => {
+        const { state } = setup(3);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(slim.counters?.sleep).toBe(3);
+    });
+});
+
+describe("Cocoon (pupa counters on the Aura + hatch into +1/+1 and flying, CR 122 / 611.2c)", () => {
+    function setup(pupa = 3) {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "host",
+            controllerId: "p1",
+        });
+        const aura = makeInstance(cocoon.id, {
+            id: "cocoon",
+            controllerId: "p1",
+            attachedTo: "host",
+            counters: pupa > 0 ? { pupa } : undefined,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, host, aura };
+    }
+
+    it("the host doesn't untap while the Aura carries a pupa counter", () => {
+        const { state, host, aura } = setup(3);
+        applySourceStaticEffects(state, aura);
+        expect(host.staticAbilities).toContain("does-not-untap");
+    });
+
+    it("upkeep removes a pupa counter while any remain", () => {
+        const { state, aura } = setup(3);
+        resolveTrigger(state, aura, "cocoon-upkeep", UPKEEP_C5("p1"));
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "cocoon"
+        );
+        expect(live?.counters?.pupa).toBe(2);
+    });
+
+    it("upkeep with no pupa counters left hatches: sacrifices the Aura, +1/+1 counter and flying on the host", () => {
+        const { state, aura } = setup(0);
+        resolveTrigger(state, aura, "cocoon-upkeep", UPKEEP_C5("p1"));
+        // Aura sacrificed.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "cocoon")
+        ).toBe(false);
+        const host = state.players[0].battlefield.find((c) => c.id === "host")!;
+        expect(host.counters?.["+1/+1"]).toBe(1);
+        expect(host.staticAbilities).toContain("flying");
+        // Flying persists permanently (no aura link, no duration).
+        expect(
+            host.grantedStaticAbilities?.some(
+                (g) => g.ability === "flying" && !g.duration && !g.auraId
+            )
+        ).toBe(true);
+    });
+});
+
+describe("Whirling Dervish (end-step +1/+1 if it dealt damage to an opponent this turn, CR 120.3 / 603.4d)", () => {
+    function setup(dealt: boolean) {
+        const dervish = makeInstance(whirlingDervish.id, {
+            id: "dervish",
+            controllerId: "p1",
+            dealtDamageToOpponentThisTurn: dealt ? true : undefined,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [dervish] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, dervish };
+    }
+
+    it("has protection from black", () => {
+        expect(whirlingDervish.staticAbilities).toContain(
+            "protection from black"
+        );
+    });
+
+    it("the end-step trigger fires (and grows) only when it dealt damage to an opponent", () => {
+        const yes = setup(true);
+        const fired = collectTriggers(yes.state, [
+            END_STEP_C5("p1") as never,
+        ]).some((t) => t.triggeredAbilityId === "whirling-dervish-end-step");
+        expect(fired).toBe(true);
+        resolveTrigger(
+            yes.state,
+            yes.dervish,
+            "whirling-dervish-end-step",
+            END_STEP_C5("p1")
+        );
+        expect(yes.dervish.counters?.["+1/+1"]).toBe(1);
+        expect(getEffectivePower(yes.state, yes.dervish)).toBe(2);
+    });
+
+    it("does NOT grow when it dealt no damage to an opponent (intervening-if fizzle)", () => {
+        const no = setup(false);
+        resolveTrigger(
+            no.state,
+            no.dervish,
+            "whirling-dervish-end-step",
+            END_STEP_C5("p1")
+        );
+        expect(no.dervish.counters?.["+1/+1"]).toBeUndefined();
+    });
+});
+
+describe("Primordial Ooze (upkeep +1/+1 then pay {X} or tap + X damage, CR 122 / 117.3a)", () => {
+    function setup(existing = 0) {
+        const ooze = makeInstance(primordialOoze.id, {
+            id: "ooze",
+            controllerId: "p1",
+            counters: existing > 0 ? { "+1/+1": existing } : undefined,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ooze] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, ooze };
+    }
+
+    it("declining the {X} payment taps the Ooze and deals X damage to its controller", () => {
+        const { state, ooze } = setup(1); // becomes 2 after the upkeep counter
+        resolveTrigger(state, ooze, "primordial-ooze-upkeep", UPKEEP_C5("p1"));
+        // X = 2 (+1/+1 counters after the upkeep bump).
+        answerChoice(state, ["decline"]);
+        expect(ooze.counters?.["+1/+1"]).toBe(2);
+        expect(ooze.isTapped).toBe(true);
+        expect(state.players[0].life).toBe(18); // 20 - 2
+    });
+
+    it("attacks each combat if able (CR 508.1d)", () => {
+        expect(
+            primordialOoze.staticEffects?.some(
+                (e) => e.kind === "attack-requirement"
+            )
+        ).toBe(true);
+    });
+});
+
+describe("Rasputin Dreamweaver (dream counters: enters with 7, mana / prevent removal, capped regrow, CR 122)", () => {
+    it("enters with seven dream counters (CR 122.1)", () => {
+        expect(rasputinDreamweaver.entersWith?.counters).toEqual([
+            { type: "dream", count: 7 },
+        ]);
+    });
+
+    it("the upkeep regrow is capped at seven and gated on starting the turn untapped", () => {
+        const rasputin = makeInstance(rasputinDreamweaver.id, {
+            id: "ras",
+            controllerId: "p1",
+            counters: { dream: 7 },
+            startedTurnUntapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [rasputin] }),
+                makePlayer("p2"),
+            ],
+        });
+        // At the cap → intervening-if true (started untapped) but resolve no-ops.
+        resolveTrigger(
+            state,
+            rasputin,
+            "rasputin-upkeep-regrow",
+            UPKEEP_C5("p1")
+        );
+        expect(rasputin.counters?.dream).toBe(7);
+    });
+
+    it("regrows a dream counter below the cap when it started the turn untapped", () => {
+        const rasputin = makeInstance(rasputinDreamweaver.id, {
+            id: "ras",
+            controllerId: "p1",
+            counters: { dream: 4 },
+            startedTurnUntapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [rasputin] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(
+            state,
+            rasputin,
+            "rasputin-upkeep-regrow",
+            UPKEEP_C5("p1")
+        );
+        expect(rasputin.counters?.dream).toBe(5);
+    });
+
+    it("does NOT regrow if it did not start the turn untapped (intervening-if)", () => {
+        const rasputin = makeInstance(rasputinDreamweaver.id, {
+            id: "ras",
+            controllerId: "p1",
+            counters: { dream: 4 },
+            startedTurnUntapped: undefined,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [rasputin] }),
+                makePlayer("p2"),
+            ],
+        });
+        const fired = collectTriggers(state, [UPKEEP_C5("p1") as never]).some(
+            (t) => t.triggeredAbilityId === "rasputin-upkeep-regrow"
+        );
+        expect(fired).toBe(false);
+    });
+
+    it("the mana ability carries a remove-a-dream-counter cost (CR 122.6)", () => {
+        const mana = rasputinDreamweaver.activatedAbilities?.find(
+            (a) => a.id === "rasputin-dream-mana"
+        );
+        expect(mana?.cost.removeCounter).toEqual({ type: "dream", count: 1 });
+        expect(mana?.useStack).toBe(false);
+    });
+});
+
+describe("Divine Intervention (counter-driven game draw, CR 122 / 104.4a)", () => {
+    function setup(counters: number) {
+        const di = makeInstance(divineIntervention.id, {
+            id: "di",
+            controllerId: "p1",
+            counters: { intervention: counters },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [di] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, di };
+    }
+
+    it("enters with two intervention counters (CR 122.1)", () => {
+        expect(divineIntervention.entersWith?.counters).toEqual([
+            { type: "intervention", count: 2 },
+        ]);
+    });
+
+    it("upkeep removal from two → one does NOT end the game", () => {
+        const { state, di } = setup(2);
+        resolveTrigger(
+            state,
+            di,
+            "divine-intervention-upkeep",
+            UPKEEP_C5("p1")
+        );
+        expect(di.counters?.intervention).toBe(1);
+        expect(state.gameOver).toBeUndefined();
+    });
+
+    it("removing the LAST counter ends the game in a draw (CR 104.4a)", () => {
+        const { state, di } = setup(1);
+        resolveTrigger(
+            state,
+            di,
+            "divine-intervention-upkeep",
+            UPKEEP_C5("p1")
+        );
+        expect(state.gameOver?.isDraw).toBe(true);
+        expect(state.gameOver?.reason).toBe("draw");
+        expect(state.gameOver?.winnerId).toBe("");
+        expect(state.gameOver?.loserId).toBe("");
     });
 });

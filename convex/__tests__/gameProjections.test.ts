@@ -795,3 +795,48 @@ describe("projectPublicState — face-down exile (ADR 0026 slice 6, CR 406.3)", 
         expect(card.card.id).toBe("def-p1-x1"); // real identity to everyone
     });
 });
+
+describe("C5 named counters + draw-game projection (#384, CR 122 / 104.4a)", () => {
+    it("named + P/T counters on a battlefield permanent survive both projections", () => {
+        const state = makeState();
+        const perm = state.players[0].battlefield[0];
+        perm.counters = { sleep: 2, pin: 3, "+1/+1": 1, "-0/-2": 4 };
+
+        const pub = projectPublicState(state, 1, "p1");
+        const slimPub = pub.players[0].battlefield.find(
+            (c) => c.id === "p1-b1"
+        )!;
+        expect(slimPub.counters).toEqual({
+            sleep: 2,
+            pin: 3,
+            "+1/+1": 1,
+            "-0/-2": 4,
+        });
+
+        const full = projectFullState(state, 1);
+        const slimFull = full.players[0].battlefield.find(
+            (c) => c.id === "p1-b1"
+        )!;
+        expect(slimFull.counters).toEqual({
+            sleep: 2,
+            pin: 3,
+            "+1/+1": 1,
+            "-0/-2": 4,
+        });
+    });
+
+    it("a drawn game (CR 104.4a) projects with isDraw and no winner/loser", () => {
+        const state = makeState({
+            gameOver: {
+                winnerId: "",
+                loserId: "",
+                reason: "draw",
+                isDraw: true,
+            },
+        });
+        const pub = projectPublicState(state, 1, "p1");
+        expect(pub.gameOver?.isDraw).toBe(true);
+        expect(pub.gameOver?.reason).toBe("draw");
+        expect(pub.gameOver?.winnerId).toBe("");
+    });
+});

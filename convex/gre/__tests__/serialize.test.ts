@@ -232,6 +232,9 @@ describe("game_state serialize round-trip", () => {
         lion.isBlocking = true;
         lion.hasAttackedThisTurn = true;
         lion.hasBlockedThisTurn = true;
+        // C5 (#384) — turn-scoped counter-trigger flags.
+        lion.dealtDamageToOpponentThisTurn = true;
+        lion.startedTurnUntapped = true;
         lion.manaCommitted = true;
         lion.damageMarked = 2;
         lion.regenerationShields = 1;
@@ -306,6 +309,8 @@ describe("game_state serialize round-trip", () => {
         expect(got.isBlocking).toBe(true);
         expect(got.hasAttackedThisTurn).toBe(true);
         expect(got.hasBlockedThisTurn).toBe(true);
+        expect(got.dealtDamageToOpponentThisTurn).toBe(true);
+        expect(got.startedTurnUntapped).toBe(true);
         expect(got.manaCommitted).toBe(true);
         expect(got.damageMarked).toBe(2);
         expect(got.regenerationShields).toBe(1);

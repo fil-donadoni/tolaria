@@ -15,6 +15,7 @@ import {
 import type { CardType } from "../../cards/types";
 import { tryGetCardById } from "../../cards";
 import { projectPublicState } from "../../gameProjections";
+import { checkCounterAnnihilationSBA } from "../sba";
 import {
     castle,
     lightningBolt,
@@ -654,5 +655,83 @@ describe("CR 613.4 ordered P/T pipeline (set effects, ADR 0017)", () => {
         )!;
         expect(getEffectivePower(projected, slim)).toBe(1);
         expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// C5 (#384) — named-counter P/T contributions + annihilation SBA (CR 122 / 704.5q)
+// ---------------------------------------------------------------------------
+
+describe("counter P/T contributions (CR 613.4d)", () => {
+    it("-0/-2 counters drop only toughness", () => {
+        const bear = makeCard({
+            id: "bear",
+            types: ["Creature"],
+            power: 2,
+            toughness: 4,
+        });
+        bear.counters = { "-0/-2": 2 };
+        const state = makeGameState({
+            players: [makePlayer({ id: "p1", battlefield: [bear] })],
+        });
+        expect(getEffectivePower(state, bear)).toBe(2);
+        expect(getEffectiveToughness(state, bear)).toBe(0); // 4 - 2*2
+
+        // Survives the wire.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(0);
+    });
+});
+
+describe("counter annihilation SBA (CR 704.5q)", () => {
+    function bearWith(counters: Record<string, number>): {
+        bear: CardInstanceState;
+        state: GameState;
+    } {
+        const bear = makeCard({
+            id: "bear",
+            types: ["Creature"],
+            power: 2,
+            toughness: 2,
+        });
+        bear.counters = counters;
+        const state = makeGameState({
+            players: [makePlayer({ id: "p1", battlefield: [bear] })],
+        });
+        return { bear, state };
+    }
+
+    it("removes equal numbers of +1/+1 and -1/-1 counters, keeping the remainder", () => {
+        const { bear, state } = bearWith({ "+1/+1": 3, "-1/-1": 1 });
+        expect(checkCounterAnnihilationSBA(state)).toBe(true);
+        expect(bear.counters?.["+1/+1"]).toBe(2);
+        expect(bear.counters?.["-1/-1"]).toBeUndefined();
+    });
+
+    it("fully annihilates an equal pair, clearing both", () => {
+        const { bear, state } = bearWith({ "+1/+1": 2, "-1/-1": 2 });
+        checkCounterAnnihilationSBA(state);
+        expect(bear.counters?.["+1/+1"]).toBeUndefined();
+        expect(bear.counters?.["-1/-1"]).toBeUndefined();
+    });
+
+    it("leaves named (non-P/T) counters untouched", () => {
+        const { bear, state } = bearWith({
+            "+1/+1": 1,
+            "-1/-1": 1,
+            sleep: 3,
+        });
+        checkCounterAnnihilationSBA(state);
+        expect(bear.counters?.sleep).toBe(3);
+        expect(bear.counters?.["+1/+1"]).toBeUndefined();
+    });
+
+    it("is a no-op when only one P/T kind is present", () => {
+        const { bear, state } = bearWith({ "+1/+1": 2 });
+        expect(checkCounterAnnihilationSBA(state)).toBe(false);
+        expect(bear.counters?.["+1/+1"]).toBe(2);
     });
 });

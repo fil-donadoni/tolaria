@@ -174,6 +174,34 @@ export function checkTokenExistenceSBA(state: GameState): boolean {
  *  copy that entered as a 0/0 (Clone with no target) is swept. Loops until
  *  stable because one death can drop another creature's toughness (e.g. a
  *  Forest-counting Gaea's Liege losing its last Forest). */
+/** CR 704.5q — if a permanent has both a +1/+1 counter and a -1/-1 counter on
+ *  it, N of each are removed, where N is the smaller of the two counts. The two
+ *  kinds annihilate in equal numbers; the survivor keeps the remainder. This is
+ *  a pure counter mutation (no zone change), run before the zero-toughness check
+ *  so a creature reduced to 0 toughness only by un-annihilated -1/-1 counters
+ *  dies with the correct net P/T. Returns true if any counters were removed. */
+export function checkCounterAnnihilationSBA(state: GameState): boolean {
+    let changedAny = false;
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            const counters = card.counters;
+            if (!counters) continue;
+            const plus = counters["+1/+1"] ?? 0;
+            const minus = counters["-1/-1"] ?? 0;
+            if (plus <= 0 || minus <= 0) continue;
+            const n = Math.min(plus, minus);
+            const next: Record<string, number> = { ...counters };
+            if (plus - n > 0) next["+1/+1"] = plus - n;
+            else delete next["+1/+1"];
+            if (minus - n > 0) next["-1/-1"] = minus - n;
+            else delete next["-1/-1"];
+            card.counters = Object.keys(next).length > 0 ? next : undefined;
+            changedAny = true;
+        }
+    }
+    return changedAny;
+}
+
 export function checkZeroToughnessSBA(state: GameState): boolean {
     let removedAny = false;
     for (;;) {
@@ -483,6 +511,9 @@ export function checkStateBasedActions(state: GameState): void {
     checkAuraAttachmentSBA(state);
     checkConditionalControlChanges(state);
     checkSourceTappedEffects(state);
+    // CR 704.5q — +1/+1 / -1/-1 counters annihilate in equal numbers before the
+    // zero-toughness death check reads the net P/T.
+    checkCounterAnnihilationSBA(state);
     checkZeroToughnessSBA(state);
     checkTokenExistenceSBA(state);
     // CR 704.5m — world rule. Fully automatic (no player choice): keeps the

@@ -185,6 +185,16 @@ export type CardInstanceState = {
      *  "if it attacked or blocked this combat" can see it. Cleared at
      *  CLEANUP. */
     hasBlockedThisTurn?: boolean;
+    /** Set the moment this permanent deals damage to a player who is not its
+     *  controller (i.e. an opponent), for the remainder of the turn (CR 120.3).
+     *  Read by end-step "if ~ dealt damage to an opponent this turn" triggers
+     *  (Whirling Dervish, LEG). Cleared at CLEANUP (CR 514.2). */
+    dealtDamageToOpponentThisTurn?: boolean;
+    /** Snapshot taken at the top of this permanent's controller's untap step
+     *  (CR 502.1): true if the permanent was untapped when the turn's untap
+     *  step began. Read by upkeep triggers phrased "if ~ started the turn
+     *  untapped" (Rasputin Dreamweaver, LEG). Refreshed each untap step. */
+    startedTurnUntapped?: boolean;
     /** Keyword abilities granted for a limited duration (CR 113.1 / 611.1b).
      *  Each entry is also pushed to `staticAbilities` for read-time lookups
      *  (combat logic inspects `staticAbilities.includes("trample")`) and is
@@ -1166,11 +1176,16 @@ export type GameState = {
      *  `finalizeMulligan` when all opening hands are locked and any required
      *  bottoming choices have resolved. */
     mulligan?: MulliganState;
-    /** Set when a player loses the game. Contains winner/loser info. */
+    /** Set when the game ends. Contains winner/loser info for a decisive game,
+     *  or `isDraw: true` for a drawn game (CR 104.4 — Divine Intervention's
+     *  "the game is a draw"). For a draw `winnerId`/`loserId` are empty strings:
+     *  there is neither a winner nor a loser. */
     gameOver?: {
         winnerId: string;
         loserId: string;
-        reason: "life" | "decked" | "concede";
+        reason: "life" | "decked" | "concede" | "draw";
+        /** True when the game ended in a draw (CR 104.4a). No winner, no loser. */
+        isDraw?: boolean;
     };
     /** Queue of player IDs scheduled to take an extra turn (CR 500.7).
      *  LIFO: pushed at the end, popped from the end — the last extra turn
@@ -1736,6 +1751,9 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     isBlocking: sourceCard.isBlocking,
                     hasAttackedThisTurn: sourceCard.hasAttackedThisTurn,
                     hasBlockedThisTurn: sourceCard.hasBlockedThisTurn,
+                    dealtDamageToOpponentThisTurn:
+                        sourceCard.dealtDamageToOpponentThisTurn,
+                    startedTurnUntapped: sourceCard.startedTurnUntapped,
                     isSummoningSick: sourceCard.isSummoningSick,
                     // CR 700.2c — the cast-time modal choice must survive into
                     // the resolve-time intervening-if so modal-permanent state
@@ -2645,6 +2663,23 @@ function findOnBattlefield(
         if (idx !== -1) return { card: player.battlefield[idx], player, idx };
     }
     return null;
+}
+
+/** Records that the permanent `sourceInstanceId` dealt damage to player
+ *  `targetPlayerId` this turn (CR 120.3). Sets a turn-scoped per-instance flag
+ *  only when the damaged player is NOT the source's controller — i.e. the
+ *  source hit an opponent. Read by end-step "if ~ dealt damage to an opponent
+ *  this turn" triggers (Whirling Dervish, LEG). No-op if the source is not on
+ *  the battlefield (last-known-information sources don't carry the flag). */
+export function recordSourceDamagedOpponent(
+    state: GameState,
+    sourceInstanceId: string,
+    targetPlayerId: string
+): void {
+    const found = findOnBattlefield(state, sourceInstanceId);
+    if (!found) return;
+    if (found.card.controllerId === targetPlayerId) return;
+    found.card.dealtDamageToOpponentThisTurn = true;
 }
 
 /** Increments the per-turn damage tally for `playerId` (CR 120.3). Called
@@ -4354,6 +4389,18 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 reason: "life",
             };
         },
+        // CR 104.4a — the game ends in a draw. Neither player wins or loses;
+        // `winnerId`/`loserId` are left empty and `isDraw` flags the outcome.
+        // Used by Divine Intervention's "the game is a draw" trigger (LEG).
+        drawGame(): void {
+            if (state.gameOver) return;
+            state.gameOver = {
+                winnerId: "",
+                loserId: "",
+                reason: "draw",
+                isDraw: true,
+            };
+        },
         getDamageDealtThisTurn(playerId: string): number {
             return state.damageDealtToPlayerThisTurn?.[playerId] ?? 0;
         },
@@ -4462,6 +4509,30 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     ability,
                     duration: resolveDuration(duration, item.castById, state),
                 },
+            ];
+        },
+        // CR 611.2c: grants a keyword with NO duration and NO aura link — it
+        // persists for as long as the permanent stays on the battlefield (a
+        // permanent "gains [keyword]" effect that is not dependent on a still-
+        // present source, e.g. Cocoon's "that creature gains flying" after the
+        // Aura is sacrificed). The entry is kept by both the duration tick and
+        // the aura-unapply pass (both skip entries lacking duration/auraId), and
+        // is cleared only when the permanent leaves play.
+        grantStaticAbilityPermanent(
+            target: TargetSelection,
+            ability: string
+        ): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            if (found.card.staticAbilities.includes(ability)) return;
+            found.card.staticAbilities = [
+                ...found.card.staticAbilities,
+                ability,
+            ];
+            found.card.grantedStaticAbilities = [
+                ...(found.card.grantedStaticAbilities ?? []),
+                { ability },
             ];
         },
         // CR 611.1b layer 6: removes every keyword matching `predicate` from
