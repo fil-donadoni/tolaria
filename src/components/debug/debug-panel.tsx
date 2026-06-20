@@ -68,6 +68,33 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // The Dark (DRK) walking skeleton (#410). Registers the `drk` set with
+        // three vanilla creatures and proves the full pipeline end-to-end:
+        //   • Squire (1/2, {1}{W}), Goblin Hero (2/2, {2}{R}) and Scarwood
+        //     Goblins (2/2, {R}{G}) start in hand with lands to cast them.
+        //   • Cast each one and confirm it resolves onto the battlefield with
+        //     the canonical P/T and subtypes from DRK.json.
+        label: "DRK skeleton: cast Squire / Goblin Hero / Scarwood Goblins (#410)",
+        cards: [
+            { name: "Squire", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Goblin Hero",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Scarwood Goblins",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            { name: "Forest", owner: "me" as const, count: 1 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Auto-tap partial coverage (issue #321). Pure-mana sources alone can't
         // cover the cost, but a manual sacrifice source (Black Lotus) is also
         // present:
