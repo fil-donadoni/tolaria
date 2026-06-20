@@ -187,7 +187,9 @@ export type {
 export interface GameOver {
     winnerId: string;
     loserId: string;
-    reason: "life" | "decked" | "concede";
+    reason: "life" | "decked" | "concede" | "draw";
+    /** True when the game ended in a draw (CR 104.4a — Divine Intervention). */
+    isDraw?: boolean;
 }
 
 // CardAction re-exported from @convex/gre/types above

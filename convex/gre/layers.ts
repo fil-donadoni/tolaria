@@ -267,6 +267,10 @@ const COUNTER_PT_CONTRIBUTION: Record<string, PTBuff> = {
     "-1/-0": { power: -1, toughness: 0 },
     "+0/+1": { power: 0, toughness: 1 },
     "-0/-1": { power: 0, toughness: -1 },
+    // CR 122.1d — Spirit Shackle (LEG) stacks "-0/-2" counters on a tapped
+    // creature. Each contributes -2 toughness, 0 power; they ride the same
+    // counter→P/T pipeline as the built-in -1/-1 family.
+    "-0/-2": { power: 0, toughness: -2 },
 };
 
 /** Sum of P/T contributions from counters on `target` (layer 7d). Reads from

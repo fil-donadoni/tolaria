@@ -13,6 +13,7 @@ import {
     applyTargetPrevention,
     bumpArtifactDamageToPlayer,
     bumpDamageDealtToPlayer,
+    recordSourceDamagedOpponent,
     clearKnowledge,
     consumePreventionIfAny,
     destroyWithReplacements,
@@ -266,6 +267,14 @@ export function untapStep(state: GameState): void {
         const restrictionFilters = restrictions.map(
             (r) => r.restriction.filter
         );
+
+        // CR 502.1 — snapshot which of the active player's permanents were
+        // untapped as the untap step begins, BEFORE any untapping happens.
+        // Read by upkeep triggers phrased "if ~ started the turn untapped"
+        // (Rasputin Dreamweaver, LEG).
+        for (const card of player.battlefield) {
+            card.startedTurnUntapped = !card.isTapped;
+        }
 
         for (const card of player.battlefield) {
             if (card.staticAbilities.includes("does-not-untap")) {
@@ -828,6 +837,9 @@ export function applyAllCombatDamage(
             if (reduced <= 0) return;
             getPlayer(state, finalTarget.id).life -= reduced;
             bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
+            // CR 120.3 — flag the source if it hit an opponent (Whirling
+            // Dervish's end-step growth condition).
+            recordSourceDamagedOpponent(state, source.id, finalTarget.id);
             const desc = describeDamageSource(state, source.id);
             // CR 120.3 (artifact-narrowed) — Reverse Polarity tally.
             bumpArtifactDamageToPlayer(
@@ -1492,6 +1504,11 @@ export function finalizeCleanup(state: GameState): void {
             }
             if (card.damagedBySources !== undefined) {
                 card.damagedBySources = undefined;
+            }
+            // CR 514.2 — "dealt damage to an opponent this turn" is turn-scoped
+            // (Whirling Dervish).
+            if (card.dealtDamageToOpponentThisTurn !== undefined) {
+                card.dealtDamageToOpponentThisTurn = undefined;
             }
             // CR 701.15a — regeneration shields apply only "this turn".
             // Unused shields wear off here.

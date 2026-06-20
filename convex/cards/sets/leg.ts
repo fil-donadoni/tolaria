@@ -27,6 +27,7 @@ import type {
     StaticEffectContext,
     Color,
     GameEvent,
+    TargetSelection,
 } from "../types";
 import { EFFECT_AFFECTS_SELF } from "../types";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
@@ -4654,4 +4655,437 @@ export const theTabernacleAtPendrellVale: CardDefinition = {
 //   • Takklemaggot — multi-counter Aura that hops between creatures on death and
 //     pings the controller each upkeep; needs the named-counter + on-death
 //     re-attach machinery (C5), not the pay-or-sacrifice pattern.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ═════════════════════════════════════════════════════════════════════════════
+// C5 — Named counters + counter-driven triggers (#384, CR 122).
+//
+// The engine already stored arbitrary named counters on a permanent
+// (`CardInstanceState.counters: Record<string, number>`, CR 122.1) and exposed
+// the parametric `addCounter` / `removeCounter` / `getCounterCount` primitives
+// (CR 122.6) — +1/+1 and -1/-1 ride this same map and remain layer-7d P/T
+// modifiers (CR 613.4d) plus the -1/-1 ⇄ +1/+1 annihilation SBA (CR 704.5q).
+// This cluster adds the NAMED (non-P/T) counter cards and the upkeep cycles
+// that add/remove them, all composed from existing primitives:
+//   • "doesn't untap if it has a [kind] counter" = a `keyword-grant` static
+//     effect granting `does-not-untap` (read by the untap step, CR 502.1)
+//     gated on a counter-count predicate in `applies`.
+//   • upkeep add / remove a counter = `phaseTrigger({ phase: "UPKEEP" })`.
+//   • counter-gated activations = `canActivate` (CR 602.5b) / `cost.removeCounter`
+//     (CR 122.6).
+//   • "-0/-2 counter" = a new entry in the layer-7d P/T-counter table.
+//   • "the game is a draw" (Divine Intervention) = the new `ctx.drawGame()`
+//     primitive (CR 104.4a).
+//   • "if ~ started the turn untapped" / "if ~ dealt damage to an opponent this
+//     turn" = new turn-scoped per-instance flags (CR 502.1 / 120.3).
+//
+// Deferred (need a primitive owned by another cluster — documented at the end
+// of this section): Glyph of Delusion, All Hallow's Eve, plus the C7-noted
+// Pit Scorpion / Takklemaggot.
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Spirit Shackle — {B}{B} Aura. "Whenever enchanted creature becomes tapped,
+// put a -0/-2 counter on it." (CR 701.20a becomes-tapped trigger via the
+// tapped-trigger factory; CR 122.1 / 613.4d the -0/-2 counter rides the layer-7d
+// P/T pipeline, so the toughness drop is visible the moment the counter lands.)
+export const spiritShackle: CardDefinition = {
+    id: "a30bb266-5bd1-4998-ae94-56f0f3354167",
+    name: "Spirit Shackle",
+    oracleText:
+        "Enchant creature\nWhenever enchanted creature becomes tapped, put a -0/-2 counter on it.",
+    manaCost: { B: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "spirit-shackle-tap",
+            oracleText:
+                "Whenever enchanted creature becomes tapped, put a -0/-2 counter on it.",
+            scope: "any",
+            // CR 303.4b — only the aura's host firing matters.
+            condition: (event, self) => event.permanentId === self.attachedTo,
+            resolve: (ctx, _event, tapped) => {
+                ctx.addCounter(
+                    { type: "permanent", id: tapped.id },
+                    "-0/-2",
+                    1
+                );
+            },
+        }),
+    ],
+};
+
+// Venarian Gold — {X}{U}{U} Aura. ETB taps the host and puts X sleep counters
+// on it; the host doesn't untap while it carries a sleep counter; at the
+// controller's upkeep one sleep counter is removed. CR 122 named counters,
+// CR 502.1 untap skip via a counter-gated `does-not-untap` grant, CR 603.6a
+// upkeep removal. Sleep counters live on the ENCHANTED CREATURE (oracle:
+// "put X sleep counters on it" / "if it has a sleep counter on it").
+export const venarianGold: CardDefinition = {
+    id: "11fb92c0-bb1e-463a-a6b6-887a5d0cb873",
+    name: "Venarian Gold",
+    oracleText:
+        "Enchant creature\nWhen this Aura enters, tap enchanted creature and put X sleep counters on it.\nEnchanted creature doesn't untap during its controller's untap step if it has a sleep counter on it.\nAt the beginning of the upkeep of enchanted creature's controller, remove a sleep counter from that creature.",
+    manaCost: { X: 0, U: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            // CR 502.1 — grant the host "does-not-untap" only while it carries
+            // at least one sleep counter. The untap step reads this keyword.
+            kind: "keyword-grant",
+            applies: (target, source) =>
+                target.id === source.attachedTo &&
+                (target.counters?.sleep ?? 0) > 0,
+            keyword: "does-not-untap",
+        },
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "venarian-gold-etb",
+            oracleText:
+                "When this Aura enters, tap enchanted creature and put X sleep counters on it.",
+            scope: "self",
+            resolve: (ctx) => {
+                const hostId = ctx.getAttachedToId();
+                if (!hostId) return;
+                const host: TargetSelection = { type: "permanent", id: hostId };
+                ctx.tap(host);
+                // CR 122.1 — X is the value chosen as the Aura was cast.
+                const x = ctx.getX();
+                if (x > 0) ctx.addCounter(host, "sleep", x);
+            },
+        }),
+        phaseTrigger({
+            id: "venarian-gold-upkeep",
+            oracleText:
+                "At the beginning of the upkeep of enchanted creature's controller, remove a sleep counter from that creature.",
+            phase: "UPKEEP",
+            // CR 603.6a — fires at the upkeep of the enchanted creature's
+            // controller, looked up at resolve time (host-controller scope).
+            scope: "host-controller",
+            resolve: (ctx) => {
+                const hostId = ctx.getAttachedToId();
+                if (!hostId) return;
+                ctx.removeCounter(
+                    { type: "permanent", id: hostId },
+                    "sleep",
+                    1
+                );
+            },
+        }),
+    ],
+};
+
+// Cocoon — {G} Aura ("Enchant creature you control"). ETB taps the host and
+// puts three pupa counters ON THE AURA; the host doesn't untap while the Aura
+// has a pupa counter; each upkeep remove a pupa counter, and if none remain to
+// remove, sacrifice the Aura, put a +1/+1 counter on the host, and the host
+// gains flying. CR 122 (counters on the Aura itself), CR 502.1 untap skip,
+// CR 701.16 sacrifice, CR 613.1b/6 flying grant.
+export const cocoon: CardDefinition = {
+    id: "a82c87b1-de37-4423-a1a4-533a1d8108b2",
+    name: "Cocoon",
+    oracleText:
+        "Enchant creature you control\nWhen this Aura enters, tap enchanted creature and put three pupa counters on this Aura.\nEnchanted creature doesn't untap during your untap step if this Aura has a pupa counter on it.\nAt the beginning of your upkeep, remove a pupa counter from this Aura. If you can't, sacrifice it, put a +1/+1 counter on enchanted creature, and that creature gains flying.",
+    manaCost: { G: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1, controller: "you" },
+    staticEffects: [
+        {
+            // CR 502.1 — the host doesn't untap while the AURA (source) still
+            // holds a pupa counter. Predicate reads the source's counters.
+            kind: "keyword-grant",
+            applies: (target, source) =>
+                target.id === source.attachedTo &&
+                (source.counters?.pupa ?? 0) > 0,
+            keyword: "does-not-untap",
+        },
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "cocoon-etb",
+            oracleText:
+                "When this Aura enters, tap enchanted creature and put three pupa counters on this Aura.",
+            scope: "self",
+            resolve: (ctx) => {
+                const hostId = ctx.getAttachedToId();
+                if (hostId) ctx.tap({ type: "permanent", id: hostId });
+                // CR 122.1 — counters go on the Aura itself.
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "pupa",
+                    3
+                );
+            },
+        }),
+        phaseTrigger({
+            id: "cocoon-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, remove a pupa counter from this Aura. If you can't, sacrifice it, put a +1/+1 counter on enchanted creature, and that creature gains flying.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                const self: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                const pupa = ctx.getCounterCount(self, "pupa");
+                if (pupa > 0) {
+                    ctx.removeCounter(self, "pupa", 1);
+                    return;
+                }
+                // CR 122.6 — "if you can't" remove a counter: hatch. Snapshot
+                // the host BEFORE sacrificing the Aura (sacrifice detaches it).
+                const hostId = ctx.getAttachedToId();
+                ctx.sacrifice(ctx.sourceInstanceId);
+                if (!hostId) return;
+                const host: TargetSelection = { type: "permanent", id: hostId };
+                ctx.addCounter(host, "+1/+1", 1);
+                ctx.grantStaticAbilityPermanent(host, "flying");
+            },
+        }),
+    ],
+};
+
+// Whirling Dervish — {G}{G} 1/1, protection from black. "At the beginning of
+// each end step, if this creature dealt damage to an opponent this turn, put a
+// +1/+1 counter on it." CR 702.16 protection, CR 603.6a end-step state-condition
+// trigger (intervening-if reads the turn-scoped `dealtDamageToOpponentThisTurn`
+// flag), CR 122.1 +1/+1 counter.
+export const whirlingDervish: CardDefinition = {
+    id: "eba294e7-7097-4bc3-b396-72e85dd4f441",
+    name: "Whirling Dervish",
+    oracleText:
+        "Protection from black\nAt the beginning of each end step, if this creature dealt damage to an opponent this turn, put a +1/+1 counter on it.",
+    manaCost: { G: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Monk"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["protection from black"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "whirling-dervish-end-step",
+            oracleText:
+                "At the beginning of each end step, if this creature dealt damage to an opponent this turn, put a +1/+1 counter on it.",
+            phase: "END_STEP",
+            scope: "each",
+            // CR 603.4d — only fires if it dealt damage to an opponent this
+            // turn. Re-checked at resolve (the flag persists to CLEANUP).
+            interveningIf: (_event, self) =>
+                self.dealtDamageToOpponentThisTurn === true,
+            resolve: (ctx) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "+1/+1",
+                    1
+                );
+            },
+        }),
+    ],
+};
+
+// Primordial Ooze — {R} 1/1 Ooze that must attack. Each upkeep it grows a +1/+1
+// counter; then its controller may pay {X} (X = its +1/+1 counter count) or it
+// taps and deals X damage to its controller. CR 122 +1/+1 counters, CR 508.1d
+// must-attack, CR 603.6a upkeep, CR 117.3a optional pay-or-else with a power-
+// scaled {X} cost (X read from the live counter count).
+export const primordialOoze: CardDefinition = {
+    id: "a46e47e1-8639-48f7-94c4-5f9e9666839a",
+    name: "Primordial Ooze",
+    oracleText:
+        "This creature attacks each combat if able.\nAt the beginning of your upkeep, put a +1/+1 counter on this creature. Then you may pay {X}, where X is the number of +1/+1 counters on it. If you don't, tap this creature and it deals X damage to you.",
+    manaCost: { R: 1 },
+    types: ["Creature"],
+    subtypes: ["Ooze"],
+    power: 1,
+    toughness: 1,
+    staticEffects: [
+        {
+            // CR 508.1d — attacks each combat if able.
+            kind: "attack-requirement",
+            id: "primordial-ooze-attacks-if-able",
+            oracleText: "This creature attacks each combat if able.",
+        },
+    ],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "primordial-ooze-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, put a +1/+1 counter on this creature. Then you may pay {X}, where X is the number of +1/+1 counters on it. If you don't, tap this creature and it deals X damage to you.",
+            phase: "UPKEEP",
+            scope: "your",
+            // CR 608.2 — two steps so the counter add (step 0, irreversible)
+            // is NOT re-applied when the `requestMayPay` in step 1 suspends and
+            // resumes. A single `resolve` would grow the Ooze twice on resume.
+            resolveSteps: [
+                (ctx) => {
+                    ctx.addCounter(
+                        { type: "permanent", id: ctx.sourceInstanceId },
+                        "+1/+1",
+                        1
+                    );
+                },
+                (ctx, scopedPlayerId) => {
+                    const self: TargetSelection = {
+                        type: "permanent",
+                        id: ctx.sourceInstanceId,
+                    };
+                    const x = ctx.getCounterCount(self, "+1/+1");
+                    const paid = ctx.requestMayPay({
+                        playerId: scopedPlayerId,
+                        choiceId: `primordial-ooze-${ctx.sourceInstanceId}`,
+                        cost: { X: x },
+                        prompt: `Pay {${x}} or Primordial Ooze taps and deals ${x} damage to you?`,
+                    });
+                    if (paid === undefined) return; // suspended
+                    if (paid) return;
+                    // CR 117.3a — didn't pay: tap it and it pings its controller.
+                    ctx.tap(self);
+                    ctx.dealDamage({ type: "player", id: scopedPlayerId }, x);
+                },
+            ],
+        }),
+    ],
+};
+
+// Rasputin Dreamweaver — {4}{W}{U} Legendary 4/1. Enters with seven dream
+// counters; each removes one for {C} or to prevent 1 damage to it; each upkeep,
+// if it started the turn untapped, it regains one (capped at seven). CR 122
+// named counters, CR 122.6 counter-removal cost, CR 502.1 "started the turn
+// untapped" flag, CR 614 damage prevention.
+export const rasputinDreamweaver: CardDefinition = {
+    id: "503256f8-3aab-49d0-b78b-6502aa29ce52",
+    name: "Rasputin Dreamweaver",
+    oracleText:
+        "Rasputin Dreamweaver enters with seven dream counters on it.\nRemove a dream counter from Rasputin Dreamweaver: Add {C}.\nRemove a dream counter from Rasputin Dreamweaver: Prevent the next 1 damage that would be dealt to Rasputin Dreamweaver this turn.\nAt the beginning of your upkeep, if Rasputin Dreamweaver started the turn untapped, put a dream counter on it.\nRasputin Dreamweaver can't have more than seven dream counters on it.",
+    manaCost: { X: 4, W: 1, U: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Wizard"],
+    power: 4,
+    toughness: 1,
+    entersWith: { counters: [{ type: "dream", count: 7 }] },
+    activatedAbilities: [
+        {
+            id: "rasputin-dream-mana",
+            cost: { removeCounter: { type: "dream", count: 1 } },
+            oracleText:
+                "Remove a dream counter from Rasputin Dreamweaver: Add {C}.",
+            useStack: false,
+            manaProduced: { C: 1 },
+            effect: (ctx) => {
+                ctx.addMana({ C: 1 });
+            },
+        },
+        {
+            id: "rasputin-dream-prevent",
+            cost: { removeCounter: { type: "dream", count: 1 } },
+            oracleText:
+                "Remove a dream counter from Rasputin Dreamweaver: Prevent the next 1 damage that would be dealt to Rasputin Dreamweaver this turn.",
+            useStack: true,
+            resolve: (ctx) => {
+                // CR 615.1 — a one-shot target-keyed prevention shield of 1 on
+                // Rasputin for the rest of the turn.
+                ctx.preventNextNDamageToTarget(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "rasputin-upkeep-regrow",
+            oracleText:
+                "At the beginning of your upkeep, if Rasputin Dreamweaver started the turn untapped, put a dream counter on it.",
+            phase: "UPKEEP",
+            scope: "your",
+            // CR 603.4d — only if it started the turn untapped.
+            interveningIf: (_event, self) => self.startedTurnUntapped === true,
+            resolve: (ctx) => {
+                const self: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                // CR 122 — capped at seven dream counters: no-op at the cap.
+                if (ctx.getCounterCount(self, "dream") >= 7) return;
+                ctx.addCounter(self, "dream", 1);
+            },
+        }),
+    ],
+};
+
+// Divine Intervention — {6}{W}{W} Enchantment. Enters with two intervention
+// counters; each upkeep removes one; when the last is removed, the game is a
+// draw. CR 122 named counters, CR 104.4a game-draw via the new `ctx.drawGame()`
+// primitive. The "when you remove the last counter" clause is folded into the
+// upkeep resolve: removing the second counter ends the game in a draw.
+export const divineIntervention: CardDefinition = {
+    id: "9eae0ba1-1383-4505-b4e7-4f17dd8f20c5",
+    name: "Divine Intervention",
+    oracleText:
+        "This enchantment enters with two intervention counters on it.\nAt the beginning of your upkeep, remove an intervention counter from this enchantment.\nWhen you remove the last intervention counter from this enchantment, the game is a draw.",
+    manaCost: { X: 6, W: 2 },
+    types: ["Enchantment"],
+    entersWith: { counters: [{ type: "intervention", count: 2 }] },
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "divine-intervention-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, remove an intervention counter from this enchantment. When you remove the last intervention counter from this enchantment, the game is a draw.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                const self: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                const removed = ctx.removeCounter(self, "intervention", 1);
+                if (removed === 0) return;
+                // CR 104.4a — the last counter just came off → the game draws.
+                if (ctx.getCounterCount(self, "intervention") === 0) {
+                    ctx.drawGame();
+                }
+            },
+        }),
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C5 deferred — counter cards needing a primitive owned by another cluster:
+//   • Glyph of Delusion — "target creature that target Wall blocked this turn"
+//     needs a combat-history "blocked this turn" record AND a two-stage target
+//     (a Wall, then a creature it blocked). The named-counter half (glyph
+//     counters + does-not-untap + upkeep removal) is expressible today, but the
+//     dual restricted target is a targeting feature, not a counter feature;
+//     deferred whole to avoid a partial card.
+//   • All Hallow's Eve — exiles ITSELF with two scream counters and ticks them
+//     down from EXILE each upkeep, mass-reanimating all creatures at zero. This
+//     is a suspend-like "card waits in exile with counters and an upkeep trigger
+//     that functions from exile" mechanism (CR 603.6e off-battlefield trigger +
+//     counters on an exiled card); the engine's exile infrastructure today is
+//     the return-bundle (ADR 0028), not a counter-ticking exiled spell. Owned by
+//     a future suspend/exile-counter cluster.
+//   • Voodoo Doll — its named-counter core (upkeep pin accrual + end-step
+//     self-destruct-and-ping) is fully expressible and shippable, but its
+//     "{X}{X}, {T}: deals damage = pin count, where X is the pin count"
+//     activation needs a BOARD-COMPUTED mana cost (X is forced to the live pin
+//     count, not chosen by the player). The engine's `cost.mana` is static data
+//     and `{ X: "X" }` is a player-chosen X; there is no dynamic/board-derived
+//     cost primitive yet. Deferred whole to avoid shipping a wrong cost.
+//   • Triassic Egg — hatchling-counter accrual + the two-or-more-counter
+//     activation gate are C5 (expressible via `addCounter` + `canActivate`),
+//     but the sacrifice ability's first mode "put a creature card from your
+//     hand ONTO THE BATTLEFIELD" needs a hand→battlefield cheat primitive the
+//     engine lacks (`returnToBattlefield` only covers graveyard/exile). Deferred
+//     whole — owned by a future reanimation/cheat cluster.
+//   • Pit Scorpion (poison counters) and Takklemaggot (multi-counter hopping
+//     Aura) — noted in the C7 deferral block above; both need machinery beyond
+//     plain named counters.
 // ─────────────────────────────────────────────────────────────────────────────

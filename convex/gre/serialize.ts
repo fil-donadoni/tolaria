@@ -77,6 +77,10 @@ function compactCard(
     if (card.isBlocking) out.isBlocking = true;
     if (card.hasAttackedThisTurn) out.hasAttackedThisTurn = true;
     if (card.hasBlockedThisTurn) out.hasBlockedThisTurn = true;
+    if (card.dealtDamageToOpponentThisTurn) {
+        out.dealtDamageToOpponentThisTurn = true;
+    }
+    if (card.startedTurnUntapped) out.startedTurnUntapped = true;
     if (card.chosenModeId) out.chosenModeId = card.chosenModeId;
     if (card.manaCommitted) out.manaCommitted = true;
     if (card.damageMarked) out.damageMarked = card.damageMarked;
@@ -220,6 +224,10 @@ function expandCard(
     if (compact.isBlocking) result.isBlocking = true;
     if (compact.hasAttackedThisTurn) result.hasAttackedThisTurn = true;
     if (compact.hasBlockedThisTurn) result.hasBlockedThisTurn = true;
+    if (compact.dealtDamageToOpponentThisTurn) {
+        result.dealtDamageToOpponentThisTurn = true;
+    }
+    if (compact.startedTurnUntapped) result.startedTurnUntapped = true;
     if (compact.manaCommitted) result.manaCommitted = true;
     if (compact.damageMarked) {
         result.damageMarked = compact.damageMarked as number;

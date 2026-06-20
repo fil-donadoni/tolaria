@@ -21,6 +21,7 @@
 
 import type { Phase } from "../../../gre/types";
 import type {
+    GameEvent,
     PermanentView,
     PhaseBeginEvent,
     SpellContext,
@@ -74,11 +75,21 @@ export interface PhaseTriggerArgs {
      *  `host-controller`, the enchanted permanent's current controller, read
      *  at resolve time so control changes between trigger and resolve are
      *  honored). */
-    resolve: (
+    resolve?: (
         ctx: SpellContext,
         event: PhaseBeginEvent,
         scopedPlayerId: string
     ) => void;
+    /** Multi-step resolution (CR 608.2). Use INSTEAD of `resolve` when the
+     *  trigger commits an irreversible action (a counter add, a draw) BEFORE a
+     *  later `requestMayPay` / `requestChoice` that can suspend: a single
+     *  `resolve` re-runs the whole body on resume, double-applying the earlier
+     *  action (Primordial Ooze's "+1/+1 counter, then you may pay {X}"). The
+     *  engine checkpoints `resolutionStep` so completed steps never re-run. Each
+     *  step receives `ctx` plus the resolved `scopedPlayerId`; read the typed
+     *  event off `ctx` is not needed — steps that ignore the event take only the
+     *  two args. Use `resolve` XOR `resolveSteps`. */
+    resolveSteps?: ((ctx: SpellContext, scopedPlayerId: string) => void)[];
 }
 
 export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
@@ -112,13 +123,55 @@ export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
                   return args.interveningIf!(event, self, state);
               }
             : undefined,
-        resolve: (ctx, event) => {
-            if (event.type !== "PHASE_BEGIN") return;
-            const scoped = resolveScopeAtResolve(args.scope, event, ctx);
-            if (scoped === null) return;
-            args.resolve(ctx, event, scoped);
-        },
+        // CR 608.2 — when the card supplies `resolveSteps`, wrap each step with
+        // scope resolution and let the engine checkpoint between steps so a
+        // suspension never re-runs a completed step. Otherwise use the single
+        // `resolve` body.
+        ...(args.resolveSteps
+            ? {
+                  resolveSteps: args.resolveSteps.map((step) => (ctx) => {
+                      // The PhaseBeginEvent isn't re-threaded into steps (the
+                      // engine drives `resolveSteps` with only `ctx`); the scope
+                      // is re-derived from the live context exactly as the single
+                      // `resolve` path does.
+                      const scoped = resolveScopeFromCtx(args.scope, ctx);
+                      if (scoped === null) return;
+                      step(ctx, scoped);
+                  }),
+              }
+            : {
+                  resolve: (ctx: SpellContext, event: GameEvent) => {
+                      if (event.type !== "PHASE_BEGIN") return;
+                      const scoped = resolveScopeAtResolve(
+                          args.scope,
+                          event,
+                          ctx
+                      );
+                      if (scoped === null) return;
+                      args.resolve?.(ctx, event, scoped);
+                  },
+              }),
     };
+}
+
+/** Scope resolution for the `resolveSteps` path, where the firing
+ *  `PhaseBeginEvent` is not re-threaded by the engine. `your` / `host-
+ *  controller` derive from the live context; `each` / `opponents` map to the
+ *  active player, which at an upkeep step is the trigger's controller — every
+ *  current `resolveSteps` consumer is a `your`-scoped upkeep trigger. */
+function resolveScopeFromCtx(
+    scope: TriggerScope,
+    ctx: SpellContext
+): string | null {
+    if (scope === "your") return ctx.controller;
+    if (scope === "host-controller") {
+        const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+        if (!hostId) return null;
+        return ctx.getController({ type: "permanent", id: hostId });
+    }
+    // each / opponents — at the source's own step the active player is the
+    // controller; resolveSteps consumers today are all `your`-scoped.
+    return ctx.controller;
 }
 
 /** Resolve-time scope resolution. Mirrors `resolvePhaseScope` but reads the

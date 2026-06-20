@@ -843,6 +843,10 @@ export interface SpellContext {
      *  loop — used by Lich's LTB-trigger which fires as a triggered ability
      *  (CR 603) and so is not itself a replaceable lose-game event. */
     loseGame: (playerId: string) => void;
+    /** Ends the game in a draw (CR 104.4a — Divine Intervention's "the game is
+     *  a draw"). Sets `state.gameOver` with `isDraw: true`; there is no winner
+     *  and no loser. No-op if the game is already over. */
+    drawGame: () => void;
     /** Cumulative non-combat / combat damage dealt to `playerId` this turn
      *  (CR 120.3 tally). Read by Simulacrum ("equal to the damage dealt to
      *  you this turn"). Resets at turn start. */
@@ -975,6 +979,16 @@ export interface SpellContext {
         target: TargetSelection,
         ability: string,
         duration: DurationSpec
+    ) => void;
+    /** Grants a keyword ability to `target` PERMANENTLY (CR 611.2c) — no
+     *  duration, no aura link. The grant persists for as long as the permanent
+     *  stays on the battlefield and is independent of any source still being in
+     *  play. Used by Cocoon's hatch ("that creature gains flying" after the
+     *  Aura is sacrificed). No-op if the target has left play or already has the
+     *  keyword. */
+    grantStaticAbilityPermanent: (
+        target: TargetSelection,
+        ability: string
     ) => void;
     /** Removes every keyword static ability matching `predicate` from a
      *  permanent for a limited duration (CR 611.1b layer 6). Each removed
@@ -1508,6 +1522,15 @@ export interface PermanentView {
     /** True if the creature was declared as a blocker this turn. Mirrors
      *  `hasAttackedThisTurn` for end-of-combat triggers like Clockwork Beast. */
     hasBlockedThisTurn?: boolean;
+    /** True if this permanent has dealt damage to an opponent (a player other
+     *  than its controller) this turn (CR 120.3). Read by end-step triggers
+     *  like Whirling Dervish's "if this creature dealt damage to an opponent
+     *  this turn". Cleared at CLEANUP. */
+    dealtDamageToOpponentThisTurn?: boolean;
+    /** True if this permanent was untapped when its controller's untap step
+     *  began this turn (CR 502.1). Read by upkeep triggers phrased "if ~
+     *  started the turn untapped" (Rasputin Dreamweaver). */
+    startedTurnUntapped?: boolean;
     /** True while the creature still has summoning sickness (CR 302.6) — it
      *  entered the battlefield or came under its current controller's control
      *  since their most recent turn began, and is cleared at that controller's

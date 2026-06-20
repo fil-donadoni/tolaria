@@ -58,6 +58,7 @@ export type GameEndReason =
     | "life"
     | "decked"
     | "concede"
+    | "draw"
     | "stall"
     | "max-plies"
     | "resolution-error"
@@ -317,9 +318,11 @@ export function runHeadlessGame(
     }
 
     const over = state.gameOver;
+    // CR 104.4a — a drawn game has neither winner nor loser (empty strings on
+    // `gameOver`); normalize those to null so the result reads as no-winner.
     return {
-        winnerId: over?.winnerId ?? null,
-        loserId: over?.loserId ?? null,
+        winnerId: over?.winnerId ? over.winnerId : null,
+        loserId: over?.loserId ? over.loserId : null,
         reason,
         turns: state.turn,
         plies,

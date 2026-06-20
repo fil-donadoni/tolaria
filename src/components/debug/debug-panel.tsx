@@ -4417,6 +4417,102 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         libraryCount: 12,
         turn: 2,
     },
+    {
+        // C5 (#384) — Divine Intervention counter-driven game draw (CR 104.4a).
+        // Loaded at "me"'s UPKEEP with one intervention counter left:
+        //   • Pass to let the upkeep trigger remove the last counter.
+        //   • The game ends in a DRAW (Game Over dialog reads "Draw" / "The game
+        //     is a draw") — no winner, no loser.
+        label: "LEG Divine Intervention: last counter removed at upkeep → the game is a draw (CR 104.4a)",
+        cards: [
+            {
+                name: "Divine Intervention",
+                owner: "me" as const,
+                counters: { intervention: 1 },
+            },
+        ],
+        phase: "UPKEEP",
+        landCount: 2,
+    },
+    {
+        // C5 (#384) — Rasputin Dreamweaver dream counters (CR 122 / 122.6).
+        // Loaded UNTAPPED at "me"'s UPKEEP with 4 of its 7 dream counters left:
+        //   • Right-click Rasputin → "Remove a dream counter: Add {C}" or the
+        //     prevent-1-damage mode; each drops the dream count by one.
+        //   • Pass through to the next upkeep: because Rasputin started the turn
+        //     untapped, it regains one dream counter (capped at seven).
+        label: "LEG Rasputin Dreamweaver: spend dream counters ({C} / prevent), regrow one each upkeep (cap 7)",
+        cards: [
+            {
+                name: "Rasputin Dreamweaver",
+                owner: "me" as const,
+                counters: { dream: 4 },
+            },
+        ],
+        phase: "UPKEEP",
+        landCount: 2,
+    },
+    {
+        // C5 (#384) — Primordial Ooze upkeep grow-or-pay (CR 122 / 117.3a).
+        // Loaded at "me"'s UPKEEP carrying two +1/+1 counters:
+        //   • Pass to fire the upkeep trigger: it grows a third +1/+1 counter,
+        //     then asks to pay {3} (X = its +1/+1 count). Decline → it taps and
+        //     deals 3 damage to you; pay → it stays untapped.
+        label: "LEG Primordial Ooze: upkeep +1/+1 then pay {X} or tap + X damage to you",
+        cards: [
+            {
+                name: "Primordial Ooze",
+                owner: "me" as const,
+                counters: { "+1/+1": 2 },
+            },
+        ],
+        phase: "UPKEEP",
+        landCount: 4,
+    },
+    {
+        // C5 (#384) — Whirling Dervish end-step growth (CR 120.3 / 122.1).
+        // Dervish is mid-combat ready: attack the opponent so it deals damage,
+        // then at the end step it puts a +1/+1 counter on itself (it grows only
+        // on turns it dealt damage to an opponent). Protection from black means
+        // black removal can't target it.
+        label: "LEG Whirling Dervish: attack, then end-step +1/+1 if it hit an opponent (protection from black)",
+        cards: [
+            { name: "Whirling Dervish", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
+        // C5 (#384) — Spirit Shackle / Venarian Gold / Cocoon counter Auras
+        // (CR 122 / 502.1). Cast each from hand onto a creature:
+        //   • Spirit Shackle on a creature: every time that creature becomes
+        //     tapped it gains a -0/-2 counter (toughness erodes; check via the
+        //     card's counter badges).
+        //   • Venarian Gold (pay {X}) taps the host and stuns it with X sleep
+        //     counters — it won't untap until they tick off one per upkeep.
+        //   • Cocoon on your own creature: three pupa counters; remove one each
+        //     upkeep and, when none remain, it hatches into a +1/+1 counter and
+        //     flying on the host.
+        label: "LEG counter Auras: Spirit Shackle (-0/-2 on tap), Venarian Gold (sleep), Cocoon (pupa → hatch)",
+        cards: [
+            {
+                name: "Spirit Shackle",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Venarian Gold",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Cocoon", owner: "me" as const, zone: "hand" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Hill Giant", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
 ];
 
 type DebugPanelProps = {

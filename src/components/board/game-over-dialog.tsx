@@ -30,13 +30,15 @@ export default function GameOverDialog({
     const winner = allPlayers.find((p) => p.id === gameOver.winnerId);
     const loser = allPlayers.find((p) => p.id === gameOver.loserId);
 
+    const isDraw = gameOver.isDraw === true || gameOver.reason === "draw";
     const loserName = loser?.name ?? "?";
-    const reasonText =
-        gameOver.reason === "life"
-            ? `${loserName} ran out of life`
-            : gameOver.reason === "decked"
-              ? `${loserName} tried to draw from an empty library`
-              : `${loserName} conceded`;
+    const reasonText = isDraw
+        ? "The game is a draw"
+        : gameOver.reason === "life"
+          ? `${loserName} ran out of life`
+          : gameOver.reason === "decked"
+            ? `${loserName} tried to draw from an empty library`
+            : `${loserName} conceded`;
 
     const handleLeave = () => {
         localStorage.removeItem("tolaria:gameId");
@@ -54,7 +56,7 @@ export default function GameOverDialog({
             <div className="flex flex-col items-center text-center gap-2 mt-1">
                 <p className="text-zinc-400 text-sm">{reasonText}</p>
                 <span className="text-2xl sm:text-3xl font-bold text-amber-400 font-beleren tracking-wide">
-                    {winner?.name ?? "?"} wins!
+                    {isDraw ? "Draw" : `${winner?.name ?? "?"} wins!`}
                 </span>
                 <button
                     type="button"
