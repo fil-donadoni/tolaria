@@ -370,6 +370,103 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // DRK Black free tranche (#413) — Curse Artifact + Inquisition + Word of
+        // Binding + Ashes to Ashes.
+        //   • Curse Artifact enchants the opponent's Ornithopter; at their
+        //     upkeep they sacrifice it or take 2.
+        //   • Inquisition: target the opponent → they reveal their hand and take
+        //     damage equal to the white cards in it (Savannah Lions = 1).
+        //   • Word of Binding: tap X target creatures (choose X).
+        //   • Ashes to Ashes: exile two nonartifact creatures, 5 to you.
+        label: "DRK Black: Curse Artifact / Inquisition / Word of Binding / Ashes (#413)",
+        cards: [
+            {
+                name: "Curse Artifact",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Inquisition",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Word of Binding",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Ashes to Ashes",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Ornithopter", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const, count: 2 },
+            {
+                name: "Savannah Lions",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 5 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // DRK Black free tranche (#413) — Season of the Witch + Uncle Istvan +
+        // Bog Rats + Murk Dwellers.
+        //   • Season of the Witch: at your upkeep pay 2 life or sacrifice it; at
+        //     each end step it destroys untapped creatures that didn't attack
+        //     (except defenders / summoning-sick). Attack with some creatures and
+        //     advance to the end step to watch the idlers die.
+        //   • Uncle Istvan (1/3) prevents all damage from creatures — block with
+        //     it and it survives any creature.
+        //   • Bog Rats can't be blocked by the Wall of Wood.
+        //   • Murk Dwellers gets +2/+0 when it attacks unblocked.
+        label: "DRK Black: Season of the Witch / Uncle Istvan / Bog Rats / Murk Dwellers (#413)",
+        cards: [
+            { name: "Season of the Witch", owner: "me" as const },
+            { name: "Uncle Istvan", owner: "me" as const },
+            { name: "Bog Rats", owner: "me" as const },
+            { name: "Murk Dwellers", owner: "me" as const },
+            { name: "Wall of Wood", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Swamp", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // DRK Black free tranche (#413) — graveyard + life-driven cards:
+        // Nameless Race + The Fallen + Eater of the Dead + Grave Robbers + Banshee.
+        //   • Nameless Race: as it enters, pay any amount of life (capped by the
+        //     opponent's white permanents + white cards in their graveyard); its
+        //     P/T equals the life paid.
+        //   • Eater of the Dead: {0} while tapped exiles a creature card from a
+        //     graveyard and untaps itself.
+        //   • Grave Robbers: {B},{T} exiles an artifact card from a graveyard,
+        //     gain 2 life.
+        //   • Banshee: {X},{T} deals half X to any target and half X to you.
+        //   • The Fallen: once it damages the opponent, each upkeep it pings them
+        //     for 1.
+        label: "DRK Black: Nameless Race / Eater of the Dead / Grave Robbers / Banshee (#413)",
+        cards: [
+            {
+                name: "Nameless Race",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Eater of the Dead", owner: "me" as const },
+            { name: "Grave Robbers", owner: "me" as const },
+            { name: "Banshee", owner: "me" as const },
+            { name: "The Fallen", owner: "me" as const },
+            { name: "Savannah Lions", owner: "opp" as const, count: 2 },
+            { name: "Swamp", owner: "me" as const, count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Auto-tap partial coverage (issue #321). Pure-mana sources alone can't
         // cover the cost, but a manual sacrifice source (Black Lotus) is also
         // present:
