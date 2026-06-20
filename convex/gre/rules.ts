@@ -603,6 +603,14 @@ export function getLegalTargets(
                 ) {
                     continue;
                 }
+                // CR 702: negative keyword filter for "target creature without
+                // flying" (Flood). Mirror of requireAbility.
+                if (
+                    requirement.excludeAbility &&
+                    card.staticAbilities.includes(requirement.excludeAbility)
+                ) {
+                    continue;
+                }
                 // "target creature other than ~" — exclude specific instances
                 // (Sorceress Queen injects its own id via getTargetRequirement).
                 if (requirement.excludeInstanceIds?.includes(card.id)) continue;

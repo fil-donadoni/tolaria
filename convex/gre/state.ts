@@ -3540,6 +3540,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             return src?.card.chosenPlayerId;
         },
 
+        getChosenModeId(): string | undefined {
+            const src = findOnBattlefield(
+                state,
+                item.triggerSourceId ?? item.id
+            );
+            return src?.card.chosenModeId;
+        },
+
         hasRemovedKeyword(permanentId: string, keyword: string): boolean {
             const found = findOnBattlefield(state, permanentId);
             return (
@@ -4433,6 +4441,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         },
         getArtifactDamageDealtThisTurn(playerId: string): number {
             return state.artifactDamageToPlayerThisTurn?.[playerId] ?? 0;
+        },
+        getMarkedDamage(target): number {
+            if (target.type !== "permanent") return 0;
+            const found = findOnBattlefield(state, target.id);
+            return found?.card.damageMarked ?? 0;
         },
         // CR 111 / 707.1: token creation. The token enters as a brand-new
         // permanent under `controllerId`, owner = controller (CR 111.2 — token

@@ -15,7 +15,16 @@
 //
 // Generic mana is encoded as `X: n` (e.g. {2}{R} → { X: 2, R: 1 }).
 
-import type { CardDefinition, SpellContext } from "../types";
+import type {
+    CardDefinition,
+    Color,
+    ManaCost,
+    SpellContext,
+    TriggeredAbility,
+} from "../types";
+import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
+import { stateTrigger } from "../abilities/triggers/stateTrigger";
+import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vanilla creatures (CR 302 — Creature cards with no rules text are pure data:
@@ -450,6 +459,667 @@ export const fireAndBrimstone: CardDefinition = {
     },
 };
 
+// ═════════════════════════════════════════════════════════════════════════════
+// BLUE free tranche (#412) — 13 of the 15 DRK Blue cards. Two (Leviathan, Tangle
+// Kelp) need an unbuilt engine capability and are deferred in the footer below.
+// Modern Scryfall oracle text (ADR 0004); stats validated against DRK.json.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Shared upkeep "do X unless you pay [mana]" maintenance trigger (CR 603.6a +
+ *  CR 117.3a). Mirrors lea.ts's `makeUpkeepPayOrElse` (the Stasis / Phantasmal
+ *  Forces helper) so Sunken City and Psychic Allergy don't repeat the body. On
+ *  the controller's upkeep the controller MAY pay `cost`; declining (or being
+ *  unable to pay) runs `onDecline`. */
+function upkeepPayOrElse(args: {
+    id: string;
+    oracleText: string;
+    cost: ManaCost;
+    prompt: string;
+    onDecline: (ctx: SpellContext) => void;
+}): TriggeredAbility {
+    return phaseTrigger({
+        id: args.id,
+        oracleText: args.oracleText,
+        phase: "UPKEEP",
+        scope: "your",
+        resolve: (ctx) => {
+            const accept = ctx.requestMayPay({
+                playerId: ctx.controller,
+                choiceId: ctx.controller,
+                cost: args.cost,
+                prompt: args.prompt,
+            });
+            if (accept === undefined) return; // suspended for the choice
+            if (!accept) args.onDecline(ctx);
+        },
+    });
+}
+
+/** "When you control no Islands, sacrifice ~" state trigger (CR 603.8) — the
+ *  Dandân / Island Fish Jasconius clause, reused by Giant Shark. */
+function sacrificeWhenNoIslands(
+    id: string,
+    cardName: string
+): TriggeredAbility {
+    return stateTrigger({
+        id,
+        oracleText: `When you control no Islands, sacrifice ${cardName}.`,
+        condition: (self, state) => {
+            const controller = state.players.find(
+                (p) => p.id === self.controllerId
+            );
+            return !controller?.battlefield.some((c) =>
+                c.subtypes.includes("Island")
+            );
+        },
+        resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+    });
+}
+
+// Amnesia — "Target player reveals their hand and discards all nonland cards."
+// (CR 701.8 discard + CR 701.x reveal.) Reveals the whole hand to all players,
+// then discards every card whose printed types contain no Land type. Lands are
+// kept; everything else (instants, sorceries, creatures, artifacts,
+// enchantments) is discarded.
+export const amnesia: CardDefinition = {
+    id: "fb8a5b56-7c2e-4d3a-9c41-2d80d1f4a8e1",
+    name: "Amnesia",
+    oracleText:
+        "Target player reveals their hand and discards all nonland cards.",
+    manaCost: { X: 3, U: 3 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const [target] = ctx.targets;
+        if (target?.type !== "player") return;
+        const playerId = target.id;
+        // CR 701.x — the whole hand is revealed to all players first.
+        ctx.revealHand(playerId);
+        // CR 701.8 — discard every nonland card (a card is "land" iff its
+        // printed types include a Land type; CR 305).
+        const handCards = ctx.getHandCards(playerId);
+        for (const c of handCards) {
+            if (!c.types.includes("Land")) ctx.discardCard(playerId, c.id);
+        }
+    },
+};
+
+// Apprentice Wizard — "{U}, {T}: Add {C}{C}{C}." (CR 605.1a mana ability —
+// resolves immediately, no stack, CR 605.3a.) Pays one blue to filter into
+// three colorless.
+export const apprenticeWizard: CardDefinition = {
+    id: "c0a8d6f2-1e4b-4f7a-8b3c-9d2e5a7c1f60",
+    name: "Apprentice Wizard",
+    oracleText: "{U}, {T}: Add {C}{C}{C}.",
+    manaCost: { X: 1, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 0,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "apprentice-wizard-mana",
+            oracleText: "{U}, {T}: Add {C}{C}{C}.",
+            cost: { tap: true, mana: { U: 1 } },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ C: 3 }),
+            manaProduced: { C: 3 },
+        },
+    ],
+};
+
+// Erosion — Aura enchant land. "At the beginning of the upkeep of enchanted
+// land's controller, destroy that land unless that player pays {1} or 1 life."
+// (CR 603.6a upkeep trigger scoped to the HOST's controller + CR 117.3a do-X-
+// unless-you-pay with a choice of {1} OR 1 life — CR 118.4 life payment.) The
+// "pay {1} or 1 life" alternatives are offered as two sequential may-pay
+// prompts: mana first, then (if declined) 1 life; declining both destroys the
+// land.
+export const erosion: CardDefinition = {
+    id: "a1d7f3e5-2c9b-4e6a-8f1d-3b5c7e9a2d40",
+    name: "Erosion",
+    oracleText:
+        "Enchant land\nAt the beginning of the upkeep of enchanted land's controller, destroy that land unless that player pays {1} or 1 life.",
+    manaCost: { U: 3 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1 },
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "erosion-upkeep-tax",
+            oracleText:
+                "At the beginning of the upkeep of enchanted land's controller, destroy that land unless that player pays {1} or 1 life.",
+            phase: "UPKEEP",
+            // Scoped to the enchanted land's controller (CR 603.10 — read at
+            // resolve); the factory resolves `host-controller` to the host's
+            // current controller.
+            scope: "host-controller",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const hostId = ctx.getAttachedToId();
+                if (hostId === undefined) return; // host gone — nothing to tax
+                // CR 117.3a — first offer to pay {1}.
+                const paidMana = ctx.requestMayPay({
+                    playerId: scopedPlayerId,
+                    choiceId: `erosion-mana-${ctx.sourceInstanceId}`,
+                    cost: { X: 1 },
+                    prompt: "Pay {1} to keep the enchanted land?",
+                });
+                if (paidMana === undefined) return; // suspended
+                if (paidMana) return;
+                // Declined the mana — offer 1 life instead (CR 118.4).
+                if (ctx.getLife(scopedPlayerId) >= 1) {
+                    const paidLife = ctx.requestMayPay({
+                        playerId: scopedPlayerId,
+                        choiceId: `erosion-life-${ctx.sourceInstanceId}`,
+                        prompt: "Pay 1 life to keep the enchanted land?",
+                    });
+                    if (paidLife === undefined) return; // suspended
+                    if (paidLife) {
+                        ctx.loseLife(scopedPlayerId, 1);
+                        return;
+                    }
+                }
+                ctx.destroy({ type: "permanent", id: hostId });
+            },
+        }),
+    ],
+};
+
+// Flood — "{U}{U}: Tap target creature without flying." (CR 605 activated
+// ability; CR 701.20a tap; CR 702.9 the "without flying" filter excludes
+// flyers from legal targets via `excludeAbility`.)
+export const flood: CardDefinition = {
+    id: "d4b8a1c6-3f7e-4a9d-8c2b-1e6f5a3d7b90",
+    name: "Flood",
+    oracleText: "{U}{U}: Tap target creature without flying.",
+    manaCost: { U: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "flood-tap",
+            oracleText: "{U}{U}: Tap target creature without flying.",
+            cost: { mana: { U: 2 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                excludeAbility: "flying",
+            },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (target?.type === "permanent") ctx.tap(target);
+            },
+        },
+    ],
+};
+
+// Ghost Ship — "Flying\n{U}{U}{U}: Regenerate this creature." (CR 702.9 flying;
+// CR 605 activated ability; CR 701.15a regenerate via a shield consumed by the
+// next destroy.)
+export const ghostShip: CardDefinition = {
+    id: "e7c2f5a8-4b9d-4e1a-9f3c-2d8b6a1e5c70",
+    name: "Ghost Ship",
+    oracleText: "Flying\n{U}{U}{U}: Regenerate this creature.",
+    manaCost: { X: 2, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Spirit"],
+    power: 2,
+    toughness: 4,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "ghost-ship-regenerate",
+            oracleText: "{U}{U}{U}: Regenerate this creature.",
+            cost: { mana: { U: 3 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.applyRegenerationShield({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
+
+// Giant Shark — "This creature can't attack unless defending player controls an
+// Island.\nWhenever this creature blocks or becomes blocked by a creature that
+// has been dealt damage this turn, this creature gets +2/+0 and gains trample
+// until end of turn.\nWhen you control no Islands, sacrifice this creature."
+// (CR 508.1c attack restriction; CR 509.1h combat-pairing trigger gated on the
+// opponent creature's marked damage — `getMarkedDamage` > 0 means it has been
+// dealt damage this turn (CR 120.3, cleared at CLEANUP); CR 603.8 state-trigger
+// sacrifice.)
+export const giantShark: CardDefinition = {
+    id: "f0a3c6e9-5d1b-4f8a-8e2c-3a7b9d1f6e80",
+    name: "Giant Shark",
+    oracleText:
+        "This creature can't attack unless defending player controls an Island.\nWhenever this creature blocks or becomes blocked by a creature that has been dealt damage this turn, this creature gets +2/+0 and gains trample until end of turn.\nWhen you control no Islands, sacrifice this creature.",
+    manaCost: { X: 5, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Shark"],
+    power: 4,
+    toughness: 4,
+    staticEffects: [
+        {
+            kind: "attack-restriction",
+            id: "giant-shark-island-restriction",
+            oracleText:
+                "This creature can't attack unless defending player controls an Island.",
+            predicate: (_self, defenderBattlefield) =>
+                defenderBattlefield.some((c) => c.subtypes.includes("Island")),
+        },
+    ],
+    triggeredAbilities: [
+        {
+            id: "giant-shark-combat-pump",
+            oracleText:
+                "Whenever this creature blocks or becomes blocked by a creature that has been dealt damage this turn, this creature gets +2/+0 and gains trample until end of turn.",
+            event: "BLOCKERS_CONFIRMED",
+            matches: (event, self) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return false;
+                return (
+                    event.attackerId === self.id || event.blockerId === self.id
+                );
+            },
+            resolve: (ctx, event) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return;
+                const isSelfAttacker =
+                    event.attackerId === ctx.sourceInstanceId;
+                const opponentId = isSelfAttacker
+                    ? event.blockerId
+                    : event.attackerId;
+                // CR 120.3 — "has been dealt damage this turn": non-zero marked
+                // damage on the paired creature (damage persists until CLEANUP).
+                if (
+                    ctx.getMarkedDamage({
+                        type: "permanent",
+                        id: opponentId,
+                    }) <= 0
+                ) {
+                    return;
+                }
+                const self = {
+                    type: "permanent" as const,
+                    id: ctx.sourceInstanceId,
+                };
+                ctx.addTemporaryPTBuff(self, 2, 0, { phase: "end-of-turn" });
+                ctx.grantStaticAbility(self, "trample", {
+                    phase: "end-of-turn",
+                });
+            },
+        },
+        sacrificeWhenNoIslands("giant-shark-no-islands", "Giant Shark"),
+    ],
+};
+
+// Mana Vortex — "When you cast this spell, counter it unless you sacrifice a
+// land.\nAt the beginning of each player's upkeep, that player sacrifices a
+// land of their choice.\nWhen there are no lands on the battlefield, sacrifice
+// this enchantment." (CR 603.6e cast trigger that may counter the spell on the
+// stack; CR 603.6a each-player upkeep land sacrifice; CR 603.8 state-trigger
+// self-sacrifice.) The cast trigger uses `spellCastTrigger` scope "self".
+export const manaVortex: CardDefinition = {
+    id: "0b1c4d7e-6a2f-4b9c-8d3e-4f8a1b2c5d90",
+    name: "Mana Vortex",
+    oracleText:
+        "When you cast this spell, counter it unless you sacrifice a land.\nAt the beginning of each player's upkeep, that player sacrifices a land of their choice.\nWhen there are no lands on the battlefield, sacrifice this enchantment.",
+    manaCost: { X: 1, U: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        // CR 603.6e — "When you cast this spell, counter it unless you sacrifice
+        // a land." The trigger goes above the Mana Vortex spell on the stack;
+        // on resolution the controller may sacrifice a land to keep it,
+        // otherwise the still-on-stack spell is countered (CR 117.3a).
+        spellCastTrigger({
+            id: "mana-vortex-cast-counter",
+            oracleText:
+                "When you cast this spell, counter it unless you sacrifice a land.",
+            scope: "self",
+            resolve: (ctx, _event, spell) => {
+                const controller = ctx.controller;
+                const spellRef = {
+                    type: "spell" as const,
+                    id: spell.instanceId,
+                };
+                const lands = ctx.getBattlefieldIds(controller, {
+                    types: "Land",
+                });
+                // Can't afford the cost → the spell is countered (CR 117.3a).
+                if (lands.length === 0) {
+                    ctx.counter(spellRef);
+                    return;
+                }
+                const accept = ctx.requestMayPay({
+                    playerId: controller,
+                    choiceId: `mana-vortex-cast-${ctx.sourceInstanceId}`,
+                    prompt: "Sacrifice a land to keep Mana Vortex?",
+                });
+                if (accept === undefined) return; // suspended
+                if (!accept) {
+                    ctx.counter(spellRef);
+                    return;
+                }
+                const picked = ctx.requestChoice({
+                    playerId: controller,
+                    choiceId: `mana-vortex-cast-${ctx.sourceInstanceId}-land`,
+                    kind: "sacrifice-permanents",
+                    zone: "battlefield",
+                    filter: { types: "Land" },
+                    count: 1,
+                    prompt: "Sacrifice a land.",
+                });
+                if (picked === undefined) return; // suspended
+                if (picked.length < 1) {
+                    ctx.counter(spellRef);
+                    return;
+                }
+                for (const id of picked) ctx.sacrifice(id);
+            },
+        }),
+        // CR 603.6a — at each player's upkeep, the active player sacrifices a
+        // land of their choice.
+        phaseTrigger({
+            id: "mana-vortex-upkeep-sac",
+            oracleText:
+                "At the beginning of each player's upkeep, that player sacrifices a land of their choice.",
+            phase: "UPKEEP",
+            scope: "each",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const lands = ctx.getBattlefieldIds(scopedPlayerId, {
+                    types: "Land",
+                });
+                if (lands.length === 0) return; // nothing to sacrifice
+                const picked = ctx.requestChoice({
+                    playerId: scopedPlayerId,
+                    choiceId: `mana-vortex-${ctx.sourceInstanceId}-${scopedPlayerId}`,
+                    kind: "sacrifice-permanents",
+                    zone: "battlefield",
+                    zoneOwnerId: scopedPlayerId,
+                    filter: { types: "Land" },
+                    count: 1,
+                    prompt: "Mana Vortex: sacrifice a land.",
+                });
+                if (picked === undefined) return; // suspended
+                for (const id of picked) ctx.sacrifice(id);
+            },
+        }),
+        // CR 603.8 — when no lands remain on the battlefield, sacrifice Mana
+        // Vortex.
+        stateTrigger({
+            id: "mana-vortex-no-lands",
+            oracleText:
+                "When there are no lands on the battlefield, sacrifice this enchantment.",
+            condition: (_self, state) =>
+                !state.players.some((p) =>
+                    p.battlefield.some((c) => c.types.includes("Land"))
+                ),
+            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+        }),
+    ],
+};
+
+// Merfolk Assassin — "{T}: Destroy target creature with islandwalk." (CR 605
+// activated ability; CR 701.7 destroy; `requireAbility: "islandwalk"` scopes
+// legal targets to islandwalkers, CR 702.)
+export const merfolkAssassin: CardDefinition = {
+    id: "1c2d5e8f-7b3a-4c0d-9e4f-5a9b2c3d6e00",
+    name: "Merfolk Assassin",
+    oracleText: "{T}: Destroy target creature with islandwalk.",
+    manaCost: { U: 2 },
+    types: ["Creature"],
+    subtypes: ["Merfolk", "Assassin"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "merfolk-assassin-destroy",
+            oracleText: "{T}: Destroy target creature with islandwalk.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                requireAbility: "islandwalk",
+            },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (target?.type === "permanent") ctx.destroy(target);
+            },
+        },
+    ],
+};
+
+// Mind Bomb — "Each player may discard up to three cards. Mind Bomb deals
+// damage to each player equal to 3 minus the number of cards they discarded
+// this way." (CR 701.8 optional discard per player + CR 119 damage.) Each
+// player independently chooses 0–3 cards to discard; the damage is 3 minus the
+// count they discarded. APNAP order via `allPlayerIds`.
+export const mindBomb: CardDefinition = {
+    id: "2d3e6f90-8c4b-4d1e-8f5a-6b0c3d4e7f10",
+    name: "Mind Bomb",
+    oracleText:
+        "Each player may discard up to three cards. Mind Bomb deals damage to each player equal to 3 minus the number of cards they discarded this way.",
+    manaCost: { U: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        for (const pid of ctx.allPlayerIds) {
+            const handSize = ctx.getHandSize(pid);
+            const max = Math.min(3, handSize);
+            let discarded = 0;
+            if (max > 0) {
+                const picks = ctx.requestChoice({
+                    playerId: pid,
+                    choiceId: `mind-bomb-${ctx.sourceInstanceId}-${pid}`,
+                    kind: "discard-hand",
+                    zone: "hand",
+                    count: { min: 0, max },
+                    prompt: "Mind Bomb: discard up to three cards.",
+                });
+                if (picks === undefined) return; // suspended for this player
+                for (const id of picks) ctx.discardCard(pid, id);
+                discarded = picks.length;
+            }
+            const damage = 3 - discarded;
+            if (damage > 0) ctx.dealDamage({ type: "player", id: pid }, damage);
+        }
+    },
+};
+
+const PSYCHIC_ALLERGY_COLOR_NAMES: Record<string, string> = {
+    W: "white",
+    U: "blue",
+    B: "black",
+    R: "red",
+    G: "green",
+};
+const PSYCHIC_ALLERGY_COLORS = ["W", "U", "B", "R", "G"] as const;
+
+// Psychic Allergy — "As this enchantment enters, choose a color.\nAt the
+// beginning of each opponent's upkeep, this enchantment deals X damage to that
+// player, where X is the number of nontoken permanents of the chosen color they
+// control.\nAt the beginning of your upkeep, destroy this enchantment unless you
+// sacrifice two Islands." (CR 700.2c modal colour pick stored as `chosenModeId`;
+// CR 603.6a opponents'-upkeep damage trigger; CR 603.6a + CR 117.3a own-upkeep
+// destroy-unless-sacrifice-two-Islands.)
+export const psychicAllergy: CardDefinition = {
+    id: "3e4f7091-9d5c-4e2f-9061-7c1d4e5f8021",
+    name: "Psychic Allergy",
+    oracleText:
+        "As this enchantment enters, choose a color.\nAt the beginning of each opponent's upkeep, this enchantment deals X damage to that player, where X is the number of nontoken permanents of the chosen color they control.\nAt the beginning of your upkeep, destroy this enchantment unless you sacrifice two Islands.",
+    manaCost: { X: 3, U: 2 },
+    types: ["Enchantment"],
+    // CR 700.2 — the colour is chosen as the enchantment enters (modal pick).
+    modes: PSYCHIC_ALLERGY_COLORS.map((color) => ({
+        id: color,
+        label: PSYCHIC_ALLERGY_COLOR_NAMES[color],
+        oracleText: `Deals damage equal to the number of nontoken ${PSYCHIC_ALLERGY_COLOR_NAMES[color]} permanents each opponent controls at their upkeep.`,
+    })),
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "psychic-allergy-opponent-upkeep",
+            oracleText:
+                "At the beginning of each opponent's upkeep, this enchantment deals X damage to that player, where X is the number of nontoken permanents of the chosen color they control.",
+            phase: "UPKEEP",
+            scope: "opponents",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const color = ctx.getChosenModeId();
+                if (!color) return;
+                const ids = ctx.getBattlefieldIds(scopedPlayerId, {
+                    colors: color as Color,
+                    isToken: false,
+                });
+                if (ids.length > 0) {
+                    ctx.dealDamage(
+                        { type: "player", id: scopedPlayerId },
+                        ids.length
+                    );
+                }
+            },
+        }),
+        // CR 603.6a + CR 117.3a — the "pay" is an alternate cost (sacrifice two
+        // Islands), not mana, so this composes `requestMayPay` (the yes/no gate)
+        // with a `sacrifice-permanents` choice (the Mold Demon shape) rather
+        // than `upkeepPayOrElse`.
+        phaseTrigger({
+            id: "psychic-allergy-own-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, destroy this enchantment unless you sacrifice two Islands.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                const controller = ctx.controller;
+                const islandIds = ctx.getBattlefieldIds(controller, {
+                    subtypes: "Island",
+                });
+                const self = {
+                    type: "permanent" as const,
+                    id: ctx.sourceInstanceId,
+                };
+                // Can't afford → the only legal outcome is to destroy Psychic
+                // Allergy (CR 117.3a — an unpayable "unless" forces the
+                // consequence). No prompt with no real choice.
+                if (islandIds.length < 2) {
+                    ctx.destroy(self);
+                    return;
+                }
+                const accept = ctx.requestMayPay({
+                    playerId: controller,
+                    choiceId: `psychic-allergy-${ctx.sourceInstanceId}`,
+                    prompt: "Sacrifice two Islands to keep Psychic Allergy?",
+                });
+                if (accept === undefined) return; // suspended
+                if (!accept) {
+                    ctx.destroy(self);
+                    return;
+                }
+                const picked = ctx.requestChoice({
+                    playerId: controller,
+                    choiceId: `psychic-allergy-${ctx.sourceInstanceId}-islands`,
+                    kind: "sacrifice-permanents",
+                    zone: "battlefield",
+                    filter: { subtypes: "Island" },
+                    count: 2,
+                    prompt: "Sacrifice two Islands.",
+                });
+                if (picked === undefined) return; // suspended
+                if (picked.length < 2) {
+                    ctx.destroy(self);
+                    return;
+                }
+                for (const id of picked) ctx.sacrifice(id);
+            },
+        }),
+    ],
+};
+
+// Riptide — "Tap all blue creatures." (CR 701.20a — tap every blue creature on
+// the battlefield, either controller; CR 202.2 colour.)
+export const riptide: CardDefinition = {
+    id: "4f508192-0e6d-4f30-8172-8d2e5f607132",
+    name: "Riptide",
+    oracleText: "Tap all blue creatures.",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        for (const pid of ctx.allPlayerIds) {
+            for (const id of ctx.getBattlefieldIds(pid, {
+                types: "Creature",
+                colors: "U",
+            })) {
+                ctx.tap({ type: "permanent", id });
+            }
+        }
+    },
+};
+
+// Sunken City — "At the beginning of your upkeep, sacrifice this enchantment
+// unless you pay {U}{U}.\nBlue creatures get +1/+1." (CR 603.6a + CR 117.3a
+// upkeep maintenance cost; CR 611 layer 7c anthem filtered on blue, CR 202.2.)
+export const sunkenCity: CardDefinition = {
+    id: "5061829a-1f7e-4041-8263-9e3f60718243",
+    name: "Sunken City",
+    oracleText:
+        "At the beginning of your upkeep, sacrifice this enchantment unless you pay {U}{U}.\nBlue creatures get +1/+1.",
+    manaCost: { U: 2 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, _source, ctx) =>
+                ctx.isCreature(target) && ctx.getColors(target).includes("U"),
+            power: 1,
+            toughness: 1,
+        },
+    ],
+    triggeredAbilities: [
+        upkeepPayOrElse({
+            id: "sunken-city-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice this enchantment unless you pay {U}{U}.",
+            cost: { U: 2 },
+            prompt: "Pay {U}{U} or sacrifice Sunken City?",
+            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+        }),
+    ],
+};
+
+// Water Wurm — "This creature gets +0/+1 as long as an opponent controls an
+// Island." (CR 611 layer 7d conditional buff via a `pt-cda` whose `compute`
+// reads the board — the Kird Ape pattern.)
+export const waterWurm: CardDefinition = {
+    id: "61728ab1-2081-4152-8374-0f4071829354",
+    name: "Water Wurm",
+    oracleText:
+        "This creature gets +0/+1 as long as an opponent controls an Island.",
+    manaCost: { U: 1 },
+    types: ["Creature"],
+    subtypes: ["Wurm"],
+    power: 1,
+    toughness: 1,
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: (target, source) => target.id === source.id,
+            compute: (source, state) => {
+                const opponentHasIsland = state.players.some((p) =>
+                    p.battlefield.some(
+                        (c) =>
+                            c.controllerId !== source.controllerId &&
+                            c.subtypes.includes("Island")
+                    )
+                );
+                // CR 613.4 layer 7a: `pt-cda` contributes a DELTA on top of the
+                // printed 1/1 base (effective = base + Σ pt-cda). The +0/+1 is
+                // applied only while an opponent controls an Island.
+                return opponentHasIsland
+                    ? { power: 0, toughness: 1 }
+                    : { power: 0, toughness: 0 };
+            },
+        },
+    ],
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Deferred — these four DRK White cards each need a genuinely new engine
 // capability that the free tranche does NOT ship. They are intentionally NOT
@@ -477,4 +1147,35 @@ export const fireAndBrimstone: CardDefinition = {
 //     pays 1 life." Needs a per-land loop offering EVERY player (APNAP) the
 //     option to PAY LIFE to save it. `requestMayPay` pays mana for a single
 //     player; there is no life-payment option primitive and no any-player loop.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Deferred — two DRK BLUE cards (#412) each need an unbuilt engine capability
+// that the free tranche does NOT ship. Intentionally NOT registered (no exported
+// CardDefinition) to keep the pool honest; flagged in the PR. TODO(#412):
+//
+//   • Leviathan (Creature) — "Trample\nThis creature enters tapped and doesn't
+//     untap during your untap step.\nAt the beginning of your upkeep, you may
+//     sacrifice two Islands. If you do, untap this creature.\nThis creature
+//     can't attack unless you sacrifice two Islands. (This cost is paid as
+//     attackers are declared.)" Every clause but the last is free-tranche
+//     (entersTapped + `does-not-untap` keyword + may-pay-to-untap upkeep
+//     trigger — the Island Fish Jasconius template). The last clause is an
+//     ATTACK COST: sacrificing two Islands as a cost paid WHEN attackers are
+//     declared. `attack-restriction` is a pure board predicate (no cost
+//     payment), and `validateAttackerEligibility` has no cost-payment plumbing
+//     at declaration. Shipping Leviathan without an enforced attack cost would
+//     be a free attacker — defer the whole card until the attack-cost primitive
+//     lands.
+//
+//   • Tangle Kelp (Aura) — "Enchant creature\nWhen this Aura enters, tap
+//     enchanted creature.\nEnchanted creature doesn't untap during its
+//     controller's untap step if it attacked during its controller's last
+//     turn." The ETB tap is free-tranche, but the untap-prevention is
+//     CONDITIONAL on "attacked during its controller's LAST turn" — a
+//     cross-turn attack history that the engine does not persist
+//     (`hasAttackedThisTurn` is cleared at every CLEANUP) — AND it must be a
+//     conditional, host-scoped untap restriction re-evaluated each untap step
+//     (the `does-not-untap` keyword is unconditional; `keyword-grant` applies
+//     once at attach, not per-step). Both are unbuilt; defer the whole card.
 // ─────────────────────────────────────────────────────────────────────────────

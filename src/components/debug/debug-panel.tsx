@@ -301,6 +301,75 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // DRK Blue free tranche (#412) — Sunken City: blue anthem + upkeep
+        // maintenance. The Air Elemental (4/4) shows 5/5 under "Blue creatures
+        // get +1/+1". Pass to your upkeep: a "Pay {U}{U} or sacrifice Sunken
+        // City?" prompt appears — decline to sacrifice it (anthem drops), or
+        // pay with the two Islands to keep it.
+        label: "DRK Blue: Sunken City — blue anthem + upkeep {U}{U}-or-sac (#412)",
+        cards: [
+            { name: "Sunken City", owner: "me" as const },
+            { name: "Air Elemental", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // DRK Blue free tranche (#412) — Mana Vortex: each player's upkeep land
+        // sacrifice. With Mana Vortex in play, pass to an upkeep: the active
+        // player must "sacrifice a land of their choice". Keep sacrificing
+        // across upkeeps until no lands remain → Mana Vortex sacrifices itself.
+        label: "DRK Blue: Mana Vortex — each-upkeep land sacrifice (#412)",
+        cards: [
+            { name: "Mana Vortex", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 2 },
+            { name: "Island", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // DRK Blue free tranche (#412) — Psychic Allergy: ETB choose-a-color,
+        // opponent-upkeep damage, own-upkeep destroy-unless-sac-two-Islands.
+        // Cast Psychic Allergy from hand and choose blue; the opponent controls
+        // two blue Air Elementals, so at their upkeep they take 2 damage. At
+        // your upkeep, decline to sacrifice two Islands → it's destroyed.
+        label: "DRK Blue: Psychic Allergy — choose a color, ping at opp upkeep (#412)",
+        cards: [
+            {
+                name: "Psychic Allergy",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Air Elemental", owner: "opp" as const, count: 2 },
+            { name: "Island", owner: "me" as const, count: 5 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // DRK Blue free tranche (#412) — Giant Shark + Merfolk Assassin + Flood.
+        //   • Giant Shark (4/4) can't attack unless the defender controls an
+        //     Island; sacrifices itself with no Islands of your own.
+        //   • Merfolk Assassin: {T} destroys the opponent's islandwalker
+        //     (Segovian Leviathan) — only islandwalkers are clickable.
+        //   • Flood: {U}{U} taps the opponent's non-flyer (the flyer is not a
+        //     legal target).
+        label: "DRK Blue: Merfolk Assassin / Flood / Giant Shark (#412)",
+        cards: [
+            { name: "Merfolk Assassin", owner: "me" as const },
+            { name: "Flood", owner: "me" as const },
+            { name: "Giant Shark", owner: "me" as const },
+            { name: "Segovian Leviathan", owner: "opp" as const },
+            { name: "Serra Angel", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Island", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Auto-tap partial coverage (issue #321). Pure-mana sources alone can't
         // cover the cost, but a manual sacrifice source (Black Lotus) is also
         // present:

@@ -166,6 +166,11 @@ export interface TargetRequirement {
      *  include this keyword (CR 702). Used by Island of Wak-Wak ("target
      *  creature with flying"). Ignored for player / spell targets. */
     requireAbility?: string;
+    /** Excludes legal permanent targets whose `staticAbilities` include this
+     *  keyword (CR 702 — the negative of `requireAbility`). Used by Flood
+     *  ("tap target creature without flying"). Ignored for player / spell
+     *  targets. */
+    excludeAbility?: string;
     /** Excludes specific permanent instance ids. Used for "target creature
      *  other than ~" via a dynamic `getTargetRequirement` that injects the
      *  source's own id (Sorceress Queen). */
@@ -523,6 +528,11 @@ export interface SpellContext {
      *  `setChosenPlayer`). Undefined if no choice was stored or the source has
      *  left the battlefield. */
     getChosenPlayer: () => string | undefined;
+    /** Reads the mode chosen as the source permanent entered (CR 700.2c modal
+     *  pick stored on the instance as `chosenModeId`). Undefined if no mode was
+     *  chosen or the source has left the battlefield. Used by Psychic Allergy's
+     *  upkeep trigger to read the colour chosen as it entered. */
+    getChosenModeId: () => string | undefined;
     /** True if the given permanent currently has a keyword removal record
      *  for `keyword` (set by a keyword-remove static effect). */
     hasRemovedKeyword: (permanentId: string, keyword: string) => boolean;
@@ -866,6 +876,13 @@ export interface SpellContext {
      *  ("twice the damage dealt to you so far this turn by artifacts").
      *  Resets at turn start. */
     getArtifactDamageDealtThisTurn: (playerId: string) => number;
+    /** Damage currently marked on a permanent (CR 120.3). Damage accumulates
+     *  on a creature until CLEANUP (CR 514.2), so a non-zero value at any point
+     *  during the turn means the creature "has been dealt damage this turn".
+     *  Returns 0 if the permanent is not on the battlefield or carries no
+     *  marked damage. Read by Giant Shark's combat pump ("becomes blocked by a
+     *  creature that has been dealt damage this turn"). */
+    getMarkedDamage: (target: TargetSelection) => number;
     /** Creates `count` token permanents (CR 111, 707.1) on `controllerId`'s
      *  battlefield from a structural spec. Tokens enter the battlefield
      *  tapped/sick rules normally — they're brand-new permanents (CR 111.5

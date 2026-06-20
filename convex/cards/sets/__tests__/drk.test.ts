@@ -26,6 +26,19 @@ import {
     morale,
     martyrsCry,
     fireAndBrimstone,
+    amnesia,
+    apprenticeWizard,
+    erosion,
+    flood,
+    ghostShip,
+    giantShark,
+    manaVortex,
+    merfolkAssassin,
+    mindBomb,
+    psychicAllergy,
+    riptide,
+    sunkenCity,
+    waterWurm,
 } from "../drk";
 import { getCardById, getCardByName, getAllCards } from "../../index";
 import {
@@ -37,6 +50,8 @@ import {
 import { checkStateBasedActions } from "../../../gre/sba";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { getLegalTargets } from "../../../gre/rules";
+import { collectTriggers } from "../../../gre/triggers";
+import { applyMayPaySubmit } from "../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../gameProjections";
 import {
     makeInstance,
@@ -44,6 +59,33 @@ import {
     makeState,
     pushSpell,
 } from "../../__tests__/setup";
+
+/** Push a triggered ability onto the stack with the firing event, then resolve. */
+function resolveTrigger(
+    state: GameState,
+    source: CardInstanceState,
+    triggeredAbilityId: string,
+    triggerEvent: StackItem["triggerEvent"],
+    targets: StackItem["targets"] = []
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        triggeredAbilityId,
+        triggerSourceId: source.id,
+        triggerEvent,
+        targets,
+    });
+    resolveTopOfStack(state);
+}
+
+const UPKEEP = (playerId: string): StackItem["triggerEvent"] =>
+    ({
+        type: "PHASE_BEGIN" as const,
+        phase: "UPKEEP" as const,
+        activePlayerId: playerId,
+    }) as StackItem["triggerEvent"];
 
 // --- helpers (mirror arn.test.ts) ------------------------------------------
 
@@ -716,6 +758,639 @@ describe("Fire and Brimstone — 4 to a player who attacked + 4 to you (CR 506.2
     });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// BLUE free tranche (#412)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("Amnesia — reveal hand, discard all nonland cards (CR 701.8)", () => {
+    it("discards nonland cards and keeps lands", () => {
+        const islandId = getCardByName("Island").id;
+        const bolt = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "spell",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const land = makeInstance(islandId, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [bolt, land] }),
+            ],
+        });
+        pushSpell(state, amnesia.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        // Nonland discarded, land kept.
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["land"]);
+        expect(state.players[1].graveyard.some((c) => c.id === "spell")).toBe(
+            true
+        );
+    });
+});
+
+describe("Apprentice Wizard — {U},{T}: add {C}{C}{C} (CR 605.1a mana ability)", () => {
+    it("declares a non-stack mana ability producing three colorless", () => {
+        const ab = apprenticeWizard.activatedAbilities![0];
+        expect(ab.useStack).toBe(false);
+        expect(ab.cost).toEqual({ tap: true, mana: { U: 1 } });
+        expect(ab.manaProduced).toEqual({ C: 3 });
+        expect(apprenticeWizard.power).toBe(0);
+        expect(apprenticeWizard.toughness).toBe(1);
+    });
+});
+
+describe("Erosion — upkeep destroy enchanted land unless pay {1} or 1 life (CR 603.6a / 117.3a)", () => {
+    function setup() {
+        const land = makeInstance(getCardByName("Island").id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const aura = makeInstance(erosion.id, {
+            id: "erosion",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "land",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [aura] }),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        return { state, aura };
+    }
+
+    it("fires at the enchanted land's controller upkeep (host-controller scope)", () => {
+        const { state } = setup();
+        const fires = (p: string) =>
+            collectTriggers(state, [UPKEEP(p) as never]).some(
+                (t) => t.triggeredAbilityId === "erosion-upkeep-tax"
+            );
+        expect(fires("p2")).toBe(true); // land controller's upkeep
+        expect(fires("p1")).toBe(false); // not the aura controller's
+    });
+
+    it("declining both payments destroys the enchanted land", () => {
+        const { state, aura } = setup();
+        resolveTrigger(state, aura, "erosion-upkeep-tax", UPKEEP("p2"));
+        // Decline {1}, then decline 1 life → land destroyed.
+        answerChoice(state, ["decline"]);
+        answerChoice(state, ["decline"]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "land")
+        ).toBeUndefined();
+    });
+
+    it("paying 1 life keeps the land (CR 118.4)", () => {
+        const { state, aura } = setup();
+        resolveTrigger(state, aura, "erosion-upkeep-tax", UPKEEP("p2"));
+        answerChoice(state, ["decline"]); // decline {1}
+        answerChoice(state, ["yes"]); // pay 1 life
+        expect(state.players[1].battlefield.some((c) => c.id === "land")).toBe(
+            true
+        );
+        expect(state.players[1].life).toBe(19);
+    });
+});
+
+describe("Flood — {U}{U}: tap target creature without flying (CR 701.20a / 702.9)", () => {
+    it("only non-flyers are legal targets (excludeAbility)", () => {
+        const ground = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "ground",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const flyer = makeInstance(getCardByName("Serra Angel").id, {
+            id: "flyer",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [ground, flyer] }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            flood.activatedAbilities![0].targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(legal).toContain("ground");
+        expect(legal).not.toContain("flyer");
+    });
+
+    it("taps the targeted non-flyer", () => {
+        const fl = makeInstance(flood.id, { id: "flood", controllerId: "p1" });
+        const ground = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "ground",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [fl] }),
+                makePlayer("p2", { battlefield: [ground] }),
+            ],
+        });
+        resolveActivated(state, fl, "flood-tap", [
+            { type: "permanent", id: "ground" },
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "ground")
+                ?.isTapped
+        ).toBe(true);
+    });
+});
+
+describe("Ghost Ship — flying + regenerate (CR 702.9 / 701.15a)", () => {
+    it("carries flying and a regenerate activated ability", () => {
+        expect(ghostShip.staticAbilities).toContain("flying");
+        expect(ghostShip.power).toBe(2);
+        expect(ghostShip.toughness).toBe(4);
+        const ab = ghostShip.activatedAbilities![0];
+        expect(ab.cost).toEqual({ mana: { U: 3 } });
+    });
+
+    it("the regenerate ability stacks a shield consumed by the next destroy", () => {
+        const gs = makeInstance(ghostShip.id, {
+            id: "gs",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gs] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, gs, "ghost-ship-regenerate", []);
+        const inPlay = state.players[0].battlefield.find((c) => c.id === "gs")!;
+        expect(inPlay.regenerationShields ?? 0).toBeGreaterThan(0);
+    });
+});
+
+describe("Giant Shark — attack restriction, combat pump, sacrifice-on-no-Islands", () => {
+    it("can't attack unless the defending player controls an Island (CR 508.1c)", () => {
+        const restriction = giantShark.staticEffects!.find(
+            (e) => e.kind === "attack-restriction"
+        );
+        if (restriction?.kind !== "attack-restriction") {
+            throw new Error("missing attack-restriction");
+        }
+        const withIsland = [{ subtypes: ["Island"] }] as never;
+        const noIsland = [{ subtypes: ["Forest"] }] as never;
+        expect(restriction.predicate({} as never, withIsland)).toBe(true);
+        expect(restriction.predicate({} as never, noIsland)).toBe(false);
+    });
+
+    it("pumps +2/+0 only when the paired creature has marked damage (CR 120.3)", () => {
+        const shark = makeInstance(giantShark.id, {
+            id: "shark",
+            controllerId: "p1",
+        });
+        const blocker = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "blocker",
+            controllerId: "p2",
+            ownerId: "p2",
+            damageMarked: 1, // already dealt damage this turn
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shark] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+        });
+        const basePower = getEffectivePower(state, shark);
+        const event = {
+            type: "BLOCKERS_CONFIRMED" as const,
+            attackerId: "shark",
+            attackerControllerId: "p1",
+            attackerTypes: ["Creature"],
+            attackerSubtypes: ["Shark"],
+            blockerId: "blocker",
+            blockerControllerId: "p2",
+            blockerTypes: ["Creature"],
+            blockerSubtypes: ["Bear"],
+        } as StackItem["triggerEvent"];
+        resolveTrigger(state, shark, "giant-shark-combat-pump", event);
+        const pumped = state.players[0].battlefield.find(
+            (c) => c.id === "shark"
+        )!;
+        expect(getEffectivePower(state, pumped)).toBe(basePower + 2);
+        expect(pumped.staticAbilities).toContain("trample");
+    });
+
+    it("does NOT pump when the paired creature has no marked damage", () => {
+        const shark = makeInstance(giantShark.id, {
+            id: "shark",
+            controllerId: "p1",
+        });
+        const blocker = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "blocker",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shark] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+        });
+        const basePower = getEffectivePower(state, shark);
+        const event = {
+            type: "BLOCKERS_CONFIRMED" as const,
+            attackerId: "shark",
+            attackerControllerId: "p1",
+            attackerTypes: ["Creature"],
+            attackerSubtypes: ["Shark"],
+            blockerId: "blocker",
+            blockerControllerId: "p2",
+            blockerTypes: ["Creature"],
+            blockerSubtypes: ["Bear"],
+        } as StackItem["triggerEvent"];
+        resolveTrigger(state, shark, "giant-shark-combat-pump", event);
+        expect(getEffectivePower(state, shark)).toBe(basePower);
+    });
+
+    it("sacrifices itself when its controller controls no Islands (CR 603.8)", () => {
+        const shark = makeInstance(giantShark.id, {
+            id: "shark",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shark] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, shark, "giant-shark-no-islands", {
+            type: "STATE_CHECK",
+        } as StackItem["triggerEvent"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "shark")
+        ).toBeUndefined();
+    });
+});
+
+describe("Mana Vortex — cast-counter, each-upkeep land sac, no-lands self-sac", () => {
+    it("counters itself on cast if the controller can't sacrifice a land", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        // Mana Vortex spell on the stack, plus its cast trigger above it.
+        const spell = pushSpell(state, manaVortex.id, "p1");
+        const source = makeInstance(manaVortex.id, {
+            id: spell.id,
+            controllerId: "p1",
+        });
+        resolveTrigger(state, source, "mana-vortex-cast-counter", {
+            type: "SPELL_CAST",
+            spellInstanceId: spell.id,
+            casterId: "p1",
+        } as StackItem["triggerEvent"]);
+        // No land to sacrifice → the spell is countered (no permanent enters).
+        expect(state.players[0].battlefield).toHaveLength(0);
+    });
+
+    it("each player sacrifices a land at their upkeep (CR 603.6a)", () => {
+        const vortex = makeInstance(manaVortex.id, {
+            id: "vortex",
+            controllerId: "p1",
+        });
+        const land = makeInstance(getCardByName("Island").id, {
+            id: "p2-land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [vortex] }),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        resolveTrigger(state, vortex, "mana-vortex-upkeep-sac", UPKEEP("p2"));
+        answerChoice(state, ["p2-land"]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "p2-land")
+        ).toBeUndefined();
+    });
+
+    it("sacrifices itself when no lands remain (CR 603.8)", () => {
+        const vortex = makeInstance(manaVortex.id, {
+            id: "vortex",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [vortex] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, vortex, "mana-vortex-no-lands", {
+            type: "STATE_CHECK",
+        } as StackItem["triggerEvent"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "vortex")
+        ).toBeUndefined();
+    });
+});
+
+describe("Merfolk Assassin — destroy target creature with islandwalk (CR 605 / 701.7)", () => {
+    it("only islandwalkers are legal targets", () => {
+        const walker = makeInstance(getCardByName("Segovian Leviathan").id, {
+            id: "walker",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const plain = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "plain",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [walker, plain] }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            merfolkAssassin.activatedAbilities![0].targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(legal).toContain("walker");
+        expect(legal).not.toContain("plain");
+    });
+
+    it("destroys the targeted islandwalker", () => {
+        const ma = makeInstance(merfolkAssassin.id, {
+            id: "ma",
+            controllerId: "p1",
+        });
+        const walker = makeInstance(getCardByName("Segovian Leviathan").id, {
+            id: "walker",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ma] }),
+                makePlayer("p2", { battlefield: [walker] }),
+            ],
+        });
+        resolveActivated(state, ma, "merfolk-assassin-destroy", [
+            { type: "permanent", id: "walker" },
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "walker")
+        ).toBeUndefined();
+    });
+});
+
+describe("Mind Bomb — each player may discard up to 3, damage = 3 − discarded (CR 701.8 / 119)", () => {
+    it("a player who discards nothing takes 3 damage", () => {
+        // Empty hands → no discard prompt → each player takes the full 3.
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, mindBomb.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(17);
+        expect(state.players[1].life).toBe(17);
+    });
+
+    it("discarding reduces the damage (3 − discarded)", () => {
+        const c1 = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "c1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const c2 = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "c2",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [c1, c2] }), makePlayer("p2")],
+        });
+        pushSpell(state, mindBomb.id, "p1");
+        resolveTopOfStack(state); // suspends at p1's discard choice
+        answerChoice(state, ["c1", "c2"]); // p1 discards 2 → takes 1
+        expect(state.players[0].life).toBe(19); // 20 - (3 - 2)
+        expect(state.players[1].life).toBe(17); // p2 discarded 0 → takes 3
+    });
+});
+
+describe("Psychic Allergy — choose color, damage per nontoken permanent, upkeep sac-2-Islands", () => {
+    it("deals damage equal to the chosen color's nontoken permanents at each opponent's upkeep", () => {
+        const allergy = makeInstance(psychicAllergy.id, {
+            id: "allergy",
+            controllerId: "p1",
+            ownerId: "p1",
+            chosenModeId: "U", // chose blue
+        });
+        const blueA = makeInstance(getCardByName("Air Elemental").id, {
+            id: "blueA",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const blueB = makeInstance(getCardByName("Air Elemental").id, {
+            id: "blueB",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [allergy] }),
+                makePlayer("p2", { battlefield: [blueA, blueB] }),
+            ],
+        });
+        resolveTrigger(
+            state,
+            allergy,
+            "psychic-allergy-opponent-upkeep",
+            UPKEEP("p2")
+        );
+        // 2 blue nontoken permanents → 2 damage to p2.
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("destroys itself at the controller's upkeep when no Islands to sacrifice (CR 117.3a)", () => {
+        const allergy = makeInstance(psychicAllergy.id, {
+            id: "allergy",
+            controllerId: "p1",
+            ownerId: "p1",
+            chosenModeId: "U",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [allergy] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(
+            state,
+            allergy,
+            "psychic-allergy-own-upkeep",
+            UPKEEP("p1")
+        );
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "allergy")
+        ).toBeUndefined();
+    });
+});
+
+describe("Riptide — tap all blue creatures (CR 701.20a / 202.2)", () => {
+    it("taps blue creatures of either controller, spares nonblue", () => {
+        const blue1 = makeInstance(getCardByName("Air Elemental").id, {
+            id: "blue1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blue2 = makeInstance(getCardByName("Air Elemental").id, {
+            id: "blue2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const white = makeInstance(getCardByName("Savannah Lions").id, {
+            id: "white",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [blue1] }),
+                makePlayer("p2", { battlefield: [blue2, white] }),
+            ],
+        });
+        pushSpell(state, riptide.id, "p1");
+        resolveTopOfStack(state);
+        const tapped = (id: string) =>
+            [
+                ...state.players[0].battlefield,
+                ...state.players[1].battlefield,
+            ].find((c) => c.id === id)?.isTapped === true;
+        expect(tapped("blue1")).toBe(true);
+        expect(tapped("blue2")).toBe(true);
+        expect(tapped("white")).toBe(false);
+    });
+});
+
+describe("Sunken City — blue anthem + upkeep maintenance (CR 611 / 603.6a)", () => {
+    function setup() {
+        const city = makeInstance(sunkenCity.id, {
+            id: "city",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blue = makeInstance(getCardByName("Air Elemental").id, {
+            id: "blue",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [city, blue] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, city, blue };
+    }
+
+    it("blue creatures get +1/+1 (anthem) and survives the wire projection", () => {
+        const { state, blue } = setup();
+        // Air Elemental base 4/4 → 5/5 with the anthem.
+        expect(getEffectivePower(state, blue)).toBe(5);
+        expect(getEffectiveToughness(state, blue)).toBe(5);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "blue"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(5);
+        expect(getEffectiveToughness(projected, slim)).toBe(5);
+    });
+
+    it("sacrifices itself at upkeep when {U}{U} is declined (CR 117.3a)", () => {
+        const { state, city } = setup();
+        resolveTrigger(state, city, "sunken-city-upkeep", UPKEEP("p1"));
+        answerChoice(state, ["decline"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "city")
+        ).toBeUndefined();
+    });
+
+    it("paying {U}{U} keeps it (backend may-pay path)", () => {
+        const { state, city } = setup();
+        state.players[0].manaPool = { U: 2 };
+        state.stack.push(
+            ...collectTriggers(state, [UPKEEP("p1") as never]).filter(
+                (t) => t.triggeredAbilityId === "sunken-city-upkeep"
+            )
+        );
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends at may-pay
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.players[0].battlefield.some((c) => c.id === "city")).toBe(
+            true
+        );
+        void city;
+    });
+});
+
+describe("Water Wurm — +0/+1 while an opponent controls an Island (CR 613.4 layer 7a CDA)", () => {
+    function setup(opponentHasIsland: boolean) {
+        const wurm = makeInstance(waterWurm.id, {
+            id: "wurm",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p2bf = opponentHasIsland
+            ? [
+                  makeInstance(getCardByName("Island").id, {
+                      id: "isl",
+                      controllerId: "p2",
+                      ownerId: "p2",
+                  }),
+              ]
+            : [];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wurm] }),
+                makePlayer("p2", { battlefield: p2bf }),
+            ],
+        });
+        return { state, wurm };
+    }
+
+    it("is 1/1 with no opposing Island, 1/2 when an opponent controls one", () => {
+        const off = setup(false);
+        expect(getEffectivePower(off.state, off.wurm)).toBe(1);
+        expect(getEffectiveToughness(off.state, off.wurm)).toBe(1);
+        const on = setup(true);
+        expect(getEffectivePower(on.state, on.wurm)).toBe(1);
+        expect(getEffectiveToughness(on.state, on.wurm)).toBe(2);
+    });
+
+    it("the conditional CDA survives the wire projection (mandatory)", () => {
+        const { state } = setup(true);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "wurm"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(1);
+        expect(getEffectiveToughness(projected, slim)).toBe(2);
+    });
+});
+
 // ---------------------------------------------------------------------------
 // Deferred cards are intentionally NOT exported / registered. Guard that the
 // pool stays honest (no half-card leaks until their mechanic ships).
@@ -724,6 +1399,13 @@ describe("Fire and Brimstone — 4 to a player who attacked + 4 to you (CR 506.2
 describe("DRK deferred cards (not yet in pool)", () => {
     it.each(["Brainwash", "Blood of the Martyr", "Festival", "Cleansing"])(
         "%s is not registered (its mechanic is deferred — see TODO(#411))",
+        (name) => {
+            expect(() => getCardByName(name)).toThrow();
+        }
+    );
+
+    it.each(["Leviathan", "Tangle Kelp"])(
+        "%s is not registered (its mechanic is deferred — see TODO(#412))",
         (name) => {
             expect(() => getCardByName(name)).toThrow();
         }
