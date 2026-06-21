@@ -589,6 +589,13 @@ export interface SpellContext {
      *  ("Tap target artifact. It doesn't untap ... for as long as this remains
      *  tapped"). */
     lockUntapWhileSourceTapped: (target: TargetSelection) => void;
+    /** One-shot untap-prevention: the target doesn't untap during its
+     *  controller's NEXT untap step, after which the effect clears itself
+     *  (CR 302.6 / 502.1). Distinct from `lockUntapWhileSourceTapped` (held
+     *  while a source stays tapped) and the `does-not-untap` keyword
+     *  (permanent). No-op if the target has left the battlefield. Used by
+     *  Barl's Cage. */
+    skipNextUntap: (target: TargetSelection) => void;
     /** Sets the target's base power and/or toughness to a fixed value until
      *  `duration` expires (CR 613.4b layer 7b, ADR 0017). Pass `undefined` for
      *  a characteristic to leave it untouched ("base power 0" sets power only).
@@ -937,6 +944,22 @@ export interface SpellContext {
         amount: number,
         duration: DurationSpec
     ) => void;
+    /** Registers a per-player damage-prevention shield with a source match and
+     *  a reduction mode (CR 615.1). `match.sourceInstanceId` scopes it to one
+     *  source; otherwise `match.sourceStaticAbility` scopes it to sources whose
+     *  damage carries that keyword (e.g. "flying"); an empty match is
+     *  unconditional. `mode` is "all" (prevent everything) or "half-down"
+     *  (prevent half, rounded down). `remaining` is the number of damage events
+     *  the shield absorbs before it is purged (default 1, one-shot). Unconsumed
+     *  shields wear off when `duration` expires. Used by Dark Sphere (half from
+     *  a chosen source, once) and Scarecrow (all flying-source damage this turn). */
+    addPlayerDamagePreventionShield: (
+        playerId: string,
+        match: { sourceInstanceId?: string; sourceStaticAbility?: string },
+        mode: "all" | "half-down",
+        duration: DurationSpec,
+        remaining?: number
+    ) => void;
     /** Pushes a transient damage replacement (CR 614) onto
      *  `state.damageRedirections`. Three kinds cover the LEA cards that
      *  produce one-shot redirections via spells / activated abilities:
@@ -1140,6 +1163,15 @@ export interface SpellContext {
      *  battlefield. Used by Tawnos's Wand ("target creature with power 2 or
      *  less can't be blocked this turn"). */
     setCantBeBlockedThisTurn: (target: TargetSelection) => void;
+    /** Marks a target permanent (an attacker) as unable to be blocked this turn
+     *  by creatures whose subtypes include `subtype` (CR 509.1b). Read on the
+     *  attacker side by combat block-validation; cleared at CLEANUP (CR 514.2).
+     *  No-op if target is not a permanent on the battlefield. Used by Tower of
+     *  Coireall ("target creature can't be blocked by Walls this turn"). */
+    setCantBeBlockedBySubtypeThisTurn: (
+        target: TargetSelection,
+        subtype: string
+    ) => void;
     /** Flips a coin (CR 705) using the game's seeded PRNG, so flips are
      *  replay-safe and reproducible given the seed. Returns true on "heads"
      *  (the flipping player wins the flip), false on "tails". Available where

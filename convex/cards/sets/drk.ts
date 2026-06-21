@@ -1731,6 +1731,626 @@ export const wordOfBinding: CardDefinition = {
     },
 };
 
+// ═════════════════════════════════════════════════════════════════════════════
+// Free tranche — Artifacts, Lands & colorless (#417). Every card here is data +
+// resolve()/effect() closures over existing SpellContext primitives. Four small,
+// orthogonal engine primitives were added for this batch (all reusable, none
+// card-shaped): `skipNextUntap` (Barl's Cage), `addPlayerDamagePreventionShield`
+// (Dark Sphere half-from-source + Scarecrow flying-source-all), and the
+// `manaAmount`-from-counters read (City of Shadows). Costs/types/subtypes/P/T
+// validated against MTGJSON data/json/DRK.json; modern Scryfall oracle text is
+// authoritative (ADR 0004). Two cards are deferred at the foot of this section
+// (Runesword, War Barge) — they need a "note a creature, destroy it if THIS
+// leaves the battlefield this turn" delayed-self-LTB mechanism the engine lacks.
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Barl's Cage — "{3}: Target creature doesn't untap during its controller's next
+// untap step." (CR 605 activated ability; CR 302.6 / 502.1 one-shot
+// untap-prevention via the new `skipNextUntap` flag, cleared after exactly one
+// untap step.)
+export const barlsCage: CardDefinition = {
+    id: "a1b2c3d4-0001-4aaa-9111-100000000001",
+    name: "Barl's Cage",
+    oracleText:
+        "{3}: Target creature doesn't untap during its controller's next untap step.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "barls-cage-lock",
+            oracleText:
+                "{3}: Target creature doesn't untap during its controller's next untap step.",
+            cost: { mana: { X: 3 } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") ctx.skipNextUntap(t);
+            },
+        },
+    ],
+};
+
+// Bone Flute — "{2}, {T}: All creatures get -1/-0 until end of turn." (CR 605
+// activated ability; CR 611.2 / 613 layer 7c temporary P/T mod on every
+// creature, scoped to end of turn. Mirrors Marsh Gas' all-creatures pump.)
+export const boneFlute: CardDefinition = {
+    id: "a1b2c3d4-0002-4aaa-9111-100000000002",
+    name: "Bone Flute",
+    oracleText: "{2}, {T}: All creatures get -1/-0 until end of turn.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "bone-flute-shrink",
+            oracleText: "{2}, {T}: All creatures get -1/-0 until end of turn.",
+            cost: { mana: { X: 2 }, tap: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                for (const pid of ctx.allPlayerIds) {
+                    for (const id of ctx.getBattlefieldIds(pid, {
+                        types: "Creature",
+                    })) {
+                        ctx.addTemporaryPTBuff(
+                            { type: "permanent", id },
+                            -1,
+                            0,
+                            { phase: "end-of-turn" }
+                        );
+                    }
+                }
+            },
+        },
+    ],
+};
+
+// Book of Rass — "{2}, Pay 2 life: Draw a card." (CR 605 activated ability;
+// CR 118.4 life payment as part of the cost; CR 121.1 draw. Same shape as
+// Greed.)
+export const bookOfRass: CardDefinition = {
+    id: "a1b2c3d4-0003-4aaa-9111-100000000003",
+    name: "Book of Rass",
+    oracleText: "{2}, Pay 2 life: Draw a card.",
+    manaCost: { X: 6 },
+    types: ["Artifact"],
+    subtypes: ["Book"],
+    activatedAbilities: [
+        {
+            id: "book-of-rass-draw",
+            oracleText: "{2}, Pay 2 life: Draw a card.",
+            cost: { mana: { X: 2 }, life: 2 },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.drawCards(ctx.controller, 1);
+            },
+        },
+    ],
+};
+
+// Dark Sphere — "{T}, Sacrifice this artifact: The next time a source of your
+// choice would deal damage to you this turn, prevent half that damage, rounded
+// down." (CR 605 activated ability; CR 615.1 one-shot, source-matched
+// prevent-half shield via the new `addPlayerDamagePreventionShield`. The "source
+// of your choice" is a permanent target — typically the attacker/burn source —
+// scoped to the activating player.)
+export const darkSphere: CardDefinition = {
+    id: "a1b2c3d4-0004-4aaa-9111-100000000004",
+    name: "Dark Sphere",
+    oracleText:
+        "{T}, Sacrifice this artifact: The next time a source of your choice would deal damage to you this turn, prevent half that damage, rounded down.",
+    manaCost: {},
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "dark-sphere-prevent-half",
+            oracleText:
+                "{T}, Sacrifice this artifact: The next time a source of your choice would deal damage to you this turn, prevent half that damage, rounded down.",
+            cost: { tap: true, sacrifice: true },
+            useStack: true,
+            // "A source of your choice" — any permanent (CR 609.7). The shield
+            // matches that source instance and prevents half its next hit to
+            // the activating player.
+            targetRequirement: {
+                type: "any",
+                count: 1,
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "permanent") return;
+                ctx.addPlayerDamagePreventionShield(
+                    ctx.controller,
+                    { sourceInstanceId: t.id },
+                    "half-down",
+                    { phase: "end-of-turn" },
+                    1
+                );
+            },
+        },
+    ],
+};
+
+// Diabolic Machine — "{3}: Regenerate this creature." (CR 702.9 n/a; CR 605
+// activated ability; CR 701.15a regenerate via a shield consumed by the next
+// destroy. Same shape as Clay Statue.)
+export const diabolicMachine: CardDefinition = {
+    id: "a1b2c3d4-0005-4aaa-9111-100000000005",
+    name: "Diabolic Machine",
+    oracleText: "{3}: Regenerate this creature.",
+    manaCost: { X: 7 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Construct"],
+    power: 4,
+    toughness: 4,
+    activatedAbilities: [
+        {
+            id: "diabolic-machine-regenerate",
+            oracleText: "{3}: Regenerate this creature.",
+            cost: { mana: { X: 3 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.applyRegenerationShield({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
+
+// Fountain of Youth — "{2}, {T}: You gain 1 life." (CR 605 activated ability;
+// CR 119.3 lifegain.)
+export const fountainOfYouth: CardDefinition = {
+    id: "a1b2c3d4-0006-4aaa-9111-100000000006",
+    name: "Fountain of Youth",
+    oracleText: "{2}, {T}: You gain 1 life.",
+    manaCost: {},
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "fountain-of-youth-gain",
+            oracleText: "{2}, {T}: You gain 1 life.",
+            cost: { mana: { X: 2 }, tap: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.gainLife(ctx.controller, 1);
+            },
+        },
+    ],
+};
+
+// Living Armor — "{T}, Sacrifice this artifact: Put X +0/+1 counters on target
+// creature, where X is that creature's mana value." (CR 605 activated ability;
+// CR 122.1 counters; CR 202.3 mana value of the targeted permanent. +0/+1 is a
+// layer-7d P/T-modifying counter.)
+export const livingArmor: CardDefinition = {
+    id: "a1b2c3d4-0007-4aaa-9111-100000000007",
+    name: "Living Armor",
+    oracleText:
+        "{T}, Sacrifice this artifact: Put X +0/+1 counters on target creature, where X is that creature's mana value.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "living-armor-counters",
+            oracleText:
+                "{T}, Sacrifice this artifact: Put X +0/+1 counters on target creature, where X is that creature's mana value.",
+            cost: { tap: true, sacrifice: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "permanent") return;
+                const x = ctx.getManaValue(t);
+                if (x > 0) ctx.addCounter(t, "+0/+1", x);
+            },
+        },
+    ],
+};
+
+// Necropolis — "Defender\nExile a creature card from your graveyard: Put X +0/+1
+// counters on this creature, where X is the exiled card's mana value." (CR 702.3
+// defender; CR 605 activated ability whose "exile a creature card from your
+// graveyard" is modeled here as a graveyard-card TARGET — a benign timing
+// simplification, flagged: the cost union has no graveyard-exile-as-cost field.
+// `getManaValue` returns 0 for graveyard cards, so X is read from
+// `getGraveyardCards`. CR 122.1 counters; +0/+1 is a layer-7d counter.)
+export const necropolis: CardDefinition = {
+    id: "a1b2c3d4-0008-4aaa-9111-100000000008",
+    name: "Necropolis",
+    oracleText:
+        "Defender (This creature can't attack.)\nExile a creature card from your graveyard: Put X +0/+1 counters on this creature, where X is the exiled card's mana value.",
+    manaCost: { X: 5 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 1,
+    staticAbilities: ["defender"],
+    activatedAbilities: [
+        {
+            id: "necropolis-counters",
+            oracleText:
+                "Exile a creature card from your graveyard: Put X +0/+1 counters on this creature, where X is the exiled card's mana value.",
+            cost: {},
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "graveyard-card" || !t.playerId) return;
+                const gc = ctx
+                    .getGraveyardCards(t.playerId)
+                    .find((c) => c.id === t.id);
+                const x = gc?.manaValue ?? 0;
+                ctx.moveCardById(t.playerId, t.id, "graveyard", "exile");
+                if (x > 0) {
+                    ctx.addCounter(
+                        { type: "permanent", id: ctx.sourceInstanceId },
+                        "+0/+1",
+                        x
+                    );
+                }
+            },
+        },
+    ],
+};
+
+// Scarecrow — "{6}, {T}: Prevent all damage that would be dealt to you this turn
+// by creatures with flying." (CR 605 activated ability; CR 615.1 per-player,
+// source-keyword-matched prevent-all shield via `addPlayerDamagePreventionShield`
+// matching the "flying" static ability, lasting the rest of the turn — high
+// `remaining` so it prevents every flyer's hit, not just the first.)
+export const scarecrow: CardDefinition = {
+    id: "a1b2c3d4-0009-4aaa-9111-100000000009",
+    name: "Scarecrow",
+    oracleText:
+        "{6}, {T}: Prevent all damage that would be dealt to you this turn by creatures with flying.",
+    manaCost: { X: 5 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Scarecrow"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "scarecrow-prevent-flying",
+            oracleText:
+                "{6}, {T}: Prevent all damage that would be dealt to you this turn by creatures with flying.",
+            cost: { mana: { X: 6 }, tap: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addPlayerDamagePreventionShield(
+                    ctx.controller,
+                    { sourceStaticAbility: "flying" },
+                    "all",
+                    { phase: "end-of-turn" },
+                    // Prevents every flying-source damage event this turn.
+                    999
+                );
+            },
+        },
+    ],
+};
+
+// Skull of Orm — "{5}, {T}: Return target enchantment card from your graveyard
+// to your hand." (CR 605 activated ability; CR 400.7 graveyard→hand zone move.
+// Same shape as Raise Dead, filtered to Enchantment cards in your graveyard.)
+export const skullOfOrm: CardDefinition = {
+    id: "a1b2c3d4-0010-4aaa-9111-100000000010",
+    name: "Skull of Orm",
+    oracleText:
+        "{5}, {T}: Return target enchantment card from your graveyard to your hand.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "skull-of-orm-return",
+            oracleText:
+                "{5}, {T}: Return target enchantment card from your graveyard to your hand.",
+            cost: { mana: { X: 5 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Enchantment",
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "graveyard-card" || !t.playerId) return;
+                ctx.moveCardById(t.playerId, t.id, "graveyard", "hand");
+            },
+        },
+    ],
+};
+
+// Standing Stones — "{1}, {T}, Pay 1 life: Add one mana of any color." (CR 605.1
+// mana ability — resolves immediately, useStack: false, CR 605.3a; CR 106.1 mana
+// of any color via `manaChoices`; CR 118.4 life payment as part of the cost.)
+export const standingStones: CardDefinition = {
+    id: "a1b2c3d4-0011-4aaa-9111-100000000011",
+    name: "Standing Stones",
+    oracleText: "{1}, {T}, Pay 1 life: Add one mana of any color.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "standing-stones-mana",
+            oracleText: "{1}, {T}, Pay 1 life: Add one mana of any color.",
+            cost: { mana: { X: 1 }, tap: true, life: 1 },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ W: 1 }),
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
+        },
+    ],
+};
+
+// Stone Calendar — "Spells you cast cost {1} less to cast." (CR 601.2f cost
+// reduction; CR 118.7 generic-only reduction. A `cost-modifier` static scoped to
+// the controller's own spells via `card.controllerId === effectSource.controllerId`.)
+export const stoneCalendar: CardDefinition = {
+    id: "a1b2c3d4-0012-4aaa-9111-100000000012",
+    name: "Stone Calendar",
+    oracleText: "Spells you cast cost {1} less to cast.",
+    manaCost: { X: 5 },
+    types: ["Artifact"],
+    staticEffects: [
+        {
+            kind: "cost-modifier",
+            // CR 601.2f — only the caster's own spells are reduced. The
+            // effectSource is Stone Calendar; the spell's controllerId is the
+            // caster.
+            appliesToSpell: (card, _ctx, effectSource) =>
+                !!effectSource &&
+                card.controllerId === effectSource.controllerId,
+            costReduction: { X: 1 },
+        },
+    ],
+};
+
+// Tormod's Crypt — "{T}, Sacrifice this artifact: Exile target player's
+// graveyard." (CR 605 activated ability; CR 406 / 400.7 — move the whole target
+// player's graveyard to exile via `moveZone`.)
+export const tormodsCrypt: CardDefinition = {
+    id: "a1b2c3d4-0013-4aaa-9111-100000000013",
+    name: "Tormod's Crypt",
+    oracleText:
+        "{T}, Sacrifice this artifact: Exile target player's graveyard.",
+    manaCost: {},
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "tormods-crypt-exile-graveyard",
+            oracleText:
+                "{T}, Sacrifice this artifact: Exile target player's graveyard.",
+            cost: { tap: true, sacrifice: true },
+            useStack: true,
+            targetRequirement: { type: "player", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "player") return;
+                ctx.moveZone(t.id, "graveyard", "exile");
+            },
+        },
+    ],
+};
+
+// Tower of Coireall — "{T}: Target creature can't be blocked by Walls this turn."
+// (CR 605 activated ability; CR 509.1b block restriction. The shipped
+// `cant-be-blocked-by-subtype` until-EOT marker — same family as Tawnos's Wand's
+// can't-be-blocked. Scoped to the Wall subtype.)
+export const towerOfCoireall: CardDefinition = {
+    id: "a1b2c3d4-0014-4aaa-9111-100000000014",
+    name: "Tower of Coireall",
+    oracleText: "{T}: Target creature can't be blocked by Walls this turn.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "tower-of-coireall-evasion",
+            oracleText:
+                "{T}: Target creature can't be blocked by Walls this turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") {
+                    ctx.setCantBeBlockedBySubtypeThisTurn(t, "Wall");
+                }
+            },
+        },
+    ],
+};
+
+// Wand of Ith — DEFERRED (TODO(#417)). "{3}, {T}: Target player reveals a card
+// at random from their hand. If it's a land card, that player discards it unless
+// they pay 1 life. If it isn't a land card, the player discards it unless they
+// pay life equal to its mana value. Activate only during your turn." Needs two
+// primitives the engine does not ship: (a) a "reveal a card chosen AT RANDOM
+// from a hand" pick using the seeded PRNG (the only random-from-hand surface is
+// the `discardAtRandom` COST, which discards rather than reveals and targets the
+// activating player's own hand), and (b) a may-PAY-LIFE prompt (`requestMayPay`
+// only offers a mana cost; there is no life-payment prompt — every shipped
+// "unless you pay N life" is a fixed-amount upkeep tax, not a per-card,
+// mana-value-scaled prompt during resolution). Both are general primitives, not
+// card-shaped; deferred until they land. NOT registered to keep the pool honest.
+
+// City of Shadows — "{T}, Exile a creature you control: Put a storage counter on
+// this land.\n{T}: Add {C} for each storage counter on this land." (CR 605
+// activated abilities. The first's "Exile a creature you control" is modeled as
+// a creature TARGET you control (benign timing simplification, flagged: the cost
+// union has no exile-a-permanent cost). The second is a mana ability whose
+// colorless output is computed from the source's storage counters via
+// `manaAmount`, CR 106.1 / 605.1a.)
+export const cityOfShadows: CardDefinition = {
+    id: "a1b2c3d4-0016-4aaa-9111-100000000016",
+    name: "City of Shadows",
+    oracleText:
+        "{T}, Exile a creature you control: Put a storage counter on this land.\n{T}: Add {C} for each storage counter on this land.",
+    manaCost: {},
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "city-of-shadows-store",
+            oracleText:
+                "{T}, Exile a creature you control: Put a storage counter on this land.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "permanent") return;
+                ctx.exile(t);
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "storage",
+                    1
+                );
+            },
+        },
+        {
+            id: "city-of-shadows-mana",
+            oracleText: "{T}: Add {C} for each storage counter on this land.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ C: 1 }),
+            manaProduced: { C: 1 },
+            // CR 106.1 — colorless equal to the number of storage counters,
+            // read off the source PermanentView's counters at activation.
+            manaAmount: (source) => ({
+                C: source.counters?.storage ?? 0,
+            }),
+        },
+    ],
+};
+
+// Maze of Ith — "{T}: Untap target attacking creature. Prevent all combat damage
+// that would be dealt to and dealt by that creature this turn." (CR 605 activated
+// ability; CR 701.20b untap; CR 615.1 / Ebony Horse-style
+// `preventAllCombatDamageToAndBy`. Untapping an attacker does NOT remove it from
+// combat, CR 506.4c — the prevention is what neutralizes it.)
+export const mazeOfIth: CardDefinition = {
+    id: "a1b2c3d4-0017-4aaa-9111-100000000017",
+    name: "Maze of Ith",
+    oracleText:
+        "{T}: Untap target attacking creature. Prevent all combat damage that would be dealt to and dealt by that creature this turn.",
+    manaCost: {},
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "maze-of-ith-neutralize",
+            oracleText:
+                "{T}: Untap target attacking creature. Prevent all combat damage that would be dealt to and dealt by that creature this turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatRoleFilter: "attacking",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "permanent") return;
+                ctx.untap(t);
+                ctx.preventAllCombatDamageToAndBy(t, { phase: "end-of-turn" });
+            },
+        },
+    ],
+};
+
+// Safe Haven — "{2}, {T}: Exile target creature you control.\nAt the beginning of
+// your upkeep, you may sacrifice this land. If you do, return each card exiled
+// with this land to the battlefield under its owner's control." (CR 605 activated
+// ability that exiles a creature you control with an exile-and-return bundle
+// keyed to the source via `exileForSource`; CR 603 upkeep trigger that, on
+// sacrifice, returns the bundled cards via `returnExiledForSource`.)
+export const safeHaven: CardDefinition = {
+    id: "a1b2c3d4-0018-4aaa-9111-100000000018",
+    name: "Safe Haven",
+    oracleText:
+        "{2}, {T}: Exile target creature you control.\nAt the beginning of your upkeep, you may sacrifice this land. If you do, return each card exiled with this land to the battlefield under its owner's control.",
+    manaCost: {},
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "safe-haven-exile",
+            oracleText: "{2}, {T}: Exile target creature you control.",
+            cost: { mana: { X: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "permanent") return;
+                // CR 603.7a / ADR 0028 — exile keyed to this land; returned by
+                // the upkeep trigger via `returnExiledForSource`. Safe Haven
+                // returns creatures untapped (no "tapped" clause).
+                ctx.exileWithAttachments(t.id, {
+                    sourceId: ctx.sourceInstanceId,
+                    returnTapped: false,
+                });
+            },
+        },
+    ],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "safe-haven-return",
+            oracleText:
+                "At the beginning of your upkeep, you may sacrifice this land. If you do, return each card exiled with this land to the battlefield under its owner's control.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                // CR 603.3 — "you may sacrifice"; on yes, sacrifice and return
+                // the bundled cards (CR 110.2 — under each owner's control).
+                const doIt = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: `safe-haven-${ctx.sourceInstanceId}`,
+                    prompt: "Sacrifice Safe Haven to return the exiled creatures?",
+                });
+                if (doIt === undefined) return; // suspended
+                if (!doIt) return;
+                ctx.returnExiledForSource(ctx.sourceInstanceId);
+                ctx.sacrifice(ctx.sourceInstanceId);
+            },
+        }),
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Deferred — two DRK artifacts (#417) each need a "note a creature, then destroy
+// it if THIS artifact leaves the battlefield this turn" delayed-self-LTB
+// mechanism the engine does not ship. `scheduleDelayedTrigger` only fires at
+// phase boundaries (end-step / end-of-combat / draw-step), not on a source's
+// PERMANENT_LEFT, and there is no serializable "noted target" field on an
+// instance a self `leftTrigger` could read. Both are intentionally NOT registered
+// to keep the pool honest; flagged in the PR. TODO(#417):
+//
+//   • Runesword — "{3}, {T}: Target attacking creature gets +2/+0 until end of
+//     turn. When that creature leaves the battlefield this turn, sacrifice this
+//     artifact. ..." Beyond the delayed-self-LTB, it also needs per-creature
+//     combat-damage-interaction tracking ("if the creature deals damage to a
+//     creature this turn, the creature dealt damage can't be regenerated"; "if a
+//     creature dealt damage by the targeted creature would die this turn, exile
+//     it instead") — there is no per-damage-pair tally surface.
+//
+//   • War Barge — "{3}: Target creature gains islandwalk until end of turn. When
+//     this artifact leaves the battlefield this turn, destroy that creature. A
+//     creature destroyed this way can't be regenerated." The islandwalk grant is
+//     free-tranche, but the "destroy the noted creature when THIS leaves the
+//     battlefield this turn" clause needs the same noted-target delayed-self-LTB
+//     primitive Runesword does. Defer the whole card until it lands.
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Deferred — these four DRK White cards each need a genuinely new engine
 // capability that the free tranche does NOT ship. They are intentionally NOT

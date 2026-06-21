@@ -217,6 +217,34 @@ describe("validateBlockerEligibility — flying (CR 702.9b)", () => {
     });
 });
 
+describe("validateBlockerEligibility — can't be blocked by subtype (Tower of Coireall, CR 509.1b)", () => {
+    it("rejects a Wall blocker when the attacker can't be blocked by Walls", () => {
+        const attacker = makeCard({
+            types: ["Creature"],
+            cantBeBlockedBySubtypesThisTurn: ["Wall"],
+        });
+        const wall = makeCard({
+            types: ["Creature"],
+            subtypes: ["Wall"],
+            staticAbilities: ["defender"],
+        });
+        const result = validateBlockerEligibility(attacker, wall, [wall]);
+        expect(result.eligible).toBe(false);
+        if (!result.eligible) expect(result.reason).toMatch(/Wall/i);
+    });
+
+    it("a non-Wall blocker is still eligible", () => {
+        const attacker = makeCard({
+            types: ["Creature"],
+            cantBeBlockedBySubtypesThisTurn: ["Wall"],
+        });
+        const bears = makeCard({ types: ["Creature"], subtypes: ["Bear"] });
+        expect(validateBlockerEligibility(attacker, bears, [bears])).toEqual({
+            eligible: true,
+        });
+    });
+});
+
 describe("validateBlockerEligibility — landwalk (CR 702.13b)", () => {
     function makeLand(subtype: string): CardInstanceState {
         return makeCard({ types: ["Land"], subtypes: [subtype] });

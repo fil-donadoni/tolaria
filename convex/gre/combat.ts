@@ -213,6 +213,22 @@ export function validateBlockerEligibility(
         };
     }
 
+    // Pass 0c — attacker "can't be blocked by [subtype] this turn" (CR 509.1b).
+    // Set on the attacker by Tower of Coireall ("can't be blocked by Walls");
+    // rejects only blockers carrying one of the listed subtypes.
+    if (attacker.cantBeBlockedBySubtypesThisTurn?.length) {
+        const blockerSubtypes = blocker.subtypes ?? [];
+        const banned = attacker.cantBeBlockedBySubtypesThisTurn.find((s) =>
+            blockerSubtypes.includes(s)
+        );
+        if (banned !== undefined) {
+            return {
+                eligible: false,
+                reason: `Attacker can't be blocked by ${banned}s this turn`,
+            };
+        }
+    }
+
     // Pass 1 — keyword-level evasion (registry-driven).
     // Covers: unblockable (509.1b), landwalk (702.13b), fear (702.36b),
     // flying (702.9b).

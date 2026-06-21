@@ -55,10 +55,31 @@ import {
     theFallen,
     uncleIstvan,
     wordOfBinding,
+    barlsCage,
+    boneFlute,
+    bookOfRass,
+    darkSphere,
+    diabolicMachine,
+    fountainOfYouth,
+    livingArmor,
+    necropolis,
+    scarecrow,
+    skullOfOrm,
+    standingStones,
+    stoneCalendar,
+    tormodsCrypt,
+    towerOfCoireall,
+    cityOfShadows,
+    mazeOfIth,
+    safeHaven,
 } from "../drk";
 import { getCardById, getCardByName, getAllCards } from "../../index";
 import {
     resolveTopOfStack,
+    applyPlayerDamagePrevention,
+    getCostModifiers,
+    applyCostModifiers,
+    normalizeManaCost,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -69,7 +90,7 @@ import { getLegalTargets } from "../../../gre/rules";
 import { collectTriggers } from "../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../gre/pendingChoiceSubmit";
 import { applyDamageReplacements } from "../../../gre/replacements";
-import { emitBlockersConfirmedEvents } from "../../../gre/phases";
+import { emitBlockersConfirmedEvents, untapStep } from "../../../gre/phases";
 import { projectPublicState } from "../../../gameProjections";
 import {
     makeInstance,
@@ -2175,4 +2196,626 @@ describe("DRK deferred cards (not yet in pool)", () => {
             expect(() => getCardByName(name)).toThrow();
         }
     );
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Free tranche — Artifacts, Lands & colorless (#417)
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("DRK Artifacts/Lands registry parity (#417)", () => {
+    const cards = [
+        barlsCage,
+        boneFlute,
+        bookOfRass,
+        darkSphere,
+        diabolicMachine,
+        fountainOfYouth,
+        livingArmor,
+        necropolis,
+        scarecrow,
+        skullOfOrm,
+        standingStones,
+        stoneCalendar,
+        tormodsCrypt,
+        towerOfCoireall,
+        cityOfShadows,
+        mazeOfIth,
+        safeHaven,
+    ];
+    it("registers every implemented card by id, name and in the index", () => {
+        const all = getAllCards();
+        for (const c of cards) {
+            expect(getCardById(c.id)).toBe(c);
+            expect(getCardByName(c.name)).toBe(c);
+            expect(all).toContain(c);
+        }
+    });
+
+    it.each([
+        ["Runesword", "#417"],
+        ["War Barge", "#417"],
+        ["Wand of Ith", "#417"],
+    ])("%s is deferred (not registered, %s)", (name) => {
+        expect(() => getCardByName(name)).toThrow();
+    });
+});
+
+describe("Barl's Cage — {3}: target doesn't untap next untap step (CR 302.6/502.1)", () => {
+    function setup() {
+        const cage = makeInstance(barlsCage.id, {
+            id: "cage",
+            controllerId: "p1",
+        });
+        const bear = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: true,
+        });
+        const state = makeState({
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [cage] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        return { state, cage, bear };
+    }
+
+    it("a flagged creature stays tapped its next untap step, then untaps the following one", () => {
+        const { state, cage } = setup();
+        resolveActivated(state, cage, "barls-cage-lock", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const bearAfterResolve = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfterResolve.skipNextUntap).toBe(true);
+
+        // p2's untap step: the flag is consumed and the creature stays tapped.
+        untapStep(state);
+        const bearAfterFirst = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfterFirst.isTapped).toBe(true);
+        expect(bearAfterFirst.skipNextUntap).toBeUndefined();
+
+        // The FOLLOWING untap step untaps it normally (one-shot).
+        untapStep(state);
+        const bearAfterSecond = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfterSecond.isTapped).toBe(false);
+    });
+});
+
+describe("Bone Flute — {2},{T}: all creatures get -1/-0 EOT (CR 611.2)", () => {
+    it("shrinks every creature's power by 1", () => {
+        const flute = makeInstance(boneFlute.id, {
+            id: "flute",
+            controllerId: "p1",
+        });
+        const mine = makeInstance(getCardByName("Hill Giant").id, {
+            id: "mine",
+            controllerId: "p1",
+        });
+        const theirs = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [flute, mine] }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        const beforeMine = getEffectivePower(state, mine);
+        const beforeTheirs = getEffectivePower(state, theirs);
+        resolveActivated(state, flute, "bone-flute-shrink");
+        expect(getEffectivePower(state, mine)).toBe(beforeMine - 1);
+        expect(getEffectivePower(state, theirs)).toBe(beforeTheirs - 1);
+        // Toughness unaffected (-1/-0).
+        expect(getEffectiveToughness(state, theirs)).toBe(2);
+    });
+});
+
+describe("Book of Rass — {2}, Pay 2 life: Draw a card (CR 118.4/121.1)", () => {
+    it("draws one card (the life cost is enforced by the cost layer)", () => {
+        const book = makeInstance(bookOfRass.id, {
+            id: "book",
+            controllerId: "p1",
+        });
+        const top = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "top",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [book], library: [top] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, book, "book-of-rass-draw");
+        expect(state.players[0].hand.some((c) => c.id === "top")).toBe(true);
+        expect(bookOfRass.activatedAbilities![0].cost.life).toBe(2);
+    });
+});
+
+describe("Diabolic Machine — {3}: Regenerate this creature (CR 701.15a)", () => {
+    it("arms a regeneration shield that replaces the next destroy", () => {
+        const machine = makeInstance(diabolicMachine.id, {
+            id: "machine",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [machine] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, machine, "diabolic-machine-regenerate");
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "machine"
+        )!;
+        expect(after.regenerationShields ?? 0).toBeGreaterThan(0);
+        expect(diabolicMachine.power).toBe(4);
+        expect(diabolicMachine.toughness).toBe(4);
+        expect(diabolicMachine.subtypes).toEqual(["Construct"]);
+    });
+});
+
+describe("Fountain of Youth — {2},{T}: gain 1 life (CR 119.3)", () => {
+    it("gains the controller 1 life", () => {
+        const fountain = makeInstance(fountainOfYouth.id, {
+            id: "fountain",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [fountain] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, fountain, "fountain-of-youth-gain");
+        expect(state.players[0].life).toBe(21);
+    });
+});
+
+describe("Living Armor — sac: X +0/+1 counters, X = target's mana value (CR 122.1)", () => {
+    it("puts MV-many +0/+1 counters; survives the wire (layer 7d)", () => {
+        const armor = makeInstance(livingArmor.id, {
+            id: "armor",
+            controllerId: "p1",
+        });
+        // Hill Giant: {3}{R} → mana value 4.
+        const giant = makeInstance(getCardByName("Hill Giant").id, {
+            id: "giant",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [armor, giant] }),
+                makePlayer("p2"),
+            ],
+        });
+        const baseT = getEffectiveToughness(state, giant);
+        resolveActivated(state, armor, "living-armor-counters", [
+            { type: "permanent", id: "giant" },
+        ]);
+        const buffed = state.players[0].battlefield.find(
+            (c) => c.id === "giant"
+        )!;
+        expect(buffed.counters?.["+0/+1"]).toBe(4);
+        expect(getEffectiveToughness(state, buffed)).toBe(baseT + 4);
+        expect(getEffectivePower(state, buffed)).toBe(3); // +0 to power (3/3 base)
+
+        // Wire-format guard: counters + effective toughness survive projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "giant"
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(baseT + 4);
+    });
+});
+
+describe("Necropolis — exile a graveyard creature: +0/+1 counters = its MV (CR 122.1)", () => {
+    it("exiles the chosen card and grows by its mana value", () => {
+        const necro = makeInstance(necropolis.id, {
+            id: "necro",
+            controllerId: "p1",
+        });
+        // Grizzly Bears: {1}{G} → mana value 2.
+        const corpse = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "corpse",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [necro],
+                    graveyard: [corpse],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const baseT = getEffectiveToughness(state, necro);
+        resolveActivated(state, necro, "necropolis-counters", [
+            { type: "graveyard-card", id: "corpse", playerId: "p1" },
+        ]);
+        expect(state.players[0].graveyard).toHaveLength(0);
+        expect(state.players[0].exile.some((c) => c.id === "corpse")).toBe(
+            true
+        );
+        const grown = state.players[0].battlefield.find(
+            (c) => c.id === "necro"
+        )!;
+        expect(grown.counters?.["+0/+1"]).toBe(2);
+        expect(getEffectiveToughness(state, grown)).toBe(baseT + 2);
+    });
+
+    it("has Defender (can't attack)", () => {
+        expect(necropolis.staticAbilities).toContain("defender");
+    });
+});
+
+describe("Skull of Orm — {5},{T}: return an enchantment from your graveyard (CR 400.7)", () => {
+    it("returns the targeted enchantment card to hand", () => {
+        const skull = makeInstance(skullOfOrm.id, {
+            id: "skull",
+            controllerId: "p1",
+        });
+        const ench = makeInstance(getCardByName("Curse Artifact").id, {
+            id: "ench",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [skull], graveyard: [ench] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, skull, "skull-of-orm-return", [
+            { type: "graveyard-card", id: "ench", playerId: "p1" },
+        ]);
+        expect(state.players[0].graveyard).toHaveLength(0);
+        expect(state.players[0].hand.some((c) => c.id === "ench")).toBe(true);
+    });
+});
+
+describe("Standing Stones — {1},{T},Pay 1 life: add one mana of any color (CR 605.1)", () => {
+    it("is a mana ability (useStack:false) with a life cost and color choices", () => {
+        const ability = standingStones.activatedAbilities![0];
+        expect(ability.useStack).toBe(false);
+        expect(ability.cost.life).toBe(1);
+        expect(ability.cost.tap).toBe(true);
+        expect(ability.manaChoices).toEqual([
+            { W: 1 },
+            { U: 1 },
+            { B: 1 },
+            { R: 1 },
+            { G: 1 },
+        ]);
+    });
+});
+
+describe("Stone Calendar — spells you cast cost {1} less (CR 601.2f)", () => {
+    function effectiveCost(
+        state: GameState,
+        spellCardId: string,
+        controllerId: string
+    ): Record<string, number> {
+        const def = getCardById(spellCardId);
+        const spellView = makeInstance(spellCardId, {
+            controllerId,
+            zone: "stack",
+        });
+        const cost = normalizeManaCost(def.manaCost ?? {});
+        applyCostModifiers(cost, getCostModifiers(state, spellView, "spell"));
+        return cost;
+    }
+
+    it("reduces the controller's own spell by {1} but not the opponent's", () => {
+        const calendar = makeInstance(stoneCalendar.id, {
+            id: "cal",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [calendar] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Hill Giant {3}{R}: generic drops 3 → 2 for p1, unchanged for p2.
+        const giantId = getCardByName("Hill Giant").id;
+        expect(effectiveCost(state, giantId, "p1")).toEqual({ X: 2, R: 1 });
+        expect(effectiveCost(state, giantId, "p2")).toEqual({ X: 3, R: 1 });
+    });
+});
+
+describe("Tormod's Crypt — {T}, Sac: exile a player's graveyard (CR 406/400.7)", () => {
+    it("moves the whole target graveyard to exile", () => {
+        const crypt = makeInstance(tormodsCrypt.id, {
+            id: "crypt",
+            controllerId: "p1",
+        });
+        const a = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "a",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+        const b = makeInstance(getCardByName("Hill Giant").id, {
+            id: "b",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [crypt] }),
+                makePlayer("p2", { graveyard: [a, b] }),
+            ],
+        });
+        resolveActivated(state, crypt, "tormods-crypt-exile-graveyard", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].graveyard).toHaveLength(0);
+        expect(state.players[1].exile).toHaveLength(2);
+    });
+});
+
+describe("Tower of Coireall — {T}: target can't be blocked by Walls this turn (CR 509.1b)", () => {
+    it("flags the attacker and rejects only Wall blockers", () => {
+        const tower = makeInstance(towerOfCoireall.id, {
+            id: "tower",
+            controllerId: "p1",
+        });
+        const attacker = makeInstance(getCardByName("Hill Giant").id, {
+            id: "atk",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tower, attacker] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, tower, "tower-of-coireall-evasion", [
+            { type: "permanent", id: "atk" },
+        ]);
+        const flagged = state.players[0].battlefield.find(
+            (c) => c.id === "atk"
+        )!;
+        expect(flagged.cantBeBlockedBySubtypesThisTurn).toEqual(["Wall"]);
+    });
+});
+
+describe("Maze of Ith — {T}: untap an attacker + prevent its combat damage (CR 615.1)", () => {
+    it("untaps the attacker and registers combat-damage immunity for it", () => {
+        const maze = makeInstance(mazeOfIth.id, {
+            id: "maze",
+            controllerId: "p1",
+        });
+        const attacker = makeInstance(getCardByName("Hill Giant").id, {
+            id: "atk",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: true,
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [maze] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+        });
+        resolveActivated(state, maze, "maze-of-ith-neutralize", [
+            { type: "permanent", id: "atk" },
+        ]);
+        const after = state.players[1].battlefield.find((c) => c.id === "atk")!;
+        expect(after.isTapped).toBe(false);
+        expect(
+            state.combatDamageImmunity?.some((s) => s.instanceId === "atk")
+        ).toBe(true);
+    });
+});
+
+describe("City of Shadows — storage land (CR 605.1a, exile-to-store + per-counter mana)", () => {
+    it("exiles a creature you control and adds a storage counter", () => {
+        const city = makeInstance(cityOfShadows.id, {
+            id: "city",
+            controllerId: "p1",
+        });
+        const fodder = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "fodder",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [city, fodder] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, city, "city-of-shadows-store", [
+            { type: "permanent", id: "fodder" },
+        ]);
+        expect(state.players[0].exile.some((c) => c.id === "fodder")).toBe(
+            true
+        );
+        const stored = state.players[0].battlefield.find(
+            (c) => c.id === "city"
+        )!;
+        expect(stored.counters?.storage).toBe(1);
+    });
+
+    it("mana ability outputs {C} per storage counter (manaAmount reads counters)", () => {
+        const mana = cityOfShadows.activatedAbilities!.find(
+            (a) => a.id === "city-of-shadows-mana"
+        )!;
+        const withThree = {
+            id: "city",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Land"],
+            subtypes: [],
+            isTapped: false,
+            counters: { storage: 3 },
+        } as never;
+        expect(mana.manaAmount!(withThree, [])).toEqual({ C: 3 });
+        const withNone = { ...(withThree as object), counters: {} } as never;
+        expect(mana.manaAmount!(withNone, [])).toEqual({ C: 0 });
+    });
+});
+
+describe("Safe Haven — exile creatures you control; sac to return them (CR 603.7a)", () => {
+    it("exiles via a source-keyed bundle and returns on upkeep sacrifice", () => {
+        const haven = makeInstance(safeHaven.id, {
+            id: "haven",
+            controllerId: "p1",
+        });
+        const friend = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "friend",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [haven, friend] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, haven, "safe-haven-exile", [
+            { type: "permanent", id: "friend" },
+        ]);
+        expect(state.players[0].exile.some((c) => c.id === "friend")).toBe(
+            true
+        );
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "friend")
+        ).toBe(false);
+
+        // Upkeep trigger: accept the "may sacrifice" → return the creature.
+        const havenInPlay = state.players[0].battlefield.find(
+            (c) => c.id === "haven"
+        )!;
+        resolveTrigger(state, havenInPlay, "safe-haven-return", UPKEEP("p1"));
+        // Suspended on the may-pay; answer "yes".
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "friend")
+        ).toBe(true);
+        expect(state.players[0].battlefield.some((c) => c.id === "haven")).toBe(
+            false
+        ); // sacrificed
+    });
+});
+
+describe("Dark Sphere / Scarecrow — player damage prevention shields (CR 615.1)", () => {
+    it("applyPlayerDamagePrevention: half-down from a matched source", () => {
+        const state = makeState();
+        state.playerDamagePrevention = [
+            {
+                playerId: "p1",
+                match: { sourceInstanceId: "src" },
+                mode: "half-down",
+                remaining: 1,
+                duration: { kind: "end-of-turn" } as never,
+            },
+        ];
+        // 5 damage → prevent floor(5/2)=2 → 3 lands; shield consumed.
+        expect(applyPlayerDamagePrevention(state, "p1", "src", [], 5)).toBe(3);
+        expect(state.playerDamagePrevention).toBeUndefined();
+    });
+
+    it("applyPlayerDamagePrevention: does NOT match a different source or player", () => {
+        const state = makeState();
+        state.playerDamagePrevention = [
+            {
+                playerId: "p1",
+                match: { sourceInstanceId: "src" },
+                mode: "half-down",
+                remaining: 1,
+                duration: { kind: "end-of-turn" } as never,
+            },
+        ];
+        expect(applyPlayerDamagePrevention(state, "p1", "other", [], 5)).toBe(
+            5
+        );
+        expect(applyPlayerDamagePrevention(state, "p2", "src", [], 5)).toBe(5);
+    });
+
+    it("applyPlayerDamagePrevention: prevent-all from flying sources only", () => {
+        const state = makeState();
+        state.playerDamagePrevention = [
+            {
+                playerId: "p1",
+                match: { sourceStaticAbility: "flying" },
+                mode: "all",
+                remaining: 999,
+                duration: { kind: "end-of-turn" } as never,
+            },
+        ];
+        // Flyer's damage fully prevented; the shield persists (remaining high).
+        expect(
+            applyPlayerDamagePrevention(state, "p1", "flier", ["flying"], 4)
+        ).toBe(0);
+        // A grounded source is unaffected.
+        expect(applyPlayerDamagePrevention(state, "p1", "ground", [], 4)).toBe(
+            4
+        );
+    });
+
+    it("Dark Sphere: resolving its ability registers a half-down shield on the controller", () => {
+        const sphere = makeInstance(darkSphere.id, {
+            id: "sphere",
+            controllerId: "p1",
+        });
+        const threat = makeInstance(getCardByName("Hill Giant").id, {
+            id: "threat",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sphere] }),
+                makePlayer("p2", { battlefield: [threat] }),
+            ],
+        });
+        resolveActivated(state, sphere, "dark-sphere-prevent-half", [
+            { type: "permanent", id: "threat" },
+        ]);
+        const shield = state.playerDamagePrevention?.[0];
+        expect(shield?.playerId).toBe("p1");
+        expect(shield?.match.sourceInstanceId).toBe("threat");
+        expect(shield?.mode).toBe("half-down");
+    });
+
+    it("Scarecrow: resolving its ability registers a flying prevent-all shield", () => {
+        const crow = makeInstance(scarecrow.id, {
+            id: "crow",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [crow] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, crow, "scarecrow-prevent-flying");
+        const shield = state.playerDamagePrevention?.[0];
+        expect(shield?.playerId).toBe("p1");
+        expect(shield?.match.sourceStaticAbility).toBe("flying");
+        expect(shield?.mode).toBe("all");
+    });
 });

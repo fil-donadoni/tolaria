@@ -251,6 +251,8 @@ describe("game_state serialize round-trip", () => {
             { power: 2, toughness: -2, sourceId: "gear-1" },
         ];
         lion.untapLockedBy = ["gremlin-1"];
+        lion.skipNextUntap = true;
+        lion.cantBeBlockedBySubtypesThisTurn = ["Wall"];
         lion.counters = { "+1/+1": 1, "+1/+0": 2 };
         lion.grantedStaticAbilities = [{ ability: "flying", auraId: "aura-1" }];
         // CR 611.1b — duration-scoped keyword removal (Shelkin Brownie / Tolaria, #381).
@@ -327,6 +329,8 @@ describe("game_state serialize round-trip", () => {
             { power: 2, toughness: -2, sourceId: "gear-1" },
         ]);
         expect(got.untapLockedBy).toEqual(["gremlin-1"]);
+        expect(got.skipNextUntap).toBe(true);
+        expect(got.cantBeBlockedBySubtypesThisTurn).toEqual(["Wall"]);
         expect(got.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
         expect(got.grantedStaticAbilities).toEqual([
             { ability: "flying", auraId: "aura-1" },
@@ -561,6 +565,22 @@ describe("schema drift guard", () => {
                 targetType: "player",
                 targetId: "p1",
                 remaining: 1,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        state.playerDamagePrevention = [
+            {
+                playerId: "p1",
+                match: { sourceInstanceId: "s1" },
+                mode: "half-down",
+                remaining: 1,
+                duration: { phase: "end-of-turn" },
+            },
+            {
+                playerId: "p2",
+                match: { sourceStaticAbility: "flying" },
+                mode: "all",
+                remaining: 999,
                 duration: { phase: "end-of-turn" },
             },
         ];
@@ -843,6 +863,29 @@ describe("optional field round-trip smoke tests", () => {
         ];
         expect(roundTrip(state).targetPreventionShields).toEqual(
             state.targetPreventionShields
+        );
+    });
+
+    it("playerDamagePrevention (Dark Sphere / Scarecrow shields)", () => {
+        const state = freshState();
+        state.playerDamagePrevention = [
+            {
+                playerId: "p1",
+                match: { sourceInstanceId: "threat" },
+                mode: "half-down",
+                remaining: 1,
+                duration: { phase: "end-of-turn" },
+            },
+            {
+                playerId: "p2",
+                match: { sourceStaticAbility: "flying" },
+                mode: "all",
+                remaining: 999,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        expect(roundTrip(state).playerDamagePrevention).toEqual(
+            state.playerDamagePrevention
         );
     });
 

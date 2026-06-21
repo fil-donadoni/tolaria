@@ -10,6 +10,7 @@ import type {
 import { MAX_HAND_SIZE } from "./constants";
 import {
     allocInstanceId,
+    applyPlayerDamagePrevention,
     applyTargetPrevention,
     bumpArtifactDamageToPlayer,
     bumpDamageDealtToPlayer,
@@ -290,6 +291,17 @@ export function untapStep(state: GameState): void {
             // least one source still holds the lock. Per-turn cleanup still
             // runs (mirrors the `does-not-untap` branch).
             if (card.untapLockedBy?.length) {
+                card.manaCommitted = undefined;
+                card.isSummoningSick = undefined;
+                card.chosenMana = undefined;
+                continue;
+            }
+            // Barl's Cage (DRK, CR 302.6 / 502.1): one-shot "doesn't untap
+            // during its controller's next untap step." The flag clears itself
+            // here so the FOLLOWING untap step untaps normally. Per-turn
+            // commitment cleanup still runs (mirrors the branches above).
+            if (card.skipNextUntap) {
+                card.skipNextUntap = undefined;
                 card.manaCommitted = undefined;
                 card.isSummoningSick = undefined;
                 card.chosenMana = undefined;
@@ -828,11 +840,23 @@ export function applyAllCombatDamage(
         if (finalTarget.type === "player") {
             if (consumePreventionIfAny(state, source.id, finalTarget.id))
                 return;
-            const reduced = applyTargetPrevention(
+            const desc = describeDamageSource(state, source.id);
+            // CR 615.1: per-player source-matched shields (Dark Sphere /
+            // Scarecrow). Scarecrow's "by creatures with flying" reads the
+            // attacker's keywords off the damage source description.
+            let reduced = applyPlayerDamagePrevention(
+                state,
+                finalTarget.id,
+                source.id,
+                desc.staticAbilities,
+                finalAmount
+            );
+            if (reduced <= 0) return;
+            reduced = applyTargetPrevention(
                 state,
                 "player",
                 finalTarget.id,
-                finalAmount
+                reduced
             );
             if (reduced <= 0) return;
             getPlayer(state, finalTarget.id).life -= reduced;
@@ -840,7 +864,6 @@ export function applyAllCombatDamage(
             // CR 120.3 — flag the source if it hit an opponent (Whirling
             // Dervish's end-step growth condition).
             recordSourceDamagedOpponent(state, source.id, finalTarget.id);
-            const desc = describeDamageSource(state, source.id);
             // CR 120.3 (artifact-narrowed) — Reverse Polarity tally.
             bumpArtifactDamageToPlayer(
                 state,
@@ -1557,6 +1580,11 @@ export function finalizeCleanup(state: GameState): void {
             if (card.cantBeBlockedThisTurn) {
                 card.cantBeBlockedThisTurn = undefined;
             }
+            // CR 509.1b — "can't be blocked by [subtype] this turn" (Tower of
+            // Coireall) is turn-scoped.
+            if (card.cantBeBlockedBySubtypesThisTurn) {
+                card.cantBeBlockedBySubtypesThisTurn = undefined;
+            }
         }
     }
 }
@@ -1657,6 +1685,17 @@ function tickAllDurations(state: GameState): void {
             if (next !== null) kept.push({ ...shield, duration: next });
         }
         state.targetPreventionShields = kept.length > 0 ? kept : undefined;
+    }
+
+    // Per-player source-matched prevention shields (Dark Sphere, Scarecrow).
+    // Unconsumed remainder wears off at the same boundary (CR 514.2).
+    if (state.playerDamagePrevention?.length) {
+        const kept: typeof state.playerDamagePrevention = [];
+        for (const shield of state.playerDamagePrevention) {
+            const next = tickDuration(shield.duration, view);
+            if (next !== null) kept.push({ ...shield, duration: next });
+        }
+        state.playerDamagePrevention = kept.length > 0 ? kept : undefined;
     }
 
     // Transient damage redirections (Reverse Damage, Jade Monolith {1},
