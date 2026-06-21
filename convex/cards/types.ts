@@ -2362,7 +2362,8 @@ export type GameEventType =
     | "TRIGGER_FIZZLED"
     | "ATTACKERS_DECLARED"
     | "BLOCKERS_CONFIRMED"
-    | "ATTACKER_UNBLOCKED";
+    | "ATTACKER_UNBLOCKED"
+    | "CARD_DRAWN";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -2646,6 +2647,21 @@ export interface AttackerUnblockedEvent {
     attackerSubtypes: ReadonlyArray<string>;
 }
 
+/** Emitted whenever a player draws one or more cards (CR 121.1 — "draws a
+ *  card"). One event per draw batch carries the drawing player's id and the
+ *  count of cards actually moved from library to hand (an empty library draws
+ *  fewer than requested). Used by "when you draw a card" triggers (Fasting).
+ *  The natural turn-based draw, draw-look replacements (Aladdin's Lamp), and
+ *  effect-driven draws (`drawCards`) all emit it through the same choke point. */
+export interface CardDrawnEvent {
+    type: "CARD_DRAWN";
+    /** Player who drew the card(s). */
+    playerId: string;
+    /** Number of cards actually drawn (>= 1; library exhaustion may make this
+     *  fewer than the requested amount). */
+    count: number;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
@@ -2660,7 +2676,8 @@ export type GameEvent =
     | TriggerFizzledEvent
     | AttackersDeclaredEvent
     | BlockersConfirmedEvent
-    | AttackerUnblockedEvent;
+    | AttackerUnblockedEvent
+    | CardDrawnEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can

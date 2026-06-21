@@ -79,6 +79,7 @@ import {
     danceOfMany,
     tracker,
     wormsOfTheEarth,
+    fasting,
 } from "../drk";
 import { tropicalIsland, mountain } from "../lea";
 import { stripMine } from "../atq";
@@ -127,7 +128,11 @@ import { effectiveTriggeredAbilities } from "../../../gre/copy";
 import { collectTriggers } from "../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../gre/pendingChoiceSubmit";
 import { applyDamageReplacements } from "../../../gre/replacements";
-import { emitBlockersConfirmedEvents, untapStep } from "../../../gre/phases";
+import {
+    emitBlockersConfirmedEvents,
+    untapStep,
+    advancePhase,
+} from "../../../gre/phases";
 import { projectPublicState } from "../../../gameProjections";
 import {
     makeInstance,
@@ -4047,5 +4052,251 @@ describe("Worms of the Earth ({2}{B}{B}{B} Enchantment — land-play/ETB lock)",
                 true
             );
         });
+    });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Fasting — DRK C7. {W} Enchantment (#424). Three abilities (modern oracle,
+// ADR 0004):
+//   1. CR 603.6a upkeep — put a hunger counter, then destroy at five or more.
+//   2. CR 504/614 — "you may skip your draw step; if you do, gain 2 life"
+//      (Island Sanctuary `drawStepReplacement` precedent + DRAW phaseTrigger).
+//   3. CR 121.1 — "when you draw a card, destroy this enchantment" (new
+//      CARD_DRAWN event via the `drawTrigger` factory).
+// ───────────────────────────────────────────────────────────────────────────
+describe("Fasting (CR 504/614 skip-draw + CR 603.6a hunger counters)", () => {
+    /** Answer the head pending choice (mirrors the Island Sanctuary harness). */
+    function commitHead(state: GameState, picks: string[]) {
+        const queue = state.pendingChoices ?? [];
+        const head = queue[0];
+        const stackItem = state.stack.find((s) => s.id === head.stackItemId)!;
+        stackItem.collectedChoices = {
+            ...(stackItem.collectedChoices ?? {}),
+            [`${head.step}:${head.choiceId}`]: picks,
+        };
+        queue.shift();
+        state.pendingChoices = queue.length > 0 ? queue : undefined;
+    }
+
+    function makeFasting(counters?: Record<string, number>): CardInstanceState {
+        return makeInstance(fasting.id, {
+            id: "fast",
+            controllerId: "p1",
+            ownerId: "p1",
+            ...(counters ? { counters } : {}),
+        });
+    }
+
+    function libraryCard(id = "lib-top"): CardInstanceState {
+        return makeInstance(getCardByName("Squire").id, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+    }
+
+    it("snapshot: card definition wiring (oracle + flag + triggers)", () => {
+        expect(fasting.types).toEqual(["Enchantment"]);
+        expect(fasting.drawStepReplacement).toBe(true);
+        const ids = (fasting.triggeredAbilities ?? []).map((t) => t.id);
+        expect(ids).toContain("fasting-upkeep-hunger");
+        expect(ids).toContain("fasting-draw-skip");
+        expect(ids).toContain("fasting-draw-destroy");
+    });
+
+    // (a) Skip-draw golden path: gain 2 life, no card drawn.
+    it("on skip, gains 2 life and draws no card (CR 504/119.3)", () => {
+        const fast = makeFasting();
+        const p1 = makePlayer("p1", {
+            battlefield: [fast],
+            library: [libraryCard()],
+            life: 20,
+        });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            turn: 2,
+            phase: "UPKEEP",
+        });
+
+        // UPKEEP → DRAW: the DRAW phase-begin draw-skip trigger lands on the
+        // stack (the upkeep trigger already fired on entering UPKEEP, which we
+        // skip past here by starting at UPKEEP).
+        advancePhase(state);
+        expect(state.phase).toBe("DRAW");
+        expect(
+            state.stack.some(
+                (s) => s.triggeredAbilityId === "fasting-draw-skip"
+            )
+        ).toBe(true);
+        resolveTopOfStack(state); // suspends at the may-skip choice
+        expect(state.pendingChoices).toHaveLength(1);
+
+        commitHead(state, ["yes"]);
+        resolveTopOfStack(state);
+
+        expect(p1.life).toBe(22);
+        expect(p1.hand).toHaveLength(0);
+        // Still on the battlefield — no draw happened, so the self-destruct
+        // draw trigger never fired.
+        expect(p1.battlefield.some((c) => c.id === "fast")).toBe(true);
+    });
+
+    // (c) Drawing a card (declining the skip) destroys Fasting.
+    it("on decline, draws the card and destroys Fasting (CR 121.1)", () => {
+        const fast = makeFasting();
+        const p1 = makePlayer("p1", {
+            battlefield: [fast],
+            library: [libraryCard()],
+            life: 20,
+        });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            turn: 2,
+            phase: "UPKEEP",
+        });
+
+        advancePhase(state); // → DRAW, draw-skip trigger on stack
+        resolveTopOfStack(state); // draw-skip trigger suspends at choice
+        commitHead(state, ["no"]);
+        resolveTopOfStack(state); // declines → draws a card → emits CARD_DRAWN
+
+        // The card was drawn.
+        expect(p1.hand.some((c) => c.id === "lib-top")).toBe(true);
+        expect(p1.life).toBe(20);
+        // The CARD_DRAWN self-destruct trigger is now on the stack; resolve it.
+        expect(
+            state.stack.some(
+                (s) => s.triggeredAbilityId === "fasting-draw-destroy"
+            )
+        ).toBe(true);
+        resolveTopOfStack(state);
+        expect(p1.battlefield.some((c) => c.id === "fast")).toBe(false);
+        expect(p1.graveyard.some((c) => c.id === "fast")).toBe(true);
+    });
+
+    it("any draw (effect-driven) destroys Fasting (CR 121.1)", () => {
+        const fast = makeFasting();
+        const p1 = makePlayer("p1", {
+            battlefield: [fast],
+            library: [libraryCard()],
+        });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            turn: 2,
+            phase: "PRECOMBAT_MAIN",
+        });
+        // An effect-driven draw (any source) emits CARD_DRAWN at the engine's
+        // draw choke point; scan it as resolveTopOfStack does post-resolution.
+        p1.hand.push(p1.library.shift()!);
+        state.pendingEvents = [
+            { type: "CARD_DRAWN", playerId: "p1", count: 1 },
+        ];
+        processPendingActionTriggers(state);
+        expect(
+            state.stack.some(
+                (s) => s.triggeredAbilityId === "fasting-draw-destroy"
+            )
+        ).toBe(true);
+        resolveTopOfStack(state);
+        expect(p1.battlefield.some((c) => c.id === "fast")).toBe(false);
+    });
+
+    it('an opponent\'s draw does NOT destroy Fasting (CR 121 — "you draw")', () => {
+        const fast = makeFasting();
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [fast] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p2",
+            turn: 2,
+        });
+        state.pendingEvents = [
+            { type: "CARD_DRAWN", playerId: "p2", count: 1 },
+        ];
+        processPendingActionTriggers(state);
+        expect(
+            state.stack.some(
+                (s) => s.triggeredAbilityId === "fasting-draw-destroy"
+            )
+        ).toBe(false);
+        expect(state.players[0].battlefield.some((c) => c.id === "fast")).toBe(
+            true
+        );
+    });
+
+    // (b) Hunger counter added each upkeep; destroyed at five or more.
+    it("upkeep adds a hunger counter (CR 122.1)", () => {
+        const fast = makeFasting();
+        const p1 = makePlayer("p1", { battlefield: [fast], library: [] });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            turn: 2,
+        });
+        resolveTrigger(state, fast, "fasting-upkeep-hunger", UPKEEP("p1"));
+        const onBoard = p1.battlefield.find((c) => c.id === "fast")!;
+        expect(onBoard.counters?.hunger).toBe(1);
+    });
+
+    it("destroyed when it reaches five hunger counters (CR 603)", () => {
+        // Start with four; the fifth upkeep counter triggers destruction.
+        const fast = makeFasting({ hunger: 4 });
+        const p1 = makePlayer("p1", { battlefield: [fast] });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            turn: 2,
+        });
+        resolveTrigger(state, fast, "fasting-upkeep-hunger", UPKEEP("p1"));
+        expect(p1.battlefield.some((c) => c.id === "fast")).toBe(false);
+        expect(p1.graveyard.some((c) => c.id === "fast")).toBe(true);
+    });
+
+    it("not destroyed below five hunger counters", () => {
+        const fast = makeFasting({ hunger: 3 });
+        const p1 = makePlayer("p1", { battlefield: [fast] });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            turn: 2,
+        });
+        resolveTrigger(state, fast, "fasting-upkeep-hunger", UPKEEP("p1"));
+        const onBoard = p1.battlefield.find((c) => c.id === "fast");
+        expect(onBoard).toBeDefined();
+        expect(onBoard!.counters?.hunger).toBe(4);
+    });
+
+    // Backend boundary: the may-skip choice resolves via applyMayPaySubmit
+    // (the same path game.ts's submitMayPay mutation drives).
+    it("backend may-pay path: accepting the skip gains 2 life", () => {
+        const fast = makeFasting();
+        const p1 = makePlayer("p1", {
+            battlefield: [fast],
+            library: [libraryCard()],
+            life: 20,
+        });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            turn: 2,
+        });
+        state.stack.push(
+            ...collectTriggers(state, [
+                {
+                    type: "PHASE_BEGIN",
+                    phase: "DRAW",
+                    activePlayerId: "p1",
+                } as never,
+            ]).filter((t) => t.triggeredAbilityId === "fasting-draw-skip")
+        );
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends at may-pay
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(p1.life).toBe(22);
+        expect(p1.hand).toHaveLength(0);
     });
 });
