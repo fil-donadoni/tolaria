@@ -105,6 +105,19 @@ import {
     wormwoodTreefolk,
     marshGoblins,
     darkHeartOfTheWood,
+    carnivorousPlant,
+    landLeeches,
+    hiddenPath,
+    lurker,
+    peopleOfTheWoods,
+    savaenElves,
+    scavengerFolk,
+    niallSilvain,
+    scarwoodHag,
+    scarwoodBandits,
+    spittingSlug,
+    venom,
+    whippoorwill,
 } from "../drk";
 import { tropicalIsland, mountain, lightningBolt } from "../lea";
 import { stripMine } from "../atq";
@@ -5515,5 +5528,559 @@ describe("Dark Heart of the Wood — Sacrifice a Forest: gain 3 life (CR 118.5 /
         });
         resolveActivated(state, dh, "dark-heart-of-the-wood-gain", []);
         expect(state.players[0].life).toBe(23); // 20 + 3
+    });
+});
+
+// ===========================================================================
+// Free tranche — Green (#415)
+// ===========================================================================
+
+describe("Carnivorous Plant — vanilla Defender Wall (CR 702.3)", () => {
+    it("has the printed cost / types / P/T and defender", () => {
+        expect(carnivorousPlant.manaCost).toEqual({ X: 3, G: 1 });
+        expect(carnivorousPlant.types).toEqual(["Creature"]);
+        expect(carnivorousPlant.subtypes).toEqual(["Plant", "Wall"]);
+        expect(carnivorousPlant.power).toBe(4);
+        expect(carnivorousPlant.toughness).toBe(5);
+        expect(carnivorousPlant.staticAbilities).toContain("defender");
+    });
+});
+
+describe("Land Leeches — vanilla First strike (CR 702.7)", () => {
+    it("has the printed cost / types / P/T and first strike", () => {
+        expect(landLeeches.manaCost).toEqual({ X: 1, G: 2 });
+        expect(landLeeches.subtypes).toEqual(["Leech"]);
+        expect(landLeeches.power).toBe(2);
+        expect(landLeeches.toughness).toBe(2);
+        expect(landLeeches.staticAbilities).toContain("first strike");
+    });
+});
+
+describe("Hidden Path — green creatures have forestwalk (CR 611 / 702.13c)", () => {
+    function setup() {
+        const path = makeInstance(hiddenPath.id, {
+            id: "path",
+            controllerId: "p1",
+        });
+        // A green creature (Grizzly Bears is green) and a non-green one.
+        const greenCreature = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "green",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const whiteCreature = makeInstance(getCardByName("Savannah Lions").id, {
+            id: "white",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [path, greenCreature] }),
+                makePlayer("p2", { battlefield: [whiteCreature] }),
+            ],
+        });
+        return { state };
+    }
+
+    it("grants forestwalk to green creatures (both players') but not others", () => {
+        const { state } = setup();
+        applySourceStaticEffects(state, state.players[0].battlefield[0]);
+        const green = state.players[0].battlefield.find(
+            (c) => c.id === "green"
+        )!;
+        const white = state.players[1].battlefield.find(
+            (c) => c.id === "white"
+        )!;
+        expect(green.staticAbilities).toContain("forestwalk");
+        expect(white.staticAbilities ?? []).not.toContain("forestwalk");
+    });
+
+    it("wire format: forestwalk survives projectPublicState", () => {
+        const { state } = setup();
+        applySourceStaticEffects(state, state.players[0].battlefield[0]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "green"
+        )!;
+        expect(slim.staticAbilities).toContain("forestwalk");
+    });
+});
+
+describe("Lurker — can't be the target of spells unless it fought (CR 115 / 113.3)", () => {
+    function setup(combatFlags: Partial<CardInstanceState> = {}) {
+        const lurk = makeInstance(lurker.id, {
+            id: "lurk",
+            controllerId: "p2",
+            ownerId: "p2",
+            ...combatFlags,
+        });
+        // A targeted spell controlled by p1 (Lightning Bolt) on the stack.
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [lurk] }),
+            ],
+        });
+        return { state };
+    }
+
+    it("is NOT a legal spell target before it attacked or blocked", () => {
+        const { state } = setup();
+        const targets = getLegalTargets(
+            state,
+            lightningBolt.targetRequirement!,
+            [], // sourceColors
+            "p1", // casterId
+            undefined, // chosenX
+            [], // sourceTypes
+            [], // sourceSubtypes
+            true // sourceIsSpell
+        );
+        expect(targets.some((t) => t.id === "lurk")).toBe(false);
+    });
+
+    it("IS a legal spell target once it attacked this turn", () => {
+        const { state } = setup({ hasAttackedThisTurn: true });
+        const targets = getLegalTargets(
+            state,
+            lightningBolt.targetRequirement!,
+            [],
+            "p1",
+            undefined,
+            [],
+            [],
+            true
+        );
+        expect(targets.some((t) => t.id === "lurk")).toBe(true);
+    });
+});
+
+describe("People of the Woods — toughness = Forests you control (CR 613.4c CDA)", () => {
+    function setup(forestCount: number) {
+        const ppl = makeInstance(peopleOfTheWoods.id, {
+            id: "ppl",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const forests = Array.from({ length: forestCount }, (_, i) =>
+            makeInstance(getCardByName("Forest").id, {
+                id: `forest-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ppl, ...forests] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, ppl };
+    }
+
+    it("toughness scales with controller's Forests; power stays 1", () => {
+        const { state, ppl } = setup(3);
+        expect(getEffectivePower(state, ppl)).toBe(1);
+        expect(getEffectiveToughness(state, ppl)).toBe(3);
+    });
+
+    it("toughness is 0 with no Forests (dies to SBA)", () => {
+        const { state, ppl } = setup(0);
+        expect(getEffectiveToughness(state, ppl)).toBe(0);
+    });
+
+    it("wire format: derived toughness survives projectPublicState", () => {
+        const { state } = setup(2);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "ppl"
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(2);
+        expect(getEffectivePower(projected, slim)).toBe(1);
+    });
+});
+
+describe("Savaen Elves — destroy target Aura on a land (CR 605 / 701.7)", () => {
+    function setup(hostIsLand: boolean) {
+        const elves = makeInstance(savaenElves.id, {
+            id: "elves",
+            controllerId: "p1",
+        });
+        const host = hostIsLand
+            ? makeInstance(getCardByName("Forest").id, {
+                  id: "host",
+                  controllerId: "p2",
+                  ownerId: "p2",
+              })
+            : makeInstance(getCardByName("Grizzly Bears").id, {
+                  id: "host",
+                  controllerId: "p2",
+                  ownerId: "p2",
+              });
+        // Use Fishliver Oil (an Aura) as the enchantment to destroy.
+        const aura = makeInstance(getCardByName("Fishliver Oil").id, {
+            id: "aura",
+            controllerId: "p2",
+            ownerId: "p2",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [elves] }),
+                makePlayer("p2", { battlefield: [host, aura] }),
+            ],
+        });
+        return { state, elves };
+    }
+
+    it("destroys an Aura attached to a land", () => {
+        const { state, elves } = setup(true);
+        resolveActivated(state, elves, "savaen-elves-destroy-aura", [
+            { type: "permanent", id: "aura" },
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "aura")
+        ).toBeUndefined();
+    });
+
+    it("does NOT destroy an Aura attached to a creature", () => {
+        const { state, elves } = setup(false);
+        resolveActivated(state, elves, "savaen-elves-destroy-aura", [
+            { type: "permanent", id: "aura" },
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "aura")
+        ).toBeDefined();
+    });
+});
+
+describe("Scavenger Folk — sacrifice to destroy an artifact (CR 118.5 / 701.7)", () => {
+    it("destroys the target artifact (sacrifice-self cost paid by the engine)", () => {
+        const folk = makeInstance(scavengerFolk.id, {
+            id: "folk",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const artifact = makeInstance(getCardByName("Ornithopter").id, {
+            id: "art",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [folk] }),
+                makePlayer("p2", { battlefield: [artifact] }),
+            ],
+        });
+        resolveActivated(state, folk, "scavenger-folk-destroy-artifact", [
+            { type: "permanent", id: "art" },
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "art")
+        ).toBeUndefined();
+    });
+});
+
+describe("Niall Silvain — regenerate target creature (CR 605 / 701.15)", () => {
+    it("shields the target so the next destroy is replaced by regeneration", () => {
+        const niall = makeInstance(niallSilvain.id, {
+            id: "niall",
+            controllerId: "p1",
+        });
+        const friend = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "friend",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [niall, friend] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, niall, "niall-silvain-regenerate", [
+            { type: "permanent", id: "friend" },
+        ]);
+        const shielded = state.players[0].battlefield.find(
+            (c) => c.id === "friend"
+        )!;
+        expect(shielded.regenerationShields ?? 0).toBeGreaterThan(0);
+    });
+});
+
+describe("Scarwood Hag — grant / strip forestwalk until EOT (CR 605 / 611)", () => {
+    function setup() {
+        const hag = makeInstance(scarwoodHag.id, {
+            id: "hag",
+            controllerId: "p1",
+        });
+        const target = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "tgt",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hag, target] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, hag };
+    }
+
+    it("grants forestwalk to the target", () => {
+        const { state, hag } = setup();
+        resolveActivated(state, hag, "scarwood-hag-grant-forestwalk", [
+            { type: "permanent", id: "tgt" },
+        ]);
+        const tgt = state.players[0].battlefield.find((c) => c.id === "tgt")!;
+        expect(tgt.staticAbilities).toContain("forestwalk");
+    });
+
+    it("strips forestwalk from a target that has it", () => {
+        const { state, hag } = setup();
+        // Pre-grant via the first ability, then strip via the second.
+        resolveActivated(state, hag, "scarwood-hag-grant-forestwalk", [
+            { type: "permanent", id: "tgt" },
+        ]);
+        // Reset the hag's tap so the second activation can pay {T}.
+        state.players[0].battlefield.find((c) => c.id === "hag")!.isTapped =
+            false;
+        resolveActivated(state, hag, "scarwood-hag-strip-forestwalk", [
+            { type: "permanent", id: "tgt" },
+        ]);
+        const tgt = state.players[0].battlefield.find((c) => c.id === "tgt")!;
+        expect(tgt.staticAbilities ?? []).not.toContain("forestwalk");
+    });
+});
+
+describe("Scarwood Bandits — steal an artifact unless opponent pays {2} (CR 118.8 / 613.1b)", () => {
+    function setup() {
+        const bandits = makeInstance(scarwoodBandits.id, {
+            id: "bandits",
+            controllerId: "p1",
+        });
+        const artifact = makeInstance(getCardByName("Ornithopter").id, {
+            id: "art",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bandits] }),
+                makePlayer("p2", { battlefield: [artifact] }),
+            ],
+        });
+        return { state, bandits };
+    }
+
+    it("has forestwalk", () => {
+        expect(scarwoodBandits.staticAbilities).toContain("forestwalk");
+    });
+
+    it("gains control of the artifact when the opponent declines to pay {2}", () => {
+        const { state, bandits } = setup();
+        state.stack.push({
+            ...bandits,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "scarwood-bandits-steal",
+            targets: [{ type: "permanent", id: "art" }],
+        });
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends at may-pay
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        // Control change: the artifact now sits in p1's battlefield.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "art")
+        ).toBeDefined();
+    });
+
+    it("does NOT gain control when the opponent pays {2}", () => {
+        const { state, bandits } = setup();
+        state.players[1].manaPool = { C: 2 };
+        state.stack.push({
+            ...bandits,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "scarwood-bandits-steal",
+            targets: [{ type: "permanent", id: "art" }],
+        });
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends at may-pay
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "art")
+        ).toBeDefined();
+    });
+});
+
+describe("Spitting Slug — combat first-strike trigger (CR 509.1h / 118.4)", () => {
+    function setupCombat() {
+        const slug = makeInstance(spittingSlug.id, {
+            id: "slug",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const blocker = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "blocker",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [slug] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["slug"],
+                confirmed: true,
+                blockerAssignments: { slug: ["blocker"] },
+                blockersConfirmed: true,
+            },
+        });
+        return { state, slug };
+    }
+
+    it("triggers when the slug becomes blocked", () => {
+        const { state } = setupCombat();
+        emitBlockersConfirmedEvents(state);
+        expect(
+            state.stack.some(
+                (s) => s.triggeredAbilityId === "spitting-slug-first-strike"
+            )
+        ).toBe(true);
+    });
+
+    it("the slug gains first strike when the controller pays {1}{G}", () => {
+        const { state } = setupCombat();
+        state.players[0].manaPool = { G: 2 };
+        emitBlockersConfirmedEvents(state);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends at may-pay
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        const slug = state.players[0].battlefield.find((c) => c.id === "slug")!;
+        expect(slug.staticAbilities).toContain("first strike");
+    });
+
+    it("the paired creature gains first strike when {1}{G} is declined", () => {
+        const { state } = setupCombat();
+        emitBlockersConfirmedEvents(state);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends at may-pay
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        const blocker = state.players[1].battlefield.find(
+            (c) => c.id === "blocker"
+        )!;
+        expect(blocker.staticAbilities).toContain("first strike");
+    });
+});
+
+describe("Venom — Aura: combat kill at end of combat (CR 509.1h / 511.3 / 701.7)", () => {
+    function setupCombat(otherSubtypes: string[] = ["Bear"]) {
+        const otherName = otherSubtypes.includes("Wall")
+            ? "Wall of Swords"
+            : "Grizzly Bears";
+        // Host (p1 attacker) carries Venom; "other" creature is p2's blocker.
+        const host = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "host",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const aura = makeInstance(venom.id, {
+            id: "venom",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const other = makeInstance(getCardByName(otherName).id, {
+            id: "other",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2", { battlefield: [other] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["host"],
+                confirmed: true,
+                blockerAssignments: { host: ["other"] },
+                blockersConfirmed: true,
+            },
+        });
+        return { state };
+    }
+
+    it("triggers on the enchanted creature being blocked by a non-Wall", () => {
+        const { state } = setupCombat();
+        emitBlockersConfirmedEvents(state);
+        expect(
+            state.stack.some(
+                (s) => s.triggeredAbilityId === "venom-combat-kill"
+            )
+        ).toBe(true);
+    });
+
+    it("does NOT trigger against a Wall", () => {
+        const { state } = setupCombat(["Wall"]);
+        emitBlockersConfirmedEvents(state);
+        expect(
+            state.stack.some(
+                (s) => s.triggeredAbilityId === "venom-combat-kill"
+            )
+        ).toBe(false);
+    });
+
+    it("destroys the other creature at END_OF_COMBAT", () => {
+        const { state } = setupCombat();
+        emitBlockersConfirmedEvents(state);
+        resolveTopOfStack(state);
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].payload.targetId).toBe("other");
+        state.phase = "COMBAT_DAMAGE";
+        advancePhase(state);
+        expect(state.phase).toBe("END_OF_COMBAT");
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "other")
+        ).toBeUndefined();
+        expect(
+            state.players[1].graveyard.find((c) => c.id === "other")
+        ).toBeDefined();
+    });
+});
+
+describe("Whippoorwill — exile-on-death + no regeneration (CR 605 / 614.1a)", () => {
+    it("marks the target so it is exiled instead of dying", () => {
+        const whip = makeInstance(whippoorwill.id, {
+            id: "whip",
+            controllerId: "p1",
+        });
+        const victim = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [whip] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        resolveActivated(state, whip, "whippoorwill-doom", [
+            { type: "permanent", id: "victim" },
+        ]);
+        const marked = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(marked.exileOnDeath).toBe(true);
+    });
+
+    it("has flying", () => {
+        expect(whippoorwill.staticAbilities).toContain("flying");
     });
 });
