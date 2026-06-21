@@ -5227,6 +5227,28 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // DRK Red free tranche (#414) — Ball Lightning end-step sacrifice +
+        // Goblin Shrine conditional anthem and LTB damage. Ball Lightning (6/1
+        // trample, haste) can attack the turn it lands; pass to the end step and
+        // its "at the beginning of the end step, sacrifice this creature" trigger
+        // fires. Goblin Shrine enchants a basic Mountain, so the Goblin Hero
+        // shows 3/2 ("Goblin creatures get +1/+0"); destroy the Shrine and its
+        // LTB trigger deals 1 to each Goblin.
+        label: "DRK Red: Ball Lightning end-step sac / Goblin Shrine anthem + LTB ping (#414)",
+        cards: [
+            { name: "Ball Lightning", owner: "me" as const },
+            { name: "Goblin Hero", owner: "me" as const },
+            {
+                name: "Goblin Shrine",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
