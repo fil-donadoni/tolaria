@@ -124,6 +124,7 @@ function compactCard(
     if (card.untapLockedBy?.length) {
         out.untapLockedBy = card.untapLockedBy;
     }
+    if (card.skipNextUntap) out.skipNextUntap = true;
     if (card.counters && Object.keys(card.counters).length > 0) {
         out.counters = card.counters;
     }
@@ -165,6 +166,10 @@ function compactCard(
     if (card.mustBlockAllThisTurn) out.mustBlockAllThisTurn = true;
     if (card.cantBlockThisTurn) out.cantBlockThisTurn = true;
     if (card.cantBeBlockedThisTurn) out.cantBeBlockedThisTurn = true;
+    if (card.cantBeBlockedBySubtypesThisTurn?.length) {
+        out.cantBeBlockedBySubtypesThisTurn =
+            card.cantBeBlockedBySubtypesThisTurn;
+    }
     if (card.chosenPlayerId) out.chosenPlayerId = card.chosenPlayerId;
     if (card.pileLabel) out.pileLabel = card.pileLabel;
     if (card.faceDown) out.faceDown = true;
@@ -286,6 +291,7 @@ function expandCard(
     if (compact.untapLockedBy) {
         result.untapLockedBy = compact.untapLockedBy as string[];
     }
+    if (compact.skipNextUntap) result.skipNextUntap = true;
     if (compact.counters) {
         result.counters = compact.counters as Record<string, number>;
     }
@@ -330,6 +336,10 @@ function expandCard(
     if (compact.mustBlockAllThisTurn) result.mustBlockAllThisTurn = true;
     if (compact.cantBlockThisTurn) result.cantBlockThisTurn = true;
     if (compact.cantBeBlockedThisTurn) result.cantBeBlockedThisTurn = true;
+    if (compact.cantBeBlockedBySubtypesThisTurn) {
+        result.cantBeBlockedBySubtypesThisTurn =
+            compact.cantBeBlockedBySubtypesThisTurn as string[];
+    }
     if (compact.chosenPlayerId) {
         result.chosenPlayerId = compact.chosenPlayerId as string;
     }
@@ -633,6 +643,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "extraTurns",
     "preventionEffects",
     "targetPreventionShields",
+    "playerDamagePrevention",
     "delayedTriggers",
     "nextDelayedSeq",
     "nextTokenSeq",

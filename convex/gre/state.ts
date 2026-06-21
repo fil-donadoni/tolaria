@@ -362,6 +362,15 @@ export type CardInstanceState = {
      *  ids whose source has left or untapped. Pushed by
      *  `SpellContext.lockUntapWhileSourceTapped`. */
     untapLockedBy?: string[];
+    /** When set, this permanent doesn't untap during its controller's NEXT
+     *  untap step, after which the flag clears itself (CR 302.6 / 502.1 — a
+     *  one-shot untap-prevention with a fixed, single-step duration). Distinct
+     *  from `untapLockedBy` (which holds while a still-tapped source keeps the
+     *  lock) and from the `does-not-untap` keyword (permanent). The untap step
+     *  skips this permanent exactly once, then deletes the flag so the
+     *  following untap step proceeds normally. Set by
+     *  `SpellContext.skipNextUntap` (Barl's Cage, The Dark). */
+    skipNextUntap?: boolean;
     /** Counters on this permanent (CR 122). Map of counter type → count.
      *  Layer 7d folds P/T-modifying types (+1/+1, +1/+0, ...) into effective
      *  stat reads. Mutated by `addCounter`/`removeCounter`. Cleared on
@@ -449,6 +458,13 @@ export type CardInstanceState = {
      *  on the attacker side so every would-be blocker is rejected. Cleared at
      *  CLEANUP (CR 514.2). */
     cantBeBlockedThisTurn?: boolean;
+    /** Transient flag: this creature (an attacker) can't be blocked this turn by
+     *  creatures whose subtypes include any listed here (CR 509.1b). Set on an
+     *  attacker by Tower of Coireall ("can't be blocked by Walls this turn").
+     *  Read by `validateBlockerEligibility` on the attacker side so a would-be
+     *  blocker carrying a listed subtype is rejected. Cleared at CLEANUP
+     *  (CR 514.2). */
+    cantBeBlockedBySubtypesThisTurn?: string[];
     /** A player chosen as this permanent enters the battlefield and stored for
      *  the rest of the game (CR 603.6b / 614.12 — "as ~ enters, choose an
      *  opponent"). Set via `SpellContext.setChosenPlayer` from an ETB trigger;
@@ -587,6 +603,29 @@ export type PreventionEffect = {
 export type TargetPreventionShield = {
     targetType: "permanent" | "player";
     targetId: string;
+    remaining: number;
+    duration: Duration;
+};
+
+/** A per-player damage-prevention shield with a source match and a reduction
+ *  mode (CR 615.1). Generalizes the "prevent damage from a chosen source / a
+ *  class of sources, to a player" shape that several DRK cards use:
+ *    - Dark Sphere — match a chosen source, prevent HALF rounded down, once.
+ *    - Scarecrow — match any source with a given keyword (flying), prevent ALL,
+ *      for the rest of the turn.
+ *  `match.sourceInstanceId` (when set) scopes the shield to one source; when
+ *  unset, `match.sourceStaticAbility` (when set) scopes it to sources whose
+ *  damage event carries that keyword among `sourceStaticAbilities`. A shield
+ *  with neither is unconditional. `mode` is the residual computation; `remaining`
+ *  counts consumptions before the shield is purged (1 = one-shot). The
+ *  unconsumed shield wears off when `duration` expires (CR 514.2). */
+export type PlayerDamagePreventionShield = {
+    playerId: string;
+    match: {
+        sourceInstanceId?: string;
+        sourceStaticAbility?: string;
+    };
+    mode: "all" | "half-down";
     remaining: number;
     duration: Duration;
 };
@@ -1213,6 +1252,12 @@ export type GameState = {
      *  Decremented per damage event; entry purged at 0 or at `duration`
      *  expiry. Source-agnostic — any source's damage is reduced. */
     targetPreventionShields?: TargetPreventionShield[];
+    /** Per-player damage-prevention shields with a source match + reduction
+     *  mode (CR 615.1). Dark Sphere (prevent half from a chosen source, once)
+     *  and Scarecrow (prevent all flying-source damage this turn) register
+     *  these; consumed/reduced by `applyPlayerDamagePrevention` on every
+     *  player-damage event. Cleared at CLEANUP for end-of-turn shields. */
+    playerDamagePrevention?: PlayerDamagePreventionShield[];
     /** Delayed triggered abilities awaiting their firing condition (CR 603.7a).
      *  Scanned at phase entry for matching `timing`. Each instance fires once
      *  then is spliced out. */
@@ -1531,6 +1576,56 @@ export function applyTargetPrevention(
     state.targetPreventionShields = shields.filter((s) => s.remaining > 0);
     if (state.targetPreventionShields.length === 0) {
         state.targetPreventionShields = undefined;
+    }
+    return remaining;
+}
+
+/** Applies any matching `playerDamagePrevention` shields to damage headed at a
+ *  player (CR 615.1). Walks the shields in declaration order; for each shield
+ *  whose match (specific source, or a source keyword among
+ *  `sourceStaticAbilities`, or unconditional) fits this event, reduces the
+ *  amount per its `mode` ("all" → 0; "half-down" → drop `floor(amount/2)`),
+ *  decrements `remaining`, and continues with the reduced amount. Returns the
+ *  residual the caller should actually apply. Spent shields (remaining 0) are
+ *  spliced out; the field is cleared when empty. Used by Dark Sphere and
+ *  Scarecrow (The Dark). */
+export function applyPlayerDamagePrevention(
+    state: GameState,
+    playerId: string,
+    sourceInstanceId: string,
+    sourceStaticAbilities: ReadonlyArray<string> | undefined,
+    amount: number
+): number {
+    const shields = state.playerDamagePrevention;
+    if (!shields || shields.length === 0) return amount;
+    let remaining = amount;
+    for (const s of shields) {
+        if (remaining <= 0) break;
+        if (s.remaining <= 0) continue;
+        if (s.playerId !== playerId) continue;
+        if (
+            s.match.sourceInstanceId !== undefined &&
+            s.match.sourceInstanceId !== sourceInstanceId
+        ) {
+            continue;
+        }
+        if (
+            s.match.sourceStaticAbility !== undefined &&
+            !(sourceStaticAbilities ?? []).includes(s.match.sourceStaticAbility)
+        ) {
+            continue;
+        }
+        if (s.mode === "all") {
+            remaining = 0;
+        } else {
+            // "prevent half that damage, rounded down" (CR 615.1, Dark Sphere).
+            remaining -= Math.floor(remaining / 2);
+        }
+        s.remaining -= 1;
+    }
+    state.playerDamagePrevention = shields.filter((s) => s.remaining > 0);
+    if (state.playerDamagePrevention.length === 0) {
+        state.playerDamagePrevention = undefined;
     }
     return remaining;
 }
@@ -3393,9 +3488,11 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.temporaryPTMods;
     delete card.sourceTappedPTMods;
     delete card.untapLockedBy;
+    delete card.skipNextUntap;
     delete card.exileOnDeath;
     delete card.colorOverride;
     delete card.cantBeBlockedThisTurn;
+    delete card.cantBeBlockedBySubtypesThisTurn;
     // CR 603.6b — the chosen player is stored for the rest of the game while
     // this permanent is on the battlefield; a zone change makes a new object
     // (CR 400.7), so the choice does not carry over.
@@ -3640,18 +3737,29 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 // with nothing. Matched against the current stack item's id
                 // (the spell/ability dealing the damage).
                 if (consumePreventionIfAny(state, item.id, target.id)) return;
+                const desc = describeDamageSource(state, item.id);
+                // CR 615.1: per-player source-matched shields (Dark Sphere /
+                // Scarecrow). Run before target-keyed shields so a half/all
+                // prevention shapes the amount the N-absorption then sees.
+                let reduced = applyPlayerDamagePrevention(
+                    state,
+                    target.id,
+                    item.id,
+                    desc.staticAbilities,
+                    amount
+                );
+                if (reduced <= 0) return;
                 // CR 615.1: target-keyed prevention shields absorb up to N
                 // damage per event regardless of source.
-                const reduced = applyTargetPrevention(
+                reduced = applyTargetPrevention(
                     state,
                     "player",
                     target.id,
-                    amount
+                    reduced
                 );
                 if (reduced <= 0) return;
                 getPlayer(state, target.id).life -= reduced;
                 bumpDamageDealtToPlayer(state, target.id, reduced);
-                const desc = describeDamageSource(state, item.id);
                 // CR 120.3 (artifact-narrowed) — Reverse Polarity tally.
                 bumpArtifactDamageToPlayer(
                     state,
@@ -3830,6 +3938,31 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 },
             ];
         },
+        addPlayerDamagePreventionShield(
+            playerId: string,
+            match: {
+                sourceInstanceId?: string;
+                sourceStaticAbility?: string;
+            },
+            mode: "all" | "half-down",
+            duration: DurationSpec,
+            remaining: number = 1
+        ): void {
+            // CR 615.1 — register a per-player, source-matched prevention
+            // shield (Dark Sphere: half from a chosen source, once; Scarecrow:
+            // all from flying sources this turn). Consumed/reduced by
+            // `applyPlayerDamagePrevention` on every player-damage event.
+            state.playerDamagePrevention = [
+                ...(state.playerDamagePrevention ?? []),
+                {
+                    playerId,
+                    match,
+                    mode,
+                    remaining,
+                    duration: resolveDuration(duration, item.castById, state),
+                },
+            ];
+        },
         preventNextNDamageToTarget(
             target: TargetSelection,
             amount: number,
@@ -3958,6 +4091,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const existing = found.card.untapLockedBy ?? [];
             if (existing.includes(sourceId)) return;
             found.card.untapLockedBy = [...existing, sourceId];
+        },
+        // CR 302.6 / 502.1 (Barl's Cage, The Dark): one-shot "doesn't untap
+        // during its controller's next untap step." Records a self-clearing
+        // flag the untap step reads and deletes exactly once.
+        skipNextUntap(target: TargetSelection): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.skipNextUntap = true;
         },
         setBasePT(
             target: TargetSelection,
@@ -4814,6 +4956,22 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             found.card.cantBeBlockedThisTurn = true;
+        },
+
+        setCantBeBlockedBySubtypeThisTurn(
+            target: TargetSelection,
+            subtype: string
+        ): void {
+            // CR 509.1b — flag an attacker as unblockable this turn by creatures
+            // of a given subtype (Tower of Coireall, "can't be blocked by
+            // Walls"). Read on the attacker side by `validateBlockerEligibility`;
+            // cleared at CLEANUP (CR 514.2). No-op off the battlefield.
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            const existing = found.card.cantBeBlockedBySubtypesThisTurn ?? [];
+            if (existing.includes(subtype)) return;
+            found.card.cantBeBlockedBySubtypesThisTurn = [...existing, subtype];
         },
 
         setColorOverride(target: TargetSelection, colors: Color[]): void {

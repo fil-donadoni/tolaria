@@ -4913,6 +4913,110 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 6,
     },
+    {
+        // DRK Artifacts/Lands free tranche (#417) — activated-ability artifacts.
+        //   • Barl's Cage: {3}: lock an opponent's creature off its next untap.
+        //   • Bone Flute: {2},{T}: all creatures -1/-0 EOT.
+        //   • Living Armor: {T},Sac: X +0/+1 counters (X = target MV).
+        //   • Book of Rass / Fountain of Youth: card advantage / lifegain.
+        // Lands are present to pay the activation costs.
+        label: "DRK Artifacts: Barl's Cage / Bone Flute / Living Armor / Book of Rass (#417)",
+        cards: [
+            { name: "Barl's Cage", owner: "me" as const },
+            { name: "Bone Flute", owner: "me" as const },
+            { name: "Living Armor", owner: "me" as const },
+            { name: "Book of Rass", owner: "me" as const },
+            { name: "Fountain of Youth", owner: "me" as const },
+            { name: "Hill Giant", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const, tapped: true },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
+        // DRK colorless free tranche (#417) — graveyard hate & recursion.
+        //   • Tormod's Crypt: {T},Sac: exile the opponent's whole graveyard.
+        //   • Skull of Orm: {5},{T}: return an enchantment from your graveyard.
+        //   • Necropolis (Wall, defender): exile a graveyard creature to grow it.
+        // The opponent's graveyard is pre-seeded; yours holds an enchantment.
+        label: "DRK colorless: Tormod's Crypt / Skull of Orm / Necropolis (#417)",
+        cards: [
+            { name: "Tormod's Crypt", owner: "me" as const },
+            { name: "Skull of Orm", owner: "me" as const },
+            { name: "Necropolis", owner: "me" as const },
+            {
+                name: "Curse Artifact",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Hill Giant",
+                owner: "opp" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Serra Angel",
+                owner: "opp" as const,
+                zone: "graveyard" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
+        // DRK prevention artifacts (#417) — damage-prevention shields.
+        //   • Dark Sphere: {T},Sac, choose a source: prevent HALF its next hit.
+        //   • Scarecrow ({T} costs {6}): prevent ALL flying-source damage this
+        //     turn. The opponent has a Serra Angel (flier) attacking.
+        // In DECLARE_ATTACKERS so you can pre-empt the incoming combat damage.
+        label: "DRK prevention: Dark Sphere (half) / Scarecrow (anti-flying) (#417)",
+        cards: [
+            { name: "Dark Sphere", owner: "me" as const },
+            { name: "Scarecrow", owner: "me" as const },
+            { name: "Serra Angel", owner: "opp" as const, tapped: true },
+        ],
+        phase: "DECLARE_ATTACKERS",
+        landCount: 8,
+    },
+    {
+        // DRK lands (#417) — utility lands.
+        //   • Maze of Ith: {T}: untap an attacker + prevent its combat damage —
+        //     the classic fog-on-a-land. Opponent's Hill Giant is attacking.
+        //   • City of Shadows: {T},exile a creature you control: store a counter;
+        //     {T}: add {C} per storage counter (a mana battery).
+        //   • Safe Haven: {2},{T}: blink-bank your own creatures; sac on upkeep
+        //     to return them.
+        //   • Tower of Coireall: {T}: a creature can't be blocked by Walls.
+        label: "DRK lands: Maze of Ith / City of Shadows / Safe Haven / Tower of Coireall (#417)",
+        cards: [
+            { name: "Maze of Ith", owner: "me" as const },
+            { name: "City of Shadows", owner: "me" as const },
+            { name: "Safe Haven", owner: "me" as const },
+            { name: "Tower of Coireall", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Hill Giant", owner: "opp" as const },
+        ],
+        phase: "DECLARE_ATTACKERS",
+        landCount: 6,
+    },
+    {
+        // DRK Stone Calendar (#417) — "Spells you cast cost {1} less to cast."
+        // Cast Hill Giant ({3}{R}) and watch the generic drop by one. The lock
+        // applies only to YOUR spells, not the opponent's.
+        label: "DRK Stone Calendar: your spells cost {1} less (#417)",
+        cards: [
+            { name: "Stone Calendar", owner: "me" as const },
+            { name: "Hill Giant", owner: "me" as const, zone: "hand" as const },
+            { name: "Mountain", owner: "me" as const, count: 5 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
