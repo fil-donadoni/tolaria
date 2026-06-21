@@ -63,6 +63,7 @@ import {
     fountainOfYouth,
     livingArmor,
     necropolis,
+    reflectingMirror,
     scarecrow,
     skullOfOrm,
     standingStones,
@@ -81,8 +82,9 @@ import {
     wormsOfTheEarth,
     fasting,
 } from "../drk";
-import { tropicalIsland, mountain } from "../lea";
+import { tropicalIsland, mountain, lightningBolt } from "../lea";
 import { stripMine } from "../atq";
+import { finalizeTargetSelection } from "../../../game";
 import { getCardById, getCardByName, getAllCards } from "../../index";
 import {
     resolveTopOfStack,
@@ -4298,5 +4300,229 @@ describe("Fasting (CR 504/614 skip-draw + CR 603.6a hunger counters)", () => {
         applyMayPaySubmit(state, { playerId: "p1", accept: true });
         expect(p1.life).toBe(22);
         expect(p1.hand).toHaveLength(0);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reflecting Mirror — "{X}, {T}: Change the target of target spell with a single
+// target if that target is you. The new target must be a player. X is twice the
+// mana value of that spell." (CR 605 activated ability; CR 114.6 changing the
+// target of a spell already on the stack — the ORIGINAL object, not a copy.)
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Reflecting Mirror (retarget existing spell, CR 114.6)", () => {
+    const MIRROR_ABILITY = "reflecting-mirror-retarget";
+
+    // Pushes Reflecting Mirror's ability on the stack with its targets already
+    // chosen (mirrors the post-finalizeTargetSelection state), then resolves it
+    // so requestRetarget fires. The {X}/{T} cost is assumed paid (its payment
+    // is exercised through finalizeTargetSelection in the integration test).
+    function resolveMirrorAbility(
+        state: GameState,
+        source: CardInstanceState,
+        spellStackItemId: string
+    ): void {
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: source.controllerId,
+            abilityId: MIRROR_ABILITY,
+            targets: [{ type: "spell", id: spellStackItemId }],
+        });
+        resolveTopOfStack(state);
+    }
+
+    function setup() {
+        const mirror = makeInstance(reflectingMirror.id, {
+            id: "mirror-1",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mirror] }),
+                makePlayer("p2"),
+            ],
+        });
+        // p2 casts a single-target spell (Lightning Bolt) at p1.
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        return { state, mirror, bolt };
+    }
+
+    it("definition: {4} artifact with a single targeted activated ability", () => {
+        expect(reflectingMirror.types).toEqual(["Artifact"]);
+        expect(reflectingMirror.manaCost).toEqual({ X: 4 });
+        const ability = reflectingMirror.activatedAbilities?.[0];
+        expect(ability?.cost.tap).toBe(true);
+        expect(ability?.cost.mana).toEqual({ X: "X" });
+        expect(ability?.cost.xFromTargetSpellMv).toEqual({ multiplier: 2 });
+        expect(ability?.targetRequirement).toEqual({
+            type: "spell",
+            count: 1,
+            spellSingleTargetingController: true,
+        });
+    });
+
+    it("is legal only against a single-target spell that targets the activator (CR 115.10)", () => {
+        const { state } = setup();
+        const ability = reflectingMirror.activatedAbilities![0];
+        // Activator is p1: the bolt targets p1, so it is a legal target.
+        const legalForP1 = getLegalTargets(
+            state,
+            ability.targetRequirement!,
+            [],
+            "p1"
+        );
+        expect(legalForP1.map((t) => t.type)).toEqual(["spell"]);
+
+        // From p2's seat the bolt does NOT target p2 — illegal.
+        const legalForP2 = getLegalTargets(
+            state,
+            ability.targetRequirement!,
+            [],
+            "p2"
+        );
+        expect(legalForP2).toHaveLength(0);
+    });
+
+    it("a spell with two targets is not legal (single target required)", () => {
+        const { state } = setup();
+        // Replace the bolt with a (synthetic) two-target spell at p1 + p2.
+        state.stack[0].targets = [
+            { type: "player", id: "p1" },
+            { type: "player", id: "p2" },
+        ];
+        const ability = reflectingMirror.activatedAbilities![0];
+        const legal = getLegalTargets(
+            state,
+            ability.targetRequirement!,
+            [],
+            "p1"
+        );
+        expect(legal).toHaveLength(0);
+    });
+
+    it("a spell targeting a permanent (not the player) is not legal", () => {
+        const { state } = setup();
+        state.stack[0].targets = [{ type: "permanent", id: "some-creature" }];
+        const ability = reflectingMirror.activatedAbilities![0];
+        const legal = getLegalTargets(
+            state,
+            ability.targetRequirement!,
+            [],
+            "p1"
+        );
+        expect(legal).toHaveLength(0);
+    });
+
+    it("resolution opens a player-target retarget prompt for the activator (CR 114.6)", () => {
+        const { state, mirror, bolt } = setup();
+        resolveMirrorAbility(state, mirror, bolt.id);
+
+        const pt = state.pendingTarget;
+        expect(pt?.kind).toBe("retarget");
+        expect(pt?.playerId).toBe("p1"); // the activator chooses
+        expect(pt?.cardInstanceId).toBe(bolt.id); // the ORIGINAL spell
+        expect(pt?.targetType).toBe("player");
+        // The Mirror ability has left the stack; the bolt is still there.
+        expect(state.stack.map((s) => s.id)).toEqual([bolt.id]);
+    });
+
+    it("changes the ORIGINAL spell's target and it resolves at the new target", () => {
+        const { state, mirror, bolt } = setup();
+        resolveMirrorAbility(state, mirror, bolt.id);
+
+        // Choose p2 as the new target (mirrors finalizeTargetSelection's
+        // retarget branch writing onto the original stack item).
+        const pt = state.pendingTarget!;
+        const spell = state.stack.find((s) => s.id === pt.cardInstanceId)!;
+        spell.targets = [{ type: "player", id: "p2" }];
+        state.pendingTarget = undefined;
+
+        // The original bolt now targets p2 in place.
+        expect(state.stack[0].targets).toEqual([{ type: "player", id: "p2" }]);
+
+        resolveTopOfStack(state); // Bolt resolves at the NEW target.
+        expect(state.players[1].life).toBe(17); // p2 took the 3 damage
+        expect(state.players[0].life).toBe(20); // p1 untouched
+    });
+
+    it("integration: real activation + derived-X payment + retarget (game.ts)", () => {
+        const { state, mirror, bolt } = setup();
+        const ability = reflectingMirror.activatedAbilities![0];
+        // X is twice the bolt's mana value (Lightning Bolt MV = 1 → X = 2).
+        // Give p1 exactly 2 mana so the cost is covered and finalize commits.
+        state.players[0].manaPool = { W: 0, U: 0, B: 0, R: 2, G: 0, C: 0 };
+
+        // Drive the REAL finalizeTargetSelection through the ability path, with
+        // the spell target already selected — mirrors activateAbility +
+        // selectTarget building the pendingTarget (kind: "ability").
+        const pendingTarget = {
+            playerId: "p1",
+            cardInstanceId: mirror.id,
+            targetType: ability.targetRequirement!.type,
+            count: 1,
+            selected: [{ type: "spell" as const, id: bolt.id }],
+            kind: "ability" as const,
+            abilityId: MIRROR_ABILITY,
+            spellSingleTargetingController: true,
+        };
+        state.pendingTarget = pendingTarget;
+        finalizeTargetSelection(state, pendingTarget, "p1");
+
+        // Cost paid: {T} the Mirror + 2 generic mana spent. The ability is on
+        // the stack carrying the derived X = 2.
+        expect(state.players[0].battlefield[0].isTapped).toBe(true);
+        expect(state.players[0].manaPool.R).toBe(0);
+        const abilityItem = state.stack.find(
+            (s) => s.abilityId === MIRROR_ABILITY
+        )!;
+        expect(abilityItem.chosenX).toBe(2);
+
+        // Resolve the ability → retarget prompt on the ORIGINAL bolt.
+        resolveTopOfStack(state);
+        const pt = state.pendingTarget!;
+        expect(pt.kind).toBe("retarget");
+        expect(pt.cardInstanceId).toBe(bolt.id);
+
+        // Choose p2 via the REAL retarget-finalize branch of game.ts.
+        const retargetPt = {
+            ...pt,
+            selected: [{ type: "player" as const, id: "p2" }],
+        };
+        state.pendingTarget = retargetPt;
+        finalizeTargetSelection(state, retargetPt, "p1");
+
+        expect(state.stack[0].targets).toEqual([{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17); // bolt now hits p2
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("integration: derived X scales with a higher-mana-value spell", () => {
+        // Use Fireball-like MV via chosenX on the target spell: a bolt cast for
+        // an extra X would raise its MV; here we simulate a spell whose stack
+        // MV is 3 (base 1 + chosenX 2) → derived ability X = 6.
+        const { state, mirror, bolt } = setup();
+        bolt.chosenX = 2; // pretend the targeted spell carried X=2
+        state.players[0].manaPool = { W: 0, U: 0, B: 0, R: 6, G: 0, C: 0 };
+        const pendingTarget = {
+            playerId: "p1",
+            cardInstanceId: mirror.id,
+            targetType: "spell" as const,
+            count: 1,
+            selected: [{ type: "spell" as const, id: bolt.id }],
+            kind: "ability" as const,
+            abilityId: MIRROR_ABILITY,
+            spellSingleTargetingController: true,
+        };
+        state.pendingTarget = pendingTarget;
+        finalizeTargetSelection(state, pendingTarget, "p1");
+
+        const abilityItem = state.stack.find(
+            (s) => s.abilityId === MIRROR_ABILITY
+        )!;
+        expect(abilityItem.chosenX).toBe(6); // 2 × (1 + 2)
+        expect(state.players[0].manaPool.R).toBe(0);
     });
 });

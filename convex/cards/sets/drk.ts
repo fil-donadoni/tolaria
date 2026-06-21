@@ -2213,6 +2213,49 @@ export const necropolis: CardDefinition = {
     ],
 };
 
+// Reflecting Mirror — "{X}, {T}: Change the target of target spell with a single
+// target if that target is you. The new target must be a player. X is twice the
+// mana value of that spell." (CR 605 activated ability; CR 114.6 changing the
+// target of a spell already on the stack — the ORIGINAL object, not a copy
+// (distinct from Fork's copy-retarget). The ability targets the spell (which
+// must be single-target and currently target you, CR 115.10), and {X} is forced
+// to twice the targeted spell's mana value via `xFromTargetSpellMv` rather than
+// player-chosen (CR 107.3). On resolution the new player target is chosen and
+// written onto the original stack item via `requestRetarget`.)
+export const reflectingMirror: CardDefinition = {
+    id: "d551ff93-d8da-4c21-bc3c-6451c0dde07e",
+    name: "Reflecting Mirror",
+    oracleText:
+        "{X}, {T}: Change the target of target spell with a single target if that target is you. The new target must be a player. X is twice the mana value of that spell.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "reflecting-mirror-retarget",
+            oracleText:
+                "{X}, {T}: Change the target of target spell with a single target if that target is you. The new target must be a player. X is twice the mana value of that spell.",
+            cost: {
+                mana: { X: "X" },
+                tap: true,
+                xFromTargetSpellMv: { multiplier: 2 },
+            },
+            useStack: true,
+            targetRequirement: {
+                type: "spell",
+                count: 1,
+                spellSingleTargetingController: true,
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (!target || target.type !== "spell") return;
+                // CR 114.6 — the new target must be a player; the change is
+                // applied to the original spell on the stack (not a copy).
+                ctx.requestRetarget(target.id, { type: "player", count: 1 });
+            },
+        },
+    ],
+};
+
 // Scarecrow — "{6}, {T}: Prevent all damage that would be dealt to you this turn
 // by creatures with flying." (CR 605 activated ability; CR 615.1 per-player,
 // source-keyword-matched prevent-all shield via `addPlayerDamagePreventionShield`

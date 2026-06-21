@@ -194,6 +194,12 @@ export interface TargetRequirement {
      *  ("target player who attacked this turn"). Ignored for non-player target
      *  types. */
     playerAttackedThisTurn?: boolean;
+    /** Restricts legal SPELL targets (`type: "spell"`) to spells that have
+     *  EXACTLY ONE target and whose single target IS the source's controller
+     *  (the activating player). Used by Reflecting Mirror ("target spell with a
+     *  single target if that target is you", CR 114.1 / 115.10). Ignored for
+     *  non-spell target types. */
+    spellSingleTargetingController?: boolean;
 }
 
 /** "For as long as" condition on a conditional control change (CR 611.2b).
@@ -300,6 +306,14 @@ export interface ActivatedAbility {
          *  random, using the game's seeded PRNG, at activation commit. Used by
          *  Coral Helm ("Discard a card at random: target creature gets +2/+2"). */
         discardAtRandom?: number;
+        /** Derives the value of X in this ability's mana cost from the targeted
+         *  spell instead of asking the player to choose it (CR 107.3 — "X is
+         *  twice the mana value of that spell"). Only meaningful when
+         *  `mana.X === "X"` and the ability has a single `type: "spell"` target.
+         *  At target selection the engine computes
+         *  `chosenX = multiplier * mvOfStackItem(targetSpell)` and pays that as
+         *  the {X} portion. Used by Reflecting Mirror (multiplier 2). */
+        xFromTargetSpellMv?: { multiplier: number };
     };
     /** Oracle text for this ability (displayed in context menus and on the stack). */
     oracleText: string;
@@ -1306,6 +1320,18 @@ export interface SpellContext {
      *  (`cancelTarget`) keeps the copy's inherited targets. No-op if the copy
      *  is no longer on the stack. */
     requestCopyRetarget: (copyStackItemId: string) => void;
+    /** Changes the target of a spell ALREADY on the stack — the ORIGINAL stack
+     *  object, not a copy (CR 114.6 — "change the target(s) of a spell"). Enters
+     *  a `retarget` target-selection phase against the given requirement; the
+     *  chosen target(s) are written onto the original stack item in place. Used
+     *  by Reflecting Mirror ("change the target of target spell … the new target
+     *  must be a player"). No-op if the spell has left the stack. The new
+     *  target's legality (e.g. "must be a player") is governed by `requirement`
+     *  and re-validated at selection. */
+    requestRetarget: (
+        spellStackItemId: string,
+        requirement: TargetRequirement
+    ) => void;
 
     // --- Mid-resolution choices (CR 608.2, 101.4) ---
 

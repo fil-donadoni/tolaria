@@ -6,6 +6,7 @@ import {
     getAbilityOracleText,
     getTriggeredAbilityOracleText,
     matchesSpellTypeFilter,
+    matchesSpellSingleTargetingController,
     wantsSpellTarget,
 } from "~/lib/card-utils";
 import { useGameContext } from "~/hooks/useGameContext";
@@ -85,6 +86,11 @@ export default function GameStack({ stack }: GameStackProps) {
                             matchesSpellTypeFilter(
                                 item,
                                 pendingTarget?.spellTypeFilter
+                            ) &&
+                            matchesSpellSingleTargetingController(
+                                item,
+                                pendingTarget?.spellSingleTargetingController,
+                                playerId
                             );
 
                         const litState = highlight?.nodes

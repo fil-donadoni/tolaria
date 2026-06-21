@@ -51,7 +51,7 @@ function toGuardState(players: Player[]): {
 function pendingGuardSource(
     players: Player[],
     sourceCardInstanceId: string,
-    kind: "cast" | "ability" | "copy-retarget" | undefined
+    kind: "cast" | "ability" | "copy-retarget" | "retarget" | undefined
 ): GuardActionSource {
     const isAbility = kind === "ability";
     for (const p of players) {
@@ -80,7 +80,7 @@ export function isUntargetableByPending(
     players: Player[],
     candidate: CardInstance,
     sourceCardInstanceId: string,
-    kind: "cast" | "ability" | "copy-retarget" | undefined
+    kind: "cast" | "ability" | "copy-retarget" | "retarget" | undefined
 ): boolean {
     const state = toGuardState(players);
     const source = pendingGuardSource(players, sourceCardInstanceId, kind);

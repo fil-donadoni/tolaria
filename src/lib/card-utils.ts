@@ -276,6 +276,26 @@ export function matchesSpellTypeFilter(
     return spellTypeFilter.some((t) => types.includes(t));
 }
 
+/** True if a stack item is a legal target for Reflecting Mirror's
+ *  `spellSingleTargetingController` requirement (CR 114.6 / 115.10): an
+ *  actual spell (not an ability) that has EXACTLY ONE target whose single
+ *  target is the activating player. When the flag is off, any spell qualifies. */
+export function matchesSpellSingleTargetingController(
+    item: {
+        abilityId?: string;
+        triggeredAbilityId?: string;
+        targets?: { type: string; id: string }[];
+    },
+    spellSingleTargetingController: boolean | undefined,
+    activatingPlayerId: string
+): boolean {
+    if (!spellSingleTargetingController) return true;
+    if (item.abilityId || item.triggeredAbilityId) return false;
+    const targets = item.targets ?? [];
+    if (targets.length !== 1) return false;
+    return targets[0].type === "player" && targets[0].id === activatingPlayerId;
+}
+
 /** Builds a `TriggerStateView` (the shape `canActivate` predicates read,
  *  CR 602.5b) from the viewer-visible players and turn state. Predicates
  *  legitimately inspect `state.players` (a controller's hand size — Library of
