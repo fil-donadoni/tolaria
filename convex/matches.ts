@@ -121,6 +121,99 @@ export function recordGameResult(
     };
 }
 
+// ---------------------------------------------------------------------------
+// Sideboarding (PRD #387 / issue #395). Between Games of a Bo3 a player may
+// exchange cards between their Maindeck and Sideboard. The swap is constrained
+// so the Maindeck size stays equal to its starting size and the combined card
+// pool (Maindeck + Sideboard) is unchanged — sideboarding only RE-PARTITIONS the
+// pool, it never adds or drops cards. Edits mutate the Match deck copy ONLY; the
+// saved `userDecks` row is read-only for the Match's duration.
+// ---------------------------------------------------------------------------
+
+/** A canonical multiset of a card list: counts per `cardId`, order-independent.
+ *  Two pools are equal iff their multisets match. */
+function poolMultiset(cards: DeckCard[]): Map<string, number> {
+    const m = new Map<string, number>();
+    for (const c of cards) m.set(c.cardId, (m.get(c.cardId) ?? 0) + 1);
+    return m;
+}
+
+function multisetEqual(
+    a: Map<string, number>,
+    b: Map<string, number>
+): boolean {
+    if (a.size !== b.size) return false;
+    for (const [k, v] of a) if (b.get(k) !== v) return false;
+    return true;
+}
+
+/** A player's post-swap partition of their combined pool into Maindeck and
+ *  Sideboard, submitted during the between-Games Sideboarding step. */
+export type SideboardSubmission = {
+    maindeck: DeckCard[];
+    sideboard: DeckCard[];
+};
+
+/**
+ * Apply a player's sideboarding submission to their Match deck copy (PRD #387 /
+ * #395). Pure: returns the new {@link MatchDeck}; throws on any invariant
+ * violation so the Convex mutation rejects an illegal swap atomically.
+ *
+ * Invariants enforced:
+ * - **Size-lock**: the new Maindeck size MUST equal the current Maindeck size
+ *   (a player can't change their deck size mid-match).
+ * - **Pool preservation**: the combined multiset (Maindeck + Sideboard) MUST be
+ *   unchanged — sideboarding only re-partitions the existing pool.
+ *
+ * `userDecks` is never read or written here; the caller passes the Match copy.
+ */
+export function applySideboard(
+    deck: MatchDeck,
+    submission: SideboardSubmission
+): MatchDeck {
+    if (submission.maindeck.length !== deck.maindeck.length) {
+        throw new Error(
+            `Maindeck size is locked to ${deck.maindeck.length}; got ${submission.maindeck.length}`
+        );
+    }
+    const currentPool = poolMultiset([...deck.maindeck, ...deck.sideboard]);
+    const nextPool = poolMultiset([
+        ...submission.maindeck,
+        ...submission.sideboard,
+    ]);
+    if (!multisetEqual(currentPool, nextPool)) {
+        throw new Error(
+            "Sideboarding may only re-partition the existing card pool; the combined Maindeck + Sideboard must be unchanged"
+        );
+    }
+    return {
+        id: deck.id,
+        name: deck.name,
+        format: deck.format,
+        // Defensive copies — the Match owns its own arrays.
+        maindeck: submission.maindeck.map((c) => ({ ...c })),
+        sideboard: submission.sideboard.map((c) => ({ ...c })),
+    };
+}
+
+/** True when every seat in the Match is ready — the gate to build the next
+ *  Game. Both flags are reset by `recordGameResult` when a Game ends. */
+export function allSeatsReady(match: {
+    players: { ready: boolean }[];
+}): boolean {
+    return match.players.length > 0 && match.players.every((p) => p.ready);
+}
+
+/** The bot's seat id in a vs-AI Match (`${userId}-p2`, ADR 0001), or null. The
+ *  bot auto-readies with no swaps so the human is never blocked on it (#395). */
+export function botSeatId(match: {
+    vsAi?: boolean;
+    players: { id: string }[];
+}): string | null {
+    if (match.vsAi !== true) return null;
+    return match.players.find((p) => isBotSeat(p.id))?.id ?? null;
+}
+
 /** A seat for the next Game, derived from a Match player. Mirrors the
  *  `PlayerInput` shape that `game.ts`'s `buildInitialGameState` consumes — the
  *  next Game's library is built from the player's CURRENT Match maindeck as of

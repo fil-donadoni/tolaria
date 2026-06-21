@@ -1,13 +1,9 @@
-import { useEffect, useRef, useState } from "react";
-import { useMutation } from "convex/react";
-import { api } from "@convex/_generated/api";
+import { useState } from "react";
 import type { PublicMatch } from "@convex/matches";
 import GameDialog from "~/components/ui/game-dialog";
-import { clearSession, storeSession } from "~/lib/session";
-import { interstitialChoiceState } from "~/lib/play-draw-choice";
+import { clearSession } from "~/lib/session";
 import type { GameOver, Player } from "~/types/game";
-
-type PlayDrawChoice = "play" | "draw";
+import SideboardingDialog from "./sideboarding-dialog";
 
 function SkullIcon() {
     return (
@@ -32,7 +28,8 @@ type GameOverDialogProps = {
     /** Owning Match (ADR 0029). Drives the interstitial-vs-terminal split: a
      *  decided Match ("finished") is the terminal result ("Back to Lobby"); an
      *  undecided Bo3 ("sideboarding") is an interstitial with the running score
-     *  and a "Continue" that builds the next Game (PRD #387). */
+     *  and a "Continue to Sideboarding" that opens the between-Games editor
+     *  (PRD #387 / #395). */
     match: PublicMatch | null;
     /** The viewer's seat id — carried into the next Game's session so the
      *  client re-points to the same seat across Games of the Match. */
@@ -45,8 +42,10 @@ export default function GameOverDialog({
     match,
     viewerId,
 }: GameOverDialogProps) {
-    const continueMatch = useMutation(api.game.continueMatch);
-    const [continuing, setContinuing] = useState(false);
+    // Once the player clicks Continue on an undecided Bo3, the interstitial hands
+    // off to the Sideboarding step (#395), which owns the swap editor, the
+    // play/draw choice, and the Ready gate that builds the next Game.
+    const [sideboarding, setSideboarding] = useState(false);
 
     const winner = allPlayers.find((p) => p.id === gameOver.winnerId);
     const loser = allPlayers.find((p) => p.id === gameOver.loserId);
@@ -64,8 +63,8 @@ export default function GameOverDialog({
     // Terminal Match result: the Match is decided (Bo1 always; Bo3 at first to
     // two). "Back to Lobby" is shown only when the Match is over (PRD #387).
     const matchOver = match?.status === "finished";
-    // Interstitial: an undecided Bo3 between Games. The next Game is built by
-    // "Continue"; the screen shows the running score, no "Back to Lobby".
+    // Interstitial: an undecided Bo3 between Games. The player continues into the
+    // Sideboarding step; the screen shows the running score, no "Back to Lobby".
     const interstitial = match?.status === "sideboarding";
     // When Match meta isn't available (still loading, or a legacy game without
     // a Match), fall back to the single-game terminal so the user is never
@@ -82,42 +81,11 @@ export default function GameOverDialog({
         window.location.href = "/";
     };
 
-    // Play/draw choice for the next Game (#394, CR 103.4). The chooser is the
-    // previous Game's loser; the viewer's role decides the interstitial UI.
-    const choiceState = match ? interstitialChoiceState(match, viewerId) : null;
-
-    const handleContinue = async (choice?: PlayDrawChoice) => {
-        if (!match || continuing) return;
-        setContinuing(true);
-        try {
-            const { gameId } = await continueMatch({
-                matchId: match.matchId,
-                choice,
-            });
-            // Re-point the session to the new Game (same seat) and reload — the
-            // game route reads the session fresh on mount.
-            storeSession(gameId, viewerId);
-            window.location.reload();
-        } catch {
-            // A race may have already advanced the Match; reload to resync.
-            setContinuing(false);
-            window.location.reload();
-        }
-    };
-
-    // When the bot is the chooser (vs-AI) or no chooser is recorded, the next
-    // Game builds with no human prompt — the server forces play (#394). Fire it
-    // once, off the synchronous render path (queueMicrotask) so the auto-build
-    // setState doesn't cascade-render within the effect body.
-    const autoContinue = interstitial && choiceState?.kind === "auto";
-    const autoFired = useRef(false);
-    useEffect(() => {
-        if (autoContinue && !autoFired.current) {
-            autoFired.current = true;
-            queueMicrotask(() => void handleContinue());
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [autoContinue]);
+    // Bo3 interstitial → Sideboarding step. The dialog owns submitSideboard +
+    // setReady; the next Game builds once readiness is satisfied (#395).
+    if (interstitial && sideboarding && match) {
+        return <SideboardingDialog match={match} viewerId={viewerId} />;
+    }
 
     return (
         <GameDialog
@@ -140,40 +108,14 @@ export default function GameOverDialog({
                         {scoreLine}
                     </p>
                 )}
-                {interstitial && choiceState?.kind === "prompt" && (
-                    <>
-                        <p className="mt-2 text-zinc-400 text-xs tracking-wide">
-                            You lost the last game — choose to play or draw.
-                        </p>
-                        <div className="mt-2 flex w-full gap-2">
-                            <button
-                                type="button"
-                                onClick={() => void handleContinue("play")}
-                                disabled={continuing}
-                                className="flex-1 py-2.5 rounded-sm bg-amber-700/30 border border-amber-500/45 text-amber-200 font-beleren tracking-wide hover:bg-amber-600/30 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                                {continuing ? "Starting…" : "Play"}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => void handleContinue("draw")}
-                                disabled={continuing}
-                                className="flex-1 py-2.5 rounded-sm bg-zinc-800/40 border border-zinc-600/45 text-zinc-300 font-beleren tracking-wide hover:bg-zinc-700/40 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                                {continuing ? "Starting…" : "Draw"}
-                            </button>
-                        </div>
-                    </>
-                )}
-                {interstitial && choiceState?.kind === "auto" && (
-                    <p className="mt-3 text-zinc-400 text-sm">
-                        Starting next game…
-                    </p>
-                )}
-                {interstitial && choiceState?.kind === "waiting" && (
-                    <p className="mt-3 text-zinc-400 text-sm">
-                        Waiting for opponent to choose play or draw…
-                    </p>
+                {interstitial && (
+                    <button
+                        type="button"
+                        onClick={() => setSideboarding(true)}
+                        className="mt-3 w-full py-2.5 rounded-sm bg-amber-700/30 border border-amber-500/45 text-amber-200 font-beleren tracking-wide hover:bg-amber-600/30 transition-colors cursor-pointer"
+                    >
+                        Continue to Sideboarding
+                    </button>
                 )}
                 {showLeave && (
                     <button
