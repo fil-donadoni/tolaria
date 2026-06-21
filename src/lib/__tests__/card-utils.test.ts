@@ -7,6 +7,7 @@ import {
     wantsSpellTarget,
     getStackAbilities,
     getAnyPlayerStackAbilities,
+    buildTriggerStateView,
     getAbilityOracleText,
     getDisplayAbilities,
     resolvePreviewAbilities,
@@ -266,6 +267,223 @@ describe("getStackAbilities", () => {
             isTapped: false,
         });
         expect(getStackAbilities(card)).toHaveLength(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getStackAbilities — `canActivate` predicates reading player/board state (#436)
+//
+// The UI hint must agree with the server: an ability whose `canActivate`
+// inspects `state.players` / `state.activePlayerId` is surfaced only when the
+// real, viewer-visible state satisfies the predicate. A `buildTriggerStateView`
+// over the visible players supplies that state; an empty view (no caller state)
+// reproduces the old false-negative / false-positive behavior.
+// ---------------------------------------------------------------------------
+
+const LIBRARY_OF_ALEXANDRIA_ID = "ee266113-34ce-4189-84e7-ee2c86a2722c";
+const PESTILENCE_ID = "d42a6350-b16b-4e10-a273-e6cbb55dcb7a";
+const NETTLING_IMP_ID = "8105973c-a94d-444c-ba20-ab0fa978bee8";
+
+/** Minimal viewer-visible player used to build a TriggerStateView. */
+function makePlayerLike(
+    overrides: Partial<{
+        id: string;
+        life: number;
+        handCount: number;
+        battlefield: CardInstance[];
+    }> = {}
+) {
+    const handCount = overrides.handCount ?? 0;
+    return {
+        id: overrides.id ?? "p1",
+        life: overrides.life ?? 20,
+        hand: Array.from({ length: handCount }, () => null),
+        battlefield: overrides.battlefield ?? [],
+    };
+}
+
+describe("getStackAbilities — player-state canActivate predicates (#436)", () => {
+    it("Library of Alexandria: draw ability appears at exactly 7 cards", () => {
+        const card = makeCardInstance({
+            card: { id: LIBRARY_OF_ALEXANDRIA_ID },
+            types: ["Land"],
+            controllerId: "p1",
+            isTapped: false,
+        });
+        const view = buildTriggerStateView(
+            [makePlayerLike({ id: "p1", handCount: 7 })],
+            "p1"
+        );
+        const abilities = getStackAbilities(card, undefined, true, view);
+        expect(abilities.map((a) => a.id)).toContain(
+            "library-of-alexandria-draw"
+        );
+    });
+
+    it("Library of Alexandria: draw ability absent at 6 and at 8 cards", () => {
+        const card = makeCardInstance({
+            card: { id: LIBRARY_OF_ALEXANDRIA_ID },
+            types: ["Land"],
+            controllerId: "p1",
+            isTapped: false,
+        });
+        for (const handCount of [6, 8]) {
+            const view = buildTriggerStateView(
+                [makePlayerLike({ id: "p1", handCount })],
+                "p1"
+            );
+            const abilities = getStackAbilities(card, undefined, true, view);
+            expect(abilities.map((a) => a.id)).not.toContain(
+                "library-of-alexandria-draw"
+            );
+        }
+    });
+
+    it("Library of Alexandria: mana ability is NOT a stack ability (always usable via direct tap)", () => {
+        // The {T}: Add {C} mana ability is `useStack:false`, so it never
+        // appears in `getStackAbilities` — it's surfaced separately by
+        // getActivatedManaMenuEntry. The draw gate must not affect it.
+        const card = makeCardInstance({
+            card: { id: LIBRARY_OF_ALEXANDRIA_ID },
+            types: ["Land"],
+            controllerId: "p1",
+            isTapped: false,
+        });
+        for (const handCount of [6, 7, 8]) {
+            const view = buildTriggerStateView(
+                [makePlayerLike({ id: "p1", handCount })],
+                "p1"
+            );
+            const ids = getStackAbilities(card, undefined, true, view).map(
+                (a) => a.id
+            );
+            expect(ids).not.toContain("library-of-alexandria-mana");
+        }
+    });
+
+    it("Library of Alexandria: draw hidden with an empty (stateless) view — old false-negative reproduced", () => {
+        const card = makeCardInstance({
+            card: { id: LIBRARY_OF_ALEXANDRIA_ID },
+            types: ["Land"],
+            controllerId: "p1",
+            isTapped: false,
+        });
+        // No stateView passed → empty player list → predicate sees no controller.
+        expect(getStackAbilities(card).map((a) => a.id)).not.toContain(
+            "library-of-alexandria-draw"
+        );
+    });
+
+    it("Pestilence: {B} damage ability appears while a creature is on the battlefield", () => {
+        const creature = makeCardInstance({
+            id: "bear-1",
+            card: { id: "test-creature" },
+            types: ["Creature"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const card = makeCardInstance({
+            id: "pest-1",
+            card: { id: PESTILENCE_ID },
+            types: ["Enchantment"],
+            controllerId: "p1",
+            isTapped: false,
+        });
+        const view = buildTriggerStateView(
+            [makePlayerLike({ id: "p1", battlefield: [creature, card] })],
+            "p1"
+        );
+        const abilities = getStackAbilities(card, undefined, true, view);
+        expect(abilities.map((a) => a.id)).toContain("pestilence-damage");
+    });
+
+    it("Pestilence: {B} damage ability absent when no creature is on the battlefield", () => {
+        const card = makeCardInstance({
+            id: "pest-1",
+            card: { id: PESTILENCE_ID },
+            types: ["Enchantment"],
+            controllerId: "p1",
+            isTapped: false,
+        });
+        // Only Pestilence (an Enchantment) is on the battlefield — no creature.
+        const view = buildTriggerStateView(
+            [makePlayerLike({ id: "p1", battlefield: [card] })],
+            "p1"
+        );
+        const abilities = getStackAbilities(card, undefined, true, view);
+        expect(abilities.map((a) => a.id)).not.toContain("pestilence-damage");
+    });
+
+    it("Nettling Imp: ability NOT offered when activePlayerId equals controller (predicate false)", () => {
+        // Nettling Imp's canActivate requires it be an OPPONENT's turn
+        // (activePlayerId !== controllerId). On the controller's own turn the
+        // predicate is false; with a real view that supplies activePlayerId the
+        // entry is correctly suppressed (no missing-field false positive).
+        const card = makeCardInstance({
+            id: "imp-1",
+            card: { id: NETTLING_IMP_ID },
+            types: ["Creature"],
+            subtypes: ["Imp"],
+            controllerId: "p1",
+            isTapped: false,
+            isSummoningSick: false,
+        });
+        const view = buildTriggerStateView(
+            [makePlayerLike({ id: "p1", battlefield: [card] })],
+            "p1" // controller's own turn → predicate false
+        );
+        const abilities = getStackAbilities(card, "PRECOMBAT_MAIN", true, view);
+        expect(abilities.map((a) => a.id)).not.toContain("nettling-imp-force");
+    });
+
+    it("Nettling Imp: ability offered when it is the opponent's turn (predicate true)", () => {
+        const card = makeCardInstance({
+            id: "imp-1",
+            card: { id: NETTLING_IMP_ID },
+            types: ["Creature"],
+            subtypes: ["Imp"],
+            controllerId: "p1",
+            isTapped: false,
+            isSummoningSick: false,
+        });
+        const view = buildTriggerStateView(
+            [makePlayerLike({ id: "p1", battlefield: [card] })],
+            "p2" // opponent's turn → predicate true
+        );
+        const abilities = getStackAbilities(card, "PRECOMBAT_MAIN", true, view);
+        // The ability id mirrors the Nettling Imp definition.
+        expect(abilities.map((a) => a.id)).toContain("nettling-imp-force");
+    });
+
+    it("source-only predicate (Clockwork Beast counter cap) still works with no view", () => {
+        // Clockwork Beast's `canActivate` reads only the source's counters
+        // (fewer than seven +1/+0), so an empty/absent view must keep
+        // evaluating it correctly. At 7 counters the recharge ability is
+        // capped (hidden); below seven it is offered.
+        const CLOCKWORK_BEAST_ID = "27f916a2-0ace-44b5-99dc-72979af34db9";
+        const capped = makeCardInstance({
+            card: { id: CLOCKWORK_BEAST_ID },
+            types: ["Artifact", "Creature"],
+            controllerId: "p1",
+            isTapped: false,
+            isSummoningSick: false,
+            counters: { "+1/+0": 7 },
+        });
+        const available = makeCardInstance({
+            card: { id: CLOCKWORK_BEAST_ID },
+            types: ["Artifact", "Creature"],
+            controllerId: "p1",
+            isTapped: false,
+            isSummoningSick: false,
+            counters: { "+1/+0": 3 },
+        });
+        // No view passed — source-only predicate must still gate correctly.
+        expect(getStackAbilities(capped).map((a) => a.id)).not.toContain(
+            "clockwork-beast-recharge"
+        );
+        expect(getStackAbilities(available).map((a) => a.id)).toContain(
+            "clockwork-beast-recharge"
+        );
     });
 });
 
