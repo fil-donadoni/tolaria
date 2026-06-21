@@ -10,17 +10,13 @@ import { usePendingChoicePrimaryAction } from "~/hooks/usePendingChoicePrimaryAc
 import { manaCostToString } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
 import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
+import {
+    pendingChoiceMin,
+    pendingChoiceMax,
+} from "~/lib/pending-choice-confirm";
 import PendingChoiceOptions from "~/components/board/pending-choice-options";
 import RandomRevealOverlay from "~/components/board/random-reveal-overlay";
 import MinimizeChoiceButton from "~/components/board/minimize-choice-button";
-
-function getCountMin(count: PendingChoice["count"]): number {
-    return typeof count === "number" ? count : count.min;
-}
-
-function getCountMax(count: PendingChoice["count"]): number {
-    return typeof count === "number" ? count : count.max;
-}
 
 /** Banner shown at the top-center of the board while a mid-resolution
  *  player choice is active (CR 608.2). Displays the prompt and, for the
@@ -54,8 +50,8 @@ export default function PendingChoicePrompt({
     // the chooser; the Skip/No path below stays local (it's the secondary).
     const primary = usePendingChoicePrimaryAction();
     const isChooser = choice.playerId === playerId;
-    const min = getCountMin(choice.count);
-    const max = getCountMax(choice.count);
+    const min = pendingChoiceMin(choice.count);
+    const max = pendingChoiceMax(choice.count);
     const isMayPay = choice.kind === "may-pay";
     const isOptionPick = choice.kind === "option-pick";
 

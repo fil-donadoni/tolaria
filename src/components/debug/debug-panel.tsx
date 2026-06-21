@@ -4800,16 +4800,17 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
-        // LEG Sylvan Library (CR 603.6a draw-step trigger + CR 118.4 life pay).
+        // LEG Sylvan Library (CR 603.6a draw-step trigger + CR 118.4 life pay,
+        // CR 119.4 can't-pay constraint). Single 0–N topdeck pick (#438).
         // Loads at "me"'s UPKEEP on turn 2 (turn 1 skips the draw step) with
         // Sylvan Library out and a stocked library:
         //   • Pass priority to reach the draw step. After the turn-based draw,
         //     Sylvan's trigger asks "draw two additional cards?".
-        //   • Draw two → choose two of the cards drawn this turn. For each, pay
-        //     4 life to keep it or put it back on top of the library.
-        //   • Decline, or pay both (watch the life total drop 8), or topdeck
-        //     both to replicate declining with extra information.
-        label: "LEG Sylvan Library: draw step — draw two, then pay 4 life or topdeck each card drawn this turn",
+        //   • Draw two → ONE selection over the cards drawn this turn: pick
+        //     0..N to put on top of the library; pay 4 life for each of the N
+        //     you keep. Done is enabled at the minimum (Skip = keep all, pay
+        //     4 × N; topdeck all = pay 0).
+        label: "LEG Sylvan Library: draw step — draw two, then a single 0–2 topdeck pick (pay 4 life per kept card)",
         cards: [{ name: "Sylvan Library", owner: "me" as const }],
         phase: "UPKEEP",
         landCount: 3,

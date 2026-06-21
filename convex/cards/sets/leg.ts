@@ -1625,45 +1625,25 @@ export const cyclopeanMummy: CardDefinition = {
 // (CR 603.6a draw-step trigger, CR 121.1 draw, CR 118.4 life payment.)
 //
 // Resolved in steps (CR 608.2) because the draw is IRREVERSIBLE and must run
-// once, before the per-card pay-or-topdeck choices that suspend — a single
-// `resolve` would re-draw on every resume (the Bazaar of Baghdad bug). Steps:
+// once, before the topdeck selection that suspends — a single `resolve` would
+// re-draw on every resume (the Bazaar of Baghdad bug). Steps:
 //   0. may-draw decision; if accepted, draw two (isolated → drawn once).
-//   1. choose up to two cards drawn this turn that are still in hand.
-//   2. & 3. per-card: pay 4 life to keep it, or put it on top of the library.
-// Each pay-or-topdeck is its OWN step so the second card's life check (CR 119.4
-// "can't pay life you don't have") sees the first payment already applied — a
-// single step would re-apply the first payment when the second one suspends.
-// `recallChoice` carries the may-draw answer and the two picked ids across
-// steps (per-step choice keys can't be re-read by a later step otherwise).
-const decideSylvanCard = (ctx: SpellContext, index: number): void => {
-    const controller = ctx.controller;
-    const picks = ctx.recallChoice("sylvan-pick");
-    if (!picks || index >= picks.length) return;
-    const cardId = picks[index];
-    // The card may have left hand between the pick and now; only act if it's
-    // still a card in hand drawn this turn.
-    if (!ctx.getHandIds(controller).includes(cardId)) return;
-    let choice: string | undefined;
-    if (ctx.getLife(controller) >= 4) {
-        choice = ctx.requestOptionChoice({
-            playerId: controller,
-            choiceId: `sylvan-decide-${index}`,
-            options: [
-                { id: "pay", label: "Pay 4 life" },
-                { id: "top", label: "Put on top of library" },
-            ],
-            prompt: "Sylvan Library: pay 4 life to keep this card, or put it on top of your library?",
-        });
-        if (choice === undefined) return; // suspended
-    } else {
-        // CR 119.4 — with fewer than 4 life the "pay 4 life" option is
-        // unavailable, so the card is put on top of the library.
-        choice = "top";
-    }
-    if (choice === "pay") ctx.loseLife(controller, 4);
-    else ctx.moveHandCardToLibraryTop(controller, cardId);
-};
-
+//   1. a SINGLE ranged selection over the N = min(2, cardsDrawnThisTurnStill-
+//      InHand) cards drawn this turn. The chooser selects 0..N of them to put
+//      on top of the library; for each of the N NOT selected, they pay 4 life
+//      (CR 118.4). The two printed per-card options ("pay 4 / put on top") are
+//      collapsed into one pick — the reachable outcomes are identical (keep
+//      both = pay 8, topdeck both = pay 0, mix = pay 4).
+//
+// `recallChoice` carries the may-draw answer forward (per-step choice keys
+// can't be re-read by a later step otherwise). The topdeck commit reads the
+// pick back directly from the SAME step's choiceId.
+//
+// CR 119.4 ("can't pay life you don't have"): a player can keep at most
+// floor(life / 4) of the N cards, so the MINIMUM number that must be topdecked
+// is max(0, N − floor(life / 4)). With life < 4 all N must be topdecked. The
+// ranged choice's `min` enforces this server-side and the Done button enables
+// at that minimum client-side.
 export const sylvanLibrary: CardDefinition = {
     id: "6ada256f-2e55-4c1f-b4d3-d7b10b498956",
     name: "Sylvan Library",
@@ -1697,33 +1677,48 @@ export const sylvanLibrary: CardDefinition = {
                     if (accept === undefined) return; // suspended
                     if (accept === "draw") ctx.drawCards(ctx.controller, 2);
                 },
-                // Step 1 — "choose two cards in your hand drawn this turn".
-                // No side effect; the pick is read back by the decide steps.
+                // Step 1 — the SINGLE ranged topdeck selection (CR 118.4 /
+                // 121.1). The chooser selects which of the N drawn-this-turn
+                // cards to put on top of the library; each of the N NOT
+                // selected costs 4 life. On resume the picks are read back from
+                // this same step's choiceId and committed (topdeck + pay).
                 (ctx: SpellContext) => {
                     if (ctx.recallChoice("sylvan-may")?.[0] !== "draw") return;
                     const controller = ctx.controller;
                     const hand = new Set(ctx.getHandIds(controller));
+                    // Candidate pool: every card drawn this turn still in hand.
+                    // The player may topdeck up to N = min(2, pool) of them
+                    // ("choose two cards … put the card on top"); each of the N
+                    // they DON'T topdeck costs 4 life.
                     const pool = ctx
                         .getDrawnThisTurnIds(controller)
                         .filter((id) => hand.has(id));
-                    const count = Math.min(2, pool.length);
-                    if (count === 0) return;
+                    const n = Math.min(2, pool.length);
+                    if (n === 0) return;
+                    // CR 119.4 — keep at most floor(life / 4) cards, so at least
+                    // max(0, N − floor(life / 4)) must be topdecked. With
+                    // life < 4 all N must go on top.
+                    const keepCap = Math.floor(ctx.getLife(controller) / 4);
+                    const minTopdeck = Math.max(0, n - keepCap);
                     const picks = ctx.requestChoice({
                         playerId: controller,
                         choiceId: "sylvan-pick",
                         kind: "choose-hand-card",
                         zone: "hand",
                         candidateIds: pool,
-                        count,
-                        prompt: `Choose ${count} card${count === 1 ? "" : "s"} drawn this turn.`,
+                        count: { min: minTopdeck, max: n },
+                        prompt: `Select up to ${n} card${n === 1 ? "" : "s"} drawn this turn to put on top of your library; pay 4 life for each of the ${n} you keep.`,
                     });
                     if (picks === undefined) return; // suspended
+                    // Commit: selected cards go on top of the library; pay 4
+                    // life for each of the N that was NOT selected (kept).
+                    const topdeck = picks.filter((id) => hand.has(id));
+                    for (const id of topdeck) {
+                        ctx.moveHandCardToLibraryTop(controller, id);
+                    }
+                    const kept = n - topdeck.length;
+                    if (kept > 0) ctx.loseLife(controller, 4 * kept);
                 },
-                // Steps 2 & 3 — resolve the pay-or-topdeck for each chosen card
-                // in turn (CR 118.4 / 121.1). Separate steps so the second
-                // card's life check sees the first card's payment.
-                (ctx: SpellContext) => decideSylvanCard(ctx, 0),
-                (ctx: SpellContext) => decideSylvanCard(ctx, 1),
             ],
         },
     ],
