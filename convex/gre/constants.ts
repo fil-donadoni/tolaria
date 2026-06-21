@@ -1,7 +1,7 @@
 import type { Color, ManaCost, PermanentView } from "../cards/types";
 import type { ManaRestriction } from "./types";
 import { getCardById } from "../cards";
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState, GameState } from "./state";
 import { applySubstitution } from "./textChanges";
 
 /** Sentinel card id for opaque library placeholders the vs-AI Bot's search
@@ -199,6 +199,127 @@ export function getDynamicManaProduced(
         card as unknown as PermanentView,
         controllerBattlefield as unknown as readonly PermanentView[]
     );
+}
+
+/** Colors of mana a single permanent COULD produce when tapped (CR 106.4 —
+ *  "could produce"). Unions every source of mana the card knows about:
+ *  basic-land subtypes (CR 305.6), fixed `manaProduced` abilities, and
+ *  `manaChoices` abilities (dual lands / Talisman-style choosers). Colorless
+ *  ({C}) is excluded — "a land an opponent controls could produce" (Fellwar
+ *  Stone) cares only about coloured mana, and {C} is not a colour (CR 202.2,
+ *  106.1b). Abilities lost to a suppression effect (Titania's Song) don't
+ *  function, so they contribute nothing. Used by Fellwar Stone's
+ *  `getManaChoices` to read opponents' mana bases. */
+export function getProducibleColors(card: CardInstanceState): Set<Color> {
+    const colors = new Set<Color>();
+    if (abilitiesSuppressed(card)) return colors;
+    // CR 305.6 — intrinsic basic-land subtype abilities (text-change aware).
+    const intrinsic = getBasicLandMana(card);
+    if (intrinsic && intrinsic !== "C") colors.add(intrinsic);
+    const cardDef = getCardById(card.card.id as string);
+    for (const ability of cardDef.activatedAbilities ?? []) {
+        if (ability.useStack) continue;
+        if (ability.manaProduced) {
+            for (const c of MANA_COLORS) {
+                if (c !== "C" && (ability.manaProduced[c] ?? 0) > 0)
+                    colors.add(c);
+            }
+        }
+        if (ability.manaChoices) {
+            for (const choice of ability.manaChoices) {
+                for (const c of MANA_COLORS) {
+                    if (c !== "C" && (choice[c] ?? 0) > 0) colors.add(c);
+                }
+            }
+        }
+    }
+    return colors;
+}
+
+/** Board-conditional mana CHOICES for a card's tap mana ability (CR 106.1 /
+ *  605.1a) — the choice analog of `getDynamicManaProduced`. Returns the list of
+ *  mana options the activator may pick from, computed from every player's
+ *  battlefield, or null when the ability has no `getManaChoices` hook. The
+ *  raw `CardInstanceState`s are structurally valid `PermanentView`s. Used by
+ *  Fellwar Stone (colours derived from opponents' lands). The same resolver is
+ *  re-exported to the client (`src/lib/card-utils`) so the picker the player
+ *  sees and the index the server validates reference one list. */
+export function getDynamicManaChoices(
+    card: CardInstanceState,
+    controllerId: string,
+    battlefields: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
+): ManaCost[] | null {
+    if (abilitiesSuppressed(card)) return null;
+    const cardDef = getCardById(card.card.id as string);
+    const ability = cardDef.activatedAbilities?.find(
+        (a) => !a.useStack && a.getManaChoices
+    );
+    if (!ability?.getManaChoices) return null;
+    // Precompute each permanent's producible colours via the shared helper so
+    // the card definition (Fellwar Stone) reads board mana without importing the
+    // engine's mana machinery (CR 106.4).
+    return ability.getManaChoices(
+        card as unknown as PermanentView,
+        controllerId,
+        battlefields.map((b) => ({
+            playerId: b.playerId,
+            permanents: b.battlefield.map((p) => ({
+                permanent: p as unknown as PermanentView,
+                producibleColors: [...getProducibleColors(p)],
+            })),
+        }))
+    );
+}
+
+/** Resolves the effective mana-choices list for a card's tap mana ability:
+ *  the board-conditional `getManaChoices` result when present, else the static
+ *  `manaChoices`, else null. Single source of truth for every server consumer
+ *  (rules affordability, autoTap planner, the three tap mutations) so a
+ *  dynamic chooser never desyncs the index across sites. */
+export function getEffectiveManaChoices(
+    card: CardInstanceState,
+    controllerId: string,
+    battlefields: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
+): ManaCost[] | null {
+    const dynamic = getDynamicManaChoices(card, controllerId, battlefields);
+    if (dynamic) return dynamic;
+    const ability = getActivatedManaAbility(card);
+    return ability?.manaChoices ?? null;
+}
+
+/** Total mana count across all colours in a `ManaCost` (ignoring `X`). */
+export function totalManaCount(produced: ManaCost): number {
+    let total = 0;
+    for (const c of MANA_COLORS) total += produced[c] ?? 0;
+    return total;
+}
+
+/** Applies the active per-turn land-mana replacement (CR 614 — Deep Water) to
+ *  the mana a source is about to add to a pool. When the controller has an
+ *  active "lands produce {U} instead" effect this turn AND `card` is a Land,
+ *  the produced colours are rewritten to the same TOTAL quantity of {U}
+ *  ("produces {U} instead of any other type" — Deep Water replaces the type,
+ *  not the amount). Non-land sources (mana rocks, Birds) and players without
+ *  the effect are returned unchanged. Pure — the single funnel every tap path
+ *  routes its produced mana through so the rewrite can't desync across sites. */
+export function applyLandManaReplacement(
+    state: GameState,
+    controllerId: string,
+    card: CardInstanceState,
+    produced: ManaCost
+): ManaCost {
+    if (!state.landManaReplacedToBlueThisTurn?.includes(controllerId))
+        return produced;
+    if (!isLand(card)) return produced;
+    const total = totalManaCount(produced);
+    if (total <= 0) return produced;
+    return { U: total };
 }
 
 /** Spend restriction (CR 106.6) carried by a card's fixed tap mana ability, or

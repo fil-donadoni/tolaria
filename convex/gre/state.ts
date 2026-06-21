@@ -1,5 +1,6 @@
 import type {
     AnimateSpec,
+    CardSupertype,
     CardType,
     Color,
     ControlChangeCondition,
@@ -1358,6 +1359,14 @@ export type GameState = {
      *  cleared in `advanceTurn`; multiple entries (stacked activations / Lamps)
      *  each cover one subsequent draw in FIFO order. */
     drawLookReplacements?: Array<{ playerId: string; x: number }>;
+    /** Player ids whose lands' mana output is replaced with {U} until end of
+     *  turn (CR 614 — Deep Water: "if you tap a land you control for mana, it
+     *  produces {U} instead of any other type"). Each Deep Water activation adds
+     *  the controller's id (idempotent — a single entry suffices, the
+     *  replacement is all-or-nothing). When such a player taps a LAND for mana,
+     *  the produced colours are rewritten to the same TOTAL quantity of {U}
+     *  before they reach the pool. Cleared at CLEANUP (until end of turn). */
+    landManaReplacedToBlueThisTurn?: string[];
     /** When true, all combat damage is prevented this turn (CR 615, Fog).
      *  Checked at the top of `applyAllCombatDamage`; cleared at CLEANUP. */
     preventAllCombatDamageThisTurn?: boolean;
@@ -4259,6 +4268,22 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             putReanimatedOnBattlefield(state, card, playerId);
             return true;
         },
+        // CR 400.7 — hand → battlefield (Gaea's Touch). Splice the instance out
+        // of the hand and put it onto the same player's battlefield via the
+        // shared entry path (same ETB / continuous-effect application as the
+        // library variant). Returns false on silent fizzle when the id is no
+        // longer in hand at resolution (CR 608.2b).
+        putFromHandOntoBattlefield(
+            playerId: string,
+            cardInstanceId: string
+        ): boolean {
+            const player = getPlayer(state, playerId);
+            const idx = player.hand.findIndex((c) => c.id === cardInstanceId);
+            if (idx === -1) return false;
+            const [card] = player.hand.splice(idx, 1);
+            putReanimatedOnBattlefield(state, card, playerId);
+            return true;
+        },
         // CR 701.20a: to tap a permanent is to turn it sideways from an
         // untapped position. Already-tapped permanents are unaffected.
         // Silently no-ops if the target has left the battlefield (CR 608.2b).
@@ -4836,6 +4861,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
 
         preventAllCombatDamage(): void {
             state.preventAllCombatDamageThisTurn = true;
+        },
+
+        replaceLandManaWithBlue(playerId: string): void {
+            // CR 614 — idempotent: one entry per player suffices (the
+            // replacement is all-or-nothing). Cleared at CLEANUP.
+            const list = state.landManaReplacedToBlueThisTurn ?? [];
+            if (!list.includes(playerId)) list.push(playerId);
+            state.landManaReplacedToBlueThisTurn = list;
         },
 
         setIslandSanctuaryProtection(playerId: string): void {
@@ -5533,6 +5566,8 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         getHandCards(playerId: string): Array<{
             id: string;
             types: CardType[];
+            subtypes: string[];
+            supertypes: CardSupertype[];
             manaValue: number;
             colors: Color[];
         }> {
@@ -5542,6 +5577,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 return {
                     id: c.id,
                     types: def?.types ?? c.types,
+                    subtypes: def?.subtypes ?? c.subtypes,
+                    // CR 205.4 — supertypes (Basic) from the registry; hidden
+                    // hand cards carry none on the instance.
+                    supertypes: def?.supertypes ?? [],
                     manaValue: manaValue(def?.manaCost),
                     // CR 202.2 — mana-cost-derived colors of the hand card.
                     colors: getColorsFromCost(def?.manaCost),

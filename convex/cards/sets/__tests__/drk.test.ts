@@ -73,6 +73,9 @@ import {
     mazeOfIth,
     safeHaven,
     bloodMoon,
+    fellwarStone,
+    deepWater,
+    gaeasTouch,
 } from "../drk";
 import { tropicalIsland, mountain } from "../lea";
 import { stripMine } from "../atq";
@@ -91,6 +94,13 @@ import {
     type StackItem,
 } from "../../../gre/state";
 import { checkStateBasedActions } from "../../../gre/sba";
+import {
+    applyLandManaReplacement,
+    getDynamicManaChoices,
+    getEffectiveManaChoices,
+    getProducibleColors,
+} from "../../../gre/constants";
+import { finalizeCleanup } from "../../../gre/phases";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { getLegalTargets, getProducibleManaOptions } from "../../../gre/rules";
 import {
@@ -2993,5 +3003,277 @@ describe("Dark Sphere / Scarecrow — player damage prevention shields (CR 615.1
         expect(shield?.playerId).toBe("p1");
         expect(shield?.match.sourceStaticAbility).toBe("flying");
         expect(shield?.mode).toBe("all");
+    });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// C3 — Mana-production lookup / replacement (#420)
+// ───────────────────────────────────────────────────────────────────────────
+
+const FOREST = getCardByName("Forest").id;
+const ISLAND = getCardByName("Island").id;
+const PLAINS = getCardByName("Plains").id;
+const MOUNTAIN = getCardByName("Mountain").id;
+const SWAMP = getCardByName("Swamp").id;
+
+/** Build the `battlefields` argument the engine passes to `getManaChoices`. */
+function manaChoices(
+    state: GameState,
+    rock: CardInstanceState,
+    controllerId: string
+): ReturnType<typeof getEffectiveManaChoices> {
+    return getEffectiveManaChoices(
+        rock,
+        controllerId,
+        state.players.map((p) => ({
+            playerId: p.id,
+            battlefield: p.battlefield,
+        }))
+    );
+}
+
+describe("Fellwar Stone (CR 106.4 — colours an opponent's land could produce)", () => {
+    it("offers no colour when no opponent controls a colour-producing land", () => {
+        const rock = makeInstance(fellwarStone.id, { controllerId: "p1" });
+        const state = makeState();
+        state.players[0].battlefield = [
+            rock,
+            // p1's OWN Forest must NOT count.
+            makeInstance(FOREST, { controllerId: "p1" }),
+        ];
+        const choices = getDynamicManaChoices(rock, "p1", [
+            { playerId: "p1", battlefield: state.players[0].battlefield },
+            { playerId: "p2", battlefield: [] },
+        ]);
+        expect(choices).toEqual([]);
+    });
+
+    it("derives colours from the opponent's basic lands (Forest + Island → G, U)", () => {
+        const rock = makeInstance(fellwarStone.id, { controllerId: "p1" });
+        const state = makeState();
+        state.players[0].battlefield = [rock];
+        state.players[1].battlefield = [
+            makeInstance(FOREST, { controllerId: "p2" }),
+            makeInstance(ISLAND, { controllerId: "p2" }),
+        ];
+        const choices = manaChoices(state, rock, "p1");
+        expect(choices).toEqual([{ U: 1 }, { G: 1 }]);
+    });
+
+    it("unions every opponent land's colours (Plains + Mountain + Swamp → W, B, R)", () => {
+        const rock = makeInstance(fellwarStone.id, { controllerId: "p1" });
+        const state = makeState();
+        state.players[0].battlefield = [rock];
+        state.players[1].battlefield = [
+            makeInstance(PLAINS, { controllerId: "p2" }),
+            makeInstance(MOUNTAIN, { controllerId: "p2" }),
+            makeInstance(SWAMP, { controllerId: "p2" }),
+        ];
+        const choices = manaChoices(state, rock, "p1");
+        expect(choices).toEqual([{ W: 1 }, { B: 1 }, { R: 1 }]);
+    });
+
+    it("ignores the controller's own lands; reads only opponents'", () => {
+        const rock = makeInstance(fellwarStone.id, { controllerId: "p1" });
+        const state = makeState();
+        state.players[0].battlefield = [
+            rock,
+            makeInstance(MOUNTAIN, { controllerId: "p1" }),
+        ];
+        state.players[1].battlefield = [
+            makeInstance(ISLAND, { controllerId: "p2" }),
+        ];
+        // Only the opponent's Island colour {U} is offered — not p1's own {R}.
+        expect(manaChoices(state, rock, "p1")).toEqual([{ U: 1 }]);
+    });
+
+    it("survives projection — the picker the client renders matches the server", () => {
+        const rock = makeInstance(fellwarStone.id, { controllerId: "p1" });
+        const state = makeState();
+        state.players[0].battlefield = [rock];
+        state.players[1].battlefield = [
+            makeInstance(FOREST, { controllerId: "p2" }),
+            makeInstance(SWAMP, { controllerId: "p2" }),
+        ];
+        const onFat = manaChoices(state, rock, "p1");
+        expect(onFat).toEqual([{ B: 1 }, { G: 1 }]);
+
+        // The projection strips `card.card` to `{ id }` and reshapes arrays; the
+        // producible-colour read must still work off the slim battlefield.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimRock = projected.players[0].battlefield.find(
+            (c) => c.id === rock.id
+        )! as unknown as CardInstanceState;
+        const onWire = getEffectiveManaChoices(
+            slimRock,
+            "p1",
+            projected.players.map((p) => ({
+                playerId: p.id,
+                battlefield: p.battlefield as unknown as CardInstanceState[],
+            }))
+        );
+        expect(onWire).toEqual(onFat);
+    });
+
+    it("getProducibleColors excludes colourless {C}", () => {
+        // A basic land produces a colour; Standing Stones (any colour) too. A
+        // pure {C} source would not contribute — covered by the empty-opponent
+        // case. Sanity: a Forest's producible set is exactly {G}.
+        const forest = makeInstance(FOREST, { controllerId: "p2" });
+        expect([...getProducibleColors(forest)]).toEqual(["G"]);
+    });
+});
+
+describe("Deep Water (CR 614 — lands produce {U} instead of their type)", () => {
+    it("arms the per-turn replacement for the activating controller", () => {
+        const dw = makeInstance(deepWater.id, { controllerId: "p1" });
+        const state = makeState();
+        state.players[0].battlefield = [dw];
+        resolveActivated(state, dw, "deep-water-replace");
+        expect(state.landManaReplacedToBlueThisTurn).toContain("p1");
+    });
+
+    it("rewrites a tapped land's output to {U} of the same quantity", () => {
+        const state = makeState();
+        state.landManaReplacedToBlueThisTurn = ["p1"];
+        const forest = makeInstance(FOREST, { controllerId: "p1" });
+        // A Forest taps for {G}; Deep Water rewrites it to {U}.
+        const out = applyLandManaReplacement(state, "p1", forest, { G: 1 });
+        expect(out).toEqual({ U: 1 });
+    });
+
+    it("preserves quantity for a multi-mana land (2 → {U}{U})", () => {
+        const state = makeState();
+        state.landManaReplacedToBlueThisTurn = ["p1"];
+        const land = makeInstance(FOREST, { controllerId: "p1" });
+        // Hypothetical {G}{G} land output — only the TYPE changes (CR 614).
+        expect(applyLandManaReplacement(state, "p1", land, { G: 2 })).toEqual({
+            U: 2,
+        });
+    });
+
+    it("does not affect non-land mana sources (Fellwar Stone stays its colour)", () => {
+        const state = makeState();
+        state.landManaReplacedToBlueThisTurn = ["p1"];
+        const rock = makeInstance(fellwarStone.id, { controllerId: "p1" });
+        expect(applyLandManaReplacement(state, "p1", rock, { R: 1 })).toEqual({
+            R: 1,
+        });
+    });
+
+    it("does not affect a player who hasn't activated Deep Water", () => {
+        const state = makeState();
+        state.landManaReplacedToBlueThisTurn = ["p1"];
+        const forest = makeInstance(FOREST, { controllerId: "p2" });
+        expect(applyLandManaReplacement(state, "p2", forest, { G: 1 })).toEqual(
+            {
+                G: 1,
+            }
+        );
+    });
+
+    it("expires at CLEANUP (until end of turn, CR 514.2)", () => {
+        const state = makeState({ phase: "CLEANUP" });
+        state.landManaReplacedToBlueThisTurn = ["p1"];
+        finalizeCleanup(state);
+        expect(state.landManaReplacedToBlueThisTurn).toBeUndefined();
+    });
+
+    it("survives projection — a {U} pool produced under Deep Water is visible", () => {
+        const state = makeState();
+        state.landManaReplacedToBlueThisTurn = ["p1"];
+        const forest = makeInstance(FOREST, { controllerId: "p1" });
+        const out = applyLandManaReplacement(state, "p1", forest, { G: 1 });
+        state.players[0].manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+        for (const [c, n] of Object.entries(out)) {
+            state.players[0].manaPool[c as "U"] += n as number;
+        }
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].manaPool.U).toBe(1);
+        expect(projected.players[0].manaPool.G).toBe(0);
+    });
+});
+
+describe("Gaea's Touch (CR 400.7 — put a basic Forest from hand; CR 605 sacrifice for {G}{G})", () => {
+    it("is sorcery-speed and once per turn", () => {
+        const ability = gaeasTouch.activatedAbilities!.find(
+            (a) => a.id === "gaeas-touch-forest"
+        )!;
+        expect(ability.useStack).toBe(true);
+        expect(ability.controllerTurnOnly).toBe(true);
+        expect(ability.oncePerTurn).toBe(true);
+        expect(ability.activationPhaseRestriction).toEqual([
+            "PRECOMBAT_MAIN",
+            "POSTCOMBAT_MAIN",
+        ]);
+    });
+
+    it("puts a basic Forest from hand onto the battlefield when chosen", () => {
+        const gt = makeInstance(gaeasTouch.id, { controllerId: "p1" });
+        const state = makeState();
+        const forestInHand = makeInstance(FOREST, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        state.players[0].battlefield = [gt];
+        state.players[0].hand = [forestInHand];
+
+        // Resolve the ability; it suspends on the optional hand choice.
+        resolveActivated(state, gt, "gaeas-touch-forest");
+        const pending = state.pendingChoices?.[0];
+        expect(pending?.kind).toBe("choose-hand-card");
+        expect(pending?.candidateIds).toEqual([forestInHand.id]);
+
+        // Pick the Forest → it moves to the battlefield.
+        answerChoice(state, [forestInHand.id]);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === forestInHand.id)
+        ).toBe(true);
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it("offers no candidate when the hand has no basic Forest (nonbasic Forest excluded)", () => {
+        const gt = makeInstance(gaeasTouch.id, { controllerId: "p1" });
+        const state = makeState();
+        // An Island is not a Forest; a hand with only it yields no candidate, so
+        // the optional ability resolves with no choice prompt.
+        state.players[0].battlefield = [gt];
+        state.players[0].hand = [
+            makeInstance(ISLAND, { controllerId: "p1", zone: "hand" }),
+        ];
+        resolveActivated(state, gt, "gaeas-touch-forest");
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+
+    it("declining the optional pick leaves the Forest in hand", () => {
+        const gt = makeInstance(gaeasTouch.id, { controllerId: "p1" });
+        const state = makeState();
+        const forestInHand = makeInstance(FOREST, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        state.players[0].battlefield = [gt];
+        state.players[0].hand = [forestInHand];
+        resolveActivated(state, gt, "gaeas-touch-forest");
+        // "You may" — decline by submitting an empty pick.
+        answerChoice(state, []);
+        expect(state.players[0].hand).toHaveLength(1);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === forestInHand.id)
+        ).toBe(false);
+    });
+
+    it("sacrifice ability adds {G}{G}", () => {
+        const sac = gaeasTouch.activatedAbilities!.find(
+            (a) => a.id === "gaeas-touch-sacrifice-mana"
+        )!;
+        expect(sac.useStack).toBe(false);
+        expect(sac.cost.sacrifice).toBe(true);
+        expect(sac.manaProduced).toEqual({ G: 2 });
+        // The mana-ability effect adds {G}{G} via addMana.
+        let added: Record<string, number> | undefined;
+        sac.effect?.({ addMana: (m) => (added = m as Record<string, number>) });
+        expect(added).toEqual({ G: 2 });
     });
 });

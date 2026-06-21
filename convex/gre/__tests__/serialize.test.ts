@@ -637,6 +637,7 @@ describe("schema drift guard", () => {
             { instanceId: "atk1", duration: { phase: "end-of-turn" } },
         ];
         state.drawLookReplacements = [{ playerId: "p1", x: 3 }];
+        state.landManaReplacedToBlueThisTurn = ["p1"];
 
         const stateKeys = new Set(Object.keys(state));
         const missing = [...stateKeys].filter((k) => !allKnown.has(k));
@@ -1073,6 +1074,12 @@ describe("optional field round-trip smoke tests", () => {
         const state = freshState();
         state.preventAllCombatDamageThisTurn = true;
         expect(roundTrip(state).preventAllCombatDamageThisTurn).toBe(true);
+    });
+
+    it("landManaReplacedToBlueThisTurn (Deep Water)", () => {
+        const state = freshState();
+        state.landManaReplacedToBlueThisTurn = ["p1"];
+        expect(roundTrip(state).landManaReplacedToBlueThisTurn).toEqual(["p1"]);
     });
 });
 

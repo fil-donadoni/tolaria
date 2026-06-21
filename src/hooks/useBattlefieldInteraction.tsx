@@ -343,7 +343,7 @@ export function useBattlefieldInteraction(player: Player) {
                 );
                 return;
             }
-            const choices = getManaChoices(card);
+            const choices = getManaChoices(card, allPlayers);
             if (choices) {
                 setManaChoiceState({
                     cardId: card.id,
@@ -362,7 +362,7 @@ export function useBattlefieldInteraction(player: Player) {
             }
         } else {
             // Check for mana choices (e.g. Black Lotus) — show picker
-            const choices = getManaChoices(card);
+            const choices = getManaChoices(card, allPlayers);
             if (choices && !card.isTapped) {
                 // We don't have mouse event coords here, so we use a fixed position
                 // The event is passed from the card component
@@ -398,7 +398,7 @@ export function useBattlefieldInteraction(player: Player) {
             handleClick(card);
             return;
         }
-        const choices = getManaChoices(card);
+        const choices = getManaChoices(card, allPlayers);
         if (isMe && choices && !card.isTapped && canInteract(card)) {
             setManaChoiceState({
                 cardId: card.id,
@@ -505,7 +505,9 @@ export function useBattlefieldInteraction(player: Player) {
         // the mana-ability flow (`tapUntap`, or the mana picker for sources
         // with `manaChoices`) instead of the activated-ability mutation.
         if (ability && !ability.useStack) {
-            const choices = getManaChoices(card);
+            // Board-conditional choosers (Fellwar Stone) derive their colours
+            // from every player's battlefield, so pass `allPlayers` (CR 106.1).
+            const choices = getManaChoices(card, allPlayers);
             if (choices) {
                 setManaChoiceState({
                     cardId: card.id,

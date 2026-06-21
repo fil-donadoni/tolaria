@@ -347,6 +347,32 @@ export interface ActivatedAbility {
     manaRestriction?: ManaRestriction;
     /** Multiple mana options the player can choose from (e.g. Talisman: "{T}: Add {U} or {B}"). */
     manaChoices?: ManaCost[];
+    /** Board-conditional mana CHOICES (CR 106.1, 605.1a) — the choice analog of
+     *  `manaAmount`. When present, the engine computes the list of mana options
+     *  the activator may pick from at activation time, instead of reading the
+     *  static `manaChoices`. The same pure resolver runs on the client (to render
+     *  the colour picker) and the server (to validate the chosen index), so the
+     *  index the client submits and the server reads always reference the same
+     *  list. `manaChoices` remains the representative / fallback list for
+     *  best-effort callers without a board snapshot. Receives the source
+     *  permanent, the controller id, and every player's battlefield view. Used by
+     *  Fellwar Stone ("Add one mana of any color that a land an opponent controls
+     *  could produce") to derive its colours from opponents' lands. */
+    getManaChoices?: (
+        source: PermanentView,
+        controllerId: string,
+        battlefields: ReadonlyArray<{
+            playerId: string;
+            /** Each permanent on this player's battlefield, paired with the set
+             *  of colours it COULD produce when tapped (CR 106.4), precomputed
+             *  by the engine via the shared producible-colour helper so the card
+             *  definition stays decoupled from the engine's mana machinery. */
+            permanents: ReadonlyArray<{
+                permanent: PermanentView;
+                producibleColors: ReadonlyArray<Color>;
+            }>;
+        }>
+    ) => ManaCost[];
     /** Restricts activation timing to a specific subset of phases (CR 602.5).
      *  When set, the ability is activatable only while `state.phase` is in
      *  this list. Used by Jade Statue ("activate only during combat"). */
@@ -688,6 +714,19 @@ export interface SpellContext {
      *  fizzle (CR 608.2b). Used by Transmute Artifact. Pair with
      *  `shuffleLibrary` (CR 701.20) after the search resolves. */
     putFromLibraryOntoBattlefield: (
+        playerId: string,
+        cardInstanceId: string
+    ) => boolean;
+    /** Puts a card from `playerId`'s HAND onto their battlefield (CR 400.7 — a
+     *  zone change that is not "playing" the card, so no cost is paid and the
+     *  land-drop limit is not consumed). Mirrors `putFromLibraryOntoBattlefield`:
+     *  splices the instance out of the hand and routes it through the shared
+     *  battlefield-entry path (ETB notification + continuous-effect application,
+     *  CR 603.6 / 611). Returns true if the card was in hand and moved, false on
+     *  silent fizzle when the id is no longer in hand at resolution (CR 608.2b).
+     *  Used by Gaea's Touch ("put a basic Forest card from your hand onto the
+     *  battlefield"). */
+    putFromHandOntoBattlefield: (
         playerId: string,
         cardInstanceId: string
     ) => boolean;
@@ -1105,6 +1144,13 @@ export interface SpellContext {
     /** Prevents all combat damage for the remainder of this turn (CR 615,
      *  Fog). Cleared at CLEANUP. Non-combat damage is unaffected. */
     preventAllCombatDamage: () => void;
+    /** Replaces the mana produced by `playerId`'s LANDS with {U} until end of
+     *  turn (CR 614 — Deep Water: "if you tap a land you control for mana, it
+     *  produces {U} instead of any other type"). The same total quantity of mana
+     *  is produced, only the type changes; non-land mana sources are unaffected.
+     *  Idempotent (stacking Deep Water activations don't compound). Cleared at
+     *  CLEANUP. */
+    replaceLandManaWithBlue: (playerId: string) => void;
     /** Sets Island Sanctuary protection: the given player can only be attacked
      *  by creatures with flying or islandwalk until their next turn. */
     setIslandSanctuaryProtection: (playerId: string) => void;
@@ -1523,6 +1569,8 @@ export interface SpellContext {
     getHandCards: (playerId: string) => Array<{
         id: string;
         types: CardType[];
+        subtypes: string[];
+        supertypes: CardSupertype[];
         manaValue: number;
         colors: Color[];
     }>;
