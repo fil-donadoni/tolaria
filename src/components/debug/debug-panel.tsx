@@ -5118,6 +5118,32 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // DRK Worms of the Earth — land-play/ETB prohibition (#423).
+        // "Players can't play lands. Lands can't enter the battlefield. At the
+        // beginning of each upkeep, any player may sacrifice two lands or take 5
+        // damage; if they do either, destroy this."
+        //   • You control Worms of the Earth plus two Mountains (the sacrifice
+        //     fodder), and hold a Mountain in hand.
+        //   • The Mountain in hand has NO "Play" action — the land-play lock is
+        //     active (CR 305.1). It stays unplayable until Worms leaves play.
+        //   • The board starts at your UPKEEP so Worms' trigger fires: choose
+        //     "Sacrifice two lands" or "Take 5 damage" to destroy Worms (or
+        //     decline to keep it). After Worms is gone the Mountain can be
+        //     played again.
+        label: "DRK Worms of the Earth: can't play/ETB lands + upkeep sac-2-or-take-5 (#423)",
+        cards: [
+            { name: "Worms of the Earth", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            {
+                name: "Mountain",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "UPKEEP",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

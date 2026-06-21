@@ -1,5 +1,10 @@
 import type { CardInstanceState, GameState } from "./state";
-import { getOpponentId, removePermanentTo, revertControlChange } from "./state";
+import {
+    getOpponentId,
+    refreshLandPlayLock,
+    removePermanentTo,
+    revertControlChange,
+} from "./state";
 import { isAura } from "./constants";
 import {
     getEffectivePower,
@@ -513,6 +518,11 @@ export function checkWorldRuleSBA(state: GameState): boolean {
 }
 
 export function checkStateBasedActions(state: GameState): void {
+    // Worms of the Earth (CR 614 prohibition) — refresh the serializable
+    // land-play-lock cache from the live battlefield derivation. Not an SBA per
+    // se, but every stable transition runs this sweep, so it is the canonical
+    // recompute point; the flag tracks whether any lock source is in play.
+    refreshLandPlayLock(state);
     checkAuraAttachmentSBA(state);
     checkConditionalControlChanges(state);
     checkSourceTappedEffects(state);

@@ -1376,6 +1376,16 @@ export type GameState = {
      *  the produced colours are rewritten to the same TOTAL quantity of {U}
      *  before they reach the pool. Cleared at CLEANUP (until end of turn). */
     landManaReplacedToBlueThisTurn?: string[];
+    /** When true, no player may play a land and lands can't enter the
+     *  battlefield (Worms of the Earth). Unlike the turn-scoped flags below,
+     *  this is NOT cleared at CLEANUP — it is a cache of a battlefield-derived
+     *  condition, recomputed at every SBA pass (`refreshLandPlayLock`) from any
+     *  permanent whose CardDefinition declares `preventsLandPlayAndETB`. The
+     *  cache exists for serialization/observability; the land-play
+     *  (`getLegalActions`) and land-ETB (`canLandEnterBattlefield`) consumers
+     *  read the live derivation `landPlayLockActive(state)` directly, so the
+     *  lock lifts the instant Worms leaves play with no stale-flag risk. */
+    landPlayLocked?: boolean;
     /** When true, all combat damage is prevented this turn (CR 615, Fog).
      *  Checked at the top of `applyAllCombatDamage`; cleared at CLEANUP. */
     preventAllCombatDamageThisTurn?: boolean;
@@ -2025,6 +2035,18 @@ function finalizeSpellResolution(
     const controller = getPlayer(state, item.castById);
 
     if (isPermanent) {
+        // Worms of the Earth (CR 614) — "Lands can't enter the battlefield."
+        // A resolving land permanent that is prevented from entering is put
+        // into its owner's graveyard instead (CR 608.3: the permanent never
+        // enters; the card has nowhere to go but the graveyard). Lands can't be
+        // played while the lock is active (rules.ts gate), but a land could
+        // still try to enter via a spell/ability that puts it onto the
+        // battlefield — this is the catch-all for that path.
+        if (!canLandEnterBattlefield(state, item.types)) {
+            item.zone = "graveyard";
+            getPlayer(state, item.ownerId).graveyard.push(item);
+            return;
+        }
         // CR 303.4: an Aura enters the battlefield attached to its target.
         // CR 608.2b: re-check target legality at resolution; if illegal, the
         // aura fizzles to the graveyard (CR 303.4i) instead of entering play.
@@ -2129,6 +2151,49 @@ function finalizeSpellResolution(
         item.zone = "graveyard";
         owner.graveyard.push(item);
     }
+}
+
+/** Live derivation (CR 614 prohibition): true while ANY permanent on the
+ *  battlefield has a CardDefinition declaring `preventsLandPlayAndETB` (Worms
+ *  of the Earth). Scanned per call, mirroring the layer/replacement
+ *  "battlefield-derived continuous effect" idiom — so the lock disappears the
+ *  instant the source leaves play, with no LTB cleanup. `refreshLandPlayLock`
+ *  mirrors this into the serializable `state.landPlayLocked` cache. */
+export function landPlayLockActive(state: GameState): boolean {
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            const cardId = (card.card as { id?: string }).id;
+            if (!cardId) continue;
+            const def = tryGetCardById(cardId);
+            if (def?.preventsLandPlayAndETB) return true;
+        }
+    }
+    return false;
+}
+
+/** Mirrors the live `landPlayLockActive` derivation into the serializable
+ *  `state.landPlayLocked` cache. Called from `checkStateBasedActions` so the
+ *  flag tracks the battlefield at every stable point; the flag is dropped when
+ *  the condition is false so it never lingers across DB writes. */
+export function refreshLandPlayLock(state: GameState): void {
+    if (landPlayLockActive(state)) {
+        state.landPlayLocked = true;
+    } else {
+        delete state.landPlayLocked;
+    }
+}
+
+/** CR 614 (Worms of the Earth) — a land may NOT enter the battlefield while the
+ *  land-play lock is active. Checked at every battlefield-entry site that can
+ *  move a land into play (spell resolution, reanimation, search-to-battlefield,
+ *  token creation). Returns false to PREVENT the entry. Non-land permanents are
+ *  always allowed. */
+export function canLandEnterBattlefield(
+    state: GameState,
+    types: readonly CardType[]
+): boolean {
+    if (!types.includes("Land")) return true;
+    return !landPlayLockActive(state);
 }
 
 /** Emits PERMANENT_ENTERED for a card that has just been placed on the
@@ -3699,6 +3764,18 @@ function putReanimatedOnBattlefield(
     card: CardInstanceState,
     controllerId: string
 ): void {
+    // Worms of the Earth (CR 614) — "Lands can't enter the battlefield." A land
+    // moved here from graveyard/exile/library (reanimation, library tutor) is
+    // prevented from entering; it is put into its owner's graveyard instead
+    // (the caller already removed it from its origin zone). Covers every
+    // reanimation / search-to-battlefield path that funnels through this helper.
+    if (!canLandEnterBattlefield(state, card.types)) {
+        resetBattlefieldTransientState(card);
+        card.zone = "graveyard";
+        card.attachedTo = undefined;
+        getPlayer(state, card.ownerId).graveyard.push(card);
+        return;
+    }
     // CR 400.7 — zone change creates a new object: clear battlefield-only
     // transient state. Then re-establish the fresh-permanent defaults.
     resetBattlefieldTransientState(card);

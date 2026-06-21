@@ -622,6 +622,7 @@ describe("schema drift guard", () => {
             },
         ];
         state.playerPreferences = { p1: { libraryOfLengRouting: "graveyard" } };
+        state.landPlayLocked = true;
         state.preventAllCombatDamageThisTurn = true;
         state.combatBlockRestrictions = [
             { attackerId: "atkA", allowedPileLabel: "left" },
@@ -1080,6 +1081,12 @@ describe("optional field round-trip smoke tests", () => {
         const state = freshState();
         state.landManaReplacedToBlueThisTurn = ["p1"];
         expect(roundTrip(state).landManaReplacedToBlueThisTurn).toEqual(["p1"]);
+    });
+
+    it("landPlayLocked (Worms of the Earth)", () => {
+        const state = freshState();
+        state.landPlayLocked = true;
+        expect(roundTrip(state).landPlayLocked).toBe(true);
     });
 });
 

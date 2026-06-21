@@ -22,6 +22,7 @@ import type {
     PermanentView,
     SpellContext,
     StaticEffectContext,
+    TargetSelection,
     TriggeredAbility,
 } from "../types";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
@@ -2527,6 +2528,100 @@ export const bloodMoon: CardDefinition = {
             applies: IS_NONBASIC_LAND,
             subtypes: ["Mountain"],
         },
+    ],
+};
+
+// Worms of the Earth — {2}{B}{B}{B} Enchantment.
+// "Players can't play lands.\nLands can't enter the battlefield.\nAt the
+//  beginning of each upkeep, any player may sacrifice two lands of their choice
+//  or have this enchantment deal 5 damage to that player. If a player does
+//  either, destroy this enchantment."
+//
+// Two prohibitions (CR 614 — a land that would enter is prevented; a player
+// can't take the land-play special action, CR 305.1):
+//   • `preventsLandPlayAndETB: true` — a CardDefinition marker scanned live
+//     from the battlefield (like Fastbond's `extraLandDrops`). `getLegalActions`
+//     suppresses the "play" land action and every battlefield-entry site
+//     (`canLandEnterBattlefield`) prevents a land from entering. The lock lifts
+//     automatically the instant Worms leaves play (no LTB cleanup); the engine
+//     mirrors it into `state.landPlayLocked` for serialization.
+//
+// Upkeep clause (CR 603.6a "each" upkeep; CR 117.3a optional; CR 701.16
+// sacrifice): on EVERY player's upkeep, that player MAY (a) sacrifice two of
+// their lands, OR (b) take 5 damage from Worms; if they do EITHER, destroy
+// Worms. Modeled as a three-way option pick (sacrifice / take 5 / decline);
+// the "sacrifice two lands" option is offered only when the player controls at
+// least two lands. `resolveSteps` checkpoints the irreversible
+// sacrifice/damage before `destroy`, so a suspended choice never re-applies.
+export const wormsOfTheEarth: CardDefinition = {
+    id: "65a97821-ca5b-46fb-af08-86de81d0daac",
+    name: "Worms of the Earth",
+    oracleText:
+        "Players can't play lands.\nLands can't enter the battlefield.\nAt the beginning of each upkeep, any player may sacrifice two lands of their choice or have this enchantment deal 5 damage to that player. If a player does either, destroy this enchantment.",
+    manaCost: { X: 2, B: 3 },
+    types: ["Enchantment"],
+    preventsLandPlayAndETB: true,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "worms-of-the-earth-upkeep",
+            oracleText:
+                "At the beginning of each upkeep, any player may sacrifice two lands of their choice or have this enchantment deal 5 damage to that player. If a player does either, destroy this enchantment.",
+            phase: "UPKEEP",
+            scope: "each",
+            resolveSteps: [
+                (ctx, playerId) => {
+                    const self: TargetSelection = {
+                        type: "permanent",
+                        id: ctx.sourceInstanceId,
+                    };
+                    const landIds = ctx.getBattlefieldIds(playerId, {
+                        types: "Land",
+                    });
+                    // CR 117.3a — the upkeep player chooses. "Sacrifice two
+                    // lands" is offered only when they control at least two.
+                    const options = [
+                        ...(landIds.length >= 2
+                            ? [
+                                  {
+                                      id: "sacrifice",
+                                      label: "Sacrifice two lands (destroys Worms of the Earth)",
+                                  },
+                              ]
+                            : []),
+                        {
+                            id: "damage",
+                            label: "Take 5 damage (destroys Worms of the Earth)",
+                        },
+                        { id: "decline", label: "Do nothing" },
+                    ];
+                    const choice = ctx.requestOptionChoice({
+                        playerId,
+                        choiceId: `worms-${playerId}`,
+                        options,
+                        prompt: "Worms of the Earth: sacrifice two lands or take 5 damage?",
+                    });
+                    if (choice === undefined) return;
+                    if (choice === "sacrifice") {
+                        const picked = ctx.requestChoice({
+                            playerId,
+                            choiceId: `worms-sac-${playerId}`,
+                            kind: "sacrifice-permanents",
+                            zone: "battlefield",
+                            filter: { types: "Land" },
+                            count: 2,
+                            prompt: "Sacrifice two lands.",
+                        });
+                        if (picked === undefined) return;
+                        for (const id of picked) ctx.sacrifice(id);
+                        ctx.destroy(self);
+                    } else if (choice === "damage") {
+                        ctx.dealDamage({ type: "player", id: playerId }, 5);
+                        ctx.destroy(self);
+                    }
+                    // decline: do nothing; Worms survives.
+                },
+            ],
+        }),
     ],
 };
 

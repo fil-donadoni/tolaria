@@ -78,6 +78,7 @@ import {
     gaeasTouch,
     danceOfMany,
     tracker,
+    wormsOfTheEarth,
 } from "../drk";
 import { tropicalIsland, mountain } from "../lea";
 import { stripMine } from "../atq";
@@ -106,7 +107,16 @@ import {
 } from "../../../gre/constants";
 import { finalizeCleanup } from "../../../gre/phases";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
-import { getLegalTargets, getProducibleManaOptions } from "../../../gre/rules";
+import {
+    assertLegalAction,
+    getLegalActions,
+    getLegalTargets,
+    getProducibleManaOptions,
+} from "../../../gre/rules";
+import {
+    canLandEnterBattlefield,
+    landPlayLockActive,
+} from "../../../gre/state";
 import {
     getBasicLandMana,
     getActivatedManaAbility,
@@ -3568,7 +3578,6 @@ describe("Dance of Many — serialization round-trip (linkedTokenId, CR 603.10)"
     });
 });
 
-
 // ---------------------------------------------------------------------------
 // Tracker — generic Fight primitive (CR 701.12 mutual damage; CR 120 / 510-
 // style simultaneous damage through the normal damage path)
@@ -3799,5 +3808,244 @@ describe("Tracker — Fight primitive (CR 701.12 mutual damage)", () => {
             "p1"
         );
         expect(legal.map((t) => t.id)).toContain("foe");
+    });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Worms of the Earth — {2}{B}{B}{B} Enchantment (#423)
+// "Players can't play lands. Lands can't enter the battlefield. At the
+//  beginning of each upkeep, any player may sacrifice two lands or take 5
+//  damage; if they do either, destroy this." CR 305.1 land-play special action
+//  + CR 614 land-ETB prohibition; CR 603.6a "each" upkeep + CR 117.3a optional.
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Puts Worms of the Earth on p1's battlefield. */
+function withWorms(): { state: GameState; worms: CardInstanceState } {
+    const worms = makeInstance(wormsOfTheEarth.id, {
+        id: "worms-1",
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "battlefield",
+    });
+    const state = makeState({
+        players: [makePlayer("p1", { battlefield: [worms] }), makePlayer("p2")],
+    });
+    return { state, worms };
+}
+
+describe("Worms of the Earth ({2}{B}{B}{B} Enchantment — land-play/ETB lock)", () => {
+    it("has the correct cost, type, and prohibition marker", () => {
+        expect(wormsOfTheEarth.manaCost).toEqual({ X: 2, B: 3 });
+        expect(wormsOfTheEarth.types).toEqual(["Enchantment"]);
+        expect(wormsOfTheEarth.preventsLandPlayAndETB).toBe(true);
+        expect(wormsOfTheEarth.triggeredAbilities).toHaveLength(1);
+    });
+
+    describe("land-play prohibition (CR 305.1) — path 1", () => {
+        it('a land in hand has NO "play" action while Worms is in play', () => {
+            const { state } = withWorms();
+            const land = makeInstance(mountain.id, {
+                id: "mtn-hand",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+            state.players[0].hand.push(land);
+            const actions = getLegalActions(state, state.players[0], land);
+            expect(actions).not.toContain("play");
+        });
+
+        it('the same land DOES have "play" once Worms leaves play (lock lifted)', () => {
+            const { state, worms } = withWorms();
+            const land = makeInstance(mountain.id, {
+                id: "mtn-hand",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+            state.players[0].hand.push(land);
+            // Remove Worms → lock lifts immediately (live-derived).
+            state.players[0].battlefield = state.players[0].battlefield.filter(
+                (c) => c.id !== worms.id
+            );
+            const actions = getLegalActions(state, state.players[0], land);
+            expect(actions).toContain("play");
+        });
+
+        it("assertLegalAction throws for play (game.ts playCard mutation boundary)", () => {
+            const { state } = withWorms();
+            const land = makeInstance(mountain.id, {
+                id: "mtn-hand",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+            state.players[0].hand.push(land);
+            expect(() =>
+                assertLegalAction(state, state.players[0], land, "play")
+            ).toThrow(/Illegal action "play"/);
+        });
+    });
+
+    describe("land-ETB prohibition (CR 614) — path 2", () => {
+        it("landPlayLockActive is true with Worms in play, false without", () => {
+            const { state, worms } = withWorms();
+            expect(landPlayLockActive(state)).toBe(true);
+            state.players[0].battlefield = state.players[0].battlefield.filter(
+                (c) => c.id !== worms.id
+            );
+            expect(landPlayLockActive(state)).toBe(false);
+        });
+
+        it("canLandEnterBattlefield PREVENTS a land while locked, allows non-lands", () => {
+            const { state } = withWorms();
+            expect(canLandEnterBattlefield(state, ["Land"])).toBe(false);
+            expect(canLandEnterBattlefield(state, ["Creature"])).toBe(true);
+            expect(canLandEnterBattlefield(state, ["Artifact"])).toBe(true);
+        });
+
+        it("canLandEnterBattlefield allows a land once Worms leaves", () => {
+            const { state, worms } = withWorms();
+            state.players[0].battlefield = state.players[0].battlefield.filter(
+                (c) => c.id !== worms.id
+            );
+            expect(canLandEnterBattlefield(state, ["Land"])).toBe(true);
+        });
+    });
+
+    describe("serialization cache (refreshLandPlayLock via SBA)", () => {
+        it("checkStateBasedActions sets state.landPlayLocked while Worms is in play", () => {
+            const { state } = withWorms();
+            expect(state.landPlayLocked).toBeUndefined();
+            checkStateBasedActions(state);
+            expect(state.landPlayLocked).toBe(true);
+        });
+
+        it("checkStateBasedActions clears state.landPlayLocked when Worms leaves", () => {
+            const { state, worms } = withWorms();
+            checkStateBasedActions(state);
+            expect(state.landPlayLocked).toBe(true);
+            state.players[0].battlefield = state.players[0].battlefield.filter(
+                (c) => c.id !== worms.id
+            );
+            checkStateBasedActions(state);
+            expect(state.landPlayLocked).toBeUndefined();
+        });
+    });
+
+    describe("upkeep clause (CR 603.6a 'each' + CR 117.3a optional)", () => {
+        it("sacrificing two lands destroys Worms of the Earth", () => {
+            const { state, worms } = withWorms();
+            const l1 = makeInstance(mountain.id, {
+                id: "l1",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const l2 = makeInstance(mountain.id, {
+                id: "l2",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            state.players[0].battlefield.push(l1, l2);
+            state.phase = "UPKEEP";
+            // Fire on p1's upkeep; choose "sacrifice", then pick the two lands.
+            resolveTrigger(
+                state,
+                worms,
+                "worms-of-the-earth-upkeep",
+                UPKEEP("p1")
+            );
+            answerChoice(state, ["sacrifice"]);
+            answerChoice(state, ["l1", "l2"]);
+            checkStateBasedActions(state);
+            // Worms destroyed; two lands sacrificed.
+            expect(
+                state.players[0].battlefield.some((c) => c.id === worms.id)
+            ).toBe(false);
+            expect(
+                state.players[0].battlefield.filter((c) =>
+                    c.types.includes("Land")
+                )
+            ).toHaveLength(0);
+        });
+
+        it("taking 5 damage destroys Worms and lowers life by 5", () => {
+            const { state, worms } = withWorms();
+            state.phase = "UPKEEP";
+            resolveTrigger(
+                state,
+                worms,
+                "worms-of-the-earth-upkeep",
+                UPKEEP("p1")
+            );
+            answerChoice(state, ["damage"]);
+            checkStateBasedActions(state);
+            expect(state.players[0].life).toBe(15);
+            expect(
+                state.players[0].battlefield.some((c) => c.id === worms.id)
+            ).toBe(false);
+        });
+
+        it("declining keeps Worms in play (no sacrifice, no damage)", () => {
+            const { state, worms } = withWorms();
+            const land = makeInstance(mountain.id, {
+                id: "keep",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            state.players[0].battlefield.push(land);
+            state.phase = "UPKEEP";
+            resolveTrigger(
+                state,
+                worms,
+                "worms-of-the-earth-upkeep",
+                UPKEEP("p1")
+            );
+            answerChoice(state, ["decline"]);
+            checkStateBasedActions(state);
+            expect(
+                state.players[0].battlefield.some((c) => c.id === worms.id)
+            ).toBe(true);
+            expect(state.players[0].life).toBe(20);
+            expect(
+                state.players[0].battlefield.some((c) => c.id === "keep")
+            ).toBe(true);
+        });
+
+        it("fires on EACH player's upkeep — p2 may pay too (scope: each)", () => {
+            const { state, worms } = withWorms();
+            // p2's upkeep: scoped player is p2 (active player), not Worms'
+            // controller p1. p2 takes 5; Worms is destroyed.
+            state.phase = "UPKEEP";
+            state.activePlayerId = "p2";
+            resolveTrigger(
+                state,
+                worms,
+                "worms-of-the-earth-upkeep",
+                UPKEEP("p2")
+            );
+            answerChoice(state, ["damage"]);
+            checkStateBasedActions(state);
+            expect(state.players[1].life).toBe(15);
+            expect(state.players[0].life).toBe(20);
+            expect(
+                state.players[0].battlefield.some((c) => c.id === worms.id)
+            ).toBe(false);
+        });
+    });
+
+    describe("wire format (projection survives)", () => {
+        it("landPlayLocked + lock derivation survive projectPublicState", () => {
+            const { state } = withWorms();
+            checkStateBasedActions(state);
+            expect(landPlayLockActive(state)).toBe(true);
+            const projected = projectPublicState(state, 1, "p1");
+            // The serialized cache crosses the wire.
+            expect(projected.landPlayLocked).toBe(true);
+            // And the live derivation still reads Worms off the projected board.
+            expect(landPlayLockActive(projected as unknown as GameState)).toBe(
+                true
+            );
+        });
     });
 });

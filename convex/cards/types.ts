@@ -3205,6 +3205,16 @@ export interface CardDefinition {
      *  is on the battlefield (CR 305.2 — Fastbond). Added to LAND_DROPS_PER_TURN
      *  at land-play legality check time. Use 999 for unlimited. */
     extraLandDrops?: number;
+    /** While ANY permanent with this flag is on the battlefield, no player may
+     *  play a land (CR 305.1 special action prohibition) AND a land that would
+     *  enter the battlefield from any source is prevented from entering (CR 614
+     *  replacement-style prohibition). Worms of the Earth. Read live from the
+     *  battlefield (like `extraLandDrops`) so the lock lifts automatically the
+     *  instant the source leaves play — no stale flag. The engine mirrors the
+     *  derived value into `GameState.landPlayLocked` at every SBA pass for
+     *  serialization/observability, but the consumption sites read the live
+     *  helper, so the cache can never cause an incorrect ruling. */
+    preventsLandPlayAndETB?: boolean;
     /** CR 702.16n — an Aura that grants the enchanted permanent protection
      *  from its own color (e.g. White Ward gives pro-white and is itself
      *  white) normally falls off via 702.16c. Cards with this flag carry
