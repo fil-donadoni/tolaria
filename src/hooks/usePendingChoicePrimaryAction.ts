@@ -1,18 +1,10 @@
 import { useCallback, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import type { PendingChoice } from "~/types/game";
 import { isManaCostCovered } from "~/lib/card-utils";
+import { isZonePickConfirmEnabled } from "~/lib/pending-choice-confirm";
 import { useGameContext } from "./useGameContext";
 import { usePendingChoiceBuffer } from "./usePendingChoiceBuffer";
-
-function countMin(count: PendingChoice["count"]): number {
-    return typeof count === "number" ? count : count.min;
-}
-
-function countMax(count: PendingChoice["count"]): number {
-    return typeof count === "number" ? count : count.max;
-}
 
 export type PendingChoicePrimaryAction = {
     /** Whether the affirmative button is currently legal to fire (mana
@@ -70,11 +62,11 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                     ? isManaCostCovered(chooser.manaPool, choice.cost)
                     : false));
     } else {
-        const selected = bufferCtx.buffer.length;
+        // Zone picks (incl. Sylvan Library's 0–N topdeck range): Done enables
+        // at the minimum allowed selection — 0 when min === 0 (CR 608.2).
         canConfirm =
             !bufferCtx.isPending &&
-            selected >= countMin(choice.count) &&
-            selected <= countMax(choice.count);
+            isZonePickConfirmEnabled(choice.count, bufferCtx.buffer.length);
     }
 
     return { canConfirm, confirm, isPending: isBusy || bufferCtx.isPending };
