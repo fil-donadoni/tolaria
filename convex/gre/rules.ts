@@ -25,7 +25,7 @@ import {
 import { isProtectedFromColors } from "./protection";
 import { isGuardedAgainst } from "./permanentGuard";
 import { getInstanceManaCost, tryGetCardById } from "../cards";
-import { normalizeManaCost } from "./state";
+import { landPlayLockActive, normalizeManaCost } from "./state";
 
 export {
     getProtectedColors,
@@ -100,10 +100,19 @@ export function getLegalActions(
     // "Play" is for lands only — requires sorcery timing (main phase, empty stack, active player)
     // and the player must not have already used their per-turn land drops (CR 305.2).
     if (types.includes("Land")) {
+        // Worms of the Earth (CR 614) — "Players can't play lands." While the
+        // land-play lock is active, playing a land is illegal regardless of
+        // timing or remaining land drops. Suppressing the "play" action here
+        // also blocks the server path: `assertLegalAction` rejects the
+        // `playCard` mutation when "play" is absent.
         const landsPlayed = player.landsPlayedThisTurn ?? 0;
         const extraDrops = getExtraLandDrops(player);
         const maxDrops = LAND_DROPS_PER_TURN + extraDrops;
-        if (isSorceryTiming(state) && landsPlayed < maxDrops) {
+        if (
+            !landPlayLockActive(state) &&
+            isSorceryTiming(state) &&
+            landsPlayed < maxDrops
+        ) {
             actions.push("play");
         }
     }

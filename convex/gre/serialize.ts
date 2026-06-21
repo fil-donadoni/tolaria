@@ -663,6 +663,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "damageRedirections",
     "combatBlockRestrictions",
     "playerPreferences",
+    "landPlayLocked",
     "preventAllCombatDamageThisTurn",
     "landManaReplacedToBlueThisTurn",
     "damageCapShields",

@@ -169,9 +169,13 @@ function resolveScopeFromCtx(
         if (!hostId) return null;
         return ctx.getController({ type: "permanent", id: hostId });
     }
-    // each / opponents — at the source's own step the active player is the
-    // controller; resolveSteps consumers today are all `your`-scoped.
-    return ctx.controller;
+    // each / opponents — the scoped player is the player whose step it is (the
+    // active player), NOT the trigger's controller (Worms of the Earth fires on
+    // EACH player's upkeep and the scoped player is that upkeep's active
+    // player). `apNapOrder()[0]` is the active player (CR 101.4); fall back to
+    // the controller only if unavailable (defensive — apNapOrder is always
+    // populated for a 2-player game).
+    return ctx.apNapOrder()[0] ?? ctx.controller;
 }
 
 /** Resolve-time scope resolution. Mirrors `resolvePhaseScope` but reads the
