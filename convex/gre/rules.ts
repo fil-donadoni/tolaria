@@ -731,6 +731,22 @@ export function getLegalTargets(
                 if (isAbility) continue;
                 if (!spellTypes.some((t) => item.types.includes(t))) continue;
             }
+            // CR 114.6 / 115.10 — Reflecting Mirror: only spells that have
+            // EXACTLY ONE target whose single target IS the activating player
+            // are legal. (An ability on the stack is never a legal target here:
+            // the requirement is "target spell".)
+            if (requirement.spellSingleTargetingController) {
+                const isAbility =
+                    !!item.abilityId ||
+                    !!item.triggeredAbilityId ||
+                    !!item.delayedTriggerId;
+                if (isAbility) continue;
+                const tgts = item.targets ?? [];
+                if (tgts.length !== 1) continue;
+                if (tgts[0].type !== "player" || tgts[0].id !== casterId) {
+                    continue;
+                }
+            }
             targets.push({ type: "spell", id: item.id });
         }
     }
@@ -747,9 +763,9 @@ export function getLegalTargets(
 export function getPendingTargetSourceColors(
     state: GameState,
     cardInstanceId: string,
-    kind: "cast" | "ability" | "copy-retarget"
+    kind: "cast" | "ability" | "copy-retarget" | "retarget"
 ): Color[] {
-    if (kind === "copy-retarget") {
+    if (kind === "copy-retarget" || kind === "retarget") {
         const si = state.stack.find((x) => x.id === cardInstanceId);
         if (si) return STATIC_EFFECT_CTX.getColors(si);
         return [];
@@ -778,9 +794,9 @@ export function getPendingTargetSourceColors(
 export function getPendingTargetSourceTypes(
     state: GameState,
     cardInstanceId: string,
-    kind: "cast" | "ability" | "copy-retarget"
+    kind: "cast" | "ability" | "copy-retarget" | "retarget"
 ): CardType[] {
-    if (kind === "copy-retarget") {
+    if (kind === "copy-retarget" || kind === "retarget") {
         const si = state.stack.find((x) => x.id === cardInstanceId);
         return si ? [...si.types] : [];
     }
@@ -807,9 +823,9 @@ export function getPendingTargetSourceTypes(
 export function getPendingTargetSourceSubtypes(
     state: GameState,
     cardInstanceId: string,
-    kind: "cast" | "ability" | "copy-retarget"
+    kind: "cast" | "ability" | "copy-retarget" | "retarget"
 ): string[] {
-    if (kind === "copy-retarget") {
+    if (kind === "copy-retarget" || kind === "retarget") {
         const si = state.stack.find((x) => x.id === cardInstanceId);
         return si ? [...si.subtypes] : [];
     }

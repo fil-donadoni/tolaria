@@ -5169,6 +5169,35 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "UPKEEP",
         landCount: 0,
     },
+    {
+        // DRK C8 retarget existing spell — Reflecting Mirror (#425). "{X}, {T}:
+        // Change the target of target spell with a single target if that target
+        // is you. The new target must be a player. X is twice the mana value of
+        // that spell." This mutates the ORIGINAL spell on the stack (distinct
+        // from Fork's copy-retarget).
+        //   • You control Reflecting Mirror and Mountains; the opponent holds a
+        //     Lightning Bolt and Mountains.
+        //   • (Solo) cast the opponent's Lightning Bolt targeting YOU — it sits
+        //     on the stack with a single target that is you.
+        //   • Switch to your seat and activate Reflecting Mirror, targeting the
+        //     bolt. X is forced to twice the bolt's mana value ({2}); pay it and
+        //     {T} the Mirror.
+        //   • On resolution, choose the OPPONENT as the new player target — the
+        //     original bolt now deals its 3 damage to the opponent instead of you.
+        label: "DRK Reflecting Mirror: bounce a single-target spell back at its caster (#425)",
+        cards: [
+            { name: "Reflecting Mirror", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 4 },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "opp" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

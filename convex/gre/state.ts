@@ -1087,6 +1087,11 @@ export type PendingTarget = {
      *  TargetRequirement.spellTypeFilter. Used by Fork ("target instant or
      *  sorcery spell"). Ignored for non-spell target types. */
     spellTypeFilter?: CardType[];
+    /** Restricts legal SPELL targets to single-target spells whose only target
+     *  is the activating player (CR 114.6 / 115.10). Propagated from
+     *  TargetRequirement.spellSingleTargetingController. Used by Reflecting
+     *  Mirror. Ignored for non-spell target types. */
+    spellSingleTargetingController?: boolean;
     /** Restricts legal PLAYER targets to players who attacked this turn
      *  (CR 506.2). Propagated from TargetRequirement.playerAttackedThisTurn.
      *  Used by Fire and Brimstone. Ignored for non-player target types. */
@@ -1115,8 +1120,11 @@ export type PendingTarget = {
      *  COPY already on the stack (CR 707.10b — Fork's "you may choose new
      *  targets for the copy"); `cardInstanceId` holds the copy's stack id and
      *  finalization writes the chosen targets onto that stack item instead of
-     *  casting anything. */
-    kind?: "cast" | "ability" | "copy-retarget";
+     *  casting anything. When "retarget", target selection re-points the targets
+     *  of the ORIGINAL spell already on the stack (CR 114.6 — Reflecting Mirror's
+     *  "change the target of target spell"); `cardInstanceId` holds the original
+     *  spell's stack id and finalization writes the chosen targets onto it. */
+    kind?: "cast" | "ability" | "copy-retarget" | "retarget";
     /** For `kind: "ability"` only — id of the activated ability template on
      *  the source card definition. */
     abilityId?: string;
@@ -5549,6 +5557,63 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                           spellTypeFilter: Array.isArray(req.spellTypeFilter)
                               ? req.spellTypeFilter
                               : [req.spellTypeFilter],
+                      }
+                    : {}),
+            };
+        },
+        requestRetarget(spellStackItemId, requirement): void {
+            // CR 114.6 — change the target(s) of a spell ALREADY on the stack
+            // (the original object, not a copy). Reflecting Mirror. Mirrors
+            // requestCopyRetarget but `cardInstanceId` points at the original
+            // spell, so finalization writes new targets onto it in place.
+            const spell = state.stack.find((s) => s.id === spellStackItemId);
+            if (!spell) return; // spell left the stack — nothing to retarget
+            const rawCount = requirement.count;
+            const count =
+                rawCount === "X" ? Math.max(0, item.chosenX ?? 0) : rawCount;
+            const minNeeded = typeof count === "number" ? count : count.min;
+            if (minNeeded <= 0) return; // no targets to choose
+            const subtypeFilter = requirement.subtypeFilter
+                ? Array.isArray(requirement.subtypeFilter)
+                    ? requirement.subtypeFilter
+                    : [requirement.subtypeFilter]
+                : undefined;
+            const excludeSubtypes = requirement.excludeSubtypes
+                ? Array.isArray(requirement.excludeSubtypes)
+                    ? requirement.excludeSubtypes
+                    : [requirement.excludeSubtypes]
+                : undefined;
+            state.pendingTarget = {
+                // The activating player (controller of THIS resolving ability)
+                // chooses the new target (CR 114.6 / 608.2).
+                playerId: item.castById,
+                cardInstanceId: spell.id,
+                targetType: requirement.type,
+                count,
+                selected: [],
+                kind: "retarget",
+                ...(requirement.colorFilter
+                    ? { colorFilter: requirement.colorFilter }
+                    : {}),
+                ...(requirement.zone ? { zone: requirement.zone } : {}),
+                ...(requirement.controller
+                    ? { controller: requirement.controller }
+                    : {}),
+                ...(subtypeFilter ? { subtypeFilter } : {}),
+                ...(requirement.powerFilter
+                    ? { powerFilter: requirement.powerFilter }
+                    : {}),
+                ...(requirement.toughnessFilter
+                    ? { toughnessFilter: requirement.toughnessFilter }
+                    : {}),
+                ...(excludeSubtypes ? { excludeSubtypes } : {}),
+                ...(requirement.spellTypeFilter
+                    ? {
+                          spellTypeFilter: Array.isArray(
+                              requirement.spellTypeFilter
+                          )
+                              ? requirement.spellTypeFilter
+                              : [requirement.spellTypeFilter],
                       }
                     : {}),
             };

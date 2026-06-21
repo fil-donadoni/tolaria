@@ -104,6 +104,7 @@ import {
     getFixedManaAmount,
     hasManaAbility,
     isTapLockedBySummoningSickness,
+    manaValue,
 } from "./gre/constants";
 import {
     validateAttackerEligibility,
@@ -1318,8 +1319,10 @@ function isTargetCountMaxReached(
 /** Finalizes target selection and either places the spell on the stack (if
  *  the caster can already pay) or transitions into the payment phase.
  *  Mutates `state` in place. Handles chosenX propagation and the per-target
- *  additional generic cost modifier (CR 601.2f). */
-function finalizeTargetSelection(
+ *  additional generic cost modifier (CR 601.2f). Exported for integration
+ *  tests that exercise the real cost/target commit path (e.g. Reflecting
+ *  Mirror's derived-X + retarget finalization). */
+export function finalizeTargetSelection(
     state: GameState,
     pt: PendingTarget,
     playerId: string
@@ -1341,6 +1344,20 @@ function finalizeTargetSelection(
     if (kind === "copy-retarget") {
         const copy = state.stack.find((s) => s.id === cardInstanceId);
         if (copy) copy.targets = targets;
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+        drainAutoPasses(state);
+        return;
+    }
+
+    // Retarget branch (CR 114.6 — Reflecting Mirror's "change the target of
+    // target spell"). The new target is written onto the ORIGINAL spell already
+    // on the stack (not a copy). The resolving Reflecting Mirror ability has
+    // finished, so a fresh priority round begins with the active player and the
+    // retargeted spell still on the stack.
+    if (kind === "retarget") {
+        const spell = state.stack.find((s) => s.id === cardInstanceId);
+        if (spell) spell.targets = targets;
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
         drainAutoPasses(state);
@@ -1398,7 +1415,31 @@ function finalizeTargetSelection(
         const hasXInCost =
             ability.cost.mana?.X !== undefined &&
             typeof ability.cost.mana.X === "string";
-        const abilityChosenX = hasXInCost ? chosenX : undefined;
+        // CR 107.3 — Reflecting Mirror: X is twice the mana value of the
+        // targeted spell, derived from the chosen spell target rather than from
+        // a player-chosen value. Computed here, once the target is known.
+        let derivedX: number | undefined;
+        if (ability.cost.xFromTargetSpellMv) {
+            const spellTarget = targets.find((t) => t.type === "spell");
+            const spell = spellTarget
+                ? state.stack.find((s) => s.id === spellTarget.id)
+                : undefined;
+            if (!spell) {
+                throw new Error("Target spell is no longer on the stack");
+            }
+            const spellCardId = (spell.card as { id?: string }).id;
+            const spellDef = spellCardId
+                ? tryGetCardById(spellCardId)
+                : undefined;
+            const spellMv =
+                manaValue(spellDef?.manaCost) + (spell.chosenX ?? 0);
+            derivedX = ability.cost.xFromTargetSpellMv.multiplier * spellMv;
+        }
+        const abilityChosenX = ability.cost.xFromTargetSpellMv
+            ? derivedX
+            : hasXInCost
+              ? chosenX
+              : undefined;
         if (hasXInCost && abilityChosenX === undefined) {
             throw new Error("This ability requires a chosen X value");
         }
@@ -2733,6 +2774,25 @@ export const selectTarget = mutation({
                     );
                 }
             }
+            // CR 114.6 / 115.10 — Reflecting Mirror: the chosen spell must have
+            // exactly one target, and that target must be the activating player.
+            if (pt.spellSingleTargetingController) {
+                const isAbility =
+                    !!spell.abilityId ||
+                    !!spell.triggeredAbilityId ||
+                    !!spell.delayedTriggerId;
+                const tgts = spell.targets ?? [];
+                if (
+                    isAbility ||
+                    tgts.length !== 1 ||
+                    tgts[0].type !== "player" ||
+                    tgts[0].id !== pt.playerId
+                ) {
+                    throw new Error(
+                        "Target spell must have a single target that is you"
+                    );
+                }
+            }
         }
 
         pt.selected.push(target);
@@ -2813,12 +2873,16 @@ export const cancelTarget = mutation({
             throw new Error("Not your pending target selection");
         }
 
-        // CR 707.10b — declining a copy-retarget is not aborting a cast: the
-        // copy stays on the stack with its inherited targets and a fresh
-        // priority round begins (the copying spell has already resolved).
-        const wasCopyRetarget = state.pendingTarget.kind === "copy-retarget";
+        // CR 707.10b / 114.6 — declining a copy-retarget OR an original-spell
+        // retarget (Reflecting Mirror) is not aborting a cast: the targeted
+        // spell stays on the stack with its current targets and a fresh
+        // priority round begins (the copying / retargeting effect has already
+        // resolved).
+        const retargetKind = state.pendingTarget.kind;
+        const wasRetarget =
+            retargetKind === "copy-retarget" || retargetKind === "retarget";
         state.pendingTarget = undefined;
-        if (wasCopyRetarget) {
+        if (wasRetarget) {
             state.priorityPlayerId = state.activePlayerId;
             state.passCount = 0;
             drainAutoPasses(state);
@@ -4118,13 +4182,20 @@ export const activateAbility = mutation({
             const targetHasXInCost =
                 ability.cost.mana?.X !== undefined &&
                 typeof ability.cost.mana.X === "string";
+            // CR 107.3 — Reflecting Mirror derives X from the targeted spell's
+            // mana value rather than letting the player choose it. The value
+            // can only be computed once the spell target is known, so it is
+            // resolved in finalizeTargetSelection, not here.
+            const xIsDerived = ability.cost.xFromTargetSpellMv !== undefined;
             if (
                 targetHasXInCost &&
+                !xIsDerived &&
                 (args.chosenX === undefined || args.chosenX < 0)
             ) {
                 throw new Error("This ability requires a chosen X value");
             }
-            const targetChosenX = targetHasXInCost ? args.chosenX : undefined;
+            const targetChosenX =
+                targetHasXInCost && !xIsDerived ? args.chosenX : undefined;
             // CR 202.2 / 702.16b: the source's colors come from the
             // permanent owning the activated ability.
             const abilitySourceColors = STATIC_EFFECT_CTX.getColors(card);
@@ -4187,6 +4258,18 @@ export const activateAbility = mutation({
                     : {}),
                 ...(abilityExcludeSubtypes
                     ? { excludeSubtypes: abilityExcludeSubtypes }
+                    : {}),
+                ...(effectiveTargetReq.spellTypeFilter
+                    ? {
+                          spellTypeFilter: Array.isArray(
+                              effectiveTargetReq.spellTypeFilter
+                          )
+                              ? effectiveTargetReq.spellTypeFilter
+                              : [effectiveTargetReq.spellTypeFilter],
+                      }
+                    : {}),
+                ...(effectiveTargetReq.spellSingleTargetingController
+                    ? { spellSingleTargetingController: true }
                     : {}),
                 ...(() => {
                     const resolved = resolveMvFilter(

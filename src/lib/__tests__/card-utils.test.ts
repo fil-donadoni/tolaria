@@ -4,6 +4,7 @@ import {
     matchesPermanentFilter,
     matchesTargetRequirement,
     matchesSpellTypeFilter,
+    matchesSpellSingleTargetingController,
     wantsSpellTarget,
     getStackAbilities,
     getAnyPlayerStackAbilities,
@@ -637,6 +638,78 @@ describe("matchesSpellTypeFilter", () => {
         expect(
             matchesSpellTypeFilter({ types: ["Sorcery"] }, artifactFilter)
         ).toBe(false);
+    });
+});
+
+// Reflecting Mirror (#425): "target spell with a single target if that target
+// is you" — frontend clickability gate (CR 114.6 / 115.10).
+describe("matchesSpellSingleTargetingController", () => {
+    it("matches a single-target spell whose only target is the activator", () => {
+        expect(
+            matchesSpellSingleTargetingController(
+                { targets: [{ type: "player", id: "p1" }] },
+                true,
+                "p1"
+            )
+        ).toBe(true);
+    });
+
+    it("rejects a spell targeting a different player", () => {
+        expect(
+            matchesSpellSingleTargetingController(
+                { targets: [{ type: "player", id: "p2" }] },
+                true,
+                "p1"
+            )
+        ).toBe(false);
+    });
+
+    it("rejects a multi-target spell", () => {
+        expect(
+            matchesSpellSingleTargetingController(
+                {
+                    targets: [
+                        { type: "player", id: "p1" },
+                        { type: "player", id: "p2" },
+                    ],
+                },
+                true,
+                "p1"
+            )
+        ).toBe(false);
+    });
+
+    it("rejects a spell whose single target is a permanent", () => {
+        expect(
+            matchesSpellSingleTargetingController(
+                { targets: [{ type: "permanent", id: "c1" }] },
+                true,
+                "p1"
+            )
+        ).toBe(false);
+    });
+
+    it("rejects stack abilities (not spells)", () => {
+        expect(
+            matchesSpellSingleTargetingController(
+                {
+                    abilityId: "tim-zap",
+                    targets: [{ type: "player", id: "p1" }],
+                },
+                true,
+                "p1"
+            )
+        ).toBe(false);
+    });
+
+    it("matches anything when the flag is off", () => {
+        expect(
+            matchesSpellSingleTargetingController(
+                { targets: [{ type: "player", id: "p2" }] },
+                undefined,
+                "p1"
+            )
+        ).toBe(true);
     });
 });
 
