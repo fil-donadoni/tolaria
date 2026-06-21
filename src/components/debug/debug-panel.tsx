@@ -396,6 +396,28 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // DRK Blue C4 (#421) — Dance of Many (copy-as-token enchantment).
+        //   • Cast Dance of Many from hand and choose a nontoken creature to
+        //     copy (the opponent's Serra Angel 4/4 flying or your Grizzly Bears
+        //     2/2). A token copy enters under your control.
+        //   • Leave-linkage: destroy/bounce Dance → its token is exiled; kill
+        //     the token → Dance is sacrificed.
+        //   • At your upkeep, pay {U}{U} (5 Islands provided) or sacrifice it.
+        label: "DRK Blue: Dance of Many — copy a creature as a token (#421)",
+        cards: [
+            {
+                name: "Dance of Many",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Serra Angel", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Island", owner: "me" as const, count: 5 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // DRK Black free tranche (#413) — Curse Artifact + Inquisition + Word of
         // Binding + Ashes to Ashes.
         //   • Curse Artifact enchants the opponent's Ornithopter; at their

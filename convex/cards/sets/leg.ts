@@ -4333,7 +4333,7 @@ export const bartelRuneaxe: CardDefinition = {
  *  pay) sacrifices the source permanent (CR 701.16). Reused by all five Elder
  *  Dragons and — with `consequence: "destroy"` — by The Tabernacle's granted
  *  trigger. */
-function payOrSacrificeUpkeepTrigger(args: {
+export function payOrSacrificeUpkeepTrigger(args: {
     id: string;
     cardName: string;
     cost: ManaCost;
