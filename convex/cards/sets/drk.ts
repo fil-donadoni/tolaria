@@ -2747,3 +2747,50 @@ export const gaeasTouch: CardDefinition = {
         },
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GREEN (#414 / C5 #422)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Tracker — "{G}{G}, {T}: This creature deals damage equal to its power to
+// target creature. That creature deals damage equal to its power to this
+// creature." This is the pre-"fight" template (CR 701.12-style mutual damage):
+// both creatures deal damage equal to their power to one another SIMULTANEOUSLY
+// through the normal damage path (CR 120, 510-style), so replacement /
+// prevention / protection effects apply and damage triggers fire. A creature
+// that dies to the exchange still deals its damage (CR 701.12). The generic
+// `ctx.fight(target)` primitive (state.ts → resolveFight) does the work; this
+// card just wires its activated ability to it. CR 605 activated ability;
+// CR 602.5 — the source ("this creature") is `ctx.sourceInstanceId`.
+//
+// Tracker may legally target ANY creature, including itself (2009-10-01 ruling
+// in DRK.json): there is no self-exclusion on a "target creature" requirement,
+// and `resolveFight` short-circuits the self-fight gracefully (both halves
+// resolve against the same instance — it takes 2× its own power, matching the
+// printed ruling that it "deals damage to itself ... then immediately do it
+// again").
+export const tracker: CardDefinition = {
+    id: "35ffc69e-26f2-434f-8c89-2df108dd984a",
+    name: "Tracker",
+    oracleText:
+        "{G}{G}, {T}: This creature deals damage equal to its power to target creature. That creature deals damage equal to its power to this creature.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Human"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "tracker-fight",
+            oracleText:
+                "{G}{G}, {T}: This creature deals damage equal to its power to target creature. That creature deals damage equal to its power to this creature.",
+            cost: { mana: { G: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (target?.type === "permanent") ctx.fight(target);
+            },
+        },
+    ],
+};

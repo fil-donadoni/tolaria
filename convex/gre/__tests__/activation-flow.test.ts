@@ -18,7 +18,9 @@ import {
     type PendingActivation,
     type StackItem,
 } from "../state";
-import { getCardById, tryGetCardById } from "../../cards";
+import { getCardById, getCardByName, tryGetCardById } from "../../cards";
+import { tracker } from "../../cards/sets/drk";
+import { checkStateBasedActions } from "../sba";
 import {
     circleOfProtectionRed,
     jayemdaeTome,
@@ -1070,5 +1072,84 @@ describe("activation flow — Bazaar of Baghdad ({T}: draw two, discard three)",
             "lib0",
         ]);
         expect(state.stack).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Tracker — full activate ({G}{G},{T}) → pay → tap source → select target →
+// resolve → Fight. Integration across the GRE activation/payment/targeting/
+// resolution path (mirrors the game.ts mutation chain) for the new generic
+// Fight primitive (CR 701.12 mutual damage; #422).
+// ---------------------------------------------------------------------------
+
+describe("activation flow — Tracker Fight ({G}{G},{T}: mutual damage)", () => {
+    it("pays {G}{G}, taps Tracker, targets a creature, and both fight to the death", () => {
+        const trk = makeInstance({
+            id: "trk",
+            card: { id: tracker.id },
+            types: ["Creature"],
+            power: 2,
+            toughness: 2,
+        });
+        const forests = Array.from({ length: 2 }, (_, i) =>
+            makeInstance({
+                id: `forest-${i}`,
+                card: FOREST_CARD,
+                types: ["Land"],
+                subtypes: ["Forest"],
+            })
+        );
+        const foe = makeInstance({
+            id: "foe",
+            card: { id: getCardByName("Goblin Hero").id },
+            types: ["Creature"],
+            controllerId: "p2",
+            ownerId: "p2",
+            power: 2,
+            toughness: 2,
+        });
+        const state = makeGame({
+            players: [
+                makePlayer({ id: "p1", battlefield: [trk, ...forests] }),
+                makePlayer({ id: "p2", battlefield: [foe] }),
+            ],
+        });
+
+        // Empty pool → pending activation; the source tap is deferred to commit.
+        const res = activateAbility(state, "p1", "trk", "tracker-fight");
+        expect(res).toBe("pending");
+        // Carry the chosen creature onto the pending activation (mirrors
+        // finalizeTargetSelection in game.ts).
+        state.pendingActivation!.targets = [{ type: "permanent", id: "foe" }];
+
+        // Pay {G}{G} by tapping the two Forests — the second tap commits.
+        expect(tapForActivationPayment(state, "p1", "forest-0")).toBe("tapped");
+        expect(tapForActivationPayment(state, "p1", "forest-1")).toBe(
+            "committed"
+        );
+        // Source tapped, target carried onto the committed stack item.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "trk")!.isTapped
+        ).toBe(true);
+        expect(state.stack[state.stack.length - 1].targets).toEqual([
+            { type: "permanent", id: "foe" },
+        ]);
+
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+
+        // 2/2 vs 2/2 — both deal lethal simultaneously and hit the graveyard.
+        expect(state.players[0].battlefield.some((c) => c.id === "trk")).toBe(
+            false
+        );
+        expect(state.players[1].battlefield.some((c) => c.id === "foe")).toBe(
+            false
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === "trk")).toBe(
+            true
+        );
+        expect(state.players[1].graveyard.some((c) => c.id === "foe")).toBe(
+            true
+        );
     });
 });
