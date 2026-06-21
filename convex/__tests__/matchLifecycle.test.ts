@@ -2,9 +2,12 @@ import { describe, it, expect } from "vitest";
 import type { Doc, Id } from "../_generated/dataModel";
 import {
     ACTIVE_MATCH_STATUSES,
+    botIsChooser,
     buildNextGameSeats,
     gamesToWin,
+    isBotSeat,
     matchBelongsToUser,
+    nextGameActivePlayerId,
     projectMatch,
     recordGameResult,
     snapshotDeck,
@@ -206,6 +209,55 @@ describe("buildNextGameSeats (Bo3 next-Game build, PRD #387)", () => {
     });
 });
 
+// --- Play/draw choice for Games 2+ (#394, CR 103.4) -----------------------
+
+describe("nextGameActivePlayerId (#394, CR 103.4)", () => {
+    const m = (chooser: string | undefined) => ({
+        players: [{ id: "a" }, { id: "b" }],
+        playDrawChooserId: chooser,
+    });
+
+    it("'play' makes the chooser the active player", () => {
+        expect(nextGameActivePlayerId(m("b"), "play")).toBe("b");
+    });
+
+    it("'draw' makes the opponent the active player", () => {
+        expect(nextGameActivePlayerId(m("b"), "draw")).toBe("a");
+    });
+
+    it("falls back to undefined (default active player) with no chooser", () => {
+        expect(nextGameActivePlayerId(m(undefined), "play")).toBeUndefined();
+    });
+
+    it("falls back to undefined when the chooser isn't a seat", () => {
+        expect(nextGameActivePlayerId(m("ghost"), "play")).toBeUndefined();
+    });
+});
+
+describe("botIsChooser / isBotSeat (#394 — vs-AI auto-play)", () => {
+    it("the bot seat is the `${userId}-p2` seat (ADR 0001)", () => {
+        expect(isBotSeat("u1-p2")).toBe(true);
+        expect(isBotSeat("u1-p1")).toBe(false);
+        expect(isBotSeat("u1")).toBe(false);
+    });
+
+    it("the bot is the chooser only in a vs-AI Match whose chooser is `-p2`", () => {
+        expect(botIsChooser({ vsAi: true, playDrawChooserId: "u1-p2" })).toBe(
+            true
+        );
+        // human chooser (`-p1`) → not the bot
+        expect(botIsChooser({ vsAi: true, playDrawChooserId: "u1-p1" })).toBe(
+            false
+        );
+        // non-AI Match has no bot, even at a `-p2` seat (solo human/human)
+        expect(botIsChooser({ vsAi: false, playDrawChooserId: "u1-p2" })).toBe(
+            false
+        );
+        // no chooser recorded
+        expect(botIsChooser({ vsAi: true })).toBe(false);
+    });
+});
+
 // --- Bo3 end-to-end progression (PRD #387, AC: integration test) ----------
 //
 // The project has no convex-test harness, so this drives the SAME pure
@@ -225,21 +277,31 @@ function applyResult(m: MatchCore, winnerId: string): MatchCore {
 }
 
 /** Mirrors `continueMatch`: an undecided Match advances to the next Game —
- *  status flips back to "playing", the game counter bumps, and the seats are
- *  rebuilt from the current maindeck. */
-function continueToNextGame(m: MatchCore): {
+ *  status flips back to "playing", the game counter bumps, the seats are rebuilt
+ *  from the current maindeck, and the chooser's play/draw `choice` resolves the
+ *  turn-1 active player (#394). `playDrawChooserId` is consumed (cleared). */
+function continueToNextGame(
+    m: MatchCore,
+    choice: "play" | "draw" = "play"
+): {
     match: MatchCore;
     seatIds: string[];
+    activePlayerId: string | undefined;
 } {
     expect(m.status).toBe("sideboarding");
     const seats = buildNextGameSeats(m);
+    // Mirror continueMatch: bot chooser auto-plays; otherwise use the choice.
+    const effective = botIsChooser(m) ? "play" : choice;
+    const activePlayerId = nextGameActivePlayerId(m, effective);
     return {
         match: {
             ...m,
             status: "playing",
             currentGameNumber: m.currentGameNumber + 1,
+            playDrawChooserId: undefined,
         },
         seatIds: seats.map((s) => s.id),
+        activePlayerId,
     };
 }
 
@@ -301,5 +363,42 @@ describe("Bo3 Match plays to two wins (PRD #387 — integration)", () => {
         m = applyResult(m, "a");
         expect(m.status).toBe("finished");
         expect(m.winner).toBe("a");
+    });
+
+    // #394: the loser of the previous Game chooses play/draw, which sets the
+    // turn-1 active player of the next Game. The on-the-play skip-first-draw rule
+    // is independent of which player is active (keys off `state.turn === 1`,
+    // CR 103.8) — covered by phases.test.ts "skips draw on turn 1".
+    it("the previous Game's loser chooses play → loser is active player 2", () => {
+        let m = match(3, [player("a"), player("b")]);
+        // Game 1: A wins → B (the loser) is the recorded chooser.
+        m = applyResult(m, "a");
+        expect(m.playDrawChooserId).toBe("b");
+        // B chooses PLAY → B is the active player at turn 1 of Game 2.
+        const cont = continueToNextGame(m, "play");
+        expect(cont.activePlayerId).toBe("b");
+        expect(cont.match.playDrawChooserId).toBeUndefined();
+    });
+
+    it("the previous Game's loser chooses draw → opponent is active player 2", () => {
+        let m = match(3, [player("a"), player("b")]);
+        m = applyResult(m, "a"); // B is the chooser
+        const cont = continueToNextGame(m, "draw");
+        // "draw" hands the first turn to A (the winner / opponent of the chooser).
+        expect(cont.activePlayerId).toBe("a");
+    });
+
+    it("vs-AI: when the bot is the chooser it auto-chooses play", () => {
+        let m: MatchCore = {
+            ...match(3, [player("u1-p1"), player("u1-p2")]),
+            vsAi: true,
+        };
+        // Game 1: the human (-p1) wins → the bot (-p2) is the chooser.
+        m = applyResult(m, "u1-p1");
+        expect(m.playDrawChooserId).toBe("u1-p2");
+        expect(botIsChooser(m)).toBe(true);
+        // continueMatch forces "play" for the bot even if "draw" is requested.
+        const cont = continueToNextGame(m, "draw");
+        expect(cont.activePlayerId).toBe("u1-p2");
     });
 });

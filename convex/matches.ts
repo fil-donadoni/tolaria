@@ -52,6 +52,8 @@ export type MatchCore = {
     currentGameId?: Id<"games">;
     playDrawChooserId?: string;
     winner?: string;
+    /** vs-AI Match: the `-p2` seat is the bot (#394 auto-play). */
+    vsAi?: boolean;
 };
 
 /** Games a player must win to take the Match: 1 for Bo1, 2 for Bo3 (CR 100.6).
@@ -161,6 +163,57 @@ export function buildNextGameSeats(match: {
             sideboard: p.deck.sideboard.map((c) => ({ ...c })),
         },
     }));
+}
+
+// ---------------------------------------------------------------------------
+// Play/draw choice for Games 2+ (#394, CR 103.4). After a non-deciding Game the
+// loser of that Game (`playDrawChooserId`, set by `recordGameResult`) chooses to
+// play or draw for the next Game. The choice only sets which player is active at
+// turn 1: "play" => the chooser is the active player; "draw" => the opponent is.
+// The on-the-play skip-first-draw rule is already correct in the engine
+// (`turn === 1`, CR 103.8), so no engine change is needed — only the starting
+// active player.
+// ---------------------------------------------------------------------------
+
+export type PlayDrawChoice = "play" | "draw";
+
+/** In a vs-AI Match the bot seat is the `${userId}-p2` seat created by
+ *  `createSoloGame` (ADR 0001). The human always holds `-p1`. */
+export function isBotSeat(seatId: string): boolean {
+    return seatId.endsWith("-p2");
+}
+
+/** True when the recorded play/draw chooser is the AI bot, so the choice must
+ *  be made automatically (auto-play) with no human prompt (#394). Only vs-AI
+ *  Matches have a bot seat. */
+export function botIsChooser(match: {
+    vsAi?: boolean;
+    playDrawChooserId?: string;
+}): boolean {
+    return (
+        match.vsAi === true &&
+        match.playDrawChooserId !== undefined &&
+        isBotSeat(match.playDrawChooserId)
+    );
+}
+
+/**
+ * Resolve the play/draw choice to the active player at turn 1 of the next Game
+ * (#394, CR 103.4). `chooserId` is the previous Game's loser; `choice` is their
+ * decision. "play" keeps the chooser as the active player; "draw" hands the
+ * first turn to the opponent. Returns `undefined` when the chooser isn't found
+ * in the seat list, letting the caller fall back to the default active player.
+ */
+export function nextGameActivePlayerId(
+    match: { players: { id: string }[]; playDrawChooserId?: string },
+    choice: PlayDrawChoice
+): string | undefined {
+    const chooserId = match.playDrawChooserId;
+    if (chooserId === undefined) return undefined;
+    if (!match.players.some((p) => p.id === chooserId)) return undefined;
+    if (choice === "play") return chooserId;
+    // "draw": the opponent of the chooser takes the first turn.
+    return match.players.find((p) => p.id !== chooserId)?.id;
 }
 
 // ---------------------------------------------------------------------------
