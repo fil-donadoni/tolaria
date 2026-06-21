@@ -6,6 +6,12 @@ const PLAYER_KEY = "tolaria:playerId";
 const DECK_KEY = "tolaria:selectedDeckId";
 const AI_DECK_KEY = "tolaria:aiDeckId";
 const DIFFICULTY_KEY = "tolaria:aiDifficulty";
+const MATCH_FORMAT_KEY = "tolaria:matchFormat";
+
+/** Best-of-N match format (PRD #387). Bo1 (single Game) or Bo3 (first to two).
+ *  Maps to the `bestOf` numeric the Match is created with. */
+export type MatchFormat = 1 | 3;
+export const DEFAULT_MATCH_FORMAT: MatchFormat = 1;
 
 export function getStoredSession() {
     const gameId = localStorage.getItem(GAME_KEY) as Id<"games"> | null;
@@ -62,4 +68,17 @@ export function getStoredDifficulty(): Difficulty {
 
 export function storeDifficulty(difficulty: Difficulty) {
     localStorage.setItem(DIFFICULTY_KEY, difficulty);
+}
+
+/** Bo1/Bo3 lobby selection (PRD #387). Persisted so the next session defaults
+ *  to the last-picked format; falls back to Bo1 when unset or stale. */
+export function getStoredMatchFormat(): MatchFormat {
+    const stored = localStorage.getItem(MATCH_FORMAT_KEY);
+    if (stored === "3") return 3;
+    if (stored === "1") return 1;
+    return DEFAULT_MATCH_FORMAT;
+}
+
+export function storeMatchFormat(format: MatchFormat) {
+    localStorage.setItem(MATCH_FORMAT_KEY, String(format));
 }

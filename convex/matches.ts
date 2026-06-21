@@ -119,6 +119,50 @@ export function recordGameResult(
     };
 }
 
+/** A seat for the next Game, derived from a Match player. Mirrors the
+ *  `PlayerInput` shape that `game.ts`'s `buildInitialGameState` consumes — the
+ *  next Game's library is built from the player's CURRENT Match maindeck as of
+ *  this Game's start (PRD #387). Sideboarding (#394) edits `deck.maindeck`
+ *  before this runs; this slice reads it unchanged. */
+export type NextGameSeat = {
+    id: string;
+    name: string;
+    bgColor: string;
+    deck: {
+        id: string;
+        name: string;
+        format: string;
+        cards: DeckCard[];
+        sideboard: DeckCard[];
+    };
+};
+
+/**
+ * Build the seat inputs for the next Game of an undecided Bo3 Match (PRD #387).
+ * Pure: maps each Match player to a `PlayerInput`-shaped seat whose library
+ * comes from that player's current Match `maindeck`. The Convex `continueMatch`
+ * mutation feeds these into `buildInitialGameState` (fresh 20 life, shuffled
+ * library, new hand, MULLIGAN). This slice does NOT apply the play/draw choice —
+ * the next Game auto-builds with the default active player (#395 refines it).
+ */
+export function buildNextGameSeats(match: {
+    players: MatchPlayer[];
+}): NextGameSeat[] {
+    return match.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        bgColor: p.bgColor,
+        deck: {
+            id: p.deck.id,
+            name: p.deck.name,
+            format: p.deck.format,
+            // Defensive copies — the new Game owns its own card arrays.
+            cards: p.deck.maindeck.map((c) => ({ ...c })),
+            sideboard: p.deck.sideboard.map((c) => ({ ...c })),
+        },
+    }));
+}
+
 // ---------------------------------------------------------------------------
 // Single-active-match guard (#155 → match-scoped, ADR 0029). Replaces the
 // single-active-game guard: a user holds at most one active (waiting / playing

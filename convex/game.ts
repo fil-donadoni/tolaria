@@ -130,7 +130,9 @@ import {
 } from "./gre/pendingChoiceSubmit";
 import { gameBelongsToUser } from "./gameLifecycle";
 import {
+    buildNextGameSeats,
     findActiveMatchForUser,
+    matchBelongsToUser,
     recordGameResult,
     snapshotDeck,
     type MatchPlayer,
@@ -1230,6 +1232,74 @@ export const leaveGame = mutation({
             if (match && match.status === "waiting")
                 await ctx.db.delete(game.matchId);
         }
+    },
+});
+
+/**
+ * Continue an undecided Bo3 Match into its next Game (PRD #387 / ADR 0029).
+ * Called from the interstitial game-over screen. The owning Match must be in the
+ * between-Games "sideboarding" gate (set by `recordGameResult` when a Game ends
+ * without deciding the Match). Builds a fresh Game from each player's current
+ * Match maindeck (20 life, shuffled library, new opening hand, MULLIGAN), bumps
+ * `currentGameNumber`, repoints `currentGameId`, and flips the Match back to
+ * "playing". Returns the new gameId and the caller's seat so the client can
+ * re-point its session. Idempotent on races: if the Match already advanced to a
+ * newer Game, returns that Game instead of building a duplicate.
+ *
+ * This slice does NOT apply sideboarding edits or the play/draw choice — the
+ * next Game auto-builds with the default active player (#394/#395 refine it).
+ */
+export const continueMatch = mutation({
+    args: { matchId: v.id("matches") },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const match = await ctx.db.get(args.matchId);
+        if (!match) throw new Error("Match not found");
+        if (!matchBelongsToUser(match, user._id))
+            throw new Error("You are not part of this match");
+
+        // Idempotent on double-click / OCC retry: once the Match is back to
+        // "playing", the next Game already exists — hand it back as-is.
+        if (match.status === "playing" && match.currentGameId) {
+            return {
+                gameId: match.currentGameId,
+                gameNumber: match.currentGameNumber,
+            };
+        }
+        if (match.status !== "sideboarding")
+            throw new Error("Match is not awaiting the next game");
+
+        const now = Date.now();
+        const seats = buildNextGameSeats(match);
+        const nextGameNumber = match.currentGameNumber + 1;
+
+        const gameId = await ctx.db.insert("games", {
+            name: match.solo
+                ? `${user.nickname}'s solo game`
+                : `${user.nickname}'s game`,
+            matchId: args.matchId,
+            gameNumber: nextGameNumber,
+            status: "playing",
+            players: seats,
+            solo: match.solo === true ? true : undefined,
+            vsAi: match.vsAi === true ? true : undefined,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        await ctx.db.patch(args.matchId, {
+            status: "playing",
+            currentGameNumber: nextGameNumber,
+            currentGameId: gameId,
+            updatedAt: now,
+        });
+
+        // CR 103: the next Game starts fresh from the current maindeck. Default
+        // active player (first seat) — play/draw choice is a later slice.
+        const initialState = buildInitialGameState(seats);
+        await saveGameState(ctx, gameId, 0, initialState, null);
+
+        return { gameId, gameNumber: nextGameNumber };
     },
 });
 
