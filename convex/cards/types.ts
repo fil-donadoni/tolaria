@@ -587,6 +587,15 @@ export interface SpellContext {
     ) => string | undefined;
     // --- Primitives ---
     dealDamage: (target: TargetSelection, amount: number) => void;
+    /** Generic Fight primitive (CR 701.12-style mutual damage). The resolving
+     *  ability's source permanent (`sourceInstanceId`) and `target` each deal
+     *  damage equal to their power to the other, simultaneously, through the
+     *  normal damage path (so replacement/prevention/protection effects apply
+     *  and triggers fire). Both powers are snapshotted before any damage, and
+     *  a creature that dies to the fight still deals its full damage. Reusable
+     *  by any fight card (pre-"fight" Tracker template and modern "fights").
+     *  No-op if either creature is no longer on the battlefield. */
+    fight: (target: TargetSelection) => void;
     gainLife: (playerId: string, amount: number) => void;
     loseLife: (playerId: string, amount: number) => void;
     getLife: (playerId: string) => number;

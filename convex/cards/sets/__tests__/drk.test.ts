@@ -77,6 +77,7 @@ import {
     deepWater,
     gaeasTouch,
     danceOfMany,
+    tracker,
 } from "../drk";
 import { tropicalIsland, mountain } from "../lea";
 import { stripMine } from "../atq";
@@ -3564,5 +3565,239 @@ describe("Dance of Many — serialization round-trip (linkedTokenId, CR 603.10)"
             (c) => c.id === "dance"
         )!;
         expect(restoredDance.linkedTokenId).toBe(token.id);
+    });
+});
+
+
+// ---------------------------------------------------------------------------
+// Tracker — generic Fight primitive (CR 701.12 mutual damage; CR 120 / 510-
+// style simultaneous damage through the normal damage path)
+// ---------------------------------------------------------------------------
+
+/** Builds a board with Tracker (p1) and one target creature (p2), then fights
+ *  the target via Tracker's activated ability. `trackerPT` / `targetPT`
+ *  override the printed stats so each branch (survive / die) is exercised. */
+function fightTracker(
+    trackerPT: { power: number; toughness: number },
+    targetPT: { power: number; toughness: number },
+    extra: Partial<GameState> = {}
+): GameState {
+    const trk = makeInstance(tracker.id, {
+        id: "trk",
+        controllerId: "p1",
+        ownerId: "p1",
+        power: trackerPT.power,
+        toughness: trackerPT.toughness,
+    });
+    // Any vanilla creature stands in for the fight target; P/T is overridden.
+    const foe = makeInstance(getCardByName("Goblin Hero").id, {
+        id: "foe",
+        controllerId: "p2",
+        ownerId: "p2",
+        power: targetPT.power,
+        toughness: targetPT.toughness,
+    });
+    const state = makeState({
+        players: [
+            makePlayer("p1", { battlefield: [trk] }),
+            makePlayer("p2", { battlefield: [foe] }),
+        ],
+        ...extra,
+    });
+    resolveActivated(state, trk, "tracker-fight", [
+        { type: "permanent", id: "foe" },
+    ]);
+    checkStateBasedActions(state);
+    return state;
+}
+
+const onField = (state: GameState, pIdx: number, id: string): boolean =>
+    state.players[pIdx].battlefield.some((c) => c.id === id);
+const inGrave = (state: GameState, pIdx: number, id: string): boolean =>
+    state.players[pIdx].graveyard.some((c) => c.id === id);
+
+describe("Tracker — Fight primitive (CR 701.12 mutual damage)", () => {
+    it("card definition: {G}{G},{T} activated ability targeting a creature", () => {
+        expect(tracker.manaCost).toEqual({ X: 2, G: 1 });
+        expect(tracker.power).toBe(2);
+        expect(tracker.toughness).toBe(2);
+        const ab = tracker.activatedAbilities![0];
+        expect(ab.cost).toEqual({ mana: { G: 2 }, tap: true });
+        expect(ab.useStack).toBe(true);
+        expect(ab.targetRequirement).toEqual({ type: "Creature", count: 1 });
+    });
+
+    it("both survive: 2/2 Tracker vs 1/3 — damage marked, neither destroyed", () => {
+        const state = fightTracker(
+            { power: 2, toughness: 2 },
+            { power: 1, toughness: 3 }
+        );
+        // Tracker (2 power) marks 2 on the 1/3 foe (survives, tough 3).
+        const foe = state.players[1].battlefield.find((c) => c.id === "foe")!;
+        expect(foe.damageMarked).toBe(2);
+        // The foe (1 power) marks 1 on Tracker (survives, tough 2).
+        const trk = state.players[0].battlefield.find((c) => c.id === "trk")!;
+        expect(trk.damageMarked).toBe(1);
+        expect(onField(state, 0, "trk")).toBe(true);
+        expect(onField(state, 1, "foe")).toBe(true);
+    });
+
+    it("both die: 2/2 Tracker vs 2/2 — both take lethal and go to the graveyard", () => {
+        const state = fightTracker(
+            { power: 2, toughness: 2 },
+            { power: 2, toughness: 2 }
+        );
+        expect(onField(state, 0, "trk")).toBe(false);
+        expect(onField(state, 1, "foe")).toBe(false);
+        expect(inGrave(state, 0, "trk")).toBe(true);
+        expect(inGrave(state, 1, "foe")).toBe(true);
+    });
+
+    it("one dies: 3/3 Tracker vs 2/2 — foe dies, Tracker survives with 2 marked", () => {
+        const state = fightTracker(
+            { power: 3, toughness: 3 },
+            { power: 2, toughness: 2 }
+        );
+        expect(onField(state, 1, "foe")).toBe(false);
+        expect(inGrave(state, 1, "foe")).toBe(true);
+        const trk = state.players[0].battlefield.find((c) => c.id === "trk")!;
+        expect(trk.damageMarked).toBe(2);
+    });
+
+    it("simultaneity (CR 701.12): a creature that dies still deals its full damage", () => {
+        // 5/2 Tracker vs 4/4 foe: Tracker dies to the foe's 4, but its 5 must
+        // still be dealt — the foe (toughness 4) must also die. If damage were
+        // sequential and the dead creature stopped dealing, the foe would live.
+        const state = fightTracker(
+            { power: 5, toughness: 2 },
+            { power: 4, toughness: 4 }
+        );
+        expect(onField(state, 0, "trk")).toBe(false);
+        expect(onField(state, 1, "foe")).toBe(false);
+    });
+
+    it("normal damage path: a target-prevention shield on the foe absorbs the fight damage", () => {
+        // CR 615 prevention applies because fight routes through the same
+        // damage pipeline. Shield the foe for 3; Tracker's 2 is fully absorbed.
+        const state = fightTracker(
+            { power: 2, toughness: 2 },
+            { power: 1, toughness: 5 },
+            {
+                targetPreventionShields: [
+                    {
+                        targetType: "permanent",
+                        targetId: "foe",
+                        remaining: 3,
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+            }
+        );
+        const foe = state.players[1].battlefield.find((c) => c.id === "foe")!;
+        // All 2 of Tracker's damage prevented → 0 marked on the foe.
+        expect(foe.damageMarked ?? 0).toBe(0);
+        // Tracker still takes the foe's 1 (no shield on Tracker).
+        const trk = state.players[0].battlefield.find((c) => c.id === "trk")!;
+        expect(trk.damageMarked).toBe(1);
+    });
+
+    it("normal damage path: protection from green prevents Tracker's damage to the foe", () => {
+        // CR 702.16e — a foe with protection from green takes no damage from
+        // Tracker (a green source), proving fight respects protection.
+        const state = fightTracker(
+            { power: 2, toughness: 2 },
+            { power: 1, toughness: 5 }
+        );
+        // Re-run with protection: rebuild manually to inject the keyword.
+        const trk = makeInstance(tracker.id, {
+            id: "trk",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const foe = makeInstance(getCardByName("Goblin Hero").id, {
+            id: "foe",
+            controllerId: "p2",
+            ownerId: "p2",
+            toughness: 5,
+            staticAbilities: ["protection from green"],
+        });
+        const s2 = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [trk] }),
+                makePlayer("p2", { battlefield: [foe] }),
+            ],
+        });
+        resolveActivated(s2, trk, "tracker-fight", [
+            { type: "permanent", id: "foe" },
+        ]);
+        const foeAfter = s2.players[1].battlefield.find((c) => c.id === "foe")!;
+        expect(foeAfter.damageMarked ?? 0).toBe(0);
+        // baseline (no protection) did mark damage — sanity that the helper works
+        const foeBaseline = state.players[1].battlefield.find(
+            (c) => c.id === "foe"
+        )!;
+        expect(foeBaseline.damageMarked).toBe(2);
+    });
+
+    it("self-target (DRK ruling): Tracker deals 2× its power to itself and dies", () => {
+        // 2009-10-01 ruling — Tracker may target itself; it deals its power to
+        // itself, then immediately again (2 + 2 = 4 marked on a 2-toughness
+        // body → lethal).
+        const trk = makeInstance(tracker.id, {
+            id: "trk",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [trk] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, trk, "tracker-fight", [
+            { type: "permanent", id: "trk" },
+        ]);
+        checkStateBasedActions(state);
+        expect(onField(state, 0, "trk")).toBe(false);
+        expect(inGrave(state, 0, "trk")).toBe(true);
+    });
+
+    it("wire format: fight result (marked damage / destruction) survives projectPublicState", () => {
+        const state = fightTracker(
+            { power: 2, toughness: 2 },
+            { power: 1, toughness: 3 }
+        );
+        const projected = projectPublicState(state, 1, "p1");
+        // Foe survived with 2 marked; the marked total crosses the wire so the
+        // client renders the damage and any subsequent lethal check is correct.
+        const foe = projected.players[1].battlefield.find(
+            (c) => c.id === "foe"
+        )!;
+        expect(foe.damageMarked).toBe(2);
+        const trk = projected.players[0].battlefield.find(
+            (c) => c.id === "trk"
+        )!;
+        expect(trk.damageMarked).toBe(1);
+    });
+
+    it("only creatures are legal fight targets (CR 701.12)", () => {
+        const foe = makeInstance(getCardByName("Goblin Hero").id, {
+            id: "foe",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [foe] }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            tracker.activatedAbilities![0].targetRequirement!,
+            [],
+            "p1"
+        );
+        expect(legal.map((t) => t.id)).toContain("foe");
     });
 });

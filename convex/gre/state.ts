@@ -2883,6 +2883,172 @@ export function runDamageReplacement(
     return { target: transient.target, amount: transient.amount };
 }
 
+/** Marks fight/redirect damage on a target permanent from an explicit
+ *  battlefield-permanent source (CR 120). Unlike `SpellContext.dealDamage`
+ *  (whose source is always the resolving stack item, `item.id`), this routes
+ *  damage through the same CR 614 replacement → CR 702.16e protection →
+ *  CR 615 prevention pipeline but uses an arbitrary creature as the source —
+ *  the building block a "fight" needs, where each creature is the source of
+ *  the damage it deals. Damage is *marked only* here (CR 120.3); lethal /
+ *  destroy (CR 704.5g) is deliberately deferred to the caller so two halves
+ *  of a fight can both be marked before either creature is destroyed
+ *  (CR 701.12 — the damage is dealt simultaneously). Returns the target id if
+ *  it now has lethal marked damage, else null. No-op (returns null) if the
+ *  source or target has left the battlefield or the target isn't damageable. */
+function markDamageFromPermanentSource(
+    state: GameState,
+    source: CardInstanceState,
+    sourceControllerId: string,
+    targetId: string,
+    amount: number
+): string | null {
+    if (amount <= 0) return null;
+    // CR 614: replacement effects (redirects/cancels) run first, keyed on the
+    // creature source's identity (colors/types) — not the ability's.
+    const replaced = runDamageReplacement(
+        state,
+        source.id,
+        sourceControllerId,
+        { type: "permanent", id: targetId },
+        amount,
+        false
+    );
+    if (replaced === null) return null;
+    const finalTarget = replaced.target;
+    const finalAmount = replaced.amount;
+    if (finalAmount <= 0) return null;
+    if (finalTarget.type !== "permanent") {
+        // A replacement redirected the damage to a player (e.g. Personal
+        // Incarnation). Apply it through the same player-damage shaping the
+        // combat/spell paths use, then return (no permanent lethal check).
+        const desc = describeDamageSource(state, source.id);
+        if (consumePreventionIfAny(state, source.id, finalTarget.id))
+            return null;
+        let reduced = applyPlayerDamagePrevention(
+            state,
+            finalTarget.id,
+            source.id,
+            desc.staticAbilities,
+            finalAmount
+        );
+        if (reduced <= 0) return null;
+        reduced = applyTargetPrevention(
+            state,
+            "player",
+            finalTarget.id,
+            reduced
+        );
+        if (reduced <= 0) return null;
+        getPlayer(state, finalTarget.id).life -= reduced;
+        bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
+        recordSourceDamagedOpponent(state, source.id, finalTarget.id);
+        bumpArtifactDamageToPlayer(state, finalTarget.id, reduced, desc.types);
+        state.pendingEvents = [
+            ...(state.pendingEvents ?? []),
+            {
+                type: "DAMAGE_DEALT",
+                sourceInstanceId: source.id,
+                sourceControllerId,
+                target: finalTarget,
+                amount: reduced,
+                isCombat: false,
+                sourceColors: desc.colors,
+                sourceTypes: desc.types,
+                sourceSubtypes: desc.subtypes,
+                sourceStaticAbilities: desc.staticAbilities,
+            },
+        ];
+        return null;
+    }
+    const found = findOnBattlefield(state, finalTarget.id);
+    if (!found) return null;
+    if (!isDamageablePermanent(found.card)) return null;
+    // CR 702.16e: damage from a source with the named quality to a permanent
+    // with protection is prevented.
+    if (isProtectedFromSource(found.card, source)) return null;
+    const reduced = applyTargetPrevention(
+        state,
+        "permanent",
+        finalTarget.id,
+        finalAmount
+    );
+    if (reduced <= 0) return null;
+    found.card.damageMarked = (found.card.damageMarked ?? 0) + reduced;
+    found.card.damagedBySources = [
+        ...(found.card.damagedBySources ?? []),
+        source.id,
+    ];
+    const desc = describeDamageSource(state, source.id);
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: source.id,
+            sourceControllerId,
+            target: { type: "permanent", id: finalTarget.id },
+            amount: reduced,
+            isCombat: false,
+            sourceColors: desc.colors,
+            sourceTypes: desc.types,
+            sourceSubtypes: desc.subtypes,
+            sourceStaticAbilities: desc.staticAbilities,
+        },
+    ];
+    return found.card.damageMarked >= getEffectiveToughness(state, found.card)
+        ? finalTarget.id
+        : null;
+}
+
+/** Generic Fight primitive (CR 701.12-style mutual damage). Two creatures
+ *  each deal damage equal to their power to the other *simultaneously*. Used
+ *  by Tracker (pre-"fight" template) and reusable by any future fight card.
+ *
+ *  Decomposition (per the primitive-reuse rule): a fight is two ordinary
+ *  damage events whose sources are the two creatures themselves. The only gap
+ *  in the existing toolkit was that `dealDamage` always sources damage from
+ *  the resolving stack item, so this composes `markDamageFromPermanentSource`
+ *  (the new arbitrary-source damage helper) twice. Both powers are snapshotted
+ *  BEFORE any damage is marked, and lethal/destroy is run only AFTER both
+ *  halves are marked — so a creature that dies to the fight still deals its
+ *  full damage (CR 701.12, 510.4-style simultaneity; CR 704.5g lethal).
+ *
+ *  No-op for any half whose creature has left the battlefield (CR 608.2b
+ *  last-known... is intentionally not modeled here — Tracker's ruling: if the
+ *  target leaves before resolution the ability is countered upstream by the
+ *  target check, CR 608.2b). */
+export function resolveFight(
+    state: GameState,
+    creatureAId: string,
+    creatureBId: string
+): void {
+    const a = findOnBattlefield(state, creatureAId);
+    const b = findOnBattlefield(state, creatureBId);
+    if (!a || !b) return;
+    // CR 701.12 — snapshot both powers up front; the damage is simultaneous,
+    // so neither power is affected by the other's damage.
+    const powerA = getEffectivePower(state, a.card);
+    const powerB = getEffectivePower(state, b.card);
+    // Mark both halves before any lethal SBA so simultaneity holds.
+    const lethalB = markDamageFromPermanentSource(
+        state,
+        a.card,
+        a.card.controllerId,
+        creatureBId,
+        powerA
+    );
+    const lethalA = markDamageFromPermanentSource(
+        state,
+        b.card,
+        b.card.controllerId,
+        creatureAId,
+        powerB
+    );
+    // CR 704.5g — now resolve lethal for whichever creature(s) took lethal
+    // damage, through the destroy replacement (regeneration, ADR 0020).
+    if (lethalB !== null) destroyWithReplacements(state, lethalB);
+    if (lethalA !== null) destroyWithReplacements(state, lethalA);
+}
+
 /** Replacement-aware tap (CR 701.20a, 614). Runs the tap replacement loop
  *  before setting `isTapped` so a face-down permanent that would become tapped
  *  is turned face up first (CR 708.9, ADR 0013), then taps as its real self.
@@ -3854,6 +4020,16 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     destroyWithReplacements(state, target.id);
                 }
             }
+        },
+        fight(target: TargetSelection) {
+            // CR 701.12 mutual damage: the resolving ability's source permanent
+            // and the target creature each deal damage equal to their power to
+            // the other, simultaneously, through the normal damage path.
+            // `sourceInstanceId` is the activated/triggered ability's permanent.
+            if (target.type !== "permanent") return;
+            // The source is the resolving ability's permanent — a triggered
+            // ability carries `triggerSourceId`; an activated one is `item.id`.
+            resolveFight(state, item.triggerSourceId ?? item.id, target.id);
         },
         preventNextDamageFromSource(
             sourceInstanceId: string,

@@ -68,6 +68,30 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // C5 Fight primitive — Tracker (#422). "{G}{G}, {T}: This creature deals
+        // damage equal to its power to target creature. That creature deals
+        // damage equal to its power to this creature." (CR 701.12-style mutual
+        // damage, routed through the normal damage path.) You control Tracker
+        // (2/2) and two Forests to pay {G}{G}; activate, then pick a foe:
+        //   • Ghost Ship (2/4) — GOLDEN PATH: Tracker takes 2 (lethal, dies);
+        //     Ghost Ship takes 2 and survives (it can even regenerate).
+        //   • Goblin Hero (2/2) — EDGE (both die): simultaneous lethal sends
+        //     BOTH to the graveyard — the dying Tracker still deals its damage.
+        //   • Uncle Istvan (1/3) — EDGE (prevention): its "prevent all damage
+        //     dealt to it by creatures" replacement absorbs Tracker's hit, so
+        //     only Tracker takes damage (1) — proving fight obeys CR 615.
+        label: "C5: Tracker Fight — mutual damage (#422)",
+        cards: [
+            { name: "Tracker", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 2 },
+            { name: "Ghost Ship", owner: "opp" as const },
+            { name: "Goblin Hero", owner: "opp" as const },
+            { name: "Uncle Istvan", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // C3 mana-production lookup / replacement (#420). Three rocks/enchantments
         // that read or rewrite mana production:
         //   • Fellwar Stone — {T}: tap it and the colour picker offers exactly
