@@ -32,6 +32,7 @@ import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
 import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../abilities/triggers/leftTrigger";
+import { tappedTrigger } from "../abilities/triggers/tappedTrigger";
 // CR 603.6a — reuse the shipped LEG C7 "sacrifice this unless you pay [cost]"
 // upkeep trigger (the Elder Dragon maintenance-cost family) for Dance of Many's
 // {U}{U} upkeep clause. NOT reimplemented here.
@@ -3018,5 +3019,93 @@ export const tracker: CardDefinition = {
                 if (target?.type === "permanent") ctx.fight(target);
             },
         },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C9 — Swap blockers (Sorrow's Path, PRD #409 / issue #426)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Sorrow's Path — "{T}: Choose two target blocking creatures controlled by the
+// same opponent. If each of those creatures could block all creatures that the
+// other is blocking, remove both of them from combat. Each one then blocks all
+// creatures the other was blocking.\nWhenever this land becomes tapped, it deals
+// 2 damage to you and each creature you control."
+//
+// Two abilities, both reusing shipped primitives — no Sorrow's-Path-shaped
+// engine code:
+//
+//   1. Block reassignment (activated, {T}). The "two blocking creatures" choice
+//      is a plain `targetRequirement` (count 2, `combatRoleFilter: "blocking"`,
+//      `controller: "opponent"`). In a 2-player game there is exactly one
+//      opponent, so "controlled by the same opponent" is already guaranteed by
+//      `controller: "opponent"` (no cross-target same-controller constraint
+//      needed). The swap-and-legality clause is the generic
+//      `ctx.reassignBlocks(a, b)` combat primitive (CR 509.1 / 506.4): it reads
+//      each blocker's assigned attacker set, verifies — via the same
+//      `validateBlockerEligibility` the declare-blockers step uses — that each
+//      could legally block the OTHER's set, and only then swaps. If the legality
+//      gate fails it is a no-op, matching the card's "if each ... could block
+//      all creatures the other is blocking" hard condition.
+//
+//   2. On-tap drawback (triggered, becomes-tapped). `tappedTrigger` scoped to
+//      `self` (CR 701.20a). The "2 damage to you and each creature you control"
+//      decomposes into `dealDamage` to the controller plus a loop over the
+//      controller's creatures (`getBattlefieldIds` filtered to Creatures) —
+//      reuse, no new sweep primitive. CR 120 damage path so prevention /
+//      replacement effects apply. NB: tapping for the activated ability ALSO
+//      fires this trigger (the cost taps the land → PERMANENT_TAPPED), which is
+//      exactly the printed self-punishing interaction.
+export const sorrowsPath: CardDefinition = {
+    id: "5d4b3c2a-1f0e-49d8-b7a6-426000000009",
+    name: "Sorrow's Path",
+    oracleText:
+        "{T}: Choose two target blocking creatures controlled by the same opponent. If each of those creatures could block all creatures that the other is blocking, remove both of them from combat. Each one then blocks all creatures the other was blocking.\nWhenever this land becomes tapped, it deals 2 damage to you and each creature you control.",
+    manaCost: {},
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "sorrows-path-swap-blockers",
+            oracleText:
+                "{T}: Choose two target blocking creatures controlled by the same opponent. If each of those creatures could block all creatures that the other is blocking, remove both of them from combat. Each one then blocks all creatures the other was blocking.",
+            cost: { tap: true },
+            useStack: true,
+            // CR 509.1 — both targets must be blocking; `controller: "opponent"`
+            // covers "controlled by the same opponent" in 2-player (one opp).
+            targetRequirement: {
+                type: "Creature",
+                count: 2,
+                combatRoleFilter: "blocking",
+                controller: "opponent",
+            },
+            resolve: (ctx: SpellContext) => {
+                const [a, b] = ctx.targets;
+                if (a?.type !== "permanent" || b?.type !== "permanent") return;
+                // The whole legality gate + atomic swap lives in the primitive
+                // (CR 509.1 / 506.4); a failed gate is a clean no-op.
+                ctx.reassignBlocks(a.id, b.id);
+            },
+        },
+    ],
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "sorrows-path-tap-drawback",
+            oracleText:
+                "Whenever this land becomes tapped, it deals 2 damage to you and each creature you control.",
+            // CR 701.20a — fires when THIS permanent becomes tapped (including
+            // when its own {T} cost taps it).
+            scope: "self",
+            resolve: (ctx) => {
+                // CR 120 — "you" = the controller; then each creature the
+                // controller controls. Both go through the normal damage path.
+                ctx.dealDamage({ type: "player", id: ctx.controller }, 2);
+                const myCreatures = ctx.getBattlefieldIds(ctx.controller, {
+                    types: "Creature",
+                });
+                for (const id of myCreatures) {
+                    ctx.dealDamage({ type: "permanent", id }, 2);
+                }
+            },
+        }),
     ],
 };

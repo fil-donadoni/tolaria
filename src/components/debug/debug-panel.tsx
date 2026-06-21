@@ -92,6 +92,35 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // C9 swap blockers — Sorrow's Path (#426). "{T}: Choose two target
+        // blocking creatures controlled by the same opponent. If each could
+        // block all creatures the other is blocking, remove both from combat;
+        // each then blocks what the other was blocking." Plus the drawback:
+        // "Whenever this land becomes tapped, it deals 2 damage to you and each
+        // creature you control."
+        //
+        // Board: you control Sorrow's Path, two 2/2 attackers (Goblin Hero), and
+        // a 1/3 bystander (Squire) that the on-tap drawback will mark for 2. The
+        // opponent has two 1/3 blockers (Squire). Golden path:
+        //   1. Advance to combat, attack with BOTH Goblin Heroes.
+        //   2. Opponent blocks one Goblin Hero with each Squire.
+        //   3. Activate Sorrow's Path → the two blockers swap which attacker
+        //      they block (legal: both are vanilla, so each can block either).
+        //      Tapping it ALSO fires the drawback → you take 2 and each of your
+        //      creatures (the bystander Squire + both Goblin Heroes) takes 2.
+        // Edge: give one attacker flying via another effect to make the swap
+        // illegal (a no-op) — the non-flyer can't reassign onto the flyer.
+        label: "C9: Sorrow's Path — swap blockers (#426)",
+        cards: [
+            { name: "Sorrow's Path", owner: "me" as const },
+            { name: "Goblin Hero", owner: "me" as const, count: 2 },
+            { name: "Squire", owner: "me" as const },
+            { name: "Squire", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
         // C7 skip-draw enchantment — Fasting (#424). You control Fasting with 4
         // hunger counters already on it, in your UPKEEP on turn 2 so the draw
         // step actually runs. Walk it forward to hit two paths:
