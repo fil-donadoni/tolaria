@@ -10,9 +10,14 @@ import DifficultySelector from "./difficulty-selector";
 import MatchFormatSelector from "./match-format-selector";
 import AiDeckSelector from "./ai-deck-selector";
 
+/** An open (waiting) game enriched with its owning Match's format (PRD #387 /
+ *  #397). The joiner inherits the creator's `bestOf`, so the format is shown in
+ *  the join row BEFORE committing. */
+export type OpenGame = Doc<"games"> & { bestOf: 1 | 3 };
+
 interface DashboardPlayBoxProps {
     selectedDeck: LobbyDeck | null;
-    openGames: Array<Doc<"games">> | undefined;
+    openGames: Array<OpenGame> | undefined;
     difficulty: Difficulty;
     onDifficultyChange: (difficulty: Difficulty) => void;
     /** Bo1/Bo3 selection (PRD #387). Flows into Match creation as `bestOf`. */
@@ -148,8 +153,12 @@ export default function DashboardPlayBox({
                                         "disabled:cursor-not-allowed disabled:opacity-40"
                                     )}
                                 >
-                                    <span className="font-medium">
+                                    <span className="flex items-center gap-2 font-medium">
                                         {g.name}
+                                        <span className="rounded-sm border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+                                            {g.bestOf === 3 ? "Bo3" : "Bo1"}{" "}
+                                            Match
+                                        </span>
                                     </span>
                                     <span className="text-xs text-text-muted">
                                         {g.players.length}/2 · Join →

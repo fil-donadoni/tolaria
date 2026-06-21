@@ -970,7 +970,11 @@ export const getGameCardIds = query({
 /** Returns all games waiting for a second player, excluding any the caller
  *  is already part of. Auth is required. Uses the `by_status` index so the
  *  subscription only re-fires (and reads docs) for `waiting` games — not the
- *  whole table. Finished/solo games never enter this query's bandwidth. */
+ *  whole table. Finished/solo games never enter this query's bandwidth.
+ *
+ *  Each row carries the owning Match's `bestOf` (PRD #387 / #397) so the join
+ *  UI can surface the inherited format ("Bo3 Match") BEFORE the player commits
+ *  — a joiner inherits the creator's format, not their own lobby selection. */
 export const listOpenGames = query({
     handler: async (ctx) => {
         const userId = await auth.getUserId(ctx);
@@ -979,7 +983,17 @@ export const listOpenGames = query({
             .query("games")
             .withIndex("by_status", (q) => q.eq("status", "waiting"))
             .collect();
-        return waiting.filter((g) => !g.players.some((p) => p.id === userId));
+        const mine = waiting.filter(
+            (g) => !g.players.some((p) => p.id === userId)
+        );
+        return Promise.all(
+            mine.map(async (g) => {
+                // The Match owns `bestOf`; a waiting Game always has a matchId
+                // (createGame inserts both). Default to Bo1 if the Match is gone.
+                const match = g.matchId ? await ctx.db.get(g.matchId) : null;
+                return { ...g, bestOf: (match?.bestOf ?? 1) as 1 | 3 };
+            })
+        );
     },
 });
 
@@ -5442,6 +5456,71 @@ export const debugResetGame = mutation({
                 });
             }
         }
+    },
+});
+
+/**
+ * Debug: force the current (solo) Match into the Bo3 between-Games Sideboarding
+ * flow in one click (PRD #387 user story 35 / #397). Promotes the owning Match
+ * to `bestOf: 3`, records a Game-1 result for the SECOND seat (so the score is
+ * 0–1 and the human's `-p1` seat is the play/draw chooser per CR 103.4), routes
+ * the Match to "sideboarding", and writes a `gameOver` onto the current Game
+ * state so the board surfaces the Game-Over interstitial → "Continue to
+ * Sideboarding". From there the whole between-Games flow (swap editor, ready
+ * gate, play/draw choice, next-Game build) is exercisable end-to-end.
+ *
+ * Solo-only: it drives both seats from one client, matching the Debug panel's
+ * solo-mode workflow. The pure transition reuses `recordGameResult` so the debug
+ * path can't drift from production.
+ */
+export const debugBo3Sideboard = mutation({
+    args: { gameId: v.id("games") },
+    handler: async (ctx, args) => {
+        const game = await ctx.db.get(args.gameId);
+        if (!game) throw new Error("Game not found");
+        if (!game.matchId) throw new Error("Game has no owning Match");
+        const match = await ctx.db.get(game.matchId);
+        if (!match) throw new Error("Match not found");
+
+        // The second seat "wins" Game 1 — for a solo Match this is `-p2`, so the
+        // human's `-p1` seat becomes the play/draw chooser (loser, CR 103.4).
+        const winnerSeat = match.players[1] ?? match.players[0];
+        const loserSeat = match.players.find((p) => p.id !== winnerSeat.id);
+
+        // Promote to Bo3 first, then route through the SAME pure transition the
+        // production game-over path uses, so the debug state is realistic.
+        const bo3: Doc<"matches"> = { ...match, bestOf: 3 };
+        const patch = recordGameResult(bo3, winnerSeat.id);
+        const now = Date.now();
+        await ctx.db.patch(game.matchId, {
+            bestOf: 3,
+            ...(patch ?? {}),
+            updatedAt: now,
+        });
+
+        // Mark the current Game finished and stamp `gameOver` so the board opens
+        // the interstitial Game-Over dialog (→ Continue to Sideboarding).
+        const existing = await getLatestGameState(ctx, args.gameId);
+        if (existing) {
+            const state = structuredClone(existing.state) as GameState;
+            state.gameOver = {
+                winnerId: winnerSeat.id,
+                loserId: loserSeat?.id ?? winnerSeat.id,
+                reason: "concede",
+            };
+            await saveGameState(
+                ctx,
+                args.gameId,
+                existing.seq,
+                state,
+                existing
+            );
+        }
+        await ctx.db.patch(args.gameId, {
+            status: "finished",
+            winner: winnerSeat.id,
+            updatedAt: now,
+        });
     },
 });
 

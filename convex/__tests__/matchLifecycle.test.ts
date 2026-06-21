@@ -726,3 +726,112 @@ describe("Sideboarding integration: next Game library reflects the swap (#395)",
         expect(JSON.stringify(original)).toBe(before);
     });
 });
+
+// --- 2-player Sideboarding sync + barrier (issue #397) --------------------
+//
+// The both-ready BARRIER: in a 2-player Match the next Game must build only
+// after BOTH seats are ready, regardless of order — neither seat triggers the
+// build alone. Mirrors `setReady`'s gate (`allSeatsReady`) and the production
+// rule that `buildNextGameForMatch` runs only past the gate.
+
+describe("2-player ready barrier (issue #397)", () => {
+    it("the next Game builds only after BOTH seats ready (either order)", () => {
+        // Game 1: A wins → Match → sideboarding, both ready reset.
+        let m = match(3, [player("a"), player("b")]);
+        m = { ...m, ...recordGameResult(m, "a")! };
+        expect(m.status).toBe("sideboarding");
+        expect(allSeatsReady(m)).toBe(false);
+
+        // Only B readies → the barrier is still closed (the build must NOT run).
+        m = ready(m, "b");
+        expect(m.players.find((p) => p.id === "b")!.ready).toBe(true);
+        expect(m.players.find((p) => p.id === "a")!.ready).toBe(false);
+        expect(allSeatsReady(m)).toBe(false);
+
+        // A readies too → barrier opens; the next Game is now buildable.
+        m = ready(m, "a");
+        expect(allSeatsReady(m)).toBe(true);
+    });
+
+    it("readying in the reverse order opens the same barrier", () => {
+        let m = match(3, [player("a"), player("b")]);
+        m = { ...m, ...recordGameResult(m, "b")! };
+        m = ready(m, "a");
+        expect(allSeatsReady(m)).toBe(false);
+        m = ready(m, "b");
+        expect(allSeatsReady(m)).toBe(true);
+    });
+
+    it("re-readying the same seat does not open the barrier alone", () => {
+        let m = match(3, [player("a"), player("b")]);
+        m = { ...m, ...recordGameResult(m, "a")! };
+        m = ready(m, "a");
+        m = ready(m, "a"); // idempotent double-ready of the SAME seat
+        expect(allSeatsReady(m)).toBe(false);
+    });
+});
+
+describe("projectMatch — 2-player sideboarding secrecy (issue #397)", () => {
+    it("hides the opponent's deck + swaps but keeps their ready-state public", () => {
+        // Mid-sideboarding: the opponent (p2) has swapped a Sideboard card in and
+        // readied. The viewer (p1) must see p2's ready flag but NONE of p2's
+        // maindeck / sideboard / swaps.
+        const doc = matchDoc({
+            status: "sideboarding",
+            players: [
+                {
+                    ...player("p1", 0, false),
+                    deck: snapshotDeck({
+                        id: "d1",
+                        name: "Mine",
+                        format: "vintage",
+                        maindeck: [{ cardId: "m1", cardName: "M1" }],
+                        sideboard: [{ cardId: "s1", cardName: "S1" }],
+                    }),
+                },
+                {
+                    ...player("p2", 1, true),
+                    deck: snapshotDeck({
+                        id: "d2",
+                        name: "Secret",
+                        format: "vintage",
+                        maindeck: [
+                            { cardId: "secretSwap", cardName: "Secret" },
+                        ],
+                        sideboard: [{ cardId: "secretSB", cardName: "Hidden" }],
+                    }),
+                },
+            ],
+        });
+        const proj = projectMatch(doc, "p1");
+        const me = proj.players.find((p) => p.id === "p1")!;
+        const opp = proj.players.find((p) => p.id === "p2")!;
+
+        // The viewer's own deck copy survives the projection.
+        expect(me.deck).toBeDefined();
+        expect(me.deck!.maindeck.map((c) => c.cardId)).toEqual(["m1"]);
+
+        // The opponent's deck contents and swaps are stripped entirely.
+        expect(opp.deck).toBeUndefined();
+        // But their public ready-state is preserved for the indicator.
+        expect(opp.ready).toBe(true);
+        expect(opp.score).toBe(1);
+        expect(opp.name).toBe("p2");
+
+        // Match meta is public to both sides.
+        expect(proj.status).toBe("sideboarding");
+        expect(proj.bestOf).toBe(1); // matchDoc default; meta still crosses
+    });
+
+    it("Solo sees BOTH seats' deck copies during sideboarding", () => {
+        const doc = matchDoc({
+            status: "sideboarding",
+            solo: true,
+            players: [player("u-p1"), player("u-p2", 1, true)],
+        });
+        const proj = projectMatch(doc, "u");
+        expect(proj.players.every((p) => p.deck !== undefined)).toBe(true);
+        // ready-states still public in Solo too.
+        expect(proj.players.find((p) => p.id === "u-p2")!.ready).toBe(true);
+    });
+});

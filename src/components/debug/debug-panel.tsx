@@ -5456,7 +5456,22 @@ export default function DebugPanel({
     const resetGame = useMutation(api.game.debugResetGame);
     const setupScenario = useMutation(api.game.debugSetupScenario);
     const createSoloGame = useMutation(api.game.createSoloGame);
+    const bo3Sideboard = useMutation(api.game.debugBo3Sideboard);
+    const [bo3Pending, setBo3Pending] = useState(false);
     const user = useCurrentUser();
+
+    // One-click Bo3 between-Games flow (PRD #387 user story 35 / #397). Promotes
+    // the current solo Match to Bo3, records a Game-1 result, and routes to the
+    // Sideboarding step so the whole between-Games flow is exercisable at once.
+    const handleBo3Sideboard = async () => {
+        if (bo3Pending) return;
+        setBo3Pending(true);
+        try {
+            await bo3Sideboard({ gameId });
+        } finally {
+            setBo3Pending(false);
+        }
+    };
 
     const handleNewSolo = async () => {
         // Reuse the deck of the first player in the current game so the user
@@ -5532,6 +5547,12 @@ export default function DebugPanel({
                                 {game?.vsAi
                                     ? "Restart vs AI"
                                     : "New vs-AI Game"}
+                            </DebugButton>
+                            <DebugButton
+                                onClick={() => void handleBo3Sideboard()}
+                                disabled={bo3Pending}
+                            >
+                                {bo3Pending ? "Bo3…" : "Bo3 Sideboarding"}
                             </DebugButton>
                             <DebugButton
                                 onClick={() => {
