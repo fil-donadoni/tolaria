@@ -123,8 +123,13 @@ export function isAura(card: {
 }
 
 /** CR 613.1f — true while the permanent has lost all abilities (Titania's
- *  Song). Its intrinsic mana abilities don't function while suppressed. */
-function abilitiesSuppressed(card: CardInstanceState): boolean {
+ *  Song, Blood Moon). Its PRINTED activated mana abilities don't function while
+ *  suppressed. Note this does NOT suppress intrinsic basic-land subtype mana
+ *  (CR 305.6): that ability is granted by the land's type (set in layer 4),
+ *  not a printed ability, so `getBasicLandMana` is intentionally not gated by
+ *  this — a nonbasic land turned into a Mountain by Blood Moon still taps for
+ *  {R}. */
+export function abilitiesSuppressed(card: CardInstanceState): boolean {
     return (card.abilitiesSuppressedBy?.length ?? 0) > 0;
 }
 

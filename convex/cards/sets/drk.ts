@@ -19,7 +19,9 @@ import type {
     CardDefinition,
     Color,
     ManaCost,
+    PermanentView,
     SpellContext,
+    StaticEffectContext,
     TriggeredAbility,
 } from "../types";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
@@ -2350,6 +2352,59 @@ export const safeHaven: CardDefinition = {
 //     battlefield this turn" clause needs the same noted-target delayed-self-LTB
 //     primitive Runesword does. Defer the whole card until it lands.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RED (#413 / #419)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Blood Moon — "Nonbasic lands are Mountains." (CR 305.7 type-changing effect,
+// CR 611/613 layers.) Every NONBASIC land on the battlefield loses its other
+// land types and ALL of its printed abilities, has its subtype set to Mountain,
+// and gains the intrinsic "{T}: Add {R}" basic-land mana ability (CR 305.6,
+// which falls out of `LAND_SUBTYPE_MANA` once the subtype is Mountain). Basic
+// lands (including basic Mountains) are untouched.
+//
+// Composed from two existing static-effect primitives (no new engine kind):
+//   • `ability-loss` (CR 613.1f layer 6) — strips the land's printed activated
+//     mana abilities, triggered abilities, and keywords. This is the same
+//     generic "loses all abilities" static introduced for Titania's Song; the
+//     payment path (`getActivatedManaAbility` and the producible-mana planner)
+//     is suppression-gated, so a dual land under Blood Moon stops offering its
+//     original colors and falls through to the intrinsic Mountain {R}.
+//   • `subtype-set` (CR 305.7 layer 4) — replaces the land's subtypes with
+//     `["Mountain"]`, which makes `getBasicLandMana` return {R}.
+// The layer system recomputes both live and `unapplySourceStaticEffects`
+// reverts them cleanly when Blood Moon leaves the battlefield.
+const IS_NONBASIC_LAND: (
+    target: PermanentView,
+    source: PermanentView,
+    ctx: StaticEffectContext
+) => boolean = (target, _source, ctx) =>
+    ctx.getPrintedTypes(target).includes("Land") &&
+    !ctx.hasSupertype(target, "Basic");
+
+export const bloodMoon: CardDefinition = {
+    id: "78373616-e2d6-4ccf-998f-09f02bea45b4",
+    name: "Blood Moon",
+    oracleText: "Nonbasic lands are Mountains.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        // CR 613.1f — strip all printed abilities (and other land types) BEFORE
+        // the subtype change so the only ability the land has afterward is the
+        // intrinsic Mountain mana ability granted by its new subtype.
+        {
+            kind: "ability-loss",
+            applies: IS_NONBASIC_LAND,
+        },
+        // CR 305.7 — the land's land types become Mountain (and only Mountain).
+        {
+            kind: "subtype-set",
+            applies: IS_NONBASIC_LAND,
+            subtypes: ["Mountain"],
+        },
+    ],
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Deferred — these four DRK White cards each need a genuinely new engine

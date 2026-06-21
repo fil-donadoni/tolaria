@@ -5017,6 +5017,35 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // DRK Blood Moon — nonbasic-land lockdown static (#419). "Nonbasic
+        // lands are Mountains." Every nonbasic land becomes a Mountain: it
+        // loses its other land types and ALL printed abilities, and taps for
+        // {R} via the intrinsic Mountain mana ability.
+        //   • You control Blood Moon, a Tropical Island (dual) and a Strip Mine
+        //     (utility land), plus a basic Mountain that is left untouched.
+        //   • Tap the Tropical Island / Strip Mine — they now produce {R}, not
+        //     {G}/{U} or {C}, and Strip Mine's "Destroy target land" ability is
+        //     gone.
+        //   • Cast Lightning Bolt off the lockdown'd lands to confirm they pay
+        //     red. Destroy Blood Moon and the lands revert to their printed
+        //     types/abilities live.
+        label: "DRK Blood Moon: nonbasic lands become Mountains (tap for {R}, lose abilities) (#419)",
+        cards: [
+            { name: "Blood Moon", owner: "me" as const },
+            { name: "Tropical Island", owner: "me" as const },
+            { name: "Strip Mine", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 1 },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Tropical Island", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

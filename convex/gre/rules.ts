@@ -13,6 +13,7 @@ import {
     LAND_SUBTYPE_MANA,
     MANA_COLORS,
     PLACEHOLDER_CARD_ID,
+    abilitiesSuppressed,
     isTapLockedBySummoningSickness,
     manaValue,
 } from "./constants";
@@ -189,7 +190,13 @@ export function getProducibleManaOptions(
     // and let the CR 305.6 subtype path only fill colors no ability covers.
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetCardById(cardId) : undefined;
-    if (def?.activatedAbilities) {
+    // CR 613.1f — a permanent that has lost all abilities (Titania's Song,
+    // Blood Moon) exposes none of its PRINTED activated mana abilities. Keep
+    // this planner in sync with the payment handler (`getActivatedManaAbility`),
+    // which is likewise suppression-gated; otherwise a dual land under Blood
+    // Moon would still advertise its original colors here while the handler
+    // pays {R} from the intrinsic Mountain subtype, desyncing the two.
+    if (def?.activatedAbilities && !abilitiesSuppressed(card)) {
         for (const ability of def.activatedAbilities) {
             if (ability.useStack) continue;
             if (!ability.cost.tap) continue;
@@ -238,8 +245,13 @@ function getProducibleManaUnits(card: CardInstanceState): Set<Color>[] {
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetCardById(cardId) : undefined;
 
+    // CR 613.1f — suppress PRINTED activated mana abilities while the source
+    // has lost all abilities (Blood Moon / Titania's Song); fall through to the
+    // intrinsic basic-land subtype path below.
     let best: Set<Color>[] = [];
-    for (const ability of def?.activatedAbilities ?? []) {
+    for (const ability of abilitiesSuppressed(card)
+        ? []
+        : (def?.activatedAbilities ?? [])) {
         if (ability.useStack) continue;
         if (!ability.cost.tap) continue;
 
