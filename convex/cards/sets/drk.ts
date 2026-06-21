@@ -4478,3 +4478,35 @@ export const whippoorwill: CardDefinition = {
         },
     ],
 };
+
+// Marsh Viper — "Whenever this creature deals damage to a player, that player
+// gets two poison counters." (modern Oracle, ADR 0004). The trigger fires on
+// ANY damage to a player (CR 120.3) — combat or otherwise — not combat-gated,
+// so `damageDealtTrigger` carries a player target with NO `isCombat`
+// constraint. Reuses the ARN poison precedent (Nafs Asp) and the C1.1 poison
+// seam (ADR 0032): `addPoisonCounters` adds two counters to the damaged player;
+// the >=10 loss is the global SBA (CR 704.5c), not the card's concern.
+export const marshViper: CardDefinition = {
+    id: "109cce7a-96f7-4e67-878a-bd5c93ea8643",
+    name: "Marsh Viper",
+    oracleText:
+        "Whenever this creature deals damage to a player, that player gets two poison counters.",
+    manaCost: { X: 3, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Snake"],
+    power: 1,
+    toughness: 2,
+    triggeredAbilities: [
+        damageDealtTrigger({
+            id: "marsh-viper-poison",
+            oracleText:
+                "Whenever this creature deals damage to a player, that player gets two poison counters.",
+            source: "self",
+            target: { kind: "player", player: { relation: "any" } },
+            resolve: (ctx, event) => {
+                if (event.target.type !== "player") return;
+                ctx.addPoisonCounters(event.target.id, 2);
+            },
+        }),
+    ],
+};

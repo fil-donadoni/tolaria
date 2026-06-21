@@ -87,6 +87,24 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         poison: { me: 2, opp: 9 },
     },
     {
+        // C1.2 Marsh Viper — poison on damage to a player (#453). "Whenever this
+        // creature deals damage to a player, that player gets two poison
+        // counters." (modern Oracle, ADR 0004; trigger fires on ANY damage to a
+        // player — CR 120.3 — not combat-only.) You control Marsh Viper (1/2,
+        // not summoning-sick) and the opponent is seeded to EIGHT poison — one
+        // combat connection from lethal. Golden path:
+        //   1. Advance to combat and attack with Marsh Viper.
+        //   2. Opponent has no blockers → 1 combat damage to them → the
+        //      DAMAGE_DEALT trigger adds 2 poison → 8 + 2 = 10.
+        //   3. The >=10 poison loss SBA (CR 704.5c) fires on the next sweep:
+        //      opponent loses with `gameOver.reason === "poison"`.
+        label: "C1.2: Marsh Viper — poison kill (#453)",
+        cards: [{ name: "Marsh Viper", owner: "me" as const }],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        poison: { opp: 8 },
+    },
+    {
         // C5 Fight primitive — Tracker (#422). "{G}{G}, {T}: This creature deals
         // damage equal to its power to target creature. That creature deals
         // damage equal to its power to this creature." (CR 701.12-style mutual

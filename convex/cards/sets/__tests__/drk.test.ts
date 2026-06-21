@@ -118,6 +118,7 @@ import {
     spittingSlug,
     venom,
     whippoorwill,
+    marshViper,
 } from "../drk";
 import { tropicalIsland, mountain, lightningBolt } from "../lea";
 import { stripMine } from "../atq";
@@ -6082,5 +6083,165 @@ describe("Whippoorwill — exile-on-death + no regeneration (CR 605 / 614.1a)", 
 
     it("has flying", () => {
         expect(whippoorwill.staticAbilities).toContain("flying");
+    });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Marsh Viper — {3}{G} Creature — Snake 1/2 (#453, parent #418). "Whenever
+// this creature deals damage to a player, that player gets two poison
+// counters." (modern Oracle, ADR 0004). Reuses `damageDealtTrigger` (Nafs Asp
+// precedent, ARN) + the poison seam (ADR 0032). The trigger fires on ANY
+// damage to a player (CR 120.3) — NOT combat-gated.
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Build a DAMAGE_DEALT event for Marsh Viper hitting a player. */
+const VIPER_DAMAGE = (
+    targetId: string,
+    isCombat: boolean,
+    amount = 1
+): StackItem["triggerEvent"] =>
+    ({
+        type: "DAMAGE_DEALT",
+        sourceInstanceId: "viper",
+        sourceControllerId: "p1",
+        target: { type: "player", id: targetId },
+        amount,
+        isCombat,
+    }) as StackItem["triggerEvent"];
+
+describe("Marsh Viper ({3}{G} Snake 1/2 — poison on damage to a player, CR 120.3 / ADR 0032)", () => {
+    function viperOnBattlefield(): {
+        state: GameState;
+        viper: CardInstanceState;
+    } {
+        const viper = makeInstance(marshViper.id, {
+            id: "viper",
+            controllerId: "p1",
+            ownerId: "p1",
+            power: 1,
+            toughness: 2,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [viper] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, viper };
+    }
+
+    it("is a {3}{G} Creature — Snake with power 1, toughness 2", () => {
+        expect(marshViper.manaCost).toEqual({ X: 3, G: 1 });
+        expect(marshViper.types).toEqual(["Creature"]);
+        expect(marshViper.subtypes).toEqual(["Snake"]);
+        expect(marshViper.power).toBe(1);
+        expect(marshViper.toughness).toBe(2);
+    });
+
+    it("trigger fires on COMBAT damage to a player and adds 2 poison", () => {
+        const { state, viper } = viperOnBattlefield();
+        resolveTrigger(
+            state,
+            viper,
+            "marsh-viper-poison",
+            VIPER_DAMAGE("p2", /* isCombat */ true)
+        );
+        expect(state.players[1].poisonCounters).toBe(2);
+        expect(state.players[0].poisonCounters).toBeUndefined();
+    });
+
+    it("trigger ALSO fires on NON-combat damage to a player (not combat-gated)", () => {
+        const { state, viper } = viperOnBattlefield();
+        // collectTriggers must MATCH a non-combat DAMAGE_DEALT event — proving
+        // the factory carries no `isCombat` constraint (CR 120.3).
+        const matched = collectTriggers(state, [
+            VIPER_DAMAGE("p2", /* isCombat */ false) as never,
+        ]).some((t) => t.triggeredAbilityId === "marsh-viper-poison");
+        expect(matched).toBe(true);
+        // ...and resolving it adds the 2 poison.
+        resolveTrigger(
+            state,
+            viper,
+            "marsh-viper-poison",
+            VIPER_DAMAGE("p2", /* isCombat */ false)
+        );
+        expect(state.players[1].poisonCounters).toBe(2);
+    });
+
+    it("does NOT fire on damage dealt to a creature (player target only)", () => {
+        const { state } = viperOnBattlefield();
+        const matched = collectTriggers(state, [
+            {
+                type: "DAMAGE_DEALT",
+                sourceInstanceId: "viper",
+                sourceControllerId: "p1",
+                target: { type: "permanent", id: "someCreature" },
+                amount: 1,
+                isCombat: true,
+            } as never,
+        ]).some((t) => t.triggeredAbilityId === "marsh-viper-poison");
+        expect(matched).toBe(false);
+    });
+
+    it("end-to-end: opponent at 8 poison + combat hit crosses ten and loses (CR 704.5c)", () => {
+        const viper = makeInstance(marshViper.id, {
+            id: "viper",
+            controllerId: "p1",
+            ownerId: "p1",
+            power: 1,
+            toughness: 2,
+            isAttacking: true,
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [viper] }),
+                makePlayer("p2", { poisonCounters: 8 }),
+            ],
+            combat: {
+                attackerIds: ["viper"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockedAttackerIds: [],
+                blockersConfirmed: true,
+            },
+        });
+        // Damage step: the unblocked viper deals 1 to p2. The DAMAGE_DEALT
+        // trigger is queued on the stack by applyAllCombatDamage (CR 603.2).
+        applyAllCombatDamage(state, { viper: { p2: 1 } });
+        const trig = state.stack.find(
+            (s) => s.triggeredAbilityId === "marsh-viper-poison"
+        );
+        expect(trig).toBeDefined();
+        // Resolve the trigger → +2 poison → 8 + 2 = 10.
+        resolveTopOfStack(state);
+        expect(state.players[1].poisonCounters).toBe(10);
+        // The >=10 loss SBA fires (CR 704.5c).
+        checkStateBasedActions(state);
+        expect(state.gameOver).toBeDefined();
+        expect(state.gameOver?.reason).toBe("poison");
+        expect(state.gameOver?.loserId).toBe("p2");
+        expect(state.gameOver?.winnerId).toBe("p1");
+    });
+
+    it("wire format: the poison the viper inflicts survives projectPublicState", () => {
+        const { state, viper } = viperOnBattlefield();
+        resolveTrigger(
+            state,
+            viper,
+            "marsh-viper-poison",
+            VIPER_DAMAGE("p2", true)
+        );
+        expect(state.players[1].poisonCounters).toBe(2);
+        const projected = projectPublicState(state, 1, "p1");
+        const slimP2 = projected.players.find((p) => p.id === "p2")!;
+        expect(slimP2.poisonCounters).toBe(2);
+    });
+
+    it("registry parity: reachable by id and by name (debug-panel / pool path)", () => {
+        expect(getCardById(marshViper.id)).toBe(marshViper);
+        expect(getCardByName("Marsh Viper")).toBe(marshViper);
+        expect(getAllCards()).toContain(marshViper);
     });
 });
