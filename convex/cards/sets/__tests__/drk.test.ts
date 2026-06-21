@@ -72,7 +72,10 @@ import {
     cityOfShadows,
     mazeOfIth,
     safeHaven,
+    bloodMoon,
 } from "../drk";
+import { tropicalIsland, mountain } from "../lea";
+import { stripMine } from "../atq";
 import { getCardById, getCardByName, getAllCards } from "../../index";
 import {
     resolveTopOfStack,
@@ -80,13 +83,23 @@ import {
     getCostModifiers,
     applyCostModifiers,
     normalizeManaCost,
+    applySourceStaticEffects,
+    unapplySourceStaticEffects,
+    applyExistingGrantsTo,
     type CardInstanceState,
     type GameState,
     type StackItem,
 } from "../../../gre/state";
 import { checkStateBasedActions } from "../../../gre/sba";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
-import { getLegalTargets } from "../../../gre/rules";
+import { getLegalTargets, getProducibleManaOptions } from "../../../gre/rules";
+import {
+    getBasicLandMana,
+    getActivatedManaAbility,
+    hasManaAbility,
+    abilitiesSuppressed,
+} from "../../../gre/constants";
+import { effectiveTriggeredAbilities } from "../../../gre/copy";
 import { collectTriggers } from "../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../gre/pendingChoiceSubmit";
 import { applyDamageReplacements } from "../../../gre/replacements";
@@ -157,6 +170,169 @@ function answerChoice(state: GameState, picks: string[]): void {
     state.pendingChoices = undefined;
     resolveTopOfStack(state);
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// Blood Moon — {2}{R} Enchantment, "Nonbasic lands are Mountains." (#419)
+// CR 305.7 type-changing + CR 611/613 layer system (layer 4 subtype-set +
+// layer 6 ability-loss).
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Puts Blood Moon on p1's battlefield plus the given nonbasic land, then
+ *  applies the enchantment's continuous static effects to the board. */
+function withBloodMoon(landCardId: string = tropicalIsland.id): {
+    state: GameState;
+    moon: CardInstanceState;
+    land: CardInstanceState;
+} {
+    const state = makeState();
+    const moon = makeInstance(bloodMoon.id, {
+        id: "moon-1",
+        controllerId: "p1",
+        zone: "battlefield",
+    });
+    const land = makeInstance(landCardId, {
+        id: "land-1",
+        controllerId: "p2",
+        zone: "battlefield",
+    });
+    state.players[0].battlefield.push(moon);
+    state.players[1].battlefield.push(land);
+    applySourceStaticEffects(state, moon);
+    return { state, moon, land };
+}
+
+describe("Blood Moon ({2}{R} Enchantment — CR 305.7 subtype-set + CR 613.1f ability-loss)", () => {
+    it("declares exactly subtype-set + ability-loss static effects (no new primitive)", () => {
+        const kinds = (bloodMoon.staticEffects ?? []).map((e) => e.kind);
+        expect(kinds).toContain("subtype-set");
+        expect(kinds).toContain("ability-loss");
+        expect(kinds).toHaveLength(2);
+    });
+
+    it("turns a nonbasic dual land into a Mountain (subtype replaced) — CR 305.7", () => {
+        const { land } = withBloodMoon();
+        expect(land.subtypes).toEqual(["Mountain"]);
+        // Tropical Island's printed Forest/Island types are gone.
+        expect(land.subtypes).not.toContain("Forest");
+        expect(land.subtypes).not.toContain("Island");
+    });
+
+    it("strips the dual land's printed activated mana ability — CR 613.1f", () => {
+        const { land } = withBloodMoon();
+        expect(abilitiesSuppressed(land)).toBe(true);
+        expect(land.abilitiesSuppressedBy).toEqual(["moon-1"]);
+        // Its original {T}: Add {G} or {U} choice ability no longer functions.
+        expect(getActivatedManaAbility(land)).toBeNull();
+        // It still HAS a mana ability — the intrinsic Mountain one.
+        expect(hasManaAbility(land)).toBe(true);
+    });
+
+    it("affected land taps for {R} via intrinsic basic-land mana — CR 305.6", () => {
+        const { land } = withBloodMoon();
+        expect(getBasicLandMana(land)).toBe("R");
+    });
+
+    it("producible-mana planner offers ONLY {R} (no original G/U) — planner/handler sync", () => {
+        const { land } = withBloodMoon();
+        const options = getProducibleManaOptions(land);
+        expect([...options.keys()]).toEqual(["R"]);
+        expect(options.has("G")).toBe(false);
+        expect(options.has("U")).toBe(false);
+    });
+
+    it("leaves BASIC lands untouched (basic Mountain keeps its type, no suppression)", () => {
+        const { land } = withBloodMoon(mountain.id);
+        expect(land.subtypes).toEqual(["Mountain"]);
+        expect(abilitiesSuppressed(land)).toBe(false);
+        expect(land.abilitiesSuppressedBy).toBeUndefined();
+        expect(getBasicLandMana(land)).toBe("R");
+    });
+
+    it("does NOT touch a basic land of another color (Island stays an Island)", () => {
+        const island = makeInstance(getCardByName("Island").id, {
+            id: "isl-1",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState();
+        const moon = makeInstance(bloodMoon.id, {
+            id: "moon-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(moon);
+        state.players[1].battlefield.push(island);
+        applySourceStaticEffects(state, moon);
+        expect(island.subtypes).toEqual(["Island"]);
+        expect(getBasicLandMana(island)).toBe("U");
+    });
+
+    it("affects a nonbasic land that ENTERS after Blood Moon resolves (applyExistingGrantsTo)", () => {
+        const { state } = withBloodMoon();
+        const newLand = makeInstance(tropicalIsland.id, {
+            id: "land-2",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(newLand);
+        applyExistingGrantsTo(state, newLand);
+        expect(newLand.subtypes).toEqual(["Mountain"]);
+        expect(newLand.abilitiesSuppressedBy).toEqual(["moon-1"]);
+        expect(getBasicLandMana(newLand)).toBe("R");
+    });
+
+    it("reverts the land cleanly when Blood Moon leaves play (unapplySourceStaticEffects)", () => {
+        const { state, moon, land } = withBloodMoon();
+        unapplySourceStaticEffects(state, moon);
+        // Printed subtypes restored; original mana ability functions again.
+        expect(land.subtypes).toEqual(["Forest", "Island"]);
+        expect(abilitiesSuppressed(land)).toBe(false);
+        expect(land.abilitiesSuppressedBy).toBeUndefined();
+        expect(getActivatedManaAbility(land)).not.toBeNull();
+        const options = getProducibleManaOptions(land);
+        expect(options.has("G")).toBe(true);
+        expect(options.has("U")).toBe(true);
+        expect(options.has("R")).toBe(false);
+    });
+
+    it("strips a UTILITY land's non-mana ability and rewrites its mana to {R} (Strip Mine)", () => {
+        // Strip Mine: "{T}: Add {C}" + "{T}, Sacrifice: Destroy target land".
+        // Under Blood Moon it loses BOTH printed abilities (suppressed) and taps
+        // for {R} from the Mountain subtype instead of {C}.
+        const { land } = withBloodMoon(stripMine.id);
+        expect(land.subtypes).toEqual(["Mountain"]);
+        expect(abilitiesSuppressed(land)).toBe(true);
+        // The {T}: Add {C} ability no longer functions; only intrinsic {R}.
+        expect(getActivatedManaAbility(land)).toBeNull();
+        expect(getBasicLandMana(land)).toBe("R");
+        expect(effectiveTriggeredAbilities(land)).toHaveLength(0);
+        const options = getProducibleManaOptions(land);
+        expect([...options.keys()]).toEqual(["R"]);
+        expect(options.has("C")).toBe(false);
+    });
+
+    // Wire format (MANDATORY for staticEffects): the Mountain subtype and the
+    // producible {R} must survive projection to the client (CR rule re-checked
+    // on the slimmed PublicGameState).
+    it("wire format: Mountain subtype + producible {R} survive projectPublicState", () => {
+        const { state } = withBloodMoon();
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "land-1"
+        )!;
+        expect(slim.subtypes).toEqual(["Mountain"]);
+        expect(getBasicLandMana(slim as unknown as CardInstanceState)).toBe(
+            "R"
+        );
+        expect(abilitiesSuppressed(slim as unknown as CardInstanceState)).toBe(
+            true
+        );
+        const options = getProducibleManaOptions(
+            slim as unknown as CardInstanceState
+        );
+        expect([...options.keys()]).toEqual(["R"]);
+    });
+});
 
 describe("DRK registry parity", () => {
     it("registers the skeleton creatures by id", () => {
