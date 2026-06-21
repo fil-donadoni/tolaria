@@ -92,6 +92,31 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // C7 skip-draw enchantment — Fasting (#424). You control Fasting with 4
+        // hunger counters already on it, in your UPKEEP on turn 2 so the draw
+        // step actually runs. Walk it forward to hit two paths:
+        //   • UPKEEP: the hunger trigger adds the FIFTH counter → Fasting is
+        //     destroyed (CR 603 "destroy if it has five or more"). To instead
+        //     see the SKIP path, lower the counter seed.
+        //   • DRAW (if it survived): "Skip your draw step to gain 2 life?" —
+        //     accept → +2 life, no card drawn, Fasting stays; decline → you
+        //     draw your card, which triggers "when you draw, destroy this".
+        // libraryCount ensures there's a card to draw when you decline.
+        label: "C7: Fasting — skip draw / hunger counters (#424)",
+        cards: [
+            {
+                name: "Fasting",
+                owner: "me" as const,
+                counters: { hunger: 4 },
+            },
+            { name: "Plains", owner: "me" as const, count: 2 },
+        ],
+        phase: "UPKEEP",
+        landCount: 0,
+        libraryCount: 5,
+        turn: 2,
+    },
+    {
         // C3 mana-production lookup / replacement (#420). Three rocks/enchantments
         // that read or rewrite mana production:
         //   • Fellwar Stone — {T}: tap it and the colour picker offers exactly

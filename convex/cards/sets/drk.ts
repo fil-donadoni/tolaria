@@ -26,6 +26,7 @@ import type {
     TriggeredAbility,
 } from "../types";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
+import { drawTrigger } from "../abilities/triggers/drawTrigger";
 import { stateTrigger } from "../abilities/triggers/stateTrigger";
 import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
@@ -630,6 +631,93 @@ export const erosion: CardDefinition = {
                     }
                 }
                 ctx.destroy({ type: "permanent", id: hostId });
+            },
+        }),
+    ],
+};
+
+// Fasting — DRK C7 skip-draw-step enchantment. Modern Scryfall oracle text
+// (ADR 0004) — the printed Alpha/DRK wording ("draw phase") is superseded:
+//   1. "At the beginning of your upkeep, put a hunger counter on this
+//      enchantment. Then destroy this enchantment if it has five or more hunger
+//      counters on it." — CR 603.6a upkeep trigger + CR 122 counters; the
+//      destroy is part of the same trigger resolution, gated on the count.
+//   2. "If you would begin your draw step, you may skip that step instead. If
+//      you do, you gain 2 life." — CR 504 / 614 draw-step skip. Reuses the
+//      Island Sanctuary precedent: `drawStepReplacement: true` suppresses the
+//      turn-based draw, and a DRAW phaseTrigger offers the may-skip choice via
+//      `requestMayPay` (no cost). Decline draws the card normally.
+//   3. "When you draw a card, destroy this enchantment." — CR 121.1 draw event
+//      trigger via the new `drawTrigger` factory (CARD_DRAWN). Fires on ANY
+//      draw the controller makes (the natural draw if they decline the skip,
+//      or any effect-driven draw), then destroys Fasting.
+export const fasting: CardDefinition = {
+    id: "8da35f9f-e72c-4154-a212-7de98f84ad7d",
+    name: "Fasting",
+    oracleText:
+        "At the beginning of your upkeep, put a hunger counter on this enchantment. Then destroy this enchantment if it has five or more hunger counters on it.\nIf you would begin your draw step, you may skip that step instead. If you do, you gain 2 life.\nWhen you draw a card, destroy this enchantment.",
+    manaCost: { W: 1 },
+    types: ["Enchantment"],
+    // CR 504 — suppresses the automatic turn-based draw so the DRAW phaseTrigger
+    // below can offer the "you may skip" choice (Island Sanctuary precedent).
+    drawStepReplacement: true,
+    triggeredAbilities: [
+        // 1. Upkeep hunger-counter accrual + destroy-at-five (CR 603.6a).
+        phaseTrigger({
+            id: "fasting-upkeep-hunger",
+            oracleText:
+                "At the beginning of your upkeep, put a hunger counter on this enchantment. Then destroy this enchantment if it has five or more hunger counters on it.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                const self = {
+                    type: "permanent" as const,
+                    id: ctx.sourceInstanceId,
+                };
+                // CR 122.1 — add one hunger counter.
+                ctx.addCounter(self, "hunger", 1);
+                // CR 603 — "Then destroy ~ if it has five or more". Part of the
+                // same resolution, gated on the fresh count.
+                if (ctx.getCounterCount(self, "hunger") >= 5) {
+                    ctx.destroy(self);
+                }
+            },
+        }),
+        // 2. "You may skip your draw step; if you do, gain 2 life" (CR 504/614).
+        phaseTrigger({
+            id: "fasting-draw-skip",
+            oracleText:
+                "If you would begin your draw step, you may skip that step instead. If you do, you gain 2 life.",
+            phase: "DRAW",
+            scope: "your",
+            resolve: (ctx) => {
+                const skip = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: `fasting-skip-${ctx.sourceInstanceId}`,
+                    prompt: "Skip your draw step to gain 2 life? (Fasting)",
+                });
+                if (skip === undefined) return; // suspended for the choice
+                if (skip) {
+                    // CR 119.3 — gain 2 life, no card drawn.
+                    ctx.gainLife(ctx.controller, 2);
+                } else {
+                    // Declined: take the normal draw step draw (CR 504.1). This
+                    // emits CARD_DRAWN, which fires the self-destruct trigger
+                    // below — exactly "if you draw a card, destroy this".
+                    ctx.drawCards(ctx.controller, 1);
+                }
+            },
+        }),
+        // 3. "When you draw a card, destroy this enchantment" (CR 121.1).
+        drawTrigger({
+            id: "fasting-draw-destroy",
+            oracleText: "When you draw a card, destroy this enchantment.",
+            scope: "your",
+            resolve: (ctx) => {
+                ctx.destroy({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
             },
         }),
     ],

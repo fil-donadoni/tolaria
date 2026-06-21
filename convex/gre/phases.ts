@@ -19,7 +19,9 @@ import {
     consumePreventionIfAny,
     destroyWithReplacements,
     drawCard,
+    emitCardDrawn,
     flushPendingEvents,
+    processPendingActionTriggers,
     getOpponentId,
     getPlayer,
     isCombatDamageImmune,
@@ -501,7 +503,7 @@ function drawStep(state: GameState): void {
         if (x <= 0) {
             // No cards to look at — the replacement does nothing beyond the
             // normal draw (which itself flags hasDrawnFromEmpty if empty).
-            drawCard(player);
+            if (drawCard(player) !== null) emitCardDrawn(state, player.id, 1);
             return;
         }
         const topIds = player.library.slice(0, x).map((c) => c.id);
@@ -522,7 +524,10 @@ function drawStep(state: GameState): void {
         return;
     }
 
-    drawCard(player);
+    // CR 504.1 — the turn-based draw for the draw step. Emit CARD_DRAWN so
+    // "when you draw a card" triggers (Fasting) fire; the DRAW phase entry
+    // drains pending events right after `drawStep` returns.
+    if (drawCard(player) !== null) emitCardDrawn(state, player.id, 1);
 }
 
 /** Commits a `draw-look-keep` `PendingChoice` (CR 614 — Aladdin's Lamp): the
@@ -555,7 +560,8 @@ export function finalizeDrawLookKeep(
     state.pendingChoices = queue.length > 0 ? queue : undefined;
 
     // CR — "then draw a card" (the kept card is now on top).
-    drawCard(player);
+    if (drawCard(player) !== null) emitCardDrawn(state, player.id, 1);
+    processPendingActionTriggers(state);
 
     if ((state.pendingChoices?.length ?? 0) > 0) {
         state.priorityPlayerId = state.pendingChoices![0].playerId;
@@ -1262,6 +1268,11 @@ function performPhaseEntry(state: GameState): void {
             break;
         case "DRAW":
             drawStep(state);
+            // CR 121.1 / 603.2 — the turn-based draw emits CARD_DRAWN; scan it
+            // here so "when you draw a card" triggers (Fasting) reach the stack
+            // before priority. No-op when no card was drawn (turn 1 / skipped /
+            // suspended on a draw-look choice).
+            processPendingActionTriggers(state);
             // CR 504.2 — "at the beginning of the draw step" delayed triggers
             // (Nafs Asp's pay-or-lose-life) fire for the active player.
             fireDelayedTriggers(state, "next-draw-step");

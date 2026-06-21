@@ -3594,6 +3594,28 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     ];
 }
 
+/** Emits a CARD_DRAWN event for a player who just drew `count` cards
+ *  (CR 121.1). The single choke point for "when you draw a card" triggers
+ *  (Fasting). No-op when `count <= 0` (an empty-library draw moved nothing).
+ *  Callers that drive a draw at a point where pending events are later drained
+ *  — `resolveTopOfStack`, the draw step's explicit drain — use this so the
+ *  trigger scan picks it up. */
+export function emitCardDrawn(
+    state: GameState,
+    playerId: string,
+    count: number
+): void {
+    if (count <= 0) return;
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "CARD_DRAWN",
+            playerId,
+            count,
+        },
+    ];
+}
+
 /** Emits a PERMANENT_TAPPED event for a permanent that just transitioned from
  *  untapped to tapped (CR 701.20a). `forMana: true` marks the canonical
  *  "tapped for mana" condition (CR 605) read by Manabarbs / Mana Flare /
@@ -4613,9 +4635,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         // (CR 704.5b: hasDrawnFromEmpty flagged by drawCard; SBA ends the game).
         drawCards(playerId: string, amount: number): void {
             const player = getPlayer(state, playerId);
+            let drawn = 0;
             for (let i = 0; i < amount; i++) {
                 if (drawCard(player) === null) break;
+                drawn++;
             }
+            // CR 121.1 — emit a draw event so "when you draw a card" triggers
+            // (Fasting) fire. The post-resolution scan in `resolveTopOfStack`
+            // drains this from `pendingEvents`.
+            emitCardDrawn(state, playerId, drawn);
         },
         // CR 614 — arm a one-shot replacement for the next draw `playerId`
         // takes this turn (Aladdin's Lamp). Consumed by the draw step.
