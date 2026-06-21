@@ -981,6 +981,14 @@ describe("optional field round-trip smoke tests", () => {
         expect(got.players[1].maxHandSizeOverride).toBe(10);
     });
 
+    it("poisonCounters on PlayerState (CR 122)", () => {
+        const state = freshState();
+        state.players[1].poisonCounters = 9;
+        const got = roundTrip(state);
+        expect(got.players[0].poisonCounters).toBeUndefined();
+        expect(got.players[1].poisonCounters).toBe(9);
+    });
+
     it("Arboria qualifying-action history on PlayerState (CR 508.1c)", () => {
         const state = freshState();
         state.players[0].qualifyingActionThisTurn = true;

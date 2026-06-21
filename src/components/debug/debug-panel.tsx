@@ -64,9 +64,28 @@ type PresetScenario = {
      *  deterministic — e.g. force a coin flip to WIN (seed 1) or LOSE (seed 7).
      *  Default: unchanged. */
     rngSeed?: number;
+    /** Seed poison counters (CR 122) on a player. A player reaching ten or
+     *  more loses the game (CR 704.5c). Absent / zero leaves the player at no
+     *  poison. */
+    poison?: { me?: number; opp?: number };
 };
 
 const PRESET_SCENARIOS: PresetScenario[] = [
+    {
+        // C1.1 Poison foundation (#452) — poison as a player resource (CR 122)
+        // and its loss SBA (CR 704.5c). The opponent is seeded to NINE poison
+        // counters (near-lethal): the danger-token badge renders under their
+        // name and survives the wire projection. Golden path: add one more
+        // poison counter (e.g. via a poison source, or bump `poison.opp` to 10
+        // in this preset) → the opponent hits ten and loses on the next SBA
+        // sweep, with `gameOver.reason === "poison"`. You are seeded to two
+        // poison so a non-zero badge shows on both seats.
+        label: "C1.1: Poison — near-lethal board (#452)",
+        cards: [],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        poison: { me: 2, opp: 9 },
+    },
     {
         // C5 Fight primitive — Tracker (#422). "{G}{G}, {T}: This creature deals
         // damage equal to its power to target creature. That creature deals
@@ -5563,6 +5582,7 @@ export default function DebugPanel({
                                                         scenario.markLastDrawn,
                                                     turn: scenario.turn,
                                                     rngSeed: scenario.rngSeed,
+                                                    poison: scenario.poison,
                                                 })
                                             }
                                         >

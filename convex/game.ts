@@ -5435,6 +5435,14 @@ export const debugSetupScenario = mutation({
          *  flip (Bottle of Suleiman) lands WIN with seed 1 / LOSE with seed 7.
          *  Default: unchanged. */
         rngSeed: v.optional(v.number()),
+        /** Seed poison counters (CR 122) on a player. A player reaching ten or
+         *  more loses the game (CR 704.5c). Absent / zero leaves no poison. */
+        poison: v.optional(
+            v.object({
+                me: v.optional(v.number()),
+                opp: v.optional(v.number()),
+            })
+        ),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -5616,6 +5624,13 @@ export const debugSetupScenario = mutation({
         if (args.rngSeed !== undefined) {
             state.rngSeed = args.rngSeed;
             state.rngCounter = 0;
+        }
+
+        // Seed poison counters (CR 122). A player reaching ten or more loses
+        // the game (CR 704.5c) on the next SBA sweep.
+        if (args.poison) {
+            if (args.poison.me) p1.poisonCounters = args.poison.me;
+            if (args.poison.opp) p2.poisonCounters = args.poison.opp;
         }
 
         await saveGameState(

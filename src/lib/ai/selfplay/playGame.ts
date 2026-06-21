@@ -59,6 +59,7 @@ export type GameEndReason =
     | "decked"
     | "concede"
     | "draw"
+    | "poison"
     | "stall"
     | "max-plies"
     | "resolution-error"

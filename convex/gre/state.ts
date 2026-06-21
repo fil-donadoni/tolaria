@@ -722,6 +722,13 @@ export type PlayerState = {
      *  the player "took no qualifying action last turn", so Arboria forbids
      *  attacks against them until after their next turn. */
     qualifyingActionLastTurn?: boolean;
+    /** Poison counters on this player (CR 122 — counters can sit on players,
+     *  not only objects). Absent means zero; no cap — it can exceed ten. A
+     *  player with ten or more loses the game (CR 704.5c), checked as an SBA
+     *  in `checkGameOverSBA`. Mutated via `SpellContext.addPoisonCounters`.
+     *  Kept as a dedicated scalar rather than an entry in the object
+     *  `counters[type]` map (ADR 0032). */
+    poisonCounters?: number;
 };
 
 export type StackItem = CardInstanceState & {
@@ -1255,7 +1262,7 @@ export type GameState = {
     gameOver?: {
         winnerId: string;
         loserId: string;
-        reason: "life" | "decked" | "concede" | "draw";
+        reason: "life" | "decked" | "concede" | "draw" | "poison";
         /** True when the game ended in a draw (CR 104.4a). No winner, no loser. */
         isDraw?: boolean;
     };
@@ -4316,6 +4323,13 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             });
             if (repl === null) return;
             getPlayer(state, repl.playerId).life -= repl.amount;
+        },
+        addPoisonCounters(playerId: string, n: number) {
+            if (n <= 0) return;
+            // CR 122 — counters on a player. CR 704.5c (lose at ten or more) is
+            // enforced by the SBA, not here, so the field has no cap.
+            const player = getPlayer(state, playerId);
+            player.poisonCounters = (player.poisonCounters ?? 0) + n;
         },
         getLife(playerId: string): number {
             return getPlayer(state, playerId).life;

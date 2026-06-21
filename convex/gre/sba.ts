@@ -28,7 +28,7 @@ export function checkGameOverSBA(state: GameState): boolean {
     if (state.gameOver) return true;
 
     for (const player of state.players) {
-        let reason: "life" | "decked" | null = null;
+        let reason: "life" | "decked" | "poison" | null = null;
 
         if (player.life <= 0) {
             // CR 614 — Lich's "you don't lose the game" replacement can consume
@@ -46,6 +46,20 @@ export function checkGameOverSBA(state: GameState): boolean {
             }
         } else if (player.hasDrawnFromEmpty) {
             reason = "decked";
+        } else if ((player.poisonCounters ?? 0) >= 10) {
+            // CR 704.5c — a player with ten or more poison counters loses the
+            // game. Routed through the same loss-replacement framework as
+            // life-zero (CR 614) so a "you don't lose the game" replacement
+            // can intercept it.
+            const survived =
+                applyLoseGameReplacements(state, {
+                    kind: "lose-game",
+                    playerId: player.id,
+                    reason: "poison",
+                }) === null;
+            if (!survived) {
+                reason = "poison";
+            }
         }
 
         if (reason) {

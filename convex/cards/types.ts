@@ -612,6 +612,11 @@ export interface SpellContext {
     fight: (target: TargetSelection) => void;
     gainLife: (playerId: string, amount: number) => void;
     loseLife: (playerId: string, amount: number) => void;
+    /** Adds `n` poison counters to a player (CR 122 — counters on a player).
+     *  Mutates the dedicated `PlayerState.poisonCounters` scalar (ADR 0032),
+     *  not the object counter map. No cap; a player reaching ten or more loses
+     *  the game (CR 704.5c), enforced as an SBA in `checkGameOverSBA`. */
+    addPoisonCounters: (playerId: string, n: number) => void;
     getLife: (playerId: string) => number;
     getPower: (target: TargetSelection) => number;
     getToughness: (target: TargetSelection) => number;
@@ -2912,8 +2917,9 @@ export interface DiscardReplacementEvent {
 export interface LoseGameReplacementEvent {
     kind: "lose-game";
     playerId: string;
-    /** CR 104 reason. Currently only "life-zero" is intercepted in-engine. */
-    reason: "life-zero";
+    /** CR 104 reason. "life-zero" (CR 704.5a) and "poison" (CR 704.5c) are the
+     *  loss conditions routed through this replacement framework in-engine. */
+    reason: "life-zero" | "poison";
 }
 
 /** Tap event: a permanent about to become tapped (CR 701.20a). Face-down
