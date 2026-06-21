@@ -1,6 +1,6 @@
 import { v, type GenericId } from "convex/values";
 import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
-import type { DataModel, Doc } from "./_generated/dataModel";
+import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { auth, getCurrentUser } from "./auth";
 import { mutation, query } from "./_generated/server";
 import {
@@ -130,7 +130,10 @@ import {
 } from "./gre/pendingChoiceSubmit";
 import { gameBelongsToUser } from "./gameLifecycle";
 import {
+    allSeatsReady,
+    applySideboard,
     botIsChooser,
+    botSeatId,
     buildNextGameSeats,
     findActiveMatchForUser,
     matchBelongsToUser,
@@ -1256,6 +1259,189 @@ export const leaveGame = mutation({
  * no human prompt. If `choice` is omitted (legacy / no recorded chooser) the
  * next Game falls back to the default active player (first seat).
  */
+/**
+ * Build the next Game of an undecided Bo3 Match from the post-sideboard
+ * Maindecks (PRD #387 / #394 / #395). Shared by `continueMatch` (legacy direct
+ * build) and `setReady` (the #395 ready gate). Builds a fresh Game from each
+ * player's CURRENT Match maindeck (20 life, shuffled library, new opening hand,
+ * MULLIGAN), bumps `currentGameNumber`, repoints `currentGameId`, flips the
+ * Match to "playing", and clears the consumed play/draw chooser. The previous
+ * Game's loser's `choice` sets the turn-1 active player (CR 103.4); a vs-AI bot
+ * chooser auto-chooses play. Caller must have verified status === "sideboarding".
+ */
+async function buildNextGameForMatch(
+    ctx: Pick<GenericMutationCtx<DataModel>, "db">,
+    match: Doc<"matches">,
+    nickname: string,
+    choice?: PlayDrawChoice
+): Promise<{ gameId: Id<"games">; gameNumber: number }> {
+    const now = Date.now();
+    const seats = buildNextGameSeats(match);
+    const nextGameNumber = match.currentGameNumber + 1;
+
+    const resolvedChoice: PlayDrawChoice = botIsChooser(match)
+        ? "play"
+        : (choice ?? "play");
+    const activePlayerId = nextGameActivePlayerId(match, resolvedChoice);
+
+    const gameId = await ctx.db.insert("games", {
+        name: match.solo ? `${nickname}'s solo game` : `${nickname}'s game`,
+        matchId: match._id,
+        gameNumber: nextGameNumber,
+        status: "playing",
+        players: seats,
+        solo: match.solo === true ? true : undefined,
+        vsAi: match.vsAi === true ? true : undefined,
+        createdAt: now,
+        updatedAt: now,
+    });
+
+    await ctx.db.patch(match._id, {
+        status: "playing",
+        currentGameNumber: nextGameNumber,
+        currentGameId: gameId,
+        playDrawChooserId: undefined,
+        updatedAt: now,
+    });
+
+    // CR 103: the next Game starts fresh from the post-sideboard maindeck. The
+    // play/draw choice sets the turn-1 active player; the on-the-play skip-first-
+    // draw rule is already correct in the engine (turn === 1, CR 103.8).
+    const initialState = buildInitialGameState(seats, activePlayerId);
+    await saveGameState(ctx, gameId, 0, initialState, null);
+
+    return { gameId, gameNumber: nextGameNumber };
+}
+
+/** Shared seat-ownership check for the sideboarding mutations: a 2-player caller
+ *  may only act on their own seat; a Solo/vs-AI caller owns both seats of the
+ *  Match (they all belong to the single user). */
+function callerOwnsSeat(
+    match: Doc<"matches">,
+    seat: { id: string },
+    userId: string
+): boolean {
+    return (
+        match.solo === true ||
+        seat.id === userId ||
+        seat.id.startsWith(`${userId}-`)
+    );
+}
+
+/**
+ * Submit a player's sideboarding swaps for the between-Games gate (PRD #387 /
+ * #395). Re-partitions the player's Match deck copy via the pure `applySideboard`
+ * helper, which validates the size-lock (Maindeck size unchanged) and the pool
+ * invariant (combined pool unchanged). Edits the MATCH copy only — `userDecks`
+ * is never touched. Submitting does NOT ready the seat; `setReady` is separate,
+ * so a player may revise before confirming.
+ */
+export const submitSideboard = mutation({
+    args: {
+        matchId: v.id("matches"),
+        seatId: v.string(),
+        maindeck: v.array(
+            v.object({ cardId: v.string(), cardName: v.string() })
+        ),
+        sideboard: v.array(
+            v.object({ cardId: v.string(), cardName: v.string() })
+        ),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const match = await ctx.db.get(args.matchId);
+        if (!match) throw new Error("Match not found");
+        if (!matchBelongsToUser(match, user._id))
+            throw new Error("You are not part of this match");
+        if (match.status !== "sideboarding")
+            throw new Error("Match is not in the sideboarding step");
+
+        const seatIdx = match.players.findIndex((p) => p.id === args.seatId);
+        if (seatIdx === -1) throw new Error("Seat not found in this match");
+        const seat = match.players[seatIdx];
+        if (!callerOwnsSeat(match, seat, user._id))
+            throw new Error("You cannot sideboard for that seat");
+
+        // Pure validation + apply (size-lock + pool preservation). Throws on an
+        // illegal swap, rolling the mutation back atomically.
+        const nextDeck = applySideboard(seat.deck, {
+            maindeck: args.maindeck,
+            sideboard: args.sideboard,
+        });
+
+        const players = match.players.map((p, i) =>
+            i === seatIdx ? { ...p, deck: nextDeck } : p
+        );
+        await ctx.db.patch(args.matchId, { players, updatedAt: Date.now() });
+    },
+});
+
+/**
+ * Mark a seat ready in the between-Games gate (PRD #387 / #395). Ready is
+ * required even with no swaps. In vs-AI the bot seat auto-readies (no swaps) the
+ * moment the human readies, so the human is never blocked on it. In Solo the
+ * single human readies each seat in turn on the same client. When every seat is
+ * ready the next Game is built from the post-swap Maindecks via
+ * `buildNextGameForMatch`, with the chooser's `choice` setting the active player
+ * (CR 103.4). Returns `{ gameId }` once built, else `{ gameId: null }` (still
+ * waiting on another seat). Idempotent: once "playing" the next Game is returned.
+ */
+export const setReady = mutation({
+    args: {
+        matchId: v.id("matches"),
+        seatId: v.string(),
+        choice: v.optional(v.union(v.literal("play"), v.literal("draw"))),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const match = await ctx.db.get(args.matchId);
+        if (!match) throw new Error("Match not found");
+        if (!matchBelongsToUser(match, user._id))
+            throw new Error("You are not part of this match");
+
+        // Idempotent on double-click / OCC retry: the next Game already exists.
+        if (match.status === "playing" && match.currentGameId)
+            return { gameId: match.currentGameId };
+        if (match.status !== "sideboarding")
+            throw new Error("Match is not in the sideboarding step");
+
+        const seatIdx = match.players.findIndex((p) => p.id === args.seatId);
+        if (seatIdx === -1) throw new Error("Seat not found in this match");
+        const seat = match.players[seatIdx];
+        if (!callerOwnsSeat(match, seat, user._id))
+            throw new Error("You cannot ready that seat");
+
+        // Ready this seat, and in vs-AI auto-ready the bot (no swaps) so the
+        // human never waits on it (PRD #387 user story 23).
+        const bot = botSeatId(match);
+        const players = match.players.map((p, i) => {
+            if (i === seatIdx) return { ...p, ready: true };
+            if (bot && p.id === bot) return { ...p, ready: true };
+            return p;
+        });
+        await ctx.db.patch(args.matchId, { players, updatedAt: Date.now() });
+
+        if (!allSeatsReady({ players })) return { gameId: null };
+
+        // All seats ready → build the next Game from the post-sideboard decks.
+        const fresh = await ctx.db.get(args.matchId);
+        if (!fresh) throw new Error("Match not found");
+        const { gameId } = await buildNextGameForMatch(
+            ctx,
+            fresh,
+            user.nickname,
+            args.choice
+        );
+        return { gameId };
+    },
+});
+
+/**
+ * Legacy/compat: continue an undecided Bo3 Match straight into its next Game,
+ * applying the play/draw choice but skipping the Sideboarding ready gate (PRD
+ * #387 / #394). The #395 flow goes through `submitSideboard` + `setReady`; this
+ * is retained for idempotency and any caller that bypasses the editor.
+ */
 export const continueMatch = mutation({
     args: {
         matchId: v.id("matches"),
@@ -1268,8 +1454,6 @@ export const continueMatch = mutation({
         if (!matchBelongsToUser(match, user._id))
             throw new Error("You are not part of this match");
 
-        // Idempotent on double-click / OCC retry: once the Match is back to
-        // "playing", the next Game already exists — hand it back as-is.
         if (match.status === "playing" && match.currentGameId) {
             return {
                 gameId: match.currentGameId,
@@ -1279,49 +1463,7 @@ export const continueMatch = mutation({
         if (match.status !== "sideboarding")
             throw new Error("Match is not awaiting the next game");
 
-        const now = Date.now();
-        const seats = buildNextGameSeats(match);
-        const nextGameNumber = match.currentGameNumber + 1;
-
-        // CR 103.4: the previous Game's loser chooses play/draw. The bot, when
-        // it's the chooser, auto-chooses play (#394). A human chooser's decision
-        // arrives in `args.choice`; absent a recorded chooser the resolver falls
-        // back to the default active player.
-        const choice: PlayDrawChoice = botIsChooser(match)
-            ? "play"
-            : (args.choice ?? "play");
-        const activePlayerId = nextGameActivePlayerId(match, choice);
-
-        const gameId = await ctx.db.insert("games", {
-            name: match.solo
-                ? `${user.nickname}'s solo game`
-                : `${user.nickname}'s game`,
-            matchId: args.matchId,
-            gameNumber: nextGameNumber,
-            status: "playing",
-            players: seats,
-            solo: match.solo === true ? true : undefined,
-            vsAi: match.vsAi === true ? true : undefined,
-            createdAt: now,
-            updatedAt: now,
-        });
-
-        await ctx.db.patch(args.matchId, {
-            status: "playing",
-            currentGameNumber: nextGameNumber,
-            currentGameId: gameId,
-            // Clear the chooser now that the choice has been consumed.
-            playDrawChooserId: undefined,
-            updatedAt: now,
-        });
-
-        // CR 103: the next Game starts fresh from the current maindeck. The
-        // play/draw choice sets the turn-1 active player; the on-the-play skip-
-        // first-draw rule is already correct in the engine (turn === 1, CR 103.8).
-        const initialState = buildInitialGameState(seats, activePlayerId);
-        await saveGameState(ctx, gameId, 0, initialState, null);
-
-        return { gameId, gameNumber: nextGameNumber };
+        return buildNextGameForMatch(ctx, match, user.nickname, args.choice);
     },
 });
 

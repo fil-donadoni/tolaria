@@ -2,7 +2,10 @@ import { describe, it, expect } from "vitest";
 import type { Doc, Id } from "../_generated/dataModel";
 import {
     ACTIVE_MATCH_STATUSES,
+    allSeatsReady,
+    applySideboard,
     botIsChooser,
+    botSeatId,
     buildNextGameSeats,
     gamesToWin,
     isBotSeat,
@@ -12,6 +15,7 @@ import {
     recordGameResult,
     snapshotDeck,
     type MatchCore,
+    type MatchDeck,
     type MatchPlayer,
 } from "../matches";
 
@@ -400,5 +404,249 @@ describe("Bo3 Match plays to two wins (PRD #387 — integration)", () => {
         // continueMatch forces "play" for the bot even if "draw" is requested.
         const cont = continueToNextGame(m, "draw");
         expect(cont.activePlayerId).toBe("u1-p2");
+    });
+});
+
+// --- Sideboarding step + ready gate (issue #395) --------------------------
+//
+// `applySideboard` is the pure heart of the Sideboarding step: it re-partitions
+// a player's Match deck copy under two invariants (size-lock + pool
+// preservation) and rejects any illegal swap. The mutations (`submitSideboard` /
+// `setReady`) are thin wrappers — these tests drive the same pure function they
+// call, plus the readiness predicates, then an end-to-end "play a Game →
+// sideboard → ready → next Game library reflects the new Maindeck" integration.
+
+function deck(
+    maindeck: { cardId: string; cardName: string }[],
+    sideboard: { cardId: string; cardName: string }[] = []
+): MatchDeck {
+    return snapshotDeck({
+        id: "d",
+        name: "Deck",
+        format: "vintage",
+        maindeck,
+        sideboard,
+    });
+}
+
+const C = (id: string) => ({ cardId: id, cardName: id });
+
+describe("applySideboard — size-lock + pool preservation (issue #395)", () => {
+    it("applies a valid swap (one card main↔side) and keeps the deck copy", () => {
+        const d = deck([C("a"), C("b")], [C("x")]);
+        // Swap: b → sideboard, x → maindeck. Maindeck stays size 2.
+        const next = applySideboard(d, {
+            maindeck: [C("a"), C("x")],
+            sideboard: [C("b")],
+        });
+        expect(next.maindeck.map((c) => c.cardId).sort()).toEqual(["a", "x"]);
+        expect(next.sideboard.map((c) => c.cardId)).toEqual(["b"]);
+        // Defensive copies — the returned deck owns its own arrays.
+        expect(next.maindeck).not.toBe(d.maindeck);
+        // Metadata carried over unchanged.
+        expect(next.id).toBe("d");
+        expect(next.format).toBe("vintage");
+    });
+
+    it("a no-op (no swaps) is valid and returns the same partition", () => {
+        const d = deck([C("a"), C("b")], [C("x")]);
+        const next = applySideboard(d, {
+            maindeck: [C("a"), C("b")],
+            sideboard: [C("x")],
+        });
+        expect(next.maindeck.map((c) => c.cardId)).toEqual(["a", "b"]);
+        expect(next.sideboard.map((c) => c.cardId)).toEqual(["x"]);
+    });
+
+    it("rejects a size-lock violation (Maindeck shrinks)", () => {
+        const d = deck([C("a"), C("b")], [C("x")]);
+        // Moved b to side without bringing anything back → maindeck size 1 ≠ 2.
+        expect(() =>
+            applySideboard(d, {
+                maindeck: [C("a")],
+                sideboard: [C("b"), C("x")],
+            })
+        ).toThrow(/locked/i);
+    });
+
+    it("rejects a size-lock violation (Maindeck grows)", () => {
+        const d = deck([C("a"), C("b")], [C("x")]);
+        expect(() =>
+            applySideboard(d, {
+                maindeck: [C("a"), C("b"), C("x")],
+                sideboard: [],
+            })
+        ).toThrow(/locked/i);
+    });
+
+    it("rejects a pool violation (a card appears that wasn't in the pool)", () => {
+        const d = deck([C("a"), C("b")], [C("x")]);
+        // Same size (2) but the pool now contains a phantom "z" and drops "x".
+        expect(() =>
+            applySideboard(d, {
+                maindeck: [C("a"), C("z")],
+                sideboard: [C("b")],
+            })
+        ).toThrow(/pool/i);
+    });
+
+    it("preserves the combined pool across a valid swap (multiset unchanged)", () => {
+        const d = deck([C("a"), C("a"), C("b")], [C("x"), C("y")]);
+        const next = applySideboard(d, {
+            // Swap both a's out for x and y; size stays 3.
+            maindeck: [C("b"), C("x"), C("y")],
+            sideboard: [C("a"), C("a")],
+        });
+        const pool = [...next.maindeck, ...next.sideboard]
+            .map((c) => c.cardId)
+            .sort();
+        expect(pool).toEqual(["a", "a", "b", "x", "y"]);
+    });
+});
+
+describe("allSeatsReady / botSeatId (ready gate, issue #395)", () => {
+    it("the gate opens only once every seat is ready", () => {
+        expect(
+            allSeatsReady({ players: [{ ready: true }, { ready: false }] })
+        ).toBe(false);
+        expect(
+            allSeatsReady({ players: [{ ready: true }, { ready: true }] })
+        ).toBe(true);
+        // an empty Match never readies
+        expect(allSeatsReady({ players: [] })).toBe(false);
+    });
+
+    it("the bot seat is the vs-AI `-p2` seat, null otherwise", () => {
+        expect(
+            botSeatId({ vsAi: true, players: [{ id: "u-p1" }, { id: "u-p2" }] })
+        ).toBe("u-p2");
+        // not vs-AI → no bot seat even with a `-p2` seat (solo human/human)
+        expect(
+            botSeatId({
+                vsAi: false,
+                players: [{ id: "u-p1" }, { id: "u-p2" }],
+            })
+        ).toBeNull();
+    });
+});
+
+// --- Integration: play → sideboard → ready → next Game (issue #395) --------
+//
+// Mirrors the `submitSideboard` + `setReady` mutations over a mutable Match:
+// after Game 1 the Match is "sideboarding"; the loser swaps a Sideboard card
+// into their Maindeck (`applySideboard`); both seats ready (`allSeatsReady`);
+// the next Game is built from the POST-SWAP Maindeck. Asserts the next Game's
+// library (`buildNextGameSeats` → `deck.cards`) reflects the new Maindeck.
+
+/** Mirror `submitSideboard`: validate + persist the seat's new deck copy. */
+function submit(
+    m: MatchCore,
+    seatId: string,
+    next: {
+        maindeck: { cardId: string; cardName: string }[];
+        sideboard: { cardId: string; cardName: string }[];
+    }
+): MatchCore {
+    const players = m.players.map((p) =>
+        p.id === seatId ? { ...p, deck: applySideboard(p.deck, next) } : p
+    );
+    return { ...m, players };
+}
+
+/** Mirror `setReady`: ready a seat (auto-ready the bot in vs-AI). */
+function ready(m: MatchCore, seatId: string): MatchCore {
+    const bot = botSeatId(m);
+    const players = m.players.map((p) => {
+        if (p.id === seatId) return { ...p, ready: true };
+        if (bot && p.id === bot) return { ...p, ready: true };
+        return p;
+    });
+    return { ...m, players };
+}
+
+describe("Sideboarding integration: next Game library reflects the swap (#395)", () => {
+    it("a swapped-in Sideboard card appears in the next Game's library", () => {
+        // Game 1: A wins → Match routes to sideboarding, both ready reset.
+        let m = match(3, [
+            { ...player("a"), deck: deck([C("a1"), C("a2")], [C("aS")]) },
+            { ...player("b"), deck: deck([C("b1"), C("b2")], [C("bS")]) },
+        ]);
+        m = { ...m, ...recordGameResult(m, "a")! };
+        expect(m.status).toBe("sideboarding");
+        expect(m.players.every((p) => p.ready === false)).toBe(true);
+
+        // B (the loser/chooser) swaps b2 OUT and brings bS IN (size stays 2).
+        m = submit(m, "b", {
+            maindeck: [C("b1"), C("bS")],
+            sideboard: [C("b2")],
+        });
+        // A leaves their deck unchanged but must still ready.
+        m = submit(m, "a", {
+            maindeck: [C("a1"), C("a2")],
+            sideboard: [C("aS")],
+        });
+
+        // Ready B then A; the gate only opens once both are ready.
+        m = ready(m, "b");
+        expect(allSeatsReady(m)).toBe(false);
+        m = ready(m, "a");
+        expect(allSeatsReady(m)).toBe(true);
+
+        // Build the next Game from the post-swap Maindecks.
+        const seats = buildNextGameSeats(m);
+        const bSeat = seats.find((s) => s.id === "b")!;
+        const bLibrary = bSeat.deck.cards.map((c) => c.cardId).sort();
+        // bS swapped in, b2 swapped out.
+        expect(bLibrary).toEqual(["b1", "bS"]);
+        // A's library is unchanged.
+        const aSeat = seats.find((s) => s.id === "a")!;
+        expect(aSeat.deck.cards.map((c) => c.cardId).sort()).toEqual([
+            "a1",
+            "a2",
+        ]);
+    });
+
+    it("vs-AI: the human readies once and the bot auto-readies → gate opens", () => {
+        let m: MatchCore = {
+            ...match(3, [
+                {
+                    ...player("u-p1"),
+                    deck: deck([C("h1"), C("h2")], [C("hS")]),
+                },
+                { ...player("u-p2"), deck: deck([C("ai1"), C("ai2")]) },
+            ]),
+            vsAi: true,
+        };
+        m = { ...m, ...recordGameResult(m, "u-p1")! };
+        expect(m.status).toBe("sideboarding");
+
+        // The human swaps; the bot makes no swaps.
+        m = submit(m, "u-p1", {
+            maindeck: [C("h1"), C("hS")],
+            sideboard: [C("h2")],
+        });
+        // Human readies → the bot is auto-readied in the same step → gate opens.
+        m = ready(m, "u-p1");
+        expect(allSeatsReady(m)).toBe(true);
+
+        const seats = buildNextGameSeats(m);
+        expect(
+            seats
+                .find((s) => s.id === "u-p1")!
+                .deck.cards.map((c) => c.cardId)
+                .sort()
+        ).toEqual(["h1", "hS"]);
+    });
+
+    it("swaps mutate the Match deck copy only (snapshot independence)", () => {
+        // The Match deck is a snapshot; `applySideboard` returns a NEW deck and
+        // never mutates the input — modelling the `userDecks` row staying intact.
+        const original = deck([C("a"), C("b")], [C("x")]);
+        const before = JSON.stringify(original);
+        applySideboard(original, {
+            maindeck: [C("a"), C("x")],
+            sideboard: [C("b")],
+        });
+        expect(JSON.stringify(original)).toBe(before);
     });
 });
