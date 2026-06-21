@@ -11,9 +11,12 @@ import {
     getAbilityOracleText,
     getDisplayAbilities,
     resolvePreviewAbilities,
+    getManaChoices,
+    hasManaAbility,
     type DisplayAbilities,
 } from "../card-utils";
 import type { CardInstance } from "~/types/game";
+import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
 
 // Real card ids from convex/cards/sets/lea.ts, used to exercise the
 // definition-vs-instance keyword diff in getDisplayAbilities (#156).
@@ -852,5 +855,94 @@ describe("matchesPermanentFilter (client mirror — colors + tapped)", () => {
                 excludeAbility: "flying",
             })
         ).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getManaChoices — board-conditional choosers (Fellwar Stone, #420). The client
+// runs the SAME getManaChoices resolver the server validates against, so the
+// picker the player sees matches the index the server reads (CR 106.1).
+// ---------------------------------------------------------------------------
+
+const FOREST_ID = "6f1c8cb0-38eb-408b-94e8-16db83999b3b";
+const ISLAND_ID = "90a57c0e-fa61-45ef-955d-d296403967d5";
+
+describe("getManaChoices — Fellwar Stone (board-conditional)", () => {
+    function land(id: string, controllerId: string): CardInstance {
+        return makeCardInstance({
+            id: `${id}-${controllerId}`,
+            card: { id },
+            controllerId,
+            ownerId: controllerId,
+            types: ["Land"],
+            subtypes: id === FOREST_ID ? ["Forest"] : ["Island"],
+        });
+    }
+
+    it("derives the picker colours from the opponent's lands", () => {
+        const rock = makeCardInstance({
+            id: "fs1",
+            card: { id: fellwarStone.id },
+            controllerId: "p1",
+            types: ["Artifact"],
+            subtypes: [],
+        });
+        const players = [
+            { id: "p1", battlefield: [rock] },
+            {
+                id: "p2",
+                battlefield: [land(FOREST_ID, "p2"), land(ISLAND_ID, "p2")],
+            },
+        ];
+        expect(getManaChoices(rock, players)).toEqual([{ U: 1 }, { G: 1 }]);
+    });
+
+    it("returns the static fallback (any colour) when no players passed", () => {
+        const rock = makeCardInstance({
+            id: "fs2",
+            card: { id: fellwarStone.id },
+            controllerId: "p1",
+            types: ["Artifact"],
+            subtypes: [],
+        });
+        // Without a board snapshot the client falls back to the static list.
+        expect(getManaChoices(rock)).toEqual([
+            { W: 1 },
+            { U: 1 },
+            { B: 1 },
+            { R: 1 },
+            { G: 1 },
+        ]);
+    });
+
+    it("hasManaAbility recognises the dynamic chooser and the sacrifice mana ability", () => {
+        const rock = makeCardInstance({
+            id: "fs3",
+            card: { id: fellwarStone.id },
+            controllerId: "p1",
+            types: ["Artifact"],
+            subtypes: [],
+        });
+        expect(hasManaAbility(rock)).toBe(true);
+        const gt = makeCardInstance({
+            id: "gt1",
+            card: { id: gaeasTouch.id },
+            controllerId: "p1",
+            types: ["Enchantment"],
+            subtypes: [],
+        });
+        // Gaea's Touch has a sacrifice-for-{G}{G} mana ability.
+        expect(hasManaAbility(gt)).toBe(true);
+    });
+
+    it("Deep Water exposes no tap mana ability (its ability uses the stack)", () => {
+        const dw = makeCardInstance({
+            id: "dw1",
+            card: { id: deepWater.id },
+            controllerId: "p1",
+            types: ["Enchantment"],
+            subtypes: [],
+        });
+        expect(getManaChoices(dw)).toBeNull();
     });
 });

@@ -95,10 +95,12 @@ import {
 import type { Phase } from "./gre/types";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
+    applyLandManaReplacement,
     getActivatedManaAbility,
     getActivatedManaColor,
     getActivatedManaRestriction,
     getDynamicManaProduced,
+    getEffectiveManaChoices,
     getFixedManaAmount,
     hasManaAbility,
     isTapLockedBySummoningSickness,
@@ -301,12 +303,32 @@ export function tapSourceIntoPayment(
     }
     const ability = getActivatedManaAbility(card);
 
-    if (ability?.manaChoices) {
+    if (ability?.manaChoices || ability?.getManaChoices) {
         if (manaChoiceIndex === undefined) {
             throw new Error("Must choose a mana color");
         }
-        const chosen = ability.manaChoices[manaChoiceIndex];
-        if (!chosen) throw new Error("Invalid mana choice");
+        // CR 106.1 — resolve the effective choice list (board-conditional
+        // `getManaChoices`, e.g. Fellwar Stone, takes precedence over the static
+        // `manaChoices`) so the index the client submitted indexes the same list.
+        const choices = getEffectiveManaChoices(
+            card,
+            player.id,
+            state.players.map((p) => ({
+                playerId: p.id,
+                battlefield: p.battlefield,
+            }))
+        );
+        const rawChosen = choices?.[manaChoiceIndex];
+        if (!rawChosen) throw new Error("Invalid mana choice");
+        // CR 614 — Deep Water rewrites a land's produced mana to {U} before it
+        // reaches the pool, so the event and refund snapshot the {U} actually
+        // added (no-op for non-lands / players without the effect).
+        const chosen = applyLandManaReplacement(
+            state,
+            player.id,
+            card,
+            rawChosen
+        );
 
         const isSacrifice = ability.cost.sacrifice === true;
         // CR 605.2 — emit "tapped for mana" before the sacrifice path moves
@@ -335,11 +357,23 @@ export function tapSourceIntoPayment(
     // the controller's battlefield now and snapshotted onto `chosenMana` so the
     // untap/refund path returns the exact amount that was added.
     const amount = getFixedManaAmount(card, manaColor, player.battlefield);
-    if (getDynamicManaProduced(card, player.battlefield)) {
-        card.chosenMana = { [manaColor]: amount } as ManaCost;
+    // CR 614 — Deep Water rewrites a land's produced mana to {U} (no-op for
+    // non-lands / unaffected players).
+    const added = applyLandManaReplacement(state, player.id, card, {
+        [manaColor]: amount,
+    } as ManaCost);
+    if (
+        getDynamicManaProduced(card, player.battlefield) ||
+        added[manaColor] === undefined
+    ) {
+        card.chosenMana = added;
     }
-    player.manaPool[manaColor] = (player.manaPool[manaColor] ?? 0) + amount;
-    emitPermanentTapped(state, card, true, { [manaColor]: amount } as ManaCost);
+    for (const [color, count] of Object.entries(added)) {
+        if (color !== "X" && typeof count === "number" && count > 0) {
+            player.manaPool[color] = (player.manaPool[color] ?? 0) + count;
+        }
+    }
+    emitPermanentTapped(state, card, true, added);
     tappedLandIds.push(card.id);
 }
 
@@ -1871,13 +1905,31 @@ export const tapForPayment = mutation({
 
         const ability = getActivatedManaAbility(card);
 
-        if (ability?.manaChoices) {
-            // Choice-based source (dual lands, Birds of Paradise, Black Lotus).
+        if (ability?.manaChoices || ability?.getManaChoices) {
+            // Choice-based source (dual lands, Birds of Paradise, Black Lotus,
+            // or a board-conditional chooser like Fellwar Stone).
             if (args.manaChoiceIndex === undefined) {
                 throw new Error("Must choose a mana color");
             }
-            const chosen = ability.manaChoices[args.manaChoiceIndex];
-            if (!chosen) throw new Error("Invalid mana choice");
+            // CR 106.1 — board-conditional `getManaChoices` takes precedence so
+            // the client and server reference the same option list/index.
+            const choices = getEffectiveManaChoices(
+                card,
+                player.id,
+                state.players.map((p) => ({
+                    playerId: p.id,
+                    battlefield: p.battlefield,
+                }))
+            );
+            const rawChosen = choices?.[args.manaChoiceIndex];
+            if (!rawChosen) throw new Error("Invalid mana choice");
+            // CR 614 — Deep Water rewrites a land's produced mana to {U}.
+            const chosen = applyLandManaReplacement(
+                state,
+                player.id,
+                card,
+                rawChosen
+            );
 
             const isSacrifice = ability.cost.sacrifice === true;
             // CR 605.2 — emit "tapped for mana" before any sacrifice path
@@ -1914,14 +1966,23 @@ export const tapForPayment = mutation({
                 manaColor,
                 player.battlefield
             );
-            if (getDynamicManaProduced(card, player.battlefield)) {
-                card.chosenMana = { [manaColor]: amount } as ManaCost;
-            }
-            player.manaPool[manaColor] =
-                (player.manaPool[manaColor] ?? 0) + amount;
-            emitPermanentTapped(state, card, true, {
+            // CR 614 — Deep Water rewrites a land's produced mana to {U}.
+            const added = applyLandManaReplacement(state, player.id, card, {
                 [manaColor]: amount,
             } as ManaCost);
+            if (
+                getDynamicManaProduced(card, player.battlefield) ||
+                added[manaColor] === undefined
+            ) {
+                card.chosenMana = added;
+            }
+            for (const [color, count] of Object.entries(added)) {
+                if (color !== "X" && typeof count === "number" && count > 0) {
+                    player.manaPool[color] =
+                        (player.manaPool[color] ?? 0) + count;
+                }
+            }
+            emitPermanentTapped(state, card, true, added);
             state.pendingCast.tappedLandIds.push(card.id);
         }
 
@@ -4412,14 +4473,31 @@ export const tapUntap = mutation({
         let producedThisActivation: ManaCost | undefined;
 
         // Determine mana to add/remove
-        if (ability?.manaChoices) {
-            // Choice-based mana ability (e.g. Birds of Paradise, Black Lotus)
+        if (ability?.manaChoices || ability?.getManaChoices) {
+            // Choice-based mana ability (e.g. Birds of Paradise, Black Lotus,
+            // or board-conditional Fellwar Stone)
             if (!wasTapped) {
                 if (args.manaChoiceIndex === undefined) {
                     throw new Error("Must choose a mana color");
                 }
-                const chosen = ability.manaChoices[args.manaChoiceIndex];
-                if (!chosen) throw new Error("Invalid mana choice");
+                // CR 106.1 — board-conditional `getManaChoices` takes precedence.
+                const choices = getEffectiveManaChoices(
+                    card,
+                    player.id,
+                    state.players.map((p) => ({
+                        playerId: p.id,
+                        battlefield: p.battlefield,
+                    }))
+                );
+                const rawChosen = choices?.[args.manaChoiceIndex];
+                if (!rawChosen) throw new Error("Invalid mana choice");
+                // CR 614 — Deep Water rewrites a land's produced mana to {U}.
+                const chosen = applyLandManaReplacement(
+                    state,
+                    player.id,
+                    card,
+                    rawChosen
+                );
 
                 // CR 605.2 — emit before any sacrifice path moves the card off
                 // the battlefield, so the event still carries the source's
@@ -4536,14 +4614,34 @@ export const tapUntap = mutation({
                             remaining.length > 0 ? remaining : undefined;
                     }
                 } else if (!wasTapped) {
-                    if (isDynamic) {
-                        card.chosenMana = { [manaColor]: amount } as ManaCost;
+                    // CR 614 — Deep Water rewrites a land's produced mana to
+                    // {U}. When the colour is rewritten we must snapshot
+                    // `chosenMana` so the untap path refunds the {U} actually
+                    // added rather than the land's native colour.
+                    const added = applyLandManaReplacement(
+                        state,
+                        player.id,
+                        card,
+                        {
+                            [manaColor]: amount,
+                        } as ManaCost
+                    );
+                    const replaced = added[manaColor] === undefined;
+                    if (isDynamic || replaced) {
+                        card.chosenMana = added;
                     }
-                    player.manaPool[manaColor] =
-                        (player.manaPool[manaColor] ?? 0) + amount;
-                    producedThisActivation = {
-                        [manaColor]: amount,
-                    } as ManaCost;
+                    for (const [color, count] of Object.entries(added)) {
+                        if (
+                            color !== "X" &&
+                            typeof count === "number" &&
+                            count > 0
+                        ) {
+                            const key = color as keyof typeof player.manaPool;
+                            player.manaPool[key] =
+                                (player.manaPool[key] ?? 0) + count;
+                        }
+                    }
+                    producedThisActivation = added;
                     emitPermanentTapped(
                         state,
                         card,
@@ -4551,9 +4649,29 @@ export const tapUntap = mutation({
                         producedThisActivation
                     );
                 } else {
-                    player.manaPool[manaColor] =
-                        (player.manaPool[manaColor] ?? 0) - amount;
-                    if (isDynamic) card.chosenMana = undefined;
+                    // Untap refund: prefer the snapshotted `chosenMana` (set
+                    // when the output was dynamic or rewritten by Deep Water),
+                    // else refund the land's native colour.
+                    const refund =
+                        card.chosenMana ??
+                        ({
+                            [manaColor]: amount,
+                        } as ManaCost);
+                    for (const [color, count] of Object.entries(refund)) {
+                        if (
+                            color !== "X" &&
+                            typeof count === "number" &&
+                            count > 0
+                        ) {
+                            const key = color as keyof typeof player.manaPool;
+                            player.manaPool[key] = Math.max(
+                                0,
+                                (player.manaPool[key] ?? 0) - count
+                            );
+                        }
+                    }
+                    if (isDynamic || card.chosenMana)
+                        card.chosenMana = undefined;
                 }
             }
         }

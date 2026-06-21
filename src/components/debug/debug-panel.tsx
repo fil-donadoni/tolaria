@@ -68,6 +68,32 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // C3 mana-production lookup / replacement (#420). Three rocks/enchantments
+        // that read or rewrite mana production:
+        //   • Fellwar Stone — {T}: tap it and the colour picker offers exactly
+        //     the colours the OPPONENT's lands could produce (here a Plains +
+        //     Island → {W} or {U}). Add a Forest to the opponent's side to see
+        //     {G} appear.
+        //   • Deep Water — {U}: until end of turn, tapping any of YOUR lands for
+        //     mana yields {U} instead (tap a Forest after activating → {U}).
+        //   • Gaea's Touch — {0} once per turn at sorcery speed: put the basic
+        //     Forest from hand onto the battlefield; or sacrifice it for {G}{G}.
+        label: "C3: Fellwar Stone / Deep Water / Gaea's Touch (#420)",
+        cards: [
+            { name: "Fellwar Stone", owner: "me" as const },
+            { name: "Deep Water", owner: "me" as const },
+            { name: "Gaea's Touch", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 3 },
+            { name: "Island", owner: "me" as const, count: 2 },
+            { name: "Forest", owner: "me" as const, zone: "hand" as const },
+            // Opponent's mana base — drives Fellwar Stone's colour picker.
+            { name: "Plains", owner: "opp" as const, count: 2 },
+            { name: "Island", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // C8 cast-tax World enchantment — Nether Void (#385). The lock sits on
         // the battlefield; every spell cast by EITHER player triggers
         // "counter it unless that player pays {3}":

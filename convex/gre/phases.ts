@@ -1787,6 +1787,10 @@ function tickAllDurations(state: GameState): void {
     if (state.damageCapShields) {
         state.damageCapShields = undefined;
     }
+    // CR 514.2 — Deep Water's "until end of turn" land-mana replacement expires.
+    if (state.landManaReplacedToBlueThisTurn) {
+        state.landManaReplacedToBlueThisTurn = undefined;
+    }
     if (state.allCreaturesMustAttack) {
         state.allCreaturesMustAttack = undefined;
     }

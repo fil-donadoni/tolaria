@@ -2465,3 +2465,161 @@ export const bloodMoon: CardDefinition = {
 //     (the `does-not-untap` keyword is unconditional; `keyword-grant` applies
 //     once at attach, not per-step). Both are unbuilt; defer the whole card.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C3 — Mana-production lookup / replacement (#420). Three cards that read or
+// rewrite mana production rather than producing fixed mana. They reuse the
+// existing mana-ability machinery generalized along two new, orthogonal axes:
+//   • board-conditional mana CHOICES (`getManaChoices`) — the choice analog of
+//     the shipped board-conditional `manaAmount` (Urza lands). Fellwar Stone.
+//   • a per-turn land-mana TYPE replacement (`replaceLandManaWithBlue`, CR 614)
+//     funnelled through the single `applyLandManaReplacement` hook every tap
+//     path already routes its produced mana through. Deep Water.
+//   • a generic hand → battlefield zone move (`putFromHandOntoBattlefield`,
+//     CR 400.7), mirroring `putFromLibraryOntoBattlefield`. Gaea's Touch.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Fellwar Stone — "{T}: Add one mana of any color that a land an opponent
+// controls could produce." (CR 605.1a mana ability; CR 106.4 "could produce".
+// The colour set is board-conditional, so the ability declares a
+// `getManaChoices` hook — the choice analog of the Urza lands' `manaAmount` —
+// that reads every opponent's lands' producible colours at activation time. The
+// static `manaChoices` is the representative / fallback list for best-effort
+// callers without a board snapshot (affordability, autoTap).)
+export const fellwarStone: CardDefinition = {
+    id: "6722c0e0-13c7-5a24-bd60-f89836d48ef9",
+    name: "Fellwar Stone",
+    oracleText:
+        "{T}: Add one mana of any color that a land an opponent controls could produce.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "fellwar-stone-mana",
+            oracleText:
+                "{T}: Add one mana of any color that a land an opponent controls could produce.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ W: 1 }),
+            // Fallback / representative options (any single colour). The engine
+            // overrides this with `getManaChoices` when a board snapshot exists.
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
+            // CR 106.4 — "any color a land an opponent controls could produce":
+            // union the producible colours of every LAND controlled by a player
+            // other than Fellwar Stone's controller, then offer one mana of each.
+            // `producibleColors` is precomputed by the engine (colourless {C}
+            // already excluded — CR 202.2). Empty when no opponent controls a
+            // colour-producing land (the ability is still activatable per
+            // CR 605.1a, but yields no legal choice).
+            getManaChoices: (_source, controllerId, battlefields) => {
+                const colors = new Set<Color>();
+                for (const { playerId, permanents } of battlefields) {
+                    if (playerId === controllerId) continue;
+                    for (const { permanent, producibleColors } of permanents) {
+                        if (!permanent.types.includes("Land")) continue;
+                        for (const c of producibleColors) colors.add(c);
+                    }
+                }
+                return (["W", "U", "B", "R", "G"] as const)
+                    .filter((c) => colors.has(c))
+                    .map((c) => ({ [c]: 1 }) as ManaCost);
+            },
+        },
+    ],
+};
+
+// Deep Water — "{U}: Until end of turn, if you tap a land you control for mana,
+// it produces {U} instead of any other type." (CR 605 activated ability that
+// resolves on the stack; CR 614 self-replacement of the mana TYPE — the same
+// total quantity is produced, only the colour becomes {U}. The replacement is a
+// per-turn, controller-scoped flag (`replaceLandManaWithBlue`) consumed by the
+// engine's single `applyLandManaReplacement` mana funnel; expires at CLEANUP,
+// CR 514.2.)
+export const deepWater: CardDefinition = {
+    id: "22fc22cd-5b76-5f93-bbb2-e15af8c0768b",
+    name: "Deep Water",
+    oracleText:
+        "{U}: Until end of turn, if you tap a land you control for mana, it produces {U} instead of any other type.",
+    manaCost: { U: 2 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "deep-water-replace",
+            oracleText:
+                "{U}: Until end of turn, if you tap a land you control for mana, it produces {U} instead of any other type.",
+            cost: { mana: { U: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                // CR 614 — arm the controller's land-mana → {U} replacement for
+                // the rest of the turn.
+                ctx.replaceLandManaWithBlue(ctx.controller);
+            },
+        },
+    ],
+};
+
+// Gaea's Touch — "{0}: You may put a basic Forest card from your hand onto the
+// battlefield. Activate only as a sorcery and only once each turn.\nSacrifice
+// this enchantment: Add {G}{G}." (CR 605: the first ability uses the stack —
+// "as a sorcery" timing (CR 605.3b is for mana abilities; this is the
+// sorcery-speed gate: own main phase, empty stack, `controllerTurnOnly` +
+// `activationPhaseRestriction`) and `oncePerTurn`; CR 400.7 hand → battlefield
+// via `putFromHandOntoBattlefield`. The second is a mana ability with a
+// sacrifice cost, CR 605.1a.)
+export const gaeasTouch: CardDefinition = {
+    id: "766b09da-d1e1-568c-a543-88fc63f61896",
+    name: "Gaea's Touch",
+    oracleText:
+        "{0}: You may put a basic Forest card from your hand onto the battlefield. Activate only as a sorcery and only once each turn.\nSacrifice this enchantment: Add {G}{G}.",
+    manaCost: { G: 2 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "gaeas-touch-forest",
+            oracleText:
+                "{0}: You may put a basic Forest card from your hand onto the battlefield. Activate only as a sorcery and only once each turn.",
+            cost: {},
+            useStack: true,
+            // CR 605.3b sorcery-speed gate: own main phase, empty stack, and
+            // once per turn.
+            controllerTurnOnly: true,
+            activationPhaseRestriction: ["PRECOMBAT_MAIN", "POSTCOMBAT_MAIN"],
+            oncePerTurn: true,
+            resolve: (ctx: SpellContext) => {
+                // CR 205.4a / 305.6 — restrict the optional pick to basic Forest
+                // cards currently in the controller's hand.
+                const candidateIds = ctx
+                    .getHandCards(ctx.controller)
+                    .filter(
+                        (c) =>
+                            c.supertypes.includes("Basic") &&
+                            c.subtypes.includes("Forest")
+                    )
+                    .map((c) => c.id);
+                if (candidateIds.length === 0) return;
+                const picks = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: "gaeas-touch-forest",
+                    kind: "choose-hand-card",
+                    zone: "hand",
+                    candidateIds,
+                    // "You MAY put" (CR 601.3e) — an optional 0-or-1 pick.
+                    count: { min: 0, max: 1 },
+                    prompt: "You may put a basic Forest from your hand onto the battlefield.",
+                });
+                if (picks === undefined) return; // suspended
+                const id = picks[0];
+                if (!id) return; // declined
+                ctx.putFromHandOntoBattlefield(ctx.controller, id);
+            },
+        },
+        {
+            id: "gaeas-touch-sacrifice-mana",
+            oracleText: "Sacrifice this enchantment: Add {G}{G}.",
+            cost: { sacrifice: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ G: 2 }),
+            manaProduced: { G: 2 },
+        },
+    ],
+};
