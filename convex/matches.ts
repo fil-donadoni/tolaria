@@ -1,0 +1,285 @@
+import { v } from "convex/values";
+import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
+import type { DataModel, Doc, Id } from "./_generated/dataModel";
+import { auth } from "./auth";
+import { query } from "./_generated/server";
+
+// ---------------------------------------------------------------------------
+// Match orchestration (ADR 0029 / PRD #387). A Match is a best-of-N set of
+// Games. Issue #392 ships the Bo1 spine: every create/join/solo path now wraps
+// its single Game in a `bestOf: 1` Match. The Match owns the cross-game state
+// (score, deck copies, ready flags, play/draw chooser); the GRE and the per-
+// Game logic are unchanged.
+//
+// The non-trivial transitions live here as PURE functions over plain
+// Match-shaped data so they can be unit-tested without a Convex `ctx` (the
+// project has no convex-test harness — integration tests drive the same pure
+// functions the mutations call). The Convex mutations in `game.ts` call these
+// and persist the result.
+// ---------------------------------------------------------------------------
+
+/** A card entry in a deck (maindeck or sideboard). */
+export type DeckCard = { cardId: string; cardName: string };
+
+/** The mutable Match-scoped deck copy. Sideboarding edits this; `userDecks`
+ *  is read-only for the Match's duration. Each Game's library is built from
+ *  `maindeck` as of that Game's start. */
+export type MatchDeck = {
+    id: string;
+    name: string;
+    format: string;
+    maindeck: DeckCard[];
+    sideboard: DeckCard[];
+};
+
+export type MatchPlayer = {
+    id: string;
+    name: string;
+    bgColor: string;
+    deck: MatchDeck;
+    score: number;
+    ready: boolean;
+};
+
+export type MatchStatus = "waiting" | "playing" | "sideboarding" | "finished";
+
+/** The mutable subset of a `matches` row the pure transitions operate on. */
+export type MatchCore = {
+    bestOf: 1 | 3;
+    status: MatchStatus;
+    players: MatchPlayer[];
+    currentGameNumber: number;
+    currentGameId?: Id<"games">;
+    playDrawChooserId?: string;
+    winner?: string;
+};
+
+/** Games a player must win to take the Match: 1 for Bo1, 2 for Bo3 (CR 100.6).
+ *  General formula for best-of-N: ceil(N/2) = floor(N/2)+1. */
+export function gamesToWin(bestOf: 1 | 3): number {
+    return Math.floor(bestOf / 2) + 1;
+}
+
+/** Builds the Match-scoped deck copy from a lobby deck payload. Snapshotted at
+ *  Match creation so later edits to `userDecks` don't bleed into the Match. */
+export function snapshotDeck(input: {
+    id: string;
+    name: string;
+    format: string;
+    maindeck: DeckCard[];
+    sideboard?: DeckCard[];
+}): MatchDeck {
+    return {
+        id: input.id,
+        name: input.name,
+        format: input.format,
+        // Defensive copies so the Match owns its own arrays.
+        maindeck: input.maindeck.map((c) => ({ ...c })),
+        sideboard: (input.sideboard ?? []).map((c) => ({ ...c })),
+    };
+}
+
+/**
+ * Record the result of a finished Game into its Match (PRD #387). Pure: returns
+ * the patch to apply to the Match row, or `null` when there's nothing to do
+ * (no winner — e.g. a draw — leaves the Match untouched for this slice).
+ *
+ * - Bumps the winner's `score`.
+ * - If a player reached games-to-win → `status: "finished"`, set `winner`.
+ * - Otherwise (Bo3 mid-match) → `status: "sideboarding"`, reset both `ready`
+ *   flags, set `playDrawChooserId` to the Game's loser. (Sideboarding/next-Game
+ *   build is a later slice; the Bo1 spine never reaches this branch.)
+ */
+export function recordGameResult(
+    match: MatchCore,
+    winnerId: string
+): Partial<MatchCore> | null {
+    const winnerIdx = match.players.findIndex((p) => p.id === winnerId);
+    if (winnerIdx === -1) return null;
+
+    const players = match.players.map((p, i) =>
+        i === winnerIdx ? { ...p, score: p.score + 1 } : { ...p }
+    );
+    const newScore = players[winnerIdx].score;
+
+    if (newScore >= gamesToWin(match.bestOf)) {
+        return {
+            players,
+            status: "finished",
+            winner: winnerId,
+        };
+    }
+
+    // Bo3 mid-match: route to the between-Games sideboarding gate.
+    const loser = match.players.find((p) => p.id !== winnerId);
+    return {
+        players: players.map((p) => ({ ...p, ready: false })),
+        status: "sideboarding",
+        playDrawChooserId: loser?.id,
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Single-active-match guard (#155 → match-scoped, ADR 0029). Replaces the
+// single-active-game guard: a user holds at most one active (waiting / playing
+// / sideboarding) Match. Finished Matches never count.
+// ---------------------------------------------------------------------------
+
+export const ACTIVE_MATCH_STATUSES = [
+    "waiting",
+    "playing",
+    "sideboarding",
+] as const;
+
+/** A player handle belongs to `userId` when it equals the user's id (2-player)
+ *  or one of the solo seats `${userId}-p1` / `${userId}-p2`. Convex ids contain
+ *  no `-`, so the prefix test is unambiguous. Mirrors `gameBelongsToUser`. */
+export function matchBelongsToUser(
+    match: { players: { id: string }[] },
+    userId: string
+): boolean {
+    return match.players.some(
+        (p) => p.id === userId || p.id.startsWith(`${userId}-`)
+    );
+}
+
+/** The user's current active Match, or null. Scans only the small active set
+ *  via the `by_status` index — finished Matches are never read. */
+export async function findActiveMatchForUser(
+    ctx: GenericMutationCtx<DataModel> | GenericQueryCtx<DataModel>,
+    userId: string
+): Promise<Doc<"matches"> | null> {
+    for (const status of ACTIVE_MATCH_STATUSES) {
+        const matches = await ctx.db
+            .query("matches")
+            .withIndex("by_status", (q) => q.eq("status", status))
+            .collect();
+        const mine = matches.find((m) => matchBelongsToUser(m, userId));
+        if (mine) return mine;
+    }
+    return null;
+}
+
+// ---------------------------------------------------------------------------
+// Projection (PRD #387). Public Match meta is visible to both players; the deck
+// copies are projected per-viewer — a player sees only their own maindeck +
+// sideboard, the opponent's is reduced to ready-state only. Solo sees both
+// seats (consistent with Solo seeing both hands).
+// ---------------------------------------------------------------------------
+
+export type PublicMatchPlayer = {
+    id: string;
+    name: string;
+    bgColor: string;
+    score: number;
+    ready: boolean;
+    /** Own (or solo) seat only: the Match-scoped deck copy. Stripped for the
+     *  opponent so sideboarding stays secret. */
+    deck?: MatchDeck;
+};
+
+export type PublicMatch = {
+    matchId: Id<"matches">;
+    bestOf: 1 | 3;
+    status: MatchStatus;
+    currentGameNumber: number;
+    currentGameId?: Id<"games">;
+    playDrawChooserId?: string;
+    winner?: string;
+    solo: boolean;
+    vsAi: boolean;
+    players: PublicMatchPlayer[];
+};
+
+/** Projects a Match for a viewer. `viewerId` is the user's id; solo mode passes
+ *  `solo: true` to reveal both seats. The opponent's deck contents are stripped
+ *  during a 2-player Match. */
+export function projectMatch(
+    match: Doc<"matches">,
+    viewerId: string
+): PublicMatch {
+    const solo = match.solo === true;
+    return {
+        matchId: match._id,
+        bestOf: match.bestOf,
+        status: match.status,
+        currentGameNumber: match.currentGameNumber,
+        currentGameId: match.currentGameId,
+        playDrawChooserId: match.playDrawChooserId,
+        winner: match.winner,
+        solo,
+        vsAi: match.vsAi === true,
+        players: match.players.map((p) => {
+            const own =
+                solo || p.id === viewerId || p.id.startsWith(`${viewerId}-`);
+            return {
+                id: p.id,
+                name: p.name,
+                bgColor: p.bgColor,
+                score: p.score,
+                ready: p.ready,
+                ...(own ? { deck: p.deck } : {}),
+            };
+        }),
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Cascade delete (ADR 0029). Removing a finished Match cascades its Games and
+// their `game_states`. Shared by the cleanup cron and any explicit teardown.
+// ---------------------------------------------------------------------------
+
+export async function deleteMatchCascade(
+    ctx: GenericMutationCtx<DataModel>,
+    matchId: Id<"matches">
+): Promise<void> {
+    const games = await ctx.db
+        .query("games")
+        .withIndex("by_match", (q) => q.eq("matchId", matchId))
+        .collect();
+    for (const game of games) {
+        const snapshots = await ctx.db
+            .query("game_states")
+            .withIndex("by_gameId", (q) => q.eq("gameId", game._id))
+            .collect();
+        for (const s of snapshots) await ctx.db.delete(s._id);
+        await ctx.db.delete(game._id);
+    }
+    await ctx.db.delete(matchId);
+}
+
+// ---------------------------------------------------------------------------
+// Queries
+// ---------------------------------------------------------------------------
+
+/** Public Match meta for the client (score, format, status, ready flags, the
+ *  play/draw chooser). The viewer's own deck copy is included; the opponent's
+ *  is stripped. Returns null when the Match is gone. */
+export const getMatch = query({
+    args: { matchId: v.id("matches") },
+    handler: async (ctx, args) => {
+        const userId = await auth.getUserId(ctx);
+        const match = await ctx.db.get(args.matchId);
+        if (!match) return null;
+        return projectMatch(match, userId ?? "");
+    },
+});
+
+/** #155 (match-scoped): the caller's current active Match, or null. The lobby
+ *  surfaces it instead of attempting a (rejected) second creation. */
+export const myActiveMatch = query({
+    handler: async (ctx) => {
+        const userId = await auth.getUserId(ctx);
+        if (!userId) return null;
+        const match = await findActiveMatchForUser(ctx, userId);
+        if (!match) return null;
+        return {
+            matchId: match._id,
+            bestOf: match.bestOf,
+            status: match.status,
+            currentGameId: match.currentGameId,
+            solo: match.solo === true,
+            vsAi: match.vsAi === true,
+        };
+    },
+});

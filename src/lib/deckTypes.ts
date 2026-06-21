@@ -57,11 +57,15 @@ export function deckPayload(d: LobbyDeck): {
     name: string;
     format: string;
     cards: DeckCard[];
+    sideboard: DeckCard[];
 } {
     return {
         id: d.presetId,
         name: d.name,
         format: d.format,
         cards: d.cards,
+        // Snapshotted into the Match deck copy (PRD #387). Empty for legacy
+        // decks; the Match owns this list for sideboarding.
+        sideboard: d.sideboard ?? [],
     };
 }

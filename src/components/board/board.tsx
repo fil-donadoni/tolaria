@@ -80,6 +80,15 @@ export default function Board({
         api.game.getGameCardIds,
         pageVisible ? { gameId } : "skip"
     );
+
+    // Owning Match (ADR 0029): the game-over screen shows the terminal Match
+    // result. Resolve the matchId from the game doc, then the Match meta.
+    const game = useQuery(api.game.getGame, pageVisible ? { gameId } : "skip");
+    const matchId = game?.matchId ?? null;
+    const match = useQuery(
+        api.matches.getMatch,
+        pageVisible && matchId ? { matchId } : "skip"
+    );
     useEffect(() => {
         if (!gameCardIds || gameCardIds.length === 0) return;
         // Art crops are only fetched when the user opens the zoom panel (hover
@@ -308,6 +317,7 @@ export default function Board({
                                 <GameOverDialog
                                     gameOver={gameOver}
                                     allPlayers={allPlayers}
+                                    match={match ?? null}
                                 />
                             )}
                             <PauseMenuDialog

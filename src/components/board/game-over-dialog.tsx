@@ -1,4 +1,6 @@
+import type { PublicMatch } from "@convex/matches";
 import GameDialog from "~/components/ui/game-dialog";
+import { clearSession } from "~/lib/session";
 import type { GameOver, Player } from "~/types/game";
 
 function SkullIcon() {
@@ -21,11 +23,16 @@ function SkullIcon() {
 type GameOverDialogProps = {
     gameOver: GameOver;
     allPlayers: Player[];
+    /** Owning Match (ADR 0029). When the Match is finished, the screen is the
+     *  terminal Match result; for a Bo1 (the only format in #392) this is
+     *  reached immediately when the single Game ends. */
+    match: PublicMatch | null;
 };
 
 export default function GameOverDialog({
     gameOver,
     allPlayers,
+    match,
 }: GameOverDialogProps) {
     const winner = allPlayers.find((p) => p.id === gameOver.winnerId);
     const loser = allPlayers.find((p) => p.id === gameOver.loserId);
@@ -40,31 +47,54 @@ export default function GameOverDialog({
             ? `${loserName} tried to draw from an empty library`
             : `${loserName} conceded`;
 
+    // Terminal Match result: the Match is decided (Bo1 always; Bo3 at first to
+    // two). "Back to Lobby" is shown only when the Match is over (PRD #387).
+    const matchOver = match?.status === "finished";
+    // When Match meta isn't available (still loading, or a legacy game without
+    // a Match), fall back to the single-game terminal so the user is never
+    // stranded without a "Back to Lobby".
+    const showLeave = matchOver || match === null;
+    const matchWinner = match?.players.find((p) => p.id === match.winner);
+    const scoreLine = match
+        ? match.players.map((p) => `${p.name}: ${p.score}`).join("  ·  ")
+        : null;
+
     const handleLeave = () => {
-        localStorage.removeItem("tolaria:gameId");
-        localStorage.removeItem("tolaria:playerId");
+        // Clear the session so the lobby is reachable (PRD #387 user story 32).
+        clearSession();
         window.location.href = "/";
     };
 
     return (
         <GameDialog
             open
-            title="Game Over"
+            title={matchOver ? "Match Over" : "Game Over"}
             icon={<SkullIcon />}
             dismissable={false}
         >
             <div className="flex flex-col items-center text-center gap-2 mt-1">
                 <p className="text-zinc-400 text-sm">{reasonText}</p>
                 <span className="text-2xl sm:text-3xl font-bold text-amber-400 font-beleren tracking-wide">
-                    {isDraw ? "Draw" : `${winner?.name ?? "?"} wins!`}
+                    {isDraw
+                        ? "Draw"
+                        : matchOver
+                          ? `${matchWinner?.name ?? winner?.name ?? "?"} wins the match!`
+                          : `${winner?.name ?? "?"} wins!`}
                 </span>
-                <button
-                    type="button"
-                    onClick={handleLeave}
-                    className="mt-3 w-full py-2.5 rounded-sm bg-zinc-800/40 border border-zinc-600/45 text-zinc-300 font-beleren tracking-wide hover:bg-zinc-700/40 transition-colors cursor-pointer"
-                >
-                    Back to Lobby
-                </button>
+                {scoreLine && (
+                    <p className="text-zinc-500 text-xs tracking-wide">
+                        {scoreLine}
+                    </p>
+                )}
+                {showLeave && (
+                    <button
+                        type="button"
+                        onClick={handleLeave}
+                        className="mt-3 w-full py-2.5 rounded-sm bg-zinc-800/40 border border-zinc-600/45 text-zinc-300 font-beleren tracking-wide hover:bg-zinc-700/40 transition-colors cursor-pointer"
+                    >
+                        Back to Lobby
+                    </button>
+                )}
             </div>
         </GameDialog>
     );

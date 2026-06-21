@@ -128,7 +128,13 @@ import {
     applyMayPaySubmit,
     applyRandomRevealAck,
 } from "./gre/pendingChoiceSubmit";
-import { findActiveGameForUser, gameBelongsToUser } from "./gameLifecycle";
+import { gameBelongsToUser } from "./gameLifecycle";
+import {
+    findActiveMatchForUser,
+    recordGameResult,
+    snapshotDeck,
+    type MatchPlayer,
+} from "./matches";
 
 export const STARTING_HAND_SIZE = 7;
 
@@ -141,6 +147,7 @@ type DeckInput = {
     name: string;
     format: string;
     cards: { cardId: string; cardName: string }[];
+    sideboard?: { cardId: string; cardName: string }[];
 };
 
 type PlayerInput = {
@@ -183,6 +190,69 @@ function buildPlayerState(
         battlefield: [],
         manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
     };
+}
+
+/** Builds the fresh initial GameState for a Game: shuffles each library, draws
+ *  opening hands, and enters the mulligan phase (CR 103.5). Shared by every
+ *  create/join path (and, later, the Bo3 next-Game build) so the init is
+ *  identical everywhere. `activePlayerId` defaults to the first player. */
+function buildInitialGameState(
+    players: PlayerInput[],
+    activePlayerId?: string
+): GameState {
+    const idCounter: { nextInstanceId?: number } = {};
+    const playersState = players.map((p) => buildPlayerState(p, idCounter));
+    const activeId = activePlayerId ?? playersState[0].id;
+    // CR 500.1: the active player begins their first turn at game start.
+    const active = playersState.find((p) => p.id === activeId);
+    if (active) active.turnsTaken = 1;
+
+    const rngSeed = freshSeed();
+    const initialState: GameState = {
+        players: playersState,
+        stack: [],
+        turn: 1,
+        activePlayerId: activeId,
+        priorityPlayerId: activeId,
+        passCount: 0,
+        phase: "UNTAP" as Phase,
+        rngSeed,
+        rngCounter: 0,
+        nextInstanceId: idCounter.nextInstanceId,
+    };
+
+    for (const player of initialState.players) {
+        seededShuffle(initialState, player.library);
+        for (let i = 0; i < STARTING_HAND_SIZE; i++)
+            drawCardFromLibrary(player);
+    }
+
+    // CR 103.5: enter the mulligan phase — declarations begin with the active
+    // player. advancePhase is deferred to finalizeMulligan.
+    initialState.phase = "MULLIGAN" as Phase;
+    initialState.mulligan = makeMulliganState(initialState);
+    initialState.priorityPlayerId = initialState.mulligan.declaringPlayerId;
+
+    return initialState;
+}
+
+/** Builds the Match `players[]` snapshot from the seat inputs. Each seat's
+ *  maindeck is `deck.cards`; the sideboard defaults to empty (PRD #387). */
+function buildMatchPlayers(players: PlayerInput[]): MatchPlayer[] {
+    return players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        bgColor: p.bgColor,
+        deck: snapshotDeck({
+            id: p.deck.id,
+            name: p.deck.name,
+            format: p.deck.format,
+            maindeck: p.deck.cards,
+            sideboard: p.deck.sideboard,
+        }),
+        score: 0,
+        ready: false,
+    }));
 }
 
 // --- Helpers ---
@@ -238,7 +308,10 @@ async function saveGameState(
     });
 }
 
-/** If SBA detected game over, persist the result to the games table. */
+/** If SBA detected game over, persist the result to the games table AND record
+ *  it into the owning Match (PRD #387 / ADR 0029): bump the winner's score and,
+ *  for a Bo1, immediately finish the Match. (Bo3 routes to "sideboarding" — a
+ *  later slice builds the next Game; #392 only ever finishes Bo1 here.) */
 async function finalizeGameOver(
     ctx: Pick<GenericMutationCtx<DataModel>, "db">,
     gameId: GenericId<"games">,
@@ -246,12 +319,24 @@ async function finalizeGameOver(
     state: GameState
 ) {
     if (!state.gameOver) return;
+    const now = Date.now();
 
+    const game = await ctx.db.get(gameId);
     await ctx.db.patch(gameId, {
         status: "finished",
         winner: state.gameOver.winnerId,
-        updatedAt: Date.now(),
+        updatedAt: now,
     });
+
+    // CR 104.2a: a player who wins a Game wins it for the Match's tally. A draw
+    // (no winnerId) leaves the Match score untouched in this slice.
+    const winnerId = state.gameOver.winnerId;
+    if (!game?.matchId || !winnerId) return;
+    const match = await ctx.db.get(game.matchId);
+    if (!match || match.status === "finished") return;
+
+    const patch = recordGameResult(match, winnerId);
+    if (patch) await ctx.db.patch(game.matchId, { ...patch, updatedAt: now });
 }
 
 /** Guard: reject actions on a finished game. */
@@ -903,20 +988,35 @@ const deckValidator = v.object({
             cardName: v.string(),
         })
     ),
+    // Sideboard (PRD #387). Optional so legacy callers (and tests) without a
+    // sideboard still validate; snapshotted into the Match deck copy.
+    sideboard: v.optional(
+        v.array(
+            v.object({
+                cardId: v.string(),
+                cardName: v.string(),
+            })
+        )
+    ),
 });
+
+const bestOfValidator = v.optional(v.union(v.literal(1), v.literal(3)));
 
 export const createGame = mutation({
     args: {
         name: v.string(),
         deck: deckValidator,
         bgColor: v.optional(v.string()),
+        // Bo1 | Bo3 (PRD #387). Defaults to Bo1 — the only format #392 plays.
+        bestOf: bestOfValidator,
     },
     handler: async (ctx, args) => {
         const user = await getCurrentUser(ctx);
-        // #155: at most one active game per user. Guard runs server-side so it
-        // holds against double-click / two-tab races (Convex OCC retries the
-        // loser, which then sees the new game and is rejected here).
-        if (await findActiveGameForUser(ctx, user._id))
+        // #155 (match-scoped, ADR 0029): at most one active match per user.
+        // Guard runs server-side so it holds against double-click / two-tab
+        // races (Convex OCC retries the loser, which then sees the new match
+        // and is rejected here).
+        if (await findActiveMatchForUser(ctx, user._id))
             throw new Error(ACTIVE_GAME_MESSAGE);
         const now = Date.now();
 
@@ -927,13 +1027,28 @@ export const createGame = mutation({
             deck: args.deck,
         };
 
+        // The Match opens "waiting" for an opponent; joinGame completes it and
+        // builds Game 1. The waiting game row carries the matchId up front.
+        const matchId = await ctx.db.insert("matches", {
+            bestOf: args.bestOf ?? 1,
+            status: "waiting",
+            players: buildMatchPlayers([player]),
+            currentGameNumber: 1,
+            createdAt: now,
+            updatedAt: now,
+        });
+
         const gameId = await ctx.db.insert("games", {
             name: args.name,
+            matchId,
+            gameNumber: 1,
             status: "waiting",
             players: [player],
             createdAt: now,
             updatedAt: now,
         });
+
+        await ctx.db.patch(matchId, { currentGameId: gameId });
 
         return gameId;
     },
@@ -952,11 +1067,13 @@ export const createSoloGame = mutation({
         /** When true the second seat is driven by the AI brain (ADR 0001).
          *  Still structurally a solo game — no new game mode or move surface. */
         vsAi: v.optional(v.boolean()),
+        // Bo1 | Bo3 (PRD #387). Defaults to Bo1.
+        bestOf: bestOfValidator,
     },
     handler: async (ctx, args) => {
         const user = await getCurrentUser(ctx);
-        // #155: one active game per user (see createGame).
-        if (await findActiveGameForUser(ctx, user._id))
+        // #155 (match-scoped): one active match per user (see createGame).
+        if (await findActiveMatchForUser(ctx, user._id))
             throw new Error(ACTIVE_GAME_MESSAGE);
         const deck2 = args.deck2 ?? args.deck;
 
@@ -976,8 +1093,23 @@ export const createSoloGame = mutation({
         const allPlayers = [player1, player2];
         const now = Date.now();
 
+        // Solo/vs-AI: both seats exist immediately, so the Match is "playing"
+        // and Game 1 is built up front (PRD #387). Bo1 by default.
+        const matchId = await ctx.db.insert("matches", {
+            bestOf: args.bestOf ?? 1,
+            status: "playing",
+            players: buildMatchPlayers(allPlayers),
+            currentGameNumber: 1,
+            solo: true,
+            vsAi: args.vsAi === true ? true : undefined,
+            createdAt: now,
+            updatedAt: now,
+        });
+
         const gameId = await ctx.db.insert("games", {
             name: args.name,
+            matchId,
+            gameNumber: 1,
             status: "playing",
             players: allPlayers,
             solo: true,
@@ -986,39 +1118,9 @@ export const createSoloGame = mutation({
             updatedAt: now,
         });
 
-        const idCounter: { nextInstanceId?: number } = {};
-        const playersState = allPlayers.map((p) =>
-            buildPlayerState(p, idCounter)
-        );
-        // CR 500.1: starting player begins their first turn at game start.
-        playersState[0].turnsTaken = 1;
+        await ctx.db.patch(matchId, { currentGameId: gameId });
 
-        const rngSeed = freshSeed();
-        const initialState: GameState = {
-            players: playersState,
-            stack: [],
-            turn: 1,
-            activePlayerId: playersState[0].id,
-            priorityPlayerId: playersState[0].id,
-            passCount: 0,
-            phase: "UNTAP" as Phase,
-            rngSeed,
-            rngCounter: 0,
-            nextInstanceId: idCounter.nextInstanceId,
-        };
-
-        for (const player of initialState.players) {
-            seededShuffle(initialState, player.library);
-            for (let i = 0; i < STARTING_HAND_SIZE; i++)
-                drawCardFromLibrary(player);
-        }
-
-        // CR 103.5: enter the mulligan phase — declarations begin with the
-        // starting player. advancePhase is deferred to finalizeMulligan.
-        initialState.phase = "MULLIGAN" as Phase;
-        initialState.mulligan = makeMulliganState(initialState);
-        initialState.priorityPlayerId = initialState.mulligan.declaringPlayerId;
-
+        const initialState = buildInitialGameState(allPlayers);
         await saveGameState(ctx, gameId, 0, initialState, null);
 
         return gameId;
@@ -1033,9 +1135,9 @@ export const joinGame = mutation({
     },
     handler: async (ctx, args) => {
         const user = await getCurrentUser(ctx);
-        // #155: reject joining when the user already occupies another active
-        // game (their own waiting room or an in-progress game).
-        if (await findActiveGameForUser(ctx, user._id))
+        // #155 (match-scoped): reject joining when the user already occupies
+        // another active match (their own waiting room or an in-progress match).
+        if (await findActiveMatchForUser(ctx, user._id))
             throw new Error(ACTIVE_GAME_MESSAGE);
         const game = await ctx.db.get(args.gameId);
         if (!game) throw new Error("Game not found");
@@ -1053,6 +1155,19 @@ export const joinGame = mutation({
         const allPlayers = [...game.players, player];
         const now = Date.now();
 
+        // Complete the owning Match: add the joiner's deck snapshot and flip it
+        // to "playing" (PRD #387). The waiting Match was created by createGame.
+        if (game.matchId) {
+            const match = await ctx.db.get(game.matchId);
+            if (match) {
+                await ctx.db.patch(game.matchId, {
+                    status: "playing",
+                    players: [...match.players, ...buildMatchPlayers([player])],
+                    updatedAt: now,
+                });
+            }
+        }
+
         // Update game record
         await ctx.db.patch(args.gameId, {
             status: "playing",
@@ -1060,54 +1175,27 @@ export const joinGame = mutation({
             updatedAt: now,
         });
 
-        const idCounter: { nextInstanceId?: number } = {};
-        const playersState = allPlayers.map((p) =>
-            buildPlayerState(p, idCounter)
-        );
-        // CR 500.1: starting player begins their first turn at game start.
-        playersState[0].turnsTaken = 1;
-
-        const rngSeed = freshSeed();
-        const initialState: GameState = {
-            players: playersState,
-            stack: [],
-            turn: 1,
-            activePlayerId: playersState[0].id,
-            priorityPlayerId: playersState[0].id,
-            passCount: 0,
-            phase: "UNTAP" as Phase,
-            rngSeed,
-            rngCounter: 0,
-            nextInstanceId: idCounter.nextInstanceId,
-        };
-
-        for (const player of initialState.players) {
-            seededShuffle(initialState, player.library);
-            for (let i = 0; i < STARTING_HAND_SIZE; i++)
-                drawCardFromLibrary(player);
-        }
-
-        // CR 103.5: enter the mulligan phase — declarations begin with the
-        // starting player. advancePhase is deferred to finalizeMulligan.
-        initialState.phase = "MULLIGAN" as Phase;
-        initialState.mulligan = makeMulliganState(initialState);
-        initialState.priorityPlayerId = initialState.mulligan.declaringPlayerId;
-
+        const initialState = buildInitialGameState(allPlayers);
         await saveGameState(ctx, args.gameId, 0, initialState, null);
     },
 });
 
-/** #155: the caller's current active (waiting/playing) game, or null. The
- *  lobby uses this to surface an existing game instead of letting the user
- *  attempt a (rejected) second creation. */
+/** #155 (match-scoped): the caller's current active match's game, or null. The
+ *  lobby uses this to surface an existing match instead of letting the user
+ *  attempt a (rejected) second creation. Derived from the active Match so the
+ *  Match is the single source of truth, but the wire shape is unchanged for the
+ *  lobby (gameId + status flags) with the Match id added. */
 export const myActiveGame = query({
     handler: async (ctx) => {
         const userId = await auth.getUserId(ctx);
         if (!userId) return null;
-        const game = await findActiveGameForUser(ctx, userId);
+        const match = await findActiveMatchForUser(ctx, userId);
+        if (!match || !match.currentGameId) return null;
+        const game = await ctx.db.get(match.currentGameId);
         if (!game) return null;
         return {
             gameId: game._id,
+            matchId: match._id,
             name: game.name,
             status: game.status,
             solo: game.solo === true,
@@ -1129,13 +1217,19 @@ export const leaveGame = mutation({
             throw new Error("You are not part of this game");
         if (game.status !== "waiting")
             throw new Error("Cannot leave a game in progress; concede instead");
-        // Delete any state snapshots first, then the orphan waiting room.
+        // Delete any state snapshots first, then the orphan waiting room and its
+        // owning waiting Match (ADR 0029) so the user is free to start another.
         const states = await ctx.db
             .query("game_states")
             .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
             .collect();
         for (const s of states) await ctx.db.delete(s._id);
         await ctx.db.delete(args.gameId);
+        if (game.matchId) {
+            const match = await ctx.db.get(game.matchId);
+            if (match && match.status === "waiting")
+                await ctx.db.delete(game.matchId);
+        }
     },
 });
 
@@ -5023,6 +5117,25 @@ export const debugResetGame = mutation({
             winner: undefined,
             updatedAt: Date.now(),
         });
+
+        // Reset the owning Match too (ADR 0029): a Bo1 finishes its Match when
+        // the Game ends, so restarting the Game must reopen the Match — clear
+        // the winner, zero the scores, flip back to "playing".
+        if (game.matchId) {
+            const match = await ctx.db.get(game.matchId);
+            if (match) {
+                await ctx.db.patch(game.matchId, {
+                    status: "playing",
+                    winner: undefined,
+                    players: match.players.map((p) => ({
+                        ...p,
+                        score: 0,
+                        ready: false,
+                    })),
+                    updatedAt: Date.now(),
+                });
+            }
+        }
     },
 });
 
