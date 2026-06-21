@@ -3753,3 +3753,211 @@ export const sorrowsPath: CardDefinition = {
         }),
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Free tranche — Multicolor (#416). Six gold / off-color-activation cards from
+// The Dark. Each is pure CardDefinition data over already-shipped primitives
+// (landwalk statics, regeneration shields, temporary P/T buffs, temporary
+// keyword grants, mana abilities, ETB triggers, filtered-sacrifice costs).
+// Note: in The Dark a card is "multicolor" by its activation-cost colors, not
+// by its color identity (e.g. Drowned/Electric Eel/Elves are mono-colored but
+// activate with off-color mana). Modern Scryfall oracle text (ADR 0004).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Drowned — {1}{U} 1/1 Zombie, "{B}: Regenerate this creature." (CR 605
+// activated ability; CR 701.15a regenerate via a shield consumed by the next
+// destroy/lethal-damage event.)
+export const drowned: CardDefinition = {
+    id: "951b6c10-cbba-44b6-aae2-2c386b7ebacb",
+    name: "Drowned",
+    oracleText: "{B}: Regenerate this creature.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "drowned-regenerate",
+            oracleText: "{B}: Regenerate this creature.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.applyRegenerationShield({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
+
+// Electric Eel — {U} 1/1 Fish. "When this creature enters, it deals 1 damage to
+// you.\n{R}{R}: This creature gets +2/+0 until end of turn and deals 1 damage to
+// you." (CR 603.6a ETB self-trigger dealing damage to controller; CR 605
+// activated pump with a CR 611.1 end-of-turn P/T buff plus self-inflicted
+// damage. The two clauses of the activated ability resolve together, CR 608.)
+export const electricEel: CardDefinition = {
+    id: "b8834c18-0e4e-4785-9d15-b33345e3789b",
+    name: "Electric Eel",
+    oracleText:
+        "When this creature enters, it deals 1 damage to you.\n{R}{R}: This creature gets +2/+0 until end of turn and deals 1 damage to you.",
+    manaCost: { U: 1 },
+    types: ["Creature"],
+    subtypes: ["Fish"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "electric-eel-etb-damage",
+            oracleText: "When this creature enters, it deals 1 damage to you.",
+            scope: "self",
+            resolve: (ctx) => {
+                ctx.dealDamage({ type: "player", id: ctx.controller }, 1);
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "electric-eel-pump",
+            oracleText:
+                "{R}{R}: This creature gets +2/+0 until end of turn and deals 1 damage to you.",
+            cost: { mana: { R: 2 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    2,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+                ctx.dealDamage({ type: "player", id: ctx.controller }, 1);
+            },
+        },
+    ],
+};
+
+// Elves of Deep Shadow — {G} 1/1 Elf Druid, "{T}: Add {B}. This creature deals
+// 1 damage to you." A painland-style mana creature (CR 605.1a mana ability —
+// `useStack: false`, resolves without the stack). The self-damage is wired as a
+// separate PERMANENT_TAPPED trigger gated on `forMana: true` (CR 603.6),
+// mirroring the engine's established painland idiom (City of Brass). Tapping for
+// the mana ability is the only way this creature taps for mana, so the trigger
+// fires exactly when the printed "deals 1 damage to you" clause should.
+export const elvesOfDeepShadow: CardDefinition = {
+    id: "f395278e-6d74-4f35-af9d-21bad7b19763",
+    name: "Elves of Deep Shadow",
+    oracleText: "{T}: Add {B}. This creature deals 1 damage to you.",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Elf", "Druid"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "elves-of-deep-shadow-pain",
+            oracleText: "This creature deals 1 damage to you.",
+            scope: "self",
+            forMana: true,
+            resolve: (ctx) => {
+                ctx.dealDamage({ type: "player", id: ctx.controller }, 1);
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "elves-of-deep-shadow-mana",
+            oracleText: "{T}: Add {B}. This creature deals 1 damage to you.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ B: 1 }),
+            manaProduced: { B: 1 },
+        },
+    ],
+};
+
+// Wormwood Treefolk — {3}{G}{G} 4/4 Treefolk. "{G}{G}: This creature gains
+// forestwalk until end of turn and deals 2 damage to you.\n{B}{B}: This creature
+// gains swampwalk until end of turn and deals 2 damage to you." (CR 605
+// activated abilities; CR 611.1b temporary keyword grants at layer 6 expiring at
+// end of turn; CR 702.14 landwalk; each grant pays an additional self-damage.)
+export const wormwoodTreefolk: CardDefinition = {
+    id: "2fa20173-e88a-4b14-9c54-14567ca5571c",
+    name: "Wormwood Treefolk",
+    oracleText:
+        "{G}{G}: This creature gains forestwalk until end of turn and deals 2 damage to you.\n{B}{B}: This creature gains swampwalk until end of turn and deals 2 damage to you.",
+    manaCost: { X: 3, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Treefolk"],
+    power: 4,
+    toughness: 4,
+    activatedAbilities: [
+        {
+            id: "wormwood-treefolk-forestwalk",
+            oracleText:
+                "{G}{G}: This creature gains forestwalk until end of turn and deals 2 damage to you.",
+            cost: { mana: { G: 2 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.grantStaticAbility(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "forestwalk",
+                    { phase: "end-of-turn" }
+                );
+                ctx.dealDamage({ type: "player", id: ctx.controller }, 2);
+            },
+        },
+        {
+            id: "wormwood-treefolk-swampwalk",
+            oracleText:
+                "{B}{B}: This creature gains swampwalk until end of turn and deals 2 damage to you.",
+            cost: { mana: { B: 2 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.grantStaticAbility(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "swampwalk",
+                    { phase: "end-of-turn" }
+                );
+                ctx.dealDamage({ type: "player", id: ctx.controller }, 2);
+            },
+        },
+    ],
+};
+
+// Marsh Goblins — {B}{R} 1/1 Goblin with Swampwalk (CR 702.14 — can't be blocked
+// while the defending player controls a Swamp). Pure keyword static.
+export const marshGoblins: CardDefinition = {
+    id: "8aabd80f-a18a-4bc1-9f05-4c3a63de77ce",
+    name: "Marsh Goblins",
+    oracleText:
+        "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)",
+    manaCost: { B: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Goblin"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["swampwalk"],
+};
+
+// Dark Heart of the Wood — {B}{G} Enchantment, "Sacrifice a Forest: You gain 3
+// life." (CR 605 activated ability; CR 118.5 / 602.1 filtered-sacrifice cost —
+// the controller sacrifices a Forest they control to pay; CR 119.3 life gain.)
+export const darkHeartOfTheWood: CardDefinition = {
+    id: "e3d3df64-1e90-4aef-86ae-0062aa23ff30",
+    name: "Dark Heart of the Wood",
+    oracleText: "Sacrifice a Forest: You gain 3 life.",
+    manaCost: { B: 1, G: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "dark-heart-of-the-wood-gain",
+            oracleText: "Sacrifice a Forest: You gain 3 life.",
+            cost: { sacrificeFilter: { subtypes: "Forest" } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.gainLife(ctx.controller, 3);
+            },
+        },
+    ],
+};

@@ -5249,6 +5249,41 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Free tranche — Multicolor (#416). One board exercising the
+        // off-color activation cards plus the sacrifice-a-Forest enchantment:
+        //   • Drowned (1/1) — pay {B} (tap a Swamp) to stack a regeneration
+        //     shield; survives the next lethal damage / destroy.
+        //   • Electric Eel (1/1) — already on the battlefield (its ETB ping
+        //     fired on entry in real play); activate {R}{R} → +2/+0 until EOT
+        //     AND 1 self-damage. Tap the two Mountains to pay.
+        //   • Elves of Deep Shadow (1/1) — {T}: Add {B}; tapping for mana
+        //     fires the painland trigger dealing 1 damage to you.
+        //   • Wormwood Treefolk (4/4) — {G}{G}: forestwalk until EOT + 2
+        //     self-damage; {B}{B}: swampwalk until EOT + 2 self-damage. The
+        //     opponent's Forest/Swamp make the evasion live.
+        //   • Marsh Goblins (1/1) — vanilla swampwalk; unblockable vs the
+        //     opponent's Swamp.
+        //   • Dark Heart of the Wood — Sacrifice a Forest: gain 3 life. You
+        //     control extra Forests to feed the cost.
+        label: "DRK Multicolor: Drowned / Electric Eel / Elves / Wormwood Treefolk / Marsh Goblins / Dark Heart (#416)",
+        cards: [
+            { name: "Drowned", owner: "me" as const },
+            { name: "Electric Eel", owner: "me" as const },
+            { name: "Elves of Deep Shadow", owner: "me" as const },
+            { name: "Wormwood Treefolk", owner: "me" as const },
+            { name: "Marsh Goblins", owner: "me" as const },
+            { name: "Dark Heart of the Wood", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 3 },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            // Opponent lands make the landwalk evasion live.
+            { name: "Forest", owner: "opp" as const },
+            { name: "Swamp", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

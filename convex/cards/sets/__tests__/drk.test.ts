@@ -99,6 +99,12 @@ import {
     orcGeneral,
     sistersOfTheFlame,
     coalGolem,
+    drowned,
+    electricEel,
+    elvesOfDeepShadow,
+    wormwoodTreefolk,
+    marshGoblins,
+    darkHeartOfTheWood,
 } from "../drk";
 import { tropicalIsland, mountain, lightningBolt } from "../lea";
 import { stripMine } from "../atq";
@@ -5299,5 +5305,215 @@ describe("Coal Golem — {3}, Sac this: Add {R}{R}{R} (CR 605.1a)", () => {
         expect(ability.cost.sacrifice).toBe(true);
         expect(ability.cost.mana).toEqual({ X: 3 });
         expect(ability.manaProduced).toEqual({ R: 3 });
+    });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Free tranche — Multicolor (#416)
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("Drowned — {1}{U} 1/1 Zombie, {B}: Regenerate (CR 701.15a)", () => {
+    it("is a 1/1 Zombie for {1}{U}", () => {
+        expect(drowned.manaCost).toEqual({ X: 1, U: 1 });
+        expect(drowned.types).toEqual(["Creature"]);
+        expect(drowned.subtypes).toEqual(["Zombie"]);
+        expect(drowned.power).toBe(1);
+        expect(drowned.toughness).toBe(1);
+        expect(drowned.activatedAbilities![0].cost).toEqual({ mana: { B: 1 } });
+    });
+
+    it("the {B} ability stacks a regeneration shield (CR 701.15a)", () => {
+        const d = makeInstance(drowned.id, { id: "d", controllerId: "p1" });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [d] }), makePlayer("p2")],
+        });
+        resolveActivated(state, d, "drowned-regenerate", []);
+        const inPlay = state.players[0].battlefield.find((c) => c.id === "d")!;
+        expect(inPlay.regenerationShields ?? 0).toBeGreaterThan(0);
+    });
+});
+
+describe("Electric Eel — ETB self-damage + {R}{R} pump (CR 603.6a / 611.1)", () => {
+    it("is a 1/1 Fish for {U}", () => {
+        expect(electricEel.manaCost).toEqual({ U: 1 });
+        expect(electricEel.subtypes).toEqual(["Fish"]);
+        expect(electricEel.power).toBe(1);
+        expect(electricEel.toughness).toBe(1);
+    });
+
+    it("its ETB trigger deals 1 damage to its controller (CR 603.6a)", () => {
+        const eel = makeInstance(electricEel.id, {
+            id: "eel",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [eel] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, eel, "electric-eel-etb-damage", {
+            type: "PERMANENT_ENTERED",
+            instanceId: "eel",
+            controllerId: "p1",
+            types: ["Creature"],
+        } as StackItem["triggerEvent"]);
+        expect(state.players[0].life).toBe(19);
+    });
+
+    it("the {R}{R} ability pumps +2/+0 and self-damages 1 (CR 611.1)", () => {
+        const eel = makeInstance(electricEel.id, {
+            id: "eel",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [eel] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, eel, "electric-eel-pump", []);
+        expect(getEffectivePower(state, eel)).toBe(3); // 1 + 2
+        expect(getEffectiveToughness(state, eel)).toBe(1);
+        expect(state.players[0].life).toBe(19);
+    });
+
+    it("wire format: the +2/+0 buff survives projectPublicState", () => {
+        const eel = makeInstance(electricEel.id, {
+            id: "eel",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [eel] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, eel, "electric-eel-pump", []);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "eel"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+    });
+});
+
+describe("Elves of Deep Shadow — {T}: Add {B} + 1 self-damage (CR 605.1a / 603.6)", () => {
+    it("is a 1/1 Elf Druid for {G}", () => {
+        expect(elvesOfDeepShadow.manaCost).toEqual({ G: 1 });
+        expect(elvesOfDeepShadow.subtypes).toEqual(["Elf", "Druid"]);
+        expect(elvesOfDeepShadow.power).toBe(1);
+        expect(elvesOfDeepShadow.toughness).toBe(1);
+    });
+
+    it("the mana ability adds {B} (mana ability, useStack false) (CR 605.1a)", () => {
+        const mana = elvesOfDeepShadow.activatedAbilities!.find(
+            (a) => a.id === "elves-of-deep-shadow-mana"
+        )!;
+        expect(mana.useStack).toBe(false);
+        expect(mana.cost).toEqual({ tap: true });
+        expect(mana.manaProduced).toEqual({ B: 1 });
+        let added: Record<string, number> | undefined;
+        mana.effect?.({
+            addMana: (m) => (added = m as Record<string, number>),
+        });
+        expect(added).toEqual({ B: 1 });
+    });
+
+    it("the for-mana tap trigger deals 1 damage to its controller (CR 603.6)", () => {
+        const elf = makeInstance(elvesOfDeepShadow.id, {
+            id: "elf",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [elf] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, elf, "elves-of-deep-shadow-pain", {
+            type: "PERMANENT_TAPPED",
+            permanentId: "elf",
+            controllerId: "p1",
+            forMana: true,
+        } as StackItem["triggerEvent"]);
+        expect(state.players[0].life).toBe(19);
+    });
+});
+
+describe("Wormwood Treefolk — temp landwalk grants + self-damage (CR 611.1b / 702.14)", () => {
+    it("is a 4/4 Treefolk for {3}{G}{G}", () => {
+        expect(wormwoodTreefolk.manaCost).toEqual({ X: 3, G: 2 });
+        expect(wormwoodTreefolk.subtypes).toEqual(["Treefolk"]);
+        expect(wormwoodTreefolk.power).toBe(4);
+        expect(wormwoodTreefolk.toughness).toBe(4);
+    });
+
+    it("the {G}{G} ability grants forestwalk until EOT and self-damages 2 (CR 611.1b)", () => {
+        const tf = makeInstance(wormwoodTreefolk.id, {
+            id: "tf",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tf] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, tf, "wormwood-treefolk-forestwalk", []);
+        const inPlay = state.players[0].battlefield.find((c) => c.id === "tf")!;
+        expect(inPlay.staticAbilities).toContain("forestwalk");
+        expect(state.players[0].life).toBe(18); // 20 - 2
+    });
+
+    it("the {B}{B} ability grants swampwalk until EOT and self-damages 2 (CR 611.1b)", () => {
+        const tf = makeInstance(wormwoodTreefolk.id, {
+            id: "tf",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tf] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, tf, "wormwood-treefolk-swampwalk", []);
+        const inPlay = state.players[0].battlefield.find((c) => c.id === "tf")!;
+        expect(inPlay.staticAbilities).toContain("swampwalk");
+        expect(state.players[0].life).toBe(18);
+    });
+});
+
+describe("Marsh Goblins — {B}{R} 1/1 Goblin with swampwalk (CR 702.14)", () => {
+    it("is a 1/1 Goblin for {B}{R} with swampwalk", () => {
+        expect(marshGoblins.manaCost).toEqual({ B: 1, R: 1 });
+        expect(marshGoblins.subtypes).toEqual(["Goblin"]);
+        expect(marshGoblins.power).toBe(1);
+        expect(marshGoblins.toughness).toBe(1);
+        expect(marshGoblins.staticAbilities).toContain("swampwalk");
+    });
+});
+
+describe("Dark Heart of the Wood — Sacrifice a Forest: gain 3 life (CR 118.5 / 119.3)", () => {
+    it("is a {B}{G} Enchantment with a sacrifice-a-Forest cost", () => {
+        expect(darkHeartOfTheWood.manaCost).toEqual({ B: 1, G: 1 });
+        expect(darkHeartOfTheWood.types).toEqual(["Enchantment"]);
+        const ab = darkHeartOfTheWood.activatedAbilities![0];
+        expect(ab.cost).toEqual({ sacrificeFilter: { subtypes: "Forest" } });
+    });
+
+    it("the ability gains its controller 3 life on resolution (CR 119.3)", () => {
+        const dh = makeInstance(darkHeartOfTheWood.id, {
+            id: "dh",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [dh] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, dh, "dark-heart-of-the-wood-gain", []);
+        expect(state.players[0].life).toBe(23); // 20 + 3
     });
 });
