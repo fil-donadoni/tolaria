@@ -10,6 +10,9 @@ export interface DeckPreset {
     description: string;
     colors: string[];
     cards: DeckCard[];
+    // Sideboard: 0–15 cards held aside (PRD #387, issue #391). Optional;
+    // absent/empty for presets that ship without one.
+    sideboard?: DeckCard[];
 }
 
 function times(n: number, cardId: string, cardName: string): DeckCard[] {

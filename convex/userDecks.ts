@@ -48,6 +48,7 @@ export const create = mutation({
         format: v.string(),
         colors: v.array(v.string()),
         cards: v.array(deckCardValidator),
+        sideboard: v.optional(v.array(deckCardValidator)),
         description: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
@@ -59,6 +60,7 @@ export const create = mutation({
             format: args.format,
             colors: args.colors,
             cards: args.cards,
+            sideboard: args.sideboard,
             description: args.description,
         });
     },
@@ -72,6 +74,7 @@ export const update = mutation({
             format: v.optional(v.string()),
             colors: v.optional(v.array(v.string())),
             cards: v.optional(v.array(deckCardValidator)),
+            sideboard: v.optional(v.array(deckCardValidator)),
             description: v.optional(v.string()),
         }),
     },
@@ -85,6 +88,8 @@ export const update = mutation({
         if (args.patch.format !== undefined) patch.format = args.patch.format;
         if (args.patch.colors !== undefined) patch.colors = args.patch.colors;
         if (args.patch.cards !== undefined) patch.cards = args.patch.cards;
+        if (args.patch.sideboard !== undefined)
+            patch.sideboard = args.patch.sideboard;
         if (args.patch.description !== undefined)
             patch.description = args.patch.description;
         if (Object.keys(patch).length === 0) return null;

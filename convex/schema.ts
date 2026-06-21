@@ -39,11 +39,22 @@ export default defineSchema({
         format: v.string(),
         description: v.optional(v.string()),
         colors: v.array(v.string()),
+        // Maindeck: the cards that build the starting Library.
         cards: v.array(
             v.object({
                 cardId: v.string(),
                 cardName: v.string(),
             })
+        ),
+        // Sideboard: 0–15 cards held aside (PRD #387, issue #391). Optional so
+        // decks saved before sideboarding load unchanged (absent === empty).
+        sideboard: v.optional(
+            v.array(
+                v.object({
+                    cardId: v.string(),
+                    cardName: v.string(),
+                })
+            )
         ),
     }).index("by_user", ["userId"]),
     games: defineTable({
