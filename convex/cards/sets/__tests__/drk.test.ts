@@ -81,6 +81,7 @@ import {
     tracker,
     wormsOfTheEarth,
     fasting,
+    sorrowsPath,
 } from "../drk";
 import { tropicalIsland, mountain, lightningBolt } from "../lea";
 import { stripMine } from "../atq";
@@ -108,7 +109,7 @@ import {
     getEffectiveManaChoices,
     getProducibleColors,
 } from "../../../gre/constants";
-import { finalizeCleanup } from "../../../gre/phases";
+import { finalizeCleanup, applyAllCombatDamage } from "../../../gre/phases";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import {
     assertLegalAction,
@@ -4524,5 +4525,256 @@ describe("Reflecting Mirror (retarget existing spell, CR 114.6)", () => {
         )!;
         expect(abilityItem.chosenX).toBe(6); // 2 × (1 + 2)
         expect(state.players[0].manaPool.R).toBe(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Sorrow's Path (C9, #426) — swap two of one opponent's blockers' assignments
+// (CR 509.1 / 506.4 reassignment) + on-tap 2-damage-to-you drawback (CR 701.20a)
+// ---------------------------------------------------------------------------
+
+/** Builds a mid-combat board: p1 (Sorrow's Path controller) is the active /
+ *  attacking player with two attackers; the opponent p2 is the defender with
+ *  two blocking creatures, each assigned to one attacker. Returns the state plus
+ *  the Sorrow's Path instance so a test can activate its swap ability.
+ *  `attackerAbilities` lets a test give an attacker evasion (e.g. flying) to
+ *  exercise the illegal-swap branch. */
+function sorrowsPathCombat(opts?: {
+    atk1Abilities?: string[];
+    atk2Abilities?: string[];
+    blk1Abilities?: string[];
+    blk2Abilities?: string[];
+}): { state: GameState; path: CardInstanceState } {
+    const path = makeInstance(sorrowsPath.id, {
+        id: "path",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    // p1's two attackers (vanilla 2/2 unless given evasion).
+    const atk1 = makeInstance(goblinHero.id, {
+        id: "atk1",
+        controllerId: "p1",
+        ownerId: "p1",
+        power: 2,
+        toughness: 2,
+        isAttacking: true,
+        staticAbilities: opts?.atk1Abilities ?? [],
+    });
+    const atk2 = makeInstance(goblinHero.id, {
+        id: "atk2",
+        controllerId: "p1",
+        ownerId: "p1",
+        power: 2,
+        toughness: 2,
+        isAttacking: true,
+        staticAbilities: opts?.atk2Abilities ?? [],
+    });
+    // p2's two blockers, each blocking one attacker.
+    const blk1 = makeInstance(squire.id, {
+        id: "blk1",
+        controllerId: "p2",
+        ownerId: "p2",
+        power: 1,
+        toughness: 3,
+        isBlocking: true,
+        staticAbilities: opts?.blk1Abilities ?? [],
+    });
+    const blk2 = makeInstance(squire.id, {
+        id: "blk2",
+        controllerId: "p2",
+        ownerId: "p2",
+        power: 1,
+        toughness: 3,
+        isBlocking: true,
+        staticAbilities: opts?.blk2Abilities ?? [],
+    });
+    const state = makeState({
+        activePlayerId: "p1",
+        phase: "DECLARE_BLOCKERS",
+        players: [
+            makePlayer("p1", { battlefield: [path, atk1, atk2] }),
+            makePlayer("p2", { battlefield: [blk1, blk2] }),
+        ],
+        combat: {
+            attackerIds: ["atk1", "atk2"],
+            confirmed: true,
+            blockerAssignments: { blk1: ["atk1"], blk2: ["atk2"] },
+            blockedAttackerIds: ["atk1", "atk2"],
+            blockersConfirmed: true,
+        },
+    });
+    return { state, path };
+}
+
+describe("Sorrow's Path — swap blockers (CR 509.1 / 506.4)", () => {
+    it("card definition: Land, {T} two-blocker target ability + on-tap trigger", () => {
+        expect(sorrowsPath.types).toEqual(["Land"]);
+        expect(sorrowsPath.manaCost).toEqual({});
+        const ab = sorrowsPath.activatedAbilities![0];
+        expect(ab.cost).toEqual({ tap: true });
+        expect(ab.useStack).toBe(true);
+        expect(ab.targetRequirement).toEqual({
+            type: "Creature",
+            count: 2,
+            combatRoleFilter: "blocking",
+            controller: "opponent",
+        });
+        expect(sorrowsPath.triggeredAbilities).toHaveLength(1);
+        expect(sorrowsPath.triggeredAbilities![0].event).toBe(
+            "PERMANENT_TAPPED"
+        );
+    });
+
+    it("legal swap: each vanilla blocker can block the other's attacker — assignments swap", () => {
+        const { state, path } = sorrowsPathCombat();
+        resolveActivated(state, path, "sorrows-path-swap-blockers", [
+            { type: "permanent", id: "blk1" },
+            { type: "permanent", id: "blk2" },
+        ]);
+        // blk1 now blocks atk2, blk2 now blocks atk1.
+        expect(state.combat!.blockerAssignments).toEqual({
+            blk1: ["atk2"],
+            blk2: ["atk1"],
+        });
+        // Both stay flagged as blocking; attackers stay blocked.
+        const blk1 = state.players[1].battlefield.find((c) => c.id === "blk1")!;
+        const blk2 = state.players[1].battlefield.find((c) => c.id === "blk2")!;
+        expect(blk1.isBlocking).toBe(true);
+        expect(blk2.isBlocking).toBe(true);
+        expect(state.combat!.blockedAttackerIds).toEqual(["atk1", "atk2"]);
+    });
+
+    it("illegal swap: blk1 can't block flying atk2 — no-op (assignments unchanged)", () => {
+        // atk2 has flying; blk2 (no flying) currently blocks it legally only
+        // because blk2 also flies. After a hypothetical swap blk1 (no flying)
+        // would have to block flying atk2 — illegal — so nothing happens.
+        const { state, path } = sorrowsPathCombat({
+            atk2Abilities: ["flying"],
+            blk2Abilities: ["flying"],
+        });
+        resolveActivated(state, path, "sorrows-path-swap-blockers", [
+            { type: "permanent", id: "blk1" },
+            { type: "permanent", id: "blk2" },
+        ]);
+        expect(state.combat!.blockerAssignments).toEqual({
+            blk1: ["atk1"],
+            blk2: ["atk2"],
+        });
+    });
+
+    it("combat damage reflects the swapped assignments", () => {
+        const { state, path } = sorrowsPathCombat();
+        resolveActivated(state, path, "sorrows-path-swap-blockers", [
+            { type: "permanent", id: "blk1" },
+            { type: "permanent", id: "blk2" },
+        ]);
+        // Strip the on-tap trigger that the activation queued so it doesn't
+        // interfere with the post-swap combat-damage assertion.
+        state.stack = [];
+        // After the swap blk1 blocks atk2 and blk2 blocks atk1. Each attacker
+        // (2 power) deals 2 to its NEW blocker; each blocker (1 power) deals 1
+        // back to its NEW attacker.
+        applyAllCombatDamage(state, {
+            atk1: { blk2: 2 },
+            atk2: { blk1: 2 },
+            blk1: { atk2: 1 },
+            blk2: { atk1: 1 },
+        });
+        const atk1 = state.players[0].battlefield.find((c) => c.id === "atk1")!;
+        const atk2 = state.players[0].battlefield.find((c) => c.id === "atk2")!;
+        const blk1 = state.players[1].battlefield.find((c) => c.id === "blk1")!;
+        const blk2 = state.players[1].battlefield.find((c) => c.id === "blk2")!;
+        expect(atk1.damageMarked).toBe(1); // from blk2 (its new blocker)
+        expect(atk2.damageMarked).toBe(1); // from blk1 (its new blocker)
+        expect(blk1.damageMarked).toBe(2); // from atk2 (its new attacker)
+        expect(blk2.damageMarked).toBe(2); // from atk1 (its new attacker)
+    });
+
+    it("on-tap drawback: deals 2 to controller and each creature they control (CR 701.20a)", () => {
+        const path = makeInstance(sorrowsPath.id, {
+            id: "path",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // 0/3 so it survives the 2 damage and damageMarked stays readable.
+        const myCreature = makeInstance(squire.id, {
+            id: "mine",
+            controllerId: "p1",
+            ownerId: "p1",
+            power: 1,
+            toughness: 3,
+        });
+        // An opponent creature must be unaffected.
+        const theirs = makeInstance(squire.id, {
+            id: "theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+            power: 1,
+            toughness: 3,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [path, myCreature], life: 20 }),
+                makePlayer("p2", { battlefield: [theirs], life: 20 }),
+            ],
+        });
+        resolveTrigger(state, path, "sorrows-path-tap-drawback", {
+            type: "PERMANENT_TAPPED",
+            permanentId: "path",
+            controllerId: "p1",
+            permanentTypes: ["Land"],
+            permanentSubtypes: [],
+            forMana: false,
+        } as StackItem["triggerEvent"]);
+        checkStateBasedActions(state);
+        expect(state.players[0].life).toBe(18); // 2 to controller
+        const mine = state.players[0].battlefield.find((c) => c.id === "mine")!;
+        expect(mine.damageMarked).toBe(2); // 2 to controller's creature
+        const t = state.players[1].battlefield.find((c) => c.id === "theirs")!;
+        expect(t.damageMarked ?? 0).toBe(0); // opponent untouched
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("integration: getLegalTargets lists both opponent blockers; activate swaps them", () => {
+        const { state, path } = sorrowsPathCombat();
+        // GRE → rules layer: only the opponent's BLOCKING creatures are legal.
+        const legal = getLegalTargets(
+            state,
+            sorrowsPath.activatedAbilities![0].targetRequirement!,
+            [],
+            "p1"
+        );
+        const ids = legal.map((t) => t.id).sort();
+        expect(ids).toEqual(["blk1", "blk2"]);
+        // The attackers (p1's own creatures) are NOT legal targets.
+        expect(ids).not.toContain("atk1");
+        expect(ids).not.toContain("path");
+        // Full path: resolve the ability with the two chosen targets.
+        resolveActivated(state, path, "sorrows-path-swap-blockers", [
+            { type: "permanent", id: "blk1" },
+            { type: "permanent", id: "blk2" },
+        ]);
+        expect(state.combat!.blockerAssignments).toEqual({
+            blk1: ["atk2"],
+            blk2: ["atk1"],
+        });
+    });
+
+    it("wire format: swapped block graph survives projectPublicState", () => {
+        const { state, path } = sorrowsPathCombat();
+        resolveActivated(state, path, "sorrows-path-swap-blockers", [
+            { type: "permanent", id: "blk1" },
+            { type: "permanent", id: "blk2" },
+        ]);
+        const projected = projectPublicState(state, 1, "p1");
+        // The reassigned blocker graph crosses the wire intact.
+        expect(projected.combat!.blockerAssignments).toEqual({
+            blk1: ["atk2"],
+            blk2: ["atk1"],
+        });
+        const blk1 = projected.players[1].battlefield.find(
+            (c) => c.id === "blk1"
+        )!;
+        expect(blk1.isBlocking).toBe(true);
     });
 });

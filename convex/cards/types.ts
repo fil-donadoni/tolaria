@@ -1231,6 +1231,19 @@ export interface SpellContext {
      *  attackers left with no blocker after their sole blocker is removed.
      *  Empty outside combat. */
     getBlockersByAttacker: () => Record<string, string[]>;
+    /** Swaps the block assignments of two blocking creatures (CR 509.1 /
+     *  506.4 — Sorrow's Path). Reads each blocker's currently-assigned attacker
+     *  set and, IFF each blocker could legally block every attacker the other
+     *  is blocking (full declare-blockers legality: evasion, "can't be blocked
+     *  by", protection, pile restrictions — CR 509.1b/c), removes both from
+     *  combat and re-blocks each onto the other's former attacker set. Returns
+     *  `true` when the swap happened. Returns `false` (no-op) when either
+     *  creature is missing / not blocking, the two ids are equal, or any leg of
+     *  the legality gate fails — matching the card's "if each ... could block
+     *  all creatures the other is blocking" hard condition. The attackers stay
+     *  blocked throughout (`blockedAttackerIds` is untouched). Orthogonal combat
+     *  operation, reusable by any future block-swap effect. */
+    reassignBlocks: (blockerAId: string, blockerBId: string) => boolean;
     /** Grants a target permanent the ability to block additional attackers
      *  this turn (CR 509.1a). `value` is the number of EXTRA attackers (999
      *  = "any number"). Cleared at CLEANUP. Used by Blaze of Glory. */

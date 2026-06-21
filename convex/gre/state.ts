@@ -44,6 +44,7 @@ import {
 import { isProtectedFromSource } from "./protection";
 import { isGuardedAgainst } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
+import { validateBlockerEligibility } from "./combat";
 import { colorWordsPresent, landTypesPresent } from "./textChanges";
 import { randomInt, seededShuffle } from "./rng";
 import {
@@ -5311,6 +5312,75 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         getBlockersByAttacker(): Record<string, string[]> {
             if (!state.combat) return {};
             return getEffectiveBlockGraph(state).blockersByAttacker;
+        },
+
+        // CR 509.1 / 506.4 — swap the block assignments of two blocking
+        // creatures (Sorrow's Path). Orthogonal combat operation: read each
+        // blocker's currently-assigned attacker set, verify each blocker could
+        // LEGALLY block every attacker in the OTHER's set (the same
+        // declare-blockers legality the engine enforces — evasion, "can't be
+        // blocked by", protection, pile restrictions; CR 509.1b/c via
+        // `validateBlockerEligibility`), then atomically swap the two sets.
+        // Either creature being absent / not blocking, or any leg of the
+        // legality check failing, makes the whole reassignment a no-op (CR — the
+        // "if each could block all creatures the other is blocking" clause is a
+        // hard gate: if it can't be satisfied, nothing happens). The attackers
+        // stay blocked (they remain in `blockedAttackerIds`); only WHICH blocker
+        // is assigned to each changes. Reusable by any future block-swap effect.
+        reassignBlocks(blockerAId: string, blockerBId: string): boolean {
+            const combat = state.combat;
+            if (!combat) return false;
+            if (blockerAId === blockerBId) return false;
+
+            const foundA = findOnBattlefield(state, blockerAId);
+            const foundB = findOnBattlefield(state, blockerBId);
+            if (!foundA || !foundB) return false;
+            const cardA = foundA.card;
+            const cardB = foundB.card;
+            if (!cardA.isBlocking || !cardB.isBlocking) return false;
+
+            const ba = combat.blockerAssignments;
+            const setA = ba[blockerAId] ?? [];
+            const setB = ba[blockerBId] ?? [];
+
+            // Legality gate (CR 509.1b/c): A must be able to block every attacker
+            // B is blocking, and vice versa. `validateBlockerEligibility` reads
+            // the defending player's battlefield for landwalk-style checks; the
+            // blocking creatures share a controller (both are the same
+            // opponent's), so either blocker's owning battlefield is the
+            // defender's for both legality passes.
+            const defenderBattlefield = foundA.player.battlefield;
+            const canBlockAll = (
+                blocker: CardInstanceState,
+                attackerIds: ReadonlyArray<string>
+            ): boolean =>
+                attackerIds.every((atkId) => {
+                    const atk = findOnBattlefield(state, atkId);
+                    if (!atk) return false;
+                    return validateBlockerEligibility(
+                        atk.card,
+                        blocker,
+                        defenderBattlefield,
+                        state
+                    ).eligible;
+                });
+
+            if (!canBlockAll(cardA, setB) || !canBlockAll(cardB, setA)) {
+                return false;
+            }
+
+            // Atomic swap: remove both from combat (clears isBlocking +
+            // assignment keys, CR 506.4), then re-block them onto the OTHER's
+            // former attacker set (CR 509.1). `blockedAttackerIds` is untouched —
+            // the attackers stay blocked throughout.
+            this.removeFromCombat({ type: "permanent", id: blockerAId });
+            this.removeFromCombat({ type: "permanent", id: blockerBId });
+
+            cardA.isBlocking = true;
+            cardB.isBlocking = true;
+            combat.blockerAssignments[blockerAId] = [...setB];
+            combat.blockerAssignments[blockerBId] = [...setA];
+            return true;
         },
 
         setMustBlockAll(target: TargetSelection): void {
