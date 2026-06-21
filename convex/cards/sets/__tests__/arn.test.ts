@@ -1371,6 +1371,28 @@ describe("Library of Alexandria ({T}: draw if exactly 7 cards in hand)", () => {
             )
         ).toBe(false);
     });
+
+    // Regression guard (#436): the server's activation gate rejects an attempt
+    // when `canActivate` is false. The production handler in game.ts validates
+    // `if (ability.canActivate && !ability.canActivate(card, state)) throw`.
+    // We mirror that exact gate against the real GRE state so the seven-card
+    // rule stays authoritative even though the UI hint now surfaces it.
+    function serverGate(handSize: number): { activatable: boolean } {
+        const state = setup(handSize);
+        const ability = (libraryOfAlexandria.activatedAbilities ?? []).find(
+            (a) => a.id === "library-of-alexandria-draw"
+        )!;
+        const card = { ...state.players[0].battlefield[0], controllerId: "p1" };
+        const activatable =
+            ability.canActivate === undefined ||
+            ability.canActivate(card as never, state as never);
+        return { activatable };
+    }
+    it("server gate rejects the draw at 6/8 cards, allows it at exactly 7", () => {
+        expect(serverGate(6).activatable).toBe(false);
+        expect(serverGate(7).activatable).toBe(true);
+        expect(serverGate(8).activatable).toBe(false);
+    });
 });
 
 describe("Brass Man (does-not-untap + pay {1} to untap on upkeep)", () => {

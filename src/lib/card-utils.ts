@@ -249,6 +249,43 @@ export function matchesSpellTypeFilter(
     return spellTypeFilter.some((t) => types.includes(t));
 }
 
+/** Builds a `TriggerStateView` (the shape `canActivate` predicates read,
+ *  CR 602.5b) from the viewer-visible players and turn state. Predicates
+ *  legitimately inspect `state.players` (a controller's hand size — Library of
+ *  Alexandria; any creature on the battlefield — Pestilence) and
+ *  `state.activePlayerId` (Nettling Imp's "only during an opponent's turn"),
+ *  so feeding them an empty player list made every such ability misjudged as a
+ *  UI hint (#436). This re-projects the client `Player[]` into the minimal view
+ *  the contract requires; the server's full `GameState` evaluation stays
+ *  authoritative. Only fields cards may rely on are surfaced — `hand.length`,
+ *  battlefield `types`/`subtypes`/`staticAbilities`, life, ids. */
+export function buildTriggerStateView(
+    players: ReadonlyArray<{
+        id: string;
+        life: number;
+        hand: ReadonlyArray<unknown>;
+        battlefield: ReadonlyArray<CardInstance>;
+    }>,
+    activePlayerId?: string
+): TriggerStateView {
+    return {
+        players: players.map((p) => ({
+            id: p.id,
+            life: p.life,
+            hand: { length: p.hand.length },
+            battlefield: p.battlefield.map((c) => ({
+                id: c.id,
+                controllerId: c.controllerId,
+                ownerId: c.ownerId,
+                types: c.types ?? [],
+                subtypes: c.subtypes ?? [],
+                staticAbilities: c.staticAbilities ?? [],
+            })),
+        })),
+        activePlayerId,
+    };
+}
+
 /** Returns stack-using activated abilities the player can currently announce.
  *  Only the non-mana availability is checked (source not already tapped when
  *  the ability has {T}); mana is deferred to a `pendingActivation` payment
@@ -263,7 +300,15 @@ export function getStackAbilities(
      *  hand. Gates the Jandor's Ring discard cost as a UI hint; the server
      *  validation is authoritative. Defaults to true so callers that don't
      *  pass it (and abilities without the cost) are unaffected. */
-    canDiscardLastDrawn: boolean = true
+    canDiscardLastDrawn: boolean = true,
+    /** Viewer-visible game state for `canActivate` predicates (CR 602.5b).
+     *  When omitted, an empty player list is used — sufficient for predicates
+     *  that only inspect the source permanent (e.g. Clockwork Beast's counter
+     *  cap), but a predicate that scans players/battlefields will see nothing.
+     *  Callers with access to player/turn state MUST pass a real view (built
+     *  via `buildTriggerStateView`) so player-state-reading abilities — Library
+     *  of Alexandria, Pestilence, Nettling Imp — are surfaced correctly (#436). */
+    stateView?: TriggerStateView
 ): { id: string; oracleText: string }[] {
     const cardDef = getCardById(card.card.id);
     const tapLocked = isTapLockedBySummoningSickness(card);
@@ -301,13 +346,15 @@ export function getStackAbilities(
         // CR 118.3 — "discard the last card you drew this turn" cost
         // (Jandor's Ring) is unpayable when no such card is in hand.
         if (a.cost.discardLastDrawn && !canDiscardLastDrawn) return false;
-        // CR 602.5b — ability-specific activation precondition. Read against
-        // the source's current state; an empty state view is sufficient for
-        // predicates that only inspect the source (e.g. Clockwork Beast's
-        // counter cap), and acceptable as a UI hint for predicates that
-        // would need more — server-side validation is authoritative.
+        // CR 602.5b — ability-specific activation precondition. Evaluated as a
+        // UI hint against the viewer-visible `stateView` (real player/turn data
+        // when the caller supplies it; an empty player list otherwise). A
+        // predicate that reads the controller's hand or scans battlefields
+        // (Library of Alexandria, Pestilence) needs the populated view to judge
+        // correctly (#436); server-side validation against the full GameState
+        // is authoritative regardless.
         if (a.canActivate !== undefined) {
-            const view = { players: [] };
+            const view: TriggerStateView = stateView ?? { players: [] };
             if (!a.canActivate(card as PermanentView, view)) return false;
         }
         return true;
@@ -338,7 +385,11 @@ export function getStackAbilities(
  *  the card's native definition is consulted. */
 export function getAnyPlayerStackAbilities(
     card: CardInstance,
-    phase?: Phase
+    phase?: Phase,
+    /** Viewer-visible game state for `canActivate` predicates (#436). Forwarded
+     *  to `getStackAbilities` so an any-player ability gated on player/board
+     *  state is judged against real data. */
+    stateView?: TriggerStateView
 ): { id: string; oracleText: string }[] {
     const cardDef = getCardById(card.card.id);
     const anyPlayerIds = new Set(
@@ -347,7 +398,9 @@ export function getAnyPlayerStackAbilities(
             .map((a) => a.id)
     );
     if (anyPlayerIds.size === 0) return [];
-    return getStackAbilities(card, phase).filter((a) => anyPlayerIds.has(a.id));
+    return getStackAbilities(card, phase, true, stateView).filter((a) =>
+        anyPlayerIds.has(a.id)
+    );
 }
 
 /** Returns the oracle text for an activated ability by id, or null. Checks

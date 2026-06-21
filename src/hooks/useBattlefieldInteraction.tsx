@@ -14,6 +14,7 @@ import {
     canRefundManaTap,
     getStackAbilities,
     getAnyPlayerStackAbilities,
+    buildTriggerStateView,
     wantsPermanentTarget,
     matchesTargetRequirement,
     isTapLockedBySummoningSickness,
@@ -423,12 +424,18 @@ export function useBattlefieldInteraction(player: Player) {
         ) {
             return [];
         }
+        // CR 602.5b — viewer-visible state fed to each ability's `canActivate`
+        // predicate so player/board-reading gates (Library of Alexandria's
+        // seven-card hand, Pestilence's creature-present, Nettling Imp's
+        // active-player check) evaluate correctly as a UI hint (#436). Server
+        // validation against the full GameState remains authoritative.
+        const stateView = buildTriggerStateView(allPlayers, activePlayerId);
         // CR 113.3c — on an OPPONENT's permanent, the viewer may only activate
         // "any player may activate" abilities, and only while holding priority.
         // Controller-only abilities and mana abilities stay hidden there.
         if (!isMe) {
             if (!viewerHasPriority) return [];
-            return getAnyPlayerStackAbilities(card, phase);
+            return getAnyPlayerStackAbilities(card, phase, stateView);
         }
         if (!hasPriority) {
             return [];
@@ -455,7 +462,12 @@ export function useBattlefieldInteraction(player: Player) {
             player.hand.some(
                 (c) => c !== null && c.id === player.lastDrawnCardId
             );
-        const stack = getStackAbilities(card, phase, canDiscardLastDrawn);
+        const stack = getStackAbilities(
+            card,
+            phase,
+            canDiscardLastDrawn,
+            stateView
+        );
         // When a card carries BOTH a mana ability and at least one stack
         // ability (Basalt Monolith, Mana Vault), surface the mana ability as
         // an explicit menu entry too — otherwise a left click would silently
