@@ -2,6 +2,10 @@ import { memo, useState } from "react";
 import { getImageUrl, resolveCardImageId } from "~/lib/images";
 import { tryGetCardById } from "@convex/cards";
 import type { CardInstance } from "~/types/game";
+import {
+    cardImageSignature,
+    getCardImageDefId,
+} from "~/lib/card-image-signature";
 import CardPreview from "./card-preview";
 import CardImageLoader from "./card-image-loader";
 import TokenPlaceholder from "./token-placeholder";
@@ -26,7 +30,7 @@ function isCardInstance(
 }
 
 function getDefId(card: CardInstance | { id: string }): string {
-    return isCardInstance(card) ? card.card.id : card.id;
+    return getCardImageDefId(card);
 }
 
 function CardImageImpl({ card }: CardImageProps) {
@@ -72,21 +76,19 @@ function CardImageImpl({ card }: CardImageProps) {
     );
 }
 
-// Memo on def id + colorOverride — CardImage is invoked thousands of times per
-// render and repaints would re-trigger Chrome's compositor downsample. Most
-// override changes (granted/lost abilities, P/T) reflect on the next zoom
-// invocation rather than mid-zoom. colorOverride is included because the card
-// preview badge ("Color: Red") must appear immediately after a lace resolves.
-const CardImage = memo(CardImageImpl, (prev, next) => {
-    if (getDefId(prev.card) !== getDefId(next.card)) return false;
-    const prevOverride = isCardInstance(prev.card)
-        ? prev.card.colorOverride
-        : undefined;
-    const nextOverride = isCardInstance(next.card)
-        ? next.card.colorOverride
-        : undefined;
-    if (prevOverride === nextOverride) return true;
-    if (!prevOverride || !nextOverride) return false;
-    return prevOverride.join() === nextOverride.join();
-});
+// Memo on a CHEAP derived signature of every live-instance field the zoom
+// preview / badges render (#447) — CardImage is invoked thousands of times per
+// render and repaints would re-trigger Chrome's compositor downsample, so the
+// comparator stays a single string compare (never a deep object compare). The
+// signature covers granted/lost keywords (landwalk AND every other keyword via
+// `staticAbilities`), effective P/T inputs (base P/T, counters, temp mods),
+// types/subtypes, granted activated/triggered abilities, and `colorOverride`.
+// Any of those changing re-renders so the preview reflects the live instance;
+// fields the preview ignores (tap/combat/summoning flags) are excluded so
+// unrelated state churn doesn't repaint. See `card-image-signature.ts`.
+const CardImage = memo(
+    CardImageImpl,
+    (prev, next) =>
+        cardImageSignature(prev.card) === cardImageSignature(next.card)
+);
 export default CardImage;

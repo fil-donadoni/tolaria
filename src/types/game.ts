@@ -116,6 +116,17 @@ export interface CardInstance {
         abilityId: string;
         auraId: string;
     }[];
+    /** Static keywords granted to this permanent by another card (CR 113.1,
+     *  611 — landwalk via a granting permanent, etc.). Each entry is also
+     *  pushed into `staticAbilities` for read-time lookups, so this carries
+     *  the GRANT PROVENANCE (which source / duration) rather than driving the
+     *  keyword diff itself. Aligned with the wire projection, which forwards
+     *  this field via `slimCard` (it only strips `card`/`knownTo`). */
+    grantedStaticAbilities?: {
+        ability: string;
+        duration?: unknown;
+        auraId?: string;
+    }[];
     /** Triggered abilities granted to this permanent by an anthem-style static
      *  effect (CR 113.1, e.g. Energy Flux granting an upkeep sacrifice trigger
      *  to every artifact). The template lives on the granting card's
