@@ -2,15 +2,23 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import type { PublicMatch } from "@convex/matches";
 import GameDialog from "~/components/ui/game-dialog";
+import { clearSession } from "~/lib/session";
 
-type Step = "menu" | "confirm-concede";
+type Step = "menu" | "confirm-concede" | "confirm-forfeit";
 
 type PauseMenuDialogProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     gameId: Id<"games">;
     playerId: string;
+    /** Owning Match (ADR 0029). Drives the Concede-vs-Forfeit split (#396): the
+     *  in-game Concede loses only the current Game, while Forfeit Match ends the
+     *  whole Match. In a Bo1 the two coincide, so the menu only offers Forfeit.
+     *  Null while the Match meta is still loading or for a legacy match-less
+     *  game — then only the single-game Concede is shown. */
+    match: PublicMatch | null;
 };
 
 export default function PauseMenuDialog({
@@ -18,10 +26,17 @@ export default function PauseMenuDialog({
     onOpenChange,
     gameId,
     playerId,
+    match,
 }: PauseMenuDialogProps) {
     const [step, setStep] = useState<Step>("menu");
     const [isBusy, setIsBusy] = useState(false);
     const concede = useMutation(api.game.concede);
+    const forfeitMatch = useMutation(api.game.forfeitMatch);
+
+    // A Bo3 keeps Concede (loses one Game) distinct from Forfeit (ends the
+    // Match). A Bo1 — or a match-less legacy game — collapses to Concede only,
+    // since losing the single Game already ends everything.
+    const isBo3 = match?.bestOf === 3;
 
     const handleOpenChange = (nextOpen: boolean) => {
         if (!nextOpen) setStep("menu");
@@ -39,13 +54,28 @@ export default function PauseMenuDialog({
         }
     };
 
+    const handleForfeit = async () => {
+        if (isBusy || !match) return;
+        setIsBusy(true);
+        try {
+            await forfeitMatch({ matchId: match.matchId, playerId });
+            // Forfeiting ends the Match; drop the session and return to lobby so
+            // no orphaned active Match is left behind (#396).
+            clearSession();
+            handleOpenChange(false);
+            window.location.href = "/";
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
     if (step === "confirm-concede") {
         return (
             <GameDialog
                 open={open}
                 onOpenChange={handleOpenChange}
-                title="Concede"
-                subtitle="Do you really want to concede?"
+                title="Concede Game"
+                subtitle="Do you really want to concede this game?"
                 dismissable
             >
                 <div className="flex gap-3 mt-2">
@@ -59,6 +89,36 @@ export default function PauseMenuDialog({
                     <button
                         type="button"
                         onClick={handleConcede}
+                        disabled={isBusy}
+                        className="flex-1 py-2 rounded-sm bg-[#5c1e1e]/45 border border-[#a04040]/45 text-[#d48080] font-beleren tracking-wide hover:bg-[#5c1e1e]/65 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    >
+                        Yes
+                    </button>
+                </div>
+            </GameDialog>
+        );
+    }
+
+    if (step === "confirm-forfeit") {
+        return (
+            <GameDialog
+                open={open}
+                onOpenChange={handleOpenChange}
+                title="Forfeit Match"
+                subtitle="Do you really want to forfeit the entire match?"
+                dismissable
+            >
+                <div className="flex gap-3 mt-2">
+                    <button
+                        type="button"
+                        onClick={() => setStep("menu")}
+                        className="flex-1 py-2 rounded-sm bg-zinc-800/40 border border-zinc-600/45 text-zinc-300 font-beleren tracking-wide hover:bg-zinc-700/40 transition-colors cursor-pointer"
+                    >
+                        No
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleForfeit}
                         disabled={isBusy}
                         className="flex-1 py-2 rounded-sm bg-[#5c1e1e]/45 border border-[#a04040]/45 text-[#d48080] font-beleren tracking-wide hover:bg-[#5c1e1e]/65 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                     >
@@ -83,8 +143,17 @@ export default function PauseMenuDialog({
                     onClick={() => setStep("confirm-concede")}
                     className="w-full py-2.5 rounded-sm bg-[#5c1e1e]/45 border border-[#a04040]/45 text-[#d48080] font-beleren tracking-wide hover:bg-[#5c1e1e]/65 transition-colors cursor-pointer"
                 >
-                    Concede
+                    {isBo3 ? "Concede Game" : "Concede"}
                 </button>
+                {isBo3 && match && (
+                    <button
+                        type="button"
+                        onClick={() => setStep("confirm-forfeit")}
+                        className="w-full py-2.5 rounded-sm bg-[#3a1414]/45 border border-[#7a2a2a]/45 text-[#b86a6a] font-beleren tracking-wide hover:bg-[#3a1414]/65 transition-colors cursor-pointer"
+                    >
+                        Forfeit Match
+                    </button>
+                )}
             </div>
         </GameDialog>
     );

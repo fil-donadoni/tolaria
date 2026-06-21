@@ -9,6 +9,7 @@ import ActionButton from "~/components/board/action-button";
 
 export type ActiveGame = {
     gameId: Id<"games">;
+    matchId: Id<"matches">;
     name: string;
     status: "waiting" | "playing" | "finished";
     solo: boolean;
@@ -26,14 +27,17 @@ type Props = {
  * game at a time, so when one exists the lobby shows this prominent banner and
  * disables creating/joining (the server rejects a second creation anyway).
  * Resume rejoins it; a waiting room with no opponent can be abandoned (Leave);
- * a game in progress is closed by conceding (CR 104.3a — that player loses).
+ * an in-progress Match is abandoned by forfeiting it (#396) — leaving mid-Match
+ * maps to a Forfeit so no orphaned active Match is left behind. (Conceding a
+ * single Game from here would only end one Game of a Bo3 and keep the Match
+ * active; Forfeit ends the whole Match, awarding the opponent.)
  */
 export default function ActiveGameNotice({ activeGame, userId }: Props) {
     const navigate = useNavigate();
     const leaveGame = useMutation(api.game.leaveGame);
-    const concede = useMutation(api.game.concede);
+    const forfeitMatch = useMutation(api.game.forfeitMatch);
     const [isBusy, setIsBusy] = useState(false);
-    const [confirmConcede, setConfirmConcede] = useState(false);
+    const [confirmForfeit, setConfirmForfeit] = useState(false);
 
     // Solo / vs-AI seats are `${userId}-p1`; a 2-player seat is the bare id.
     const playerId = activeGame.solo ? `${userId}-p1` : userId;
@@ -54,12 +58,12 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
         }
     };
 
-    const handleConcede = async () => {
+    const handleForfeit = async () => {
         if (isBusy) return;
         setIsBusy(true);
         try {
-            await concede({ gameId: activeGame.gameId, playerId });
-            setConfirmConcede(false);
+            await forfeitMatch({ matchId: activeGame.matchId, playerId });
+            setConfirmForfeit(false);
         } finally {
             setIsBusy(false);
         }
@@ -84,11 +88,11 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
                 </button>
                 {inProgress ? (
                     <button
-                        onClick={() => setConfirmConcede(true)}
+                        onClick={() => setConfirmForfeit(true)}
                         disabled={isBusy}
                         className="btn-base btn-tone-destructive px-3 py-1.5 text-xs disabled:opacity-50"
                     >
-                        Concede
+                        Forfeit
                     </button>
                 ) : (
                     <button
@@ -102,23 +106,23 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
             </div>
 
             <GameDialog
-                open={confirmConcede}
+                open={confirmForfeit}
                 onOpenChange={(open) => {
-                    if (!open) setConfirmConcede(false);
+                    if (!open) setConfirmForfeit(false);
                 }}
-                title="Concede game?"
-                subtitle="This counts as a loss and cannot be undone."
+                title="Forfeit match?"
+                subtitle="This ends the whole match as a loss and cannot be undone."
             >
                 <div className="flex justify-end gap-2 mt-4">
                     <ActionButton
-                        onClick={() => setConfirmConcede(false)}
+                        onClick={() => setConfirmForfeit(false)}
                         label="Cancel"
                         tone="secondary"
                         disabled={isBusy}
                     />
                     <ActionButton
-                        onClick={() => void handleConcede()}
-                        label="Concede"
+                        onClick={() => void handleForfeit()}
+                        label="Forfeit"
                         tone="destructive"
                         disabled={isBusy}
                     />
