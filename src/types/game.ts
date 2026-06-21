@@ -55,6 +55,10 @@ export interface Player {
     lastDrawnCardId?: string;
     /** Abilities granted to this player by an effect (e.g. Channel). */
     grantedAbilities?: GrantedAbility[];
+    /** Poison counters on this player (CR 122). Absent means zero. A player
+     *  with ten or more loses the game (CR 704.5c). Rides the public
+     *  projection via the `...player` spread (ADR 0032). */
+    poisonCounters?: number;
 }
 
 /** Mana pool carried by the player. All six color slots may be missing from the server payload. */
@@ -202,7 +206,7 @@ export type {
 export interface GameOver {
     winnerId: string;
     loserId: string;
-    reason: "life" | "decked" | "concede" | "draw";
+    reason: "life" | "decked" | "concede" | "draw" | "poison";
     /** True when the game ended in a draw (CR 104.4a — Divine Intervention). */
     isDraw?: boolean;
 }

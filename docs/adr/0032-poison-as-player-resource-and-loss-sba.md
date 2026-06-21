@@ -28,7 +28,7 @@ and tests depend on the shape:
 
 1. **Where do poison counters live?** The engine already has a named-counter map
    on `CardInstanceState` (`counters[type]`, e.g. `+1/+1`, `doom`). Reusing it
-   for poison would mean teaching every counter helper to accept a *player* as
+   for poison would mean teaching every counter helper to accept a _player_ as
    well as an object — polymorphism the helpers don't have and don't want. The
    alternative is a dedicated scalar on `PlayerState`.
 2. **How does the loss interact with the existing player-loss SBAs?** It must be
@@ -87,12 +87,12 @@ introduced.
 - Adding `"poison"` to `gameOver.reason` keeps the loss taxonomy explicit; the
   game-over UI already handles arbitrary reasons.
 - **Known gap (inherited, not introduced):** `checkGameOverSBA` sets `gameOver`
-  on the *first* player in array order that meets a loss condition and returns —
+  on the _first_ player in array order that meets a loss condition and returns —
   it does not detect simultaneous double-loss → draw (CR 104.4a). Poison inherits
   this first-loser semantics, same as life-zero and decking. The fix (collect all
   losers in one sweep → `isDraw` when more than one) is tracked as a separate bug,
   **#451** (e.g. Hurricane killing both players should be a draw). This slice does
   not regress the gap and explicitly defers it.
-- **Deferred:** infect / toxic / proliferate and poison *removal* — no DRK card
+- **Deferred:** infect / toxic / proliferate and poison _removal_ — no DRK card
   needs them; they compose onto `poisonCounters` + `addPoisonCounters` when a
   card ships that requires them.

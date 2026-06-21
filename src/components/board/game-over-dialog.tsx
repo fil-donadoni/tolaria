@@ -59,7 +59,9 @@ export default function GameOverDialog({
           ? `${loserName} ran out of life`
           : gameOver.reason === "decked"
             ? `${loserName} tried to draw from an empty library`
-            : `${loserName} conceded`;
+            : gameOver.reason === "poison"
+              ? `${loserName} succumbed to poison`
+              : `${loserName} conceded`;
 
     // Terminal Match result: the Match is decided (Bo1 always; Bo3 at first to
     // two). "Back to Lobby" is shown only when the Match is over (PRD #387).

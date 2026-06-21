@@ -448,6 +448,7 @@ type CompactPlayer = {
     maxHandSizeOverride?: number | "unlimited";
     qualifyingActionThisTurn?: boolean;
     qualifyingActionLastTurn?: boolean;
+    poisonCounters?: number;
 };
 
 function compactPlayer(player: PlayerState): CompactPlayer {
@@ -495,6 +496,9 @@ function compactPlayer(player: PlayerState): CompactPlayer {
     if (player.qualifyingActionLastTurn) {
         out.qualifyingActionLastTurn = true;
     }
+    // Poison counters (CR 122) — persisted so the loss SBA (CR 704.5c) survives
+    // a save/load round-trip.
+    if (player.poisonCounters) out.poisonCounters = player.poisonCounters;
     return out;
 }
 
@@ -548,6 +552,7 @@ function expandPlayer(player: CompactPlayer): PlayerState {
     if (player.qualifyingActionLastTurn) {
         result.qualifyingActionLastTurn = true;
     }
+    if (player.poisonCounters) result.poisonCounters = player.poisonCounters;
     return result;
 }
 

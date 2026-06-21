@@ -1,6 +1,7 @@
 import type { Player } from "~/types/game";
 import type { PlayerInteraction } from "~/hooks/usePlayerInteraction";
 import AnimatedLifeTotal from "./animated-life-total";
+import PlayerPoisonCounters from "./player-poison-counters";
 
 type PlayerNameplateProps = {
     player: Player;
@@ -82,6 +83,7 @@ export default function PlayerNameplate({
             <div className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-text-muted">
                 {player.name}
             </div>
+            <PlayerPoisonCounters count={player.poisonCounters} />
         </div>
     );
 }
