@@ -121,6 +121,46 @@ export function recordGameResult(
     };
 }
 
+/**
+ * Forfeit the whole Match (PRD #387 user story 30 / issue #396). The forfeiting
+ * player gives up the entire Match in one action; the opponent is awarded the
+ * Games they still need to win (their score jumps to `gamesToWin(bestOf)`), the
+ * Match is marked `finished`, and `winner` is set to the opponent. This differs
+ * from `concede`, which loses only the CURRENT Game and routes through the
+ * normal flow. In a Bo1 the two coincide — conceding the one Game ends the Match
+ * — but in a Bo3 a forfeit ends the Match immediately regardless of the running
+ * score, where a concede would only lose that Game.
+ *
+ * Pure: returns the patch to apply to the Match row, or `null` when the
+ * forfeiter isn't in the seat list (nothing to do). The opponent's score is set
+ * to exactly the games-to-win threshold so the recorded Match score is
+ * internally consistent (e.g. 2–0 / 2–1 in a Bo3) rather than left mid-flight.
+ */
+export function forfeitMatch(
+    match: MatchCore,
+    forfeiterId: string
+): Partial<MatchCore> | null {
+    const forfeiterIdx = match.players.findIndex((p) => p.id === forfeiterId);
+    if (forfeiterIdx === -1) return null;
+    const opponent = match.players.find((p) => p.id !== forfeiterId);
+    if (!opponent) return null;
+
+    const target = gamesToWin(match.bestOf);
+    const players = match.players.map((p) => ({
+        ...p,
+        // Opponent is awarded the games they need to win; never lower an
+        // already-higher score (defensive — a winner would have finished).
+        score: p.id === opponent.id ? Math.max(p.score, target) : p.score,
+        ready: false,
+    }));
+    return {
+        players,
+        status: "finished",
+        winner: opponent.id,
+        playDrawChooserId: undefined,
+    };
+}
+
 // ---------------------------------------------------------------------------
 // Sideboarding (PRD #387 / issue #395). Between Games of a Bo3 a player may
 // exchange cards between their Maindeck and Sideboard. The swap is constrained

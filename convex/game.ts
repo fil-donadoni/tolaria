@@ -136,6 +136,7 @@ import {
     botSeatId,
     buildNextGameSeats,
     findActiveMatchForUser,
+    forfeitMatch as computeForfeitMatch,
     matchBelongsToUser,
     nextGameActivePlayerId,
     recordGameResult,
@@ -1464,6 +1465,77 @@ export const continueMatch = mutation({
             throw new Error("Match is not awaiting the next game");
 
         return buildNextGameForMatch(ctx, match, user.nickname, args.choice);
+    },
+});
+
+/**
+ * Forfeit the entire Match in one action (PRD #387 user story 30 / issue #396).
+ * Unlike `concede` — which loses only the CURRENT Game and routes through the
+ * normal flow (the Match continues into Sideboarding if undecided) — a forfeit
+ * ends the WHOLE Match immediately: the opponent is awarded the Games they need
+ * to win, the Match is marked `finished`, and `winner` is set to the opponent.
+ * In a Bo1 a concede and a forfeit coincide; in a Bo3 a forfeit ends the Match
+ * regardless of the running score.
+ *
+ * Also the mapping for "Back to Lobby" mid-Match: leaving an in-progress Match
+ * forfeits it so no orphaned active Match is left behind (the single-active-
+ * match guard would otherwise block a new Match). If the current Game is still
+ * in progress it is marked finished with the opponent as the Game winner, so the
+ * board reflects the forfeit too. Idempotent: a finished Match is a no-op.
+ */
+export const forfeitMatch = mutation({
+    args: {
+        matchId: v.id("matches"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const match = await ctx.db.get(args.matchId);
+        if (!match) throw new Error("Match not found");
+        if (!matchBelongsToUser(match, user._id))
+            throw new Error("You are not part of this match");
+
+        // Idempotent: an already-finished Match needs nothing.
+        if (match.status === "finished") return;
+
+        const patch = computeForfeitMatch(match, args.playerId);
+        if (!patch) throw new Error("Seat not found in this match");
+
+        const now = Date.now();
+        await ctx.db.patch(args.matchId, { ...patch, updatedAt: now });
+
+        // If a Game is in progress, end it too so the board shows the result.
+        // The opponent (the Match winner) is the Game winner.
+        const winnerId = patch.winner;
+        if (match.currentGameId && winnerId) {
+            const gameState = await getLatestGameState(
+                ctx,
+                match.currentGameId
+            );
+            if (gameState && !gameState.state.gameOver) {
+                const state = structuredClone(gameState.state) as GameState;
+                state.gameOver = {
+                    winnerId,
+                    loserId: args.playerId,
+                    reason: "concede",
+                };
+                const nextSeq = gameState.seq + 1;
+                await saveGameState(
+                    ctx,
+                    match.currentGameId,
+                    nextSeq,
+                    state,
+                    gameState
+                );
+                // Mark the games row finished (the Match patch above already
+                // recorded the final score; don't re-run recordGameResult).
+                await ctx.db.patch(match.currentGameId, {
+                    status: "finished",
+                    winner: winnerId,
+                    updatedAt: now,
+                });
+            }
+        }
     },
 });
 

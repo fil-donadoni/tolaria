@@ -326,6 +326,7 @@ export default function Board({
                                 onOpenChange={setPauseMenuOpen}
                                 gameId={gameId}
                                 playerId={viewerId}
+                                match={match ?? null}
                             />
                             <ErrorToast
                                 error={pendingChoiceBuffer.lastError}

@@ -7,6 +7,7 @@ import {
     botIsChooser,
     botSeatId,
     buildNextGameSeats,
+    forfeitMatch,
     gamesToWin,
     isBotSeat,
     matchBelongsToUser,
@@ -110,6 +111,81 @@ describe("recordGameResult — Bo3 transitions (PRD #387)", () => {
         expect(patch!.status).toBe("finished");
         expect(patch!.winner).toBe("a");
         expect(patch!.players!.find((p) => p.id === "a")!.score).toBe(2);
+    });
+});
+
+describe("forfeitMatch — ends the whole Match (PRD #387 / issue #396)", () => {
+    it("Bo1: forfeit ends the Match, opponent wins (== conceding the Game)", () => {
+        const m = match(1, [player("a"), player("b")]);
+        const patch = forfeitMatch(m, "a");
+        expect(patch).not.toBeNull();
+        expect(patch!.status).toBe("finished");
+        expect(patch!.winner).toBe("b");
+        // Opponent is awarded the one game needed to win the Bo1.
+        expect(patch!.players!.find((p) => p.id === "b")!.score).toBe(1);
+        expect(patch!.players!.find((p) => p.id === "a")!.score).toBe(0);
+    });
+
+    it("Bo3: forfeit at 0–0 ends the Match, opponent jumps to 2 wins", () => {
+        const m = match(3, [player("a"), player("b")]);
+        const patch = forfeitMatch(m, "a");
+        expect(patch!.status).toBe("finished");
+        expect(patch!.winner).toBe("b");
+        expect(patch!.players!.find((p) => p.id === "b")!.score).toBe(2);
+        expect(patch!.players!.find((p) => p.id === "a")!.score).toBe(0);
+    });
+
+    it("Bo3: forfeit mid-Match (1–1) still finishes; opponent reaches 2", () => {
+        const m = match(3, [player("a", 1), player("b", 1)]);
+        const patch = forfeitMatch(m, "a");
+        expect(patch!.status).toBe("finished");
+        expect(patch!.winner).toBe("b");
+        // Opponent already had 1; forfeit lifts them to the games-to-win (2).
+        expect(patch!.players!.find((p) => p.id === "b")!.score).toBe(2);
+        // The forfeiter's own score is untouched.
+        expect(patch!.players!.find((p) => p.id === "a")!.score).toBe(1);
+    });
+
+    it("an unknown forfeiter (no such seat) is a no-op", () => {
+        const m = match(3, [player("a"), player("b")]);
+        expect(forfeitMatch(m, "ghost")).toBeNull();
+    });
+});
+
+// Concede-vs-Forfeit equivalence/divergence (#396). Conceding a Game routes
+// through `recordGameResult` (what `finalizeGameOver` calls); forfeiting routes
+// through `forfeitMatch`. In a Bo1 they coincide (both finish the Match); in a
+// Bo3 they diverge — a concede of Game 1 leaves the Match in progress (score
+// 0–1, sideboarding gate), while a forfeit ends it outright.
+describe("concede (Game) vs forfeit (Match) — integration (#396)", () => {
+    it("Bo1: concede and forfeit both finish the Match with the opponent", () => {
+        const m = match(1, [player("a"), player("b")]);
+        // Concede = the loser's opponent wins the Game → recordGameResult.
+        const conceded = recordGameResult(m, "b");
+        const forfeited = forfeitMatch(m, "a");
+        expect(conceded!.status).toBe("finished");
+        expect(forfeited!.status).toBe("finished");
+        expect(conceded!.winner).toBe("b");
+        expect(forfeited!.winner).toBe("b");
+    });
+
+    it("Bo3: conceding Game 1 leaves the Match in progress (0–1, sideboarding)", () => {
+        const m = match(3, [player("a"), player("b")]);
+        // A concedes Game 1 → B wins that Game; the Match is undecided.
+        const patch = recordGameResult(m, "b")!;
+        const after = { ...m, ...patch };
+        expect(after.status).toBe("sideboarding"); // proceeds to next step
+        expect(after.winner).toBeUndefined(); // Match NOT decided
+        expect(after.players.find((p) => p.id === "a")!.score).toBe(0);
+        expect(after.players.find((p) => p.id === "b")!.score).toBe(1);
+    });
+
+    it("Bo3: forfeiting Game 1's position ends the Match immediately", () => {
+        const m = match(3, [player("a"), player("b")]);
+        const patch = forfeitMatch(m, "a")!;
+        const after = { ...m, ...patch };
+        expect(after.status).toBe("finished"); // ends immediately
+        expect(after.winner).toBe("b");
     });
 });
 
