@@ -1,11 +1,13 @@
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import type { Difficulty } from "@convex/gre";
 import type { LobbyDeck } from "~/lib/deckTypes";
+import type { MatchFormat } from "~/lib/session";
 import { cn } from "~/lib/utils";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import ActionButton from "~/components/board/action-button";
 import ManaSymbol from "../cards/mana-symbol";
 import DifficultySelector from "./difficulty-selector";
+import MatchFormatSelector from "./match-format-selector";
 import AiDeckSelector from "./ai-deck-selector";
 
 interface DashboardPlayBoxProps {
@@ -13,6 +15,9 @@ interface DashboardPlayBoxProps {
     openGames: Array<Doc<"games">> | undefined;
     difficulty: Difficulty;
     onDifficultyChange: (difficulty: Difficulty) => void;
+    /** Bo1/Bo3 selection (PRD #387). Flows into Match creation as `bestOf`. */
+    matchFormat: MatchFormat;
+    onMatchFormatChange: (format: MatchFormat) => void;
     /** All decks selectable as the AI opponent's deck (user + preset). */
     decks: LobbyDeck[];
     /** Selected AI opponent deck presetId, or null to mirror the player. */
@@ -34,6 +39,8 @@ export default function DashboardPlayBox({
     openGames,
     difficulty,
     onDifficultyChange,
+    matchFormat,
+    onMatchFormatChange,
     decks,
     aiDeckId,
     onAiDeckChange,
@@ -85,6 +92,11 @@ export default function DashboardPlayBox({
                 )}
 
                 <div className="mb-3 flex flex-wrap items-end justify-start gap-4">
+                    <MatchFormatSelector
+                        value={matchFormat}
+                        onChange={onMatchFormatChange}
+                        disabled={busy}
+                    />
                     <DifficultySelector
                         value={difficulty}
                         onChange={onDifficultyChange}

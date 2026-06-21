@@ -17,10 +17,13 @@ import {
     getStoredAiDeckId,
     getStoredDeckPresetId,
     getStoredDifficulty,
+    getStoredMatchFormat,
     storeAiDeckId,
     storeDeckPresetId,
     storeDifficulty,
+    storeMatchFormat,
     storeSession,
+    type MatchFormat,
 } from "~/lib/session";
 import type { Difficulty } from "@convex/gre";
 import { Panel } from "~/components/ui/panel";
@@ -44,6 +47,9 @@ function Lobby() {
     );
     const [aiDeckId, setAiDeckId] = useState<string | null>(() =>
         getStoredAiDeckId()
+    );
+    const [matchFormat, setMatchFormat] = useState<MatchFormat>(() =>
+        getStoredMatchFormat()
     );
     const [isBusy, setIsBusy] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
@@ -136,6 +142,7 @@ function Lobby() {
             const id = await createGame({
                 name: `${user.nickname}'s game`,
                 deck: deckPayload(deck),
+                bestOf: matchFormat,
             });
             return { gameId: id, playerId: user._id };
         });
@@ -145,6 +152,7 @@ function Lobby() {
             const id = await createSoloGame({
                 name: `${user.nickname}'s solo game`,
                 deck: deckPayload(deck),
+                bestOf: matchFormat,
             });
             return { gameId: id, playerId: `${user._id}-p1` };
         });
@@ -156,6 +164,7 @@ function Lobby() {
                 deck: deckPayload(deck),
                 deck2: selectedAiDeck ? deckPayload(selectedAiDeck) : undefined,
                 vsAi: true,
+                bestOf: matchFormat,
             });
             return { gameId: id, playerId: `${user._id}-p1` };
         });
@@ -186,6 +195,11 @@ function Lobby() {
     const handleDifficultyChange = (next: Difficulty) => {
         setDifficulty(next);
         storeDifficulty(next);
+    };
+
+    const handleMatchFormatChange = (next: MatchFormat) => {
+        setMatchFormat(next);
+        storeMatchFormat(next);
     };
 
     const handleAiDeckChange = (next: string | null) => {
@@ -277,6 +291,8 @@ function Lobby() {
                     openGames={openGames}
                     difficulty={difficulty}
                     onDifficultyChange={handleDifficultyChange}
+                    matchFormat={matchFormat}
+                    onMatchFormatChange={handleMatchFormatChange}
                     decks={allDecks}
                     aiDeckId={aiDeckId}
                     onAiDeckChange={handleAiDeckChange}

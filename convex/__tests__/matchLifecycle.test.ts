@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Doc, Id } from "../_generated/dataModel";
 import {
     ACTIVE_MATCH_STATUSES,
+    buildNextGameSeats,
     gamesToWin,
     matchBelongsToUser,
     projectMatch,
@@ -183,5 +184,122 @@ describe("projectMatch (wire format, PRD #387)", () => {
             "u" // viewer is the single user behind both seats
         );
         expect(proj.players.every((p) => p.deck !== undefined)).toBe(true);
+    });
+});
+
+// --- buildNextGameSeats (Continue → next Game, PRD #387) ------------------
+
+describe("buildNextGameSeats (Bo3 next-Game build, PRD #387)", () => {
+    it("maps each Match player to a seat whose library is its maindeck", () => {
+        const m = match(3, [player("a"), player("b")]);
+        const seats = buildNextGameSeats(m);
+        expect(seats.map((s) => s.id)).toEqual(["a", "b"]);
+        // library cards come from the Match maindeck (cards[] = maindeck)
+        expect(seats[0].deck.cards).toEqual([
+            { cardId: "c1", cardName: "Card 1" },
+        ]);
+        // defensive copy — the new Game owns its own arrays
+        expect(seats[0].deck.cards).not.toBe(m.players[0].deck.maindeck);
+        expect(seats[0].deck.sideboard).toEqual([
+            { cardId: "s1", cardName: "Side 1" },
+        ]);
+    });
+});
+
+// --- Bo3 end-to-end progression (PRD #387, AC: integration test) ----------
+//
+// The project has no convex-test harness, so this drives the SAME pure
+// transitions the Convex mutations call across a full Bo3 — `recordGameResult`
+// (finalizeGameOver) applied to a mutable Match between Games, with
+// `buildNextGameSeats` (continueMatch) threading the next-Game build. It
+// asserts: score progression 0→1→1→2, the interstitial gate ("sideboarding")
+// after each undecided Game, the next-Game seat build, and the terminal
+// transition ("finished" + winner) once a player reaches two wins.
+
+/** Applies a `recordGameResult` patch onto a mutable Match, mirroring how the
+ *  `finalizeGameOver` mutation patches the `matches` row. */
+function applyResult(m: MatchCore, winnerId: string): MatchCore {
+    const patch = recordGameResult(m, winnerId);
+    if (!patch) return m;
+    return { ...m, ...patch };
+}
+
+/** Mirrors `continueMatch`: an undecided Match advances to the next Game —
+ *  status flips back to "playing", the game counter bumps, and the seats are
+ *  rebuilt from the current maindeck. */
+function continueToNextGame(m: MatchCore): {
+    match: MatchCore;
+    seatIds: string[];
+} {
+    expect(m.status).toBe("sideboarding");
+    const seats = buildNextGameSeats(m);
+    return {
+        match: {
+            ...m,
+            status: "playing",
+            currentGameNumber: m.currentGameNumber + 1,
+        },
+        seatIds: seats.map((s) => s.id),
+    };
+}
+
+describe("Bo3 Match plays to two wins (PRD #387 — integration)", () => {
+    it("score progresses across Games and transitions interstitial → terminal", () => {
+        let m = match(3, [player("a"), player("b")]);
+        expect(gamesToWin(m.bestOf)).toBe(2);
+
+        // --- Game 1: A wins. Undecided → interstitial. ---
+        m = applyResult(m, "a");
+        expect(m.status).toBe("sideboarding"); // interstitial gate
+        expect(m.winner).toBeUndefined();
+        expect(m.players.find((p) => p.id === "a")!.score).toBe(1);
+        expect(m.players.find((p) => p.id === "b")!.score).toBe(0);
+        // the previous Game's loser is recorded as the next play/draw chooser
+        expect(m.playDrawChooserId).toBe("b");
+
+        // Continue → Game 2 auto-builds from the maindeck.
+        const cont1 = continueToNextGame(m);
+        m = cont1.match;
+        expect(m.status).toBe("playing");
+        expect(m.currentGameNumber).toBe(2);
+        expect(cont1.seatIds).toEqual(["a", "b"]);
+
+        // --- Game 2: B wins. Score 1–1, still undecided → interstitial. ---
+        m = applyResult(m, "b");
+        expect(m.status).toBe("sideboarding");
+        expect(m.winner).toBeUndefined();
+        expect(m.players.find((p) => p.id === "a")!.score).toBe(1);
+        expect(m.players.find((p) => p.id === "b")!.score).toBe(1);
+
+        // Continue → Game 3 (the decider).
+        const cont2 = continueToNextGame(m);
+        m = cont2.match;
+        expect(m.status).toBe("playing");
+        expect(m.currentGameNumber).toBe(3);
+
+        // --- Game 3: A wins → reaches two wins → terminal Match result. ---
+        m = applyResult(m, "a");
+        expect(m.status).toBe("finished"); // terminal
+        expect(m.winner).toBe("a");
+        expect(m.players.find((p) => p.id === "a")!.score).toBe(2);
+        expect(m.players.find((p) => p.id === "b")!.score).toBe(1);
+    });
+
+    it("a 2–0 sweep finishes the Match without a third Game", () => {
+        let m = match(3, [player("a"), player("b")]);
+        m = applyResult(m, "a");
+        expect(m.status).toBe("sideboarding");
+        m = continueToNextGame(m).match;
+        m = applyResult(m, "a");
+        expect(m.status).toBe("finished");
+        expect(m.winner).toBe("a");
+        expect(m.players.find((p) => p.id === "a")!.score).toBe(2);
+    });
+
+    it("Bo1 collapses straight to the terminal result (no interstitial)", () => {
+        let m = match(1, [player("a"), player("b")]);
+        m = applyResult(m, "a");
+        expect(m.status).toBe("finished");
+        expect(m.winner).toBe("a");
     });
 });
