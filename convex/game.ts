@@ -130,12 +130,15 @@ import {
 } from "./gre/pendingChoiceSubmit";
 import { gameBelongsToUser } from "./gameLifecycle";
 import {
+    botIsChooser,
     buildNextGameSeats,
     findActiveMatchForUser,
     matchBelongsToUser,
+    nextGameActivePlayerId,
     recordGameResult,
     snapshotDeck,
     type MatchPlayer,
+    type PlayDrawChoice,
 } from "./matches";
 
 export const STARTING_HAND_SIZE = 7;
@@ -1246,11 +1249,18 @@ export const leaveGame = mutation({
  * re-point its session. Idempotent on races: if the Match already advanced to a
  * newer Game, returns that Game instead of building a duplicate.
  *
- * This slice does NOT apply sideboarding edits or the play/draw choice — the
- * next Game auto-builds with the default active player (#394/#395 refine it).
+ * The previous Game's loser (`playDrawChooserId`) chooses play or draw (#394,
+ * CR 103.4). `choice` sets the active player at turn 1 of the next Game: "play"
+ * keeps the chooser active, "draw" hands the first turn to the opponent. In a
+ * vs-AI Match where the bot is the chooser, the choice is forced to "play" with
+ * no human prompt. If `choice` is omitted (legacy / no recorded chooser) the
+ * next Game falls back to the default active player (first seat).
  */
 export const continueMatch = mutation({
-    args: { matchId: v.id("matches") },
+    args: {
+        matchId: v.id("matches"),
+        choice: v.optional(v.union(v.literal("play"), v.literal("draw"))),
+    },
     handler: async (ctx, args) => {
         const user = await getCurrentUser(ctx);
         const match = await ctx.db.get(args.matchId);
@@ -1273,6 +1283,15 @@ export const continueMatch = mutation({
         const seats = buildNextGameSeats(match);
         const nextGameNumber = match.currentGameNumber + 1;
 
+        // CR 103.4: the previous Game's loser chooses play/draw. The bot, when
+        // it's the chooser, auto-chooses play (#394). A human chooser's decision
+        // arrives in `args.choice`; absent a recorded chooser the resolver falls
+        // back to the default active player.
+        const choice: PlayDrawChoice = botIsChooser(match)
+            ? "play"
+            : (args.choice ?? "play");
+        const activePlayerId = nextGameActivePlayerId(match, choice);
+
         const gameId = await ctx.db.insert("games", {
             name: match.solo
                 ? `${user.nickname}'s solo game`
@@ -1291,12 +1310,15 @@ export const continueMatch = mutation({
             status: "playing",
             currentGameNumber: nextGameNumber,
             currentGameId: gameId,
+            // Clear the chooser now that the choice has been consumed.
+            playDrawChooserId: undefined,
             updatedAt: now,
         });
 
-        // CR 103: the next Game starts fresh from the current maindeck. Default
-        // active player (first seat) — play/draw choice is a later slice.
-        const initialState = buildInitialGameState(seats);
+        // CR 103: the next Game starts fresh from the current maindeck. The
+        // play/draw choice sets the turn-1 active player; the on-the-play skip-
+        // first-draw rule is already correct in the engine (turn === 1, CR 103.8).
+        const initialState = buildInitialGameState(seats, activePlayerId);
         await saveGameState(ctx, gameId, 0, initialState, null);
 
         return { gameId, gameNumber: nextGameNumber };
