@@ -7,7 +7,11 @@ export interface LobbyDeckBase {
     format: string;
     description?: string;
     colors: string[];
+    // Maindeck — the cards that build the starting Library.
     cards: DeckCard[];
+    // Sideboard — 0–15 cards held aside (issue #391). Absent === empty for
+    // legacy decks saved before sideboarding existed.
+    sideboard?: DeckCard[];
 }
 
 export interface PresetLobbyDeck extends LobbyDeckBase {
@@ -30,6 +34,7 @@ export function toPresetLobbyDeck(d: DeckPreset): PresetLobbyDeck {
         description: d.description,
         colors: d.colors,
         cards: d.cards,
+        sideboard: d.sideboard ?? [],
     };
 }
 
@@ -43,6 +48,7 @@ export function toUserLobbyDeck(d: Doc<"userDecks">): UserLobbyDeck {
         description: d.description,
         colors: d.colors,
         cards: d.cards,
+        sideboard: d.sideboard ?? [],
     };
 }
 

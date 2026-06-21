@@ -5,6 +5,11 @@ import type { Id } from "@convex/_generated/dataModel";
 import { useUserDeckMutations } from "~/hooks/useUserDecks";
 import { type UserLobbyDeck } from "~/lib/deckTypes";
 import { nextDeckName } from "~/lib/userDecks";
+import {
+    SIDEBOARD_LIMIT,
+    moveToMaindeck,
+    moveToSideboard,
+} from "~/lib/deckSideboard";
 import type { DeckCard } from "~/types/game";
 import GameDialog from "~/components/ui/game-dialog";
 import ActionButton from "~/components/board/action-button";
@@ -24,6 +29,7 @@ interface WorkingDeck {
     format: string;
     colors: string[];
     cards: DeckCard[];
+    sideboard: DeckCard[];
 }
 
 interface DeckBuilderProps {
@@ -57,14 +63,22 @@ export default function DeckBuilder({
     onDelete,
 }: DeckBuilderProps) {
     const [confirmDelete, setConfirmDelete] = useState(false);
-    const [deck, setDeck] = useState<WorkingDeck>(
-        () =>
-            initialDeck ?? {
-                name: nextDeckName(initialDeckList),
-                format: DEFAULT_FORMAT,
-                colors: [],
-                cards: [],
-            }
+    const [deck, setDeck] = useState<WorkingDeck>(() =>
+        initialDeck
+            ? {
+                  name: initialDeck.name,
+                  format: initialDeck.format,
+                  colors: initialDeck.colors,
+                  cards: initialDeck.cards,
+                  sideboard: initialDeck.sideboard ?? [],
+              }
+            : {
+                  name: nextDeckName(initialDeckList),
+                  format: DEFAULT_FORMAT,
+                  colors: [],
+                  cards: [],
+                  sideboard: [],
+              }
     );
     const [filters, setFilters] = useFilterSearchParams();
 
@@ -103,6 +117,7 @@ export default function DeckBuilder({
                 format: pending.format,
                 colors: pending.colors,
                 cards: pending.cards,
+                sideboard: pending.sideboard,
             });
             inflightRef.current = promise;
             try {
@@ -118,6 +133,7 @@ export default function DeckBuilder({
                     format: pending.format,
                     colors: pending.colors,
                     cards: pending.cards,
+                    sideboard: pending.sideboard,
                 },
             });
             inflightRef.current = promise;
@@ -132,7 +148,9 @@ export default function DeckBuilder({
     const schedule = useCallback(
         (next: WorkingDeck) => {
             const shouldPersist =
-                next.cards.length > 0 || userDeckIdRef.current !== null;
+                next.cards.length > 0 ||
+                next.sideboard.length > 0 ||
+                userDeckIdRef.current !== null;
             if (!shouldPersist) {
                 pendingRef.current = null;
                 clearTimer();
@@ -194,6 +212,45 @@ export default function DeckBuilder({
                 const next = [...d.cards];
                 next.splice(idx, 1);
                 return { ...d, cards: next };
+            });
+        },
+        [updateDeck]
+    );
+
+    const handleRemoveSideboard = useCallback(
+        (cardId: string) => {
+            updateDeck((d) => {
+                const idx = d.sideboard.findIndex((c) => c.cardId === cardId);
+                if (idx < 0) return d;
+                const next = [...d.sideboard];
+                next.splice(idx, 1);
+                return { ...d, sideboard: next };
+            });
+        },
+        [updateDeck]
+    );
+
+    const handleMoveToSideboard = useCallback(
+        (cardId: string) => {
+            updateDeck((d) => {
+                const split = moveToSideboard(
+                    { cards: d.cards, sideboard: d.sideboard },
+                    cardId
+                );
+                return { ...d, cards: split.cards, sideboard: split.sideboard };
+            });
+        },
+        [updateDeck]
+    );
+
+    const handleMoveToMaindeck = useCallback(
+        (cardId: string) => {
+            updateDeck((d) => {
+                const split = moveToMaindeck(
+                    { cards: d.cards, sideboard: d.sideboard },
+                    cardId
+                );
+                return { ...d, cards: split.cards, sideboard: split.sideboard };
             });
         },
         [updateDeck]
@@ -347,8 +404,29 @@ export default function DeckBuilder({
                         onAdd={handleAdd}
                     />
                 </div>
-                <div className="overflow-y-auto">
-                    <DeckPileArea cards={deck.cards} onRemove={handleRemove} />
+                <div className="flex flex-col divide-y divide-border-subtle/30 overflow-y-auto">
+                    <DeckPileArea
+                        title="Sideboard"
+                        cards={deck.sideboard}
+                        onRemove={handleRemoveSideboard}
+                        moveLabel="→ Main"
+                        onMove={handleMoveToMaindeck}
+                        countSuffix={`/${SIDEBOARD_LIMIT}`}
+                        warning={
+                            deck.sideboard.length > SIDEBOARD_LIMIT
+                                ? "over limit"
+                                : null
+                        }
+                        emptyMessage="Move cards here to keep them aside (0–15)."
+                    />
+                    <DeckPileArea
+                        title="Maindeck"
+                        cards={deck.cards}
+                        onRemove={handleRemove}
+                        moveLabel="→ Side"
+                        onMove={handleMoveToSideboard}
+                        emptyMessage="Click cards above to add them to your deck."
+                    />
                 </div>
             </div>
 
