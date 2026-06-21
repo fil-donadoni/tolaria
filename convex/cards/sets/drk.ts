@@ -18,6 +18,7 @@
 import type {
     CardDefinition,
     Color,
+    DelayedTriggerDef,
     ManaCost,
     PermanentView,
     SpellContext,
@@ -26,6 +27,7 @@ import type {
     TargetSelection,
     TriggeredAbility,
 } from "../types";
+import { EFFECT_AFFECTS_SELF } from "../types";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { drawTrigger } from "../abilities/triggers/drawTrigger";
 import { stateTrigger } from "../abilities/triggers/stateTrigger";
@@ -3957,6 +3959,521 @@ export const darkHeartOfTheWood: CardDefinition = {
             useStack: true,
             resolve: (ctx: SpellContext) => {
                 ctx.gainLife(ctx.controller, 3);
+            },
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Free tranche — Green (#415). Every card here is pure CardDefinition data on
+// already-shipped engine primitives: keyword statics (CR 702), the layer-6
+// keyword-grant machinery (CR 611 — `keyword-grant` staticEffects, both group
+// anthems and aura grants), the CDA P/T `pt-cda` layer (CR 613.4c), the
+// permanent-guard targeting gate (CR 115 / 702.18-style), the activated-ability
+// path (CR 605) with regeneration shields / destroy / control-change, the
+// BLOCKERS_CONFIRMED combat-pairing trigger + end-of-combat delayed destroy
+// (CR 509.1h / 511.3), and `setExileOnDeath` (CR 614.1a). Costs / types /
+// subtypes / P/T are sourced from MTGJSON `data/json/DRK.json`; modern Scryfall
+// oracle text is authoritative (ADR 0004).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Carnivorous Plant — vanilla Defender Plant Wall (CR 702.3 defender keyword;
+// the body is pure stats + the can't-attack keyword, no rules text otherwise).
+export const carnivorousPlant: CardDefinition = {
+    id: "6a615650-4da3-4efc-aa5e-c1f2c4f79478",
+    name: "Carnivorous Plant",
+    oracleText: "Defender (This creature can't attack.)",
+    manaCost: { X: 3, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Plant", "Wall"],
+    power: 4,
+    toughness: 5,
+    staticAbilities: ["defender"],
+};
+
+// Land Leeches — vanilla First strike Leech (CR 702.7 first strike keyword).
+export const landLeeches: CardDefinition = {
+    id: "ff99543d-86a1-44f8-88ec-aaec071d6c05",
+    name: "Land Leeches",
+    oracleText:
+        "First strike (This creature deals combat damage before creatures without first strike.)",
+    manaCost: { X: 1, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Leech"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["first strike"],
+};
+
+// Hidden Path — global anthem grant: "Green creatures have forestwalk." (CR 611
+// continuous keyword-grant, layer 6; CR 702.13c forestwalk evasion.) Modeled
+// exactly like Zombie Master's group `keyword-grant` (lea.ts), but the predicate
+// filters on effective color (CR 105 / 202.2 — `ctx.getColors` honors any
+// color-changing effect, e.g. a green creature laced blue stops getting it). The
+// grant applies to ALL green creatures, both players' (the printed text is not
+// controller-scoped).
+export const hiddenPath: CardDefinition = {
+    id: "cbc93c0b-0ac8-4b8f-b2f6-96887d1acd77",
+    name: "Hidden Path",
+    oracleText:
+        "Green creatures have forestwalk. (They can't be blocked as long as defending player controls a Forest.)",
+    manaCost: { X: 2, G: 4 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: (target, _source, ctx) =>
+                ctx.isCreature(target) && ctx.getColors(target).includes("G"),
+            keyword: "forestwalk",
+        },
+    ],
+};
+
+// Lurker — "This creature can't be the target of spells unless it attacked or
+// blocked this turn." (CR 115 targeting restriction.) A self permanent-guard
+// (`source.id === target.id`) with `cantBeTargeted` narrowed to SPELLS only
+// (`targetSourceMustBeSpell` — abilities may always target it, CR 113.3). The
+// guard's `applies` reads the host's per-turn combat flags (`hasAttackedThisTurn`
+// / `hasBlockedThisTurn` on PermanentView) so the shroud blinks off the instant
+// Lurker is declared as an attacker or blocker. Mirrors Spectral Cloak's live
+// host-state read (leg.ts), but self-targeted and combat-conditioned.
+export const lurker: CardDefinition = {
+    id: "b39eb671-e17e-4c5a-8913-1e3be7faedfb",
+    name: "Lurker",
+    oracleText:
+        "This creature can't be the target of spells unless it attacked or blocked this turn.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Beast"],
+    power: 2,
+    toughness: 3,
+    staticEffects: [
+        {
+            kind: "permanent-guard",
+            id: "lurker-spell-shroud",
+            cantBeTargeted: true,
+            // CR 113.3 — spells only; abilities still target.
+            targetSourceMustBeSpell: true,
+            applies: (target, source) =>
+                target.id === source.id &&
+                !target.hasAttackedThisTurn &&
+                !target.hasBlockedThisTurn,
+        },
+    ],
+};
+
+// People of the Woods — characteristic-defining toughness: "toughness is equal
+// to the number of Forests you control." (CR 613.4a CDA, layer 7a.) Printed
+// power stays 1 and printed toughness is 0; the `pt-cda` contribution is ADDED
+// on top of the printed base (layers.ts `getCDAContribution`), so the compute
+// returns `{ power: 0, toughness: forests }` → effective power 1+0, toughness
+// 0+forests. A subtype-count over the controller's battlefield (CR 305.6 —
+// basic AND nonbasic Forests both count). Mirrors Nightmare / Dakkon's self-CDA
+// layer but contributes only to toughness.
+export const peopleOfTheWoods: CardDefinition = {
+    id: "2fb5926f-9988-4bc0-b2b7-e286db208310",
+    name: "People of the Woods",
+    oracleText:
+        "People of the Woods's toughness is equal to the number of Forests you control.",
+    manaCost: { G: 2 },
+    types: ["Creature"],
+    subtypes: ["Human"],
+    power: 1,
+    toughness: 0,
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: EFFECT_AFFECTS_SELF,
+            compute: (source, state) => {
+                let forests = 0;
+                for (const player of state.players) {
+                    for (const p of player.battlefield) {
+                        if (
+                            p.controllerId === source.controllerId &&
+                            p.subtypes.includes("Forest")
+                        ) {
+                            forests++;
+                        }
+                    }
+                }
+                return { power: 0, toughness: forests };
+            },
+        },
+    ],
+};
+
+// Savaen Elves — "{G}{G}, {T}: Destroy target Aura attached to a land." (CR 605
+// activated ability; CR 701.7 destroy.) The target is any Aura (`subtypeFilter`),
+// and the "attached to a LAND" host constraint is enforced in the resolve body —
+// there is no host-relation field on TargetRequirement, exactly as Pyramids
+// (arn.ts) and Miracle Worker (drk.ts) do it via `ctx.getAttachedTo`.
+export const savaenElves: CardDefinition = {
+    id: "38fb3014-f631-4a75-92cd-7e626b13a4c3",
+    name: "Savaen Elves",
+    oracleText: "{G}{G}, {T}: Destroy target Aura attached to a land.",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Elf"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "savaen-elves-destroy-aura",
+            oracleText: "{G}{G}, {T}: Destroy target Aura attached to a land.",
+            cost: { mana: { G: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Enchantment",
+                subtypeFilter: "Aura",
+                count: 1,
+            },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (!target || target.type !== "permanent") return;
+                // CR 701.7 — only destroy if the Aura's host is a land. There
+                // is no type-reading SpellContext helper, so test membership in
+                // any player's Land battlefield (mirrors Pyramids' host check).
+                const hostId = ctx.getAttachedTo(target.id);
+                if (hostId === undefined) return;
+                const hostIsLand = ctx.allPlayerIds.some((pid) =>
+                    ctx
+                        .getBattlefieldIds(pid, { types: "Land" })
+                        .includes(hostId)
+                );
+                if (hostIsLand) ctx.destroy(target);
+            },
+        },
+    ],
+};
+
+// Scavenger Folk — "{G}, {T}, Sacrifice this creature: Destroy target artifact."
+// (CR 605 activated ability; CR 118.5 sacrifice-self as a cost; CR 701.7
+// destroy.) `cost.sacrifice: true` sacrifices the source itself as part of
+// activation; the destroy runs on resolution.
+export const scavengerFolk: CardDefinition = {
+    id: "8e99870c-b2b9-431b-b8a8-3f4a80aa8fa5",
+    name: "Scavenger Folk",
+    oracleText: "{G}, {T}, Sacrifice this creature: Destroy target artifact.",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Human"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "scavenger-folk-destroy-artifact",
+            oracleText:
+                "{G}, {T}, Sacrifice this creature: Destroy target artifact.",
+            cost: { mana: { G: 1 }, tap: true, sacrifice: true },
+            useStack: true,
+            targetRequirement: { type: "Artifact", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (target?.type === "permanent") ctx.destroy(target);
+            },
+        },
+    ],
+};
+
+// Niall Silvain — "{G}{G}{G}{G}, {T}: Regenerate target creature." (CR 605
+// activated ability; CR 701.15 regeneration shield.) Targets ANY creature
+// (including itself). The regen primitive is `applyRegenerationShield`, the same
+// one Walking Dead / Zombie Master use, here applied to the chosen target.
+export const niallSilvain: CardDefinition = {
+    id: "9d5911b5-a54e-4ebb-9c36-d4dc8e97bb4b",
+    name: "Niall Silvain",
+    oracleText: "{G}{G}{G}{G}, {T}: Regenerate target creature.",
+    manaCost: { G: 3 },
+    types: ["Creature"],
+    subtypes: ["Ouphe"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "niall-silvain-regenerate",
+            oracleText: "{G}{G}{G}{G}, {T}: Regenerate target creature.",
+            cost: { mana: { G: 4 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (target?.type === "permanent")
+                    ctx.applyRegenerationShield(target);
+            },
+        },
+    ],
+};
+
+// Scarwood Hag — two activated abilities granting / stripping forestwalk until
+// end of turn (CR 605 activated abilities; CR 611 layer-6 keyword grant /
+// removal; CR 702.13c forestwalk). The grant reuses `grantStaticAbility` with an
+// end-of-turn DurationSpec (like Part Water, leg.ts); the strip reuses
+// `removeStaticAbilities` (the duration-scoped counterpart, used by Shelkin
+// Brownie / Tolaria).
+export const scarwoodHag: CardDefinition = {
+    id: "ac2655e4-3a4d-4f73-820a-02fab675d42e",
+    name: "Scarwood Hag",
+    oracleText:
+        "{G}{G}{G}{G}, {T}: Target creature gains forestwalk until end of turn. (It can't be blocked as long as defending player controls a Forest.)\n{T}: Target creature loses forestwalk until end of turn.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Hag"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "scarwood-hag-grant-forestwalk",
+            oracleText:
+                "{G}{G}{G}{G}, {T}: Target creature gains forestwalk until end of turn.",
+            cost: { mana: { G: 4 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (target?.type === "permanent")
+                    ctx.grantStaticAbility(target, "forestwalk", {
+                        phase: "end-of-turn",
+                    });
+            },
+        },
+        {
+            id: "scarwood-hag-strip-forestwalk",
+            oracleText:
+                "{T}: Target creature loses forestwalk until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (target?.type === "permanent")
+                    ctx.removeStaticAbilities(
+                        target,
+                        (kw) => kw === "forestwalk",
+                        { phase: "end-of-turn" }
+                    );
+            },
+        },
+    ],
+};
+
+// Scarwood Bandits — forestwalk (CR 702.13c keyword) + "{2}{G}, {T}: Unless an
+// opponent pays {2}, gain control of target artifact for as long as this creature
+// remains on the battlefield." (CR 605 activated ability; CR 118.8 "unless ...
+// pays" cost-on-opponent; CR 613.1b layer-2 control change.) The opponent's
+// optional {2} is a `requestMayPay`; if unpaid, control is reassigned with the
+// `controller-controls-source` condition (Aladdin's "for as long as you control
+// ~" form, which the conditional-control SBA reverts when Scarwood Bandits leaves
+// play).
+export const scarwoodBandits: CardDefinition = {
+    id: "46b762a7-a774-4cb4-8ecf-dd6486a066c3",
+    name: "Scarwood Bandits",
+    oracleText:
+        "Forestwalk (This creature can't be blocked as long as defending player controls a Forest.)\n{2}{G}, {T}: Unless an opponent pays {2}, gain control of target artifact for as long as this creature remains on the battlefield.",
+    manaCost: { X: 2, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Rogue"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["forestwalk"],
+    activatedAbilities: [
+        {
+            id: "scarwood-bandits-steal",
+            oracleText:
+                "{2}{G}, {T}: Unless an opponent pays {2}, gain control of target artifact for as long as this creature remains on the battlefield.",
+            cost: { mana: { X: 2, G: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Artifact", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (!target || target.type !== "permanent") return;
+                const opponentId = ctx.allPlayerIds.find(
+                    (p) => p !== ctx.controller
+                );
+                if (!opponentId) return;
+                const paid = ctx.requestMayPay({
+                    playerId: opponentId,
+                    choiceId: `scarwood-bandits-${ctx.sourceInstanceId}`,
+                    cost: { X: 2 },
+                    prompt: "Pay {2} or Scarwood Bandits' controller gains control of the artifact?",
+                });
+                if (paid === undefined) return; // suspended for the choice
+                if (paid) return; // opponent paid → no control change
+                ctx.gainControl(target, ctx.controller, {
+                    kind: "controller-controls-source",
+                    controllerId: ctx.controller,
+                });
+            },
+        },
+    ],
+};
+
+// Spitting Slug — "Whenever this creature blocks or becomes blocked, you may pay
+// {1}{G}. If you do, this creature gains first strike until end of turn.
+// Otherwise, each creature blocking or blocked by this creature gains first
+// strike until end of turn." (CR 509.1h combat-pairing trigger; CR 118.4
+// optional payment; CR 611 layer-6 first-strike grant.) The trigger fires off
+// BLOCKERS_CONFIRMED whenever the slug is either side of a block; the controller
+// chooses to pay {1}{G} (→ slug gets first strike) or not (→ the paired
+// creature does instead).
+export const spittingSlug: CardDefinition = {
+    id: "7011356e-7516-4ca0-ac54-d30af7ce03a2",
+    name: "Spitting Slug",
+    oracleText:
+        "Whenever this creature blocks or becomes blocked, you may pay {1}{G}. If you do, this creature gains first strike until end of turn. Otherwise, each creature blocking or blocked by this creature gains first strike until end of turn.",
+    manaCost: { X: 1, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Slug"],
+    power: 2,
+    toughness: 4,
+    triggeredAbilities: [
+        {
+            id: "spitting-slug-first-strike",
+            oracleText:
+                "Whenever this creature blocks or becomes blocked, you may pay {1}{G}. If you do, this creature gains first strike until end of turn. Otherwise, each creature blocking or blocked by this creature gains first strike until end of turn.",
+            event: "BLOCKERS_CONFIRMED",
+            matches: (event, self) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return false;
+                return (
+                    event.attackerId === self.id || event.blockerId === self.id
+                );
+            },
+            resolve: (ctx, event) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return;
+                const self = {
+                    type: "permanent" as const,
+                    id: ctx.sourceInstanceId,
+                };
+                const isSelfAttacker =
+                    event.attackerId === ctx.sourceInstanceId;
+                const otherId = isSelfAttacker
+                    ? event.blockerId
+                    : event.attackerId;
+                const paid = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: `spitting-slug-${ctx.sourceInstanceId}`,
+                    cost: { X: 1, G: 1 },
+                    prompt: "Pay {1}{G} so Spitting Slug gains first strike? (Otherwise the paired creature does.)",
+                });
+                if (paid === undefined) return; // suspended for the choice
+                if (paid) {
+                    ctx.grantStaticAbility(self, "first strike", {
+                        phase: "end-of-turn",
+                    });
+                } else {
+                    ctx.grantStaticAbility(
+                        { type: "permanent", id: otherId },
+                        "first strike",
+                        { phase: "end-of-turn" }
+                    );
+                }
+            },
+        },
+    ],
+};
+
+// Venom — Aura. "Enchant creature\nWhenever enchanted creature blocks or becomes
+// blocked by a non-Wall creature, destroy the other creature at end of combat."
+// (CR 303.4 aura; CR 509.1h combat-pairing trigger keyed to the host; CR 511.3
+// end-of-combat timing; CR 701.7 destroy.) Reuses the LEA Basilisk / Cockatrice
+// "destroy at end of combat" machinery (BLOCKERS_CONFIRMED trigger →
+// `scheduleDelayedTrigger("next-end-of-combat")` → destroy), but the trigger is
+// keyed to the aura's HOST (`self.attachedTo`) rather than the source itself.
+const VENOM_ID = "bb0480f5-6aae-4297-afa6-3f7a5801bf95";
+export const venom: CardDefinition = {
+    id: VENOM_ID,
+    name: "Venom",
+    oracleText:
+        "Enchant creature\nWhenever enchanted creature blocks or becomes blocked by a non-Wall creature, destroy the other creature at end of combat.",
+    manaCost: { X: 1, G: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    triggeredAbilities: [
+        {
+            id: "venom-combat-kill",
+            oracleText:
+                "Whenever enchanted creature blocks or becomes blocked by a non-Wall creature, destroy the other creature at end of combat.",
+            event: "BLOCKERS_CONFIRMED",
+            matches: (event, self) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return false;
+                if (!self.attachedTo) return false;
+                const hostIsAttacker = event.attackerId === self.attachedTo;
+                const hostIsBlocker = event.blockerId === self.attachedTo;
+                if (!hostIsAttacker && !hostIsBlocker) return false;
+                // The "other creature" must be a non-Wall (CR 509.1h pairing).
+                const otherSubtypes = hostIsAttacker
+                    ? event.blockerSubtypes
+                    : event.attackerSubtypes;
+                return !otherSubtypes.includes("Wall");
+            },
+            resolve: (ctx, event) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return;
+                const hostId = ctx.getAttachedToId();
+                if (!hostId) return;
+                const otherId =
+                    event.attackerId === hostId
+                        ? event.blockerId
+                        : event.attackerId;
+                ctx.scheduleDelayedTrigger(
+                    VENOM_ID,
+                    "venom-combat-kill-destroy",
+                    "next-end-of-combat",
+                    { targetId: otherId }
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "venom-combat-kill-destroy",
+            oracleText: "Destroy the other creature at end of combat.",
+            timing: "next-end-of-combat",
+            resolve: (ctx, payload) => {
+                if (!payload.targetId) return;
+                ctx.destroy({ type: "permanent", id: payload.targetId });
+            },
+        } satisfies DelayedTriggerDef,
+    ],
+};
+
+// Whippoorwill — "{G}{G}, {T}: Target creature can't be regenerated this turn.
+// Damage that would be dealt to that creature this turn can't be prevented or
+// dealt instead to another permanent or player. When the creature dies this
+// turn, exile the creature." (CR 605 activated ability; CR 614.1a exile-instead-
+// of-death + regeneration suppression.)
+//
+// The exile-on-death + no-regeneration clauses are the gameplay core and are
+// implemented exactly via `setExileOnDeath` (the Disintegrate primitive: marks
+// the creature so it is exiled rather than dying, and suppresses regeneration,
+// cleared at CLEANUP). DEFERRED (documented simplification, NOT a new card-
+// specific primitive): the middle clause — "damage ... can't be prevented or
+// dealt instead to another permanent or player" — is an anti-prevention /
+// anti-redirection lock for which no engine primitive exists. It is a narrow
+// rider (matters only against active Fog-style prevention or redirection on the
+// same turn) and does not change Whippoorwill's primary function. Flagged for a
+// follow-up; see PR.
+export const whippoorwill: CardDefinition = {
+    id: "e56146bf-5db0-4bef-83bb-efa5ebec6684",
+    name: "Whippoorwill",
+    oracleText:
+        "{G}{G}, {T}: Target creature can't be regenerated this turn. Damage that would be dealt to that creature this turn can't be prevented or dealt instead to another permanent or player. When the creature dies this turn, exile the creature.",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Bird"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "whippoorwill-doom",
+            oracleText:
+                "{G}{G}, {T}: Target creature can't be regenerated this turn. When the creature dies this turn, exile the creature.",
+            cost: { mana: { G: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const [target] = ctx.targets;
+                if (target?.type === "permanent") ctx.setExileOnDeath(target);
             },
         },
     ],

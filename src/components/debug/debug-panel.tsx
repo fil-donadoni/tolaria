@@ -5284,6 +5284,55 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // DRK Green free tranche — combat-flavoured cards (#415).
+        //   • Venom on your Grizzly Bears: attack with it. When a non-Wall
+        //     creature blocks (or it blocks one), the OTHER creature is destroyed
+        //     at end of combat (CR 511.3).
+        //   • Spitting Slug (2/4): when it blocks or is blocked, choose to pay
+        //     {1}{G} (Slug gets first strike) or not (the paired creature does).
+        //   • Lurker (2/3): try to target it with a spell before combat — it
+        //     can't be targeted until it has attacked or blocked this turn.
+        label: "DRK Green: Venom / Spitting Slug / Lurker — combat (#415)",
+        cards: [
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Venom", owner: "me" as const, zone: "hand" as const },
+            { name: "Spitting Slug", owner: "me" as const },
+            { name: "Lurker", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 4 },
+            { name: "Grizzly Bears", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // DRK Green free tranche — utility & static cards (#415).
+        //   • Hidden Path: your green creatures gain forestwalk (unblockable
+        //     while the opponent controls a Forest — they do here).
+        //   • People of the Woods: a 1/* whose toughness equals the Forests you
+        //     control (4 here → 1/4).
+        //   • Savaen Elves: {G}{G},{T} destroys the Aura on the opponent's land.
+        //   • Niall Silvain: {G}{G}{G}{G},{T} regenerates a target creature.
+        //   • Scarwood Bandits: {2}{G},{T} steals the opponent's Ornithopter
+        //     unless they pay {2}.
+        //   • Whippoorwill (flying): {G}{G},{T} dooms a creature so it can't
+        //     regenerate and is exiled when it dies this turn.
+        label: "DRK Green: Hidden Path / CDA / steal / regen / doom (#415)",
+        cards: [
+            { name: "Hidden Path", owner: "me" as const },
+            { name: "People of the Woods", owner: "me" as const },
+            { name: "Savaen Elves", owner: "me" as const },
+            { name: "Niall Silvain", owner: "me" as const },
+            { name: "Scarwood Bandits", owner: "me" as const },
+            { name: "Whippoorwill", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 6 },
+            { name: "Ornithopter", owner: "opp" as const },
+            { name: "Forest", owner: "opp" as const },
+            { name: "Fishliver Oil", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
