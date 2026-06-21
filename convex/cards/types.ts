@@ -568,6 +568,23 @@ export interface SpellContext {
      *  permanent identified by `sourceCreatureId`. No-op if the copy target
      *  has left the battlefield. */
     becomeCopyOf: (sourceCreatureId: string, opts?: CopyEffectOptions) => void;
+    /** Token-recipient form of `becomeCopyOf` (CR 707.2 + CR 111.1): creates a
+     *  fresh token under `controllerId` and immediately applies a copy effect
+     *  so the token enters as a copy of the permanent identified by
+     *  `sourceCreatureId` (Dance of Many — "create a token that's a copy of
+     *  target nontoken creature"). The token's copiable values (types,
+     *  subtypes, P/T, abilities) are taken from the copied creature's printed
+     *  characteristics, NOT its current counters / damage / continuous effects
+     *  (CR 707.2). The token is stamped with `createdBy` provenance so its
+     *  creator can locate it later (the Dance leave-linkage). Returns the new
+     *  token's instance id, or undefined if the copy source has left the
+     *  battlefield. */
+    createTokenCopyOf: (
+        sourceCreatureId: string,
+        controllerId: string,
+        createdBy?: string,
+        opts?: CopyEffectOptions
+    ) => string | undefined;
     // --- Primitives ---
     dealDamage: (target: TargetSelection, amount: number) => void;
     gainLife: (playerId: string, amount: number) => void;
@@ -1713,6 +1730,11 @@ export interface PermanentView {
      *  permanents" (Jihad's chosen-color clause) read this; populated from the
      *  raw `CardInstanceState` the engine passes through as the view. */
     isToken?: boolean;
+    /** Copy-token leave-linkage anchor (CR 603.10). Instance id of the token
+     *  this permanent is bound to (Dance of Many). Mirrors the
+     *  `CardInstanceState` field; read by the "when the token leaves, sacrifice
+     *  this" trigger condition to identify the exact token by id. */
+    linkedTokenId?: string;
     /** Cast-time modal choice (CR 700.2c). Present on modal permanents so
      *  static-effect and trigger predicates can read the chosen mode (Jihad's
      *  chosen colour). Mirrors the `CardInstanceState` field. */

@@ -505,6 +505,15 @@ export type CardInstanceState = {
      *  round-trip; cleared with the rest of the instance when the token leaves
      *  the battlefield (a new object, CR 400.7). */
     createdBy?: string;
+    /** Copy-token leave-linkage anchor (CR 603.10). Instance id of the token
+     *  this permanent is bound to in BOTH directions — Dance of Many stores the
+     *  id of the copy-token it created so its own "when this leaves the
+     *  battlefield, exile the token" and "when the token leaves the
+     *  battlefield, sacrifice this" triggers can identify the exact token by id
+     *  (the `PermanentLeftEvent` does not carry `createdBy`, and the token is
+     *  already gone from the battlefield by trigger-resolve time). Persisted so
+     *  the link survives a DB round-trip. */
+    linkedTokenId?: string;
     /** Persistent, viewer-scoped card knowledge (ADR 0026, PRD #338). The set
      *  of player ids that currently know this instance's identity while it
      *  sits in a Hidden Zone (library, hand, face-down exile). A _look_ effect
@@ -4696,6 +4705,54 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 ids.push(id);
             }
             return ids;
+        },
+        createTokenCopyOf(
+            sourceCreatureId,
+            controllerId,
+            createdBy,
+            opts
+        ): string | undefined {
+            // CR 707.2 + CR 111.1 — token-recipient form of the copy path.
+            // Dance of Many: "create a token that's a copy of target nontoken
+            // creature." The token is born from a minimal placeholder spec,
+            // then `applyCopy` overwrites its copiable characteristics with the
+            // source's printed values (the SAME engine path Clone / Copy
+            // Artifact use via `becomeCopyOf`; the recipient here is a fresh
+            // token instead of the resolving permanent). No-op if the source
+            // has already left the battlefield (the copy fizzles, CR 707.2).
+            const source = findOnBattlefield(state, sourceCreatureId)?.card;
+            if (!source) return undefined;
+            // Minimal placeholder body: a 0/0 creature token. `applyCopy`
+            // immediately replaces every copiable field, so the placeholder is
+            // never observed on the battlefield.
+            const [tokenId] = ctx.createToken(
+                {
+                    name: "Copy",
+                    types: ["Creature"],
+                    power: 0,
+                    toughness: 0,
+                },
+                controllerId,
+                1,
+                createdBy
+            );
+            const token = findOnBattlefield(state, tokenId)?.card;
+            if (!token) return undefined;
+            applyCopy(token, source, opts);
+            // CR 611 — re-apply existing grants / source static effects after
+            // the copy rewrites the token's characteristics so anthem-style and
+            // P/T-buff effects observe the copied type/color.
+            applyExistingGrantsTo(state, token);
+            applySourceStaticEffects(state, token);
+            // CR 603.10 — bind the creator to its token (both directions) so the
+            // creator's leave-linkage triggers can identify the exact token by
+            // id after it has left the battlefield. The token already records
+            // its creator via `createdBy`; this stores the reverse pointer.
+            if (createdBy) {
+                const creator = findOnBattlefield(state, createdBy)?.card;
+                if (creator) creator.linkedTokenId = tokenId;
+            }
+            return tokenId;
         },
         // CR 113.1 / 611.1b: grants a keyword static ability for a limited
         // duration. The keyword is pushed to `staticAbilities` so combat

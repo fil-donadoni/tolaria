@@ -175,6 +175,8 @@ function compactCard(
     if (card.faceDown) out.faceDown = true;
     if (card.faceDownOf) out.faceDownOf = card.faceDownOf;
     if (card.createdBy) out.createdBy = card.createdBy;
+    // CR 603.10 — Dance of Many copy-token leave-linkage anchor.
+    if (card.linkedTokenId) out.linkedTokenId = card.linkedTokenId;
     // ADR 0026 / PRD #338 — persistent per-viewer card knowledge.
     if (card.knownTo?.length) out.knownTo = card.knownTo;
     return out;
@@ -347,6 +349,9 @@ function expandCard(
     if (compact.faceDown) result.faceDown = true;
     if (compact.faceDownOf) result.faceDownOf = compact.faceDownOf as string;
     if (compact.createdBy) result.createdBy = compact.createdBy as string;
+    if (compact.linkedTokenId) {
+        result.linkedTokenId = compact.linkedTokenId as string;
+    }
     if (compact.knownTo) result.knownTo = compact.knownTo as string[];
     return result;
 }

@@ -28,6 +28,12 @@ import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { stateTrigger } from "../abilities/triggers/stateTrigger";
 import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
+import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
+import { leftTrigger } from "../abilities/triggers/leftTrigger";
+// CR 603.6a — reuse the shipped LEG C7 "sacrifice this unless you pay [cost]"
+// upkeep trigger (the Elder Dragon maintenance-cost family) for Dance of Many's
+// {U}{U} upkeep clause. NOT reimplemented here.
+import { payOrSacrificeUpkeepTrigger } from "./leg";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vanilla creatures (CR 302 — Creature cards with no rules text are pure data:
@@ -1120,6 +1126,124 @@ export const waterWurm: CardDefinition = {
                     : { power: 0, toughness: 0 };
             },
         },
+    ],
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// BLUE C4 — Copy-as-token (Dance of Many, #421).
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Dance of Many — "{U}{U} Enchantment. When this enchantment enters, create a
+// token that's a copy of target nontoken creature. When this enchantment leaves
+// the battlefield, exile the token. When the token leaves the battlefield,
+// sacrifice this enchantment. At the beginning of your upkeep, sacrifice this
+// enchantment unless you pay {U}{U}." (Modern Scryfall oracle, ADR 0004.)
+//
+// Implementation (CR 707.2 copy + CR 603.10 leave-linkage + CR 603.6a upkeep):
+//
+//   • ETB trigger (`enteredTrigger` scope:self) — the controller chooses a
+//     nontoken creature (`requestChoice` filter `{ types: "Creature",
+//     isToken: false }`, the same choose-a-creature path Clone uses; CR 707.2
+//     copies copiable values only). `createTokenCopyOf` is the token-recipient
+//     form of the clone path: it makes a fresh token and runs `applyCopy` on it
+//     (the SAME `applyCopy` `becomeCopyOf` uses), stamping `createdBy` so the
+//     enchantment can find its token, and storing the reverse `linkedTokenId`
+//     on the enchantment so it can identify the token after it leaves play.
+//
+//   • Enchantment-leaves → exile token (`leftTrigger` scope:self) — the token
+//     is still on the battlefield at this point, so it is located by
+//     `createdBy` provenance and exiled (CR 603.10). A token in any zone but
+//     the battlefield ceases to exist (CR 111.7 SBA), so exile is permanent.
+//
+//   • Token-leaves → sacrifice enchantment (`leftTrigger` scope:any with a
+//     `linkedTokenId` condition) — the leaving permanent's id is matched
+//     against the enchantment's stored `linkedTokenId` (the `PermanentLeftEvent`
+//     does not carry `createdBy`, and the token has already left), then the
+//     enchantment is sacrificed (CR 701.16).
+//
+//   • Upkeep {U}{U}-or-sacrifice — REUSES the shipped LEG C7
+//     `payOrSacrificeUpkeepTrigger` (the Elder Dragon maintenance-cost family);
+//     not reimplemented (CR 603.6a + CR 117.3a).
+//
+// The two leave triggers are mutual no-ops on the second hop: when the
+// enchantment leaves it exiles the token, whose departure tries to sacrifice
+// the already-gone enchantment (silent no-op, CR 608.2b); and vice versa.
+export const danceOfMany: CardDefinition = {
+    id: "54d5d755-403a-4e81-837e-f516eb17e819",
+    name: "Dance of Many",
+    oracleText:
+        "When this enchantment enters, create a token that's a copy of target nontoken creature.\nWhen this enchantment leaves the battlefield, exile the token.\nWhen the token leaves the battlefield, sacrifice this enchantment.\nAt the beginning of your upkeep, sacrifice this enchantment unless you pay {U}{U}.",
+    manaCost: { U: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "dance-of-many-etb",
+            oracleText:
+                "When this enchantment enters, create a token that's a copy of target nontoken creature.",
+            scope: "self",
+            resolve: (ctx: SpellContext) => {
+                // CR 707.2 — choose a nontoken creature to copy. Mirrors the
+                // Clone copy-target picker; `isToken: false` enforces the
+                // "nontoken" clause (CR 111.5).
+                const picks = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: `dance-of-many-${ctx.sourceInstanceId}`,
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    allControllers: true,
+                    filter: { types: "Creature", isToken: false },
+                    count: 1,
+                    prompt: "Dance of Many: choose a nontoken creature to copy.",
+                });
+                if (picks === undefined) return; // suspended for the choice
+                const targetId = picks[0];
+                if (!targetId) return; // no legal creature → no token
+                ctx.createTokenCopyOf(
+                    targetId,
+                    ctx.controller,
+                    ctx.sourceInstanceId
+                );
+            },
+        }),
+        leftTrigger({
+            id: "dance-of-many-exile-token",
+            oracleText:
+                "When this enchantment leaves the battlefield, exile the token.",
+            scope: "self",
+            resolve: (ctx: SpellContext, _event, leaving) => {
+                // CR 603.10 — the token (still on the battlefield) is found by
+                // its `createdBy` provenance link to this enchantment.
+                for (const pid of ctx.allPlayerIds) {
+                    const tokens = ctx.getBattlefieldIds(pid, {
+                        createdBy: leaving.id,
+                    });
+                    for (const tokenId of tokens) {
+                        ctx.exile({ type: "permanent", id: tokenId });
+                    }
+                }
+            },
+        }),
+        leftTrigger({
+            id: "dance-of-many-sacrifice-self",
+            oracleText:
+                "When the token leaves the battlefield, sacrifice this enchantment.",
+            scope: "any",
+            // CR 603.10 — fire only for THIS enchantment's token. The token has
+            // already left, so it is identified by the `linkedTokenId` stored
+            // on the enchantment when the token was created.
+            condition: (event, self) =>
+                self.linkedTokenId !== undefined &&
+                event.instanceId === self.linkedTokenId,
+            resolve: (ctx: SpellContext) => {
+                ctx.sacrifice(ctx.sourceInstanceId);
+            },
+        }),
+        payOrSacrificeUpkeepTrigger({
+            id: "dance-of-many-upkeep",
+            cardName: "Dance of Many",
+            cost: { U: 2 },
+            costText: "{U}{U}",
+        }),
     ],
 };
 

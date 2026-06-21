@@ -76,6 +76,7 @@ import {
     fellwarStone,
     deepWater,
     gaeasTouch,
+    danceOfMany,
 } from "../drk";
 import { tropicalIsland, mountain } from "../lea";
 import { stripMine } from "../atq";
@@ -89,6 +90,8 @@ import {
     applySourceStaticEffects,
     unapplySourceStaticEffects,
     applyExistingGrantsTo,
+    removePermanentTo,
+    processPendingActionTriggers,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -3275,5 +3278,291 @@ describe("Gaea's Touch (CR 400.7 — put a basic Forest from hand; CR 605 sacrif
         let added: Record<string, number> | undefined;
         sac.effect?.({ addMana: (m) => (added = m as Record<string, number>) });
         expect(added).toEqual({ G: 2 });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Dance of Many (C4 — Copy-as-token, #421)
+//   CR 707.2 token copy + CR 603.10 leave-linkage (both directions) + CR 603.6a
+//   upkeep "sacrifice unless you pay {U}{U}" (reuses the LEG C7 trigger).
+// ---------------------------------------------------------------------------
+
+/** Build the firing PERMANENT_ENTERED event for `source` (Dance's ETB). */
+const ENTERED = (source: CardInstanceState): StackItem["triggerEvent"] =>
+    ({
+        type: "PERMANENT_ENTERED" as const,
+        instanceId: source.id,
+        controllerId: source.controllerId,
+        types: source.types,
+    }) as StackItem["triggerEvent"];
+
+/** Place Dance of Many on p1's battlefield with a nontoken creature to copy. */
+function danceSetup(copyTargetId: string) {
+    const target = makeInstance(copyTargetId, {
+        id: "orig",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const dance = makeInstance(danceOfMany.id, {
+        id: "dance",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const state = makeState({
+        players: [
+            makePlayer("p1", { battlefield: [dance, target] }),
+            makePlayer("p2"),
+        ],
+    });
+    return { state, dance, target };
+}
+
+/** Run Dance's ETB trigger and choose `pickId` as the creature to copy.
+ *  Returns the freshly created copy-token instance. */
+function fireEtbAndCopy(
+    state: GameState,
+    dance: CardInstanceState,
+    pickId: string
+): CardInstanceState {
+    resolveTrigger(state, dance, "dance-of-many-etb", ENTERED(dance));
+    // The ETB suspends on the choose-a-creature pick; answer it.
+    answerChoice(state, [pickId]);
+    const token = state.players[0].battlefield.find((c) => c.isToken);
+    if (!token) throw new Error("no copy-token created");
+    return token;
+}
+
+describe("Dance of Many — definition (modern Scryfall oracle, ADR 0004)", () => {
+    it("is a {U}{U} Enchantment with the real Scryfall id", () => {
+        expect(danceOfMany.id).toBe("54d5d755-403a-4e81-837e-f516eb17e819");
+        expect(danceOfMany.manaCost).toEqual({ U: 2 });
+        expect(danceOfMany.types).toEqual(["Enchantment"]);
+    });
+
+    it("carries all four triggered abilities (ETB / two LTBs / upkeep)", () => {
+        const ids = danceOfMany.triggeredAbilities?.map((a) => a.id) ?? [];
+        expect(ids).toEqual([
+            "dance-of-many-etb",
+            "dance-of-many-exile-token",
+            "dance-of-many-sacrifice-self",
+            "dance-of-many-upkeep",
+        ]);
+    });
+
+    it("is registered by id and name", () => {
+        expect(getCardById(danceOfMany.id)).toBe(danceOfMany);
+        expect(getCardByName("Dance of Many")).toBe(danceOfMany);
+    });
+});
+
+describe("Dance of Many — ETB token copy (CR 707.2)", () => {
+    it("creates a token that is a copy of the target creature's copiable values", () => {
+        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        const token = fireEtbAndCopy(state, dance, "orig");
+        // CR 707.2 — copiable values: types, P/T, abilities from the printed def.
+        expect(token.isToken).toBe(true);
+        expect(token.power).toBe(4);
+        expect(token.toughness).toBe(4);
+        expect(token.staticAbilities).toContain("flying");
+        expect(token.staticAbilities).toContain("vigilance");
+        // Effective P/T (through the layer pipeline) matches the copied creature.
+        expect(getEffectivePower(state, token)).toBe(4);
+        expect(getEffectiveToughness(state, token)).toBe(4);
+        // Provenance + reverse linkage are wired (CR 603.10 anchor).
+        expect(token.createdBy).toBe("dance");
+        expect(dance.linkedTokenId).toBe(token.id);
+    });
+
+    it("copies a vanilla creature's P/T (Grizzly Bears 2/2)", () => {
+        const { state, dance } = danceSetup(getCardByName("Grizzly Bears").id);
+        const token = fireEtbAndCopy(state, dance, "orig");
+        expect(getEffectivePower(state, token)).toBe(2);
+        expect(getEffectiveToughness(state, token)).toBe(2);
+    });
+
+    it("only offers nontoken creatures as copy targets (isToken: false filter)", () => {
+        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        // Add a pre-existing token; it must NOT be a legal copy choice.
+        const stray = makeInstance(getCardByName("Serra Angel").id, {
+            id: "stray-token",
+            controllerId: "p1",
+            ownerId: "p1",
+            isToken: true,
+        });
+        state.players[0].battlefield.push(stray);
+        resolveTrigger(state, dance, "dance-of-many-etb", ENTERED(dance));
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("choose-permanents");
+        // Eligibility is carried by the choice filter (CR 111.5 nontoken).
+        expect(head?.filter).toMatchObject({
+            types: "Creature",
+            isToken: false,
+        });
+        expect(head?.allControllers).toBe(true);
+    });
+});
+
+describe("Dance of Many — leave-linkage (CR 603.10)", () => {
+    it("exiles the token when the enchantment leaves the battlefield", () => {
+        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        const token = fireEtbAndCopy(state, dance, "orig");
+        // Dance leaves play (e.g. destroyed).
+        removePermanentTo(state, dance.id, "graveyard");
+        processPendingActionTriggers(state);
+        resolveTopOfStack(state); // Dance's exile-token LTB
+        // The token is exiled — it ceases to exist (CR 111.7 SBA), so it is on
+        // no battlefield and in no public zone.
+        const onBattlefield = state.players.some((p) =>
+            p.battlefield.some((c) => c.id === token.id)
+        );
+        expect(onBattlefield).toBe(false);
+    });
+
+    it("sacrifices the enchantment when the token leaves the battlefield", () => {
+        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        const token = fireEtbAndCopy(state, dance, "orig");
+        // The token leaves play (e.g. dies in combat).
+        removePermanentTo(state, token.id, "graveyard");
+        processPendingActionTriggers(state);
+        resolveTopOfStack(state); // Dance's sacrifice-self LTB
+        const danceStillThere = state.players[0].battlefield.some(
+            (c) => c.id === "dance"
+        );
+        expect(danceStillThere).toBe(false);
+        expect(state.players[0].graveyard.some((c) => c.id === "dance")).toBe(
+            true
+        );
+    });
+
+    it("the token-leaves trigger fires ONLY for this enchantment's own token", () => {
+        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        fireEtbAndCopy(state, dance, "orig");
+        // An unrelated creature leaving must NOT fire the sacrifice-self trigger.
+        const other = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "other",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        state.players[0].battlefield.push(other);
+        removePermanentTo(state, other.id, "graveyard");
+        const triggers = collectTriggers(state, [
+            {
+                type: "PERMANENT_LEFT",
+                instanceId: "other",
+                controllerId: "p1",
+                ownerId: "p1",
+                types: ["Creature"],
+                wasAura: false,
+                toZone: "graveyard",
+            } as never,
+        ]);
+        expect(
+            triggers.some(
+                (t) => t.triggeredAbilityId === "dance-of-many-sacrifice-self"
+            )
+        ).toBe(false);
+    });
+});
+
+describe("Dance of Many — upkeep pay-{U}{U}-or-sacrifice (reuses LEG C7, CR 603.6a / 117.3a)", () => {
+    const UPKEEP = (playerId: string): StackItem["triggerEvent"] =>
+        ({
+            type: "PHASE_BEGIN" as const,
+            phase: "UPKEEP" as const,
+            activePlayerId: playerId,
+        }) as StackItem["triggerEvent"];
+
+    it("declining the {U}{U} payment sacrifices the enchantment (CR 701.16)", () => {
+        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        resolveTrigger(state, dance, "dance-of-many-upkeep", UPKEEP("p1"));
+        answerChoice(state, ["decline"]);
+        expect(state.players[0].battlefield.some((c) => c.id === "dance")).toBe(
+            false
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === "dance")).toBe(
+            true
+        );
+    });
+
+    it("paying {U}{U} keeps the enchantment on the battlefield (CR 118)", () => {
+        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        state.players[0].manaPool = { U: 2 };
+        resolveTrigger(state, dance, "dance-of-many-upkeep", UPKEEP("p1"));
+        answerChoice(state, ["yes"]);
+        expect(state.players[0].battlefield.some((c) => c.id === "dance")).toBe(
+            true
+        );
+    });
+
+    it("fires only at the controller's OWN upkeep (scope: your)", () => {
+        const { state } = danceSetup(getCardByName("Serra Angel").id);
+        expect(
+            collectTriggers(state, [UPKEEP("p1") as never]).some(
+                (t) => t.triggeredAbilityId === "dance-of-many-upkeep"
+            )
+        ).toBe(true);
+        expect(
+            collectTriggers(state, [UPKEEP("p2") as never]).some(
+                (t) => t.triggeredAbilityId === "dance-of-many-upkeep"
+            )
+        ).toBe(false);
+    });
+
+    it("backend integration: declining via applyMayPaySubmit sacrifices it (GRE → mutation → state)", () => {
+        const { state } = danceSetup(getCardByName("Serra Angel").id);
+        state.stack.push(...collectTriggers(state, [UPKEEP("p1") as never]));
+        // Resolve the upkeep tax trigger (the ETB/LTBs do not fire on a plain
+        // upkeep event); it suspends at the may-pay choice.
+        let suspended = false;
+        while (state.stack.length > 0) {
+            const before = state.stack.length;
+            const res = resolveTopOfStack(state);
+            if (res === null && state.pendingChoices?.length) {
+                suspended = true;
+                break;
+            }
+            if (state.stack.length === before) break;
+        }
+        expect(suspended).toBe(true);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.players[0].battlefield.some((c) => c.id === "dance")).toBe(
+            false
+        );
+    });
+});
+
+describe("Dance of Many — wire format (mandatory): copied P/T survives projection", () => {
+    it("the copy-token's P/T survive projectPublicState (CR 707.2)", () => {
+        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        const token = fireEtbAndCopy(state, dance, "orig");
+        // GRE (fat state) assertion.
+        expect(getEffectivePower(state, token)).toBe(4);
+        expect(getEffectiveToughness(state, token)).toBe(4);
+        // Same assertion after the network projection (the projection strips
+        // card.card to { id }; the copy overwrote card.id with the copied def,
+        // so the slim instance still reads the copied P/T).
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === token.id
+        )!;
+        expect(slim).toBeDefined();
+        expect(getEffectivePower(projected, slim)).toBe(4);
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+});
+
+describe("Dance of Many — serialization round-trip (linkedTokenId, CR 603.10)", () => {
+    it("persists the linkedTokenId leave-linkage anchor across compact/expand", async () => {
+        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        const token = fireEtbAndCopy(state, dance, "orig");
+        const { compactState, expandState } =
+            await import("../../../gre/serialize");
+        const restored = expandState(compactState(state));
+        const restoredDance = restored.players[0].battlefield.find(
+            (c) => c.id === "dance"
+        )!;
+        expect(restoredDance.linkedTokenId).toBe(token.id);
     });
 });
