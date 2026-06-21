@@ -142,3 +142,86 @@ describe("SideboardingDialog Ready gate (issue #395)", () => {
         ).toBeNull();
     });
 });
+
+describe("SideboardingDialog opponent ready-state (issue #397)", () => {
+    it("shows the opponent's 'sideboarding…' indicator in a 2-player Match", () => {
+        // Opponent not yet ready → editor shows the live opponent status.
+        const { getByText } = render(
+            <SideboardingDialog match={baseMatch()} viewerId="me" />
+        );
+        expect(getByText(/sideboarding…/i)).toBeTruthy();
+        // The opponent is identified by name in the indicator.
+        expect(getByText(/Opp/)).toBeTruthy();
+    });
+
+    it("shows the opponent's 'ready' indicator once they have readied", () => {
+        const m = baseMatch();
+        m.players = m.players.map((p) =>
+            p.id === "opp" ? { ...p, ready: true } : p
+        );
+        const { getByText, queryByText } = render(
+            <SideboardingDialog match={m} viewerId="me" />
+        );
+        // Viewer still editing → editor visible, opponent shown as ready. The
+        // indicator uses a lowercase "ready" badge (distinct from the "Ready"
+        // submit button); match it exactly.
+        expect(getByText("ready")).toBeTruthy();
+        expect(queryByText(/sideboarding…/i)).toBeNull();
+    });
+
+    it("once the viewer readies, it shows the both-ready waiting barrier", () => {
+        // The viewer's own seat is ready but the opponent isn't → the editor is
+        // replaced by the waiting barrier (no Ready button, opponent status).
+        const m = baseMatch();
+        m.players = m.players.map((p) =>
+            p.id === "me" ? { ...p, ready: true } : p
+        );
+        const { getByText, queryByRole } = render(
+            <SideboardingDialog match={m} viewerId="me" />
+        );
+        expect(getByText(/You are ready/i)).toBeTruthy();
+        expect(getByText(/both players are ready/i)).toBeTruthy();
+        // The editor's Ready button is gone — the swap can't change post-ready.
+        expect(queryByRole("button", { name: "Ready" })).toBeNull();
+    });
+
+    it("does NOT show an opponent indicator in Solo", () => {
+        const m = baseMatch({ solo: true });
+        // Solo: both seats carry decks; the viewer drives both — no human
+        // opponent indicator.
+        m.players = [
+            {
+                id: "u-p1",
+                name: "P1",
+                bgColor: "#000",
+                score: 0,
+                ready: false,
+                deck: {
+                    id: "d",
+                    name: "Deck",
+                    format: "vintage",
+                    maindeck: [card("m1"), card("m2")],
+                    sideboard: [card("s1")],
+                },
+            },
+            {
+                id: "u-p2",
+                name: "P2",
+                bgColor: "#111",
+                score: 1,
+                ready: false,
+                deck: {
+                    id: "d2",
+                    name: "Deck2",
+                    format: "vintage",
+                    maindeck: [card("n1"), card("n2")],
+                    sideboard: [card("t1")],
+                },
+            },
+        ];
+        const { queryByText } = render(
+            <SideboardingDialog match={m} viewerId="u" />
+        );
+        expect(queryByText(/sideboarding…/i)).toBeNull();
+    });
+});

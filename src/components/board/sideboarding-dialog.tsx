@@ -11,6 +11,19 @@ import {
 } from "~/lib/deckSideboard";
 import { interstitialChoiceState } from "~/lib/play-draw-choice";
 import SideboardSwapList from "./sideboard-swap-list";
+import SideboardOpponentStatus from "./sideboard-opponent-status";
+
+/** The opponent seat in a 2-player Match (PRD #387 / #397), or null. The
+ *  projection strips the opponent's deck contents but keeps their `ready` flag,
+ *  so the opponent is identified as the seat that is NOT the viewer's. Solo and
+ *  vs-AI have no human opponent to show a ready indicator for. */
+function opponentSeat(
+    match: PublicMatch,
+    viewerId: string
+): PublicMatch["players"][number] | null {
+    if (match.solo || match.vsAi) return null;
+    return match.players.find((p) => p.id !== viewerId) ?? null;
+}
 
 type SideboardingDialogProps = {
     match: PublicMatch;
@@ -67,14 +80,44 @@ export default function SideboardingDialog({
         setSplitSeatId(seat.id);
     }
 
+    const opponent = opponentSeat(match, viewerId);
+
     if (!seat || !seat.deck) {
         // Nothing for this client to sideboard (e.g. waiting on the opponent in
-        // a 2-player Match). Show a passive waiting notice.
+        // a 2-player Match). Show a passive waiting notice with the opponent's
+        // ready-state (PRD #387 user story 21 / #397).
         return (
             <GameDialog open title="Sideboarding" dismissable={false}>
-                <p className="text-zinc-400 text-sm text-center mt-1">
-                    Waiting for the other player to finish sideboarding…
-                </p>
+                <div className="flex flex-col gap-3 mt-1">
+                    <p className="text-zinc-400 text-sm text-center">
+                        Waiting for the other player to finish sideboarding…
+                    </p>
+                    {opponent && (
+                        <SideboardOpponentStatus opponent={opponent} />
+                    )}
+                </div>
+            </GameDialog>
+        );
+    }
+
+    // 2-player barrier: once the viewer has readied their own seat, the next
+    // Game builds only after BOTH seats are ready (PRD #387 user story 19 /
+    // #397). The projection reflects the viewer's own `ready` flag reactively;
+    // until the opponent readies (and the build re-points the session) the
+    // viewer sits on a waiting view showing the opponent's ready-state — the
+    // editor is no longer re-openable, so the swap can't change post-ready.
+    if (opponent && seat.ready) {
+        return (
+            <GameDialog open title="Sideboarding" dismissable={false}>
+                <div className="flex flex-col gap-3 mt-1">
+                    <p className="text-emerald-200 text-sm text-center font-beleren tracking-wide">
+                        You are ready.
+                    </p>
+                    <p className="text-zinc-400 text-xs text-center">
+                        The next game starts once both players are ready.
+                    </p>
+                    <SideboardOpponentStatus opponent={opponent} />
+                </div>
             </GameDialog>
         );
     }
@@ -202,6 +245,7 @@ export default function SideboardingDialog({
                         </div>
                     </div>
                 )}
+                {opponent && <SideboardOpponentStatus opponent={opponent} />}
                 <button
                     type="button"
                     onClick={() => void handleReady()}
