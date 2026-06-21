@@ -13,7 +13,7 @@ A best-of-N contest between two **Players**, composed of one or more **Games** (
 _Avoid_: Series, set (that's a card collection), session
 
 **Game**:
-A single contest within a **Match** between two **Players**, proceeding in **Turns** divided into **Phases**, ending when one **Player** wins (life ≤ 0, decked, or concede). A **Match** may contain several Games played in sequence.
+A single contest within a **Match** between two **Players**, proceeding in **Turns** divided into **Phases**, ending when one **Player** wins (opponent at life ≤ 0, decked, ten or more **Poison Counters**, or concede). A **Match** may contain several Games played in sequence.
 _Avoid_: session
 
 **Player**:
@@ -23,6 +23,10 @@ _Avoid_: User (that's the authenticated human; a user controls one or two player
 **Turn**:
 One full cycle of **Phases** for the **Active Player**. Numbered sequentially from 1.
 _Avoid_: Round
+
+**Poison Counter**:
+A counter that sits on a **Player** rather than on a **Permanent** or **Card Instance**. A Player who accumulates ten or more loses the **Game**. A distinct player-level resource — not the named counters carried by objects.
+_Avoid_: damage, life loss (poison is its own resource and its own loss condition)
 
 **Phase**:
 A subdivision of a **Turn**. Tolaria implements 14 phases: MULLIGAN, UNTAP, UPKEEP, DRAW, PRECOMBAT*MAIN, BEGINNING_OF_COMBAT, DECLARE_ATTACKERS, DECLARE_BLOCKERS, FIRST_STRIKE_DAMAGE, COMBAT_DAMAGE, END_OF_COMBAT, POSTCOMBAT_MAIN, END_STEP, CLEANUP.
