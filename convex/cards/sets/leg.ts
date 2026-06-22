@@ -716,6 +716,96 @@ export const divineOffering: CardDefinition = {
     },
 };
 
+// Remove Enchantments — "Return to your hand all enchantments you both own and
+// control, all Auras you own attached to permanents you control, and all Auras
+// you own attached to attacking creatures your opponents control. Then destroy
+// all other enchantments you control, all other Auras attached to permanents
+// you control, and all other Auras attached to attacking creatures your
+// opponents control."
+//
+// The affected category (CR 110.2 control, 303.4b attachment, 508.1 attacking)
+// is the union of: (a) enchantments the caster controls, (b) Auras attached to
+// a permanent the caster controls, (c) Auras attached to an attacking creature
+// an opponent controls. Within that category, ownership (CR 108.3, immutable)
+// splits the outcome: an object the caster owns is RETURNED to hand (CR 701.10),
+// everything else is DESTROYED (CR 701.7). Order matters — return first so a
+// returned card is no longer on the battlefield when the destroy sweep runs
+// (CR 608.2 — sequential one-shot effect; a card that left play is untouched by
+// the later step). No target: it's a mass effect (CR 608.2 reads the board at
+// resolution).
+export const removeEnchantments: CardDefinition = {
+    id: "bf2e3a8a-b386-474d-b8e9-4c2d56a2b742",
+    rarity: "common",
+    name: "Remove Enchantments",
+    oracleText:
+        "Return to your hand all enchantments you both own and control, all Auras you own attached to permanents you control, and all Auras you own attached to attacking creatures your opponents control. Then destroy all other enchantments you control, all other Auras attached to permanents you control, and all other Auras attached to attacking creatures your opponents control.",
+    manaCost: { W: 1 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        const me = ctx.caster;
+        const opponents = ctx.allPlayerIds.filter((p) => p !== me);
+
+        // Collect the affected category up front: three disjoint groups. We
+        // snapshot ids before mutating so the return/destroy passes operate on
+        // a fixed set (CR 608.2 — last-known information at resolution). The
+        // oracle has NO blanket "Auras you control" clause: an Aura qualifies
+        // only by its attachment (group b/c), not merely by the caster
+        // controlling it (e.g. a control-Aura the caster put on a non-attacking
+        // opponent permanent is untouched).
+        const affected: string[] = [];
+
+        // (a) Non-Aura enchantments the caster controls (CR 110.2). Auras are
+        //     excluded here and handled by attachment below.
+        for (const id of ctx.getBattlefieldIds(me, { types: "Enchantment" })) {
+            if (ctx.getAttachedTo(id) === undefined) affected.push(id);
+        }
+
+        // (b/c) Auras (controlled by anyone, on any battlefield) attached
+        //       either to a permanent the caster controls, or to an attacking
+        //       creature an opponent controls.
+        for (const p of ctx.allPlayerIds) {
+            for (const id of ctx.getBattlefieldIds(p, {
+                types: "Enchantment",
+                subtypes: "Aura",
+            })) {
+                const hostId = ctx.getAttachedTo(id);
+                if (hostId === undefined) continue;
+                const hostController = ctx.getController({
+                    type: "permanent",
+                    id: hostId,
+                });
+                const attachedToMine = hostController === me;
+                const onOpponentAttacker =
+                    opponents.includes(hostController) &&
+                    ctx.getIsAttacking(hostId);
+                if (attachedToMine || onOpponentAttacker) affected.push(id);
+            }
+        }
+
+        // De-dupe (an Aura the caster controls attached to their own permanent
+        // can match both passes).
+        const ids = [...new Set(affected)];
+
+        // Step 1 — return to hand everything in the category the caster OWNS
+        // (CR 108.3 ownership, CR 701.10 return). Must run before the destroy
+        // sweep so these cards are off the battlefield and untouched by step 2.
+        const returned = new Set<string>();
+        for (const id of ids) {
+            if (ctx.getOwnerId(id) === me) {
+                ctx.returnToHand({ type: "permanent", id });
+                returned.add(id);
+            }
+        }
+
+        // Step 2 — destroy the remainder of the category (CR 701.7). Cards
+        // returned in step 1 are no longer on the battlefield, so destroy is a
+        // no-op for them anyway; we skip them explicitly for clarity.
+        for (const id of ids) {
+            if (!returned.has(id)) ctx.destroy({ type: "permanent", id });
+        }
+    },
+};
+
 // --- Pump spells (CR 611.1, end-of-turn duration) --------------------------
 
 // Great Defender — "Target creature gets +0/+X until end of turn, where X is

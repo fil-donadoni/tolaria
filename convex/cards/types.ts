@@ -762,6 +762,19 @@ export interface SpellContext {
      *  Scavenging Ghoul's end-step "for each creature that died this turn". */
     getDeathsThisTurn: () => number;
     getController: (target: TargetSelection) => string;
+    /** The owner of a permanent (CR 108.3 — immutable, never changed by
+     *  control-magic effects). Returns undefined if the id is not on the
+     *  battlefield. Distinct from `getController`: ownership decides which
+     *  player's hand a returned card goes to and which "you own" clauses an
+     *  effect matches (Remove Enchantments returns only enchantments/Auras the
+     *  caster owns, destroying the rest). */
+    getOwnerId: (cardInstanceId: string) => string | undefined;
+    /** Whether a permanent is currently a declared attacker (CR 508.1).
+     *  Returns false for players and for permanents not on the battlefield.
+     *  Used by mass effects that scope to attacking creatures (Remove
+     *  Enchantments' "Auras attached to attacking creatures opponents
+     *  control"). */
+    getIsAttacking: (cardInstanceId: string) => boolean;
     /** Whether the target permanent is tapped (CR 701.20a). Returns false for
      *  players and for permanents no longer on the battlefield. Used by
      *  intervening-if checks like Howling Mine's "if ~ is untapped". */

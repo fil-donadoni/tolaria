@@ -82,6 +82,45 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Remove Enchantments — mass conditional return + destroy (#497, CR
+        // 108.3 owner vs 110.2 control, 303.4b attachment, 701.7/701.10).
+        //
+        // Board: you control a non-Aura enchantment you own (Presence of the
+        // Master) and a Grizzly Bears to wear an Aura. Your opponent controls
+        // their own enchantment (Spirit Link on their Grizzly Bears, set up by
+        // casting it) which is OUT of scope. In hand you hold Spirit Link (an
+        // Aura you own) plus Remove Enchantments, with Plains to pay.
+        // Golden path:
+        //   1. Cast your Spirit Link onto your Grizzly Bears (Aura you own on a
+        //      permanent you control).
+        //   2. Cast Remove Enchantments. Your Presence of the Master AND your
+        //      Spirit Link return to your hand; the opponent's own enchantments
+        //      (not in scope) are untouched.
+        // Edge: instead attach your Spirit Link to the OPPONENT's Grizzly Bears
+        //   (non-attacking) — Remove Enchantments now leaves it alone (an Aura
+        //   you own on an opponent's non-attacking creature matches no clause).
+        label: "LEG: Remove Enchantments — return owned enchantments/Auras, spare the rest (#497)",
+        cards: [
+            { name: "Presence of the Master", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            {
+                name: "Spirit Link",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Remove Enchantments",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Plains", owner: "me" as const, count: 3 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Presence of the Master", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Osai Vultures — end-step carrion-counter death engine (#496, CR 700.4
         // die tally + CR 603.4d intervening-if + CR 122.6 counter-removal pump).
         //
