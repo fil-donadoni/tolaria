@@ -18,6 +18,9 @@ import {
 import { airElemental, ancestralRecall, lightningBolt } from "../lea";
 import { volcanicIsland, circleOfProtectionBlack } from "../leb";
 import { getCardById, getPrintingsForCard, getAllSetCodes } from "../../index";
+import { setName } from "../../setMeta";
+import { FORMAT_RULES, validateDeck } from "../../../formats";
+import type { ValidatableDeck } from "../../../formats";
 
 describe("2ED registry parity (ADR 0014)", () => {
     it("resolves reprint prints to their shared LEA definition", () => {
@@ -53,5 +56,41 @@ describe("2ED as an extra printing", () => {
 
     it("is included in the catalogue's set codes", () => {
         expect(getAllSetCodes()).toContain("2ed");
+    });
+});
+
+describe("2ED display name (#560)", () => {
+    it("maps the 2ed code to its human-readable name", () => {
+        expect(setName("2ed")).toBe("Unlimited Edition");
+        // case-insensitive, no upper-cased fallback
+        expect(setName("2ED")).toBe("Unlimited Edition");
+    });
+});
+
+describe("2ED Old School legality (#560)", () => {
+    const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
+
+    it("lists 2ed among the Old School allowed sets", () => {
+        expect(FORMAT_RULES["old-school"].allowedSets).toContain("2ed");
+    });
+
+    it("validates a 60-card Old School deck built around an Unlimited reprint", () => {
+        // 1 Unlimited Bolt + 59 basics resolves and validates legal end-to-end
+        // via the real registry resolver.
+        const deck: ValidatableDeck = {
+            cards: [
+                {
+                    cardId: lightningBolt2ed.printId,
+                    cardName: "Lightning Bolt",
+                },
+                ...Array.from({ length: 59 }, () => ({
+                    cardId: MOUNTAIN,
+                    cardName: "Mountain",
+                })),
+            ],
+        };
+        const result = validateDeck(deck, "old-school");
+        expect(result.isLegal).toBe(true);
+        expect(result.reasons).toEqual([]);
     });
 });

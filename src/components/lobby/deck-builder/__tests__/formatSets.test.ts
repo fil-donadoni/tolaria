@@ -60,16 +60,25 @@ describe("matchesFormatSets — per-format set narrowing (issue #514)", () => {
         });
     });
 
-    describe("Old School — the six allowed sets", () => {
+    describe("Old School — the allowed sets", () => {
         const sets = allowed("old-school");
 
         it("matches the registry's allowed-set list exactly", () => {
-            expect(sets).toEqual(["lea", "leb", "arn", "atq", "leg", "drk"]);
+            expect(sets).toEqual([
+                "lea",
+                "leb",
+                "2ed",
+                "arn",
+                "atq",
+                "leg",
+                "drk",
+            ]);
         });
 
         for (const code of [
             "lea",
             "leb",
+            "2ed",
             "arn",
             "atq",
             "leg",

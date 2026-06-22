@@ -6,6 +6,7 @@
 const SET_NAMES: Record<string, string> = {
     lea: "Limited Edition Alpha",
     leb: "Limited Edition Beta",
+    "2ed": "Unlimited Edition",
     arn: "Arabian Nights",
     atq: "Antiquities",
     leg: "Legends",

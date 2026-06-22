@@ -651,8 +651,9 @@ export const FORMAT_RULES: Record<FormatId, FormatMeta> = {
     },
     "old-school": {
         label: "Old School (93/94)",
-        // The six implemented eternal sets, >=60 maindeck, <=15 sideboard.
-        allowedSets: ["lea", "leb", "arn", "atq", "leg", "drk"],
+        // The implemented eternal sets, >=60 maindeck, <=15 sideboard.
+        // Unlimited (2ed) reprints the Beta list and is Old-School-legal (#560).
+        allowedSets: ["lea", "leb", "2ed", "arn", "atq", "leg", "drk"],
         minMain: 60,
         maxSide: 15,
         // Full legality (issue #516): size + sets + 4-copy limit + EC Restricted
