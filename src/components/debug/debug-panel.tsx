@@ -244,6 +244,34 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Animated manland is an Artifact (issue #547, CR 208.2). Mishra's
+        // Factory's "{1}: becomes a 2/2 Assembly-Worker artifact creature ...
+        // It's still a land" must grant the Artifact type so "destroy target
+        // artifact" effects (Shatter) can hit it.
+        //
+        // Board: your Mishra's Factory + a Mountain to pay {1}; the opponent
+        // holds Shatter and has two Mountains to cast it.
+        // Golden path:
+        //   1. Animate the Factory ({1}, paid by your Mountain).
+        //   2. Pass to the opponent; they cast Shatter targeting the Factory —
+        //      the now-Artifact land is a legal target and is destroyed.
+        // Edge: don't cast Shatter — the added Artifact/Creature types revert
+        //   at end of turn and the permanent is a plain Land again.
+        label: "ATQ: animated Mishra's Factory is an Artifact — Shatter can destroy it (#547)",
+        cards: [
+            { name: "Mishra's Factory", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const },
+            {
+                name: "Shatter",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Recall — {X}{X}{U} sorcery (CR 107.3/701.8/400.7/608.2). "Discard X
         // cards, then return a card from your graveyard to your hand for each
         // card discarded this way. Exile Recall."

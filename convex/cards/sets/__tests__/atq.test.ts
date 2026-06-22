@@ -90,7 +90,13 @@ import {
     tawnossWand,
     tetravus,
 } from "../atq";
-import { grizzlyBears, hillGiant, solRing, holyStrength } from "../lea";
+import {
+    grizzlyBears,
+    hillGiant,
+    solRing,
+    holyStrength,
+    shatter,
+} from "../lea";
 import { getCardById, getInstanceManaCost } from "../..";
 import {
     makeInstance,
@@ -2490,7 +2496,7 @@ describe("Mishra's Factory (animate + Assembly-Worker pump, CR 611.1)", () => {
         expect(mana.manaProduced).toEqual({ C: 1 });
     });
 
-    it("animates the land into a 2/2 Assembly-Worker creature (still a land)", () => {
+    it("animates the land into a 2/2 Assembly-Worker artifact creature (still a land)", () => {
         const factory = makeInstance(mishrasFactory.id, {
             id: "factory",
             controllerId: "p1",
@@ -2503,12 +2509,95 @@ describe("Mishra's Factory (animate + Assembly-Worker pump, CR 611.1)", () => {
         const live = state.players[0].battlefield.find(
             (c) => c.id === "factory"
         )!;
+        // CR 208.2 — "2/2 Assembly-Worker artifact creature ... still a land".
         expect(live.types).toEqual(
-            expect.arrayContaining(["Land", "Creature"])
+            expect.arrayContaining(["Land", "Creature", "Artifact"])
         );
         expect(live.subtypes).toContain("Assembly-Worker");
         expect(getEffectivePower(state, live)).toBe(2);
         expect(getEffectiveToughness(state, live)).toBe(2);
+    });
+
+    // Issue #547 — while animated the Factory is an Artifact, so "destroy
+    // target artifact" effects (Shatter) can target and destroy it (CR 208.2).
+    describe("artifact type while animated (CR 208.2, issue #547)", () => {
+        const animatedFactoryState = () => {
+            const factory = makeInstance(mishrasFactory.id, {
+                id: "factory",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [factory] }),
+                    makePlayer("p2"),
+                ],
+            });
+            resolveActivated(state, factory, "mishras-factory-animate");
+            return state;
+        };
+
+        it("Shatter lists the animated Factory as a legal artifact target", () => {
+            const state = animatedFactoryState();
+            const legal = getLegalTargets(
+                state,
+                shatter.targetRequirement!,
+                [],
+                "p2"
+            ).map((t) => t.id);
+            expect(legal).toContain("factory");
+        });
+
+        it("Shatter accepts and destroys the animated Factory", () => {
+            const state = animatedFactoryState();
+            pushSpell(state, shatter.id, "p2", [
+                { type: "permanent", id: "factory" },
+            ]);
+            resolveTopOfStack(state);
+            expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(
+                "factory"
+            );
+            expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+                "factory"
+            );
+        });
+
+        it("the added Artifact type reverts at end of turn if not destroyed (CR 514.2)", () => {
+            const state = animatedFactoryState();
+            state.activePlayerId = "p1";
+            state.turn = 1;
+            state.phase = "END_STEP" as GameState["phase"];
+            // p1's hand is empty → no cleanup discard, so advancePhase runs
+            // through CLEANUP's tickAllDurations and reverts the animation.
+            advancePhase(state);
+            const live = [
+                ...state.players[0].battlefield,
+                ...state.players[1].battlefield,
+            ].find((c) => c.id === "factory")!;
+            expect(live.types).toEqual(["Land"]);
+            expect(live.animation).toBeUndefined();
+        });
+
+        it("wire format: projected animated Factory still exposes the Artifact type", () => {
+            const state = animatedFactoryState();
+            // Fat-state legality: p2 can Shatter it.
+            const fatLegal = getLegalTargets(
+                state,
+                shatter.targetRequirement!,
+                [],
+                "p2"
+            ).map((t) => t.id);
+            expect(fatLegal).toContain("factory");
+            // The projection must preserve `types` so client target legality
+            // matches the server (CardInstanceState.types survives projection).
+            const projected = projectPublicState(state, 0, "p2");
+            const slim = projected.players[0].battlefield.find(
+                (c) => c.id === "factory"
+            )!;
+            expect(slim.types).toEqual(
+                expect.arrayContaining(["Land", "Creature", "Artifact"])
+            );
+        });
     });
 
     it("pumps a targeted Assembly-Worker +1/+1 EOT", () => {
