@@ -57,6 +57,37 @@ export default defineSchema({
             )
         ),
     }).index("by_user", ["userId"]),
+    // Preset Decks (PRD #466, ADR 0033). The built-in decklists, moved out of
+    // the in-code `PRESET_DECKS` constant into the DB so a trusted Admin can
+    // curate them live from the deck editor. Mirrors `userDecks` minus
+    // ownership: no `userId`. The `slug` is a stable, human-readable identity
+    // (e.g. `mono-red-burn`) derived from the name at creation and immutable
+    // thereafter — external references (lobby selection, wire payloads, debug
+    // scenarios) key off the slug, NOT the random Convex `_id`.
+    presetDecks: defineTable({
+        slug: v.string(),
+        name: v.string(),
+        format: v.string(),
+        description: v.optional(v.string()),
+        colors: v.array(v.string()),
+        // Maindeck: the cards that build the starting Library.
+        cards: v.array(
+            v.object({
+                cardId: v.string(),
+                cardName: v.string(),
+            })
+        ),
+        // Sideboard: 0–15 cards held aside (PRD #387). Optional; absent ===
+        // empty for presets that ship without one.
+        sideboard: v.optional(
+            v.array(
+                v.object({
+                    cardId: v.string(),
+                    cardName: v.string(),
+                })
+            )
+        ),
+    }).index("by_slug", ["slug"]),
     // A Match (ADR 0029 / PRD #387) is a best-of-N set of Games. The single
     // create/join/solo paths build a `bestOf: 1` Match whose first Game is the
     // existing init path. The Match owns the cross-game state: running score,
