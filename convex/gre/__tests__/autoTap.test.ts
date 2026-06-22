@@ -564,3 +564,126 @@ describe("solveSmartAutoTap — determinism & cap (ADR 0034)", () => {
         expect(AUTO_TAP_PLAN_CAP).toBe(512);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Self-source deprioritization (issue #544, CR 602.1 / 605.1a). When paying an
+// activated ability's mana cost, the activating permanent's OWN mana ability
+// must not be auto-tapped unless strictly necessary — otherwise a manland like
+// Mishra's Factory animates itself tapped and can't attack/block. Class-wide:
+// any activated ability whose source also has a mana ability.
+// ---------------------------------------------------------------------------
+
+describe("solveSmartAutoTap — self-source deprioritization (issue #544)", () => {
+    it("spares the self-source when another source covers the cost", () => {
+        // Mishra's Factory ("self") + a Forest, paying {1} (the animate cost).
+        // Both can produce mana; the plan must tap the Forest, not the Factory.
+        const sources = [fixed("self", "C"), fixed("forest", "G")];
+        const plan = solveSmartAutoTap(
+            EMPTY_POOL,
+            { X: 1 },
+            [],
+            sources,
+            [],
+            "self"
+        );
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardId).toBe("forest");
+    });
+
+    it("taps the self-source when it is the only source (strictly necessary)", () => {
+        // Only the Factory can pay {1}: tapping itself is unavoidable, and the
+        // activation must still succeed rather than no-op.
+        const sources = [fixed("self", "C")];
+        const plan = solveSmartAutoTap(
+            EMPTY_POOL,
+            { X: 1 },
+            [],
+            sources,
+            [],
+            "self"
+        );
+        expect(plan).not.toBeNull();
+        expect(plan).toEqual([{ cardId: "self" }]);
+    });
+
+    it("taps the self-source when the cost exceeds the alternatives", () => {
+        // {2} cost, alternatives provide only 1: the self-source is needed to
+        // complete the payment (strictly necessary for the remainder).
+        const sources = [fixed("self", "C"), fixed("forest", "G")];
+        const plan = solveSmartAutoTap(
+            EMPTY_POOL,
+            { X: 2 },
+            [],
+            sources,
+            [],
+            "self"
+        );
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(2);
+        expect(plan!.map((p) => p.cardId).sort()).toEqual(["forest", "self"]);
+    });
+
+    it("self-source needed for a color only it produces is still tapped", () => {
+        // Cost {C} (colorless pip): only the Factory makes {C}; the Forest's {G}
+        // can't substitute, so the Factory taps itself by necessity.
+        const sources = [fixed("self", "C"), fixed("forest", "G")];
+        const plan = solveSmartAutoTap(
+            EMPTY_POOL,
+            { C: 1 },
+            [],
+            sources,
+            [],
+            "self"
+        );
+        expect(plan).not.toBeNull();
+        expect(plan).toEqual([{ cardId: "self" }]);
+    });
+
+    it("no self-source id: unchanged behavior (regression guard)", () => {
+        // Without selfSourceId the solver is free to pick either single source;
+        // it must still return a minimal 1-tap plan.
+        const sources = [fixed("self", "C"), fixed("forest", "C")];
+        const plan = solveSmartAutoTap(EMPTY_POOL, { C: 1 }, [], sources, []);
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+    });
+
+    it("self-source id absent from sources: no-op deprioritization", () => {
+        // selfSourceId names a permanent with no mana ability (not in sources):
+        // the filter is a no-op and the solver behaves as if it weren't passed.
+        const sources = [fixed("forest", "G")];
+        const plan = solveSmartAutoTap(
+            EMPTY_POOL,
+            { G: 1 },
+            [],
+            sources,
+            [],
+            "manland-without-mana"
+        );
+        expect(plan).toEqual([{ cardId: "forest" }]);
+    });
+
+    it("deprioritization preserves the demand tie-break among non-self sources", () => {
+        // Self (C) + Island (U) + Tundra (W/U), paying {1}. Tundra can also pay
+        // a {W} Demand. The plan must spare both the self-source AND Tundra,
+        // tapping the Island.
+        const sources = [
+            fixed("self", "C"),
+            fixed("island", "U"),
+            choice("tundra", ["W", "U"]),
+        ];
+        const demands: Demand[] = [{ id: "lions", cost: { W: 1 } }];
+        const plan = solveSmartAutoTap(
+            EMPTY_POOL,
+            { X: 1 },
+            [],
+            sources,
+            demands,
+            "self"
+        );
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardId).toBe("island");
+    });
+});

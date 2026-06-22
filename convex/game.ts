@@ -588,7 +588,7 @@ function sacrificedManaValue(perm: CardInstanceState): number {
  *  deferred tap/sacrifice costs on the source, push the ability on the stack,
  *  and swap priority. Mirrors tryAutoCommitPendingCast for abilities. Returns
  *  the source card name on commit, or null if nothing was committed. */
-function tryAutoCommitPendingActivation(
+export function tryAutoCommitPendingActivation(
     state: GameState,
     playerId: string
 ): { cardInstanceId: string; abilityId: string; cardName?: string } | null {
@@ -2790,12 +2790,24 @@ export const autoTapForPayment = mutation({
         // e.g. Black Lotus — issue #321), fall back to the maximal-useful
         // partial plan: tap what we can toward the cost and leave the manual
         // remainder to the player rather than no-op + throw.
+        // Self-source deprioritization (issue #544, CR 602.1): when paying an
+        // activated ability's cost, don't tap the activating permanent's own
+        // mana ability unless strictly necessary. Mishra's Factory `{1}:`
+        // animate must leave the Factory untapped while another mana source can
+        // cover the cost (otherwise the freshly-animated creature is tapped and
+        // can't attack/block). Only a pendingActivation has a self-source — a
+        // spell cast (pendingCast) has no on-battlefield source to spare.
+        const selfSourceId =
+            state.pendingActivation?.playerId === args.playerId
+                ? state.pendingActivation.cardInstanceId
+                : undefined;
         const fullPlan = solveSmartAutoTap(
             player.manaPool,
             pending.manaCost,
             substitutions,
             sources,
-            demands
+            demands,
+            selfSourceId
         );
         const plan =
             fullPlan ??

@@ -479,8 +479,49 @@ function planLexKey(plan: AutoTapPlan): string {
  * `solveAutoTap` would. Returns `[]` when the pool already covers the cost and
  * `null` when no combination of sources can pay it (caller falls back to the
  * partial solver). `demands` should exclude the spell being paid for.
+ *
+ * `selfSourceId` (issue #544, CR 602.1 / 605.1a): the instance id of the
+ * permanent whose own activated ability is being paid for. Its own mana
+ * ability is deprioritized — Auto-Tap taps it only when no plan that spares it
+ * can cover the cost (strictly necessary). Repro: Mishra's Factory `{1}:`
+ * animate must not tap the Factory's own `{T}: Add {C}` while another mana
+ * source can pay, or the freshly-animated creature lands tapped. Class-wide:
+ * applies to any activated ability whose source also has a mana ability. Pure
+ * convenience UX — CR 602.1 never dictates which legal sources a player taps.
  */
 export function solveSmartAutoTap(
+    pool: Record<string, number>,
+    cost: Record<string, number>,
+    substitutions: ManaSubstitution[],
+    sources: AutoTapSource[],
+    demands: Demand[] = [],
+    selfSourceId?: string
+): AutoTapPlan | null {
+    // Deprioritize the activating permanent's own mana ability (issue #544):
+    // first try to cover the cost without it. Only if that is impossible — the
+    // self-source is *strictly necessary* — do we fall through to the full
+    // source set that includes it. This preserves the minimal-tap invariant on
+    // each attempt and keeps the manland untapped whenever an alternative
+    // covers the cost.
+    if (selfSourceId !== undefined) {
+        const withoutSelf = sources.filter((s) => s.cardId !== selfSourceId);
+        if (withoutSelf.length !== sources.length) {
+            const plan = solveSmartAutoTapCore(
+                pool,
+                cost,
+                substitutions,
+                withoutSelf,
+                demands
+            );
+            if (plan !== null) return plan;
+            // Self-source is strictly necessary: fall through, taps included.
+        }
+    }
+    return solveSmartAutoTapCore(pool, cost, substitutions, sources, demands);
+}
+
+/** Core demand-aware minimal-tap selection (no self-source handling). */
+function solveSmartAutoTapCore(
     pool: Record<string, number>,
     cost: Record<string, number>,
     substitutions: ManaSubstitution[],

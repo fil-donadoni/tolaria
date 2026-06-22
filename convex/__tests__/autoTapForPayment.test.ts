@@ -26,7 +26,11 @@ import {
     buildHandSpellDemands,
 } from "../gre/autoTapDemands";
 import { isSorceryTiming } from "../gre/phases";
-import { tapSourceIntoPayment, tryAutoCommitPendingCast } from "../game";
+import {
+    tapSourceIntoPayment,
+    tryAutoCommitPendingCast,
+    tryAutoCommitPendingActivation,
+} from "../game";
 import {
     getManaSubstitutions,
     isManaCostCovered,
@@ -34,6 +38,7 @@ import {
     type GameState,
     type PlayerState,
     type PendingCast,
+    type PendingActivation,
 } from "../gre/state";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
 
@@ -797,5 +802,129 @@ describe("autoTapForPayment — X-spell Demands at X=1 (issue #477)", () => {
             .sort();
 
         expect(tappedA).toEqual(tappedB);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Self-source deprioritization through the activation payment path (issue
+// #544, CR 602.1 / 605.1a). When Auto-Tapping to pay an activated ability's
+// mana cost, the activating permanent's OWN mana ability must not be tapped
+// unless strictly necessary. Mishra's Factory `{1}:` animate is the repro:
+// after animating, the Factory must stay UNTAPPED while another mana source
+// can pay — otherwise the freshly-animated 2/2 lands tapped and can't
+// attack/block. Exercised through the real mutation seam (planner with
+// selfSourceId + tapSourceIntoPayment + tryAutoCommitPendingActivation), so
+// the planner and the payment primitive stay in sync.
+// ---------------------------------------------------------------------------
+
+const MISHRAS_FACTORY = "a696c5b6-f216-454d-8029-74e84bbd1428"; // {T}: C | {1}: animate
+
+/** Replicates the autoTapForPayment mutation body for a `pendingActivation`
+ *  (the self-source branch). Returns whether the ability committed. */
+function runAutoTapActivation(state: GameState, player: PlayerState): boolean {
+    const pa = state.pendingActivation!;
+    const substitutions = getManaSubstitutions(state, player.id);
+    const sources = buildAutoTapSources(player.battlefield);
+    // The activating permanent's own mana ability is deprioritized.
+    const selfSourceId =
+        pa.playerId === player.id ? pa.cardInstanceId : undefined;
+    const plan = solveSmartAutoTap(
+        player.manaPool,
+        pa.manaCost,
+        substitutions,
+        sources,
+        [],
+        selfSourceId
+    );
+    for (const step of plan ?? []) {
+        const card = player.battlefield.find((c) => c.id === step.cardId);
+        if (!card) continue;
+        tapSourceIntoPayment(
+            state,
+            player,
+            card,
+            step.manaChoiceIndex,
+            pa.tappedLandIds
+        );
+    }
+    return tryAutoCommitPendingActivation(state, player.id) !== null;
+}
+
+function factoryActivationState(extraMountains: number) {
+    const factory = makeInstance(MISHRAS_FACTORY, {
+        id: "factory",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const battlefield = [
+        factory,
+        ...Array.from({ length: extraMountains }, (_, i) =>
+            makeInstance(MOUNTAIN, { id: `m${i + 1}`, controllerId: "p1" })
+        ),
+    ];
+    const pendingActivation: PendingActivation = {
+        playerId: "p1",
+        cardInstanceId: "factory",
+        abilityId: "mishras-factory-animate",
+        manaCost: { X: 1 }, // {1}
+        tappedLandIds: [],
+        tapSource: false,
+        sacrificeSource: false,
+    };
+    const p1 = makePlayer("p1", { battlefield });
+    const state = makeState({
+        players: [p1, makePlayer("p2")],
+        activePlayerId: "p1",
+        priorityPlayerId: "p1",
+        pendingActivation,
+    });
+    return { state, player: state.players[0] };
+}
+
+describe("autoTapForPayment — manland self-source (issue #544)", () => {
+    it("leaves Mishra's Factory untapped when another mana source pays {1}", () => {
+        const { state, player } = factoryActivationState(1);
+        const committed = runAutoTapActivation(state, player);
+
+        // Animate committed (ability pushed to the stack, payment cleared).
+        expect(committed).toBe(true);
+        expect(state.pendingActivation).toBeUndefined();
+
+        const factory = player.battlefield.find((c) => c.id === "factory")!;
+        const mountain = player.battlefield.find((c) => c.id === "m1")!;
+        // The Factory stays untapped; the Mountain pays the {1}.
+        expect(factory.isTapped).toBeFalsy();
+        expect(mountain.isTapped).toBe(true);
+    });
+
+    it("taps the Factory's own mana ability only when it is the sole source", () => {
+        const { state, player } = factoryActivationState(0);
+        const committed = runAutoTapActivation(state, player);
+
+        // Strictly necessary: the Factory taps itself, activation still succeeds.
+        expect(committed).toBe(true);
+        expect(state.pendingActivation).toBeUndefined();
+        const factory = player.battlefield.find((c) => c.id === "factory")!;
+        expect(factory.isTapped).toBe(true);
+    });
+
+    it("deterministic: same board activates twice → identical tapped set", () => {
+        const a = factoryActivationState(2);
+        runAutoTapActivation(a.state, a.player);
+        const tappedA = a.player.battlefield
+            .filter((c) => c.isTapped)
+            .map((c) => c.id)
+            .sort();
+
+        const b = factoryActivationState(2);
+        runAutoTapActivation(b.state, b.player);
+        const tappedB = b.player.battlefield
+            .filter((c) => c.isTapped)
+            .map((c) => c.id)
+            .sort();
+
+        expect(tappedA).toEqual(tappedB);
+        // The Factory is never among the tapped sources while a Mountain exists.
+        expect(tappedA).not.toContain("factory");
     });
 });
