@@ -270,6 +270,25 @@ export const createPreset = mutation({
     },
 });
 
+// Admin-only deletion of a preset (PRD #466, ADR 0033, issue #470).
+// `assertIsAdmin` runs FIRST — non-admins are rejected server-side, not just
+// hidden in the UI. Located by slug; a missing preset is a no-op (idempotent —
+// a double-click or a stale client can't error). Other clients' lobbies drop
+// the preset reactively via `list`.
+export const deletePreset = mutation({
+    args: { slug: v.string() },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await assertIsAdmin(ctx);
+        const row = await ctx.db
+            .query("presetDecks")
+            .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+            .unique();
+        if (row) await ctx.db.delete(row._id);
+        return null;
+    },
+});
+
 // Idempotent migration: insert each preset whose slug is not already present,
 // skip the rest. Never overwrites — safe to re-run. Run once via the Convex
 // dashboard / `mcp run` after this slice deploys to populate the table.

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import CardImage from "~/components/cards/card-image";
 import { defaultEdition, editionOptions } from "~/lib/editions";
 import type { CardIndexEntry } from "./useCardSearch";
+import DraggableCard from "./draggable-card";
 import EditionDropdown from "./edition-dropdown";
 
 interface ResultCardProps {
@@ -26,18 +27,27 @@ export default function ResultCard({
     const [override, setOverride] = useState<string | null>(null);
     const selected = override ?? defaultPrintId;
 
+    // Drag → drop into Maindeck or Sideboard; plain click → quick-add to
+    // Maindeck (the fast path). The edition dropdown stays a separate, non-drag
+    // control below the art.
     return (
-        <div className="flex w-[var(--card-w-sm)] shrink-0 flex-col gap-1">
-            <button
+        <div className="flex w-(--card-w) shrink-0 flex-col gap-1">
+            <DraggableCard
+                id={`result:${selected}`}
+                data={{
+                    kind: "result",
+                    cardId: selected,
+                    cardName: entry.name,
+                }}
                 onClick={() => onAdd(selected, entry.name)}
-                className="group relative w-full transition hover:scale-[1.03]"
-                title={`Add ${entry.name}`}
+                title={`Add ${entry.name} (drag to a zone)`}
+                className="group relative w-full hover:scale-[1.03]"
             >
                 <div className="aspect-5/7 w-full">
                     <CardImage card={{ id: selected }} />
                 </div>
                 <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent group-hover:ring-accent/60" />
-            </button>
+            </DraggableCard>
             {options.length > 1 && (
                 <EditionDropdown
                     options={options}

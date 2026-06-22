@@ -72,6 +72,36 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // The Abyss — {3}{B} World enchantment (CR 205.4a / 704.5m). "At the
+        // beginning of each player's upkeep, destroy target nonartifact
+        // creature that player controls of their choice. It can't be
+        // regenerated." The ACTIVE player chooses which of their own nonartifact
+        // creatures dies; an artifact creature is never eligible.
+        //
+        // Board: you control The Abyss, two nonartifact creatures (Headless
+        // Horseman, Hill Giant) and an Ornithopter (Artifact Creature, exempt).
+        // The opponent has a Headless Horseman. Started in your UPKEEP.
+        // Golden path:
+        //   1. The upkeep trigger is on the stack — let it resolve. You (active)
+        //      are prompted to choose one of YOUR nonartifact creatures; the
+        //      Ornithopter is NOT offered. The chosen creature is destroyed and
+        //      can't be regenerated.
+        //   2. Pass the turn to reach the OPPONENT's upkeep → The Abyss fires
+        //      again, now scoping the choice to the opponent's creatures.
+        // Edge: leave only the Ornithopter on your side → the trigger resolves
+        // doing nothing (no legal nonartifact creature).
+        label: "LEG: The Abyss — each-upkeep destroy (World)",
+        cards: [
+            { name: "The Abyss", owner: "me" as const },
+            { name: "Headless Horseman", owner: "me" as const },
+            { name: "Hill Giant", owner: "me" as const },
+            { name: "Ornithopter", owner: "me" as const },
+            { name: "Headless Horseman", owner: "opp" as const },
+        ],
+        phase: "UPKEEP",
+        landCount: 0,
+    },
+    {
         // C1.1 Poison foundation (#452) — poison as a player resource (CR 122)
         // and its loss SBA (CR 704.5c). The opponent is seeded to NINE poison
         // counters (near-lethal): the danger-token badge renders under their

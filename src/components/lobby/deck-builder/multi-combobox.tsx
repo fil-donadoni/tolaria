@@ -38,6 +38,13 @@ interface MultiComboboxProps {
     emptyText: string;
     /** Applied to option items, chips, and the trigger summary. */
     labelClassName?: string;
+    /** Custom render for an option row inside the dropdown. Defaults to the
+     *  plain `opt.label`. Lets callers (e.g. the set filter) inject a symbol +
+     *  name + code layout without baking those fields into ComboboxOption. */
+    renderOption?: (opt: ComboboxOption) => React.ReactNode;
+    /** Custom render for a selected chip. Defaults to `labelOf(value)`. Used to
+     *  keep chips compact (symbol + code) while options stay verbose. */
+    renderTag?: (opt: ComboboxOption) => React.ReactNode;
 }
 
 export default function MultiCombobox({
@@ -49,19 +56,22 @@ export default function MultiCombobox({
     searchPlaceholder,
     emptyText,
     labelClassName = "capitalize",
+    renderOption,
+    renderTag,
 }: MultiComboboxProps) {
     const [open, setOpen] = useState(false);
     const resolvedGroups = useMemo<ComboboxGroup[]>(
         () => groups ?? [{ options: options ?? [] }],
         [groups, options]
     );
-    const labelOf = (value: string) => {
+    const optionOf = (value: string): ComboboxOption => {
         for (const g of resolvedGroups) {
             const hit = g.options.find((o) => o.value === value);
-            if (hit) return hit.label;
+            if (hit) return hit;
         }
-        return value;
+        return { value, label: value };
     };
+    const labelOf = (value: string) => optionOf(value).label;
 
     return (
         <div className="flex items-center gap-1">
@@ -81,7 +91,7 @@ export default function MultiCombobox({
                     <ChevronDownIcon className="size-3.5 opacity-60" />
                 </PopoverTrigger>
                 <PopoverContent
-                    className="w-60 border-border-subtle/40 bg-surface p-0"
+                    className="w-80 border-border-subtle/40 bg-surface p-0"
                     align="start"
                     side="bottom"
                     sideOffset={4}
@@ -111,7 +121,9 @@ export default function MultiCombobox({
                                                         labelClassName
                                                     )}
                                                 >
-                                                    {opt.label}
+                                                    {renderOption
+                                                        ? renderOption(opt)
+                                                        : opt.label}
                                                 </CommandItem>
                                             );
                                         })}
@@ -133,7 +145,9 @@ export default function MultiCombobox({
                                 labelClassName
                             )}
                         >
-                            {labelOf(value)}
+                            {renderTag
+                                ? renderTag(optionOf(value))
+                                : labelOf(value)}
                             <button
                                 onClick={() => onToggle(value)}
                                 className="text-text-muted hover:text-parchment"

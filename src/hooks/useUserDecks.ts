@@ -21,5 +21,6 @@ export function useUserDeckMutations() {
 export function usePresetMutations() {
     const create = useMutation(api.decks.createPreset);
     const update = useMutation(api.decks.updatePreset);
-    return { create, update };
+    const remove = useMutation(api.decks.deletePreset);
+    return { create, update, remove };
 }

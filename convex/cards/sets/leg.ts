@@ -1177,9 +1177,6 @@ function colorsOf(view: { card: Record<string, unknown> }): string[] {
 //
 // Cards owned by feature clusters (#369 C1–C9) are NOT here:
 //   • Nether Void → C8 (cast-tax "counter unless pay" World enchantment).
-//   • The Abyss → its upkeep "destroy target nonartifact creature that player
-//     controls of their choice" rides the world-rule (C2) World base; deferred
-//     with the rest of the World-supertype cards.
 //   • Cosmic Horror, Mold Demon → C7 (upkeep / ETB pay-or-sacrifice).
 //   • Spirit Shackle, Takklemaggot, All Hallow's Eve → C5 (named counters:
 //     -0/-2, -0/-1, scream).
@@ -1217,6 +1214,70 @@ function colorsOf(view: { card: Record<string, unknown> }): string[] {
 //   • Wall of Putrid Flesh — its "prevent all damage dealt to this by enchanted
 //     creatures" clause needs a continuous, source-filtered prevention static.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// --- World enchantments with an upkeep trigger (CR 205.4a / 704.5m) --------
+
+// The Abyss — {3}{B} World Enchantment. "At the beginning of each player's
+// upkeep, destroy target nonartifact creature that player controls of their
+// choice. It can't be regenerated." (CR 603.6a each-player upkeep trigger.)
+//
+// The World supertype + its SBA shipped in C2 (#379); the world rule needs no
+// per-card wiring. The destroy is modelled as an active-player CHOICE rather
+// than the standard ability-controller target: the Oracle's "that player ...
+// of their choice" names the upkeep's active player as the chooser (overriding
+// the CR 603.3d default that the ability's controller picks targets), and the
+// legal pool is that player's own nonartifact creatures. `requestChoice` with
+// `playerId`/`zoneOwnerId` = the scoped (active) player expresses exactly that
+// — no targeted-trigger machinery (which would default the chooser to The
+// Abyss's controller) is needed. If the active player controls no nonartifact
+// creature the ability does nothing (CR 603.2c — no legal choice).
+export const theAbyss: CardDefinition = {
+    id: "86a27d68-3e58-4ade-976d-36381beed451",
+    name: "The Abyss",
+    oracleText:
+        "At the beginning of each player's upkeep, destroy target nonartifact creature that player controls of their choice. It can't be regenerated.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Enchantment"],
+    supertypes: ["World"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "the-abyss-upkeep-destroy",
+            oracleText:
+                "At the beginning of each player's upkeep, destroy target nonartifact creature that player controls of their choice. It can't be regenerated.",
+            phase: "UPKEEP",
+            scope: "each",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                // CR 603.2c — only the active player's nonartifact creatures
+                // are legal; with none, the ability resolves doing nothing.
+                const candidates = ctx.getBattlefieldIds(scopedPlayerId, {
+                    types: "Creature",
+                    excludeTypes: "Artifact",
+                });
+                if (candidates.length === 0) return;
+                // The active player chooses which of their nonartifact
+                // creatures dies ("of their choice").
+                const chosen = ctx.requestChoice({
+                    playerId: scopedPlayerId,
+                    choiceId: "the-abyss-destroy",
+                    kind: "sacrifice-permanents",
+                    zone: "battlefield",
+                    zoneOwnerId: scopedPlayerId,
+                    filter: { types: "Creature", excludeTypes: "Artifact" },
+                    count: 1,
+                    prompt: "Choose a nonartifact creature you control to destroy (The Abyss).",
+                });
+                if (chosen === undefined) return; // suspended on the choice
+                const id = chosen[0];
+                if (!id) return;
+                // CR 701.7c — "It can't be regenerated."
+                ctx.destroy(
+                    { type: "permanent", id },
+                    { cantBeRegenerated: true }
+                );
+            },
+        }),
+    ],
+};
 
 // --- Vanilla / keyword creatures (CR 702 — pure data) ---------------------
 

@@ -272,6 +272,12 @@ export const getCardByName = (name: string): CardDefinition => {
     return card;
 };
 
+/** Non-throwing variant of `getCardByName`. Returns null when no card with that
+ *  name (case-insensitive) is registered — used by the decklist importer to
+ *  collect unresolved names instead of aborting on the first miss. */
+export const tryGetCardByName = (name: string): CardDefinition | null =>
+    nameRegistry.get(name.toLowerCase()) ?? null;
+
 export const getAllCardNames = (): string[] =>
     allCards.map((card) => card.name);
 

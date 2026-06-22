@@ -282,13 +282,19 @@ export default function CardPreview({
             style={longPress.scaleStyle}
             onMouseEnter={() => {
                 if (sawTouchRef.current) return;
-                // Already hovering (a re-enter from tilt-transform churn) — do
-                // NOT restart the open timer, or the churn would forever defer
-                // the dock past HOVER_DELAY_MS.
-                if (isHovered.current) return;
+                // Skip only when an open is already in flight (timer pending) or
+                // the dock is already shown — this still defeats tilt-transform
+                // re-enter churn (the timer is pending throughout the 300ms, so
+                // churn enters are ignored). Do NOT gate on `isHovered` alone: a
+                // mouseleave swallowed by a distorted/animating rect (e.g. a card
+                // that grows on :hover) leaves `isHovered` stuck true with no
+                // timer and no dock, which would suppress the next genuine hover
+                // ("preview doesn't open on the first try").
+                if (hoverTimeoutRef.current !== null || showDock) return;
                 isHovered.current = true;
                 clearHoverTimeout();
                 hoverTimeoutRef.current = setTimeout(() => {
+                    hoverTimeoutRef.current = null;
                     if (!isHovered.current) return;
                     openDock();
                 }, HOVER_DELAY_MS);

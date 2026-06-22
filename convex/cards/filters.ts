@@ -36,6 +36,11 @@ export interface FilterMatchContext {
  *  fields are combined with AND; omitted fields don't constrain. */
 export interface PermanentFilter {
     types?: CardType | CardType[];
+    /** Exclude permanents whose `types` include any of these (CR 205). The
+     *  negative of `types`; used for "nonartifact creature" (The Abyss),
+     *  "noncreature permanent", etc. Single value is shorthand for one type.
+     *  AND with every other field. */
+    excludeTypes?: CardType | CardType[];
     subtypes?: string | string[];
     /** Only match permanents whose `staticAbilities` contains this keyword. */
     requireAbility?: string;
@@ -217,6 +222,10 @@ export function matchesPermanentFilter(
     if (filter.types !== undefined) {
         const types = asArray(filter.types);
         if (!types.some((t) => card.types.includes(t))) return false;
+    }
+    if (filter.excludeTypes !== undefined) {
+        const excluded = asArray(filter.excludeTypes);
+        if (excluded.some((t) => card.types.includes(t))) return false;
     }
     if (filter.subtypes !== undefined) {
         const subtypes = asArray(filter.subtypes);

@@ -6,7 +6,11 @@ import type { Id } from "@convex/_generated/dataModel";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { canEditPresets } from "~/lib/adminGating";
 import { usePageVisible } from "~/hooks/usePageVisible";
-import { useUserDecks, useUserDeckMutations } from "~/hooks/useUserDecks";
+import {
+    useUserDecks,
+    useUserDeckMutations,
+    usePresetMutations,
+} from "~/hooks/useUserDecks";
 import {
     deckPayload,
     toPresetLobbyDeck,
@@ -56,6 +60,7 @@ function Lobby() {
     const [actionError, setActionError] = useState<string | null>(null);
     const userDecks = useUserDecks();
     const { remove: removeUserDeck } = useUserDeckMutations();
+    const { remove: removePreset } = usePresetMutations();
 
     const pageVisible = usePageVisible();
     const presetDecks = useQuery(api.decks.list, pageVisible ? {} : "skip");
@@ -232,10 +237,20 @@ function Lobby() {
         setDeleteTarget(deck);
     };
 
+    // Admin-only: delete a preset by slug (server-gated by `assertIsAdmin`).
+    const handleDeletePreset = (presetId: string) => {
+        const deck = presetLobbyDecks.find((d) => d.presetId === presetId);
+        if (deck) setDeleteTarget(deck);
+    };
+
     const confirmDelete = async () => {
-        if (!deleteTarget || deleteTarget.kind !== "user") return;
+        if (!deleteTarget) return;
         const presetId = deleteTarget.presetId;
-        await removeUserDeck({ id: deleteTarget.userDeckId });
+        if (deleteTarget.kind === "preset") {
+            await removePreset({ slug: presetId });
+        } else {
+            await removeUserDeck({ id: deleteTarget.userDeckId });
+        }
         if (storedPresetId === presetId) {
             setStoredPresetId(null);
             clearDeckPresetId();
@@ -287,13 +302,22 @@ function Lobby() {
 
     const renderPresetActions = isAdmin
         ? (deck: LobbyDeck) => (
-              <button
-                  onClick={() => handleEditPreset(deck.presetId)}
-                  className="btn-base btn-tone-secondary px-3 py-2 text-xs"
-                  title="Edit preset (admin)"
-              >
-                  Edit
-              </button>
+              <>
+                  <button
+                      onClick={() => handleEditPreset(deck.presetId)}
+                      className="btn-base btn-tone-secondary px-3 py-2 text-xs"
+                      title="Edit preset (admin)"
+                  >
+                      Edit
+                  </button>
+                  <button
+                      onClick={() => handleDeletePreset(deck.presetId)}
+                      className="btn-base btn-tone-destructive px-3 py-2 text-xs"
+                      title="Delete preset (admin)"
+                  >
+                      Delete
+                  </button>
+              </>
           )
         : undefined;
 

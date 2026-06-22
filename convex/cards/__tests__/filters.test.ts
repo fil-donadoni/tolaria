@@ -66,6 +66,27 @@ describe("matchesPermanentFilter", () => {
         ).toBe(true);
     });
 
+    it("excludeTypes rejects permanents carrying any listed type ('nonartifact creature')", () => {
+        const creature = permanent({ types: ["Creature"] });
+        const artifactCreature = permanent({ types: ["Artifact", "Creature"] });
+        const nonartifactCreature = {
+            types: "Creature" as const,
+            excludeTypes: "Artifact" as const,
+        };
+        expect(matchesPermanentFilter(creature, nonartifactCreature)).toBe(
+            true
+        );
+        expect(
+            matchesPermanentFilter(artifactCreature, nonartifactCreature)
+        ).toBe(false);
+        // Array form, AND with `types`.
+        expect(
+            matchesPermanentFilter(artifactCreature, {
+                excludeTypes: ["Land", "Artifact"],
+            })
+        ).toBe(false);
+    });
+
     it("matches by subtypes (string or array, OR semantics)", () => {
         const card = permanent({ subtypes: ["Goblin", "Warrior"] });
         expect(matchesPermanentFilter(card, { subtypes: "Goblin" })).toBe(true);

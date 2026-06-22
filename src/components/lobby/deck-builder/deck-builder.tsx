@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+    DragDropProvider,
+    DragOverlay,
+    KeyboardSensor,
+    PointerSensor,
+} from "@dnd-kit/react";
+import { PointerActivationConstraints } from "@dnd-kit/dom";
 import { getCardById } from "@convex/cards";
 import { getCardColors } from "@convex/cards/colors";
 import { type LobbyDeck } from "~/lib/deckTypes";
@@ -15,18 +22,35 @@ import {
     moveToSideboard,
 } from "~/lib/deckSideboard";
 import type { DeckCard } from "~/types/game";
+import type { ParsedDecklist } from "~/lib/deckImport";
+import CardImage from "~/components/cards/card-image";
 import GameDialog from "~/components/ui/game-dialog";
 import ActionButton from "~/components/board/action-button";
+import CardZoomSlider from "./card-zoom-slider";
 import ColorFilter from "./color-filter";
+import DeckImportDialog from "./deck-import-dialog";
 import DeckPileArea from "./deck-pile-area";
+import type { CardDragData, DropZoneId } from "./dnd-types";
 import ManaValueFilter from "./mana-value-filter";
 import ResultsGrid from "./results-grid";
 import SaveDeckBar from "./save-deck-bar";
 import SearchBar from "./search-bar";
 import SetFilter from "./set-filter";
 import TypeFilter from "./type-filter";
+import { useCardZoom } from "./useCardZoom";
 import { useFilterSearchParams } from "./useFilterSearchParams";
 import { type ColorMode, type MatchMode, useCardSearch } from "./useCardSearch";
+
+// Responsive base card width; per-zone zoom multiplies it.
+const CARD_BASE = "min(8rem, 18vw, 9.5dvh)";
+
+// Per-zone CSS vars driving `--card-w` / `--card-h` from a zoom multiplier.
+function zoomVars(mult: number): React.CSSProperties {
+    return {
+        "--card-w": `calc(${CARD_BASE} * ${mult})`,
+        "--card-h": `calc(${CARD_BASE} * ${mult} * 7 / 5)`,
+    } as React.CSSProperties;
+}
 
 interface WorkingDeck {
     name: string;
@@ -86,6 +110,7 @@ export default function DeckBuilder({
 }: DeckBuilderProps) {
     const isPreset = kind === "preset";
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [deck, setDeck] = useState<WorkingDeck>(() =>
         initialDeck
             ? {
@@ -212,6 +237,16 @@ export default function DeckBuilder({
         [updateDeck]
     );
 
+    const handleAddSideboard = useCallback(
+        (cardId: string, cardName: string) => {
+            updateDeck((d) => ({
+                ...d,
+                sideboard: [...d.sideboard, { cardId, cardName }],
+            }));
+        },
+        [updateDeck]
+    );
+
     const handleRemove = useCallback(
         (cardId: string) => {
             updateDeck((d) => {
@@ -260,6 +295,20 @@ export default function DeckBuilder({
                 );
                 return { ...d, cards: split.cards, sideboard: split.sideboard };
             });
+        },
+        [updateDeck]
+    );
+
+    // Append an imported decklist to the working deck. Import is additive
+    // (per design): resolved copies are pushed onto the existing Maindeck and
+    // Sideboard; unresolved lines were already surfaced by the dialog.
+    const handleImport = useCallback(
+        (parsed: ParsedDecklist) => {
+            updateDeck((d) => ({
+                ...d,
+                cards: [...d.cards, ...parsed.cards],
+                sideboard: [...d.sideboard, ...parsed.sideboard],
+            }));
         },
         [updateDeck]
     );
@@ -349,108 +398,242 @@ export default function DeckBuilder({
         [setFilters]
     );
 
+    // Per-zone card zoom (MTGO-style). Each zone's current density is its floor;
+    // the default sits slightly above so cards start a touch larger.
+    const resultsZoom = useCardZoom({
+        zone: "results",
+        min: 0.75,
+        max: 1.8,
+        initial: 0.95,
+    });
+    const mainZoom = useCardZoom({
+        zone: "main",
+        min: 1,
+        max: 2.2,
+        initial: 1.25,
+    });
+    const sideZoom = useCardZoom({
+        zone: "side",
+        min: 1,
+        max: 2.2,
+        initial: 1.25,
+    });
+
+    // Touch drag waits ~250ms so a quick swipe still scrolls the list and only a
+    // deliberate hold-then-move starts a drag (under the 400ms long-press preview
+    // threshold, so the two never collide). Mouse drag starts after a small move.
+    const sensors = useMemo(
+        () => [
+            PointerSensor.configure({
+                activationConstraints: (event: PointerEvent) =>
+                    event.pointerType === "touch"
+                        ? [
+                              new PointerActivationConstraints.Delay({
+                                  value: 250,
+                                  tolerance: 10,
+                              }),
+                          ]
+                        : [
+                              new PointerActivationConstraints.Distance({
+                                  value: 8,
+                              }),
+                          ],
+            }),
+            KeyboardSensor,
+        ],
+        []
+    );
+
+    const handleDragEnd = useCallback(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (event: any) => {
+            if (event.canceled) return;
+            const source = event.operation?.source;
+            const target = event.operation?.target;
+            if (!source || !target) return;
+            const data = source.data as CardDragData | undefined;
+            if (!data) return;
+            const dest = target.id as DropZoneId;
+            if (data.kind === "result") {
+                if (dest === "side")
+                    handleAddSideboard(data.cardId, data.cardName);
+                else handleAdd(data.cardId, data.cardName);
+            } else if (data.kind === "main" && dest === "side") {
+                handleMoveToSideboard(data.cardId);
+            } else if (data.kind === "side" && dest === "main") {
+                handleMoveToMaindeck(data.cardId);
+            }
+        },
+        [
+            handleAdd,
+            handleAddSideboard,
+            handleMoveToSideboard,
+            handleMoveToMaindeck,
+        ]
+    );
+
     return (
         <div
             className="flex h-dvh flex-col bg-surface-base text-text"
-            style={
-                {
-                    "--card-w": "min(8rem, 18vw, 9.5dvh)",
-                    "--card-h": "calc(min(8rem, 18vw, 9.5dvh) * 7 / 5)",
-                    "--card-w-sm": "calc(min(8rem, 18vw, 9.5dvh) * 0.75)",
-                } as React.CSSProperties
-            }
+            style={{ "--card-base": CARD_BASE } as React.CSSProperties}
         >
-            <div className="flex flex-col gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 md:px-6">
-                <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => void handleDone()}
-                            className="btn-base btn-tone-ghost px-3 py-1.5 text-sm"
-                        >
-                            ← Back
-                        </button>
-                        <h1 className="text-lg font-semibold font-beleren tracking-wide text-parchment">
-                            {isPreset
-                                ? mode === "create"
-                                    ? "New Preset"
-                                    : "Edit Preset"
-                                : initialDeck
-                                  ? "Edit Deck"
-                                  : "New Deck"}
-                        </h1>
-                        {isPreset && initialIdentity && (
-                            <span
-                                className="rounded-sm border border-border-subtle/40 bg-surface/60 px-2 py-1 font-mono text-xs text-text-muted"
-                                title="Slug is read-only and never changes on rename"
+            <DragDropProvider sensors={sensors} onDragEnd={handleDragEnd}>
+                <div className="flex flex-col gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 md:px-6">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => void handleDone()}
+                                className="btn-base btn-tone-ghost px-3 py-1.5 text-sm"
                             >
-                                slug: {initialIdentity}
-                            </span>
-                        )}
+                                ← Back
+                            </button>
+                            <h1 className="text-lg font-semibold font-beleren tracking-wide text-parchment">
+                                {isPreset
+                                    ? mode === "create"
+                                        ? "New Preset"
+                                        : "Edit Preset"
+                                    : initialDeck
+                                      ? "Edit Deck"
+                                      : "New Deck"}
+                            </h1>
+                            {isPreset && initialIdentity && (
+                                <span
+                                    className="rounded-sm border border-border-subtle/40 bg-surface/60 px-2 py-1 font-mono text-xs text-text-muted"
+                                    title="Slug is read-only and never changes on rename"
+                                >
+                                    slug: {initialIdentity}
+                                </span>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setImportOpen(true)}
+                                className="btn-base btn-tone-ghost px-3 py-1.5 text-sm"
+                            >
+                                Import
+                            </button>
+                        </div>
+                        <SearchBar value={filters.text} onChange={setText} />
                     </div>
-                    <SearchBar value={filters.text} onChange={setText} />
+                    <div className="flex flex-wrap items-center gap-4">
+                        <ColorFilter
+                            selectedColors={filters.colors}
+                            includeColorless={filters.includeColorless}
+                            mode={filters.colorMode}
+                            onToggleColor={toggleColor}
+                            onToggleColorless={toggleColorless}
+                            onChangeMode={setColorMode}
+                        />
+                        <TypeFilter
+                            selected={filters.types}
+                            onToggle={toggleType}
+                            mode={filters.typeMode}
+                            onChangeMode={setTypeMode}
+                        />
+                        <SetFilter
+                            selected={filters.sets}
+                            onToggle={toggleSet}
+                            mode={filters.setMode}
+                            onChangeMode={setSetMode}
+                        />
+                        <ManaValueFilter
+                            selected={filters.manaValues}
+                            onToggle={toggleManaValue}
+                        />
+                        <div className="ml-auto flex items-center gap-2 text-xs text-text-muted">
+                            <span className="tracking-wide">Results</span>
+                            <CardZoomSlider
+                                value={resultsZoom.value}
+                                min={resultsZoom.min}
+                                max={resultsZoom.max}
+                                onChange={resultsZoom.set}
+                                label="Results card size"
+                            />
+                        </div>
+                    </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-4">
-                    <ColorFilter
-                        selectedColors={filters.colors}
-                        includeColorless={filters.includeColorless}
-                        mode={filters.colorMode}
-                        onToggleColor={toggleColor}
-                        onToggleColorless={toggleColorless}
-                        onChangeMode={setColorMode}
-                    />
-                    <TypeFilter
-                        selected={filters.types}
-                        onToggle={toggleType}
-                        mode={filters.typeMode}
-                        onChangeMode={setTypeMode}
-                    />
-                    <SetFilter
-                        selected={filters.sets}
-                        onToggle={toggleSet}
-                        mode={filters.setMode}
-                        onChangeMode={setSetMode}
-                    />
-                    <ManaValueFilter
-                        selected={filters.manaValues}
-                        onToggle={toggleManaValue}
-                    />
-                </div>
-            </div>
 
-            <div className="grid flex-1 grid-rows-2 overflow-hidden">
-                <div className="overflow-y-auto border-b border-border-subtle/30">
-                    <ResultsGrid
-                        entries={entries}
-                        idle={idle}
-                        activeSets={filters.sets}
-                        onAdd={handleAdd}
-                    />
+                <div className="grid flex-1 grid-rows-[1fr_1fr] overflow-hidden">
+                    <div
+                        className="overflow-y-auto border-b border-border-subtle/30"
+                        style={zoomVars(resultsZoom.value)}
+                    >
+                        <ResultsGrid
+                            entries={entries}
+                            idle={idle}
+                            activeSets={filters.sets}
+                            onAdd={handleAdd}
+                        />
+                    </div>
+                    <div className="flex min-h-0 divide-x divide-border-subtle/30 overflow-hidden">
+                        <div
+                            className="h-full w-3/4 overflow-hidden"
+                            style={zoomVars(mainZoom.value)}
+                        >
+                            <DeckPileArea
+                                title="Maindeck"
+                                zone="main"
+                                grouped
+                                cards={deck.cards}
+                                onRemove={handleRemove}
+                                emptyMessage="Click or drag cards here to add them."
+                                headerRight={
+                                    <CardZoomSlider
+                                        value={mainZoom.value}
+                                        min={mainZoom.min}
+                                        max={mainZoom.max}
+                                        onChange={mainZoom.set}
+                                        label="Maindeck card size"
+                                    />
+                                }
+                            />
+                        </div>
+                        <div
+                            className="h-full w-1/4 overflow-hidden"
+                            style={zoomVars(sideZoom.value)}
+                        >
+                            <DeckPileArea
+                                title="Sideboard"
+                                zone="side"
+                                grouped={false}
+                                cards={deck.sideboard}
+                                onRemove={handleRemoveSideboard}
+                                countSuffix={`/${SIDEBOARD_LIMIT}`}
+                                warning={
+                                    deck.sideboard.length > SIDEBOARD_LIMIT
+                                        ? "over limit"
+                                        : null
+                                }
+                                emptyMessage="Drag cards here to keep them aside (0–15)."
+                                headerRight={
+                                    <CardZoomSlider
+                                        value={sideZoom.value}
+                                        min={sideZoom.min}
+                                        max={sideZoom.max}
+                                        onChange={sideZoom.set}
+                                        label="Sideboard card size"
+                                    />
+                                }
+                            />
+                        </div>
+                    </div>
                 </div>
-                <div className="flex flex-col divide-y divide-border-subtle/30 overflow-y-auto">
-                    <DeckPileArea
-                        title="Sideboard"
-                        cards={deck.sideboard}
-                        onRemove={handleRemoveSideboard}
-                        moveLabel="→ Main"
-                        onMove={handleMoveToMaindeck}
-                        countSuffix={`/${SIDEBOARD_LIMIT}`}
-                        warning={
-                            deck.sideboard.length > SIDEBOARD_LIMIT
-                                ? "over limit"
-                                : null
-                        }
-                        emptyMessage="Move cards here to keep them aside (0–15)."
-                    />
-                    <DeckPileArea
-                        title="Maindeck"
-                        cards={deck.cards}
-                        onRemove={handleRemove}
-                        moveLabel="→ Side"
-                        onMove={handleMoveToSideboard}
-                        emptyMessage="Click cards above to add them to your deck."
-                    />
-                </div>
-            </div>
+
+                <DragOverlay dropAnimation={null}>
+                    {(source) => {
+                        const d = source.data as CardDragData;
+                        return (
+                            <div
+                                className="aspect-5/7"
+                                style={{
+                                    width: `calc(${CARD_BASE} * 1.1)`,
+                                }}
+                            >
+                                <CardImage card={{ id: d.cardId }} />
+                            </div>
+                        );
+                    }}
+                </DragOverlay>
+            </DragDropProvider>
 
             <SaveDeckBar
                 name={deck.name}
@@ -458,6 +641,12 @@ export default function DeckBuilder({
                 onDone={() => void handleDone()}
                 onDelete={onDelete ? () => setConfirmDelete(true) : undefined}
                 cardCount={deck.cards.length}
+            />
+
+            <DeckImportDialog
+                open={importOpen}
+                onOpenChange={setImportOpen}
+                onImport={handleImport}
             />
 
             <GameDialog

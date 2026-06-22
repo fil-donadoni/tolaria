@@ -10,6 +10,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+    theAbyss,
     jasmineBoreal,
     ladyOrca,
     tundraWolves,
@@ -6069,5 +6070,185 @@ describe("Arboria qualifying-action tracking (CR 508.1c plumbing)", () => {
         });
         emitPermanentEntered(fresh, token);
         expect(fresh.players[1].qualifyingActionThisTurn).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// The Abyss — each-player upkeep "destroy target nonartifact creature that
+// player controls of their choice; can't be regenerated" (CR 603.6a / 704.5m
+// World supertype). The active player chooses among their OWN nonartifact
+// creatures; the AI sheds its worst (sacrifice-permanents heuristic).
+// ---------------------------------------------------------------------------
+
+const HEADLESS = getCardByName("Headless Horseman").id; // vanilla 2/2, nonartifact
+const ORNITHOPTER = getCardByName("Ornithopter").id; // 0/2 Artifact Creature
+
+/** PHASE_BEGIN upkeep event for a given active player. */
+function abyssUpkeep(activePlayerId: string): StackItem["triggerEvent"] {
+    return { type: "PHASE_BEGIN", phase: "UPKEEP", activePlayerId };
+}
+
+describe("The Abyss (each-player upkeep destroy, CR 603.6a / 704.5m)", () => {
+    it("is a World enchantment with the upkeep trigger", () => {
+        expect(theAbyss.types).toContain("Enchantment");
+        expect(theAbyss.supertypes).toContain("World");
+        expect(theAbyss.triggeredAbilities?.[0]?.event).toBe("PHASE_BEGIN");
+    });
+
+    it("on the active player's upkeep, destroys their chosen nonartifact creature; it can't be regenerated", () => {
+        const abyss = makeInstance(theAbyss.id, {
+            id: "abyss",
+            controllerId: "p1",
+        });
+        const victim = makeInstance(HEADLESS, {
+            id: "victim",
+            controllerId: "p2",
+            // A regeneration shield must NOT save it (CR 701.7c).
+            regenerationShields: 1,
+        });
+        const state = makeState({
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [abyss] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        resolveTrigger(
+            state,
+            abyss,
+            "the-abyss-upkeep-destroy",
+            abyssUpkeep("p2")
+        );
+        // p2 (active) is prompted to choose one of THEIR nonartifact creatures.
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("sacrifice-permanents");
+        expect(head?.playerId).toBe("p2");
+        expect(head?.zoneOwnerId).toBe("p2");
+        expect(head?.filter).toEqual({
+            types: "Creature",
+            excludeTypes: "Artifact",
+        });
+        answerChoice(state, ["victim"]);
+        // Destroyed despite the regeneration shield.
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("victim");
+    });
+
+    it("only the active player's creatures are legal — opponents' creatures are never touched", () => {
+        const abyss = makeInstance(theAbyss.id, {
+            id: "abyss",
+            controllerId: "p1",
+        });
+        const mine = makeInstance(HEADLESS, { id: "mine", controllerId: "p1" });
+        const theirs = makeInstance(HEADLESS, {
+            id: "theirs",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [abyss, mine] }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        resolveTrigger(
+            state,
+            abyss,
+            "the-abyss-upkeep-destroy",
+            abyssUpkeep("p1")
+        );
+        const head = state.pendingChoices?.[0];
+        // The choice is scoped to p1's own battlefield (zoneOwnerId), so only
+        // p1's nonartifact creature is selectable — p2's is never offered.
+        expect(head?.playerId).toBe("p1");
+        expect(head?.zoneOwnerId).toBe("p1");
+        answerChoice(state, ["mine"]);
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "abyss",
+        ]);
+        // p2's creature is untouched.
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "theirs",
+        ]);
+    });
+
+    it("artifact creatures are not legal targets; with only an artifact creature the trigger does nothing", () => {
+        const abyss = makeInstance(theAbyss.id, {
+            id: "abyss",
+            controllerId: "p1",
+        });
+        const thopter = makeInstance(ORNITHOPTER, {
+            id: "thopter",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [abyss, thopter] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(
+            state,
+            abyss,
+            "the-abyss-upkeep-destroy",
+            abyssUpkeep("p1")
+        );
+        // No legal nonartifact creature → no choice raised, nothing destroyed.
+        expect(state.pendingChoices?.length ?? 0).toBe(0);
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "abyss",
+            "thopter",
+        ]);
+    });
+
+    it("no-op when the active player controls no creature at all", () => {
+        const abyss = makeInstance(theAbyss.id, {
+            id: "abyss",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [abyss] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(
+            state,
+            abyss,
+            "the-abyss-upkeep-destroy",
+            abyssUpkeep("p2")
+        );
+        expect(state.pendingChoices?.length ?? 0).toBe(0);
+    });
+
+    it("wire format: the destroyed creature is gone from the projected battlefield", () => {
+        const abyss = makeInstance(theAbyss.id, {
+            id: "abyss",
+            controllerId: "p1",
+        });
+        const victim = makeInstance(HEADLESS, {
+            id: "victim",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [abyss, victim] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(
+            state,
+            abyss,
+            "the-abyss-upkeep-destroy",
+            abyssUpkeep("p1")
+        );
+        answerChoice(state, ["victim"]);
+        const projected = projectPublicState(state, 1, "p1");
+        const p1 = projected.players.find((p) => p.id === "p1")!;
+        expect(p1.battlefield.some((c) => c.id === "victim")).toBe(false);
+        expect(p1.battlefield.some((c) => c.id === "abyss")).toBe(true);
     });
 });
