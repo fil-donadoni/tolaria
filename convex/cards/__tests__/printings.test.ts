@@ -3,6 +3,7 @@ import {
     getAllSetCodes,
     getPrintingsForCard,
     getPrintsForCard,
+    resolveDeckCardMeta,
 } from "../index";
 
 // Lightning Bolt: LEA original + LEB reprint. ids from sets/lea.ts & sets/leb.ts.
@@ -53,6 +54,43 @@ describe("getPrintsForCard", () => {
         const ids = getPrintsForCard(LIGHTNING_BOLT_LEA);
         expect(ids[0]).toBe(LIGHTNING_BOLT_LEA);
         expect(ids).toContain(LIGHTNING_BOLT_LEB);
+    });
+});
+
+// Deck-construction metadata resolver (ADR 0036, issue #512) — the seam the
+// Format validators key on for set membership / rarity / Basic exemption.
+const LIGHTNING_BOLT_2ED = "ff1b8fc5-604a-4449-a73d-861e53642a70"; // 2ed reprint
+const MOUNTAIN_LEA = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // Basic land
+const BLACK_LOTUS_LEA = "b0faa7f2-b547-42c4-a810-839da50dadfe"; // LEA rare
+
+describe("resolveDeckCardMeta (deck legality metadata, ADR 0036)", () => {
+    it("resolves an original definition id to its HOME set + definition rarity", () => {
+        const meta = resolveDeckCardMeta(LIGHTNING_BOLT_LEA);
+        expect(meta).toEqual({
+            setCode: "lea",
+            rarity: "common",
+            isBasic: false,
+        });
+    });
+
+    it("resolves a reprint print id to THAT printing's set (not the home set)", () => {
+        const leb = resolveDeckCardMeta(LIGHTNING_BOLT_LEB);
+        expect(leb?.setCode).toBe("leb");
+        const reprint2ed = resolveDeckCardMeta(LIGHTNING_BOLT_2ED);
+        expect(reprint2ed?.setCode).toBe("2ed");
+    });
+
+    it("flags a Basic land via the supertype, regardless of set", () => {
+        const meta = resolveDeckCardMeta(MOUNTAIN_LEA);
+        expect(meta?.isBasic).toBe(true);
+    });
+
+    it("carries the printed rarity for a rare", () => {
+        expect(resolveDeckCardMeta(BLACK_LOTUS_LEA)?.rarity).toBe("rare");
+    });
+
+    it("returns null for an id absent from the registry", () => {
+        expect(resolveDeckCardMeta("not-a-real-card-id")).toBeNull();
     });
 });
 

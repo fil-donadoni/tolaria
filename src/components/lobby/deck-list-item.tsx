@@ -49,6 +49,16 @@ export default function DeckListItem({
                         Selected
                     </span>
                 )}
+                {/* Derived legality (ADR 0036, issue #512): an illegal deck is
+                    flagged here and blocked from selection below. */}
+                {!deck.isLegal && (
+                    <span
+                        className="rounded-sm bg-danger/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger"
+                        title={deck.reasons.map((r) => r.message).join(" ")}
+                    >
+                        Illegal
+                    </span>
+                )}
             </div>
 
             <div className="flex flex-col md:flex-row md:items-center gap-4">
@@ -80,13 +90,19 @@ export default function DeckListItem({
                                 e.stopPropagation();
                                 onSelect(deck.presetId);
                             }}
-                            disabled={isSelected}
+                            disabled={isSelected || !deck.isLegal}
                             className={cn(
                                 "btn-base px-3 py-2 text-xs",
-                                isSelected ? "btn-disabled" : "btn-tone-primary"
+                                isSelected || !deck.isLegal
+                                    ? "btn-disabled"
+                                    : "btn-tone-primary"
                             )}
                             title={
-                                isSelected ? "Already selected" : "Select deck"
+                                !deck.isLegal
+                                    ? "Deck is illegal for its format"
+                                    : isSelected
+                                      ? "Already selected"
+                                      : "Select deck"
                             }
                         >
                             {isSelected ? "Selected" : "Select"}

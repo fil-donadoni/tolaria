@@ -62,6 +62,7 @@ import {
     buildHandSpellDemands,
 } from "./gre/autoTapDemands";
 import { isGuardedAgainst } from "./gre/permanentGuard";
+import { assertDeckLegal } from "./formats";
 import type { Color, ManaCost, SpellMode } from "./cards/types";
 import {
     assertLegalAction,
@@ -1094,6 +1095,9 @@ export const createGame = mutation({
         // and is rejected here).
         if (await findActiveMatchForUser(ctx, user._id))
             throw new Error(ACTIVE_GAME_MESSAGE);
+        // Authoritative deck legality gate (ADR 0036): reject an illegal deck
+        // before any Match/Game row is written.
+        assertDeckLegal(args.deck);
         const now = Date.now();
 
         const player: PlayerInput = {
@@ -1152,6 +1156,10 @@ export const createSoloGame = mutation({
         if (await findActiveMatchForUser(ctx, user._id))
             throw new Error(ACTIVE_GAME_MESSAGE);
         const deck2 = args.deck2 ?? args.deck;
+        // Authoritative deck legality gate (ADR 0036): both seats' decks must be
+        // legal before the solo/vs-AI Match starts.
+        assertDeckLegal(args.deck);
+        if (args.deck2) assertDeckLegal(args.deck2);
 
         const player1: PlayerInput = {
             id: `${user._id}-p1`,
@@ -1221,6 +1229,9 @@ export const joinGame = mutation({
         if (game.players.length >= 2) throw new Error("Game is full");
         if (game.players.some((p) => p.id === user._id))
             throw new Error("Cannot join a game you are already in");
+        // Authoritative deck legality gate (ADR 0036): the joiner's deck must be
+        // legal for its declared format before the Match flips to "playing".
+        assertDeckLegal(args.deck);
 
         const player: PlayerInput = {
             id: user._id,

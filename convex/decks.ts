@@ -4,7 +4,7 @@ import { internalMutation } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { assertIsAdmin } from "./auth";
 import { type DeckCard, type DeckPreset } from "./deckPresets";
-import type { FormatId } from "./formats";
+import { type FormatId, type Reason, validateDeck } from "./formats";
 
 // Typed deck Format (ADR 0036). An Admin chooses it when authoring a preset.
 const formatValidator = v.union(
@@ -24,6 +24,12 @@ const deckCardValidator = v.object({
     cardName: v.string(),
 });
 
+// A single legality failure reason mirroring `formats.Reason` (ADR 0036).
+const reasonValidator = v.object({
+    code: v.string(),
+    message: v.string(),
+});
+
 const lobbyPresetValidator = v.object({
     presetId: v.string(),
     name: v.string(),
@@ -32,6 +38,10 @@ const lobbyPresetValidator = v.object({
     colors: v.array(v.string()),
     cards: v.array(deckCardValidator),
     sideboard: v.optional(v.array(deckCardValidator)),
+    // Derived legality (ADR 0036), never stored — recomputed every read so a
+    // ruleset/card-pool change reclassifies every preset with no migration.
+    isLegal: v.boolean(),
+    reasons: v.array(reasonValidator),
 });
 
 // The shape `list` returns to the lobby. Kept identical to the old in-code
@@ -45,6 +55,9 @@ export interface LobbyPreset {
     colors: string[];
     cards: DeckCard[];
     sideboard?: DeckCard[];
+    // Derived legality (ADR 0036), recomputed on every read — never stored.
+    isLegal: boolean;
+    reasons: Reason[];
 }
 
 /**
@@ -67,6 +80,9 @@ export function slugify(name: string): string {
  * slug (returned as `presetId`), preserving the pre-DB wire format.
  */
 export function presetRowToLobby(row: Doc<"presetDecks">): LobbyPreset {
+    // Legality is derived here, on every read (ADR 0036) — never persisted on
+    // the row, so a banlist/card-pool change reclassifies presets automatically.
+    const { isLegal, reasons } = validateDeck(row, row.format);
     return {
         presetId: row.slug,
         name: row.name,
@@ -75,6 +91,8 @@ export function presetRowToLobby(row: Doc<"presetDecks">): LobbyPreset {
         colors: row.colors,
         cards: row.cards,
         sideboard: row.sideboard,
+        isLegal,
+        reasons,
     };
 }
 

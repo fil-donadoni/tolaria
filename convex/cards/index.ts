@@ -6,6 +6,7 @@ import type {
     CardType,
     Color,
     ManaCost,
+    Rarity,
     StaticEffect,
 } from "./types";
 import { cantBeEnchantedSelfGuard } from "./types";
@@ -388,4 +389,40 @@ export const getAllSetCodes = (): string[] => {
     for (const code of definitionSetCode.values()) codes.add(code);
     for (const print of allPrints) codes.add(print.setCode);
     return [...codes].sort();
+};
+
+// printId → its own `CardPrint` (a reprint pins its set/rarity to THAT
+// printing, which may differ from the home-set definition). Built once.
+const printById = new Map<string, CardPrint>(
+    allPrints.map((print) => [print.printId, print])
+);
+
+/** The deck-construction metadata a Format validator (`convex/formats.ts`,
+ *  ADR 0036) keys on for a single deck-card id: the SET it was printed in, its
+ *  printed RARITY, and whether it is a Basic land. A deck card id is either a
+ *  reprint `printId` (its set/rarity come from that `CardPrint`) or the original
+ *  `definitionId` (its set is the home set, its rarity the definition's). Both
+ *  resolve to the same definition for the Basic check. `null` for an id absent
+ *  from the registry (e.g. a removed card) so the validator can flag it. */
+export interface DeckCardMeta {
+    setCode: string;
+    rarity: Rarity;
+    isBasic: boolean;
+}
+
+export const resolveDeckCardMeta = (cardId: string): DeckCardMeta | null => {
+    const def = tryGetCardById(cardId);
+    if (!def) return null;
+    const isBasic = def.supertypes?.includes("Basic") ?? false;
+    // A reprint id pins to its own printing; otherwise it is the original
+    // definition, whose set is the home set and whose rarity is the definition's.
+    const print = printById.get(cardId);
+    if (print) {
+        return { setCode: print.setCode, rarity: print.rarity, isBasic };
+    }
+    return {
+        setCode: definitionSetCode.get(def.id) ?? "",
+        rarity: def.rarity,
+        isBasic,
+    };
 };
