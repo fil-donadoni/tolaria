@@ -152,7 +152,10 @@ export default function DeckBuilder({
     const timerRef = useRef<number | null>(null);
     const inflightRef = useRef<Promise<unknown> | null>(null);
 
-    const { entries, idle } = useCardSearch(filters);
+    // The card search is pre-filtered to the deck's Format allowed sets (issue
+    // #514): the builder only surfaces legally-includable prints. Discovery
+    // only — the authoritative legality check is `validateDeck`.
+    const { entries, idle } = useCardSearch(filters, deck.format);
 
     const clearTimer = () => {
         if (timerRef.current !== null) {
