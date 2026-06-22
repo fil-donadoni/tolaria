@@ -2940,6 +2940,32 @@ export const glyphOfDestruction: CardDefinition = {
     ],
 };
 
+// Glyph of Life — "Choose target Wall creature. Whenever that creature is dealt
+// damage by an attacking creature this turn, you gain that much life." A
+// turn-scoped delayed lifegain (CR 603.7 / 119) keyed to the chosen Wall, armed
+// at resolution and scanned in the combat damage step: only damage from an
+// attacker (CR 506.2) gains life — a blocker's or non-combat source's damage
+// does not. The watch wears off at CLEANUP (CR 514.2).
+export const glyphOfLife: CardDefinition = {
+    id: "ba1384e5-d140-4074-9548-250af09cb413",
+    rarity: "common",
+    name: "Glyph of Life",
+    oracleText:
+        "Choose target Wall creature. Whenever that creature is dealt damage by an attacking creature this turn, you gain that much life.",
+    manaCost: { W: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: "Creature",
+        count: 1,
+        subtypeFilter: "Wall",
+    },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "permanent") return;
+        ctx.gainLifeWhenDamagedByAttacker(target, { phase: "end-of-turn" });
+    },
+};
+
 // --- Removal / modal spells (CR 700.2, 701.7) ------------------------------
 
 // Active Volcano — modal: "Destroy target blue permanent." OR "Return target
