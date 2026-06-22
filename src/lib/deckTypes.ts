@@ -52,6 +52,22 @@ export function toUserLobbyDeck(d: Doc<"userDecks">): UserLobbyDeck {
     };
 }
 
+/**
+ * Resolve a stored lobby selection (`tolaria:selectedDeckId`, a preset slug or
+ * user-deck id) against the currently available decks (issue #470). Returns the
+ * matching deck, or `null` when the id is absent — e.g. an admin deleted the
+ * preset it pointed at, or the saved user deck was removed. Null-safe by
+ * construction: a stale id never throws, it falls back to no selection. Pure
+ * and unit-tested so the fallback can't silently regress.
+ */
+export function selectPreset(
+    decks: readonly LobbyDeck[],
+    selectedId: string | null
+): LobbyDeck | null {
+    if (selectedId === null) return null;
+    return decks.find((d) => d.presetId === selectedId) ?? null;
+}
+
 export function deckPayload(d: LobbyDeck): {
     id: string;
     name: string;

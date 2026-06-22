@@ -270,6 +270,30 @@ export const createPreset = mutation({
     },
 });
 
+// Admin-only hard delete of a preset by slug (PRD #466, ADR 0033, issue #470).
+// `assertIsAdmin` runs FIRST — non-admins are rejected server-side, not just
+// hidden in the UI. The slug locates the row; the delete removes it from
+// `presetDecks`, so the preset disappears from `api.decks.list` (reactive) for
+// every client. In-flight games are unaffected — the deck is snapshotted into
+// game state at creation, never read back from this table. A stored lobby
+// selection pointing at the deleted slug resolves to no selection on the client
+// (the list lookup is null-safe; see `selectPreset`). Deleting an absent slug
+// is a no-op (idempotent).
+export const deletePreset = mutation({
+    args: { slug: v.string() },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await assertIsAdmin(ctx);
+        const row = await ctx.db
+            .query("presetDecks")
+            .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+            .unique();
+        if (!row) return null;
+        await ctx.db.delete(row._id);
+        return null;
+    },
+});
+
 // Idempotent migration: insert each preset whose slug is not already present,
 // skip the rest. Never overwrites — safe to re-run. Run once via the Convex
 // dashboard / `mcp run` after this slice deploys to populate the table.
