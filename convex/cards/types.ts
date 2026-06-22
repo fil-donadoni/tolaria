@@ -3095,6 +3095,12 @@ export interface TriggerStateView {
         }>;
     }>;
     activePlayerId?: string;
+    /** Count of creatures that have died this turn (CR 700.4 die tally,
+     *  maintained in `removePermanentTo` and reset at turn start). Exposed so a
+     *  CR 603.4 / 603.4d condition can gate on "if a creature died this turn"
+     *  without waiting for resolve — Osai Vultures' end-step intervening-if
+     *  reads it. Mirrors `GameState.deathsThisTurn`; undefined defaults to 0. */
+    deathsThisTurn?: number;
     /** Source ids that currently hold an armed exile-and-return bundle
      *  (ADR 0028). The bundle's existence is the "delayed trigger is armed"
      *  flag: a return trigger (Tawnos's Coffin's leaves/untaps) gates its
