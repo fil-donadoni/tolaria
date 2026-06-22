@@ -91,6 +91,21 @@ export function selectPreset(
     return decks.find((d) => d.presetId === selectedId) ?? null;
 }
 
+/**
+ * Narrow a deck list to a single Format (PRD #509, ADR 0036, issue #513).
+ * `"all"` is the identity — it returns the list unchanged. Otherwise it keeps
+ * only decks whose `format` matches. Pure and unit-tested so the lobby filter
+ * and any future deck surface share one navigation rule. Navigation only — it
+ * never affects legality or play.
+ */
+export function filterDecksByFormat<T extends { format: FormatId }>(
+    decks: readonly T[],
+    filter: "all" | FormatId
+): T[] {
+    if (filter === "all") return [...decks];
+    return decks.filter((d) => d.format === filter);
+}
+
 export function deckPayload(d: LobbyDeck): {
     id: string;
     name: string;

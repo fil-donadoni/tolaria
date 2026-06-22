@@ -4,9 +4,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { DEFAULT_DIFFICULTY } from "@convex/gre";
 import {
+    DEFAULT_DECK_FORMAT_FILTER,
     DEFAULT_MATCH_FORMAT,
+    getStoredDeckFormatFilter,
     getStoredDifficulty,
     getStoredMatchFormat,
+    storeDeckFormatFilter,
     storeDifficulty,
     storeMatchFormat,
 } from "../session";
@@ -53,5 +56,30 @@ describe("match format persistence (PRD #387)", () => {
     it("falls back to Bo1 for a stale/invalid stored value", () => {
         localStorage.setItem("tolaria:matchFormat", "7");
         expect(getStoredMatchFormat()).toBe(1);
+    });
+});
+
+describe("deck-list format filter persistence (issue #513)", () => {
+    beforeEach(() => {
+        localStorage.clear();
+    });
+
+    it("defaults to 'all' when unset", () => {
+        expect(getStoredDeckFormatFilter()).toBe(DEFAULT_DECK_FORMAT_FILTER);
+        expect(DEFAULT_DECK_FORMAT_FILTER).toBe("all");
+    });
+
+    it("round-trips 'all' and each FormatId", () => {
+        storeDeckFormatFilter("alpha-40");
+        expect(getStoredDeckFormatFilter()).toBe("alpha-40");
+        storeDeckFormatFilter("old-school");
+        expect(getStoredDeckFormatFilter()).toBe("old-school");
+        storeDeckFormatFilter("all");
+        expect(getStoredDeckFormatFilter()).toBe("all");
+    });
+
+    it("falls back to 'all' for a stale/invalid stored value", () => {
+        localStorage.setItem("tolaria:deckFormatFilter", "modern");
+        expect(getStoredDeckFormatFilter()).toBe("all");
     });
 });
