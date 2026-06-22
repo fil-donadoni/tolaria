@@ -40,6 +40,7 @@ describe("getResolveFn", () => {
     const baseDef: CardDefinition = {
         id: "test-card",
         name: "Test",
+        rarity: "common",
         types: ["Instant"],
     };
 

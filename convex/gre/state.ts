@@ -5037,6 +5037,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             registerTokenDefinition({
                 id: defId,
                 name: spec.name,
+                // Tokens have no printing, hence no real rarity (CR 206);
+                // a nominal "common" satisfies the required field.
+                rarity: "common",
                 manaCost,
                 types: [...spec.types],
                 ...(spec.subtypes ? { subtypes: [...spec.subtypes] } : {}),

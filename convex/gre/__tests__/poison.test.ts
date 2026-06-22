@@ -23,6 +23,7 @@ const POISON_DART_ID = "test:poison-dart";
 const poisonDart: CardDefinition = {
     id: POISON_DART_ID,
     name: "Test Poison Dart",
+    rarity: "common",
     oracleText: "Target player gets two poison counters.",
     manaCost: { B: 1 },
     types: ["Instant"],
@@ -39,6 +40,7 @@ const POISON_WARD_ID = "test:poison-ward";
 const poisonWard: CardDefinition = {
     id: POISON_WARD_ID,
     name: "Test Poison Ward",
+    rarity: "common",
     oracleText: "You don't lose the game for having ten or more poison.",
     manaCost: { B: 1 },
     types: ["Enchantment"],

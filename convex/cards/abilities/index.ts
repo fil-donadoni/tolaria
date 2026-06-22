@@ -8,6 +8,7 @@ import type {
     CardDefinition,
     Color,
     ManaCost,
+    Rarity,
     SpellContext,
     TargetRequirement,
 } from "../types";
@@ -68,6 +69,9 @@ export function makeDualLand(args: {
     /** Optional printed Oracle text — forwarded onto the resulting
      *  `CardDefinition` for display in the card preview and reference. */
     oracleText?: string;
+    /** Printed rarity of the home-set printing (CR 206). The original duals
+     *  are rare; pass through so the factory output is a complete definition. */
+    rarity: Rarity;
     colors: [Color, Color];
 }): CardDefinition {
     const [c1, c2] = args.colors;
@@ -75,6 +79,7 @@ export function makeDualLand(args: {
     return {
         id: args.id,
         name: args.name,
+        rarity: args.rarity,
         oracleText: args.oracleText,
         types: ["Land"],
         subtypes: [COLOR_TO_LAND_SUBTYPE[c1], COLOR_TO_LAND_SUBTYPE[c2]],
@@ -116,6 +121,9 @@ export function makeCircleOfProtection(args: {
     id: string;
     name: string;
     oracleText?: string;
+    /** Printed rarity of this Circle's printing (CR 206). The LEA cycle is
+     *  uncommon; pass through so the factory output is a complete definition. */
+    rarity: Rarity;
     /** Back-compat color shorthand — equivalent to
      *  `source: { kind: "color", color, word: colorWord }`. */
     color?: Color;
@@ -142,6 +150,7 @@ export function makeCircleOfProtection(args: {
     return {
         id: args.id,
         name: args.name,
+        rarity: args.rarity,
         oracleText: args.oracleText,
         manaCost: { X: 1, W: 1 },
         types: ["Enchantment"],
