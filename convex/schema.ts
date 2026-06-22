@@ -13,6 +13,10 @@ export default defineSchema({
         phoneVerificationTime: v.optional(v.number()),
         isAnonymous: v.optional(v.boolean()),
         nickname: v.string(),
+        // Admin flag (PRD #466, ADR 0033). A trusted user flagged `isAdmin`
+        // may curate the built-in Preset Decks from the deck editor. Optional
+        // so existing rows load unchanged (absent === not an admin).
+        isAdmin: v.optional(v.boolean()),
     }).index("email", ["email"]),
     game_states: defineTable({
         gameId: v.id("games"),

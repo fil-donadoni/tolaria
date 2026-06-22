@@ -1,7 +1,8 @@
 import { v } from "convex/values";
-import { query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { internalMutation } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
+import { assertIsAdmin } from "./auth";
 import { PRESET_DECKS, type DeckCard, type DeckPreset } from "./deckPresets";
 
 // Preset Decks now live in the `presetDecks` DB table (PRD #466, ADR 0033).
@@ -120,6 +121,87 @@ export const list = query({
     handler: async (ctx) => {
         const rows = await ctx.db.query("presetDecks").collect();
         return sortLobbyPresets(rows.map(presetRowToLobby));
+    },
+});
+
+// Validator for the editable fields of a preset. The `slug` is intentionally
+// absent: it is the stable identity and is read-only after creation (ADR 0033).
+const presetPatchValidator = v.object({
+    name: v.optional(v.string()),
+    format: v.optional(v.string()),
+    colors: v.optional(v.array(v.string())),
+    cards: v.optional(v.array(deckCardValidator)),
+    sideboard: v.optional(v.array(deckCardValidator)),
+    description: v.optional(v.string()),
+});
+
+/** The editable subset of a preset, mirroring `presetPatchValidator`. */
+export interface PresetPatchInput {
+    name?: string;
+    format?: string;
+    colors?: string[];
+    cards?: DeckCard[];
+    sideboard?: DeckCard[];
+    description?: string;
+}
+
+/**
+ * Pure patch-builder for `updatePreset` (ADR 0033). Maps the requested edits
+ * to the row patch, applying the same name fallback as user decks. The `slug`
+ * is structurally excluded — renaming `name` NEVER changes `slug`, so a
+ * preset's identity (and every external reference to it) survives edits.
+ * Pure and exported so slug-immutability is unit-tested without a Convex
+ * harness.
+ */
+export function buildPresetPatch(
+    input: PresetPatchInput
+): Partial<Omit<Doc<"presetDecks">, "_id" | "_creationTime" | "slug">> {
+    const patch: Partial<
+        Omit<Doc<"presetDecks">, "_id" | "_creationTime" | "slug">
+    > = {};
+    if (input.name !== undefined) {
+        patch.name = input.name.trim() || "Untitled preset";
+    }
+    if (input.format !== undefined) patch.format = input.format;
+    if (input.colors !== undefined) patch.colors = input.colors;
+    if (input.cards !== undefined) patch.cards = input.cards;
+    if (input.sideboard !== undefined) patch.sideboard = input.sideboard;
+    if (input.description !== undefined) patch.description = input.description;
+    return patch;
+}
+
+// Single preset by slug, backing the editor's preset edit mode (ADR 0033).
+// Returns null for a missing slug so the route can render a not-found state.
+export const getPreset = query({
+    args: { slug: v.string() },
+    returns: v.union(lobbyPresetValidator, v.null()),
+    handler: async (ctx, args) => {
+        const row = await ctx.db
+            .query("presetDecks")
+            .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+            .unique();
+        return row ? presetRowToLobby(row) : null;
+    },
+});
+
+// Admin-only edit of an existing preset (ADR 0033). `assertIsAdmin` runs FIRST
+// — non-admins are rejected server-side, not just hidden in the UI. The slug is
+// read-only: it locates the row but is never patched, so external references
+// (lobby selection, debug scenarios, wire payloads) survive a rename.
+export const updatePreset = mutation({
+    args: { slug: v.string(), patch: presetPatchValidator },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await assertIsAdmin(ctx);
+        const row = await ctx.db
+            .query("presetDecks")
+            .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+            .unique();
+        if (!row) throw new Error("Preset not found");
+        const patch = buildPresetPatch(args.patch);
+        if (Object.keys(patch).length === 0) return null;
+        await ctx.db.patch(row._id, patch);
+        return null;
     },
 });
 
