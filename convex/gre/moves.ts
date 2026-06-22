@@ -451,9 +451,19 @@ function enumerateAbilityMoves(
 
     const moves: Move[] = [];
     for (const ability of def.activatedAbilities) {
-        // When scanning an opponent's permanent (CR 113.3c), only "any player
-        // may activate" abilities are legal for this player.
-        if (opts?.anyPlayerOnly && !ability.activatableByAnyPlayer) continue;
+        // When scanning an opponent's permanent (CR 113.3c / 602.1), only "any
+        // player may activate" and "only your opponents may activate" abilities
+        // are legal for this player.
+        if (
+            opts?.anyPlayerOnly &&
+            !ability.activatableByAnyPlayer &&
+            !ability.activatableByOpponentsOnly
+        )
+            continue;
+        // On the player's OWN permanent, an "only your opponents may activate"
+        // ability (Clergy) is never a legal move for the controller (CR 602.1).
+        if (!opts?.anyPlayerOnly && ability.activatableByOpponentsOnly)
+            continue;
         // Only abilities that use the stack are macro-moves here; mana abilities
         // are funded on demand by the cast planner, never activated standalone.
         if (!ability.useStack) continue;

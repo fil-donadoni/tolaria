@@ -534,6 +534,33 @@ describe("getAnyPlayerStackAbilities", () => {
         });
         expect(getAnyPlayerStackAbilities(card)).toHaveLength(0);
     });
+
+    // Clergy of the Holy Nimbus — "only your opponents may activate" (CR 602.1,
+    // issue #491). Surfaced on the opponent's view; hidden on the controller's.
+    const CLERGY_ID = "7a817107-fa2b-55e0-883b-c3ed2b06ba04";
+
+    it("surfaces Clergy's opponents-only {1} ability on the opponent's view (CR 602.1)", () => {
+        const card = makeCardInstance({
+            card: { id: CLERGY_ID },
+            types: ["Creature"],
+            subtypes: ["Human", "Cleric"],
+            isTapped: false,
+        });
+        const abilities = getAnyPlayerStackAbilities(card);
+        expect(abilities).toHaveLength(1);
+        expect(abilities[0].id).toBe("clergy-cant-regen");
+    });
+
+    it("does NOT surface Clergy's opponents-only ability on the controller's own view (CR 602.1)", () => {
+        const card = makeCardInstance({
+            card: { id: CLERGY_ID },
+            types: ["Creature"],
+            subtypes: ["Human", "Cleric"],
+            isTapped: false,
+        });
+        const ids = getStackAbilities(card).map((a) => a.id);
+        expect(ids).not.toContain("clergy-cant-regen");
+    });
 });
 
 // ---------------------------------------------------------------------------

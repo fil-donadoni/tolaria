@@ -456,6 +456,16 @@ export interface ActivatedAbility {
      *  controller is unchanged and the ability still resolves as a normal
      *  activated ability on the stack. Used by Ifh-Bíff Efreet. */
     activatableByAnyPlayer?: boolean;
+    /** "Only your opponents may activate this ability" (CR 602.1). By default
+     *  only the source's controller may activate; when this is set the
+     *  controller may NOT activate it, but any of the controller's opponents
+     *  with priority may (paying the costs from their own resources). The
+     *  source's controller is unchanged and the ability resolves as a normal
+     *  activated ability on the stack. Mutually exclusive in spirit with
+     *  `activatableByAnyPlayer` (which also lets the controller activate). Used
+     *  by Clergy of the Holy Nimbus ("{1}: This creature can't be regenerated
+     *  this turn. Only your opponents may activate this ability."). */
+    activatableByOpponentsOnly?: boolean;
 }
 
 // --- Temporary-effect durations (CR 611.2, 514.2, 511.3) ---
@@ -1260,6 +1270,13 @@ export interface SpellContext {
      *  Cleared at CLEANUP. No-op if target is not a creature on the
      *  battlefield. Used by Nettling Imp. */
     setMustAttackThisTurn: (target: TargetSelection) => void;
+    /** Marks the resolving ability's source permanent (`sourceInstanceId`) so
+     *  it can't be regenerated for the rest of the turn (CR 701.15c). Suppresses
+     *  both regeneration shields and the continuous `"auto-regenerate"`
+     *  replacement on that permanent. Cleared at CLEANUP. No-op if the source is
+     *  no longer on the battlefield. Used by Clergy of the Holy Nimbus's "{1}:
+     *  This creature can't be regenerated this turn." */
+    setSourceCantBeRegeneratedThisTurn: () => void;
     /** Forces ALL creatures a player controls to attack this combat if able
      *  (CR 508.1d, Siren's Call). Cleared at CLEANUP. */
     setAllCreaturesMustAttack: (playerId: string) => void;

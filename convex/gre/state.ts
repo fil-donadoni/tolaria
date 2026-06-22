@@ -420,6 +420,13 @@ export type CardInstanceState = {
      *  regeneration: the SBA path treats this identically to `cantBeRegenerated`.
      *  Transient — cleared at CLEANUP (CR 514.2). */
     exileOnDeath?: boolean;
+    /** When set, this permanent can't be regenerated for the rest of the turn
+     *  (CR 701.15c). Suppresses BOTH regeneration shields and the continuous
+     *  auto-regeneration replacement granted by the `"auto-regenerate"` static
+     *  ability (Clergy of the Holy Nimbus — "{1}: This creature can't be
+     *  regenerated this turn"). Read by `regenerateOrDestroy` as an additional
+     *  `cantBeRegenerated` source. Transient — cleared at CLEANUP (CR 514.2). */
+    cantBeRegeneratedThisTurn?: boolean;
     /** When set, the creature must attack this combat if able (CR 508.1d).
      *  Set by Nettling Imp's activated ability. Checked by combat enforcement
      *  in `mustAttack()`. Transient — cleared at CLEANUP (CR 514.2). */
@@ -3254,12 +3261,27 @@ export function regenerateOrDestroy(
     // CR 614.1a (Disintegrate) — exileOnDeath suppresses regeneration and
     // routes death to exile instead of graveyard.
     const exileOnDeath = found.card.exileOnDeath === true;
-    const cantRegen = opts?.cantBeRegenerated || exileOnDeath;
+    // CR 701.15c — "can't be regenerated this turn" (Clergy's own {1} ability,
+    // Wrath of God, etc.) suppresses every regeneration source for this
+    // permanent: shields AND the continuous auto-regen replacement.
+    const cantRegen =
+        opts?.cantBeRegenerated ||
+        exileOnDeath ||
+        found.card.cantBeRegeneratedThisTurn === true;
+    // CR 614.5 — a continuous "if this would be destroyed, regenerate it"
+    // replacement (the `"auto-regenerate"` static ability — Clergy of the Holy
+    // Nimbus). Unlike a shield it is NOT consumed: it regenerates the permanent
+    // every time it would be destroyed, for as long as the ability is present
+    // (layer-6 grant/loss aware, since it reads the live `staticAbilities`).
+    // Shields are spent first so the perpetual replacement leaves them intact.
+    const hasAutoRegen = found.card.staticAbilities.includes("auto-regenerate");
     const shields = found.card.regenerationShields ?? 0;
-    if (shields > 0 && !cantRegen) {
-        const next = shields - 1;
-        if (next === 0) delete found.card.regenerationShields;
-        else found.card.regenerationShields = next;
+    if ((shields > 0 || hasAutoRegen) && !cantRegen) {
+        if (shields > 0) {
+            const next = shields - 1;
+            if (next === 0) delete found.card.regenerationShields;
+            else found.card.regenerationShields = next;
+        }
         // CR 701.15a — the regen rider: heal all marked damage, tap, and
         // remove from combat if attacking or blocking.
         if (found.card.damageMarked !== undefined) {
@@ -5440,6 +5462,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (!found) return;
             if (!found.card.types.includes("Creature")) return;
             found.card.mustAttackThisTurn = true;
+        },
+
+        setSourceCantBeRegeneratedThisTurn(): void {
+            // CR 701.15c — flag the resolving ability's source so the rest of
+            // the turn's regeneration (shields + auto-regen replacement) is
+            // suppressed. Cleared at CLEANUP (CR 514.2).
+            const found = findOnBattlefield(state, item.id);
+            if (!found) return;
+            found.card.cantBeRegeneratedThisTurn = true;
         },
 
         setCanBlockAdditional(target: TargetSelection, value: number): void {

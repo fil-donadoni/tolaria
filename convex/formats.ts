@@ -178,6 +178,204 @@ function sizeAndSets(
     return [...checkSize(deck, meta), ...checkSets(deck, meta, resolve)];
 }
 
+// --- Card-ID copy counting (ADR 0036) -------------------------------------
+//
+// All copy-bounded rules (the 4-copy limit, the Restricted one-copy list)
+// count "by Card ID across printings": two different `printId`s of the same
+// card share ONE budget. `resolveDeckCardMeta` already collapses every printing
+// to its canonical `cardId` (the `CardDefinition.id`); these helpers group on
+// THAT key, never the raw deck-card id. Basic lands are always exempt (CONTEXT
+// "Restricted Card"; ADR 0036) — they are excluded before any count is taken.
+
+/** A counted, named card group: its canonical Card ID, a display name (the
+ *  first occurrence's `cardName`), and how many copies sit across both zones. */
+interface CardCount {
+    cardId: string;
+    cardName: string;
+    count: number;
+}
+
+/**
+ * Group a deck's non-basic cards by canonical Card ID across maindeck +
+ * sideboard, returning one `CardCount` per distinct card. Basics and registry-
+ * unknown ids are skipped: basics are exempt from every copy/list rule, and an
+ * unknown id is already reported by `checkSets`, so the copy rules stay silent
+ * on it rather than double-reporting. Insertion order follows first appearance.
+ */
+function countByCardId(
+    deck: ValidatableDeck,
+    resolve: ResolveCard
+): CardCount[] {
+    const counts = new Map<string, CardCount>();
+    const all = [...deck.cards, ...(deck.sideboard ?? [])];
+    for (const card of all) {
+        const meta = resolve(card.cardId);
+        if (meta === null) continue; // unknown id — checkSets owns this reason
+        if (meta.isBasic) continue; // basics are unlimited (ADR 0036)
+        const existing = counts.get(meta.cardId);
+        if (existing) {
+            existing.count += 1;
+        } else {
+            counts.set(meta.cardId, {
+                cardId: meta.cardId,
+                cardName: card.cardName,
+                count: 1,
+            });
+        }
+    }
+    return [...counts.values()];
+}
+
+// --- Old School Restricted + Banned lists (ADR 0036) ----------------------
+//
+// Eternal Central Old School (93/94) policy + the Swedish (n00bcon) dexterity
+// ban, INTERSECTED with the implemented card pool: a card that isn't built yet
+// simply never appears here, so each list is implicitly EC∩pool / Swedish∩pool.
+// Keyed by canonical `CardDefinition.id` (the value `resolveDeckCardMeta`
+// reports), so a reprint print id is covered too. Adding a card later tightens
+// existing decks retroactively, correctly, via derivation (no migration).
+
+/**
+ * Old School RESTRICTED list — Eternal Central. Each listed card is capped at
+ * ONE copy across the whole deck (main + sideboard), counted by Card ID. Only
+ * the EC restricted cards that are implemented in the pool are listed; the rest
+ * are no-ops until they ship. Ids are canonical `CardDefinition.id`s from the
+ * set modules (lea/leb/arn/atq/leg/drk).
+ */
+export const OLD_SCHOOL_RESTRICTED: ReadonlySet<string> = new Set([
+    "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b", // Ancestral Recall (lea)
+    "6f9ea46a-411f-40ce-a873-a905180093f4", // Balance (lea)
+    "b0faa7f2-b547-42c4-a810-839da50dadfe", // Black Lotus (lea)
+    "62b19a12-6914-430e-81ce-dcfca47884df", // Braingeyser (lea)
+    "711d4d54-5520-4de8-9b93-79902ed8e562", // Demonic Tutor (lea)
+    "ee266113-34ce-4189-84e7-ee2c86a2722c", // Library of Alexandria (arn)
+    "eee9e106-a248-49d2-b8c8-6bbcd56ce739", // Mind Twist (lea)
+    "135de5c7-6ac9-4b68-8f1a-97f120a4b125", // Mishra's Workshop (atq)
+    "b0e1427c-05cd-465b-be59-97ed6e39f7ba", // Mox Emerald (lea)
+    "92bcd1ce-19b1-4d78-8b09-95242ca08d76", // Mox Jet (lea)
+    "8ebe4be7-e12a-4596-a899-fbd5b152e879", // Mox Pearl (lea)
+    "8945585f-4773-493d-a0fe-d707db910b38", // Mox Ruby (lea)
+    "82da0972-b17b-4600-9efd-e9430a0db04b", // Mox Sapphire (lea)
+    "33296718-0625-4422-a65c-b21cf99c52ec", // Recall (leg)
+    "badc73ec-3728-4246-90c7-5f4eb7051ed5", // Regrowth (lea)
+    "c4300d24-1cae-4dd5-be7e-38cc677cf5bd", // Sol Ring (lea)
+    "e7880157-7f27-4f1b-9cdc-ab36a6252376", // Strip Mine (atq)
+    "86a27d68-3e58-4ade-976d-36381beed451", // The Abyss (leg)
+    "902441dc-c976-4c92-b897-6376eaa0fe38", // Time Vault (lea)
+    "e0139f60-d48e-46fb-9f5a-1e3d7558c834", // Time Walk (lea)
+    "9a49dc44-616e-4bdd-8220-0bb71eccc512", // Timetwister (lea)
+]);
+
+/**
+ * Old School BANNED list — the Swedish (n00bcon) dexterity ban of Chaos Orb and
+ * Falling Star, plus the ante/Shahrazad cards. Every entry is unimplementable
+ * (manual-dexterity, CR 712; ante & subgames, ADR 0010), so this is a
+ * DOCUMENTATION GUARD: it carries the id of the Chaos Orb stub (currently
+ * commented out in sets/lea.ts) so that, the moment that stub is uncommented,
+ * the card is rejected from Old School rather than silently becoming legal.
+ * Falling Star and Shahrazad have no id in the pool yet; they are part of the
+ * Swedish∩pool / ADR-0010∩pool intersection (empty) and gain a guard when their
+ * stubs land.
+ */
+export const OLD_SCHOOL_BANNED: ReadonlySet<string> = new Set([
+    "92274971-7c4a-4326-b0fe-75e2d124f718", // Chaos Orb (lea stub — out of scope, ADR 0010)
+]);
+
+/**
+ * Restricted-list check (ADR 0036): each card on `restricted` is capped at one
+ * copy across the whole deck (counted by Card ID). A 2nd copy of a restricted
+ * card yields one precise reason; basics are already excluded by
+ * `countByCardId`.
+ */
+export function checkRestricted(
+    deck: ValidatableDeck,
+    restricted: ReadonlySet<string>,
+    resolve: ResolveCard
+): Reason[] {
+    const reasons: Reason[] = [];
+    for (const { cardId, cardName, count } of countByCardId(deck, resolve)) {
+        if (restricted.has(cardId) && count > 1) {
+            reasons.push({
+                code: "restricted",
+                message: `${cardName}: ${count} copies, restricted to 1.`,
+            });
+        }
+    }
+    return reasons;
+}
+
+/**
+ * Banned-list check (ADR 0036): any presence of a banned card is illegal (zero
+ * copies allowed). Counted by Card ID so a reprint of a banned card is caught
+ * too. In practice the banned cards are unimplementable guards (see
+ * `OLD_SCHOOL_BANNED`), so this fires only if such a stub is ever shipped.
+ */
+export function checkBanned(
+    deck: ValidatableDeck,
+    banned: ReadonlySet<string>,
+    resolve: ResolveCard
+): Reason[] {
+    const reasons: Reason[] = [];
+    for (const { cardId, cardName, count } of countByCardId(deck, resolve)) {
+        if (banned.has(cardId) && count > 0) {
+            reasons.push({
+                code: "banned",
+                message: `${cardName}: banned in this format.`,
+            });
+        }
+    }
+    return reasons;
+}
+
+/**
+ * Copy-limit check (ADR 0036): no non-basic card may appear more than `limit`
+ * times across the whole deck, counted by Card ID. The standard constructed
+ * 4-copy rule for Old School. Basics are exempt (excluded by `countByCardId`).
+ * A card that is ALSO restricted is reported by `checkRestricted` at its
+ * tighter one-copy bound; this check still fires independently if it somehow
+ * exceeds `limit`, but the two reasons are complementary, not contradictory.
+ */
+export function checkCopyLimit(
+    deck: ValidatableDeck,
+    limit: number,
+    resolve: ResolveCard
+): Reason[] {
+    const reasons: Reason[] = [];
+    for (const { cardName, count } of countByCardId(deck, resolve)) {
+        if (count > limit) {
+            reasons.push({
+                code: "copy-limit",
+                message: `${cardName}: ${count} copies, maximum is ${limit}.`,
+            });
+        }
+    }
+    return reasons;
+}
+
+/** Standard constructed copy ceiling for non-basic cards in Old School. */
+const OLD_SCHOOL_COPY_LIMIT = 4;
+
+/**
+ * The full Old School (93/94) validator (ADR 0036): size + set membership +
+ * the 4-copy limit + the Eternal Central Restricted list + the (guard) Banned
+ * list. Composed from the shared helpers; each violation surfaces its own
+ * precise `Reason`. Counting for the copy/restricted/banned rules is by Card ID
+ * across printings, with basics exempt.
+ */
+function oldSchoolValidate(
+    deck: ValidatableDeck,
+    resolve: ResolveCard
+): Reason[] {
+    const meta = FORMAT_RULES["old-school"];
+    return [
+        ...checkSize(deck, meta),
+        ...checkSets(deck, meta, resolve),
+        ...checkCopyLimit(deck, OLD_SCHOOL_COPY_LIMIT, resolve),
+        ...checkRestricted(deck, OLD_SCHOOL_RESTRICTED, resolve),
+        ...checkBanned(deck, OLD_SCHOOL_BANNED, resolve),
+    ];
+}
+
 // Freeform: no constraints, ever (ADR 0036).
 const noReasons = (): Reason[] => [];
 
@@ -209,8 +407,9 @@ export const FORMAT_RULES: Record<FormatId, FormatMeta> = {
         allowedSets: ["lea", "leb", "arn", "atq", "leg", "drk"],
         minMain: 60,
         maxSide: 15,
-        validate: (deck, resolve) =>
-            sizeAndSets(deck, FORMAT_RULES["old-school"], resolve),
+        // Full legality (issue #516): size + sets + 4-copy limit + EC Restricted
+        // (1-copy) + Banned (0, guard) — see oldSchoolValidate.
+        validate: oldSchoolValidate,
     },
 };
 

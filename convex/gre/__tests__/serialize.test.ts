@@ -310,6 +310,7 @@ describe("game_state serialize round-trip", () => {
             },
         ];
         lion.exileOnDeath = true;
+        lion.cantBeRegeneratedThisTurn = true;
         lion.mustAttackThisTurn = true;
         lion.colorOverride = ["R"];
         lion.textChanges = [

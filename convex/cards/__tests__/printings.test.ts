@@ -64,9 +64,10 @@ const MOUNTAIN_LEA = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // Basic land
 const BLACK_LOTUS_LEA = "b0faa7f2-b547-42c4-a810-839da50dadfe"; // LEA rare
 
 describe("resolveDeckCardMeta (deck legality metadata, ADR 0036)", () => {
-    it("resolves an original definition id to its HOME set + definition rarity", () => {
+    it("resolves an original definition id to its HOME set + definition rarity + canonical id", () => {
         const meta = resolveDeckCardMeta(LIGHTNING_BOLT_LEA);
         expect(meta).toEqual({
+            cardId: LIGHTNING_BOLT_LEA,
             setCode: "lea",
             rarity: "common",
             isBasic: false,
@@ -78,6 +79,15 @@ describe("resolveDeckCardMeta (deck legality metadata, ADR 0036)", () => {
         expect(leb?.setCode).toBe("leb");
         const reprint2ed = resolveDeckCardMeta(LIGHTNING_BOLT_2ED);
         expect(reprint2ed?.setCode).toBe("2ed");
+    });
+
+    it("maps every printing of a card to the SAME canonical Card ID (ADR 0036, copy-count budget)", () => {
+        // The original and its LEB reprint differ in set but share one budget.
+        const original = resolveDeckCardMeta(LIGHTNING_BOLT_LEA);
+        const reprint = resolveDeckCardMeta(LIGHTNING_BOLT_LEB);
+        expect(original?.cardId).toBe(LIGHTNING_BOLT_LEA);
+        expect(reprint?.cardId).toBe(LIGHTNING_BOLT_LEA);
+        expect(reprint?.cardId).toBe(original?.cardId);
     });
 
     it("flags a Basic land via the supertype, regardless of set", () => {

@@ -390,12 +390,18 @@ export function getStackAbilities(
             discardLastDrawn?: boolean;
         };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
+        activatableByOpponentsOnly?: boolean;
         canActivate?: (
             source: PermanentView,
             state: TriggerStateView
         ) => boolean;
     }): boolean => {
         if (!a.useStack || !a.oracleText) return false;
+        // CR 602.1 — "only your opponents may activate" abilities are never
+        // surfaced on the controller's OWN permanent (this function is called
+        // only for `isMe` cards); the opponent's view uses
+        // `getAnyPlayerStackAbilities`.
+        if (a.activatableByOpponentsOnly) return false;
         if (a.cost.tap && card.isTapped) return false;
         // CR 302.1 — creature with summoning sickness can't pay {T}.
         if (a.cost.tap && tapLocked) return false;
@@ -447,11 +453,12 @@ export function getStackAbilities(
     return [...native, ...granted];
 }
 
-/** Filters `getStackAbilities` to those flagged "any player may activate"
- *  (CR 113.3c, Ifh-Bíff Efreet). Used to surface activatable abilities on an
- *  OPPONENT's permanent for a viewer who holds priority — the only case where a
- *  non-controller may activate. Granted abilities are never any-player, so only
- *  the card's native definition is consulted. */
+/** Filters `getStackAbilities` to those a NON-controller may activate on an
+ *  OPPONENT's permanent while holding priority — the only case where a
+ *  non-controller may activate. Two flags qualify: "any player may activate"
+ *  (CR 113.3c, Ifh-Bíff Efreet) and "only your opponents may activate"
+ *  (CR 602.1, Clergy of the Holy Nimbus). Granted abilities carry neither flag,
+ *  so only the card's native definition is consulted. */
 export function getAnyPlayerStackAbilities(
     card: CardInstance,
     phase?: Phase,
@@ -461,15 +468,26 @@ export function getAnyPlayerStackAbilities(
     stateView?: TriggerStateView
 ): { id: string; oracleText: string }[] {
     const cardDef = getCardById(card.card.id);
-    const anyPlayerIds = new Set(
+    const nonControllerIds = new Set(
         (cardDef.activatedAbilities ?? [])
-            .filter((a) => a.activatableByAnyPlayer)
+            .filter(
+                (a) => a.activatableByAnyPlayer || a.activatableByOpponentsOnly
+            )
             .map((a) => a.id)
     );
-    if (anyPlayerIds.size === 0) return [];
-    return getStackAbilities(card, phase, true, stateView).filter((a) =>
-        anyPlayerIds.has(a.id)
+    if (nonControllerIds.size === 0) return [];
+    // Opponent-only abilities are filtered OUT by `getStackAbilities`, so query
+    // the card definition directly for those, then merge with any "any player"
+    // abilities surfaced through the normal filter (which applies tap/phase/
+    // canActivate gating).
+    const fromStack = getStackAbilities(card, phase, true, stateView).filter(
+        (a) => nonControllerIds.has(a.id)
     );
+    const seen = new Set(fromStack.map((a) => a.id));
+    const opponentOnly = (cardDef.activatedAbilities ?? [])
+        .filter((a) => a.activatableByOpponentsOnly && !seen.has(a.id))
+        .map((a) => ({ id: a.id, oracleText: a.oracleText }));
+    return [...fromStack, ...opponentOnly];
 }
 
 /** Returns the oracle text for an activated ability by id, or null. Checks

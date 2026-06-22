@@ -1,11 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
     assertDeckLegal,
+    checkBanned,
+    checkCopyLimit,
+    checkRestricted,
     checkSets,
     checkSize,
     FORMAT_IDS,
     FORMAT_RULES,
     isFormatId,
+    OLD_SCHOOL_BANNED,
+    OLD_SCHOOL_RESTRICTED,
     validateDeck,
     type FormatId,
     type ResolveCard,
@@ -23,12 +28,55 @@ import { normalizeLegacyFormat } from "../userDecks";
 // A deterministic in-memory card pool so the validator tests don't depend on
 // the real registry (a separate block exercises the real resolver). Keyed by
 // the cardId used in the test decks below.
+// Each entry's canonical `cardId` defaults to its own key (one printing). The
+// REPRINT entries below deliberately share a canonical id with their original
+// to exercise "count by Card ID across printings". `restricted-card` /
+// `banned-card` are stub ids the per-format list overrides target in tests.
 const POOL: Record<string, DeckCardMeta> = {
-    "lea-card": { setCode: "lea", rarity: "common", isBasic: false },
-    "leb-card": { setCode: "leb", rarity: "common", isBasic: false },
-    "drk-card": { setCode: "drk", rarity: "common", isBasic: false },
-    "2ed-card": { setCode: "2ed", rarity: "common", isBasic: false },
-    basic: { setCode: "lea", rarity: "common", isBasic: true },
+    "lea-card": {
+        cardId: "lea-card",
+        setCode: "lea",
+        rarity: "common",
+        isBasic: false,
+    },
+    "leb-card": {
+        cardId: "leb-card",
+        setCode: "leb",
+        rarity: "common",
+        isBasic: false,
+    },
+    "drk-card": {
+        cardId: "drk-card",
+        setCode: "drk",
+        rarity: "common",
+        isBasic: false,
+    },
+    "2ed-card": {
+        cardId: "2ed-card",
+        setCode: "2ed",
+        rarity: "common",
+        isBasic: false,
+    },
+    basic: {
+        cardId: "basic",
+        setCode: "lea",
+        rarity: "common",
+        isBasic: true,
+    },
+    // Two distinct deck-card ids (an "original" and a "reprint") that collapse
+    // to ONE canonical Card ID — the shared copy/restricted budget.
+    "lea-orig": {
+        cardId: "shared-card",
+        setCode: "lea",
+        rarity: "rare",
+        isBasic: false,
+    },
+    "leb-reprint": {
+        cardId: "shared-card",
+        setCode: "leb",
+        rarity: "rare",
+        isBasic: false,
+    },
 };
 const stubResolve: ResolveCard = (cardId) => POOL[cardId] ?? null;
 
@@ -207,15 +255,18 @@ describe("validateDeck — end-to-end per Format (issue #512)", () => {
         });
     });
 
-    it("Old School: a legal 60-card lea/leb deck (with basics + a sideboard) is legal", () => {
+    it("Old School: a legal 60-card lea/leb deck (4-of spells + basics + a sideboard) is legal", () => {
+        // 4 of each non-basic (the copy ceiling), padded to 60 with unlimited
+        // basics; the sideboard is all basics so it stays within both the size
+        // and the by-Card-ID copy budget.
         const deck: ValidatableDeck = {
             cards: [
-                ...repeat("lea-card", 36),
+                ...repeat("lea-card", 4),
                 ...repeat("leb-card", 4),
-                ...repeat("drk-card", 0), // none
-                ...repeat("basic", 20),
+                ...repeat("drk-card", 4),
+                ...repeat("basic", 48),
             ],
-            sideboard: repeat("leb-card", 15),
+            sideboard: repeat("basic", 15),
         };
         expect(deck.cards).toHaveLength(60);
         expect(validateDeck(deck, "old-school", stubResolve).isLegal).toBe(
@@ -293,25 +344,26 @@ describe("validateDeck — wired to the REAL card registry (ADR 0036)", () => {
 
     it("the default resolver is the real registry resolver", () => {
         // A 60-card Old School deck of real lea cards + basics is legal with no
-        // resolve override — the production path.
+        // resolve override — the production path. 4 Bolts (the copy limit) plus
+        // 56 unlimited basics.
         const deck: ValidatableDeck = {
             cards: [
-                ...Array.from({ length: 40 }, () =>
+                ...Array.from({ length: 4 }, () =>
                     card(BOLT_LEA, "Lightning Bolt")
                 ),
-                ...Array.from({ length: 20 }, () => card(MOUNTAIN, "Mountain")),
+                ...Array.from({ length: 56 }, () => card(MOUNTAIN, "Mountain")),
             ],
         };
         expect(validateDeck(deck, "old-school").isLegal).toBe(true);
     });
 
     it("rejects a 2ed reprint in Old School via the real resolver", () => {
+        // The deck is otherwise legal (1 Bolt + 59 basics); only the 2ED set
+        // membership is at fault, so set-not-allowed fires in isolation.
         const deck: ValidatableDeck = {
             cards: [
-                ...Array.from({ length: 59 }, () =>
-                    card(BOLT_LEA, "Lightning Bolt")
-                ),
                 card(BOLT_2ED, "Lightning Bolt (2ED)"),
+                ...Array.from({ length: 59 }, () => card(MOUNTAIN, "Mountain")),
             ],
         };
         const reasons = validateDeck(deck, "old-school").reasons;
@@ -319,14 +371,19 @@ describe("validateDeck — wired to the REAL card registry (ADR 0036)", () => {
     });
 
     it("accepts the drk card in Old School but rejects it in Alpha 40", () => {
-        const main = Array.from({ length: 59 }, () =>
-            card(BOLT_LEA, "Lightning Bolt")
-        );
-        const old: ValidatableDeck = { cards: [...main, card(SQUIRE_DRK)] };
+        // 4 Bolts + 55 basics + 1 drk creature = 60, legal in Old School.
+        const old: ValidatableDeck = {
+            cards: [
+                ...Array.from({ length: 4 }, () => card(BOLT_LEA)),
+                ...Array.from({ length: 55 }, () => card(MOUNTAIN, "Mountain")),
+                card(SQUIRE_DRK, "Squire"),
+            ],
+        };
         expect(validateDeck(old, "old-school").isLegal).toBe(true);
         const alpha: ValidatableDeck = {
             cards: [
-                ...Array.from({ length: 39 }, () => card(BOLT_LEA)),
+                ...Array.from({ length: 4 }, () => card(BOLT_LEA)),
+                ...Array.from({ length: 35 }, () => card(MOUNTAIN, "Mountain")),
                 card(SQUIRE_DRK, "Squire"),
             ],
         };
@@ -339,6 +396,197 @@ describe("validateDeck — wired to the REAL card registry (ADR 0036)", () => {
 
     it("resolveDeckCardMeta exempts real Basic lands from the set check", () => {
         expect(resolveDeckCardMeta(MOUNTAIN)?.isBasic).toBe(true);
+    });
+});
+
+// --- Old School full legality (issue #516, ADR 0036) ----------------------
+
+describe("checkCopyLimit — 4-copy limit by Card ID (issue #516)", () => {
+    it("flags a 5th copy of a non-basic card; 4 copies are legal", () => {
+        const five: ValidatableDeck = { cards: repeat("lea-card", 5) };
+        const reasons = checkCopyLimit(five, 4, stubResolve);
+        expect(reasons).toHaveLength(1);
+        expect(reasons[0].code).toBe("copy-limit");
+        expect(reasons[0].message).toContain("5 copies");
+        expect(reasons[0].message).toContain("maximum is 4");
+
+        const four: ValidatableDeck = { cards: repeat("lea-card", 4) };
+        expect(checkCopyLimit(four, 4, stubResolve)).toEqual([]);
+    });
+
+    it("never limits basic lands (basics are unlimited)", () => {
+        const deck: ValidatableDeck = { cards: repeat("basic", 40) };
+        expect(checkCopyLimit(deck, 4, stubResolve)).toEqual([]);
+    });
+
+    it("counts copies across maindeck + sideboard by Card ID", () => {
+        // 3 in main + 2 in sideboard = 5 of one card → over the 4 limit.
+        const deck: ValidatableDeck = {
+            cards: repeat("lea-card", 3),
+            sideboard: repeat("lea-card", 2),
+        };
+        const reasons = checkCopyLimit(deck, 4, stubResolve);
+        expect(reasons).toHaveLength(1);
+        expect(reasons[0].code).toBe("copy-limit");
+    });
+
+    it("merges two PRINTINGS of one card into a single budget (count by Card ID)", () => {
+        // lea-orig + leb-reprint resolve to the SAME canonical id: 3 + 2 = 5.
+        const deck: ValidatableDeck = {
+            cards: [...repeat("lea-orig", 3), ...repeat("leb-reprint", 2)],
+        };
+        const reasons = checkCopyLimit(deck, 4, stubResolve);
+        expect(reasons).toHaveLength(1);
+        expect(reasons[0].code).toBe("copy-limit");
+        expect(reasons[0].message).toContain("5 copies");
+    });
+});
+
+describe("checkRestricted — Eternal Central one-copy list (issue #516)", () => {
+    const restricted = new Set(["lea-card"]);
+
+    it("flags 2 copies of a restricted card; 1 copy is legal", () => {
+        const two: ValidatableDeck = { cards: repeat("lea-card", 2) };
+        const reasons = checkRestricted(two, restricted, stubResolve);
+        expect(reasons).toHaveLength(1);
+        expect(reasons[0].code).toBe("restricted");
+        expect(reasons[0].message).toContain("restricted to 1");
+
+        const one: ValidatableDeck = { cards: repeat("lea-card", 1) };
+        expect(checkRestricted(one, restricted, stubResolve)).toEqual([]);
+    });
+
+    it("does not restrict cards absent from the list", () => {
+        const deck: ValidatableDeck = { cards: repeat("leb-card", 4) };
+        expect(checkRestricted(deck, restricted, stubResolve)).toEqual([]);
+    });
+
+    it("counts a restricted card by Card ID across printings", () => {
+        // shared-card listed; 1 orig + 1 reprint = 2 → over the one-copy cap.
+        const shared = new Set(["shared-card"]);
+        const deck: ValidatableDeck = {
+            cards: [card("lea-orig"), card("leb-reprint")],
+        };
+        const reasons = checkRestricted(deck, shared, stubResolve);
+        expect(reasons).toHaveLength(1);
+        expect(reasons[0].code).toBe("restricted");
+    });
+});
+
+describe("checkBanned — zero-copy list (issue #516)", () => {
+    const banned = new Set(["drk-card"]);
+
+    it("flags any presence of a banned card", () => {
+        const deck: ValidatableDeck = { cards: [card("drk-card", "Banned")] };
+        const reasons = checkBanned(deck, banned, stubResolve);
+        expect(reasons).toHaveLength(1);
+        expect(reasons[0].code).toBe("banned");
+        expect(reasons[0].message).toContain("Banned");
+    });
+
+    it("is silent when no banned card is present", () => {
+        const deck: ValidatableDeck = { cards: repeat("lea-card", 4) };
+        expect(checkBanned(deck, banned, stubResolve)).toEqual([]);
+    });
+});
+
+describe("Old School lists are the EC ∩ pool intersection (ADR 0036)", () => {
+    it("restricts the implemented EC power cards (canonical Card IDs)", () => {
+        // Spot-check a few well-known EC restricted cards by their real ids.
+        const BLACK_LOTUS = "b0faa7f2-b547-42c4-a810-839da50dadfe";
+        const ANCESTRAL = "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b";
+        const LIBRARY = "ee266113-34ce-4189-84e7-ee2c86a2722c";
+        expect(OLD_SCHOOL_RESTRICTED.has(BLACK_LOTUS)).toBe(true);
+        expect(OLD_SCHOOL_RESTRICTED.has(ANCESTRAL)).toBe(true);
+        expect(OLD_SCHOOL_RESTRICTED.has(LIBRARY)).toBe(true);
+    });
+
+    it("bans the Chaos Orb guard id (Swedish dexterity ban, ADR 0010)", () => {
+        // The Chaos Orb stub id (commented out in sets/lea.ts) — a guard so a
+        // future un-comment is rejected rather than silently legal.
+        expect(
+            OLD_SCHOOL_BANNED.has("92274971-7c4a-4326-b0fe-75e2d124f718")
+        ).toBe(true);
+    });
+});
+
+describe("validateDeck — Old School full legality, REAL registry (issue #516)", () => {
+    const BOLT_LEA = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
+    const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
+    const BLACK_LOTUS_LEA = "b0faa7f2-b547-42c4-a810-839da50dadfe";
+    const BLACK_LOTUS_LEB = "b3a69a1c-c80f-4413-a6fd-ae54cabbce28"; // reprint
+
+    function pad(main: DeckCard[]): ValidatableDeck {
+        // Pad to 60 with unlimited basics so size never confounds the rule
+        // under test.
+        const fill = 60 - main.length;
+        return {
+            cards: [
+                ...main,
+                ...Array.from({ length: fill }, () =>
+                    card(MOUNTAIN, "Mountain")
+                ),
+            ],
+        };
+    }
+
+    it("a 5th copy of a non-basic is illegal; 4 is legal", () => {
+        const five = pad(
+            Array.from({ length: 5 }, () => card(BOLT_LEA, "Lightning Bolt"))
+        );
+        const fiveReasons = validateDeck(five, "old-school").reasons;
+        expect(fiveReasons.some((r) => r.code === "copy-limit")).toBe(true);
+
+        const four = pad(
+            Array.from({ length: 4 }, () => card(BOLT_LEA, "Lightning Bolt"))
+        );
+        expect(validateDeck(four, "old-school").isLegal).toBe(true);
+    });
+
+    it("two copies of a Restricted card is illegal; one is legal", () => {
+        const two = pad([
+            card(BLACK_LOTUS_LEA, "Black Lotus"),
+            card(BLACK_LOTUS_LEA, "Black Lotus"),
+        ]);
+        const reasons = validateDeck(two, "old-school").reasons;
+        expect(reasons.some((r) => r.code === "restricted")).toBe(true);
+
+        const one = pad([card(BLACK_LOTUS_LEA, "Black Lotus")]);
+        expect(validateDeck(one, "old-school").isLegal).toBe(true);
+    });
+
+    it("counts a Restricted card by Card ID across two printings (lea + leb Black Lotus)", () => {
+        // One LEA original + one LEB reprint = two copies of the same Card ID.
+        const deck = pad([
+            card(BLACK_LOTUS_LEA, "Black Lotus"),
+            card(BLACK_LOTUS_LEB, "Black Lotus (LEB)"),
+        ]);
+        const reasons = validateDeck(deck, "old-school").reasons;
+        expect(reasons.some((r) => r.code === "restricted")).toBe(true);
+    });
+
+    it("a fully legal 60-card Old School deck reports legal", () => {
+        // 4 Bolts + 1 Black Lotus (restricted, one copy) + 55 basics = 60.
+        const deck: ValidatableDeck = {
+            cards: [
+                ...Array.from({ length: 4 }, () =>
+                    card(BOLT_LEA, "Lightning Bolt")
+                ),
+                card(BLACK_LOTUS_LEA, "Black Lotus"),
+                ...Array.from({ length: 55 }, () => card(MOUNTAIN, "Mountain")),
+            ],
+        };
+        expect(deck.cards).toHaveLength(60);
+        const result = validateDeck(deck, "old-school");
+        expect(result.reasons).toEqual([]);
+        expect(result.isLegal).toBe(true);
+    });
+
+    it("basics are unlimited and never trip the copy limit", () => {
+        const deck: ValidatableDeck = {
+            cards: Array.from({ length: 60 }, () => card(MOUNTAIN, "Mountain")),
+        };
+        expect(validateDeck(deck, "old-school").isLegal).toBe(true);
     });
 });
 
