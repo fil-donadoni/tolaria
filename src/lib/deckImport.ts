@@ -87,3 +87,48 @@ export function parseDecklist(text: string): ParsedDecklist {
 
     return { cards, sideboard, unresolved };
 }
+
+/** A deck shape the exporter understands: the builder's two flat piles, one
+ *  `DeckCard` per physical copy (the same shape `parseDecklist` produces). */
+export interface ExportableDeck {
+    cards: DeckCard[];
+    sideboard: DeckCard[];
+}
+
+// Collapse a flat pile (one entry per copy) into `<count> <name>` lines,
+// grouping by card name and preserving first-appearance order so the output is
+// stable across exports.
+function pileToLines(pile: DeckCard[]): string[] {
+    const counts = new Map<string, number>();
+    for (const card of pile) {
+        counts.set(card.cardName, (counts.get(card.cardName) ?? 0) + 1);
+    }
+    return [...counts].map(([name, count]) => `${count} ${name}`);
+}
+
+/** Serialise a deck to a portable MTGA / Scryfall-style decklist — the inverse
+ *  of `parseDecklist`. The text carries only names and counts (never the MTG
+ *  format), so it is portable across formats: export here, then re-import into
+ *  a deck of any target format. Print-vs-name caveat: a name re-imports to a
+ *  default print, which the target format's validator flags if illegal.
+ *
+ * Output (the `Sideboard` section is emitted only when the sideboard is
+ * non-empty):
+ *
+ *     Deck
+ *     2 Black Lotus
+ *     4 Counterspell
+ *
+ *     Sideboard
+ *     3 Blue Elemental Blast
+ *
+ * Round-trips cleanly through `parseDecklist`: the produced text parses back
+ * into the same Maindeck and Sideboard piles (counts and sections preserved).
+ */
+export function deckToText(deck: ExportableDeck): string {
+    const sections = [["Deck", ...pileToLines(deck.cards)].join("\n")];
+    if (deck.sideboard.length > 0) {
+        sections.push(["Sideboard", ...pileToLines(deck.sideboard)].join("\n"));
+    }
+    return sections.join("\n\n");
+}

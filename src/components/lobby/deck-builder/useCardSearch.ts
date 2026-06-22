@@ -3,6 +3,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { CardPrinting } from "@convex/cards";
 import { foldAccents } from "@convex/cards/textNormalize";
+import { FORMAT_RULES, type FormatId } from "@convex/formats";
 
 export interface CardIndexEntry {
     cardId: string;
@@ -152,6 +153,32 @@ export function matchesSets(
         : selected.some((s) => printed.has(s));
 }
 
+/**
+ * The supertype marking a card as a basic land. Basics are always includable in
+ * any format (ADR 0036, issue #514), so the builder never hides them regardless
+ * of the format's allowed-set list.
+ */
+const BASIC_SUPERTYPE = "Basic";
+
+/**
+ * Pre-filter gate for the deck-builder card search (issue #514): a card is
+ * offered only when one of its printings belongs to a set the deck's Format
+ * allows. `allowedSets === null` (Freeform) imposes no filter. Basic lands
+ * (`Basic` supertype) are always available regardless of format. This narrows
+ * discovery only — the authoritative legality check still lives in
+ * `validateDeck` (ADR 0036).
+ */
+export function matchesFormatSets(
+    prints: CardPrinting[],
+    supertypes: string[],
+    allowedSets: string[] | null
+): boolean {
+    if (allowedSets === null) return true; // Freeform: every set.
+    if (supertypes.includes(BASIC_SUPERTYPE)) return true; // basics always legal.
+    const allowed = new Set(allowedSets);
+    return prints.some((p) => allowed.has(p.setCode));
+}
+
 export function hasAnyFilter(filters: CardSearchFilters): boolean {
     return (
         isTextActive(filters.text) ||
@@ -163,7 +190,12 @@ export function hasAnyFilter(filters: CardSearchFilters): boolean {
     );
 }
 
-export function useCardSearch(filters: CardSearchFilters): {
+export function useCardSearch(
+    filters: CardSearchFilters,
+    // The deck's Format (issue #514). Its `allowedSets` pre-constrain the search
+    // to legally-includable prints; omitted (or Freeform) imposes no set gate.
+    format?: FormatId
+): {
     entries: CardIndexEntry[] | undefined;
     total: number;
     /** True when no filter is set — caller should suppress result rendering
@@ -172,11 +204,16 @@ export function useCardSearch(filters: CardSearchFilters): {
 } {
     const all = useQuery(api.cardIndex.list, {});
     const idle = !hasAnyFilter(filters);
+    // The format's allowed-set list (null = any set). Resolved here so the gate
+    // never hardcodes set codes — it reads them from the Format registry.
+    const allowedSets =
+        format === undefined ? null : FORMAT_RULES[format].allowedSets;
     const entries = useMemo(() => {
         if (!all) return undefined;
         if (idle) return [];
         const filtered = all.filter(
             (e) =>
+                matchesFormatSets(e.prints, e.supertypes, allowedSets) &&
                 matchesText(e, filters.text) &&
                 matchesColors(e.colors, filters) &&
                 matchesTypes(e, filters.types, filters.typeMode) &&
@@ -186,7 +223,7 @@ export function useCardSearch(filters: CardSearchFilters): {
         return filtered.sort(
             (a, b) => a.manaValue - b.manaValue || a.name.localeCompare(b.name)
         );
-    }, [all, filters, idle]);
+    }, [all, filters, idle, allowedSets]);
 
     return { entries, total: all?.length ?? 0, idle };
 }

@@ -1374,6 +1374,25 @@ export interface SpellContext {
         targetStackItemId: string,
         modifications?: { colorOverride?: Color[] }
     ) => string | null;
+    /** Copies the CURRENTLY-RESOLVING spell itself — "copy this spell"
+     *  (CR 707.12, Chain Lightning). Clones the resolving stack item, inserts
+     *  the copy directly above it (so the copy resolves next), and returns the
+     *  copy's new stack id — or `null` if the resolving item isn't an
+     *  instant/sorcery spell. The copy starts a fresh resolution from step 0
+     *  (its own may-pay / choice steps re-run), is controlled by this spell's
+     *  controller, and ceases to exist after resolving instead of going to a
+     *  graveyard (CR 707.12/112.5). Pair with `requestCopyRetarget` to let the
+     *  copy's controller choose new targets for it. Distinct from
+     *  `copyStackItem`, which copies a DIFFERENT spell still on the stack.
+     *
+     *  `modifications.controllerId` reassigns the copy's controller when the
+     *  effect names a specific copier other than this spell's controller (Chain
+     *  Lightning: the player who paid {R}{R} controls and retargets the copy,
+     *  CR 707.12b). Defaults to this spell's controller. */
+    copyResolvingSpell: (modifications?: {
+        colorOverride?: Color[];
+        controllerId?: string;
+    }) => string | null;
     /** Offers this spell's controller the chance to choose new targets for a
      *  copy created by `copyStackItem` (CR 707.10b — Fork's "you may choose
      *  new targets for the copy"). Enters a `copy-retarget` target-selection
@@ -1811,6 +1830,12 @@ export interface PermanentView {
     /** True if the creature was declared as a blocker this turn. Mirrors
      *  `hasAttackedThisTurn` for end-of-combat triggers like Clockwork Beast. */
     hasBlockedThisTurn?: boolean;
+    /** True if this creature attacked during its controller's MOST RECENT
+     *  PRIOR turn (CR 508.1 / 514.2). Snapshotted at the controller's CLEANUP
+     *  so it survives into the next turn. Read by the self attack-restriction
+     *  predicate for "can't attack if it attacked during your last turn"
+     *  (Giant Turtle, LEG). */
+    attackedDuringLastTurn?: boolean;
     /** True if this permanent has dealt damage to an opponent (a player other
      *  than its controller) this turn (CR 120.3). Read by end-step triggers
      *  like Whirling Dervish's "if this creature dealt damage to an opponent

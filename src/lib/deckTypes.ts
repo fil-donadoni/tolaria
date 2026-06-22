@@ -1,6 +1,6 @@
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import type { DeckCard, DeckPreset } from "@convex/deckPresets";
-import type { FormatId } from "@convex/formats";
+import { type FormatId, type Reason, validateDeck } from "@convex/formats";
 
 export interface LobbyDeckBase {
     presetId: string;
@@ -13,6 +13,11 @@ export interface LobbyDeckBase {
     // Sideboard — 0–15 cards held aside (issue #391). Absent === empty for
     // legacy decks saved before sideboarding existed.
     sideboard?: DeckCard[];
+    // Derived deck legality for the deck's Format (ADR 0036, issue #512).
+    // Computed from contents via the shared pure `validateDeck` — never stored,
+    // so the lobby and the live builder panel never disagree with the server.
+    isLegal: boolean;
+    reasons: Reason[];
 }
 
 export interface PresetLobbyDeck extends LobbyDeckBase {
@@ -26,7 +31,17 @@ export interface UserLobbyDeck extends LobbyDeckBase {
 
 export type LobbyDeck = PresetLobbyDeck | UserLobbyDeck;
 
-export function toPresetLobbyDeck(d: DeckPreset): PresetLobbyDeck {
+// The preset row the lobby query returns may already carry derived legality
+// (`convex/decks.ts`); accept either that shape or the bare in-code preset.
+type PresetSource = DeckPreset & { isLegal?: boolean; reasons?: Reason[] };
+
+export function toPresetLobbyDeck(d: PresetSource): PresetLobbyDeck {
+    // Prefer the server-derived legality when present (the lobby query computes
+    // it); otherwise derive it here via the same pure `validateDeck`.
+    const legality =
+        d.isLegal !== undefined && d.reasons !== undefined
+            ? { isLegal: d.isLegal, reasons: d.reasons }
+            : validateDeck(d, d.format);
     return {
         kind: "preset",
         presetId: d.presetId,
@@ -36,10 +51,15 @@ export function toPresetLobbyDeck(d: DeckPreset): PresetLobbyDeck {
         colors: d.colors,
         cards: d.cards,
         sideboard: d.sideboard ?? [],
+        isLegal: legality.isLegal,
+        reasons: legality.reasons,
     };
 }
 
 export function toUserLobbyDeck(d: Doc<"userDecks">): UserLobbyDeck {
+    // User decks aren't validated server-side on list; derive legality from
+    // contents via the shared pure validator (ADR 0036).
+    const { isLegal, reasons } = validateDeck(d, d.format);
     return {
         kind: "user",
         userDeckId: d._id,
@@ -50,6 +70,8 @@ export function toUserLobbyDeck(d: Doc<"userDecks">): UserLobbyDeck {
         colors: d.colors,
         cards: d.cards,
         sideboard: d.sideboard ?? [],
+        isLegal,
+        reasons,
     };
 }
 
@@ -67,6 +89,21 @@ export function selectPreset(
 ): LobbyDeck | null {
     if (selectedId === null) return null;
     return decks.find((d) => d.presetId === selectedId) ?? null;
+}
+
+/**
+ * Narrow a deck list to a single Format (PRD #509, ADR 0036, issue #513).
+ * `"all"` is the identity — it returns the list unchanged. Otherwise it keeps
+ * only decks whose `format` matches. Pure and unit-tested so the lobby filter
+ * and any future deck surface share one navigation rule. Navigation only — it
+ * never affects legality or play.
+ */
+export function filterDecksByFormat<T extends { format: FormatId }>(
+    decks: readonly T[],
+    filter: "all" | FormatId
+): T[] {
+    if (filter === "all") return [...decks];
+    return decks.filter((d) => d.format === filter);
 }
 
 export function deckPayload(d: LobbyDeck): {

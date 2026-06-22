@@ -8,7 +8,7 @@ import {
 import { PointerActivationConstraints } from "@dnd-kit/dom";
 import { getCardById } from "@convex/cards";
 import { getCardColors } from "@convex/cards/colors";
-import type { FormatId } from "@convex/formats";
+import { FORMAT_RULES, type FormatId, validateDeck } from "@convex/formats";
 import { type LobbyDeck } from "~/lib/deckTypes";
 import {
     type DeckBuilderKind,
@@ -29,6 +29,7 @@ import GameDialog from "~/components/ui/game-dialog";
 import ActionButton from "~/components/board/action-button";
 import CardZoomSlider from "./card-zoom-slider";
 import ColorFilter from "./color-filter";
+import DeckExportButton from "./deck-export-button";
 import DeckImportDialog from "./deck-import-dialog";
 import DeckPileArea from "./deck-pile-area";
 import type { CardDragData, DropZoneId } from "./dnd-types";
@@ -39,6 +40,7 @@ import SearchBar from "./search-bar";
 import FormatSelect from "./format-select";
 import SetFilter from "./set-filter";
 import TypeFilter from "./type-filter";
+import DeckLegalityPanel from "./deck-legality-panel";
 import { useCardZoom } from "./useCardZoom";
 import { useFilterSearchParams } from "./useFilterSearchParams";
 import { type ColorMode, type MatchMode, useCardSearch } from "./useCardSearch";
@@ -150,7 +152,10 @@ export default function DeckBuilder({
     const timerRef = useRef<number | null>(null);
     const inflightRef = useRef<Promise<unknown> | null>(null);
 
-    const { entries, idle } = useCardSearch(filters);
+    // The card search is pre-filtered to the deck's Format allowed sets (issue
+    // #514): the builder only surfaces legally-includable prints. Discovery
+    // only — the authoritative legality check is `validateDeck`.
+    const { entries, idle } = useCardSearch(filters, deck.format);
 
     const clearTimer = () => {
         if (timerRef.current !== null) {
@@ -251,6 +256,18 @@ export default function DeckBuilder({
     // Read-only once the deck exists — editing an existing user deck or preset
     // never changes its Format (ADR 0036).
     const formatReadOnly = initialDeck !== null;
+
+    // Live deck legality (ADR 0036, issue #512): the same pure `validateDeck`
+    // the server gates on, recomputed as the working deck changes. Advisory in
+    // the builder; authoritative at game start.
+    const legality = useMemo(
+        () =>
+            validateDeck(
+                { cards: deck.cards, sideboard: deck.sideboard },
+                deck.format
+            ),
+        [deck.cards, deck.sideboard, deck.format]
+    );
 
     const handleAdd = useCallback(
         (cardId: string, cardName: string) => {
@@ -544,6 +561,12 @@ export default function DeckBuilder({
                             >
                                 Import
                             </button>
+                            <DeckExportButton
+                                deck={{
+                                    cards: deck.cards,
+                                    sideboard: deck.sideboard,
+                                }}
+                            />
                             <FormatSelect
                                 value={deck.format}
                                 readOnly={formatReadOnly}
@@ -672,6 +695,12 @@ export default function DeckBuilder({
                     }}
                 </DragOverlay>
             </DragDropProvider>
+
+            <DeckLegalityPanel
+                formatLabel={FORMAT_RULES[deck.format].label}
+                isLegal={legality.isLegal}
+                reasons={legality.reasons}
+            />
 
             <SaveDeckBar
                 name={deck.name}

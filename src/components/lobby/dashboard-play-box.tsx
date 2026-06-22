@@ -57,7 +57,11 @@ export default function DashboardPlayBox({
     busy = false,
     hasActiveGame = false,
 }: DashboardPlayBoxProps) {
-    const canPlay = !!selectedDeck && !busy && !hasActiveGame;
+    // An illegal selected deck cannot start a Game (ADR 0036, issue #512). The
+    // server re-validates authoritatively; this disables Play up front so the
+    // user can't fire a mutation that will only be rejected.
+    const deckLegal = !selectedDeck || selectedDeck.isLegal;
+    const canPlay = !!selectedDeck && deckLegal && !busy && !hasActiveGame;
 
     return (
         <Panel tone="accent">
@@ -94,6 +98,29 @@ export default function DashboardPlayBox({
                     <p className="text-sm text-text-muted">
                         Select a deck to start playing.
                     </p>
+                )}
+
+                {selectedDeck && !selectedDeck.isLegal && (
+                    <div
+                        role="status"
+                        aria-live="polite"
+                        className="mb-4 rounded-sm border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger"
+                    >
+                        <p className="font-semibold">
+                            This deck is not legal for its format and cannot
+                            start a game.
+                        </p>
+                        <ul className="mt-1 flex flex-col gap-0.5">
+                            {selectedDeck.reasons.map((r) => (
+                                <li
+                                    key={`${r.code}:${r.message}`}
+                                    className="text-danger/90"
+                                >
+                                    {r.message}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
                 )}
 
                 <div className="mb-3 flex flex-wrap items-end justify-start gap-4">

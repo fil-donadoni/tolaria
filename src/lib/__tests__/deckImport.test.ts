@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { getAllCardNames, getCardByName } from "@convex/cards";
-import { parseDecklist } from "../deckImport";
+import type { DeckCard } from "~/types/game";
+import { deckToText, parseDecklist } from "../deckImport";
 
 // Two real registry names to build fixtures from, so the test stays valid as
 // the catalogue grows.
@@ -70,5 +71,58 @@ describe("parseDecklist", () => {
         expect(result.cards).toHaveLength(1);
         expect(result.sideboard).toHaveLength(1);
         expect(result.unresolved).toEqual([]);
+    });
+});
+
+// Build a flat pile (one DeckCard per copy) from registry names, matching the
+// builder's WorkingDeck shape.
+function pile(...entries: [name: string, count: number][]): DeckCard[] {
+    const cards: DeckCard[] = [];
+    for (const [name, count] of entries) {
+        const def = getCardByName(name);
+        for (let i = 0; i < count; i++) {
+            cards.push({ cardId: def.id, cardName: def.name });
+        }
+    }
+    return cards;
+}
+
+describe("deckToText", () => {
+    it("emits Deck and Sideboard headers with grouped counts", () => {
+        const text = deckToText({
+            cards: pile([NAME_A, 2]),
+            sideboard: pile([NAME_B, 3]),
+        });
+
+        expect(text).toBe(
+            ["Deck", `2 ${NAME_A}`, "", "Sideboard", `3 ${NAME_B}`].join("\n")
+        );
+    });
+
+    it("omits the Sideboard section when the sideboard is empty", () => {
+        const text = deckToText({ cards: pile([NAME_A, 1]), sideboard: [] });
+        expect(text).toBe(["Deck", `1 ${NAME_A}`].join("\n"));
+        expect(text).not.toContain("Sideboard");
+    });
+
+    it("round-trips through parseDecklist preserving sections and counts", () => {
+        const deck = {
+            cards: pile([NAME_A, 4], [NAME_B, 1]),
+            sideboard: pile([NAME_B, 2]),
+        };
+
+        const reparsed = parseDecklist(deckToText(deck));
+
+        expect(reparsed.unresolved).toEqual([]);
+        expect(reparsed.cards).toEqual(deck.cards);
+        expect(reparsed.sideboard).toEqual(deck.sideboard);
+    });
+
+    it("round-trips an empty sideboard cleanly", () => {
+        const deck = { cards: pile([NAME_A, 2]), sideboard: [] };
+        const reparsed = parseDecklist(deckToText(deck));
+        expect(reparsed.cards).toEqual(deck.cards);
+        expect(reparsed.sideboard).toEqual([]);
+        expect(reparsed.unresolved).toEqual([]);
     });
 });

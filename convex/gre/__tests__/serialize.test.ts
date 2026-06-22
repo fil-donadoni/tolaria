@@ -247,6 +247,9 @@ describe("game_state serialize round-trip", () => {
         lion.isBlocking = true;
         lion.hasAttackedThisTurn = true;
         lion.hasBlockedThisTurn = true;
+        // #490 — per-creature "attacked during your last turn" history flag
+        // (Giant Turtle, LEG).
+        lion.attackedDuringLastTurn = true;
         // C5 (#384) — turn-scoped counter-trigger flags.
         lion.dealtDamageToOpponentThisTurn = true;
         lion.startedTurnUntapped = true;
@@ -331,6 +334,7 @@ describe("game_state serialize round-trip", () => {
         expect(got.isBlocking).toBe(true);
         expect(got.hasAttackedThisTurn).toBe(true);
         expect(got.hasBlockedThisTurn).toBe(true);
+        expect(got.attackedDuringLastTurn).toBe(true);
         expect(got.dealtDamageToOpponentThisTurn).toBe(true);
         expect(got.startedTurnUntapped).toBe(true);
         expect(got.manaCommitted).toBe(true);

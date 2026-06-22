@@ -1574,6 +1574,18 @@ export function finalizeCleanup(state: GameState): void {
             if (card.damageMarked !== undefined) {
                 card.damageMarked = undefined;
             }
+            // CR 508.1 / 514.2 — roll the per-creature attack history forward
+            // for the player whose turn is ENDING. `attackedDuringLastTurn`
+            // becomes whether this creature attacked during this just-ending
+            // turn, snapshotted BEFORE `hasAttackedThisTurn` is cleared below.
+            // Only the active player's creatures are updated, so the flag
+            // always reflects the controller's most recent PRIOR turn — read
+            // by the self attack-restriction predicate (Giant Turtle, LEG).
+            if (p.id === state.activePlayerId) {
+                card.attackedDuringLastTurn = card.hasAttackedThisTurn
+                    ? true
+                    : undefined;
+            }
             if (card.hasAttackedThisTurn) {
                 card.hasAttackedThisTurn = undefined;
             }

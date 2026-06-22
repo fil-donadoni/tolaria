@@ -9,6 +9,7 @@ import { usePageVisible } from "~/hooks/usePageVisible";
 import { useUserDecks, useUserDeckMutations } from "~/hooks/useUserDecks";
 import {
     deckPayload,
+    filterDecksByFormat,
     selectPreset,
     toPresetLobbyDeck,
     type LobbyDeck,
@@ -17,14 +18,17 @@ import {
     clearAiDeckId,
     clearDeckPresetId,
     getStoredAiDeckId,
+    getStoredDeckFormatFilter,
     getStoredDeckPresetId,
     getStoredDifficulty,
     getStoredMatchFormat,
     storeAiDeckId,
+    storeDeckFormatFilter,
     storeDeckPresetId,
     storeDifficulty,
     storeMatchFormat,
     storeSession,
+    type DeckFormatFilter as DeckFormatFilterValue,
     type MatchFormat,
 } from "~/lib/session";
 import type { Difficulty } from "@convex/gre";
@@ -34,6 +38,7 @@ import ActionButton from "~/components/board/action-button";
 import DashboardTopBar from "./dashboard-top-bar";
 import DashboardPlayBox from "./dashboard-play-box";
 import DeckList from "./deck-list";
+import DeckFormatFilter from "./deck-format-filter";
 import LobbyBackground from "./lobby-background";
 import ActiveGameNotice from "./active-game-notice";
 
@@ -53,6 +58,10 @@ function Lobby() {
     const [matchFormat, setMatchFormat] = useState<MatchFormat>(() =>
         getStoredMatchFormat()
     );
+    // Deck-list Format filter (#513) — navigation only, persisted so the choice
+    // survives a reload. Shared by both deck panels; default "all".
+    const [deckFormatFilter, setDeckFormatFilter] =
+        useState<DeckFormatFilterValue>(() => getStoredDeckFormatFilter());
     const [isBusy, setIsBusy] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
     const userDecks = useUserDecks();
@@ -87,6 +96,18 @@ function Lobby() {
     const allDecks = useMemo<LobbyDeck[]>(
         () => [...userLobbyDecks, ...presetLobbyDecks],
         [userLobbyDecks, presetLobbyDecks]
+    );
+
+    // The Format filter narrows what's *listed* only (#513). Selection
+    // resolution still keys off `allDecks` so a stored selection of a now-
+    // hidden deck is unaffected by the filter.
+    const filteredUserDecks = useMemo<LobbyDeck[]>(
+        () => filterDecksByFormat(userLobbyDecks, deckFormatFilter),
+        [userLobbyDecks, deckFormatFilter]
+    );
+    const filteredPresetDecks = useMemo<LobbyDeck[]>(
+        () => filterDecksByFormat(presetLobbyDecks, deckFormatFilter),
+        [presetLobbyDecks, deckFormatFilter]
     );
 
     // Null-safe: a stale stored id (e.g. an admin deleted the preset it pointed
@@ -205,6 +226,11 @@ function Lobby() {
     const handleMatchFormatChange = (next: MatchFormat) => {
         setMatchFormat(next);
         storeMatchFormat(next);
+    };
+
+    const handleDeckFormatFilterChange = (next: DeckFormatFilterValue) => {
+        setDeckFormatFilter(next);
+        storeDeckFormatFilter(next);
     };
 
     const handleAiDeckChange = (next: string | null) => {
@@ -382,19 +408,31 @@ function Lobby() {
                         <div className="overflow-auto max-h-88">
                             <DeckList
                                 title="My Decks"
-                                decks={userLobbyDecks}
+                                decks={filteredUserDecks}
                                 selectedPresetId={storedPresetId}
                                 onFocus={handleFocusDeck}
                                 onSelect={handleSelectDeck}
-                                emptyLabel="No saved decks yet. Create one to start building."
+                                emptyLabel={
+                                    deckFormatFilter === "all"
+                                        ? "No saved decks yet. Create one to start building."
+                                        : "No saved decks match this format."
+                                }
                                 renderActions={renderUserActions}
                                 headerExtra={
-                                    <button
-                                        onClick={handleNewDeck}
-                                        className="btn-base btn-tone-primary px-3 py-1.5 text-xs"
-                                    >
-                                        + New Deck
-                                    </button>
+                                    <div className="flex items-center gap-3">
+                                        <DeckFormatFilter
+                                            value={deckFormatFilter}
+                                            onChange={
+                                                handleDeckFormatFilterChange
+                                            }
+                                        />
+                                        <button
+                                            onClick={handleNewDeck}
+                                            className="btn-base btn-tone-primary px-3 py-1.5 text-xs"
+                                        >
+                                            + New Deck
+                                        </button>
+                                    </div>
                                 }
                             />
                         </div>
@@ -404,21 +442,34 @@ function Lobby() {
                         <div className="overflow-auto max-h-88">
                             <DeckList
                                 title="Preset Decks"
-                                decks={presetLobbyDecks}
+                                decks={filteredPresetDecks}
                                 selectedPresetId={storedPresetId}
                                 onFocus={handleFocusDeck}
                                 onSelect={handleSelectDeck}
+                                emptyLabel={
+                                    deckFormatFilter === "all"
+                                        ? undefined
+                                        : "No preset decks match this format."
+                                }
                                 renderActions={renderPresetActions}
                                 headerExtra={
-                                    isAdmin ? (
-                                        <button
-                                            onClick={handleNewPreset}
-                                            className="btn-base btn-tone-primary px-3 py-1.5 text-xs"
-                                            title="Create a new preset (admin)"
-                                        >
-                                            + New Preset
-                                        </button>
-                                    ) : undefined
+                                    <div className="flex items-center gap-3">
+                                        <DeckFormatFilter
+                                            value={deckFormatFilter}
+                                            onChange={
+                                                handleDeckFormatFilterChange
+                                            }
+                                        />
+                                        {isAdmin && (
+                                            <button
+                                                onClick={handleNewPreset}
+                                                className="btn-base btn-tone-primary px-3 py-1.5 text-xs"
+                                                title="Create a new preset (admin)"
+                                            >
+                                                + New Preset
+                                            </button>
+                                        )}
+                                    </div>
                                 }
                             />
                         </div>

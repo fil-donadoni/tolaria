@@ -49,6 +49,10 @@ type PresetScenario = {
         /** Pre-seed counters (CR 122) on a battlefield permanent — e.g.
          *  `{ "+1/+1": 3 }` (Triskelion) or `{ doom: 2 }` (Armageddon Clock). */
         counters?: Record<string, number>;
+        /** Mark this battlefield creature as having attacked during its
+         *  controller's previous turn (CR 508.1) — sets `attackedDuringLastTurn`
+         *  so self attack-restrictions (Giant Turtle #490) fire on declare. */
+        attackedLastTurn?: boolean;
     }[];
     phase: string;
     landCount: number;
@@ -111,6 +115,40 @@ const PRESET_SCENARIOS: PresetScenario[] = [
                 zone: "graveyard" as const,
             },
             { name: "Island", owner: "me" as const, count: 5 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Chain Lightning — {R} sorcery (CR 119.3 / 608.2 / 707.12). "Chain
+        // Lightning deals 3 damage to any target. Then that player or that
+        // permanent's controller may pay {R}{R}. If the player does, they may
+        // copy this spell and may choose a new target for that copy."
+        //
+        // Board: you hold Chain Lightning and six Mountains (one to cast, two
+        // for each {R}{R} chain link). The opponent fields a Hill Giant (3/3)
+        // and a Headless Horseman (2/3) to bounce the chain between.
+        // Golden path:
+        //   1. Cast Chain Lightning at the opponent's Hill Giant — it takes 3
+        //      and dies (or pick a creature that survives to keep chaining).
+        //   2. The opponent (controller of the damaged permanent) is offered
+        //      "Pay {R}{R} to copy?". If they have red mana they may pay; the
+        //      copy then prompts them to choose a NEW target.
+        //   3. Retarget the copy at the Headless Horseman (or a player) — it
+        //      deals another 3, and its damaged controller may chain again.
+        // Edge: decline the may-pay → nothing further happens, Chain Lightning
+        // goes to the graveyard.
+        label: "LEG: Chain Lightning — 3 damage, may-pay {R}{R} to copy & retarget",
+        cards: [
+            {
+                name: "Chain Lightning",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 6 },
+            { name: "Hill Giant", owner: "opp" as const },
+            { name: "Headless Horseman", owner: "opp" as const },
+            { name: "Mountain", owner: "opp" as const, count: 4 },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
@@ -731,6 +769,27 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Arboria", owner: "me" as const },
             { name: "Grizzly Bears", owner: "me" as const, count: 2 },
             { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "DECLARE_ATTACKERS",
+        landCount: 0,
+    },
+    {
+        // Giant Turtle (#490) — "This creature can't attack if it attacked
+        // during your last turn" (CR 508.1). Golden path:
+        //   • You control a Giant Turtle flagged as having attacked last turn,
+        //     plus a Grizzly Bears (the control), in DECLARE_ATTACKERS.
+        //   • The Turtle CAN'T be declared as an attacker (the engine grays it
+        //     out and the server rejects it); the Bears attack normally.
+        //   • Declare the Bears, pass the turn, and on your next turn — having
+        //     sat the Turtle out — the restriction lifts and it can attack.
+        label: "LEG: Giant Turtle can't attack the turn after it attacked (#490)",
+        cards: [
+            {
+                name: "Giant Turtle",
+                owner: "me" as const,
+                attackedLastTurn: true,
+            },
+            { name: "Grizzly Bears", owner: "me" as const },
         ],
         phase: "DECLARE_ATTACKERS",
         landCount: 0,

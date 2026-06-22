@@ -62,6 +62,7 @@ import {
     buildHandSpellDemands,
 } from "./gre/autoTapDemands";
 import { isGuardedAgainst } from "./gre/permanentGuard";
+import { assertDeckLegal } from "./formats";
 import type { Color, ManaCost, SpellMode } from "./cards/types";
 import {
     assertLegalAction,
@@ -1095,6 +1096,9 @@ export const createGame = mutation({
         // and is rejected here).
         if (await findActiveMatchForUser(ctx, user._id))
             throw new Error(ACTIVE_GAME_MESSAGE);
+        // Authoritative deck legality gate (ADR 0036): reject an illegal deck
+        // before any Match/Game row is written.
+        assertDeckLegal(args.deck);
         const now = Date.now();
 
         const player: PlayerInput = {
@@ -1153,6 +1157,10 @@ export const createSoloGame = mutation({
         if (await findActiveMatchForUser(ctx, user._id))
             throw new Error(ACTIVE_GAME_MESSAGE);
         const deck2 = args.deck2 ?? args.deck;
+        // Authoritative deck legality gate (ADR 0036): both seats' decks must be
+        // legal before the solo/vs-AI Match starts.
+        assertDeckLegal(args.deck);
+        if (args.deck2) assertDeckLegal(args.deck2);
 
         const player1: PlayerInput = {
             id: `${user._id}-p1`,
@@ -1222,6 +1230,9 @@ export const joinGame = mutation({
         if (game.players.length >= 2) throw new Error("Game is full");
         if (game.players.some((p) => p.id === user._id))
             throw new Error("Cannot join a game you are already in");
+        // Authoritative deck legality gate (ADR 0036): the joiner's deck must be
+        // legal for its declared format before the Match flips to "playing".
+        assertDeckLegal(args.deck);
 
         const player: PlayerInput = {
             id: user._id,
@@ -5714,6 +5725,12 @@ export const debugSetupScenario = mutation({
                  *  e.g. `{ "+1/+1": 3 }` for Triskelion or `{ doom: 2 }` for
                  *  Armageddon Clock. Keyed by counter type. Battlefield only. */
                 counters: v.optional(v.record(v.string(), v.number())),
+                /** Mark this battlefield creature as having attacked during its
+                 *  controller's previous turn (CR 508.1) — sets
+                 *  `attackedDuringLastTurn` so self attack-restrictions
+                 *  ("can't attack if it attacked during your last turn",
+                 *  Giant Turtle #490) fire immediately. Battlefield only. */
+                attackedLastTurn: v.optional(v.boolean()),
             })
         ),
         phase: v.optional(v.string()),
@@ -5830,6 +5847,10 @@ export const debugSetupScenario = mutation({
                         (instance as CardInstanceState).counters = {
                             ...entry.counters,
                         };
+                    }
+                    if (entry.attackedLastTurn) {
+                        (instance as CardInstanceState).attackedDuringLastTurn =
+                            true;
                     }
                     player.battlefield.push(instance);
                 }
