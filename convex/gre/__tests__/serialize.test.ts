@@ -664,6 +664,13 @@ describe("schema drift guard", () => {
         state.combatDamageImmunity = [
             { instanceId: "atk1", duration: { phase: "end-of-turn" } },
         ];
+        state.damageTriggeredLifegain = [
+            {
+                instanceId: "wall1",
+                controllerId: "p1",
+                duration: { phase: "end-of-turn" },
+            },
+        ];
         state.drawLookReplacements = [{ playerId: "p1", x: 3 }];
         state.landManaReplacedToBlueThisTurn = ["p1"];
 
@@ -1106,6 +1113,20 @@ describe("optional field round-trip smoke tests", () => {
         ];
         expect(roundTrip(state).combatDamageImmunity).toEqual(
             state.combatDamageImmunity
+        );
+    });
+
+    it("damageTriggeredLifegain", () => {
+        const state = freshState();
+        state.damageTriggeredLifegain = [
+            {
+                instanceId: "wall1",
+                controllerId: "p1",
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        expect(roundTrip(state).damageTriggeredLifegain).toEqual(
+            state.damageTriggeredLifegain
         );
     });
 

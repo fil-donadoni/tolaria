@@ -331,6 +331,37 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 2,
     },
     {
+        // #493 Glyph of Life — {W} instant (CR 603.7 delayed trigger / 119
+        //   lifegain). "Choose target Wall creature. Whenever that creature is
+        //   dealt damage by an attacking creature this turn, you gain that much
+        //   life." A turn-scoped lifegain armed at resolution and scanned in the
+        //   combat damage step — only an ATTACKER's combat damage to the watched
+        //   Wall gains life (a blocker's or non-combat source's does not).
+        // Board: you (P1) control a Wall of Earth (0/6 Defender) and hold Glyph
+        // of Life plus a Plains to cast it. The opponent (P2) fields a Goblin
+        // Hero (2/2) to attack with. Golden path (solo mode auto-switch):
+        //   1. As P1, cast Glyph of Life targeting your Wall of Earth (it arms
+        //      the lifegain for the rest of the turn).
+        //   2. Pass to P2 and attack with the Goblin Hero.
+        //   3. As P1, block the Goblin Hero with the Wall of Earth.
+        //   4. Combat damage: the Goblin Hero (an attacker) deals 2 to the Wall
+        //      → you gain 2 life (your total ticks 20 → 22). The Wall survives.
+        // Edge: a Glyph cast on a Wall that is itself attacking and gets hit by
+        //   a blocker gains NO life — the damage source isn't an attacker.
+        label: "LEG: Glyph of Life — gain life when a Wall is hit by an attacker (#493)",
+        cards: [
+            {
+                name: "Glyph of Life",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Wall of Earth", owner: "me" as const },
+            { name: "Goblin Hero", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
         // #486 Infinite Authority — {W}{W}{W} Aura (Enchant creature).
         //   "Whenever enchanted creature blocks or becomes blocked by a creature
         //    with toughness 3 or less, destroy the other creature at end of

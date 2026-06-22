@@ -923,6 +923,21 @@ export function applyAllCombatDamage(
                 sourceSubtypes: desc.subtypes,
                 sourceStaticAbilities: desc.staticAbilities,
             });
+            // CR 603.7 / 119 — Glyph of Life: if a turn-scoped lifegain effect
+            // watches this permanent and the damage source is an ATTACKER
+            // (CR 506.2 — its id is in the active combat's attacker list), the
+            // effect's controller gains that much life. Damage from a blocker
+            // or a non-combat source never reaches here as an attacker.
+            const watchers = state.damageTriggeredLifegain;
+            if (
+                watchers?.length &&
+                state.combat?.attackerIds.includes(source.id)
+            ) {
+                for (const w of watchers) {
+                    if (w.instanceId !== finalTarget.id) continue;
+                    getPlayer(state, w.controllerId).life += reduced;
+                }
+            }
         }
     }
 
@@ -1784,6 +1799,17 @@ function tickAllDurations(state: GameState): void {
             kept.push({ ...shield, duration: next });
         }
         state.combatDamageImmunity = kept.length > 0 ? kept : undefined;
+    }
+
+    // CR 603.7 / 119 — turn-scoped damage-triggered lifegain effects (Glyph of
+    // Life). Unfired remainder wears off at end of turn (CR 514.2).
+    if (state.damageTriggeredLifegain?.length) {
+        const kept: typeof state.damageTriggeredLifegain = [];
+        for (const effect of state.damageTriggeredLifegain) {
+            const next = tickDuration(effect.duration, view);
+            if (next !== null) kept.push({ ...effect, duration: next });
+        }
+        state.damageTriggeredLifegain = kept.length > 0 ? kept : undefined;
     }
 
     // "Becomes a creature" animations (e.g. Jade Statue). On expiry, splice

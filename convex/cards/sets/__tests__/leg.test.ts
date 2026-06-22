@@ -99,6 +99,7 @@ import {
     dwarvenSong,
     bloodLust,
     glyphOfDestruction,
+    glyphOfLife,
     activeVolcano,
     windsOfChange,
     barbaryApes,
@@ -3082,6 +3083,150 @@ describe("Glyph of Destruction (Wall +10/+0 + prevent + delayed destroy, CR 611.
         expect(
             state.players[0].battlefield.find((c) => c.id === "wall")
         ).toBeUndefined();
+    });
+});
+
+describe("Glyph of Life (delayed lifegain on attacker damage to a Wall, CR 603.7/119)", () => {
+    // Build a combat: p1's Wall blocks p2's attacker. Glyph of Life resolves on
+    // the Wall (p1 controls the Glyph), arming the turn-scoped lifegain.
+    function setupArmedCombat(attackerPower: number) {
+        const wall = makeInstance(wallOfEarth.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+            isBlocking: true,
+        }); // 0/6 Wall
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "atk",
+            controllerId: "p2",
+            ownerId: "p2",
+            power: attackerPower,
+            isAttacking: true,
+        });
+        const state = makeState({
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [wall], life: 20 }),
+                makePlayer("p2", { battlefield: [attacker], life: 20 }),
+            ],
+            phase: "COMBAT_DAMAGE",
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: { wall: ["atk"] },
+                blockersConfirmed: true,
+            },
+        });
+        // p1 casts Glyph of Life targeting the Wall.
+        pushSpell(state, glyphOfLife.id, "p1", [
+            { type: "permanent", id: "wall" },
+        ]);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("is a {W} Instant targeting a Wall creature", () => {
+        expect(glyphOfLife.manaCost).toEqual({ W: 1 });
+        expect(glyphOfLife.types).toEqual(["Instant"]);
+        expect(glyphOfLife.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+            subtypeFilter: "Wall",
+        });
+    });
+
+    it("only lists Wall creatures as legal targets (CR 205.3)", () => {
+        const wall = makeInstance(wallOfEarth.id, { id: "wall" });
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" }); // not a Wall
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wall, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            glyphOfLife.targetRequirement!,
+            [],
+            "p1"
+        )
+            .filter((t) => t.type === "permanent")
+            .map((t) => t.id);
+        expect(legal).toContain("wall");
+        expect(legal).not.toContain("bear");
+    });
+
+    it("arms a turn-scoped lifegain on resolution (CR 603.7)", () => {
+        const state = setupArmedCombat(3);
+        expect(state.damageTriggeredLifegain).toHaveLength(1);
+        expect(state.damageTriggeredLifegain![0].instanceId).toBe("wall");
+        expect(state.damageTriggeredLifegain![0].controllerId).toBe("p1");
+    });
+
+    it("gains the controller life equal to attacker combat damage to the Wall (CR 119)", () => {
+        const state = setupArmedCombat(3);
+        applyAllCombatDamage(state, { atk: { wall: 3 } });
+        // Attacker (power 3) deals 3 to the 0/6 Wall → p1 gains 3 life.
+        expect(state.players[0].life).toBe(23);
+        // Wall survives (3 < 6 toughness).
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "wall")
+        ).toBeDefined();
+    });
+
+    it("does NOT gain life from a non-attacking (blocker) source", () => {
+        // p1's Wall is the ATTACKER's blocker, but here we flip roles: the
+        // damage to the watched permanent comes from a creature that is NOT in
+        // combat.attackerIds. Set up the Wall as a watched attacker-side
+        // creature being hit by a blocker.
+        const wall = makeInstance(wallOfEarth.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+            power: 0,
+            toughness: 6,
+            staticAbilities: [], // strip defender so it can attack
+            isAttacking: true,
+        });
+        const blocker = makeInstance(grizzlyBears.id, {
+            id: "blk",
+            controllerId: "p2",
+            ownerId: "p2",
+            power: 4,
+            isBlocking: true,
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [wall], life: 20 }),
+                makePlayer("p2", { battlefield: [blocker], life: 20 }),
+            ],
+            phase: "COMBAT_DAMAGE",
+            combat: {
+                attackerIds: ["wall"],
+                confirmed: true,
+                blockerAssignments: { blk: ["wall"] },
+                blockersConfirmed: true,
+            },
+        });
+        pushSpell(state, glyphOfLife.id, "p1", [
+            { type: "permanent", id: "wall" },
+        ]);
+        resolveTopOfStack(state);
+        applyAllCombatDamage(state, {});
+        // The blocker (id "blk", NOT in attackerIds) dealt 4 to the watched
+        // Wall — that is a non-attacker source, so NO life is gained.
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("ends at end of turn — the watch is cleared at CLEANUP (CR 514.2)", () => {
+        const state = setupArmedCombat(3);
+        expect(state.damageTriggeredLifegain).toHaveLength(1);
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(state.damageTriggeredLifegain).toBeUndefined();
     });
 });
 

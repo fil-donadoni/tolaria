@@ -1162,6 +1162,16 @@ export interface SpellContext {
         target: TargetSelection,
         duration: DurationSpec
     ) => void;
+    /** Registers a turn-scoped delayed lifegain effect on `target` (CR 603.7 /
+     *  119, Glyph of Life). For `duration`, whenever `target` is dealt combat
+     *  damage by an attacking creature (CR 506.2 — the source is in
+     *  `combat.attackerIds`), the spell's controller gains that much life.
+     *  Damage from a blocker or any non-combat source does NOT trigger it.
+     *  No-op if the target has left the battlefield or is not a permanent. */
+    gainLifeWhenDamagedByAttacker: (
+        target: TargetSelection,
+        duration: DurationSpec
+    ) => void;
     /** Grants a keyword static ability to a permanent for a limited duration
      *  (CR 113.1, 611.1b). Appends to the target's `staticAbilities` so combat
      *  and rules checks see it at read time; the phase-boundary purge splices

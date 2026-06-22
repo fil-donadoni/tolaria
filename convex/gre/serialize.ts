@@ -691,6 +691,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "allCreaturesMustAttack",
     "destroyReplacementShields",
     "combatDamageImmunity",
+    "damageTriggeredLifegain",
     "phasedOut",
     "exileHeld",
     "drawLookReplacements",

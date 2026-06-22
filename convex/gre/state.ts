@@ -1482,6 +1482,12 @@ export type GameState = {
      *  shields (CR 615, Ebony Horse). Consumed in the combat damage step;
      *  unconsumed remainder purged at `duration` expiry. */
     combatDamageImmunity?: CombatDamageImmunity[];
+    /** CR 603.7 / 119 — turn-scoped delayed lifegain effects keyed to a
+     *  watched permanent (Glyph of Life). When the watched permanent is dealt
+     *  combat damage by an attacker, the effect's controller gains that much
+     *  life. Scanned in `applyAllCombatDamage`; unconsumed entries wear off at
+     *  CLEANUP via `duration` (CR 514.2). */
+    damageTriggeredLifegain?: DamageTriggeredLifegain[];
     /** CR 702.26 — permanents currently phased out, grouped into bundles
      *  (host + attached Auras/Equipment). Phased permanents live here instead
      *  of any battlefield array, so every battlefield reader treats them as
@@ -1574,6 +1580,23 @@ export type DestroyReplacementShield = {
  *  (CR 615, Ebony Horse). Consumed in the combat damage step. */
 export type CombatDamageImmunity = {
     instanceId: string;
+    duration: Duration;
+};
+
+/** CR 603.7 / 119 — a turn-scoped delayed triggered effect: "whenever
+ *  [instanceId] is dealt damage by an attacking creature this turn, you gain
+ *  that much life". Registered at a spell's resolution (Glyph of Life) and
+ *  scanned in the combat damage step: when the watched permanent is dealt
+ *  combat damage by a source that is currently an attacker (CR 506.2 — the
+ *  source's id is in `combat.attackerIds`), `controllerId` gains that much
+ *  life. Source-filtered to attackers only — damage from a blocker or any
+ *  non-combat source does NOT trigger it. Cleared at CLEANUP via `duration`
+ *  (CR 514.2). */
+export type DamageTriggeredLifegain = {
+    /** Permanent being watched for incoming attacker damage. */
+    instanceId: string;
+    /** Player who gains the life (the effect's controller, CR 113.7). */
+    controllerId: string;
     duration: Duration;
 };
 
@@ -4411,6 +4434,25 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 ...(state.combatDamageImmunity ?? []),
                 {
                     instanceId: target.id,
+                    duration: resolveDuration(duration, item.castById, state),
+                },
+            ];
+        },
+        gainLifeWhenDamagedByAttacker(
+            target: TargetSelection,
+            duration: DurationSpec
+        ): void {
+            // CR 603.7 / 119 — Glyph of Life: arm a turn-scoped delayed lifegain
+            // keyed to the chosen permanent. Scanned in the combat damage step;
+            // fires only when the damage source is an attacker. The controller
+            // is the effect's controller (CR 113.7 — the spell's caster).
+            if (target.type !== "permanent") return;
+            if (!findOnBattlefield(state, target.id)) return;
+            state.damageTriggeredLifegain = [
+                ...(state.damageTriggeredLifegain ?? []),
+                {
+                    instanceId: target.id,
+                    controllerId: item.castById,
                     duration: resolveDuration(duration, item.castById, state),
                 },
             ];
