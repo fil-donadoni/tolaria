@@ -59,11 +59,18 @@ const POOL: Record<string, DeckCardMeta> = {
         rarity: "common",
         isBasic: false,
     },
-    // A set that is NOT in any format's allowedSets (Revised is post-93/94),
-    // used to exercise the set-not-allowed path now that 2ed is Old-School-legal.
     "3ed-card": {
         cardId: "3ed-card",
         setCode: "3ed",
+        rarity: "common",
+        isBasic: false,
+    },
+    // A set that is NOT in any format's allowedSets (4th Edition is post-93/94),
+    // used to exercise the set-not-allowed path now that 2ed and 3ed are
+    // Old-School-legal.
+    "4ed-card": {
+        cardId: "4ed-card",
+        setCode: "4ed",
         rarity: "common",
         isBasic: false,
     },
@@ -198,7 +205,7 @@ describe("checkSets — set membership + Basic exemption (ADR 0036)", () => {
 
     it("flags a card whose print set is not allowed", () => {
         const deck: ValidatableDeck = {
-            cards: [card("lea-card"), card("3ed-card", "Reprint")],
+            cards: [card("lea-card"), card("4ed-card", "Reprint")],
         };
         const reasons = checkSets(
             deck,
@@ -208,12 +215,21 @@ describe("checkSets — set membership + Basic exemption (ADR 0036)", () => {
         expect(reasons).toHaveLength(1);
         expect(reasons[0].code).toBe("set-not-allowed");
         expect(reasons[0].message).toContain("Reprint");
-        expect(reasons[0].message).toContain("3ed");
+        expect(reasons[0].message).toContain("4ed");
     });
 
     it("accepts a 2ed (Unlimited) card in Old School (#560)", () => {
         const deck: ValidatableDeck = {
             cards: [card("lea-card"), card("2ed-card", "Unlimited reprint")],
+        };
+        expect(
+            checkSets(deck, FORMAT_RULES["old-school"], stubResolve)
+        ).toEqual([]);
+    });
+
+    it("accepts a 3ed (Revised) card in Old School (#561)", () => {
+        const deck: ValidatableDeck = {
+            cards: [card("lea-card"), card("3ed-card", "Revised reprint")],
         };
         expect(
             checkSets(deck, FORMAT_RULES["old-school"], stubResolve)
@@ -239,7 +255,7 @@ describe("checkSets — set membership + Basic exemption (ADR 0036)", () => {
     });
 
     it("de-duplicates by card id (a 4-of disallowed card yields one reason)", () => {
-        const deck: ValidatableDeck = { cards: repeat("3ed-card", 4) };
+        const deck: ValidatableDeck = { cards: repeat("4ed-card", 4) };
         const reasons = checkSets(
             deck,
             FORMAT_RULES["old-school"],
@@ -295,7 +311,7 @@ describe("validateDeck — end-to-end per Format (issue #512)", () => {
 
     it("Old School: under-size + disallowed set report BOTH reasons", () => {
         const deck: ValidatableDeck = {
-            cards: [...repeat("lea-card", 39), card("3ed-card", "Reprint")],
+            cards: [...repeat("lea-card", 39), card("4ed-card", "Reprint")],
         };
         const { isLegal, reasons } = validateDeck(
             deck,
@@ -358,6 +374,7 @@ describe("validateDeck — wired to the REAL card registry (ADR 0036)", () => {
     // Real ids from sets/lea.ts, sets/drk.ts and the 2ed reprint module.
     const BOLT_LEA = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
     const BOLT_2ED = "ff1b8fc5-604a-4449-a73d-861e53642a70";
+    const BOLT_3ED = "cb9b9a9d-ae4c-4e04-bf9d-cae48f01292c";
     // Ancestral Recall — on the EC Restricted list. The lea id is the canonical
     // CardDefinition id; the 2ed id is the Unlimited printId resolving to it.
     const ANCESTRAL_LEA = "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b";
@@ -386,6 +403,20 @@ describe("validateDeck — wired to the REAL card registry (ADR 0036)", () => {
         const deck: ValidatableDeck = {
             cards: [
                 card(BOLT_2ED, "Lightning Bolt (2ED)"),
+                ...Array.from({ length: 59 }, () => card(MOUNTAIN, "Mountain")),
+            ],
+        };
+        const result = validateDeck(deck, "old-school");
+        expect(result.isLegal).toBe(true);
+        expect(result.reasons).toEqual([]);
+    });
+
+    it("accepts a 3ed (Revised) reprint in Old School via the real resolver (#561)", () => {
+        // 1 Revised Bolt + 59 basics = 60. Revised (3ed) is now an allowed Old
+        // School set, so the deck validates end-to-end with no reasons.
+        const deck: ValidatableDeck = {
+            cards: [
+                card(BOLT_3ED, "Lightning Bolt (3ED)"),
                 ...Array.from({ length: 59 }, () => card(MOUNTAIN, "Mountain")),
             ],
         };
@@ -677,12 +708,12 @@ describe("assertDeckLegal — authoritative game-start gate (ADR 0036)", () => {
         const deck = {
             name: "Sketchy",
             format: "old-school",
-            cards: [...repeat("lea-card", 39), card("3ed-card", "Reprint")],
+            cards: [...repeat("lea-card", 39), card("4ed-card", "Reprint")],
         };
         expect(() => assertDeckLegal(deck, stubResolve)).toThrow(/Sketchy/);
         expect(() => assertDeckLegal(deck, stubResolve)).toThrow(/Old School/);
         expect(() => assertDeckLegal(deck, stubResolve)).toThrow(/minimum/);
-        expect(() => assertDeckLegal(deck, stubResolve)).toThrow(/3ed/);
+        expect(() => assertDeckLegal(deck, stubResolve)).toThrow(/4ed/);
     });
 
     it("treats a Freeform deck of any contents as legal", () => {
