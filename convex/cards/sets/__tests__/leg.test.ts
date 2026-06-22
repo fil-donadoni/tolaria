@@ -219,6 +219,7 @@ import {
     crusade,
     castle,
     blackLotus,
+    hypnoticSpecter,
 } from "../lea";
 import {
     blackManaBattery,
@@ -232,6 +233,7 @@ import {
     halfdane,
     petraSphinx,
     clergyOfTheHolyNimbus,
+    greaterRealmOfPreservation,
 } from "../leg";
 import { tapSourceIntoPayment } from "../../../game";
 import { getEffectiveManaChoices } from "../../../gre/constants";
@@ -8976,5 +8978,244 @@ describe("Clergy of the Holy Nimbus (CR 614.5, 701.15c, 602.1)", () => {
         expect(
             state.players[0].battlefield.some((c) => c.id === "clergy")
         ).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Greater Realm of Preservation — "{1}{W}: The next time a black or red source
+// of your choice would deal damage to you this turn, prevent that damage."
+// (CR 615.1, 615.6 — one-shot prevention shield keyed on a chosen source;
+// CR 202.2 — the choice is restricted to sources that are black OR red.)
+// ---------------------------------------------------------------------------
+
+describe("Greater Realm of Preservation (CR 615.1, 615.6 / 202.2)", () => {
+    function setupRealmOnBattlefield() {
+        const realm = makeInstance(greaterRealmOfPreservation.id, {
+            id: "realm",
+        });
+        const p1 = makePlayer("p1", { battlefield: [realm] });
+        return makeState({ players: [p1, makePlayer("p2")] });
+    }
+
+    it("exposes the declarative shape: {1}{W} enchantment, {1}{W} ability, B/R color-any filter", () => {
+        expect(greaterRealmOfPreservation.manaCost).toEqual({ X: 1, W: 1 });
+        expect(greaterRealmOfPreservation.types).toEqual(["Enchantment"]);
+        const ability = greaterRealmOfPreservation.activatedAbilities![0];
+        expect(ability.useStack).toBe(true);
+        expect(ability.cost).toEqual({ mana: { X: 1, W: 1 } });
+        expect(ability.targetRequirement).toEqual({
+            type: ["any", "spell"],
+            count: 1,
+            colorFilterAny: ["B", "R"],
+        });
+        expect(ability.oracleText).toBe(
+            "{1}{W}: The next time a black or red source of your choice would deal damage to you this turn, prevent that damage."
+        );
+    });
+
+    // CR 202.2 — legal-target filter: black and red sources qualify; green
+    // does not; players are never a colored source.
+    it("getLegalTargets includes black and red sources, excludes green sources and players", () => {
+        const state = setupRealmOnBattlefield();
+        const blackSrc = makeInstance(hypnoticSpecter.id, {
+            id: "black-src",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const redSrc = makeInstance(lightningBolt.id, {
+            id: "red-src",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        const greenSrc = makeInstance(grizzlyBears.id, {
+            id: "green-src",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(blackSrc, greenSrc);
+        state.stack.push({ ...redSrc, castById: "p2" });
+
+        const ability = greaterRealmOfPreservation.activatedAbilities![0];
+        const legal = getLegalTargets(state, ability.targetRequirement!);
+        const ids = legal.map((t) => t.id);
+        expect(ids).toContain("black-src");
+        expect(ids).toContain("red-src");
+        expect(ids).not.toContain("green-src");
+        expect(legal.filter((t) => t.type === "player")).toEqual([]);
+    });
+
+    it("registers an end-of-turn prevention effect keyed on the chosen red source when the ability resolves", () => {
+        const state = setupRealmOnBattlefield();
+        const realm = state.players[0].battlefield[0];
+        const bolt = makeInstance(lightningBolt.id, {
+            id: "bolt-stack",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        state.stack.push({
+            ...bolt,
+            castById: "p2",
+            targets: [{ type: "player", id: "p1" }],
+        });
+        state.stack.push({
+            ...realm,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "cop-prevent",
+            targets: [{ type: "spell", id: "bolt-stack" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.preventionEffects).toEqual([
+            {
+                sourceInstanceId: "bolt-stack",
+                playerId: "p1",
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+    });
+
+    it("prevents the next damage from the chosen black source to the protected player", () => {
+        const state = setupRealmOnBattlefield();
+        // Shield was scheduled against a chosen black source (a black creature
+        // dealing damage via a stack ability targeting the player).
+        state.preventionEffects = [
+            {
+                sourceInstanceId: "black-src",
+                playerId: "p1",
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        const specter = makeInstance(hypnoticSpecter.id, {
+            id: "black-src",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        state.players[1].battlefield.push(specter);
+        state.activePlayerId = "p2";
+        state.phase = "COMBAT_DAMAGE";
+        state.combat = {
+            attackerIds: ["black-src"],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: true,
+        };
+        applyAllCombatDamage(state, {});
+        expect(state.players[0].life).toBe(20);
+        expect(state.preventionEffects).toBeUndefined();
+    });
+
+    it("does NOT prevent damage from a green source (only black/red could be chosen)", () => {
+        // The shield can only ever be keyed on a black/red source, so a green
+        // source's instance id will never match — its damage goes through.
+        const state = setupRealmOnBattlefield();
+        state.preventionEffects = [
+            {
+                sourceInstanceId: "black-src",
+                playerId: "p1",
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        const greenAttacker = makeInstance(grizzlyBears.id, {
+            id: "green-src",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        state.players[1].battlefield.push(greenAttacker);
+        state.activePlayerId = "p2";
+        state.phase = "COMBAT_DAMAGE";
+        state.combat = {
+            attackerIds: ["green-src"],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: true,
+        };
+        applyAllCombatDamage(state, {});
+        // Grizzly Bears is 2/2 — 2 damage lands; shield (keyed on black-src) is
+        // untouched.
+        expect(state.players[0].life).toBe(18);
+        expect(state.preventionEffects).toEqual([
+            {
+                sourceInstanceId: "black-src",
+                playerId: "p1",
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+    });
+
+    it("is a one-shot: a second hit from the same kind of source still lands", () => {
+        const state = setupRealmOnBattlefield();
+        state.preventionEffects = [
+            {
+                sourceInstanceId: "bolt-first",
+                playerId: "p1",
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        const first = makeInstance(lightningBolt.id, {
+            id: "bolt-first",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        state.stack.push({
+            ...first,
+            castById: "p2",
+            targets: [{ type: "player", id: "p1" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
+        expect(state.preventionEffects).toBeUndefined();
+
+        const second = makeInstance(lightningBolt.id, {
+            id: "bolt-second",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        state.stack.push({
+            ...second,
+            castById: "p2",
+            targets: [{ type: "player", id: "p1" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(17);
+    });
+
+    it("expires at end of turn if unused (CR 514.2)", () => {
+        const state = setupRealmOnBattlefield();
+        state.preventionEffects = [
+            {
+                sourceInstanceId: "bolt-stack",
+                playerId: "p1",
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        // Tick to CLEANUP: hop to END_STEP then advance the phase so the
+        // end-of-turn duration wears off (CR 514.2).
+        state.phase = "END_STEP";
+        advancePhase(state);
+        expect(state.preventionEffects).toBeUndefined();
+    });
+
+    // Wire format — the B/R color-any filter must survive the GRE -> public
+    // projection so the client highlights legal sources correctly.
+    it("colorFilterAny survives projection on the pending target (CR 202.2)", () => {
+        const state = setupRealmOnBattlefield();
+        state.pendingTarget = {
+            playerId: "p1",
+            cardInstanceId: "realm",
+            targetType: ["any", "spell"],
+            count: 1,
+            colorFilterAny: ["B", "R"],
+            selected: [],
+            kind: "ability",
+            abilityId: "cop-prevent",
+        };
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingTarget?.colorFilterAny).toEqual(["B", "R"]);
     });
 });

@@ -44,6 +44,7 @@ import {
     isEnchantedByAura,
     isBlockingCreature,
 } from "../combatDamagePrevention";
+import { makeCircleOfProtection } from "../abilities";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vanilla legendary creatures (CR 205.4a — Legendary supertype; CR 704.5j legend
@@ -6444,3 +6445,21 @@ export const clergyOfTheHolyNimbus: CardDefinition = {
         },
     ],
 };
+
+// Greater Realm of Preservation — "{1}{W}: The next time a black or red source
+// of your choice would deal damage to you this turn, prevent that damage."
+// (CR 615.1, 615.6 — one-shot prevention shield scheduled against a chosen
+// source; CR 202.2 — the choice is restricted to sources that are black OR red
+// via `colorFilterAny`.) Built from the shared `makeCircleOfProtection` factory
+// with the multi-color source variant and {1}{W} enchantment / activation costs.
+export const greaterRealmOfPreservation: CardDefinition =
+    makeCircleOfProtection({
+        id: "5e236816-0c49-4b48-b18b-03add5a80d72",
+        rarity: "uncommon",
+        name: "Greater Realm of Preservation",
+        oracleText:
+            "{1}{W}: The next time a black or red source of your choice would deal damage to you this turn, prevent that damage.",
+        source: { kind: "color-any", colors: ["B", "R"], word: "black or red" },
+        manaCost: { X: 1, W: 1 },
+        activationCost: { X: 1, W: 1 },
+    });

@@ -3108,6 +3108,18 @@ export const selectTarget = mutation({
             ) {
                 throw new Error(`Target must be ${pt.colorFilter}`);
             }
+            // CR 202.2: OR-over-colors choice ("a black or red source" —
+            // Greater Realm of Preservation). Legal iff at least one color.
+            if (
+                pt.colorFilterAny &&
+                !pt.colorFilterAny.some((c) =>
+                    hasColor(matchedCard, c as Color)
+                )
+            ) {
+                throw new Error(
+                    `Target must be ${pt.colorFilterAny.join(" or ")}`
+                );
+            }
             // CR 613 layer 7c: power-bounded target (Dwarven Warriors).
             if (pt.powerFilter) {
                 const power = getEffectivePower(state, matchedCard);
@@ -3221,7 +3233,7 @@ export const selectTarget = mutation({
             if (!wantsAny && !reqTypes.includes("player")) {
                 throw new Error("Must target a permanent");
             }
-            if (pt.colorFilter) {
+            if (pt.colorFilter || pt.colorFilterAny) {
                 throw new Error("Players have no color");
             }
             const found = state.players.find((p) => p.id === args.targetId);
@@ -3264,6 +3276,15 @@ export const selectTarget = mutation({
             }
             if (pt.colorFilter && !hasColor(spell, pt.colorFilter as Color)) {
                 throw new Error(`Target must be ${pt.colorFilter}`);
+            }
+            // CR 202.2: OR-over-colors choice (Greater Realm of Preservation).
+            if (
+                pt.colorFilterAny &&
+                !pt.colorFilterAny.some((c) => hasColor(spell, c as Color))
+            ) {
+                throw new Error(
+                    `Target must be ${pt.colorFilterAny.join(" or ")}`
+                );
             }
             if (pt.mvFilter) {
                 const cardId = (spell.card as { id?: string }).id;
@@ -4780,6 +4801,12 @@ export const activateAbility = mutation({
                 targetType: effectiveTargetReq.type,
                 count: abilityCount,
                 colorFilter: effectiveTargetReq.colorFilter,
+                // CR 202.2 — OR-over-colors choice (Greater Realm of
+                // Preservation: "a black or red source"). Propagated so
+                // selectTarget can enforce the multi-color restriction.
+                ...(effectiveTargetReq.colorFilterAny
+                    ? { colorFilterAny: effectiveTargetReq.colorFilterAny }
+                    : {}),
                 selected: [],
                 keepPriority: args.keepPriority,
                 kind: "ability",

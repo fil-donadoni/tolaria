@@ -306,6 +306,31 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // #492 Greater Realm of Preservation — {1}{W} enchantment.
+        //   "{1}{W}: The next time a black or red source of your choice would
+        //    deal damage to you this turn, prevent that damage." (CR 615.1,
+        //    615.6 one-shot prevention shield; CR 202.2 color-of-source choice.)
+        // You (P1) control the Realm and two Plains to pay {1}{W}. The opponent
+        // (P2) has a Goblin Hero (2/2 RED creature) on the battlefield to attack
+        // with. Golden path (solo mode, auto-switch to whoever has priority):
+        //   1. As P2, attack with the Goblin Hero (a red source).
+        //   2. As P1, before combat damage, activate the Realm's {1}{W} ability
+        //      and CHOOSE the attacking Goblin Hero — only black/red sources are
+        //      offered (CR 202.2). A one-shot end-of-turn shield is scheduled.
+        //   3. Combat damage: the Goblin Hero's 2 damage to you is PREVENTED —
+        //      your life stays at 20 and the shield is consumed (CR 615.6).
+        // Edge: a green attacker could never be chosen, so its damage lands; a
+        // second hit from the same red source after the shield is spent also
+        // lands (one-shot).
+        label: "LEG: Greater Realm of Preservation — prevent next damage from a chosen black/red source (#492)",
+        cards: [
+            { name: "Greater Realm of Preservation", owner: "me" as const },
+            { name: "Goblin Hero", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
         // #486 Infinite Authority — {W}{W}{W} Aura (Enchant creature).
         //   "Whenever enchanted creature blocks or becomes blocked by a creature
         //    with toughness 3 or less, destroy the other creature at end of
