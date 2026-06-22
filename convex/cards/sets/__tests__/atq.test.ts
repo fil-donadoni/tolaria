@@ -157,6 +157,8 @@ import {
 } from "../../../gre/phases";
 import { checkStateBasedActions } from "../../../gre/sba";
 import { applyMoveForSearch } from "../../../gre/applyMove";
+import { applyPlayLand } from "../../../gre/playLand";
+import { getPlayer } from "../../../gre/state";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
@@ -2778,6 +2780,139 @@ describe("Mishra's Factory (animate + Assembly-Worker pump, CR 611.1)", () => {
             const live = animate(after, state);
             expect(validateAttackerEligibility(live).eligible).toBe(true);
         });
+    });
+});
+
+// Regression: the AUTHORITATIVE game.ts `playCard` play-land path must set the
+// summoning-sickness clock (CR 302.6). #545 added `markEnteredThisTurn` to the
+// Bot simulator (`applyMoveForSearch`) and to `putOnBattlefield`, but NOT to the
+// `playCard` mutation — so in a REAL game a played land never became sick and a
+// manland animated turn 1 could illegally attack. The #545 test above passed
+// because it exercised `applyMoveForSearch` (the simulator), which DID mark the
+// flag — classic GRE→game.ts boundary drift. These tests mirror the EXACT
+// sequence the fixed `playCard` mutation runs (the shared `applyPlayLand`
+// helper, since there is no convex-test harness), proving both call sites now
+// share the same canonical core and cannot diverge again.
+describe("game.ts playCard play-land path is summoning-sick (CR 302.6)", () => {
+    /** Mirror the body of the authoritative `playCard` mutation: it validates
+     *  (omitted here — covered by the action-legality tests) then calls the
+     *  shared `applyPlayLand(state, player, id)`. */
+    const playLandViaMutationPath = (state: GameState, id: string) => {
+        const player = getPlayer(state, "p1");
+        return applyPlayLand(state, player, id);
+    };
+
+    it("a Land played this turn via playCard is summoning-sick", () => {
+        const factory = makeInstance(mishrasFactory.id, {
+            id: "factory",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [factory] })],
+        });
+        const played = playLandViaMutationPath(state, "factory");
+        expect(played.zone).toBe("battlefield");
+        expect(played.isSummoningSick).toBe(true);
+        // CR 305.2 — the land drop was recorded.
+        expect(state.players[0].landsPlayedThisTurn).toBe(1);
+    });
+
+    it("a Mishra's Factory played AND animated this turn (via playCard) is NOT a legal attacker", () => {
+        const factory = makeInstance(mishrasFactory.id, {
+            id: "factory",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [factory] })],
+        });
+        playLandViaMutationPath(state, "factory");
+
+        // Animate the freshly-played manland this same turn.
+        resolveActivated(
+            state,
+            state.players[0].battlefield.find((c) => c.id === "factory")!,
+            "mishras-factory-animate"
+        );
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "factory"
+        )!;
+        expect(live.types).toContain("Creature");
+        expect(live.isSummoningSick).toBe(true);
+        const result = validateAttackerEligibility(live);
+        expect(result.eligible).toBe(false);
+        if (!result.eligible) {
+            expect(result.reason).toMatch(/summoning sickness/i);
+        }
+
+        // Wire format: the flag survives projection — a client also sees the
+        // animated manland as an ineligible attacker.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "factory"
+        )!;
+        expect(slim.isSummoningSick).toBe(true);
+        expect(validateAttackerEligibility(slim).eligible).toBe(false);
+    });
+
+    it("a Mishra's Factory controlled since a PRIOR turn, animated this turn, IS a legal attacker", () => {
+        // Already on the battlefield (flag cleared at a prior untap step) — not
+        // routed through the play-land path this turn.
+        const factory = makeInstance(mishrasFactory.id, {
+            id: "factory",
+            controllerId: "p1",
+            ownerId: "p1",
+            // isSummoningSick undefined
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [factory] })],
+        });
+        resolveActivated(state, factory, "mishras-factory-animate");
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "factory"
+        )!;
+        expect(live.types).toContain("Creature");
+        expect(live.isSummoningSick).toBeUndefined();
+        expect(validateAttackerEligibility(live).eligible).toBe(true);
+    });
+
+    it("both call sites (game.ts playCard + Bot applyMoveForSearch) set the same flag via the shared helper", () => {
+        // Structural cross-check: playing the same manland through each path
+        // yields the identical summoning-sickness clock — proof the paths share
+        // `applyPlayLand` and cannot drift.
+        const make = () =>
+            makeInstance(mishrasFactory.id, {
+                id: "factory",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+
+        const mutationState = makeState({
+            players: [makePlayer("p1", { hand: [make()] })],
+        });
+        playLandViaMutationPath(mutationState, "factory");
+
+        let simState = makeState({
+            players: [makePlayer("p1", { hand: [make()] })],
+        });
+        simState = applyMoveForSearch(simState, "p1", {
+            kind: "play-land",
+            cardInstanceId: "factory",
+        });
+
+        const fromMutation = mutationState.players[0].battlefield.find(
+            (c) => c.id === "factory"
+        )!;
+        const fromSim = simState.players[0].battlefield.find(
+            (c) => c.id === "factory"
+        )!;
+        expect(fromMutation.isSummoningSick).toBe(true);
+        expect(fromSim.isSummoningSick).toBe(true);
+        expect(fromMutation.isSummoningSick).toBe(fromSim.isSummoningSick);
     });
 });
 

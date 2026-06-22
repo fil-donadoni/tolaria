@@ -44,7 +44,6 @@ import {
     emitSpellCastEvent,
     emitPermanentTapped,
     emitAbilityActivated,
-    emitPermanentEntered,
     discardPermanentTappedEvent,
     processPendingActionTriggers,
     allocInstanceId,
@@ -131,6 +130,7 @@ import {
     recordBlockedAttackers,
 } from "./gre/banding";
 import { checkStateBasedActions } from "./gre/sba";
+import { applyPlayLand } from "./gre/playLand";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
@@ -1644,24 +1644,14 @@ export const playCard = mutation({
             assertLegalAction(state, player, cardInHand, "play");
         }
 
-        const card = moveCard(
-            player,
-            args.cardInstanceId,
-            "hand",
-            "battlefield"
-        );
-
-        // CR 305.2: track the land drop. The legality check above already
-        // enforces the per-turn limit; this only records the spend so the
-        // next call to getLegalActions returns no "play" action.
-        if (card.types.includes("Land")) {
-            player.landsPlayedThisTurn = (player.landsPlayedThisTurn ?? 0) + 1;
-        }
-
-        // CR 603.6a — emit PERMANENT_ENTERED so triggered abilities
-        // (e.g. Ankh of Mishra) see the land entering the battlefield.
-        emitPermanentEntered(state, card);
-        processPendingActionTriggers(state);
+        // Shared canonical play-land core (CR 305.2 land-drop tracking,
+        // CR 302.6 summoning-sickness clock, CR 603.6a ETB triggers, CR 704
+        // SBAs). Identical sequence to the Bot's `applyMoveForSearch`
+        // play-land case — both call `applyPlayLand` so the authoritative and
+        // simulated paths cannot drift. (Pre-fix this mutation skipped
+        // `markEnteredThisTurn`, so a Mishra's Factory played and animated the
+        // same turn could illegally attack — issue: manland summoning sickness.)
+        applyPlayLand(state, player, args.cardInstanceId);
 
         const nextSeq = gameState.seq + 1;
 
