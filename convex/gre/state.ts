@@ -1123,6 +1123,11 @@ export type PendingTarget = {
     /** If set, restricts legal targets to sources of the given color
      *  (CR 202.2). Propagated from TargetRequirement.colorFilter. */
     colorFilter?: string;
+    /** If set, restricts legal targets to sources that are at least one of the
+     *  listed colors (CR 202.2 — OR semantics). Propagated from
+     *  TargetRequirement.colorFilterAny. Used by "a black or red source of your
+     *  choice" (Greater Realm of Preservation). */
+    colorFilterAny?: ReadonlyArray<string>;
     /** If set, restricts legal permanent targets by subtype (CR 205.3).
      *  Propagated from TargetRequirement.subtypeFilter. Match if the
      *  permanent's subtypes include at least one of these. */
@@ -5812,6 +5817,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 selected: [],
                 kind: "copy-retarget",
                 ...(req.colorFilter ? { colorFilter: req.colorFilter } : {}),
+                ...(req.colorFilterAny
+                    ? { colorFilterAny: req.colorFilterAny }
+                    : {}),
                 ...(req.zone ? { zone: req.zone } : {}),
                 ...(req.controller ? { controller: req.controller } : {}),
                 ...(subtypeFilter ? { subtypeFilter } : {}),
@@ -5863,6 +5871,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 kind: "retarget",
                 ...(requirement.colorFilter
                     ? { colorFilter: requirement.colorFilter }
+                    : {}),
+                ...(requirement.colorFilterAny
+                    ? { colorFilterAny: requirement.colorFilterAny }
                     : {}),
                 ...(requirement.zone ? { zone: requirement.zone } : {}),
                 ...(requirement.controller

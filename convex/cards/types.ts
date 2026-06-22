@@ -125,6 +125,13 @@ export interface TargetRequirement {
      *  given color (CR 202.2). Used by Circle of Protection's "source of your
      *  choice of color W/U/B/R/G" choice. */
     colorFilter?: Color;
+    /** If set, restricts legal targets to permanents and stack spells that are
+     *  AT LEAST ONE of the listed colors (CR 202.2 — OR semantics). Used by
+     *  multi-color "source of your choice" choices such as Greater Realm of
+     *  Preservation ("a black or red source of your choice"). Players are never
+     *  a legal target when this is set (a player isn't a colored source).
+     *  Orthogonal to the single-color `colorFilter` — set one or the other. */
+    colorFilterAny?: ReadonlyArray<Color>;
     /** Restricts legal permanent targets to those whose `subtypes` include at
      *  least one of these (CR 205.3). Single string is a shorthand for one
      *  subtype. Used by spells like Volcanic Eruption ("X target Mountains")

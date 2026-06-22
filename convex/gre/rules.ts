@@ -518,6 +518,15 @@ export function getLegalTargets(
             t !== "card"
     );
     const colorFilter = requirement.colorFilter;
+    // CR 202.2 — OR-over-colors filter ("a black or red source"). A target is
+    // legal iff it is at least one of these colors. Players (colorless) are
+    // excluded when set, same as the single-color `colorFilter`.
+    const colorFilterAny = requirement.colorFilterAny;
+    const matchesColorFilterAny = (
+        card: Parameters<typeof hasColor>[0]
+    ): boolean =>
+        colorFilterAny === undefined ||
+        colorFilterAny.some((c) => hasColor(card, c));
     const tappedFilter = requirement.tappedFilter;
     const combatRoleFilter = requirement.combatRoleFilter;
     const powerFilter = requirement.powerFilter;
@@ -607,6 +616,8 @@ export function getLegalTargets(
                 }
                 // CR 202.2: filter by color for "source of color X" choices.
                 if (colorFilter && !hasColor(card, colorFilter)) continue;
+                // CR 202.2: OR-over-colors filter ("a black or red source").
+                if (!matchesColorFilterAny(card)) continue;
                 // CR 701.20: tap-state filter for "target tapped/untapped ~".
                 if (tappedFilter === "tapped" && !card.isTapped) continue;
                 if (tappedFilter === "untapped" && card.isTapped) continue;
@@ -701,8 +712,12 @@ export function getLegalTargets(
         }
     }
 
-    // Players have no color, so colorFilter excludes them.
-    if ((wantsAny || reqTypes.includes("player")) && !colorFilter) {
+    // Players have no color, so colorFilter / colorFilterAny excludes them.
+    if (
+        (wantsAny || reqTypes.includes("player")) &&
+        !colorFilter &&
+        !colorFilterAny
+    ) {
         for (const player of state.players) {
             // CR 506.2 — "target player who attacked this turn": a player
             // attacked iff they control a creature flagged as having attacked.

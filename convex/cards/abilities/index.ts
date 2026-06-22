@@ -108,14 +108,37 @@ export function makeDualLand(args: {
  *   - `{ kind: "color"; color; word }` — the LEA cycle. `colorFilter`
  *     restricts targets to sources of `color`; players can't be chosen
  *     (a player isn't a colored source).
+ *   - `{ kind: "color-any"; colors; word }` — a multi-color "source of your
+ *     choice" (Greater Realm of Preservation: "a black or red source").
+ *     `colorFilterAny` restricts targets to sources that are AT LEAST ONE of
+ *     `colors` (CR 202.2 — OR semantics); players can't be chosen.
  *   - `{ kind: "artifact"; word }` — COP: Artifacts. The target filter
  *     restricts to permanents/spells of the Artifact card type.
  *
  *  The resolve schedules a one-shot end-of-turn damage prevention against the
- *  chosen source via `preventNextDamageFromSource` (CR 615.1, 615.6). */
+ *  chosen source via `preventNextDamageFromSource` (CR 615.1, 615.6). The
+ *  shield is keyed on the chosen source's instance id, so the color predicate
+ *  only gates the choice — once a legal source is picked, that exact source is
+ *  shielded regardless of any later color change (CR 615.6). */
 type CopSourceFilter =
     | { kind: "color"; color: Color; word: string }
+    | { kind: "color-any"; colors: ReadonlyArray<Color>; word: string }
     | { kind: "artifact"; word: string };
+
+/** Renders a fixed activation cost as mana symbols for oracle text (CR 107):
+ *  generic `{N}` first (from numeric `X`/`C`), then colored WUBRG pips. Only
+ *  the fixed forms used by Circle-of-Protection-shaped abilities are handled
+ *  ({1}, {1}{W}); variable X is not expected here. */
+function formatActivationCost(cost: ManaCost): string {
+    const parts: string[] = [];
+    const generic = (typeof cost.X === "number" ? cost.X : 0) + (cost.C ?? 0);
+    if (generic > 0) parts.push(`{${generic}}`);
+    for (const sym of ["W", "U", "B", "R", "G"] as const) {
+        const n = cost[sym] ?? 0;
+        for (let i = 0; i < n; i++) parts.push(`{${sym}}`);
+    }
+    return parts.join("");
+}
 
 export function makeCircleOfProtection(args: {
     id: string;
@@ -129,12 +152,20 @@ export function makeCircleOfProtection(args: {
     color?: Color;
     colorWord?: string;
     source?: CopSourceFilter;
+    /** Enchantment mana cost (CR 202). Defaults to the LEA Circle's {1}{W};
+     *  Greater Realm of Preservation overrides it (it is also {1}{W}, but the
+     *  factory keeps the field explicit for non-CoP reuse). */
+    manaCost?: ManaCost;
+    /** Activation cost of the prevention ability. Defaults to {1} (the CoP
+     *  cycle); Greater Realm of Preservation uses {1}{W}. */
+    activationCost?: ManaCost;
 }): CardDefinition {
     const source: CopSourceFilter =
         args.source ??
         ({ kind: "color", color: args.color!, word: args.colorWord! } as const);
     // Artifact sources are matched by the Artifact card type (permanent or
-    // spell); color sources are matched by `colorFilter` (CR 202.2).
+    // spell); single-color sources by `colorFilter`; multi-color "X or Y
+    // source" by `colorFilterAny` (CR 202.2 — OR semantics).
     const targetRequirement: TargetRequirement =
         source.kind === "artifact"
             ? {
@@ -142,23 +173,34 @@ export function makeCircleOfProtection(args: {
                   count: 1,
                   spellTypeFilter: "Artifact",
               }
-            : {
-                  type: ["any", "spell"],
-                  count: 1,
-                  colorFilter: source.color,
-              };
+            : source.kind === "color-any"
+              ? {
+                    type: ["any", "spell"],
+                    count: 1,
+                    colorFilterAny: source.colors,
+                }
+              : {
+                    type: ["any", "spell"],
+                    count: 1,
+                    colorFilter: source.color,
+                };
+    const activationCost: ManaCost = args.activationCost ?? { X: 1 };
+    // CR 107 — render the activation cost as mana symbols for the ability's
+    // oracle text ({N} generic, then WUBRG). Keeps the LEA cycle's "{1}:" and
+    // Greater Realm's "{1}{W}:" in sync with the actual cost field.
+    const costPrefix = formatActivationCost(activationCost);
     return {
         id: args.id,
         name: args.name,
         rarity: args.rarity,
         oracleText: args.oracleText,
-        manaCost: { X: 1, W: 1 },
+        manaCost: args.manaCost ?? { X: 1, W: 1 },
         types: ["Enchantment"],
         activatedAbilities: [
             {
                 id: "cop-prevent",
-                oracleText: `{1}: The next time a ${source.word.toLowerCase()} source of your choice would deal damage to you this turn, prevent that damage.`,
-                cost: { mana: { X: 1 } },
+                oracleText: `${costPrefix}: The next time a ${source.word.toLowerCase()} source of your choice would deal damage to you this turn, prevent that damage.`,
+                cost: { mana: activationCost },
                 useStack: true,
                 targetRequirement,
                 resolve: (ctx: SpellContext) => {
