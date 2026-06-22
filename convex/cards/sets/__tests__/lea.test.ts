@@ -21320,3 +21320,21 @@ describe("Illusionary Mask — face-down turn-up (CR 708.9, ADR 0013, #124)", ()
         expect((fd.card as { id: string }).id).toBe(grizzlyBears.id);
     });
 });
+
+describe("mana costs match modern Scryfall oracle (Alpha errata)", () => {
+    // The Alpha printings of these cards carried costs later superseded by
+    // official errata; the engine follows the current Scryfall oracle.
+    it("Lich is {B}{B}{B}{B}, not the Alpha {2}{B}{B}", () => {
+        expect(lich.manaCost).toEqual({ B: 4 });
+    });
+
+    it("Personal Incarnation is {3}{W}{W}{W}, not the Alpha {4}{W}{W}{W}", () => {
+        expect(personalIncarnation.manaCost).toEqual({ X: 3, W: 3 });
+    });
+
+    it("Orcish Artillery stays {1}{R}{R} (current Scryfall oracle)", () => {
+        // Guard: the EC Alpha 40 'play as printed 1R' note is NOT honored — the
+        // oracle cost is {1}{R}{R}, which is what we ship.
+        expect(orcishArtillery.manaCost).toEqual({ X: 1, R: 2 });
+    });
+});
