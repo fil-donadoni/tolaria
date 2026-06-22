@@ -90,8 +90,22 @@ function tokenizeQuery(text: string): string[] {
     return tokens;
 }
 
+/** Minimum trimmed query length for the text search to engage. Below this the
+ *  text query is inert: it neither constrains matching nor counts as an active
+ *  filter for idle-detection. */
+export const MIN_TEXT_QUERY_LENGTH = 3;
+
+/** Single shared gate for the whole text query (name + aggregated oracle text).
+ *  Both `hasAnyFilter` (idle) and `matchesText` (constraint) route through this
+ *  so they can never disagree about whether the query is active. */
+export function isTextActive(text: string): boolean {
+    return text.trim().length >= MIN_TEXT_QUERY_LENGTH;
+}
+
 function matchesText(entry: CardIndexEntry, text: string): boolean {
-    if (!text) return true;
+    // Below the 3-char gate the text query is inert — other filters still
+    // apply, but the text never constrains results.
+    if (!isTextActive(text)) return true;
     // Fold accents so "ifh-bi" matches "Ifh-Bíff Efreet". The index carries
     // pre-folded fields; the query is folded here.
     const tokens = tokenizeQuery(foldAccents(text.toLowerCase()));
@@ -140,7 +154,7 @@ export function matchesSets(
 
 export function hasAnyFilter(filters: CardSearchFilters): boolean {
     return (
-        filters.text.trim().length > 0 ||
+        isTextActive(filters.text) ||
         filters.colors.length > 0 ||
         filters.includeColorless ||
         filters.types.length > 0 ||
