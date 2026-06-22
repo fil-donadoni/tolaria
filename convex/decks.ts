@@ -270,11 +270,15 @@ export const createPreset = mutation({
     },
 });
 
-// Admin-only deletion of a preset (PRD #466, ADR 0033, issue #470).
+// Admin-only hard delete of a preset by slug (PRD #466, ADR 0033, issue #470).
 // `assertIsAdmin` runs FIRST — non-admins are rejected server-side, not just
-// hidden in the UI. Located by slug; a missing preset is a no-op (idempotent —
-// a double-click or a stale client can't error). Other clients' lobbies drop
-// the preset reactively via `list`.
+// hidden in the UI. The slug locates the row; the delete removes it from
+// `presetDecks`, so the preset disappears from `api.decks.list` (reactive) for
+// every client. In-flight games are unaffected — the deck is snapshotted into
+// game state at creation, never read back from this table. A stored lobby
+// selection pointing at the deleted slug resolves to no selection on the client
+// (the list lookup is null-safe; see `selectPreset`). Deleting an absent slug
+// is a no-op (idempotent).
 export const deletePreset = mutation({
     args: { slug: v.string() },
     returns: v.null(),
