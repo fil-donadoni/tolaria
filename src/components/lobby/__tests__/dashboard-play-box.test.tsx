@@ -13,6 +13,8 @@ const DECK: LobbyDeck = {
     format: "old-school",
     colors: ["R"],
     cards: [],
+    isLegal: true,
+    reasons: [],
 };
 
 function openGame(id: string, name: string, bestOf: 1 | 3): OpenGame {
@@ -91,5 +93,69 @@ describe("DashboardPlayBox join format (issue #397)", () => {
         );
         fireEvent.click(getByText("Alice's game"));
         expect(onJoin).toHaveBeenCalledWith("g1");
+    });
+});
+
+describe("DashboardPlayBox deck legality gate (issue #512)", () => {
+    const ILLEGAL: LobbyDeck = {
+        ...DECK,
+        isLegal: false,
+        reasons: [
+            {
+                code: "size-min",
+                message: "Maindeck has 1 cards, minimum is 60.",
+            },
+        ],
+    };
+
+    function renderWith(selectedDeck: LobbyDeck | null) {
+        const handlers = {
+            onCreateSolo: vi.fn(),
+            onCreateVsAi: vi.fn(),
+            onCreateMultiplayer: vi.fn(),
+        };
+        return {
+            handlers,
+            ...render(
+                <DashboardPlayBox
+                    selectedDeck={selectedDeck}
+                    openGames={[]}
+                    difficulty="medium"
+                    onDifficultyChange={vi.fn()}
+                    matchFormat={1}
+                    onMatchFormatChange={vi.fn()}
+                    decks={selectedDeck ? [selectedDeck] : []}
+                    aiDeckId={null}
+                    onAiDeckChange={vi.fn()}
+                    onCreateSolo={handlers.onCreateSolo}
+                    onCreateVsAi={handlers.onCreateVsAi}
+                    onCreateMultiplayer={handlers.onCreateMultiplayer}
+                    onJoin={vi.fn()}
+                    onChangeDeck={vi.fn()}
+                />
+            ),
+        };
+    }
+
+    it("disables every Play button and shows the reasons for an illegal deck", () => {
+        const { getByText, handlers } = renderWith(ILLEGAL);
+        expect(getByText(/not legal for its format/i)).toBeTruthy();
+        expect(getByText(/minimum is 60/)).toBeTruthy();
+        for (const label of ["Play vs AI", "Solo Game", "Create Multiplayer"]) {
+            const btn = getByText(label).closest("button") as HTMLButtonElement;
+            expect(btn.disabled).toBe(true);
+            fireEvent.click(btn);
+        }
+        expect(handlers.onCreateVsAi).not.toHaveBeenCalled();
+        expect(handlers.onCreateSolo).not.toHaveBeenCalled();
+        expect(handlers.onCreateMultiplayer).not.toHaveBeenCalled();
+    });
+
+    it("enables Play for a legal selected deck", () => {
+        const { getByText } = renderWith(DECK);
+        const btn = getByText("Solo Game").closest(
+            "button"
+        ) as HTMLButtonElement;
+        expect(btn.disabled).toBe(false);
     });
 });

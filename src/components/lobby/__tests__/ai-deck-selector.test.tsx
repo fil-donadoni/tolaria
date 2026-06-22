@@ -14,6 +14,8 @@ const DECKS: LobbyDeck[] = [
         format: "old-school",
         colors: ["R"],
         cards: [],
+        isLegal: true,
+        reasons: [],
     },
     {
         kind: "preset",
@@ -22,6 +24,8 @@ const DECKS: LobbyDeck[] = [
         format: "old-school",
         colors: ["W"],
         cards: [],
+        isLegal: true,
+        reasons: [],
     },
 ];
 
