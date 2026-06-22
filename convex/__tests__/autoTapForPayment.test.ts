@@ -21,7 +21,10 @@ import {
     solveSmartAutoTap,
     solveAutoTapPartial,
 } from "../gre/autoTap";
-import { buildHandSpellDemands } from "../gre/autoTapDemands";
+import {
+    buildBoardAbilityDemands,
+    buildHandSpellDemands,
+} from "../gre/autoTapDemands";
 import { isSorceryTiming } from "../gre/phases";
 import { tapSourceIntoPayment, tryAutoCommitPendingCast } from "../game";
 import {
@@ -46,11 +49,17 @@ function runAutoTap(state: GameState, player: PlayerState): boolean {
     const pending = state.pendingCast!;
     const substitutions = getManaSubstitutions(state, player.id);
     const sources = buildAutoTapSources(player.battlefield);
-    const demands = buildHandSpellDemands(
-        player.hand,
-        pending.cardInstanceId,
-        isSorceryTiming(state)
-    );
+    const demands = [
+        ...buildHandSpellDemands(
+            player.hand,
+            pending.cardInstanceId,
+            isSorceryTiming(state)
+        ),
+        ...buildBoardAbilityDemands(player.battlefield, {
+            phase: state.phase,
+            isControllersTurn: state.activePlayerId === player.id,
+        }),
+    ];
     const fullPlan = solveSmartAutoTap(
         player.manaPool,
         pending.manaCost,
@@ -360,6 +369,7 @@ describe("autoTapForPayment — smart demand-aware spine (ADR 0034)", () => {
 // ---------------------------------------------------------------------------
 
 const COUNTERSPELL = "0df55e3f-14de-46ef-b6b1-616618724d9e"; // {U}{U} Instant
+const SHIVAN_DRAGON = "fefbf149-f988-4f8b-9f53-56f5878116a6"; // {R}: +1/+0 (firebreathing)
 
 describe("autoTapForPayment — timing-aware Demand filter (issue #475)", () => {
     /** Opponent's turn (p2 active), p1 holds priority to cast an instant {U}.
@@ -490,5 +500,136 @@ describe("autoTapForPayment — timing-aware Demand filter (issue #475)", () => 
             []
         );
         expect(lionsPlan).not.toBeNull();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Smart auto-tap: on-board activated abilities as Demands (issue #476,
+// CR 602.1). A firebreathing creature's "{R}: +1/+0" is a play the paying
+// player might still make this turn, so auto-tap prefers a minimal-tap plan
+// that leaves a red source untapped. Counted ONCE per ability (PRD story 12).
+// Exercised through the mutation-replica seam so the real ability enumerator
+// + timing gate run.
+// ---------------------------------------------------------------------------
+
+describe("autoTapForPayment — on-board activated-ability Demands (issue #476)", () => {
+    /** Board: Mountain (R) + Tundra (W/U) + Island (U) + Shivan Dragon (its
+     *  "{R}: +1/+0" firebreathing ability). Hand: a {1}{U} spell being cast.
+     *  Paying {1}{U} costs two taps; the only red source is the Mountain, so a
+     *  red-preserving plan must pay the generic from Tundra (not the Mountain).
+     */
+    function firebreathingState() {
+        const cast = makeInstance(ISLAND, {
+            id: "spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const battlefield = [
+            makeInstance(MOUNTAIN, { id: "mtn", controllerId: "p1" }),
+            makeInstance(TUNDRA, { id: "tundra", controllerId: "p1" }),
+            makeInstance(ISLAND, { id: "island", controllerId: "p1" }),
+            // Firebreathing creature: not summoning-sick so its {R} ability
+            // (and the engine's tap-lock checks for it) are clean.
+            makeInstance(SHIVAN_DRAGON, {
+                id: "shiv",
+                controllerId: "p1",
+                isSummoningSick: false,
+            }),
+        ];
+        const pendingCast: PendingCast = {
+            playerId: "p1",
+            cardInstanceId: "spell",
+            manaCost: { U: 1, X: 1 }, // {1}{U}
+            tappedLandIds: [],
+        };
+        const p1 = makePlayer("p1", { hand: [cast], battlefield });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            pendingCast,
+        });
+        return { state, player: state.players[0] };
+    }
+
+    it("leaves the red Mountain untapped so firebreathing stays activatable", () => {
+        const { state, player } = firebreathingState();
+        const committed = runAutoTap(state, player);
+
+        // {1}{U} paid and committed.
+        expect(committed).toBe(true);
+        expect(state.pendingCast).toBeUndefined();
+
+        // Minimal-tap invariant: exactly two sources tapped for {1}{U}.
+        const tapped = player.battlefield.filter((c) => c.isTapped);
+        expect(tapped).toHaveLength(2);
+
+        // The red source is preserved: the {U} comes from a blue source and the
+        // generic from the W/U Tundra, never the Mountain.
+        const mtn = player.battlefield.find((c) => c.id === "mtn")!;
+        expect(mtn.isTapped).toBeFalsy();
+        expect(player.manaPool.R ?? 0).toBe(0);
+
+        // Firebreathing ({R}: +1/+0) is still payable from the untapped Mountain.
+        const sub = getManaSubstitutions(state, player.id);
+        const sources = buildAutoTapSources(player.battlefield);
+        const pumpPlan = solveSmartAutoTap(
+            player.manaPool,
+            { R: 1 },
+            sub,
+            sources,
+            []
+        );
+        expect(pumpPlan).not.toBeNull();
+    });
+
+    it("the firebreathing ability exerts preservation pressure (removing it changes the tap set)", () => {
+        // With the firebreathing creature on board, the Mountain is preserved.
+        const withAbility = firebreathingState();
+        runAutoTap(withAbility.state, withAbility.player);
+        const mtnWith = withAbility.player.battlefield.find(
+            (c) => c.id === "mtn"
+        )!;
+        expect(mtnWith.isTapped).toBeFalsy();
+
+        // Remove the firebreathing creature: with no red Demand and an empty
+        // hand, the flexibility tie-break spends the inflexible mono-color
+        // Mountain/Island first and keeps the 2-color Tundra up — so the
+        // Mountain is now fair game to tap.
+        const noAbility = firebreathingState();
+        noAbility.player.battlefield = noAbility.player.battlefield.filter(
+            (c) => c.id !== "shiv"
+        );
+        runAutoTap(noAbility.state, noAbility.player);
+        const mtnWithout = noAbility.player.battlefield.find(
+            (c) => c.id === "mtn"
+        )!;
+        const tundraWithout = noAbility.player.battlefield.find(
+            (c) => c.id === "tundra"
+        )!;
+        // The 2-color Tundra is preserved by the flexibility heuristic; the
+        // Mountain is spent. This differs from the with-ability plan above,
+        // proving the firebreathing Demand actually moved the decision.
+        expect(tundraWithout.isTapped).toBeFalsy();
+        expect(mtnWithout.isTapped).toBe(true);
+    });
+
+    it("deterministic: same firebreathing board casts twice → identical tapped set", () => {
+        const a = firebreathingState();
+        runAutoTap(a.state, a.player);
+        const tappedA = a.player.battlefield
+            .filter((c) => c.isTapped)
+            .map((c) => c.id)
+            .sort();
+
+        const b = firebreathingState();
+        runAutoTap(b.state, b.player);
+        const tappedB = b.player.battlefield
+            .filter((c) => c.isTapped)
+            .map((c) => c.id)
+            .sort();
+
+        expect(tappedA).toEqual(tappedB);
     });
 });

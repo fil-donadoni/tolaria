@@ -370,6 +370,19 @@ export interface ActivatedAbility {
     manaRestriction?: ManaRestriction;
     /** Multiple mana options the player can choose from (e.g. Talisman: "{T}: Add {U} or {B}"). */
     manaChoices?: ManaCost[];
+    /** Counter type whose removal is the *scaling* part of a mana-choice cost
+     *  (CR 122.6 / 605.1a). When set on a `useStack: false` tap mana ability
+     *  that also supplies `manaChoices` / `getManaChoices`, the chosen mana
+     *  index N is interpreted as "remove N counters of this type from the
+     *  source", paid at tap commit alongside the {T} cost. This is how the
+     *  Mana Batteries express "{T}, Remove any number of charge counters: Add
+     *  one mana of this artifact's colour, then an additional one for each
+     *  counter removed this way." — choices are `[1 mana, 2 mana, …, 1+available]`
+     *  and removing N counters yields 1+N mana. The removed counters are
+     *  snapshotted on the instance (`manaCounterRemoval`) so untapping the
+     *  source before the mana is spent restores them. Distinct from
+     *  `cost.removeCounter`, which is a FIXED-count counter cost. */
+    manaChoiceRemovesCounters?: string;
     /** Board-conditional mana CHOICES (CR 106.1, 605.1a) — the choice analog of
      *  `manaAmount`. When present, the engine computes the list of mana options
      *  the activator may pick from at activation time, instead of reading the

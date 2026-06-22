@@ -57,7 +57,10 @@ import {
     solveAutoTapPartial,
     type Demand,
 } from "./gre/autoTap";
-import { buildHandSpellDemands } from "./gre/autoTapDemands";
+import {
+    buildBoardAbilityDemands,
+    buildHandSpellDemands,
+} from "./gre/autoTapDemands";
 import { isGuardedAgainst } from "./gre/permanentGuard";
 import type { Color, ManaCost, SpellMode } from "./cards/types";
 import {
@@ -446,6 +449,20 @@ export function tapSourceIntoPayment(
             rawChosen
         );
 
+        // CR 122.6 / 605.1a — Mana Battery tapped as a payment source: the
+        // chosen index is the number of charge counters removed this activation.
+        const counterType = ability.manaChoiceRemovesCounters;
+        if (counterType !== undefined && manaChoiceIndex > 0) {
+            const have = card.counters?.[counterType] ?? 0;
+            if (have < manaChoiceIndex) {
+                throw new Error("Not enough counters for this choice");
+            }
+            payRemoveCounterCost(card, {
+                type: counterType,
+                count: manaChoiceIndex,
+            });
+        }
+
         const isSacrifice = ability.cost.sacrifice === true;
         // CR 605.2 — emit "tapped for mana" before the sacrifice path moves
         // the card off the battlefield, so the event carries the permanent's
@@ -456,6 +473,12 @@ export function tapSourceIntoPayment(
         } else {
             card.isTapped = true;
             card.chosenMana = chosen;
+            if (counterType !== undefined && manaChoiceIndex > 0) {
+                card.manaCounterRemoval = {
+                    type: counterType,
+                    count: manaChoiceIndex,
+                };
+            }
         }
         for (const [color, amount] of Object.entries(chosen)) {
             if (color !== "X" && typeof amount === "number" && amount > 0) {
@@ -519,6 +542,15 @@ function untapSourceFromPayment(
             0,
             (player.manaPool[manaColor] ?? 0) - amount
         );
+    }
+    // CR 122.6 — restore the charge counters removed to pay a Mana Battery's
+    // scaling cost when the payment tap is reversed.
+    if (card.manaCounterRemoval) {
+        const { type, count } = card.manaCounterRemoval;
+        const next = { ...(card.counters ?? {}) };
+        next[type] = (next[type] ?? 0) + count;
+        card.counters = next;
+        card.manaCounterRemoval = undefined;
     }
     card.isTapped = false;
 }
@@ -2722,11 +2754,25 @@ export const autoTapForPayment = mutation({
         // speed hand spells count as preservable Demands only at sorcery timing
         // (own main, empty stack, holding priority); instant-speed spells count
         // in any window. Reuses the engine's canonical `isSorceryTiming` helper.
-        const demands: Demand[] = buildHandSpellDemands(
-            player.hand,
-            pending.cardInstanceId,
-            isSorceryTiming(state)
-        );
+        // On-board activated-ability Demands (issue #476, CR 602.1): a
+        // firebreathing creature's "{R}: +1/+0" and other mana-costed activated
+        // abilities on the paying player's battlefield are also plays they
+        // might still make this turn. Each is counted ONCE per (permanent,
+        // ability) — repeatable activations don't multiply the Demand (PRD
+        // user story 12) — and is timing-filtered the same way (sorcery-speed
+        // abilities count only at sorcery timing).
+        const sorceryTiming = isSorceryTiming(state);
+        const demands: Demand[] = [
+            ...buildHandSpellDemands(
+                player.hand,
+                pending.cardInstanceId,
+                sorceryTiming
+            ),
+            ...buildBoardAbilityDemands(player.battlefield, {
+                phase: state.phase,
+                isControllersTurn: state.activePlayerId === player.id,
+            }),
+        ];
         // Prefer a minimal full plan. When the pure-mana sources can't cover
         // the whole cost (the rest must come from an excluded manual source,
         // e.g. Black Lotus — issue #321), fall back to the maximal-useful
@@ -5033,6 +5079,24 @@ export const tapUntap = mutation({
                     rawChosen
                 );
 
+                // CR 122.6 / 605.1a — Mana Battery: the chosen index N is the
+                // number of charge counters this activation removes ("Remove any
+                // number of charge counters: Add 1 + N mana"). Validate and pay
+                // the scaling counter cost up-front so we never half-apply the
+                // tap. Snapshotted on the instance so an untap (before the mana
+                // is spent) restores the counters.
+                const counterType = ability?.manaChoiceRemovesCounters;
+                if (counterType !== undefined && args.manaChoiceIndex > 0) {
+                    const have = card.counters?.[counterType] ?? 0;
+                    if (have < args.manaChoiceIndex) {
+                        throw new Error("Not enough counters for this choice");
+                    }
+                    payRemoveCounterCost(card, {
+                        type: counterType,
+                        count: args.manaChoiceIndex,
+                    });
+                }
+
                 // CR 605.2 — emit before any sacrifice path moves the card off
                 // the battlefield, so the event still carries the source's
                 // pre-sacrifice types/subtypes.
@@ -5047,6 +5111,12 @@ export const tapUntap = mutation({
                     // Remember the exact mana produced so untap can refund it.
                     // Fixed-color abilities use manaProduced and don't need this.
                     card.chosenMana = chosen;
+                    if (counterType !== undefined && args.manaChoiceIndex > 0) {
+                        card.manaCounterRemoval = {
+                            type: counterType,
+                            count: args.manaChoiceIndex,
+                        };
+                    }
                 }
 
                 // Add chosen mana to pool
@@ -5080,6 +5150,16 @@ export const tapUntap = mutation({
                             );
                         }
                     }
+                }
+                // CR 122.6 — untapping before the mana is spent reverses the
+                // whole activation, so the charge counters removed to pay the
+                // scaling cost are restored to the source.
+                if (card.manaCounterRemoval) {
+                    const { type, count } = card.manaCounterRemoval;
+                    const next = { ...(card.counters ?? {}) };
+                    next[type] = (next[type] ?? 0) + count;
+                    card.counters = next;
+                    card.manaCounterRemoval = undefined;
                 }
                 card.chosenMana = undefined;
                 card.isTapped = false;
