@@ -1,5 +1,6 @@
 import type { CardInstanceState, GameState } from "./state";
 import type {
+    PermanentView,
     StaticAttackRestriction,
     StaticBlockRestriction,
     StaticBlockRequirement,
@@ -7,6 +8,7 @@ import type {
 import { isProtectedFromSource } from "./protection";
 import { getEffectivePower } from "./layers";
 import { tryGetCardById } from "../cards";
+import { globalAttackProhibitionReason } from "../cards/attackRestrictions";
 import {
     evaluateBlockerKeywords,
     evaluateAttackerKeywords,
@@ -105,6 +107,19 @@ export function validateAttackerEligibility(
             if (!r.predicate(card, defenderBattlefield)) {
                 return { eligible: false, reason: r.oracleText };
             }
+        }
+    }
+    // CR 508.1c — battlefield-scanned global attack restrictions. A permanent
+    // OTHER than the attacker (Moat, Akron Legionnaire) can forbid the attack
+    // via a `global-attack-restriction` static effect. Scanned across the whole
+    // board, mirroring the Crusade anthem pattern.
+    if (state) {
+        const reason = globalAttackProhibitionReason(
+            card as unknown as PermanentView,
+            state as never
+        );
+        if (reason) {
+            return { eligible: false, reason };
         }
     }
     // Arboria (CR 508.1c) — "Creatures can't attack a player unless that player

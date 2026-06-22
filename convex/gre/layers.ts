@@ -85,6 +85,16 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
         const def = cardId ? tryGetCardById(cardId) : undefined;
         return (def?.types ?? []) as CardType[];
     },
+    getName(card: PermanentView): string {
+        // CR 201.2 — card name from the (possibly copied / tokenized) card
+        // definition. An embedded name on the instance's card reference wins
+        // (copy effects), else look the printed name up via the registry.
+        const embedded = (card.card as { name?: string }).name;
+        if (embedded) return embedded;
+        const cardId = (card.card as { id?: string }).id;
+        const def = cardId ? tryGetCardById(cardId) : undefined;
+        return def?.name ?? "";
+    },
     getManaValue(card: PermanentView): number {
         // CR 202.3 — numeric X in the printed cost contributes to mana
         // value (the codebase encodes generic cost as `X: number`); only

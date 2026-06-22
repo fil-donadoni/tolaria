@@ -3,6 +3,7 @@ import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { getCardById } from "@convex/cards";
+import { globalAttackProhibitionReason } from "@convex/cards/attackRestrictions";
 import {
     isCreature,
     isLandwalkUnblockable,
@@ -232,6 +233,17 @@ export function useBattlefieldVisualState(player: Player) {
                     )
                         return false;
                 }
+            }
+            // CR 508.1c — battlefield-scanned global attack restrictions
+            // declared by OTHER permanents (Moat, Akron Legionnaire). Mirrors
+            // the server gate in `validateAttackerEligibility` so the UI grays
+            // out creatures the server would reject (#481).
+            if (
+                globalAttackProhibitionReason(card as never, {
+                    players: allPlayers as never,
+                }) !== undefined
+            ) {
+                return false;
             }
             return true;
         }
