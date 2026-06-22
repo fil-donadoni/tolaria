@@ -193,11 +193,13 @@ import { enumerateMoves, type Move } from "../../../gre/moves";
 import { getCardById, getCardByName, getAllCards } from "../../index";
 import { getLegalTargets } from "../../../gre/rules";
 import { isGuardedAgainst } from "../../../gre/permanentGuard";
+import { isCombatDamagePreventedFromSource } from "../../../gre/combatDamagePrevention";
 import {
     fireDelayedTriggers,
     emitBlockersConfirmedEvents,
     advancePhase,
     finalizeCleanup,
+    applyAllCombatDamage,
 } from "../../../gre/phases";
 import {
     recordBlockedAttackers,
@@ -220,6 +222,8 @@ import {
     greenManaBattery,
     redManaBattery,
     whiteManaBattery,
+    enchantedBeing,
+    wallOfVapor,
 } from "../leg";
 import { tapSourceIntoPayment } from "../../../game";
 import { getEffectiveManaChoices } from "../../../gre/constants";
@@ -7481,5 +7485,212 @@ describe("Kismet (CR 614.1c replacement, CR 110.5b enters tapped)", () => {
                 projected as never
             )
         ).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Continuous source-filtered combat-damage prevention (CR 615 / 611, #485).
+// Enchanted Being ("by enchanted creatures"), Wall of Vapor ("by creatures it's
+// blocking"). The prevention is a `combat-damage-prevention` static evaluated
+// LIVE each combat — re-applied for as long as the carrier is on the
+// battlefield, never a one-shot turn-scoped shield.
+// ---------------------------------------------------------------------------
+describe("Enchanted Being (prevent combat damage from enchanted creatures, CR 615/611)", () => {
+    /** Builds a combat with Enchanted Being (p1) blocking one p2 attacker.
+     *  When `withAura` is set, a Spirit Link Aura is attached to the attacker,
+     *  making it an "enchanted creature". */
+    function makeBlockState(opts: { withAura: boolean }) {
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "atk",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const being = makeInstance(enchantedBeing.id, {
+            id: "being",
+            controllerId: "p1",
+            ownerId: "p1",
+            isBlocking: true,
+        });
+        const p2Field = [attacker];
+        if (opts.withAura) {
+            p2Field.push(
+                makeInstance(spiritLink.id, {
+                    id: "aura",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    attachedTo: "atk",
+                })
+            );
+        }
+        // p2 is active (attacking); Enchanted Being on p1 blocks.
+        return makeState({
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [being] }),
+                makePlayer("p2", { battlefield: p2Field }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: { being: ["atk"] },
+                blockersConfirmed: true,
+            },
+        });
+    }
+
+    it("takes NO combat damage from an enchanted attacker", () => {
+        const state = makeBlockState({ withAura: true });
+        applyAllCombatDamage(state, { atk: { being: 2 } });
+        const being = state.players[0].battlefield.find(
+            (c) => c.id === "being"
+        );
+        // 2/2 attacker would otherwise deal 2 and kill the 2/2 — prevented.
+        expect(being).toBeDefined();
+        expect(being?.damageMarked ?? 0).toBe(0);
+    });
+
+    it("takes normal combat damage from a non-enchanted attacker", () => {
+        const state = makeBlockState({ withAura: false });
+        applyAllCombatDamage(state, { atk: { being: 2 } });
+        const being = state.players[0].battlefield.find(
+            (c) => c.id === "being"
+        );
+        // No Aura on the source → not prevented → lethal 2 → dies (CR 704.5g).
+        expect(being).toBeUndefined();
+        expect(state.players[0].graveyard.some((c) => c.id === "being")).toBe(
+            true
+        );
+    });
+
+    it("re-applies prevention across a second combat (continuous, not one-shot)", () => {
+        const state = makeBlockState({ withAura: true });
+        applyAllCombatDamage(state, { atk: { being: 2 } });
+        // Simulate a fresh combat next turn — no game-state shield was consumed.
+        state.combat = {
+            attackerIds: ["atk"],
+            confirmed: true,
+            blockerAssignments: { being: ["atk"] },
+            blockersConfirmed: true,
+        };
+        applyAllCombatDamage(state, { atk: { being: 2 } });
+        const being = state.players[0].battlefield.find(
+            (c) => c.id === "being"
+        );
+        expect(being?.damageMarked ?? 0).toBe(0);
+    });
+
+    it("prevention survives the wire projection (client-visible static)", () => {
+        const state = makeBlockState({ withAura: true });
+        const being = state.players[0].battlefield.find(
+            (c) => c.id === "being"
+        )!;
+        const atk = state.players[1].battlefield.find((c) => c.id === "atk")!;
+        expect(isCombatDamagePreventedFromSource(state, being, atk)).toBe(true);
+        const projected = projectPublicState(state, 2, "p1");
+        const pBeing = projected.players[0].battlefield.find(
+            (c) => c.id === "being"
+        )!;
+        const pAtk = projected.players[1].battlefield.find(
+            (c) => c.id === "atk"
+        )!;
+        expect(
+            isCombatDamagePreventedFromSource(
+                projected as never,
+                pBeing as never,
+                pAtk as never
+            )
+        ).toBe(true);
+    });
+
+    it("declares the static effect on the definition", () => {
+        expect(
+            enchantedBeing.staticEffects?.some(
+                (e) => e.kind === "combat-damage-prevention"
+            )
+        ).toBe(true);
+    });
+});
+
+describe("Wall of Vapor (prevent combat damage from creatures it's blocking, CR 615/611)", () => {
+    function makeWallBlockState() {
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "atk",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const wall = makeInstance(wallOfVapor.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+            isBlocking: true,
+        });
+        return makeState({
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [wall] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: { wall: ["atk"] },
+                blockersConfirmed: true,
+            },
+        });
+    }
+
+    it("takes NO combat damage from a creature it blocks", () => {
+        const state = makeWallBlockState();
+        // 2/2 attacker assigns 2 to the 0/1 Wall — would be lethal, prevented.
+        applyAllCombatDamage(state, { atk: { wall: 2 } });
+        const wall = state.players[0].battlefield.find((c) => c.id === "wall");
+        expect(wall).toBeDefined();
+        expect(wall?.damageMarked ?? 0).toBe(0);
+    });
+
+    it("does NOT prevent damage from a creature it is NOT blocking", () => {
+        const state = makeWallBlockState();
+        const wall = state.players[0].battlefield.find((c) => c.id === "wall")!;
+        // A different (unblocked) attacker is not in the Wall's block list.
+        const other = makeInstance(grizzlyBears.id, {
+            id: "other",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        expect(isCombatDamagePreventedFromSource(state, wall, other)).toBe(
+            false
+        );
+    });
+
+    it("has Defender and the prevention static", () => {
+        expect(wallOfVapor.staticAbilities).toContain("defender");
+        expect(
+            wallOfVapor.staticEffects?.some(
+                (e) => e.kind === "combat-damage-prevention"
+            )
+        ).toBe(true);
+    });
+
+    it("prevention survives the wire projection (client-visible static)", () => {
+        const state = makeWallBlockState();
+        const wall = state.players[0].battlefield.find((c) => c.id === "wall")!;
+        const atk = state.players[1].battlefield.find((c) => c.id === "atk")!;
+        expect(isCombatDamagePreventedFromSource(state, wall, atk)).toBe(true);
+        const projected = projectPublicState(state, 2, "p1");
+        const pWall = projected.players[0].battlefield.find(
+            (c) => c.id === "wall"
+        )!;
+        const pAtk = projected.players[1].battlefield.find(
+            (c) => c.id === "atk"
+        )!;
+        expect(
+            isCombatDamagePreventedFromSource(
+                projected as never,
+                pWall as never,
+                pAtk as never
+            )
+        ).toBe(true);
     });
 });
