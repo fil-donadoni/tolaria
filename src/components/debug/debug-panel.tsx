@@ -160,6 +160,43 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Mana Drain — {U}{U} Instant. "Counter target spell. At the beginning
+        // of your next main phase, add an amount of {C} equal to that spell's
+        // mana value." (CR 701.5a counter + CR 603.7/505 next-main-phase
+        // delayed trigger + CR 107.4c colorless {C}.) You hold Mana Drain and
+        // two untapped Islands; the opponent holds an Azure Drake (MV 4).
+        // Golden path:
+        //   1. Pass to the opponent's turn and have them cast Azure Drake.
+        //   2. With priority, cast Mana Drain targeting the Drake → it's
+        //      countered (to the graveyard) and NO mana appears yet.
+        //   3. Pass back to your turn. When your PRECOMBAT_MAIN begins, the
+        //      delayed trigger resolves and adds {C}{C}{C}{C} to your pool —
+        //      visible as 4 colorless in your mana display.
+        label: "LEG: Mana Drain — counter + {C} next main phase",
+        cards: [
+            { name: "Mana Drain", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Island",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+            {
+                name: "Azure Drake",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Island",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                count: 4,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // C1.1 Poison foundation (#452) — poison as a player resource (CR 122)
         // and its loss SBA (CR 704.5c). The opponent is seeded to NINE poison
         // counters (near-lethal): the danger-token badge renders under their

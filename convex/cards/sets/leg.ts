@@ -731,9 +731,6 @@ export const visions: CardDefinition = {
 //     with the top card of libraries revealed": needs a continuous top-of-
 //     library reveal static that does not exist yet).
 //   • No primitive yet (flagged for a future batch):
-//     - Mana Drain — "add {C} at the beginning of your NEXT main phase" needs a
-//       next-main-phase delayed-trigger timing (only end-step / end-of-combat /
-//       draw-step exist).
 //     - Juxtapose — exchange control of the greatest-MV creature/artifact
 //       (no control-exchange primitive).
 //     - Land Equilibrium — opponent land-drop replacement gated on land counts
@@ -941,6 +938,56 @@ export const backfire: CardDefinition = {
 };
 
 // --- Counterspells (CR 701.5a) ---------------------------------------------
+
+// Mana Drain — "Counter target spell. At the beginning of your next main phase,
+// add an amount of {C} equal to that spell's mana value." (CR 701.5a counter +
+// CR 603.7 / 505 next-main-phase delayed trigger + CR 107.4c {C} colorless mana.)
+// The countered spell's mana value (CR 202.3, including any chosen X via
+// `getManaValue`) is snapshotted at resolution and carried on the delayed
+// trigger's payload; the {C} is added to the caster's pool when their next main
+// phase begins.
+export const manaDrain: CardDefinition = {
+    id: "e691adef-3027-4e6a-889f-9f4e2df36a7c",
+    name: "Mana Drain",
+    oracleText:
+        "Counter target spell. At the beginning of your next main phase, add an amount of {C} equal to that spell's mana value.",
+    manaCost: { U: 2 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "spell") return;
+        // Snapshot the spell's mana value before countering it (CR 202.3 /
+        // 603.10 last-known information) — once countered it leaves the stack.
+        const mv = ctx.getManaValue(target);
+        ctx.counter(target);
+        // CR 603.7 — schedule the {C} payoff for the caster's next main phase.
+        // `targetPlayerId` gates firing to the caster's own main phase (CR 505).
+        ctx.scheduleDelayedTrigger(
+            manaDrain.id,
+            "mana-drain-add",
+            "next-main-phase",
+            { controller: ctx.caster, mv: String(mv) },
+            ctx.caster
+        );
+    },
+    delayedTriggers: [
+        {
+            id: "mana-drain-add",
+            oracleText:
+                "At the beginning of your next main phase, add an amount of {C} equal to that spell's mana value.",
+            timing: "next-main-phase",
+            resolve: (ctx, payload) => {
+                const mv = Number(payload.mv ?? "0");
+                const controller = payload.controller;
+                if (mv > 0 && controller) {
+                    // CR 107.4c — {C} is colorless mana, added to the pool.
+                    ctx.addManaTo(controller, { C: mv });
+                }
+            },
+        },
+    ],
+};
 
 // Flash Counter — "Counter target instant spell." (CR 701.5a + spellTypeFilter
 // for the instant-only restriction, CR 114.1.)
