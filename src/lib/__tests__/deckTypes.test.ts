@@ -75,11 +75,13 @@ describe("derived deck legality on lobby decks (ADR 0036, issue #512)", () => {
 
     function legalOldSchoolMain() {
         return [
-            ...Array.from({ length: 40 }, () => ({
+            // 4 Bolt respects the 4-copy limit (#516); Mountain is a basic and
+            // therefore unlimited, padding the deck to the 60-card minimum.
+            ...Array.from({ length: 4 }, () => ({
                 cardId: BOLT_LEA,
                 cardName: "Lightning Bolt",
             })),
-            ...Array.from({ length: 20 }, () => ({
+            ...Array.from({ length: 56 }, () => ({
                 cardId: MOUNTAIN,
                 cardName: "Mountain",
             })),
