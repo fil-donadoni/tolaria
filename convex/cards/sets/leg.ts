@@ -5241,7 +5241,7 @@ export const cavernsOfDespair: CardDefinition = {
 // battlefield during their last turn." (CR 508.1c — defender-history attack
 // restriction; engine-enforced by id via per-player turn-history flags.)
 export const arboria: CardDefinition = {
-    id: "acb3e93c-a1d3-458f-b8c3-c426cd359fa4",
+    id: "095078b0-0f26-442f-9d3b-45e30cdb33c4",
     name: "Arboria",
     oracleText:
         "Creatures can't attack a player unless that player cast a spell or put a nontoken permanent onto the battlefield during their last turn.",

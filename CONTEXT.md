@@ -191,6 +191,14 @@ _Avoid_: Cost (too vague)
 A **Player**'s current available **Mana**. Empties at end of each **Phase**.
 _Avoid_: Resources, energy
 
+**Auto-Tap**:
+The engine's automatic selection of which **Mana** sources to tap to pay a **Mana Cost** when the **Player** hasn't picked sources manually. Runs server-side in the **GRE**. _Smart_ auto-tap chooses, among all minimum-tap plans that cover the cost, the one that best preserves **Demands** still playable this turn (CR-neutral UX, mirrors MTG Arena).
+_Avoid_: Auto-pay, mana solver
+
+**Demand**:
+A thing the active **Player** might still want to pay mana for this turn — a **Spell** in **Hand** or an **Activated Ability** on the **Battlefield** — that smart **Auto-Tap** tries not to strand. Counted only when affordable before payment and legal at the current timing (sorcery-speed demands only at sorcery timing).
+_Avoid_: Pending play, future cast
+
 **Mana Value (MV)**:
 The total mana in a card's **Mana Cost** (CR 202.3). Abbreviated `mv` in code. Formerly "converted mana cost" (CMC) — that term is obsolete.
 _Avoid_: CMC, converted mana cost
