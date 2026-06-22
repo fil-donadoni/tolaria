@@ -5,7 +5,13 @@
 import { describe, it, expect } from "vitest";
 import type { Doc } from "@convex/_generated/dataModel";
 import type { DeckPreset } from "@convex/deckPresets";
-import { toUserLobbyDeck, toPresetLobbyDeck, selectPreset } from "../deckTypes";
+import {
+    toUserLobbyDeck,
+    toPresetLobbyDeck,
+    selectPreset,
+    filterDecksByFormat,
+} from "../deckTypes";
+import type { FormatId } from "@convex/formats";
 
 function userDeck(overrides: Partial<Doc<"userDecks">> = {}): Doc<"userDecks"> {
     return {
@@ -178,5 +184,41 @@ describe("selectPreset — null-safe stored-selection fallback (issue #470)", ()
 
     it("returns null for an unknown id against an empty deck list", () => {
         expect(selectPreset([], "anything")).toBeNull();
+    });
+});
+
+describe("filterDecksByFormat (issue #513)", () => {
+    const decks: { format: FormatId; name: string }[] = [
+        { format: "freeform", name: "A" },
+        { format: "alpha-40", name: "B" },
+        { format: "alpha-40", name: "C" },
+        { format: "old-school", name: "D" },
+    ];
+
+    it("'all' is the identity — returns every deck", () => {
+        expect(filterDecksByFormat(decks, "all")).toHaveLength(decks.length);
+    });
+
+    it("narrows the list to decks of the chosen Format", () => {
+        const alpha = filterDecksByFormat(decks, "alpha-40");
+        expect(alpha.map((d) => d.name)).toEqual(["B", "C"]);
+
+        const oldSchool = filterDecksByFormat(decks, "old-school");
+        expect(oldSchool.map((d) => d.name)).toEqual(["D"]);
+    });
+
+    it("returns an empty list when no deck matches", () => {
+        expect(
+            filterDecksByFormat(
+                [{ format: "freeform", name: "A" }],
+                "old-school"
+            )
+        ).toEqual([]);
+    });
+
+    it("does not mutate the input array", () => {
+        const input = [...decks];
+        filterDecksByFormat(input, "alpha-40");
+        expect(input).toHaveLength(decks.length);
     });
 });

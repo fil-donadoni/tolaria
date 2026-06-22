@@ -1,5 +1,6 @@
 import type { Id } from "@convex/_generated/dataModel";
 import { DEFAULT_DIFFICULTY, type Difficulty } from "@convex/gre";
+import { isFormatId, type FormatId } from "@convex/formats";
 
 const GAME_KEY = "tolaria:gameId";
 const PLAYER_KEY = "tolaria:playerId";
@@ -7,6 +8,7 @@ const DECK_KEY = "tolaria:selectedDeckId";
 const AI_DECK_KEY = "tolaria:aiDeckId";
 const DIFFICULTY_KEY = "tolaria:aiDifficulty";
 const MATCH_FORMAT_KEY = "tolaria:matchFormat";
+const DECK_FORMAT_FILTER_KEY = "tolaria:deckFormatFilter";
 
 /** Best-of-N match format (PRD #387). Bo1 (single Game) or Bo3 (first to two).
  *  Maps to the `bestOf` numeric the Match is created with. */
@@ -81,4 +83,27 @@ export function getStoredMatchFormat(): MatchFormat {
 
 export function storeMatchFormat(format: MatchFormat) {
     localStorage.setItem(MATCH_FORMAT_KEY, String(format));
+}
+
+/** The deck-list Format filter (PRD #509, ADR 0036, issue #513). `"all"` shows
+ *  every deck regardless of Format; a `FormatId` narrows the list to that
+ *  Format. Navigation only — it never gates play. Distinct from the creation
+ *  select (#510): this one has an `"all"` option and never sets a deck's
+ *  Format. */
+export type DeckFormatFilter = "all" | FormatId;
+export const DEFAULT_DECK_FORMAT_FILTER: DeckFormatFilter = "all";
+
+/** The last-chosen deck-list Format filter, persisted client-side so it
+ *  survives a reload (#513 acceptance). Falls back to `"all"` when unset or
+ *  when the stored value is no longer a valid Format (e.g. a renamed id). */
+export function getStoredDeckFormatFilter(): DeckFormatFilter {
+    const stored = localStorage.getItem(DECK_FORMAT_FILTER_KEY);
+    if (stored === "all" || (stored !== null && isFormatId(stored))) {
+        return stored;
+    }
+    return DEFAULT_DECK_FORMAT_FILTER;
+}
+
+export function storeDeckFormatFilter(filter: DeckFormatFilter) {
+    localStorage.setItem(DECK_FORMAT_FILTER_KEY, filter);
 }
