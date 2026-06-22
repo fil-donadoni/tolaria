@@ -1840,6 +1840,11 @@ export interface StaticEffectContext {
      *  targets after it has made them creatures, and must never match a printed
      *  artifact creature (Ornithopter). */
     getPrintedTypes: (card: PermanentView) => CardType[];
+    /** Card name (CR 201.2), read from the (possibly copied / tokenized) card
+     *  definition. Used by predicates that filter "creatures named X" — e.g.
+     *  Akron Legionnaire's "Except for creatures named Akron Legionnaire ...".
+     *  Returns `""` when the card id is unknown. */
+    getName: (card: PermanentView) => string;
 }
 
 export interface StaticPTBuff {
@@ -2120,6 +2125,38 @@ export interface StaticAttackRestriction {
     oracleText: string;
 }
 
+/** Battlefield-scanned, global attack restriction (CR 508.1c). Unlike
+ *  `StaticAttackRestriction`, whose predicate reads only the ATTACKING
+ *  creature's own static effects (so a creature can restrict only itself),
+ *  this kind is scanned across EVERY permanent on the battlefield and can
+ *  forbid attacks by creatures OTHER than its source — the symmetric analogue
+ *  of how Crusade-style anthems (`pt-buff`) scan all permanents and buff a
+ *  filtered set. Moat ("Creatures without flying can't attack") and Akron
+ *  Legionnaire ("Except for creatures named Akron Legionnaire and artifact
+ *  creatures, creatures you control can't attack") are expressed with this kind.
+ *
+ *  The predicate receives the candidate attacker, the source permanent
+ *  carrying this effect, the live board view, and the static-effect context
+ *  helpers. It returns `true` when the attacker is FORBIDDEN by this source
+ *  (note the inverted polarity relative to `StaticAttackRestriction`, whose
+ *  predicate returns `true` when the attack is LEGAL — here the source is
+ *  asserting a prohibition, so `true` means "blocked"). */
+export interface StaticGlobalAttackRestriction {
+    kind: "global-attack-restriction";
+    id: string;
+    /** Returns `true` when `attacker` is FORBIDDEN from attacking by `source`.
+     *  `attacker` = the creature attempting to attack.
+     *  `source` = the permanent carrying this effect (Moat / Akron). */
+    forbids: (
+        attacker: PermanentView,
+        source: PermanentView,
+        state: StaticEffectStateView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Oracle text displayed as the rejection reason. */
+    oracleText: string;
+}
+
 /** Card-level attack requirement (CR 508.1d). Declares that a creature
  *  must attack each combat if able. The engine collects these from the
  *  card's `staticEffects[]` and enforces the requirement when the creature
@@ -2334,6 +2371,7 @@ export type StaticEffect =
     | StaticUntapRestriction
     | StaticBlockRestriction
     | StaticAttackRestriction
+    | StaticGlobalAttackRestriction
     | StaticAttackRequirement
     | StaticBlockRequirement
     | StaticHandSizeOverride

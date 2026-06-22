@@ -1244,8 +1244,13 @@ function colorsOf(view: { card: Record<string, unknown> }): string[] {
 //   • Quagmire — "creatures with swampwalk can be blocked as though they didn't
 //     have swampwalk" needs a global landwalk-suppression static.
 //   • Demonic Torment, Evil Eye of Orms-by-Gore — emit can't-attack restrictions
-//     onto OTHER creatures (the source-emitted `attack-restriction` only binds
-//     the creature carrying it); no other-creature attack-lock static.
+//     onto OTHER creatures. UNBLOCKED by the `global-attack-restriction` static
+//     shipped with Moat / Akron Legionnaire (#481): a battlefield-scanned
+//     `forbids(attacker, source, state, ctx)` predicate can now lock attacks by
+//     creatures other than the source. (These two cards remain unimplemented
+//     for unrelated reasons — Demonic Torment is an Aura whose lock is scoped to
+//     its host, Evil Eye gates on its own untapped/blocked state — but the
+//     other-creature attack-lock primitive they were waiting on now exists.)
 //   • Wall of Putrid Flesh — its "prevent all damage dealt to this by enchanted
 //     creatures" clause needs a continuous, source-filtered prevention static.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5344,4 +5349,88 @@ export const arboria: CardDefinition = {
     manaCost: { X: 2, G: 2 },
     types: ["Enchantment"],
     supertypes: ["World"],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Global attack-restriction statics (#481, CR 508.1c)
+//
+// Moat and Akron Legionnaire forbid attacks by creatures OTHER than the source.
+// Unlike the per-attacker `attack-restriction` static (which reads only the
+// attacker's OWN definition, so a creature can restrict only itself), these use
+// the `global-attack-restriction` kind: the engine scans EVERY permanent on the
+// battlefield (`findGlobalAttackProhibition` in `combat.ts`) and asks each
+// source's `forbids(attacker, source, state, ctx)` predicate whether it locks
+// the candidate attacker — the symmetric analogue of how Crusade-style anthems
+// (`pt-buff`) scan all permanents and buff a filtered set. Consumed by both
+// `validateAttackerEligibility` (server declaration + the GRE) and the bot's
+// attacker enumeration (`moves.ts`), which both already plumb `state`.
+//
+// `forbids` returns `true` when the attacker is BLOCKED (note the inverted
+// polarity vs. `attack-restriction`, whose predicate returns `true` for LEGAL).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Moat — {2}{W}{W} Enchantment. "Creatures without flying can't attack."
+// (CR 508.1c — a board-wide attack lock; flying is read from the attacker's
+// effective `staticAbilities`, so a creature granted flying by an Aura attacks.)
+export const moat: CardDefinition = {
+    id: "952ba126-0915-47f0-9b6a-a0a6dcd22c6f",
+    name: "Moat",
+    oracleText: "Creatures without flying can't attack.",
+    manaCost: { X: 2, W: 2 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "global-attack-restriction",
+            id: "moat-no-fly-no-attack",
+            forbids: (attacker: PermanentView) => {
+                const keywords =
+                    (attacker as { staticAbilities?: string[] })
+                        .staticAbilities ?? [];
+                return !keywords.includes("flying");
+            },
+            oracleText: "Creatures without flying can't attack (Moat).",
+        },
+    ],
+};
+
+// Akron Legionnaire — {6}{W}{W} Creature — Giant Soldier, 8/4. "Except for
+// creatures named Akron Legionnaire and artifact creatures, creatures you
+// control can't attack." (CR 508.1c — the lock is scoped to the SOURCE's
+// controller; Akron-named creatures and artifact creatures are exempt.)
+export const akronLegionnaire: CardDefinition = {
+    id: "5d074af2-8dbd-42d3-87eb-30f6e7d171ff",
+    name: "Akron Legionnaire",
+    oracleText:
+        "Except for creatures named Akron Legionnaire and artifact creatures, creatures you control can't attack.",
+    manaCost: { X: 6, W: 2 },
+    types: ["Creature"],
+    subtypes: ["Giant", "Soldier"],
+    power: 8,
+    toughness: 4,
+    staticEffects: [
+        {
+            kind: "global-attack-restriction",
+            id: "akron-allies-cant-attack",
+            forbids: (
+                attacker: PermanentView,
+                source: PermanentView,
+                _state,
+                ctx: StaticEffectContext
+            ) => {
+                // Only creatures the SOURCE's controller controls are locked.
+                if (attacker.controllerId !== source.controllerId) return false;
+                // Exempt: creatures named Akron Legionnaire and artifact
+                // creatures (which includes Akron's own copies / artifact bodies).
+                if (ctx.getName(attacker) === "Akron Legionnaire") return false;
+                // Live `types` (animate / type-add effects) when present, else
+                // the printed type line — the client `CardInstance` may omit the
+                // optional `types` array (CR 205.2).
+                const types = attacker.types ?? ctx.getPrintedTypes(attacker);
+                if (types.includes("Artifact")) return false;
+                return true;
+            },
+            oracleText:
+                "Except for creatures named Akron Legionnaire and artifact creatures, creatures you control can't attack (Akron Legionnaire).",
+        },
+    ],
 };

@@ -121,6 +121,45 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // #481 Moat — {2}{W}{W} Enchantment. "Creatures without flying can't
+        // attack." (CR 508.1c — a battlefield-scanned `global-attack-restriction`
+        // static that locks attacks by creatures OTHER than its source.) You
+        // control Moat, a non-flying Goblin Hero (2/2) and a flying Azure Drake
+        // (2/4). Golden path:
+        //   1. Advance to combat (Next until DECLARE_ATTACKERS).
+        //   2. The Goblin Hero is grayed out — it can't be declared as an
+        //      attacker. The Azure Drake (flying) lights up and can attack.
+        // The lock is symmetric: an opponent's non-flier is locked too.
+        label: "LEG: Moat — only fliers can attack (#481)",
+        cards: [
+            { name: "Moat", owner: "me" as const },
+            { name: "Goblin Hero", owner: "me" as const },
+            { name: "Azure Drake", owner: "me" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // #481 Akron Legionnaire — {6}{W}{W} 8/4 Giant Soldier. "Except for
+        // creatures named Akron Legionnaire and artifact creatures, creatures
+        // you control can't attack." (CR 508.1c — a controller-scoped
+        // `global-attack-restriction`.) You control Akron, a vanilla Goblin Hero
+        // (locked) and a Clay Statue (Artifact Creature, exempt). Golden path:
+        //   1. Advance to DECLARE_ATTACKERS.
+        //   2. The Goblin Hero is grayed out; Akron itself AND the Clay Statue
+        //      light up and can attack.
+        // Edge: the opponent's creatures are NOT locked (controller-scoped).
+        label: "LEG: Akron Legionnaire — allies can't attack (#481)",
+        cards: [
+            { name: "Akron Legionnaire", owner: "me" as const },
+            { name: "Goblin Hero", owner: "me" as const },
+            { name: "Clay Statue", owner: "me" as const },
+            { name: "Goblin Hero", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // C1.1 Poison foundation (#452) — poison as a player resource (CR 122)
         // and its loss SBA (CR 704.5c). The opponent is seeded to NINE poison
         // counters (near-lethal): the danger-token badge renders under their

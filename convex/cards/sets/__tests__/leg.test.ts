@@ -181,7 +181,10 @@ import {
     inTheEyeOfChaos,
     cavernsOfDespair,
     arboria,
+    moat,
+    akronLegionnaire,
 } from "../leg";
+import { enumerateMoves, type Move } from "../../../gre/moves";
 import { getCardById, getCardByName, getAllCards } from "../../index";
 import { getLegalTargets } from "../../../gre/rules";
 import { isGuardedAgainst } from "../../../gre/permanentGuard";
@@ -6309,5 +6312,329 @@ describe("D'Avenant Archer ({T}: ping attacking-or-blocking, CR 508.1/509.1)", (
         ]);
         const hit = state.players[1].battlefield.find((c) => c.id === "atk")!;
         expect(hit.damageMarked).toBe(1);
+    });
+});
+
+// --- #481: battlefield-scanned global attack restrictions (CR 508.1c) -------
+
+const CLAY_STATUE_ID = "64975352-8d35-4d02-94ac-fa0c6ee12409";
+
+describe("Moat (creatures without flying can't attack, CR 508.1c)", () => {
+    it("has the correct definition shape", () => {
+        expect(moat.types).toEqual(["Enchantment"]);
+        expect(moat.supertypes).toBeUndefined();
+        expect(moat.manaCost).toEqual({ X: 2, W: 2 });
+        const eff = moat.staticEffects?.[0];
+        expect(eff?.kind).toBe("global-attack-restriction");
+    });
+
+    it("forbids a non-flying creature from attacking", () => {
+        const moatInst = makeInstance(moat.id, { controllerId: "p1" });
+        const grounded = makeInstance(tundraWolves.id, {
+            id: "grounded",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [moatInst, grounded] }),
+                makePlayer("p2"),
+            ],
+        });
+        const v = validateAttackerEligibility(grounded, [], state);
+        expect(v.eligible).toBe(false);
+    });
+
+    it("allows a flier to attack", () => {
+        const moatInst = makeInstance(moat.id, { controllerId: "p1" });
+        const flier = makeInstance(azureDrake.id, {
+            id: "flier",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [moatInst, flier] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(validateAttackerEligibility(flier, [], state).eligible).toBe(
+            true
+        );
+    });
+
+    it("is symmetric — locks the OPPONENT's non-flying creatures too", () => {
+        const moatInst = makeInstance(moat.id, { controllerId: "p1" });
+        const grounded = makeInstance(tundraWolves.id, {
+            id: "opp-grounded",
+            controllerId: "p2",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [moatInst] }),
+                makePlayer("p2", { battlefield: [grounded] }),
+            ],
+        });
+        expect(validateAttackerEligibility(grounded, [], state).eligible).toBe(
+            false
+        );
+    });
+
+    it("the lock survives projection (wire format)", () => {
+        const moatInst = makeInstance(moat.id, { controllerId: "p1" });
+        const grounded = makeInstance(tundraWolves.id, {
+            id: "grounded",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [moatInst, grounded] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(
+            state,
+            1,
+            "p1"
+        ) as unknown as typeof state;
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "grounded"
+        )!;
+        expect(validateAttackerEligibility(slim, [], projected).eligible).toBe(
+            false
+        );
+    });
+
+    it("the bot's attacker enumeration respects the lock (moves.ts)", () => {
+        const moatInst = makeInstance(moat.id, { controllerId: "p1" });
+        const grounded = makeInstance(tundraWolves.id, {
+            id: "grounded",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const flier = makeInstance(azureDrake.id, {
+            id: "flier",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            combat: {
+                attackerIds: [],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+            players: [
+                makePlayer("p1", {
+                    battlefield: [moatInst, grounded, flier],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const sets = enumerateMoves(state, "p1")
+            .filter(
+                (m): m is Extract<Move, { kind: "declare-attackers" }> =>
+                    m.kind === "declare-attackers"
+            )
+            .map((m) => [...m.attackerIds].sort());
+        // Only the flier is ever a legal attacker → subsets are {} and {flier}.
+        expect(sets).toHaveLength(2);
+        expect(sets).toContainEqual([]);
+        expect(sets).toContainEqual(["flier"]);
+        expect(sets.some((s) => s.includes("grounded"))).toBe(false);
+    });
+});
+
+describe("Akron Legionnaire (only Akron / artifact creatures you control can attack, CR 508.1c)", () => {
+    it("has the correct definition shape", () => {
+        expect(akronLegionnaire.types).toEqual(["Creature"]);
+        expect(akronLegionnaire.power).toBe(8);
+        expect(akronLegionnaire.toughness).toBe(4);
+        expect(akronLegionnaire.manaCost).toEqual({ X: 6, W: 2 });
+        expect(akronLegionnaire.staticEffects?.[0].kind).toBe(
+            "global-attack-restriction"
+        );
+    });
+
+    it("locks your non-artifact, non-Akron creatures", () => {
+        const akron = makeInstance(akronLegionnaire.id, {
+            id: "akron",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const ally = makeInstance(tundraWolves.id, {
+            id: "ally",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [akron, ally] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(validateAttackerEligibility(ally, [], state).eligible).toBe(
+            false
+        );
+    });
+
+    it("lets Akron itself attack", () => {
+        const akron = makeInstance(akronLegionnaire.id, {
+            id: "akron",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [akron] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(validateAttackerEligibility(akron, [], state).eligible).toBe(
+            true
+        );
+    });
+
+    it("lets your artifact creatures attack", () => {
+        const akron = makeInstance(akronLegionnaire.id, {
+            id: "akron",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const robot = makeInstance(CLAY_STATUE_ID, {
+            id: "robot",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [akron, robot] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(validateAttackerEligibility(robot, [], state).eligible).toBe(
+            true
+        );
+    });
+
+    it("does NOT lock the opponent's creatures (controller-scoped)", () => {
+        const akron = makeInstance(akronLegionnaire.id, {
+            id: "akron",
+            controllerId: "p1",
+        });
+        const enemy = makeInstance(tundraWolves.id, {
+            id: "enemy",
+            controllerId: "p2",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [akron] }),
+                makePlayer("p2", { battlefield: [enemy] }),
+            ],
+        });
+        expect(validateAttackerEligibility(enemy, [], state).eligible).toBe(
+            true
+        );
+    });
+
+    it("the lock survives projection (wire format)", () => {
+        const akron = makeInstance(akronLegionnaire.id, {
+            id: "akron",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const ally = makeInstance(tundraWolves.id, {
+            id: "ally",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [akron, ally] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(
+            state,
+            1,
+            "p1"
+        ) as unknown as typeof state;
+        const slimAlly = projected.players[0].battlefield.find(
+            (c) => c.id === "ally"
+        )!;
+        const slimAkron = projected.players[0].battlefield.find(
+            (c) => c.id === "akron"
+        )!;
+        expect(
+            validateAttackerEligibility(slimAlly, [], projected).eligible
+        ).toBe(false);
+        expect(
+            validateAttackerEligibility(slimAkron, [], projected).eligible
+        ).toBe(true);
+    });
+
+    it("the bot's attacker enumeration respects the lock (moves.ts)", () => {
+        const akron = makeInstance(akronLegionnaire.id, {
+            id: "akron",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const ally = makeInstance(tundraWolves.id, {
+            id: "ally",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const robot = makeInstance(CLAY_STATUE_ID, {
+            id: "robot",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            combat: {
+                attackerIds: [],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+            players: [
+                makePlayer("p1", { battlefield: [akron, ally, robot] }),
+                makePlayer("p2"),
+            ],
+        });
+        const sets = enumerateMoves(state, "p1")
+            .filter(
+                (m): m is Extract<Move, { kind: "declare-attackers" }> =>
+                    m.kind === "declare-attackers"
+            )
+            .map((m) => [...m.attackerIds].sort());
+        // Only Akron and the artifact creature may attack; the vanilla ally
+        // never appears in any declared subset.
+        expect(sets.some((s) => s.includes("ally"))).toBe(false);
+        expect(sets).toContainEqual(["akron", "robot"].sort());
     });
 });
