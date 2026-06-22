@@ -318,6 +318,18 @@ _Avoid_: Side, bench, reserve
 The step between two **Games** of a **Match** where a **Player** may exchange cards between **Maindeck** and **Sideboard**, keeping the **Maindeck** size constant and the combined card pool unchanged. Produces the **Maindeck** used to build the next **Game**'s **Library**.
 _Avoid_: Swapping, boarding, side-in/side-out
 
+**Preset Deck**:
+A curated, shared **Deck** that every **User** can pick but only an **Admin** can edit — the built-in decklists offered in the lobby. Has no **Owner**: it belongs to the application, not to a **User**. Identified by a stable **Slug** (not a Convex id) so external references (saved lobby selection, debug scenarios) survive edits. Distinct from a **User Deck**, which a single **User** owns and edits.
+_Avoid_: Default deck, starter deck, template (overloaded)
+
+**User Deck**:
+A **Deck** owned and edited by a single **User**, private to them. The counterpart to a **Preset Deck**: same shape, but **Owner**-scoped and identified by its Convex id rather than a **Slug**.
+_Avoid_: Custom deck, personal deck
+
+**Slug**:
+A stable, human-readable string key for a **Preset Deck** (e.g. `mono-red-burn`), derived from its name at creation and immutable thereafter. The public identity used wherever a preset is referenced outside the DB (lobby selection persisted client-side, debug scenarios). Distinct from a Convex id, which is random and per-row.
+_Avoid_: ID (overloaded), handle, key
+
 ### Identity
 
 **Player ID**:
@@ -330,6 +342,10 @@ _Avoid_: Player (too vague when control changes)
 
 **Owner**:
 The **Player** who started the game with a card in their **Deck**. Never changes. **Tokens** are owned by the **Controller** who created them.
+
+**Admin**:
+A **User** flagged with elevated rights (`isAdmin` on the users row). The only **User** allowed to create, edit, or delete **Preset Decks**. The flag is the sole authority — server mutations check it directly; hiding controls in the UI is cosmetic only. Distinct from a **Player** (a seat in a **Game**) and from **Owner** (deck/card ownership in a **Game**).
+_Avoid_: Superuser, moderator, root
 
 ### Interaction
 

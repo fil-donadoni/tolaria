@@ -268,7 +268,6 @@ export type NextGameSeat = {
         name: string;
         format: string;
         cards: DeckCard[];
-        sideboard: DeckCard[];
     };
 };
 
@@ -291,9 +290,10 @@ export function buildNextGameSeats(match: {
             id: p.deck.id,
             name: p.deck.name,
             format: p.deck.format,
-            // Defensive copies — the new Game owns its own card arrays.
+            // Defensive copy — the new Game owns its own card array. The
+            // sideboard stays on the Match copy only; the per-Game snapshot
+            // (`games` row) holds the immutable starting maindeck (PRD #387).
             cards: p.deck.maindeck.map((c) => ({ ...c })),
-            sideboard: p.deck.sideboard.map((c) => ({ ...c })),
         },
     }));
 }

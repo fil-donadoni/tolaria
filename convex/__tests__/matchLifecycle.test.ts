@@ -283,9 +283,10 @@ describe("buildNextGameSeats (Bo3 next-Game build, PRD #387)", () => {
         ]);
         // defensive copy — the new Game owns its own arrays
         expect(seats[0].deck.cards).not.toBe(m.players[0].deck.maindeck);
-        expect(seats[0].deck.sideboard).toEqual([
-            { cardId: "s1", cardName: "Side 1" },
-        ]);
+        // the per-Game seat snapshot holds ONLY the maindeck — the sideboard
+        // lives on the Match copy and never reaches the `games` row (PRD #387,
+        // matches the `games` table schema which has no `sideboard` field).
+        expect(seats[0].deck).not.toHaveProperty("sideboard");
     });
 });
 

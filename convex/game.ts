@@ -264,6 +264,24 @@ function buildMatchPlayers(players: PlayerInput[]): MatchPlayer[] {
     }));
 }
 
+/** Projects seat inputs into the immutable per-Game snapshot stored on the
+ *  `games` row. The deck keeps only `{id,name,format,cards}` — the sideboard
+ *  lives on the Match copy (`buildMatchPlayers`), never on the Game (PRD #387).
+ *  Mirrors `buildNextGameSeats` (matches.ts) so all `games` inserts agree. */
+function toGamePlayers(players: PlayerInput[]) {
+    return players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        bgColor: p.bgColor,
+        deck: {
+            id: p.deck.id,
+            name: p.deck.name,
+            format: p.deck.format,
+            cards: p.deck.cards,
+        },
+    }));
+}
+
 // --- Helpers ---
 
 async function getLatestGameState(
@@ -1066,7 +1084,7 @@ export const createGame = mutation({
             matchId,
             gameNumber: 1,
             status: "waiting",
-            players: [player],
+            players: toGamePlayers([player]),
             createdAt: now,
             updatedAt: now,
         });
@@ -1134,7 +1152,7 @@ export const createSoloGame = mutation({
             matchId,
             gameNumber: 1,
             status: "playing",
-            players: allPlayers,
+            players: toGamePlayers(allPlayers),
             solo: true,
             vsAi: args.vsAi === true ? true : undefined,
             createdAt: now,
@@ -1194,7 +1212,7 @@ export const joinGame = mutation({
         // Update game record
         await ctx.db.patch(args.gameId, {
             status: "playing",
-            players: allPlayers,
+            players: toGamePlayers(allPlayers),
             updatedAt: now,
         });
 
