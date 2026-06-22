@@ -11,6 +11,7 @@ import {
 import type { CardInstanceState } from "@convex/gre/state";
 import { getCardById, tryGetCardById } from "@convex/cards";
 import { getColorsFromCost } from "@convex/cards/colors";
+import { negatedLandwalkSubtypes } from "@convex/cards/landwalkNegation";
 
 export function isLand(card: CardInstance): boolean {
     return card.types?.includes("Land") ?? false;
@@ -37,8 +38,14 @@ export function isLandwalkUnblockable(
     defenderBattlefield: CardInstance[]
 ): boolean {
     const abilities = attacker.staticAbilities ?? [];
+    // CR 509.1b / 702.13 — a landwalk-negation static (Great Wall, Undertow)
+    // on the defender's battlefield suppresses the matching landwalk so the
+    // creature can be blocked normally. Mirrors the server rule in
+    // `combatRegistry.ts` so the client's block view agrees with the engine.
+    const negated = negatedLandwalkSubtypes(defenderBattlefield);
     for (const [keyword, subtype] of Object.entries(LANDWALK_KEYWORDS)) {
         if (!abilities.includes(keyword)) continue;
+        if (negated.has(subtype)) continue;
         const hasLand = defenderBattlefield.some(
             (c) => isLand(c) && (c.subtypes?.includes(subtype) ?? false)
         );

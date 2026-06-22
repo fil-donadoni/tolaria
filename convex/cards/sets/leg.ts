@@ -226,6 +226,30 @@ export const righteousAvengers: CardDefinition = {
     staticAbilities: ["plainswalk"],
 };
 
+// Great Wall — global plainswalk negation (CR 509.1b / 702.13). The
+// `landwalk-negation` static is scanned across the defending player's
+// battlefield by the keyword-evasion pass (`combatRegistry.ts`): a creature
+// with plainswalk can then be blocked as though it didn't have it, regardless
+// of the defender's Plains. Parametric `subtypes` shares one kind with
+// Undertow (Island) and the LEG suppression statics (Gosta Dirk et al.).
+export const greatWall: CardDefinition = {
+    id: "cd860a1d-aa17-4579-b9b1-d101d2416387",
+    name: "Great Wall",
+    oracleText:
+        "Creatures with plainswalk can be blocked as though they didn't have plainswalk.",
+    manaCost: { X: 2, W: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "landwalk-negation",
+            id: "great-wall-plainswalk-negation",
+            subtypes: ["Plains"],
+            oracleText:
+                "Creatures with plainswalk can be blocked as though they didn't have plainswalk.",
+        },
+    ],
+};
+
 // Keepers of the Faith — vanilla 2/3 (CR 208 — stats only).
 export const keepersOfTheFaith: CardDefinition = {
     id: "b63a69ae-99ce-4d26-88b7-784793c43cd4",
@@ -787,7 +811,6 @@ export const visions: CardDefinition = {
 //     - Silhouette — prevent damage from sources that TARGET a chosen creature.
 //     - Telekinesis — tap + prevent its combat damage + skip its next two untap
 //       steps (no multi-step untap-skip primitive).
-//     - Undertow — global islandwalk negation (no evasion-negation static).
 //     - Dream Coat — "{0}: enchanted creature becomes the color or colors of
 //       your choice" (multi-color free-choice primitive).
 //     - Psychic Purge — its punisher half is a from-hand discard trigger (no
@@ -899,6 +922,28 @@ export const zephyrFalcon: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["flying", "vigilance"],
+};
+
+// Undertow — global islandwalk negation (CR 509.1b / 702.13). Twin of Great
+// Wall via the shared parametric `landwalk-negation` static, differing only in
+// the negated subtype (Island). Creatures with islandwalk can be blocked as
+// though they didn't have it, regardless of the defender's Islands.
+export const undertow: CardDefinition = {
+    id: "cf05e5c9-b7e4-4bd8-ab73-b54565710527",
+    name: "Undertow",
+    oracleText:
+        "Creatures with islandwalk can be blocked as though they didn't have islandwalk.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "landwalk-negation",
+            id: "undertow-islandwalk-negation",
+            subtypes: ["Island"],
+            oracleText:
+                "Creatures with islandwalk can be blocked as though they didn't have islandwalk.",
+        },
+    ],
 };
 
 // Devouring Deep — islandwalk (CR 702.19 landwalk variant).
@@ -1399,7 +1444,8 @@ function colorsOf(view: { card: Record<string, unknown> }): string[] {
 //   • Vampire Bats — "{B}: +1/+0, activate no more than TWICE each turn" needs a
 //     numeric per-turn activation cap (only `oncePerTurn` exists).
 //   • Quagmire — "creatures with swampwalk can be blocked as though they didn't
-//     have swampwalk" needs a global landwalk-suppression static.
+//     have swampwalk" — buildable with the `landwalk-negation` static (Great
+//     Wall / Undertow, #484), `subtypes: ["Swamp"]`. Deferred to its tranche.
 //   • Demonic Torment, Evil Eye of Orms-by-Gore — emit can't-attack restrictions
 //     onto OTHER creatures. UNBLOCKED by the `global-attack-restriction` static
 //     shipped with Moat / Akron Legionnaire (#481): a battlefield-scanned
@@ -2046,8 +2092,9 @@ export const darkness: CardDefinition = {
 //     a self-copy of a resolving spell with a may-pay gate; `copyStackItem`
 //     copies a DIFFERENT spell still on the stack, not the resolving one.
 //   • Crevasse — "creatures with mountainwalk can be blocked as though they
-//     didn't have mountainwalk" needs a global landwalk-suppression static
-//     (same gap flagged for Quagmire / Undertow in earlier tranches).
+//     didn't have mountainwalk" — buildable with the `landwalk-negation` static
+//     (Great Wall / Undertow, #484), `subtypes: ["Mountain"]`. Deferred to its
+//     tranche.
 //   • Crimson Manticore — "{R}, {T}: deal 1 damage to target attacking OR
 //     blocking creature"; `combatRoleFilter` admits only one role at a time, no
 //     combined "attacking-or-blocking" target filter.
@@ -2672,8 +2719,9 @@ export const windsOfChange: CardDefinition = {
 //     spell on what IT targets; the `spell` target requirement only filters the
 //     spell's own types, not its targets.
 //   • Deadfall — "creatures with forestwalk can be blocked as though they
-//     didn't have forestwalk" needs a global landwalk-suppression static (same
-//     gap flagged for Crevasse / Quagmire / Undertow in earlier tranches).
+//     didn't have forestwalk" — buildable with the `landwalk-negation` static
+//     (Great Wall / Undertow, #484), `subtypes: ["Forest"]`. Deferred to its
+//     tranche.
 //   • Eureka — "starting with you, each player may put a permanent card from
 //     hand onto the battlefield; repeat until no one does" needs an alternating
 //     multi-player put-from-hand loop with no primitive.
@@ -3131,9 +3179,10 @@ export const sylvanParadise: CardDefinition = {
 //     dealer; no such surface exists (same gap flagged for Blazing Effigy).
 //   • Gosta Dirk / Lord Magnus / Ur-Drago — each carries a landwalk-suppression
 //     static ("creatures with islandwalk/forestwalk/plainswalk/swampwalk can be
-//     blocked as though they didn't have it"); no global landwalk-suppression
-//     primitive (same gap flagged for Crevasse). Can't ship partial (their
-//     keyword half alone isn't the printed card).
+//     blocked as though they didn't have it"). The `landwalk-negation` static
+//     (Great Wall / Undertow, #484) now expresses the suppression half with a
+//     multi-subtype `subtypes` array; these creatures are buildable once their
+//     remaining halves (keyword grant + P/T) are wired in a follow-up.
 //   • Hazezon Tamar — delayed X 1/1 Sand Warrior tokens at the next upkeep plus
 //     a leaves-the-battlefield "exile all Sand Warriors" sweep keyed by token
 //     name across both players; the cross-board named-token tracking has no

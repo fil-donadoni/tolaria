@@ -249,6 +249,29 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // #484 Great Wall — {2}{W} Enchantment. "Creatures with plainswalk can
+        // be blocked as though they didn't have plainswalk." (CR 509.1b /
+        // 702.13 — a battlefield-scanned `landwalk-negation` static that
+        // suppresses the matching landwalk's evasion.) The opponent attacks
+        // with Righteous Avengers (plainswalk 3/1); you control a Plains, a
+        // Tundra Wolves (1/1 blocker) and Great Wall. Golden path:
+        //   1. Switch to the opponent's seat and attack with Righteous Avengers.
+        //   2. Advance to DECLARE_BLOCKERS on your seat.
+        //   3. Without Great Wall, plainswalk + your Plains would make the
+        //      attacker unblockable. WITH Great Wall, the Tundra Wolves lights
+        //      up and can be assigned to block. (Undertow is the islandwalk
+        //      twin — same parametric static, `subtypes: ["Island"]`.)
+        label: "LEG: Great Wall — plainswalk blockable despite a Plains (#484)",
+        cards: [
+            { name: "Righteous Avengers", owner: "opp" as const },
+            { name: "Great Wall", owner: "me" as const },
+            { name: "Tundra Wolves", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, count: 1 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Mana Drain — {U}{U} Instant. "Counter target spell. At the beginning
         // of your next main phase, add an amount of {C} equal to that spell's
         // mana value." (CR 701.5a counter + CR 603.7/505 next-main-phase
