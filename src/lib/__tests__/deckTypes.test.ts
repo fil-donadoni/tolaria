@@ -5,7 +5,7 @@
 import { describe, it, expect } from "vitest";
 import type { Doc } from "@convex/_generated/dataModel";
 import type { DeckPreset } from "@convex/deckPresets";
-import { toUserLobbyDeck, toPresetLobbyDeck } from "../deckTypes";
+import { toUserLobbyDeck, toPresetLobbyDeck, selectPreset } from "../deckTypes";
 
 function userDeck(overrides: Partial<Doc<"userDecks">> = {}): Doc<"userDecks"> {
     return {
@@ -59,5 +59,49 @@ describe("toPresetLobbyDeck (issue #391)", () => {
             sideboard: [{ cardId: "x", cardName: "X" }],
         });
         expect(deck.sideboard).toEqual([{ cardId: "x", cardName: "X" }]);
+    });
+});
+
+describe("selectPreset — null-safe stored-selection fallback (issue #470)", () => {
+    const decks = [
+        toPresetLobbyDeck({
+            presetId: "mono-red-burn",
+            name: "Mono Red Burn",
+            format: "Freeform",
+            description: "",
+            colors: ["R"],
+            cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],
+        }),
+        toPresetLobbyDeck({
+            presetId: "white-weenie",
+            name: "White Weenie",
+            format: "Freeform",
+            description: "",
+            colors: ["W"],
+            cards: [{ cardId: "lions", cardName: "Savannah Lions" }],
+        }),
+    ];
+
+    it("returns the matching deck when the stored id is present", () => {
+        expect(selectPreset(decks, "mono-red-burn")?.presetId).toBe(
+            "mono-red-burn"
+        );
+    });
+
+    it("falls back to null when the stored slug was deleted (no crash)", () => {
+        // Admin deleted the preset this selection pointed at — the slug is now
+        // absent from the list. The lookup must resolve to no selection, never
+        // throw.
+        expect(selectPreset(decks, "mono-red-burn")).not.toBeNull();
+        const afterDelete = decks.filter((d) => d.presetId !== "mono-red-burn");
+        expect(selectPreset(afterDelete, "mono-red-burn")).toBeNull();
+    });
+
+    it("returns null for a null stored selection (nothing chosen)", () => {
+        expect(selectPreset(decks, null)).toBeNull();
+    });
+
+    it("returns null for an unknown id against an empty deck list", () => {
+        expect(selectPreset([], "anything")).toBeNull();
     });
 });

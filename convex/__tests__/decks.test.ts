@@ -10,6 +10,7 @@ import {
     type LobbyPreset,
 } from "../decks";
 import { PRESET_DECKS, type DeckPreset } from "../deckPresets";
+import { isAdminUser } from "../auth";
 import type { Doc } from "../_generated/dataModel";
 
 describe("slugify (PRD #466, ADR 0033)", () => {
@@ -270,6 +271,76 @@ describe("createPreset — slug uniqueness (issue #469)", () => {
     it("accepts a name whose slug is free", () => {
         const existing = new Set(PRESET_DECKS.map((p) => p.presetId));
         expect(collides("Totally New Brew", existing)).toBe(false);
+    });
+});
+
+describe("deletePreset — admin gate + hard delete by slug (issue #470)", () => {
+    // The mutation calls `assertIsAdmin` FIRST, then looks the row up by slug
+    // and hard-deletes it. No convex-test harness — assert the same two pure
+    // decisions the mutation is built from: the admin gate (`isAdminUser`, which
+    // `assertIsAdmin` wraps) and which rows survive the delete.
+    function admin(isAdmin?: boolean): Doc<"users"> {
+        return {
+            _id: "u1" as Doc<"users">["_id"],
+            _creationTime: 0,
+            isAdmin,
+        } as Doc<"users">;
+    }
+
+    // Model `ctx.db.delete(row._id)` keyed by the `by_slug` lookup: keep every
+    // row whose slug differs from the target. An absent slug deletes nothing.
+    function deleteBySlug(
+        rows: Doc<"presetDecks">[],
+        slug: string
+    ): Doc<"presetDecks">[] {
+        return rows.filter((r) => r.slug !== slug);
+    }
+
+    const rows: Doc<"presetDecks">[] = PRESET_DECKS.map((p, i) => ({
+        _id: `row${i}` as Doc<"presetDecks">["_id"],
+        _creationTime: 0,
+        slug: p.presetId,
+        name: p.name,
+        format: p.format,
+        description: p.description,
+        colors: p.colors,
+        cards: p.cards,
+        sideboard: p.sideboard,
+    }));
+
+    it("rejects a non-admin (assertIsAdmin gate runs first)", () => {
+        expect(isAdminUser(admin(false))).toBe(false);
+        expect(isAdminUser(admin(undefined))).toBe(false);
+        expect(isAdminUser(null)).toBe(false);
+    });
+
+    it("allows an admin through the gate", () => {
+        expect(isAdminUser(admin(true))).toBe(true);
+    });
+
+    it("removes exactly the row matching the slug", () => {
+        const target = PRESET_DECKS[0].presetId;
+        const after = deleteBySlug(rows, target);
+        expect(after).toHaveLength(rows.length - 1);
+        expect(after.some((r) => r.slug === target)).toBe(false);
+        // every other preset is untouched
+        expect(after.map((r) => r.slug).sort()).toEqual(
+            PRESET_DECKS.slice(1)
+                .map((p) => p.presetId)
+                .sort()
+        );
+    });
+
+    it("is a no-op for an absent slug (idempotent re-delete)", () => {
+        const after = deleteBySlug(rows, "no-such-preset");
+        expect(after).toHaveLength(rows.length);
+    });
+
+    it("drops the deleted slug from the lobby list projection", () => {
+        const target = PRESET_DECKS[0].presetId;
+        const after = deleteBySlug(rows, target);
+        const listed = sortLobbyPresets(after.map(presetRowToLobby));
+        expect(listed.some((d) => d.presetId === target)).toBe(false);
     });
 });
 

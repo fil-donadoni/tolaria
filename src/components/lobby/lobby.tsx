@@ -9,6 +9,7 @@ import { usePageVisible } from "~/hooks/usePageVisible";
 import { useUserDecks, useUserDeckMutations } from "~/hooks/useUserDecks";
 import {
     deckPayload,
+    selectPreset,
     toPresetLobbyDeck,
     type LobbyDeck,
 } from "~/lib/deckTypes";
@@ -56,6 +57,7 @@ function Lobby() {
     const [actionError, setActionError] = useState<string | null>(null);
     const userDecks = useUserDecks();
     const { remove: removeUserDeck } = useUserDeckMutations();
+    const deletePreset = useMutation(api.decks.deletePreset);
 
     const pageVisible = usePageVisible();
     const presetDecks = useQuery(api.decks.list, pageVisible ? {} : "skip");
@@ -87,15 +89,17 @@ function Lobby() {
         [userLobbyDecks, presetLobbyDecks]
     );
 
+    // Null-safe: a stale stored id (e.g. an admin deleted the preset it pointed
+    // at, issue #470) resolves to no selection instead of throwing.
     const selectedDeck = useMemo(
-        () => allDecks.find((d) => d.presetId === storedPresetId) ?? null,
+        () => selectPreset(allDecks, storedPresetId),
         [allDecks, storedPresetId]
     );
 
     // null aiDeckId → mirror the human's deck. A stale id (deleted deck) also
     // resolves to null here and silently falls back to mirror at create time.
     const selectedAiDeck = useMemo(
-        () => allDecks.find((d) => d.presetId === aiDeckId) ?? null,
+        () => selectPreset(allDecks, aiDeckId),
         [allDecks, aiDeckId]
     );
 
@@ -232,15 +236,44 @@ function Lobby() {
         setDeleteTarget(deck);
     };
 
-    const confirmDelete = async () => {
-        if (!deleteTarget || deleteTarget.kind !== "user") return;
-        const presetId = deleteTarget.presetId;
-        await removeUserDeck({ id: deleteTarget.userDeckId });
+    // Admin-only: open the in-app confirmation for deleting a preset (issue
+    // #470). Never the native confirm() — it freezes the MCP debug session.
+    const handleDeletePreset = (presetId: string) => {
+        const deck = presetLobbyDecks.find((d) => d.presetId === presetId);
+        if (!deck || deck.kind !== "preset") return;
+        setDeleteTarget(deck);
+    };
+
+    // Clears a stored lobby selection that pointed at the just-deleted deck so
+    // the next render falls back to no selection (selectPreset is null-safe
+    // even if this is skipped — this is the eager local clear).
+    const clearSelectionIfDeleted = (presetId: string) => {
         if (storedPresetId === presetId) {
             setStoredPresetId(null);
             clearDeckPresetId();
         }
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteTarget) return;
+        const target = deleteTarget;
         setDeleteTarget(null);
+        setActionError(null);
+        try {
+            if (target.kind === "user") {
+                await removeUserDeck({ id: target.userDeckId });
+            } else {
+                // Server re-checks admin via assertIsAdmin — the UI gate is
+                // cosmetic. After the hard delete the preset leaves
+                // api.decks.list reactively for every client.
+                await deletePreset({ slug: target.presetId });
+            }
+            clearSelectionIfDeleted(target.presetId);
+        } catch (err) {
+            setActionError(
+                err instanceof Error ? err.message : "Failed to delete deck."
+            );
+        }
     };
 
     const handleNewDeck = () => {
@@ -287,13 +320,22 @@ function Lobby() {
 
     const renderPresetActions = isAdmin
         ? (deck: LobbyDeck) => (
-              <button
-                  onClick={() => handleEditPreset(deck.presetId)}
-                  className="btn-base btn-tone-secondary px-3 py-2 text-xs"
-                  title="Edit preset (admin)"
-              >
-                  Edit
-              </button>
+              <>
+                  <button
+                      onClick={() => handleEditPreset(deck.presetId)}
+                      className="btn-base btn-tone-secondary px-3 py-2 text-xs"
+                      title="Edit preset (admin)"
+                  >
+                      Edit
+                  </button>
+                  <button
+                      onClick={() => handleDeletePreset(deck.presetId)}
+                      className="btn-base btn-tone-destructive px-3 py-2 text-xs"
+                      title="Delete preset (admin)"
+                  >
+                      Delete
+                  </button>
+              </>
           )
         : undefined;
 
