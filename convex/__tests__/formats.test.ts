@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
     assertDeckLegal,
+    checkAlpha40CopyCaps,
     checkBanned,
+    checkCategoryBudgets,
     checkCopyLimit,
     checkRestricted,
     checkSets,
@@ -690,5 +692,244 @@ describe("normalizeLegacyFormat — migration (ADR 0036)", () => {
             "old-school",
             "freeform",
         ]);
+    });
+});
+
+// --- Alpha 40 full legality (issue #517, ADR 0036) ------------------------
+//
+// Exercised against the REAL registry resolver: this also asserts every list id
+// resolves to its named lea/leb card (a typo in a list id would surface here).
+// Rarity caps derive from each card's printed rarity; the named lists are EC
+// policy ∩ pool. Decks are padded with basics (unlimited, exempt) to clear the
+// 40-card minimum so each test isolates the cap under scrutiny.
+describe("Alpha 40 full legality (issue #517, ADR 0036)", () => {
+    // Neutral cards on NO special list — governed purely by their rarity cap.
+    const GRIZZLY_BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // common
+    const AIR_ELEMENTAL = "69c3b2a3-0daa-4d42-832d-fcdfda6555ea"; // uncommon
+    const SHIVAN_DRAGON = "fefbf149-f988-4f8b-9f53-56f5878116a6"; // rare
+    // Moderated (3 regardless of rarity).
+    const LIGHTNING_BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // common
+    const COUNTERSPELL = "0df55e3f-14de-46ef-b6b1-616618724d9e"; // uncommon
+    // Category-budget members (1 total per group).
+    const BLACK_LOTUS = "b0faa7f2-b547-42c4-a810-839da50dadfe"; // Fast Mana
+    const MOX_SAPPHIRE = "82da0972-b17b-4600-9efd-e9430a0db04b"; // Fast Mana
+    const TIME_WALK = "e0139f60-d48e-46fb-9f5a-1e3d7558c834"; // Power
+    const BRAINGEYSER = "62b19a12-6914-430e-81ce-dcfca47884df"; // Draw
+    const ANCESTRAL_RECALL = "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b"; // Power+Draw
+    // Restricted (1) and Banned (0).
+    const WRATH_OF_GOD = "a2788d69-6a3a-42f0-8736-cc6b57755ecd";
+    const UNDERGROUND_SEA = "ff76ac86-8a8a-47fe-9388-8950ca3e26c3";
+    const MIND_TWIST = "eee9e106-a248-49d2-b8c8-6bbcd56ce739";
+    const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // basic land
+
+    // Pad a deck with basic Mountains up to a 40-card maindeck so size-min never
+    // fires; the caller supplies the non-basic cards under test.
+    function alpha40Deck(cards: DeckCard[]): ValidatableDeck {
+        const padding = Math.max(0, 40 - cards.length);
+        return { cards: [...cards, ...repeat(MOUNTAIN, padding)] };
+    }
+    function reasonCodes(deck: ValidatableDeck): string[] {
+        return validateDeck(deck, "alpha-40").reasons.map((r) => r.code);
+    }
+
+    describe("rarity caps — common ∞ / uncommon ≤6 / rare ≤3", () => {
+        it("an uncommon at 6 is legal, at 7 is illegal", () => {
+            expect(
+                reasonCodes(alpha40Deck(repeat(AIR_ELEMENTAL, 6)))
+            ).not.toContain("rarity-cap");
+            expect(
+                reasonCodes(alpha40Deck(repeat(AIR_ELEMENTAL, 7)))
+            ).toContain("rarity-cap");
+        });
+
+        it("a rare at 3 is legal, at 4 is illegal", () => {
+            expect(
+                reasonCodes(alpha40Deck(repeat(SHIVAN_DRAGON, 3)))
+            ).not.toContain("rarity-cap");
+            expect(
+                reasonCodes(alpha40Deck(repeat(SHIVAN_DRAGON, 4)))
+            ).toContain("rarity-cap");
+        });
+
+        it("a common is unlimited (10 copies legal)", () => {
+            expect(
+                reasonCodes(alpha40Deck(repeat(GRIZZLY_BEARS, 10)))
+            ).not.toContain("rarity-cap");
+        });
+
+        it("basics are exempt from every cap (40 Mountains legal)", () => {
+            expect(validateDeck(alpha40Deck([]), "alpha-40").isLegal).toBe(
+                true
+            );
+        });
+    });
+
+    describe("Moderated override — 3 copies regardless of rarity", () => {
+        it("a Moderated common at 3 is legal, at 4 is illegal", () => {
+            expect(
+                reasonCodes(alpha40Deck(repeat(LIGHTNING_BOLT, 3)))
+            ).not.toContain("moderated");
+            expect(
+                reasonCodes(alpha40Deck(repeat(LIGHTNING_BOLT, 4)))
+            ).toContain("moderated");
+        });
+
+        it("a Moderated uncommon caps at 3, not its rarity 6", () => {
+            // Counterspell is uncommon (rarity cap 6) but Moderated to 3.
+            const codes = reasonCodes(alpha40Deck(repeat(COUNTERSPELL, 4)));
+            expect(codes).toContain("moderated");
+            expect(codes).not.toContain("rarity-cap");
+        });
+    });
+
+    describe("Category Budgets — one card total per group", () => {
+        it("two different Fast Mana cards are illegal; one is legal", () => {
+            expect(
+                reasonCodes(
+                    alpha40Deck([card(BLACK_LOTUS), card(MOX_SAPPHIRE)])
+                )
+            ).toContain("category-budget");
+            expect(reasonCodes(alpha40Deck([card(BLACK_LOTUS)]))).not.toContain(
+                "category-budget"
+            );
+        });
+
+        it("a card in two categories consumes BOTH budgets (Ancestral Recall)", () => {
+            // Ancestral alone (1 Power, 1 Draw) is legal.
+            expect(
+                reasonCodes(alpha40Deck([card(ANCESTRAL_RECALL)]))
+            ).not.toContain("category-budget");
+            // Ancestral + another Power card → Power group over budget.
+            expect(
+                reasonCodes(
+                    alpha40Deck([card(ANCESTRAL_RECALL), card(TIME_WALK)])
+                )
+            ).toContain("category-budget");
+            // Ancestral + another Draw card → Draw group over budget.
+            expect(
+                reasonCodes(
+                    alpha40Deck([card(ANCESTRAL_RECALL), card(BRAINGEYSER)])
+                )
+            ).toContain("category-budget");
+        });
+
+        it("names the offending group in the reason", () => {
+            const { reasons } = validateDeck(
+                alpha40Deck([card(BLACK_LOTUS), card(MOX_SAPPHIRE)]),
+                "alpha-40"
+            );
+            expect(
+                reasons.some(
+                    (r) =>
+                        r.code === "category-budget" &&
+                        r.message.includes("Fast Mana")
+                )
+            ).toBe(true);
+        });
+    });
+
+    describe("Restricted (1) and Banned (0)", () => {
+        it("two copies of a Restricted card are illegal; one is legal", () => {
+            expect(
+                reasonCodes(alpha40Deck(repeat(UNDERGROUND_SEA, 2)))
+            ).toContain("restricted");
+            expect(
+                reasonCodes(alpha40Deck(repeat(UNDERGROUND_SEA, 1)))
+            ).not.toContain("restricted");
+        });
+
+        it("a Banned card present is illegal", () => {
+            expect(reasonCodes(alpha40Deck([card(MIND_TWIST)]))).toContain(
+                "banned"
+            );
+        });
+
+        it("a Restricted card reports only the restricted reason, not a rarity cap", () => {
+            // Wrath of God is rare (cap 3) and Restricted (1): at 2 copies only
+            // the tighter restricted reason fires (precedence).
+            const codes = reasonCodes(alpha40Deck(repeat(WRATH_OF_GOD, 2)));
+            expect(codes).toContain("restricted");
+            expect(codes).not.toContain("rarity-cap");
+        });
+    });
+
+    describe("size + set membership", () => {
+        it("a non-empty sideboard is illegal (maxSide 0)", () => {
+            const deck: ValidatableDeck = {
+                cards: repeat(MOUNTAIN, 40),
+                sideboard: [card(GRIZZLY_BEARS)],
+            };
+            expect(reasonCodes(deck)).toContain("size-max-side");
+        });
+
+        it("a non-lea/leb card is illegal", () => {
+            // The Abyss is a Legends card — not in the Alpha 40 pool.
+            const THE_ABYSS = "86a27d68-3e58-4ade-976d-36381beed451";
+            expect(reasonCodes(alpha40Deck([card(THE_ABYSS)]))).toContain(
+                "set-not-allowed"
+            );
+        });
+
+        it("an under-40 maindeck is illegal", () => {
+            expect(
+                validateDeck(
+                    { cards: repeat(MOUNTAIN, 39) },
+                    "alpha-40"
+                ).reasons.map((r) => r.code)
+            ).toContain("size-min");
+        });
+    });
+
+    it("a fully legal Alpha 40 deck reports legal", () => {
+        // 3 Bolt (moderated≤3) + 1 Black Lotus (Fast Mana) + 1 Ancestral
+        // (Power+Draw, 1 each) + 3 Shivan (rare≤3) + 6 Air Elemental
+        // (uncommon≤6) + 10 Grizzly (common ∞) + 16 Mountain = 40.
+        const deck: ValidatableDeck = {
+            cards: [
+                ...repeat(LIGHTNING_BOLT, 3),
+                card(BLACK_LOTUS),
+                card(ANCESTRAL_RECALL),
+                ...repeat(SHIVAN_DRAGON, 3),
+                ...repeat(AIR_ELEMENTAL, 6),
+                ...repeat(GRIZZLY_BEARS, 10),
+                ...repeat(MOUNTAIN, 16),
+            ],
+        };
+        expect(validateDeck(deck, "alpha-40").isLegal).toBe(true);
+    });
+
+    describe("helpers in isolation (real registry)", () => {
+        it("checkCategoryBudgets fires once per over-budget group", () => {
+            const deck = alpha40Deck([
+                card(BLACK_LOTUS),
+                card(MOX_SAPPHIRE),
+                card(ANCESTRAL_RECALL),
+                card(TIME_WALK),
+            ]);
+            const categories = [
+                { name: "Mana", cards: new Set([BLACK_LOTUS, MOX_SAPPHIRE]) },
+                {
+                    name: "Power",
+                    cards: new Set([ANCESTRAL_RECALL, TIME_WALK]),
+                },
+            ];
+            const reasons = checkCategoryBudgets(
+                deck,
+                categories,
+                resolveDeckCardMeta
+            );
+            // Both groups are over budget → one reason each.
+            expect(reasons.length).toBe(2);
+        });
+
+        it("checkAlpha40CopyCaps skips category/restricted/banned cards", () => {
+            // Black Lotus (Fast Mana) at 2 copies is a category violation, NOT a
+            // copy-cap one — checkAlpha40CopyCaps must stay silent on it.
+            const reasons = checkAlpha40CopyCaps(
+                alpha40Deck(repeat(BLACK_LOTUS, 2)),
+                resolveDeckCardMeta
+            );
+            expect(reasons).toEqual([]);
+        });
     });
 });
