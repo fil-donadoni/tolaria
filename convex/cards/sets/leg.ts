@@ -6297,3 +6297,38 @@ export const halfdane: CardDefinition = {
         }),
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Giant Turtle (#490) — "attacked during your last turn" self attack
+// restriction.
+//
+// CR 508.1 — a creature's attack-restriction static is checked when it's
+// declared as an attacker. The engine snapshots `attackedDuringLastTurn` per
+// creature at its controller's CLEANUP (phases.ts `finalizeCleanup`, before
+// `hasAttackedThisTurn` is cleared), so the predicate reads whether THIS
+// creature attacked during its controller's most recent PRIOR turn — never the
+// current one. Reuses the generic self `attack-restriction` plumbing
+// (validateAttackerEligibility → collectAttackRestrictions), so the rule is
+// data-driven and not hardcoded to Giant Turtle.
+export const giantTurtle: CardDefinition = {
+    id: "87e5fc19-3b10-476f-9a73-e8bf4b5fbec0",
+    rarity: "common",
+    name: "Giant Turtle",
+    oracleText:
+        "This creature can't attack if it attacked during your last turn.",
+    manaCost: { X: 1, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Turtle"],
+    power: 2,
+    toughness: 4,
+    staticEffects: [
+        {
+            kind: "attack-restriction",
+            id: "giant-turtle-rest-this-turn",
+            oracleText:
+                "This creature can't attack if it attacked during your last turn.",
+            // CR 508.1 — legal only when it did NOT attack last turn.
+            predicate: (self) => self.attackedDuringLastTurn !== true,
+        },
+    ],
+};

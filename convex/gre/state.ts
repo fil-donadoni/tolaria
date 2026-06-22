@@ -194,6 +194,16 @@ export type CardInstanceState = {
      *  "if it attacked or blocked this combat" can see it. Cleared at
      *  CLEANUP. */
     hasBlockedThisTurn?: boolean;
+    /** Per-creature turn-history flag (CR 508.1 / 514.2): true when this
+     *  creature attacked during its controller's MOST RECENT PRIOR turn.
+     *  Snapshotted from `hasAttackedThisTurn` at the active player's CLEANUP
+     *  (in `finalizeCleanup`, before that flag is cleared) so it survives into
+     *  the controller's next turn. Read by the self attack-restriction
+     *  predicate for "can't attack if it attacked during your last turn"
+     *  (Giant Turtle, LEG). Updated only at the controller's own cleanup, so
+     *  it always reflects the controller's previous turn, never the current
+     *  one. */
+    attackedDuringLastTurn?: boolean;
     /** Set the moment this permanent deals damage to a player who is not its
      *  controller (i.e. an opponent), for the remainder of the turn (CR 120.3).
      *  Read by end-step "if ~ dealt damage to an opponent this turn" triggers

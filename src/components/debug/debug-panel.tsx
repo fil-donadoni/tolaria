@@ -49,6 +49,10 @@ type PresetScenario = {
         /** Pre-seed counters (CR 122) on a battlefield permanent — e.g.
          *  `{ "+1/+1": 3 }` (Triskelion) or `{ doom: 2 }` (Armageddon Clock). */
         counters?: Record<string, number>;
+        /** Mark this battlefield creature as having attacked during its
+         *  controller's previous turn (CR 508.1) — sets `attackedDuringLastTurn`
+         *  so self attack-restrictions (Giant Turtle #490) fire on declare. */
+        attackedLastTurn?: boolean;
     }[];
     phase: string;
     landCount: number;
@@ -744,6 +748,27 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Arboria", owner: "me" as const },
             { name: "Grizzly Bears", owner: "me" as const, count: 2 },
             { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "DECLARE_ATTACKERS",
+        landCount: 0,
+    },
+    {
+        // Giant Turtle (#490) — "This creature can't attack if it attacked
+        // during your last turn" (CR 508.1). Golden path:
+        //   • You control a Giant Turtle flagged as having attacked last turn,
+        //     plus a Grizzly Bears (the control), in DECLARE_ATTACKERS.
+        //   • The Turtle CAN'T be declared as an attacker (the engine grays it
+        //     out and the server rejects it); the Bears attack normally.
+        //   • Declare the Bears, pass the turn, and on your next turn — having
+        //     sat the Turtle out — the restriction lifts and it can attack.
+        label: "LEG: Giant Turtle can't attack the turn after it attacked (#490)",
+        cards: [
+            {
+                name: "Giant Turtle",
+                owner: "me" as const,
+                attackedLastTurn: true,
+            },
+            { name: "Grizzly Bears", owner: "me" as const },
         ],
         phase: "DECLARE_ATTACKERS",
         landCount: 0,

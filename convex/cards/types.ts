@@ -1807,6 +1807,12 @@ export interface PermanentView {
     /** True if the creature was declared as a blocker this turn. Mirrors
      *  `hasAttackedThisTurn` for end-of-combat triggers like Clockwork Beast. */
     hasBlockedThisTurn?: boolean;
+    /** True if this creature attacked during its controller's MOST RECENT
+     *  PRIOR turn (CR 508.1 / 514.2). Snapshotted at the controller's CLEANUP
+     *  so it survives into the next turn. Read by the self attack-restriction
+     *  predicate for "can't attack if it attacked during your last turn"
+     *  (Giant Turtle, LEG). */
+    attackedDuringLastTurn?: boolean;
     /** True if this permanent has dealt damage to an opponent (a player other
      *  than its controller) this turn (CR 120.3). Read by end-step triggers
      *  like Whirling Dervish's "if this creature dealt damage to an opponent

@@ -5695,6 +5695,12 @@ export const debugSetupScenario = mutation({
                  *  e.g. `{ "+1/+1": 3 }` for Triskelion or `{ doom: 2 }` for
                  *  Armageddon Clock. Keyed by counter type. Battlefield only. */
                 counters: v.optional(v.record(v.string(), v.number())),
+                /** Mark this battlefield creature as having attacked during its
+                 *  controller's previous turn (CR 508.1) — sets
+                 *  `attackedDuringLastTurn` so self attack-restrictions
+                 *  ("can't attack if it attacked during your last turn",
+                 *  Giant Turtle #490) fire immediately. Battlefield only. */
+                attackedLastTurn: v.optional(v.boolean()),
             })
         ),
         phase: v.optional(v.string()),
@@ -5811,6 +5817,10 @@ export const debugSetupScenario = mutation({
                         (instance as CardInstanceState).counters = {
                             ...entry.counters,
                         };
+                    }
+                    if (entry.attackedLastTurn) {
+                        (instance as CardInstanceState).attackedDuringLastTurn =
+                            true;
                     }
                     player.battlefield.push(instance);
                 }
