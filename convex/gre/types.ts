@@ -95,6 +95,17 @@ export type OrderChoiceKind = "mulligan-bottom";
  *  mutation. */
 export type OptionChoiceKind = "option-pick";
 
+/** Open name-a-card choice (CR 202.3 / 701.x "chooses a card name"). The
+ *  chooser names ANY card — the candidate set is the whole card registry, not
+ *  a zone or an author-supplied allow-list. Unlike every other family the
+ *  submission is a STRING (the chosen card name), not a list of instance ids;
+ *  the value is validated server-side against the registry and carried on
+ *  `PendingChoice.chosenName` (echoed for display) + written into
+ *  `collectedChoices` so the resolve step reads it back. Flows through its own
+ *  `submitNameCard` mutation (like `may-pay` → `submitMayPay`). Used by Petra
+ *  Sphinx ("Target player chooses a card name …") and unblocks Nebuchadnezzar. */
+export type NameCardChoiceKind = "name-card";
+
 /** Random-reveal family (CR 705, ADR 0023). Unlike every other pending-choice
  *  family the chooser makes NO decision: the *engine* draws the outcome from
  *  the seeded PRNG, persists it on the choice, and suspends resolution BEFORE
@@ -133,4 +144,5 @@ export type PendingChoiceKind =
     | YesNoChoiceKind
     | OrderChoiceKind
     | OptionChoiceKind
+    | NameCardChoiceKind
     | RandomRevealKind;

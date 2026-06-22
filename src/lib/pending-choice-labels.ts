@@ -31,6 +31,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "mulligan-bottom": "Mulligan",
     // option family
     "option-pick": "Choose",
+    // name-card family (CR 202.3)
+    "name-card": "Name a card",
     // random-reveal family (CR 705, ADR 0023)
     "random-reveal": "Coin flip",
 };

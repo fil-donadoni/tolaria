@@ -767,6 +767,23 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).pendingChoices).toEqual(state.pendingChoices);
     });
 
+    it("pendingChoices with name-card choice (#489, CR 202.3)", () => {
+        const state = freshState();
+        state.pendingChoices = [
+            {
+                stackItemId: "sphinx",
+                step: 0,
+                choiceId: "petra-name",
+                playerId: "p1",
+                kind: "name-card",
+                count: 1,
+                prompt: "Name a card.",
+                chosenName: "Tundra Wolves",
+            },
+        ];
+        expect(roundTrip(state).pendingChoices).toEqual(state.pendingChoices);
+    });
+
     it("pendingChoices with random-reveal outcome (#301, CR 705 / ADR 0023)", () => {
         const state = freshState();
         state.pendingChoices = [

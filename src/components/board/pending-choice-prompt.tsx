@@ -15,6 +15,7 @@ import {
     pendingChoiceMax,
 } from "~/lib/pending-choice-confirm";
 import PendingChoiceOptions from "~/components/board/pending-choice-options";
+import CardNameInput from "~/components/board/card-name-input";
 import RandomRevealOverlay from "~/components/board/random-reveal-overlay";
 import MinimizeChoiceButton from "~/components/board/minimize-choice-button";
 
@@ -42,6 +43,7 @@ export default function PendingChoicePrompt({
     const { allPlayers } = useGameContext();
     const { offset, dragHandlers } = useDraggable();
     const submitMayPay = useMutation(api.game.submitMayPay);
+    const submitNameCard = useMutation(api.game.submitNameCard);
     const submitResolutionChoice = useMutation(api.game.submitResolutionChoice);
     const [isBusy, setIsBusy] = useState(false);
     const bufferCtx = usePendingChoiceBuffer();
@@ -54,6 +56,7 @@ export default function PendingChoicePrompt({
     const max = pendingChoiceMax(choice.count);
     const isMayPay = choice.kind === "may-pay";
     const isOptionPick = choice.kind === "option-pick";
+    const isNameCard = choice.kind === "name-card";
 
     // All zone-pick kinds use the client-side buffer (ADR 0007).
     const selected = bufferCtx.buffer.length;
@@ -138,6 +141,23 @@ export default function PendingChoicePrompt({
                                             step: choice.step,
                                             choiceId: choice.choiceId,
                                             cardInstanceIds: [id],
+                                        });
+                                    } finally {
+                                        setIsBusy(false);
+                                    }
+                                }}
+                            />
+                        ) : isNameCard ? (
+                            <CardNameInput
+                                disabled={isBusy}
+                                onSubmit={async (cardName) => {
+                                    if (isBusy) return;
+                                    setIsBusy(true);
+                                    try {
+                                        await submitNameCard({
+                                            gameId,
+                                            playerId,
+                                            cardName,
                                         });
                                     } finally {
                                         setIsBusy(false);

@@ -36,7 +36,11 @@ vi.mock("convex/react", () => ({
 }));
 
 vi.mock("@convex/_generated/api", () => {
-    const names = ["submitResolutionChoice", "submitMayPay"];
+    const names = [
+        "submitResolutionChoice",
+        "submitMayPay",
+        "submitNameCard",
+    ];
     const game: Record<string, { _name: string }> = {};
     for (const n of names) game[n] = { _name: n };
     return { api: { game } };

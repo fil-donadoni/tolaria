@@ -228,6 +228,7 @@ import {
     wallOfVapor,
     wallOfTombstones,
     halfdane,
+    petraSphinx,
 } from "../leg";
 import { tapSourceIntoPayment } from "../../../game";
 import { getEffectiveManaChoices } from "../../../gre/constants";
@@ -261,6 +262,7 @@ import {
 } from "../../../gre/combat";
 import { checkStateBasedActions } from "../../../gre/sba";
 import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
+import { applyNameCardSubmit } from "../../../gre/pendingChoiceSubmit";
 import { emitSpellCastEvent, emitPermanentEntered } from "../../../gre/state";
 import { projectPublicState } from "../../../gameProjections";
 import { entersTappedByReplacement } from "../../entersTapped";
@@ -8232,5 +8234,151 @@ describe("Halfdane (upkeep: copy target creature's P/T until next upkeep, CR 613
         )!;
         expect(getEffectivePower(projected, slim)).toBe(2);
         expect(getEffectiveToughness(projected, slim)).toBe(2);
+    });
+});
+
+describe("Petra Sphinx ({T}: name a card, reveal top; match→hand else→graveyard; CR 202.3 / 701.13)", () => {
+    // Builds: a Petra Sphinx on p1's battlefield, a target player (p2) whose
+    // library top is `tundraWolves`, plus a deeper card so the library isn't
+    // emptied. Returns the live state.
+    function setup(targetId: "p1" | "p2" = "p2") {
+        const top = makeInstance(tundraWolves.id, {
+            id: "top",
+            controllerId: targetId,
+            ownerId: targetId,
+            zone: "library",
+        });
+        const deeper = makeInstance(jasmineBoreal.id, {
+            id: "deep",
+            controllerId: targetId,
+            ownerId: targetId,
+            zone: "library",
+        });
+        const sphinx = makeInstance(petraSphinx.id, {
+            id: "sphinx",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const players = [
+            makePlayer("p1", {
+                battlefield: targetId === "p1" ? [sphinx] : [sphinx],
+                library: targetId === "p1" ? [top, deeper] : [],
+            }),
+            makePlayer("p2", {
+                library: targetId === "p2" ? [top, deeper] : [],
+            }),
+        ];
+        const state = makeState({ players });
+        return { state, sphinx };
+    }
+
+    it("definition: {2}{W}{W}{W} 3/4 Sphinx with a tap-only activated ability", () => {
+        expect(petraSphinx.manaCost).toEqual({ X: 2, W: 3 });
+        expect(petraSphinx.power).toBe(3);
+        expect(petraSphinx.toughness).toBe(4);
+        expect(petraSphinx.subtypes).toContain("Sphinx");
+        const ability = petraSphinx.activatedAbilities![0];
+        expect(ability.cost).toEqual({ tap: true });
+        expect(ability.targetRequirement).toEqual({
+            type: "player",
+            count: 1,
+        });
+    });
+
+    it("match: named card === top → goes to the chooser's HAND (CR 201.2)", () => {
+        const { state, sphinx } = setup("p2");
+        resolveActivated(state, sphinx, "petra-sphinx-name-card", [
+            { type: "player", id: "p2" },
+        ]);
+        // Suspended on the name-card choice for the target player.
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("name-card");
+        expect(head.playerId).toBe("p2");
+        applyNameCardSubmit(state, {
+            playerId: "p2",
+            cardName: "Tundra Wolves",
+        });
+        // The top card (Tundra Wolves) matched → it is now in p2's hand, off
+        // the library; the deeper card remains.
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["top"]);
+        expect(state.players[1].library.map((c) => c.id)).toEqual(["deep"]);
+        expect(state.players[1].graveyard).toHaveLength(0);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("mismatch: named card !== top → goes to the chooser's GRAVEYARD", () => {
+        const { state, sphinx } = setup("p2");
+        resolveActivated(state, sphinx, "petra-sphinx-name-card", [
+            { type: "player", id: "p2" },
+        ]);
+        applyNameCardSubmit(state, {
+            playerId: "p2",
+            cardName: "Jasmine Boreal", // not the top card (Tundra Wolves)
+        });
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["top"]);
+        expect(state.players[1].hand).toHaveLength(0);
+        expect(state.players[1].library.map((c) => c.id)).toEqual(["deep"]);
+    });
+
+    it("self-target: the controller may name a card for their own top card", () => {
+        const { state, sphinx } = setup("p1");
+        resolveActivated(state, sphinx, "petra-sphinx-name-card", [
+            { type: "player", id: "p1" },
+        ]);
+        expect(state.pendingChoices![0].playerId).toBe("p1");
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Tundra Wolves",
+        });
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["top"]);
+    });
+
+    it("rejects a name not in the registry (CR 201.2)", () => {
+        const { state, sphinx } = setup("p2");
+        resolveActivated(state, sphinx, "petra-sphinx-name-card", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(() =>
+            applyNameCardSubmit(state, {
+                playerId: "p2",
+                cardName: "Definitely Not A Real Card",
+            })
+        ).toThrow();
+        // The choice is still pending — nothing moved.
+        expect(state.pendingChoices![0].kind).toBe("name-card");
+        expect(state.players[1].library).toHaveLength(2);
+    });
+
+    it("normalizes casing to the canonical registry name", () => {
+        const { state, sphinx } = setup("p2");
+        resolveActivated(state, sphinx, "petra-sphinx-name-card", [
+            { type: "player", id: "p2" },
+        ]);
+        applyNameCardSubmit(state, {
+            playerId: "p2",
+            cardName: "tUnDrA wOlVeS",
+        });
+        // Case-insensitive match still routes the top card to hand.
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["top"]);
+    });
+
+    it("wire format: the name-card pending choice survives projectPublicState", () => {
+        const { state, sphinx } = setup("p2");
+        resolveActivated(state, sphinx, "petra-sphinx-name-card", [
+            { type: "player", id: "p2" },
+        ]);
+        const head = state.pendingChoices![0];
+        // p2 is the chooser; project from p2's viewpoint.
+        const projected = projectPublicState(state, 1, "p2");
+        const projHead = projected.pendingChoices![0];
+        expect(projHead.kind).toBe("name-card");
+        expect(projHead.playerId).toBe("p2");
+        expect(projHead.prompt).toBe(head.prompt);
+        // Submitted name round-trips on the choice once committed (chosenName).
+        applyNameCardSubmit(state, {
+            playerId: "p2",
+            cardName: "Tundra Wolves",
+        });
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["top"]);
     });
 });

@@ -132,6 +132,7 @@ import { checkStateBasedActions } from "./gre/sba";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
+    applyNameCardSubmit,
     applyRandomRevealAck,
 } from "./gre/pendingChoiceSubmit";
 import { gameBelongsToUser } from "./gameLifecycle";
@@ -4251,6 +4252,35 @@ export const submitMayPay = mutation({
         applyMayPaySubmit(state, {
             playerId: args.playerId,
             accept: args.accept,
+        });
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
+    },
+});
+
+/** Submits a named card to a pending `name-card` choice (CR 202.3 / 701.x
+ *  "chooses a card name"). The name is validated against the card registry —
+ *  naming a card that isn't implemented is rejected (the client surfaces the
+ *  throw as a toast). On success the canonical name is committed into the
+ *  stack item and resolution resumes. Used by Petra Sphinx. */
+export const submitNameCard = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardName: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+
+        applyNameCardSubmit(state, {
+            playerId: args.playerId,
+            cardName: args.cardName,
         });
 
         const nextSeq = gameState.seq + 1;

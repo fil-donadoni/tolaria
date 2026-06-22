@@ -77,6 +77,7 @@ export type MoveMutations = {
         }
     ) => Promise<unknown>;
     submitMayPay: (a: GP & { accept: boolean }) => Promise<unknown>;
+    submitNameCard: (a: GP & { cardName: string }) => Promise<unknown>;
     submitRandomRevealAck: (
         a: GP & { stackItemId: string; choiceId: string }
     ) => Promise<unknown>;
@@ -128,6 +129,15 @@ export async function executeMove(
             // Yes/no family (CR 117.3a / 118.4) — a SEPARATE entry point from
             // submitResolutionChoice (ADR 0016).
             await mutations.submitMayPay({ ...base, accept: move.accept });
+            return;
+
+        case "name-card":
+            // Name-a-card family (CR 202.3 / ADR 0016) — a SEPARATE entry point
+            // (submitNameCard); only the name string travels on the Move.
+            await mutations.submitNameCard({
+                ...base,
+                cardName: move.cardName,
+            });
             return;
 
         case "random-reveal-ack":
