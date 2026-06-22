@@ -57,7 +57,10 @@ import {
     solveAutoTapPartial,
     type Demand,
 } from "./gre/autoTap";
-import { buildHandSpellDemands } from "./gre/autoTapDemands";
+import {
+    buildBoardAbilityDemands,
+    buildHandSpellDemands,
+} from "./gre/autoTapDemands";
 import { isGuardedAgainst } from "./gre/permanentGuard";
 import type { Color, ManaCost, SpellMode } from "./cards/types";
 import {
@@ -2722,11 +2725,25 @@ export const autoTapForPayment = mutation({
         // speed hand spells count as preservable Demands only at sorcery timing
         // (own main, empty stack, holding priority); instant-speed spells count
         // in any window. Reuses the engine's canonical `isSorceryTiming` helper.
-        const demands: Demand[] = buildHandSpellDemands(
-            player.hand,
-            pending.cardInstanceId,
-            isSorceryTiming(state)
-        );
+        // On-board activated-ability Demands (issue #476, CR 602.1): a
+        // firebreathing creature's "{R}: +1/+0" and other mana-costed activated
+        // abilities on the paying player's battlefield are also plays they
+        // might still make this turn. Each is counted ONCE per (permanent,
+        // ability) — repeatable activations don't multiply the Demand (PRD
+        // user story 12) — and is timing-filtered the same way (sorcery-speed
+        // abilities count only at sorcery timing).
+        const sorceryTiming = isSorceryTiming(state);
+        const demands: Demand[] = [
+            ...buildHandSpellDemands(
+                player.hand,
+                pending.cardInstanceId,
+                sorceryTiming
+            ),
+            ...buildBoardAbilityDemands(player.battlefield, {
+                phase: state.phase,
+                isControllersTurn: state.activePlayerId === player.id,
+            }),
+        ];
         // Prefer a minimal full plan. When the pure-mana sources can't cover
         // the whole cost (the rest must come from an excluded manual source,
         // e.g. Black Lotus — issue #321), fall back to the maximal-useful

@@ -1,6 +1,7 @@
-import { getInstanceManaCost } from "../cards";
+import { getInstanceManaCost, tryGetCardById } from "../cards";
 import type { Demand } from "./autoTap";
-import { hasInstantSpeed } from "./constants";
+import { abilitiesSuppressed, hasInstantSpeed } from "./constants";
+import type { Phase } from "./types";
 import type { CardInstanceState } from "./state";
 import { normalizeManaCost } from "./state";
 
@@ -65,6 +66,100 @@ export function buildHandSpellDemands(
         // A free (no-mana) spell can never be stranded by auto-tap.
         if (Object.keys(cost).length === 0) continue;
         demands.push({ id: card.id, cost });
+    }
+    return demands;
+}
+
+/**
+ * Build the **on-board-ability Demands** for smart auto-tap (PRD #472, ADR
+ * 0034, issue #476).
+ *
+ * In addition to hand spells (`buildHandSpellDemands`), the active player's
+ * already-resolved permanents may carry activated abilities that cost mana —
+ * a firebreathing creature's `{R}: +1/+0` (CR 602.1, an activated ability of
+ * the form *cost: effect*). Each such ability is another play the player might
+ * still pay for this turn, so the solver tries not to strand its mana cost.
+ *
+ * **Counted once (PRD user story 12).** A repeatable ability ("activate any
+ * number of times") is emitted as exactly *one* Demand per (permanent,
+ * ability) pair — the question is "can I still activate it at least once?",
+ * not "can I activate it N times?". A firebreathing creature therefore
+ * contributes a single {R} Demand, not one per potential pump, so it does not
+ * over-weight the scorer. Two distinct firebreathing creatures are two
+ * distinct plays → two Demands (one each), which is correct.
+ *
+ * **What counts (CR 602.1).** Only abilities that:
+ *  - actually carry a mana cost (`cost.mana`, non-empty after normalization) —
+ *    an ability with no mana cost can never have its mana stranded;
+ *  - are NOT mana abilities (`useStack: false` with a mana output) — those
+ *    *produce* mana and are auto-tap *sources*, not Demands, and are already
+ *    modeled by `buildAutoTapSources`.
+ * Suppressed permanents (CR 613.1f — Humility / Blood Moon) expose none of
+ * their printed activated abilities and are skipped.
+ *
+ * **Timing filter (issue #475, CR 602.5b).** An activated ability is a
+ * preservable Demand only when it is legal to activate at the current timing,
+ * checked per ability against the live timing facts:
+ *  - By default activated abilities are instant-speed (CR 602.5b — any time you
+ *    have priority), so they count in any window the auto-tap runs in.
+ *  - `controllerTurnOnly` ("Activate only during your turn") counts only on the
+ *    paying player's own turn (`isControllersTurn`).
+ *  - `activationPhaseRestriction` ("Activate only during combat", Jade Statue)
+ *    counts only while the current `phase` is in that list. This is what makes
+ *    a combat-only ability *not* held for during a main phase even though it is
+ *    its controller's turn.
+ * The two restrictions compose (an ability with both must satisfy both). This
+ * mirrors the hand-spell timing filter so auto-tap never hoards mana for a
+ * play the player cannot legally make right now (PRD user stories 5 & 17).
+ *
+ * X in a cost is treated as 0 here (`normalizeManaCost` default), matching the
+ * hand-spell helper; X-cost ability inflation is out of scope for this slice
+ * (issue #477 handles X-spells).
+ *
+ * Demand affordability *before* and *after* payment is decided downstream in
+ * `solveSmartAutoTap` — this helper only assembles the candidate cost list,
+ * deterministically in battlefield order then ability order. The Demand `id`
+ * is `${permanentId}#${abilityId}` so two abilities on one permanent (and the
+ * same ability across permanents) stay distinct for debugging.
+ */
+export function buildBoardAbilityDemands(
+    battlefield: CardInstanceState[],
+    timing: { phase: Phase; isControllersTurn: boolean }
+): Demand[] {
+    const demands: Demand[] = [];
+    for (const perm of battlefield) {
+        // CR 613.1f — a permanent that has lost all abilities exposes none of
+        // its printed activated abilities.
+        if (abilitiesSuppressed(perm)) continue;
+        const cardId = (perm.card as { id?: string }).id;
+        const def = cardId ? tryGetCardById(cardId) : undefined;
+        if (!def?.activatedAbilities) continue;
+        for (const ability of def.activatedAbilities) {
+            // Mana abilities (CR 605.1a) PRODUCE mana — they're sources, not
+            // Demands (handled by `buildAutoTapSources`).
+            if (!ability.useStack && ability.manaProduced) continue;
+            if (!ability.cost.mana) continue;
+            // Timing filter (CR 602.5b, issue #475): only count abilities legal
+            // to activate at the current timing.
+            if (
+                ability.controllerTurnOnly === true &&
+                !timing.isControllersTurn
+            )
+                continue;
+            if (
+                ability.activationPhaseRestriction &&
+                ability.activationPhaseRestriction.length > 0 &&
+                !ability.activationPhaseRestriction.includes(timing.phase)
+            ) {
+                continue;
+            }
+            const cost = normalizeManaCost(ability.cost.mana);
+            // A free (no-mana) ability can never be stranded by auto-tap.
+            if (Object.keys(cost).length === 0) continue;
+            // Counted once per (permanent, ability) — repeatable activations do
+            // NOT multiply the Demand (PRD user story 12).
+            demands.push({ id: `${perm.id}#${ability.id}`, cost });
+        }
     }
     return demands;
 }
