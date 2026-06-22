@@ -21,6 +21,14 @@ const STABLE_LAYER: React.CSSProperties = {
 
 type CardImageProps = {
     card: CardInstance | { id: string };
+    /**
+     * Opt-in native lazy loading (`loading="lazy"`) for the art `<img>`.
+     * Defaults to `false` so shared in-game usages — the battlefield mounts
+     * CardImage thousands of times per render — keep fetching art eagerly and
+     * their behavior is unchanged. The deck-builder search grid (ResultCard)
+     * sets it so off-screen results only fetch art as they near the viewport.
+     */
+    lazy?: boolean;
 };
 
 function isCardInstance(
@@ -33,7 +41,7 @@ function getDefId(card: CardInstance | { id: string }): string {
     return getCardImageDefId(card);
 }
 
-function CardImageImpl({ card }: CardImageProps) {
+function CardImageImpl({ card, lazy = false }: CardImageProps) {
     const cardInstance = isCardInstance(card) ? card : undefined;
     const defId = getDefId(card);
     const def = tryGetCardById(defId);
@@ -56,6 +64,7 @@ function CardImageImpl({ card }: CardImageProps) {
                         style={{ WebkitTouchCallout: "none" }}
                         alt={name}
                         decoding="async"
+                        {...(lazy ? { loading: "lazy" as const } : {})}
                         draggable={false}
                         onLoad={() => setLoaded(true)}
                         onError={() => setLoaded(true)}
@@ -89,6 +98,7 @@ function CardImageImpl({ card }: CardImageProps) {
 const CardImage = memo(
     CardImageImpl,
     (prev, next) =>
+        prev.lazy === next.lazy &&
         cardImageSignature(prev.card) === cardImageSignature(next.card)
 );
 export default CardImage;
