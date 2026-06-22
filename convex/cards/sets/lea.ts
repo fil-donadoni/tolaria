@@ -807,7 +807,9 @@ export const personalIncarnation: CardDefinition = {
     name: "Personal Incarnation",
     oracleText:
         "All damage that would be dealt to its owner is dealt to Personal Incarnation instead.\nWhen this creature dies, its owner loses half their life, rounded up.",
-    manaCost: { X: 4, W: 3 },
+    // Modern Scryfall oracle cost is {3}{W}{W}{W} (the Alpha {4}{W}{W}{W} print
+    // was superseded by errata).
+    manaCost: { X: 3, W: 3 },
     types: ["Creature"],
     subtypes: ["Avatar", "Incarnation"],
     power: 6,
@@ -3142,7 +3144,9 @@ export const lich: CardDefinition = {
     name: "Lich",
     oracleText:
         "As this enchantment enters, you lose life equal to your life total.\nYou don't lose the game for having 0 or less life.\nIf you would gain life, draw that many cards instead.\nWhenever you're dealt damage, sacrifice that many nontoken permanents. If you can't, you lose the game.\nWhen this enchantment is put into a graveyard from the battlefield, you lose the game.",
-    manaCost: { X: 2, B: 2 },
+    // Modern Scryfall oracle cost is {B}{B}{B}{B} (the Alpha {2}{B}{B} print was
+    // superseded by errata).
+    manaCost: { B: 4 },
     types: ["Enchantment"],
     triggeredAbilities: [
         enteredTrigger({
