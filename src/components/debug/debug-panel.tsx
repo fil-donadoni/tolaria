@@ -240,6 +240,36 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Wall of Caltrops — {1}{W} 2/1 Wall, Defender (#495, CR 509.1h /
+        // 603.4d / 702.22). "Whenever this creature blocks a creature, if at
+        // least one other Wall creature is blocking that creature and no
+        // non-Wall creatures are blocking that creature, this creature gains
+        // banding until end of turn."
+        //
+        // Board: you control Wall of Caltrops, a Wall of Light (the second Wall)
+        // and a Grizzly Bears (the non-Wall co-blocker for the edge case). The
+        // opponent fields a Hill Giant (3/3) to attack into your wall of walls.
+        // Golden path:
+        //   1. Pass to the opponent's turn and attack with the Hill Giant.
+        //   2. Double-block the Giant with Wall of Caltrops AND Wall of Light
+        //      (both Walls, no non-Wall). At block declaration Caltrops' trigger
+        //      fires and grants it banding until end of turn — so YOU (the
+        //      blocking player) now divide the Giant's 3 combat damage among the
+        //      two Walls instead of the attacker's controller.
+        //   3. Confirm Caltrops shows banding on the battlefield until cleanup.
+        // Edge: triple-block by adding the Grizzly Bears (a non-Wall) → the
+        //   intervening-if fails and Caltrops does NOT gain banding.
+        label: "LEG: Wall of Caltrops — conditional banding on multi-Wall block",
+        cards: [
+            { name: "Wall of Caltrops", owner: "me" as const },
+            { name: "Wall of Light", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Hill Giant", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // The Abyss — {3}{B} World enchantment (CR 205.4a / 704.5m). "At the
         // beginning of each player's upkeep, destroy target nonartifact
         // creature that player controls of their choice. It can't be

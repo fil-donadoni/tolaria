@@ -29,6 +29,7 @@ import type {
     Color,
     GameEvent,
     TargetSelection,
+    TriggerStateView,
 } from "../types";
 import { EFFECT_AFFECTS_SELF } from "../types";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
@@ -6528,6 +6529,127 @@ export const clergyOfTheHolyNimbus: CardDefinition = {
             activatableByOpponentsOnly: true,
             resolve: (ctx: SpellContext) => {
                 ctx.setSourceCantBeRegeneratedThisTurn();
+            },
+        },
+    ],
+};
+
+// Wall of Caltrops — {1}{W} 2/1 Wall, Defender. "Whenever this creature blocks
+// a creature, if at least one other Wall creature is blocking that creature and
+// no non-Wall creatures are blocking that creature, this creature gains banding
+// until end of turn." (CR 509.1h — block declaration; CR 603.4d intervening-if;
+// CR 702.22 banding; CR 514.2 cleanup expiry.)
+//
+// COMPOSITION (no new primitive). The "blocks a creature" event is the per-pair
+// BLOCKERS_CONFIRMED where Caltrops is the blocker (same source the Giant Shark
+// / Venom block-time triggers read). The multi-Wall co-block condition is a
+// classic intervening-if (CR 603.4d), re-checked at resolution against the live
+// block graph: among every creature blocking the SAME attacker there must be
+// >=1 OTHER Wall and ZERO non-Wall blockers. On satisfaction we reuse the
+// shipped duration-scoped keyword grant (`grantStaticAbility`, Berserk's
+// trample precedent) to add the plain "banding" keyword EOT — the banding
+// engine (`convex/gre/banding.ts`, CR 702.22j-k) then shifts combat-damage
+// assignment via `getDamageAssignerId` exactly as for printed banding.
+const WALL_OF_CALTROPS_ID = "664ad588-3002-4f63-93bd-38663171018f";
+
+/** Ids of every creature currently blocking `attackerId` in the live block
+ *  graph (CR 509.2). `blockerAssignments` maps blockerId → the attackers it is
+ *  blocking, so we invert it. Not pruned when a blocker leaves the battlefield
+ *  (CR 509.1h), but Caltrops is checked at block declaration where the graph is
+ *  freshly recorded, so every listed blocker is live. */
+function blockersOfAttacker(
+    state: TriggerStateView | undefined,
+    attackerId: string
+): string[] {
+    const assignments = state?.combat?.blockerAssignments;
+    if (!assignments) return [];
+    const out: string[] = [];
+    for (const [blockerId, attackerIds] of Object.entries(assignments)) {
+        if (attackerIds.includes(attackerId)) out.push(blockerId);
+    }
+    return out;
+}
+
+/** Subtypes of the permanent `id` across all battlefields, or undefined if it
+ *  is no longer on the battlefield. */
+function subtypesOf(
+    state: TriggerStateView | undefined,
+    id: string
+): ReadonlyArray<string> | undefined {
+    for (const player of state?.players ?? []) {
+        const card = player.battlefield.find((c) => c.id === id);
+        if (card) return card.subtypes;
+    }
+    return undefined;
+}
+
+/** The Wall of Caltrops grant condition (CR 603.4d intervening-if): among every
+ *  creature blocking `attackerId`, at least one OTHER (≠ self) is a Wall and
+ *  none of them is a non-Wall. Evaluated against the live block graph. */
+function caltropsConditionHolds(
+    self: PermanentView,
+    attackerId: string,
+    state: TriggerStateView | undefined
+): boolean {
+    const blockers = blockersOfAttacker(state, attackerId);
+    let otherWalls = 0;
+    let nonWalls = 0;
+    for (const blockerId of blockers) {
+        const subtypes = subtypesOf(state, blockerId);
+        const isWall = subtypes?.includes("Wall") ?? false;
+        if (!isWall) {
+            nonWalls += 1;
+            continue;
+        }
+        if (blockerId !== self.id) otherWalls += 1;
+    }
+    return otherWalls >= 1 && nonWalls === 0;
+}
+
+export const wallOfCaltrops: CardDefinition = {
+    id: WALL_OF_CALTROPS_ID,
+    rarity: "common",
+    name: "Wall of Caltrops",
+    oracleText:
+        "Defender (This creature can't attack.)\nWhenever this creature blocks a creature, if at least one other Wall creature is blocking that creature and no non-Wall creatures are blocking that creature, this creature gains banding until end of turn.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 2,
+    toughness: 1,
+    staticAbilities: ["defender"],
+    triggeredAbilities: [
+        {
+            id: "wall-of-caltrops-band",
+            oracleText:
+                "Whenever this creature blocks a creature, if at least one other Wall creature is blocking that creature and no non-Wall creatures are blocking that creature, this creature gains banding until end of turn.",
+            event: "BLOCKERS_CONFIRMED",
+            // Fire when Caltrops is the BLOCKER of the pair (CR 509.1h — "blocks
+            // a creature"). One event per attacker it blocks; each is its own
+            // block, so no per-pair dedupe is needed here.
+            matches: (event, self) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return false;
+                return event.blockerId === self.id;
+            },
+            // Intervening-if (CR 603.4d): re-check the multi-Wall co-block at
+            // resolution against the live block graph; fizzles if a non-Wall
+            // joined or no other Wall is present.
+            interveningIf: (event, self, state) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return false;
+                return caltropsConditionHolds(self, event.attackerId, state);
+            },
+            resolve: (ctx: SpellContext, event: GameEvent) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return;
+                const target: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                // Plain banding EOT (CR 702.22, 514.2 cleanup expiry). Reuses
+                // the shipped duration-scoped keyword grant; the banding engine
+                // handles combat-damage-assignment from here.
+                ctx.grantStaticAbility(target, "banding", {
+                    phase: "end-of-turn",
+                });
             },
         },
     ],

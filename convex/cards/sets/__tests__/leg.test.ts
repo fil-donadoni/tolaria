@@ -210,6 +210,8 @@ import {
 import {
     recordBlockedAttackers,
     isLegalBandComposition,
+    getDamageAssignerId,
+    hasBanding,
 } from "../../../gre/banding";
 import {
     lightningBolt,
@@ -236,6 +238,7 @@ import {
     petraSphinx,
     clergyOfTheHolyNimbus,
     greaterRealmOfPreservation,
+    wallOfCaltrops,
 } from "../leg";
 import { tapSourceIntoPayment } from "../../../game";
 import { getEffectiveManaChoices } from "../../../gre/constants";
@@ -9573,5 +9576,147 @@ describe("Greater Realm of Preservation (CR 615.1, 615.6 / 202.2)", () => {
         };
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.pendingTarget?.colorFilterAny).toEqual(["B", "R"]);
+    });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Wall of Caltrops — conditional banding grant on block (issue #495).
+//
+// "Whenever this creature blocks a creature, if at least one other Wall
+// creature is blocking that creature and no non-Wall creatures are blocking
+// that creature, this creature gains banding until end of turn."
+//
+// Exercised through the REAL combat path: `emitBlockersConfirmedEvents` emits
+// the per-pair BLOCKERS_CONFIRMED events and pushes the matching block trigger
+// via `collectTriggers`; `resolveTopOfStack` re-checks the intervening-if
+// (CR 603.4d) against the live block graph before granting banding EOT
+// (CR 702.22). This proves both the multi-Wall co-block condition and that the
+// granted keyword reaches `getDamageAssignerId`.
+// ──────────────────────────────────────────────────────────────────────────
+describe("Wall of Caltrops (conditional banding grant, CR 509.1h / 603.4d / 702.22)", () => {
+    /** p2 fields an `attacker`; p1 fields Caltrops plus `coBlockers`, all
+     *  assigned to that attacker at DECLARE_BLOCKERS. `coBlockers` lists the
+     *  card definition for each additional blocker (Wall or not). Returns the
+     *  live state and the Caltrops instance. */
+    function setupCaltropsBlock(coBlockers: { id: string }[]): {
+        state: GameState;
+        caltrops: CardInstanceState;
+    } {
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "attacker",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const caltrops = makeInstance(wallOfCaltrops.id, {
+            id: "caltrops",
+            controllerId: "p1",
+            ownerId: "p1",
+            isBlocking: true,
+        });
+        const others = coBlockers.map((def, i) =>
+            makeInstance(def.id, {
+                id: `co${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                isBlocking: true,
+            })
+        );
+        const blockerAssignments: Record<string, string[]> = {
+            caltrops: ["attacker"],
+        };
+        for (let i = 0; i < others.length; i++) {
+            blockerAssignments[`co${i}`] = ["attacker"];
+        }
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [caltrops, ...others] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["attacker"],
+                confirmed: true,
+                blockerAssignments,
+                blockersConfirmed: true,
+            },
+        });
+        recordBlockedAttackers(state);
+        return { state, caltrops };
+    }
+
+    function liveCaltrops(state: GameState): CardInstanceState {
+        return state.players[0].battlefield.find((c) => c.id === "caltrops")!;
+    }
+
+    it("carries Defender + the block-time banding trigger", () => {
+        expect(wallOfCaltrops.staticAbilities).toContain("defender");
+        expect(wallOfCaltrops.power).toBe(2);
+        expect(wallOfCaltrops.toughness).toBe(1);
+        expect(wallOfCaltrops.subtypes).toContain("Wall");
+        const trig = wallOfCaltrops.triggeredAbilities?.find(
+            (t) => t.id === "wall-of-caltrops-band"
+        );
+        expect(trig).toBeDefined();
+        expect(trig!.event).toBe("BLOCKERS_CONFIRMED");
+        expect(trig!.interveningIf).toBeDefined();
+    });
+
+    it("gains banding EOT when another Wall co-blocks and no non-Wall does", () => {
+        const { state } = setupCaltropsBlock([wallOfLight]);
+        emitBlockersConfirmedEvents(state);
+        // Both Walls' block triggers may be on the stack; resolve all.
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        expect(hasBanding(liveCaltrops(state))).toBe(true);
+    });
+
+    it("does NOT gain banding when a non-Wall co-blocks the same attacker", () => {
+        const { state } = setupCaltropsBlock([wallOfLight, grizzlyBears]);
+        emitBlockersConfirmedEvents(state);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        expect(hasBanding(liveCaltrops(state))).toBe(false);
+    });
+
+    it("does NOT gain banding when blocking alone (no other Wall)", () => {
+        const { state } = setupCaltropsBlock([]);
+        emitBlockersConfirmedEvents(state);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        expect(hasBanding(liveCaltrops(state))).toBe(false);
+    });
+
+    it("granted banding shifts combat-damage assignment to the blocker's controller (CR 702.22j-k)", () => {
+        const { state } = setupCaltropsBlock([wallOfLight]);
+        // Before: the attacker's controller assigns (no banding among blockers).
+        const attacker = state.players[1].battlefield.find(
+            (c) => c.id === "attacker"
+        )!;
+        expect(getDamageAssignerId(state, attacker, ["caltrops"])).toBe("p2");
+        // Grant banding via the real block path.
+        emitBlockersConfirmedEvents(state);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        // After: a banding blocker among the targets shifts assignment to its
+        // controller (the defending player, p1).
+        expect(getDamageAssignerId(state, attacker, ["caltrops"])).toBe("p1");
+    });
+
+    it("granted banding expires at cleanup (CR 514.2)", () => {
+        const { state } = setupCaltropsBlock([wallOfLight]);
+        emitBlockersConfirmedEvents(state);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        expect(hasBanding(liveCaltrops(state))).toBe(true);
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(hasBanding(liveCaltrops(state))).toBe(false);
+    });
+
+    it("the granted banding survives the wire projection", () => {
+        const { state } = setupCaltropsBlock([wallOfLight]);
+        emitBlockersConfirmedEvents(state);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "caltrops"
+        )!;
+        expect(slim.staticAbilities).toContain("banding");
     });
 });

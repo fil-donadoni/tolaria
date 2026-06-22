@@ -277,7 +277,12 @@ describe("game_state serialize round-trip", () => {
         lion.skipNextUntap = true;
         lion.cantBeBlockedBySubtypesThisTurn = ["Wall"];
         lion.counters = { "+1/+1": 1, "+1/+0": 2 };
-        lion.grantedStaticAbilities = [{ ability: "flying", auraId: "aura-1" }];
+        lion.grantedStaticAbilities = [
+            { ability: "flying", auraId: "aura-1" },
+            // CR 611.1b — duration-scoped keyword grant (Wall of Caltrops' EOT
+            // banding, #495). Persists across the DB round-trip with its duration.
+            { ability: "banding", duration: { phase: "end-of-turn" } },
+        ];
         // CR 611.1b — duration-scoped keyword removal (Shelkin Brownie / Tolaria, #381).
         lion.temporaryRemovedKeywords = [
             {
@@ -361,6 +366,7 @@ describe("game_state serialize round-trip", () => {
         expect(got.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
         expect(got.grantedStaticAbilities).toEqual([
             { ability: "flying", auraId: "aura-1" },
+            { ability: "banding", duration: { phase: "end-of-turn" } },
         ]);
         expect(got.temporaryRemovedKeywords).toEqual([
             {
