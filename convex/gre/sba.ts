@@ -16,6 +16,50 @@ import { applyLoseGameReplacements } from "./replacements";
 import { applyStateTriggers } from "./triggers";
 import { tryGetCardById } from "../cards";
 
+/** A player found to meet a loss condition during a single game-over sweep. */
+type LossEntry = { playerId: string; reason: "life" | "decked" | "poison" };
+
+/** CR 704.5a/b/c — does this player currently meet a loss condition? Returns
+ *  the reason, or null if they survive. Loss replacements (CR 614) are applied
+ *  here, BEFORE the player is counted as a loser: a "you don't lose the game"
+ *  replacement that consumes the event means the player did not lose, which is
+ *  what preserves (or breaks) simultaneity in the caller. */
+function playerLossReason(
+    state: GameState,
+    player: GameState["players"][number]
+): "life" | "decked" | "poison" | null {
+    if (player.life <= 0) {
+        // CR 614 — Lich's "you don't lose the game" replacement can consume
+        // the loss event. If the replacement returns null, the player
+        // survives this check; the loss can re-fire on a subsequent SBA
+        // sweep if the replacement source has left play in the meantime.
+        const survived =
+            applyLoseGameReplacements(state, {
+                kind: "lose-game",
+                playerId: player.id,
+                reason: "life-zero",
+            }) === null;
+        return survived ? null : "life";
+    }
+    if (player.hasDrawnFromEmpty) {
+        return "decked";
+    }
+    if ((player.poisonCounters ?? 0) >= 10) {
+        // CR 704.5c — a player with ten or more poison counters loses the
+        // game. Routed through the same loss-replacement framework as
+        // life-zero (CR 614) so a "you don't lose the game" replacement
+        // can intercept it.
+        const survived =
+            applyLoseGameReplacements(state, {
+                kind: "lose-game",
+                playerId: player.id,
+                reason: "poison",
+            }) === null;
+        return survived ? null : "poison";
+    }
+    return null;
+}
+
 /**
  * Check State-Based Actions related to game ending (CR 704.5).
  * Returns true if the game is over (sets state.gameOver).
@@ -23,56 +67,47 @@ import { tryGetCardById } from "../cards";
  * Checked conditions:
  * - CR 704.5a: A player with 0 or less life loses.
  * - CR 704.5b: A player who attempted to draw from an empty library loses.
+ * - CR 704.5c: A player with ten or more poison counters loses.
+ *
+ * CR 704.5 — all loss conditions are checked simultaneously in a single sweep,
+ * not one player at a time. CR 104.4a — if all the players still in the game
+ * lose simultaneously, the game is a draw. So this collects EVERY player meeting
+ * a loss condition this sweep (running each player's CR 614 loss replacements
+ * first); if more than one loses (i.e. all remaining players in a 2-player
+ * game), the game is a draw with no winner/loser. Otherwise the lone loser's
+ * opponent wins, exactly as before.
  */
 export function checkGameOverSBA(state: GameState): boolean {
     if (state.gameOver) return true;
 
+    const losers: LossEntry[] = [];
     for (const player of state.players) {
-        let reason: "life" | "decked" | "poison" | null = null;
-
-        if (player.life <= 0) {
-            // CR 614 — Lich's "you don't lose the game" replacement can consume
-            // the loss event. If the replacement returns null, the player
-            // survives this check; the loss can re-fire on a subsequent SBA
-            // sweep if the replacement source has left play in the meantime.
-            const survived =
-                applyLoseGameReplacements(state, {
-                    kind: "lose-game",
-                    playerId: player.id,
-                    reason: "life-zero",
-                }) === null;
-            if (!survived) {
-                reason = "life";
-            }
-        } else if (player.hasDrawnFromEmpty) {
-            reason = "decked";
-        } else if ((player.poisonCounters ?? 0) >= 10) {
-            // CR 704.5c — a player with ten or more poison counters loses the
-            // game. Routed through the same loss-replacement framework as
-            // life-zero (CR 614) so a "you don't lose the game" replacement
-            // can intercept it.
-            const survived =
-                applyLoseGameReplacements(state, {
-                    kind: "lose-game",
-                    playerId: player.id,
-                    reason: "poison",
-                }) === null;
-            if (!survived) {
-                reason = "poison";
-            }
-        }
-
-        if (reason) {
-            state.gameOver = {
-                winnerId: getOpponentId(state, player.id),
-                loserId: player.id,
-                reason,
-            };
-            return true;
-        }
+        const reason = playerLossReason(state, player);
+        if (reason) losers.push({ playerId: player.id, reason });
     }
 
-    return false;
+    if (losers.length === 0) return false;
+
+    if (losers.length > 1) {
+        // CR 104.4a — all remaining players lost simultaneously → draw. Match
+        // the existing draw shape (Divine Intervention, see SpellContext
+        // .drawGame): empty winner/loser, reason "draw", isDraw flag set.
+        state.gameOver = {
+            winnerId: "",
+            loserId: "",
+            reason: "draw",
+            isDraw: true,
+        };
+        return true;
+    }
+
+    const [loser] = losers;
+    state.gameOver = {
+        winnerId: getOpponentId(state, loser.playerId),
+        loserId: loser.playerId,
+        reason: loser.reason,
+    };
+    return true;
 }
 
 /**
