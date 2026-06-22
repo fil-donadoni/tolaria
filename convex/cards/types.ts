@@ -694,13 +694,16 @@ export interface SpellContext {
      *  a characteristic to leave it untouched ("base power 0" sets power only).
      *  Counters (7c) and +N/+N modifiers (7d) still apply on top of the set
      *  value. The latest set per characteristic wins. No-op if the target has
-     *  left the battlefield. Used by Singing Tree, Island of Wak-Wak, and
-     *  Sorceress Queen. */
+     *  left the battlefield. Pass `"indefinite"` for a set that never expires
+     *  at a phase boundary (CR 613.4b — Wall of Tombstones); a `DurationSpec`
+     *  scopes the set to a boundary (Halfdane "until your next upkeep",
+     *  Singing Tree, Sorceress Queen). The value is computed by the caller at
+     *  resolution time and locked thereafter (CR 611.2). */
     setBasePT: (
         target: TargetSelection,
         power: number | undefined,
         toughness: number | undefined,
-        duration: DurationSpec
+        duration: DurationSpec | "indefinite"
     ) => void;
     /** Puts `count` counters of type `type` on `target` (CR 122.1). No-op if
      *  the target has left the battlefield. Counter type is a free-form string

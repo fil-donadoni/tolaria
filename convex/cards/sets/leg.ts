@@ -5826,3 +5826,124 @@ export const whiteManaBattery: CardDefinition = makeManaBattery({
     name: "White Mana Battery",
     color: "W",
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dynamic base-P/T set (layer 7b) with a stated duration (#487, CR 613.4b)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Both cards drive a layer-7b *set* (`ctx.setBasePT`) whose value is computed
+// at resolution time and LOCKED thereafter (CR 611.2 — the value of "1 plus the
+// number of creature cards in your graveyard" / "target creature's P/T" is read
+// once when the ability resolves, not continuously recomputed). The set sits in
+// sublayer 7b, so later +1/+1 counters (7c) and pump (7d) still stack on top
+// (CR 613.4 ordering; see `evaluateLayer` in gre/layers.ts).
+//
+//   • Wall of Tombstones — INDEFINITE set (no expiry boundary). `setBasePT`
+//     with `"indefinite"` pushes a `temporaryPTSet` entry that the cleanup tick
+//     never purges; it persists until the source leaves or a later set wins.
+//   • Halfdane — set scoped to "until your next upkeep": a `DurationSpec`
+//     `{ phase: "upkeep", player: "controller" }`. `tickAllDurations` purges the
+//     entry as the controller's NEXT upkeep begins (CR 500.2), reverting the P/T
+//     to printed before that upkeep's own trigger re-fires.
+
+// Wall of Tombstones — {1}{B} 0/1 Wall with Defender. "At the beginning of your
+// upkeep, change this creature's base toughness to 1 plus the number of creature
+// cards in your graveyard." The effect lasts indefinitely (CR 613.4b).
+export const wallOfTombstones: CardDefinition = {
+    id: "55da1e86-fe18-486a-b510-f941e6f6e378",
+    name: "Wall of Tombstones",
+    oracleText:
+        "Defender (This creature can't attack.)\nAt the beginning of your upkeep, change this creature's base toughness to 1 plus the number of creature cards in your graveyard. (This effect lasts indefinitely.)",
+    manaCost: { X: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 1,
+    staticAbilities: ["defender"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "wall-of-tombstones-set-toughness",
+            oracleText:
+                "At the beginning of your upkeep, change this creature's base toughness to 1 plus the number of creature cards in your graveyard.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                // CR 611.2 — the count is read once, at resolution, and the
+                // resulting set value is locked (it does NOT track the
+                // graveyard afterwards).
+                const creatureCards = ctx
+                    .getGraveyardCards(scopedPlayerId)
+                    .filter((c) => c.types.includes("Creature")).length;
+                ctx.setBasePT(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    undefined, // power untouched
+                    1 + creatureCards, // 1 + creature cards in graveyard
+                    "indefinite"
+                );
+            },
+        }),
+    ],
+};
+
+// Halfdane — {1}{W}{U}{B} 3/3 Legendary Shapeshifter. "At the beginning of your
+// upkeep, change Halfdane's base power and toughness to the power and toughness
+// of target creature other than Halfdane until your next upkeep."
+//
+// The "target creature other than Halfdane" is modelled as a resolution-time
+// choice (`requestChoice` over every battlefield, excluding the source) — the
+// same simplification the codebase already uses for trigger-time targets that
+// the trigger-target machinery doesn't yet plumb (cf. The Abyss). The copied
+// P/T is the target's EFFECTIVE power/toughness (`getPower`/`getToughness`),
+// snapshotted and locked at resolution (CR 611.2). The set is scoped to the
+// controller's next upkeep (CR 500.2), reverting Halfdane to 3/3 before the
+// re-fire.
+export const halfdane: CardDefinition = {
+    id: "2e939761-3542-4044-9038-d1d30c6a38fc",
+    name: "Halfdane",
+    oracleText:
+        "At the beginning of your upkeep, change Halfdane's base power and toughness to the power and toughness of target creature other than Halfdane until your next upkeep.",
+    manaCost: { X: 1, W: 1, U: 1, B: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Shapeshifter"],
+    power: 3,
+    toughness: 3,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "halfdane-copy-pt",
+            oracleText:
+                "At the beginning of your upkeep, change Halfdane's base power and toughness to the power and toughness of target creature other than Halfdane until your next upkeep.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                const self = ctx.sourceInstanceId;
+                const chosen = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: "halfdane-copy-pt",
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    allControllers: true,
+                    filter: {
+                        types: "Creature",
+                        excludeInstanceIds: [self],
+                    },
+                    count: 1,
+                    prompt: "Choose a creature other than Halfdane (Halfdane copies its power and toughness).",
+                });
+                if (chosen === undefined) return; // suspended on the choice
+                const id = chosen[0];
+                if (!id) return; // CR 603.2c — no legal creature; do nothing
+                const target: TargetSelection = { type: "permanent", id };
+                // CR 611.2 — snapshot the target's effective P/T now and lock it.
+                const power = ctx.getPower(target);
+                const toughness = ctx.getToughness(target);
+                ctx.setBasePT(
+                    { type: "permanent", id: self },
+                    power,
+                    toughness,
+                    { phase: "upkeep", player: "controller" }
+                );
+            },
+        }),
+    ],
+};

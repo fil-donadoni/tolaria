@@ -264,6 +264,8 @@ describe("game_state serialize round-trip", () => {
         lion.temporaryPTSet = [
             { power: 0, duration: { phase: "end-of-turn" } },
             { power: 0, toughness: 2, duration: { phase: "end-of-turn" } },
+            // Indefinite set (#487, Wall of Tombstones): no duration field.
+            { toughness: 4 },
         ];
         lion.sourceTappedPTMods = [
             { power: 2, toughness: -2, sourceId: "gear-1" },
@@ -343,6 +345,7 @@ describe("game_state serialize round-trip", () => {
         expect(got.temporaryPTSet).toEqual([
             { power: 0, duration: { phase: "end-of-turn" } },
             { power: 0, toughness: 2, duration: { phase: "end-of-turn" } },
+            { toughness: 4 },
         ]);
         expect(got.sourceTappedPTMods).toEqual([
             { power: 2, toughness: -2, sourceId: "gear-1" },
