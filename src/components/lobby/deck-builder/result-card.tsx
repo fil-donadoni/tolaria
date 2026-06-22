@@ -44,7 +44,7 @@ export default function ResultCard({
                 className="group relative w-full hover:scale-[1.03]"
             >
                 <div className="aspect-5/7 w-full">
-                    <CardImage card={{ id: selected }} />
+                    <CardImage card={{ id: selected }} lazy />
                 </div>
                 <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent group-hover:ring-accent/60" />
             </DraggableCard>
