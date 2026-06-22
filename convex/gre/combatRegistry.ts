@@ -14,6 +14,7 @@ import type { CardInstanceState } from "./state";
 import { LANDWALK_KEYWORDS } from "./constants";
 import { hasColor } from "./rules";
 import { applySubstitution } from "./textChanges";
+import { negatedLandwalkSubtypes } from "../cards/landwalkNegation";
 
 // ---------------------------------------------------------------------------
 // Rule types
@@ -65,6 +66,11 @@ const UNBLOCKABLE_RULE: EvasionRule = {
 // CR 702.13b — Landwalk: "A creature with [type]walk can't be blocked as
 // long as the defending player controls a land of the specified subtype."
 // One rule per variant, parameterized via LANDWALK_KEYWORDS.
+//
+// CR 509.1b / 702.13 — a `landwalk-negation` static on the defending player's
+// battlefield (Great Wall, Undertow) suppresses the matching landwalk: the
+// attacker can then be blocked as though it didn't have the keyword. We scan
+// for that negation first and treat a negated subtype as "no evasion".
 const LANDWALK_RULES: EvasionRule[] = Object.entries(LANDWALK_KEYWORDS).map(
     ([keyword, subtype]) => ({
         keyword,
@@ -73,14 +79,19 @@ const LANDWALK_RULES: EvasionRule[] = Object.entries(LANDWALK_KEYWORDS).map(
             _attacker: CardInstanceState,
             _blocker: CardInstanceState,
             defenderBattlefield: CardInstanceState[]
-        ) =>
+        ) => {
+            // Negated (Great Wall / Undertow) → keyword grants no evasion.
+            if (negatedLandwalkSubtypes(defenderBattlefield).has(subtype)) {
+                return true;
+            }
             // CR 612: read the text-change-rewritten subtypes so a land whose
             // type was changed (Magical Hack) is matched by the new word.
-            !defenderBattlefield.some(
+            return !defenderBattlefield.some(
                 (c) =>
                     c.types.includes("Land") &&
                     applySubstitution(c).subtypes.includes(subtype)
-            ),
+            );
+        },
         reason: `Attacker can't be blocked while defender controls a ${subtype}`,
     })
 );

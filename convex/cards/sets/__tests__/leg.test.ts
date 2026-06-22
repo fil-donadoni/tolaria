@@ -18,6 +18,8 @@ import {
     thunderSpirit,
     wallOfLight,
     righteousAvengers,
+    greatWall,
+    undertow,
     keepersOfTheFaith,
     amrouKithkin,
     angelicVoices,
@@ -740,6 +742,161 @@ describe("Amrou Kithkin (can't be blocked by power ≥3, CR 509.1b)", () => {
             state
         );
         expect(res.eligible).toBe(false);
+    });
+});
+
+describe("Great Wall / Undertow (landwalk-negation static, CR 509.1b / 702.13)", () => {
+    const plainsId = getCardByName("Plains").id;
+    const islandId = getCardByName("Island").id;
+
+    // Build a defender board: one matching basic land + a vanilla blocker +
+    // optionally the negation enchantment. Returns the attacker, the blocker,
+    // and the live state for `validateBlockerEligibility`.
+    function setup(opts: {
+        attackerId: string;
+        landId: string;
+        negationId?: string;
+    }) {
+        const attacker = makeInstance(opts.attackerId, {
+            id: "atk",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const blocker = makeInstance(tundraWolves.id, {
+            id: "blk",
+            controllerId: "p2",
+        });
+        const land = makeInstance(opts.landId, {
+            id: "land",
+            controllerId: "p2",
+        });
+        const defenderBattlefield = [blocker, land];
+        if (opts.negationId) {
+            defenderBattlefield.push(
+                makeInstance(opts.negationId, {
+                    id: "negation",
+                    controllerId: "p2",
+                })
+            );
+        }
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: defenderBattlefield }),
+            ],
+        });
+        return { state, attacker, blocker, defenderBattlefield };
+    }
+
+    it("plainswalk creature is unblockable behind a Plains with no Great Wall (CR 702.13b)", () => {
+        const { attacker, blocker, defenderBattlefield, state } = setup({
+            attackerId: righteousAvengers.id,
+            landId: plainsId,
+        });
+        const res = validateBlockerEligibility(
+            attacker,
+            blocker,
+            defenderBattlefield,
+            state
+        );
+        expect(res.eligible).toBe(false);
+    });
+
+    it("Great Wall lets a plainswalk creature be blocked despite a Plains (CR 509.1b)", () => {
+        const { attacker, blocker, defenderBattlefield, state } = setup({
+            attackerId: righteousAvengers.id,
+            landId: plainsId,
+            negationId: greatWall.id,
+        });
+        const res = validateBlockerEligibility(
+            attacker,
+            blocker,
+            defenderBattlefield,
+            state
+        );
+        expect(res.eligible).toBe(true);
+    });
+
+    it("Undertow lets an islandwalk creature be blocked despite an Island (CR 509.1b)", () => {
+        const { attacker, blocker, defenderBattlefield, state } = setup({
+            attackerId: devouringDeep.id,
+            landId: islandId,
+            negationId: undertow.id,
+        });
+        const res = validateBlockerEligibility(
+            attacker,
+            blocker,
+            defenderBattlefield,
+            state
+        );
+        expect(res.eligible).toBe(true);
+    });
+
+    it("Great Wall negates only plainswalk — a swampwalk creature stays unblockable (CR 702.13)", () => {
+        // Swampwalk attacker, defender controls a Swamp + Great Wall (plains).
+        const attacker = makeInstance(righteousAvengers.id, {
+            id: "atk",
+            controllerId: "p1",
+            isAttacking: true,
+            staticAbilities: ["swampwalk"],
+        });
+        const blocker = makeInstance(tundraWolves.id, {
+            id: "blk",
+            controllerId: "p2",
+        });
+        const swamp = makeInstance(getCardByName("Swamp").id, {
+            id: "swamp",
+            controllerId: "p2",
+        });
+        const wall = makeInstance(greatWall.id, {
+            id: "wall",
+            controllerId: "p2",
+        });
+        const defenderBattlefield = [blocker, swamp, wall];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: defenderBattlefield }),
+            ],
+        });
+        const res = validateBlockerEligibility(
+            attacker,
+            blocker,
+            defenderBattlefield,
+            state
+        );
+        expect(res.eligible).toBe(false);
+    });
+
+    it("Great Wall does not affect islandwalk (only its own subtype is negated)", () => {
+        // Islandwalk attacker, defender controls an Island + Great Wall (plains).
+        const { attacker, blocker, defenderBattlefield, state } = setup({
+            attackerId: devouringDeep.id,
+            landId: islandId,
+            negationId: greatWall.id,
+        });
+        const res = validateBlockerEligibility(
+            attacker,
+            blocker,
+            defenderBattlefield,
+            state
+        );
+        expect(res.eligible).toBe(false);
+    });
+
+    it("definitions carry the parametric landwalk-negation static", () => {
+        expect(greatWall.staticEffects).toEqual([
+            expect.objectContaining({
+                kind: "landwalk-negation",
+                subtypes: ["Plains"],
+            }),
+        ]);
+        expect(undertow.staticEffects).toEqual([
+            expect.objectContaining({
+                kind: "landwalk-negation",
+                subtypes: ["Island"],
+            }),
+        ]);
     });
 });
 

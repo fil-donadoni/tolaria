@@ -14,11 +14,12 @@ import {
     resolvePreviewAbilities,
     getManaChoices,
     hasManaAbility,
+    isLandwalkUnblockable,
     type DisplayAbilities,
 } from "../card-utils";
 import type { CardInstance } from "~/types/game";
 import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
-import { redManaBattery } from "@convex/cards/sets/leg";
+import { redManaBattery, greatWall, undertow } from "@convex/cards/sets/leg";
 
 // Real card ids from convex/cards/sets/lea.ts, used to exercise the
 // definition-vs-instance keyword diff in getDisplayAbilities (#156).
@@ -1055,5 +1056,65 @@ describe("Mana Battery mana picker (charge-counter scaling, #482)", () => {
     it("offers only the base 1 {R} when the battery has no counters", () => {
         const players = [{ id: "p1", battlefield: [battery()] }];
         expect(getManaChoices(battery(), players)).toEqual([{ R: 1 }]);
+    });
+});
+
+// CR 509.1b / 702.13 — client-side block-eligibility view must agree with the
+// server: a landwalk-negation static (Great Wall / Undertow) suppresses the
+// matching landwalk so the creature is no longer treated as unblockable.
+describe("isLandwalkUnblockable (landwalk-negation parity, CR 509.1b / 702.13)", () => {
+    const PLAINS_ID = "b1623d57-4729-4796-b3f7-f1837a05c6ed";
+    const ISLAND_ID = "90a57c0e-fa61-45ef-955d-d296403967d5";
+
+    const plainswalker = (): CardInstance =>
+        makeCardInstance({ id: "atk", staticAbilities: ["plainswalk"] });
+    const islandwalker = (): CardInstance =>
+        makeCardInstance({ id: "atk", staticAbilities: ["islandwalk"] });
+    const land = (id: string, subtype: string): CardInstance =>
+        makeCardInstance({
+            id,
+            card: { id },
+            types: ["Land"],
+            subtypes: [subtype],
+        });
+    const enchant = (id: string): CardInstance =>
+        makeCardInstance({
+            id,
+            card: { id },
+            types: ["Enchantment"],
+            subtypes: [],
+        });
+
+    it("plainswalk creature is unblockable behind a Plains with no Great Wall", () => {
+        expect(
+            isLandwalkUnblockable(plainswalker(), [land(PLAINS_ID, "Plains")])
+        ).toBe(true);
+    });
+
+    it("Great Wall makes the plainswalk creature blockable despite the Plains", () => {
+        expect(
+            isLandwalkUnblockable(plainswalker(), [
+                land(PLAINS_ID, "Plains"),
+                enchant(greatWall.id),
+            ])
+        ).toBe(false);
+    });
+
+    it("Undertow makes the islandwalk creature blockable despite the Island", () => {
+        expect(
+            isLandwalkUnblockable(islandwalker(), [
+                land(ISLAND_ID, "Island"),
+                enchant(undertow.id),
+            ])
+        ).toBe(false);
+    });
+
+    it("Great Wall does not negate islandwalk (only its own subtype)", () => {
+        expect(
+            isLandwalkUnblockable(islandwalker(), [
+                land(ISLAND_ID, "Island"),
+                enchant(greatWall.id),
+            ])
+        ).toBe(true);
     });
 });

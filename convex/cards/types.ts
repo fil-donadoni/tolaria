@@ -2197,6 +2197,34 @@ export interface StaticGlobalAttackRestriction {
     oracleText: string;
 }
 
+/** Battlefield-scanned landwalk-negation static (CR 509.1b / 702.13). The
+ *  source permanent declares that one or more named landwalk keywords can be
+ *  blocked "as though the attacker didn't have it" — i.e. the matching
+ *  landwalk no longer makes a creature unblockable just because the defending
+ *  player controls a land of that subtype. Great Wall (plainswalk), Undertow
+ *  (islandwalk), and the suppression statics on Gosta Dirk / Lord Magnus /
+ *  Ur-Drago are all expressed with this one parametric kind.
+ *
+ *  It is the symmetric analogue of `global-attack-restriction`: scanned across
+ *  EVERY permanent on the battlefield, it negates evasion granted by OTHER
+ *  creatures' landwalk. The negation lives with whoever controls the source —
+ *  in practice the defending player, whose battlefield the landwalk evasion
+ *  rule already scans — so wiring it into the keyword-evasion pass is enough.
+ *
+ *  `subtypes` lists the land subtypes whose corresponding landwalk this source
+ *  negates (e.g. `["Plains"]` for Great Wall, `["Island"]` for Undertow). A
+ *  creature's landwalk keyword is mapped to its land subtype via
+ *  `LANDWALK_KEYWORDS`; a match here suppresses that keyword's evasion. */
+export interface StaticLandwalkNegation {
+    kind: "landwalk-negation";
+    id: string;
+    /** Land subtypes whose landwalk evasion this source negates. */
+    subtypes: string[];
+    /** Oracle text (informational; the rule needs no rejection reason since it
+     *  ENABLES blocks rather than forbidding them). */
+    oracleText: string;
+}
+
 /** Card-level attack requirement (CR 508.1d). Declares that a creature
  *  must attack each combat if able. The engine collects these from the
  *  card's `staticEffects[]` and enforces the requirement when the creature
@@ -2412,6 +2440,7 @@ export type StaticEffect =
     | StaticBlockRestriction
     | StaticAttackRestriction
     | StaticGlobalAttackRestriction
+    | StaticLandwalkNegation
     | StaticAttackRequirement
     | StaticBlockRequirement
     | StaticHandSizeOverride
