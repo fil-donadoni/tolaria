@@ -1789,6 +1789,71 @@ export const carrionAnts: CardDefinition = {
     ],
 };
 
+// Osai Vultures — flying 1/1 with a carrion-counter death engine. Mirrors the
+// Scavenging Ghoul / Khabál Ghoul "end-step death-tally accrual" shape, but
+// (a) accrues a NAMED `carrion` counter (CR 122.1) gated by a CR 603.4d
+// intervening-if ("if a creature died this turn" — at most one counter per
+// turn regardless of how many died, per the card's printed ruling), and
+// (b) spends two of those counters as a CR 122.6 / 118.5 activation cost to
+// pump itself +1/+1 until end of turn (CR 611.1 temporary buff, expires at
+// CLEANUP CR 514.2). The `deathsThisTurn` tally is the shared CR 700.4 death
+// counter maintained in `removePermanentTo` and reset at turn start.
+export const osaiVultures: CardDefinition = {
+    id: "7555ce50-d5aa-515c-b08a-7ad4e7188b4b",
+    rarity: "common",
+    name: "Osai Vultures",
+    oracleText:
+        "Flying\nAt the beginning of each end step, if a creature died this turn, put a carrion counter on this creature.\nRemove two carrion counters from this creature: This creature gets +1/+1 until end of turn.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Bird"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "osai-vultures-carrion",
+            oracleText:
+                "At the beginning of each end step, if a creature died this turn, put a carrion counter on this creature.",
+            phase: "END_STEP",
+            scope: "each",
+            // CR 603.4d intervening-if: the trigger only fires (and only
+            // resolves) while at least one creature has died this turn. A
+            // single carrion counter is placed regardless of the death count
+            // (the singular "a creature died this turn" condition, not a
+            // per-creature count like Khabál Ghoul / Scavenging Ghoul).
+            interveningIf: (_event, _self, state) =>
+                (state?.deathsThisTurn ?? 0) > 0,
+            resolve: (ctx) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "carrion",
+                    1
+                );
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "osai-vultures-pump",
+            oracleText:
+                "Remove two carrion counters from this creature: This creature gets +1/+1 until end of turn.",
+            // CR 122.6 / 118.5 — counter-removal as an activation cost; the
+            // ability is only legal while the source has >= 2 carrion counters.
+            cost: { removeCounter: { type: "carrion", count: 2 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+
 // Walking Dead — "{B}: Regenerate this creature." (CR 701.15a regeneration
 // shield.)
 export const walkingDead: CardDefinition = {

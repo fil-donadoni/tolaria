@@ -82,6 +82,42 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Osai Vultures — end-step carrion-counter death engine (#496, CR 700.4
+        // die tally + CR 603.4d intervening-if + CR 122.6 counter-removal pump).
+        //
+        // Board: your Osai Vultures already carries TWO carrion counters (so the
+        // remove-two pump is one-click testable), plus a Grizzly Bears you can
+        // kill, and an opponent Lightning Bolt to do the killing. Two Plains pay
+        // any white costs. Started in PRECOMBAT_MAIN.
+        // Golden path (accrual):
+        //   1. Have a creature die this turn (opponent bolts your Grizzly Bears,
+        //      or trade in combat). `deathsThisTurn` ticks to 1.
+        //   2. Pass to the END_STEP: Osai's intervening-if sees a death and puts
+        //      ONE carrion counter on it (now 3) — exactly one regardless of how
+        //      many died (printed ruling).
+        // Golden path (pump):
+        //   3. Activate "Remove two carrion counters: +1/+1 until end of turn".
+        //      Osai becomes a 2/2 until cleanup; two carrion counters are spent.
+        // Edge: skip the death and pass to END_STEP — no counter is added
+        //   (the intervening-if fizzles).
+        label: "LEG: Osai Vultures — end-step carrion accrual + remove-two pump (#496)",
+        cards: [
+            {
+                name: "Osai Vultures",
+                owner: "me" as const,
+                counters: { carrion: 2 },
+            },
+            { name: "Grizzly Bears", owner: "me" as const },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
         // Auto-Tap self-source deprioritization (issue #544, CR 602.1).
         // Mishra's Factory has both "{T}: Add {C}" and "{1}: becomes a 2/2".
         // Board: one Mishra's Factory + two Mountains, all untapped.

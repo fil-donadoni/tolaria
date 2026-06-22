@@ -63,6 +63,7 @@ import {
     headlessHorseman,
     lostSoul,
     carrionAnts,
+    osaiVultures,
     walkingDead,
     ghostsOfTheDamned,
     fallenAngel,
@@ -2236,6 +2237,136 @@ describe("Carrion Ants ({1}: +1/+1 EOT, CR 611.1)", () => {
         )!;
         expect(getEffectivePower(projected, slim)).toBe(2);
         expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+describe("Osai Vultures (end-step carrion accrual + remove-two pump, CR 603.4d / 122 / 700.4)", () => {
+    function setup(deaths: number) {
+        const vultures = makeInstance(osaiVultures.id, {
+            id: "vultures",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            phase: "END_STEP",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [vultures] }),
+                makePlayer("p2"),
+            ],
+        });
+        if (deaths > 0) state.deathsThisTurn = deaths;
+        return { state, vultures };
+    }
+
+    const endStep = (playerId: string): StackItem["triggerEvent"] =>
+        ({
+            type: "PHASE_BEGIN" as const,
+            phase: "END_STEP" as const,
+            activePlayerId: playerId,
+        }) as StackItem["triggerEvent"];
+
+    it("has flying", () => {
+        expect(osaiVultures.staticAbilities).toContain("flying");
+    });
+
+    it("gains a carrion counter at the end step when a creature died this turn (CR 603.4d)", () => {
+        const { state, vultures } = setup(1);
+        resolveTrigger(state, vultures, "osai-vultures-carrion", endStep("p1"));
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "vultures"
+        )!;
+        expect(live.counters?.carrion).toBe(1);
+    });
+
+    it("gains exactly ONE carrion counter regardless of how many creatures died (printed ruling)", () => {
+        const { state, vultures } = setup(3);
+        resolveTrigger(state, vultures, "osai-vultures-carrion", endStep("p1"));
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "vultures"
+        )!;
+        expect(live.counters?.carrion).toBe(1);
+    });
+
+    it("adds NO counter on a turn with no deaths (intervening-if fizzles, CR 603.4d)", () => {
+        const { state, vultures } = setup(0);
+        resolveTrigger(state, vultures, "osai-vultures-carrion", endStep("p1"));
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "vultures"
+        )!;
+        expect(live.counters?.carrion).toBeUndefined();
+    });
+
+    it("the carrion counter survives projection (wire format)", () => {
+        const { state, vultures } = setup(1);
+        resolveTrigger(state, vultures, "osai-vultures-carrion", endStep("p1"));
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "vultures"
+        )!;
+        expect(slim.counters?.carrion).toBe(1);
+    });
+
+    it("removes two carrion counters to pump itself +1/+1 until end of turn (CR 122.6 / 611.1)", () => {
+        const vultures = makeInstance(osaiVultures.id, {
+            id: "vultures",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { carrion: 2 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [vultures] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, vultures)).toBe(1);
+        expect(getEffectiveToughness(state, vultures)).toBe(1);
+        // The activation cost (remove two carrion counters) is paid at
+        // activation commit; mirror that here before resolving the effect.
+        vultures.counters = { carrion: 0 };
+        resolveActivated(state, vultures, "osai-vultures-pump");
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "vultures"
+        )!;
+        expect(getEffectivePower(state, live)).toBe(2);
+        expect(getEffectiveToughness(state, live)).toBe(2);
+        // Wire format: the +1/+1 EOT buff survives projection.
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "vultures"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(2);
+    });
+
+    it("the pump expires at cleanup (CR 514.2 end-of-turn duration)", () => {
+        const vultures = makeInstance(osaiVultures.id, {
+            id: "vultures",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            phase: "END_STEP",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [vultures] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, vultures, "osai-vultures-pump");
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "vultures"
+        )!;
+        expect(getEffectivePower(state, live)).toBe(2);
+        // advancePhase from END_STEP traverses CLEANUP (auto) and purges
+        // until-end-of-turn buffs (CR 514.2).
+        advancePhase(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "vultures"
+        )!;
+        expect(getEffectivePower(state, after)).toBe(1);
+        expect(getEffectiveToughness(state, after)).toBe(1);
     });
 });
 
