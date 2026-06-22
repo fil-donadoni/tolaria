@@ -29,6 +29,7 @@ import GameDialog from "~/components/ui/game-dialog";
 import ActionButton from "~/components/board/action-button";
 import CardZoomSlider from "./card-zoom-slider";
 import ColorFilter from "./color-filter";
+import DeckExportButton from "./deck-export-button";
 import DeckImportDialog from "./deck-import-dialog";
 import DeckPileArea from "./deck-pile-area";
 import type { CardDragData, DropZoneId } from "./dnd-types";
@@ -557,6 +558,12 @@ export default function DeckBuilder({
                             >
                                 Import
                             </button>
+                            <DeckExportButton
+                                deck={{
+                                    cards: deck.cards,
+                                    sideboard: deck.sideboard,
+                                }}
+                            />
                             <FormatSelect
                                 value={deck.format}
                                 readOnly={formatReadOnly}
