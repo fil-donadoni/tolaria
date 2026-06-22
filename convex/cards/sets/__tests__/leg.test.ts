@@ -147,6 +147,7 @@ import {
     alchorsTomb,
     mirrorUniverse,
     pendelhaven,
+    livonyaSilone,
     concordantCrossroads,
     gravitySphere,
     aerathiBerserker,
@@ -907,6 +908,139 @@ describe("Great Wall / Undertow (landwalk-negation static, CR 509.1b / 702.13)",
                 subtypes: ["Island"],
             }),
         ]);
+    });
+});
+
+describe("Livonya Silone (first strike + legendary landwalk, CR 702.7 / 702.13)", () => {
+    // Build a defender board: one land (legendary or not) + a vanilla blocker.
+    // Returns the attacking Livonya, the blocker, the defender battlefield, and
+    // the live state for `validateBlockerEligibility`.
+    function setup(opts: { defenderLandId: string }) {
+        const attacker = makeInstance(livonyaSilone.id, {
+            id: "livonya",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const blocker = makeInstance(tundraWolves.id, {
+            id: "blk",
+            controllerId: "p2",
+        });
+        const land = makeInstance(opts.defenderLandId, {
+            id: "land",
+            controllerId: "p2",
+        });
+        const defenderBattlefield = [blocker, land];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: defenderBattlefield }),
+            ],
+        });
+        return { state, attacker, blocker, defenderBattlefield };
+    }
+
+    it("has first strike (CR 702.7)", () => {
+        expect(livonyaSilone.staticAbilities).toContain("first strike");
+    });
+
+    it("has the legendary landwalk keyword (CR 702.13)", () => {
+        expect(livonyaSilone.staticAbilities).toContain("legendary landwalk");
+    });
+
+    it("is a 4/4 Legendary Human Warrior costing {2}{R}{R}{G}{G}", () => {
+        expect(livonyaSilone.power).toBe(4);
+        expect(livonyaSilone.toughness).toBe(4);
+        expect(livonyaSilone.supertypes).toEqual(["Legendary"]);
+        expect(livonyaSilone.subtypes).toEqual(["Human", "Warrior"]);
+        expect(livonyaSilone.manaCost).toEqual({ X: 2, R: 2, G: 2 });
+    });
+
+    it("can't be blocked while the defender controls a legendary land (CR 702.13)", () => {
+        // Pendelhaven is a Legendary Land (CR 205.4) → evasion is live.
+        const { attacker, blocker, defenderBattlefield, state } = setup({
+            defenderLandId: pendelhaven.id,
+        });
+        const res = validateBlockerEligibility(
+            attacker,
+            blocker,
+            defenderBattlefield,
+            state
+        );
+        expect(res.eligible).toBe(false);
+    });
+
+    it("is blockable when the defender controls only a nonlegendary land (CR 702.13)", () => {
+        // A basic Forest carries no Legendary supertype → no evasion.
+        const { attacker, blocker, defenderBattlefield, state } = setup({
+            defenderLandId: getCardByName("Forest").id,
+        });
+        const res = validateBlockerEligibility(
+            attacker,
+            blocker,
+            defenderBattlefield,
+            state
+        );
+        expect(res.eligible).toBe(true);
+    });
+
+    it("a legendary nonland permanent does NOT grant evasion (must be a land)", () => {
+        // Jasmine Boreal is a Legendary Creature, not a land — Livonya stays
+        // blockable. Guards the `types.includes("Land")` half of the matcher.
+        const attacker = makeInstance(livonyaSilone.id, {
+            id: "livonya",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const blocker = makeInstance(tundraWolves.id, {
+            id: "blk",
+            controllerId: "p2",
+        });
+        const legendaryCreature = makeInstance(jasmineBoreal.id, {
+            id: "jasmine",
+            controllerId: "p2",
+        });
+        const defenderBattlefield = [blocker, legendaryCreature];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: defenderBattlefield }),
+            ],
+        });
+        const res = validateBlockerEligibility(
+            attacker,
+            blocker,
+            defenderBattlefield,
+            state
+        );
+        expect(res.eligible).toBe(true);
+    });
+
+    it("evasion survives the wire projection (FullGameState parity)", () => {
+        const { defenderBattlefield, state } = setup({
+            defenderLandId: pendelhaven.id,
+        });
+        // Re-derive attacker + blocker from the projected state so the matcher
+        // reads only the slim `{ id }` card refs the client sees.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimAttacker = projected.players[0].battlefield.find(
+            (c) => c.id === "livonya"
+        )! as unknown as CardInstanceState;
+        const slimBlocker = projected.players[1].battlefield.find(
+            (c) => c.id === "blk"
+        )! as unknown as CardInstanceState;
+        const slimDefenderBf = projected.players[1]
+            .battlefield as unknown as CardInstanceState[];
+        const res = validateBlockerEligibility(
+            slimAttacker,
+            slimBlocker,
+            slimDefenderBf,
+            projected as unknown as typeof state
+        );
+        expect(res.eligible).toBe(false);
+        // Sanity: the projection did strip the fat card ref to `{ id }`.
+        const legendaryLand = slimDefenderBf.find((c) => c.id === "land")!;
+        expect(Object.keys(legendaryLand.card)).toEqual(["id"]);
+        expect(defenderBattlefield.length).toBe(slimDefenderBf.length);
     });
 });
 

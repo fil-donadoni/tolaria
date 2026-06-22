@@ -3485,6 +3485,27 @@ export const ramirezDePietro: CardDefinition = {
     staticAbilities: ["first strike"],
 };
 
+// Livonya Silone — first strike (CR 702.7) + legendary landwalk (CR 702.13).
+// "Legendary landwalk" is landwalk keyed on the land *supertype* Legendary
+// (CR 205.4) rather than a basic-land subtype: Livonya can't be blocked while
+// the defending player controls a land with the Legendary supertype. The
+// evasion is a parametric registry rule (`LANDWALK_SUPERTYPE_KEYWORDS` →
+// `LANDWALK_SUPERTYPE_RULES`), so the keyword string carries the whole
+// behavior — no per-card resolve() or staticEffect.
+export const livonyaSilone: CardDefinition = {
+    id: "b9211949-66a5-4039-ac6d-3e42b008b58e",
+    name: "Livonya Silone",
+    oracleText:
+        "First strike; legendary landwalk (This creature can't be blocked as long as defending player controls a legendary land.)",
+    manaCost: { X: 2, R: 2, G: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Warrior"],
+    power: 4,
+    toughness: 4,
+    staticAbilities: ["first strike", "legendary landwalk"],
+};
+
 // --- Characteristic-defining P/T (CR 604.3) --------------------------------
 
 // Dakkon Blackblade — "Dakkon Blackblade's power and toughness are each equal

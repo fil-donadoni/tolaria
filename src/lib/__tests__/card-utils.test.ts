@@ -19,7 +19,13 @@ import {
 } from "../card-utils";
 import type { CardInstance } from "~/types/game";
 import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
-import { redManaBattery, greatWall, undertow } from "@convex/cards/sets/leg";
+import {
+    redManaBattery,
+    greatWall,
+    undertow,
+    pendelhaven,
+    livonyaSilone,
+} from "@convex/cards/sets/leg";
 
 // Real card ids from convex/cards/sets/lea.ts, used to exercise the
 // definition-vs-instance keyword diff in getDisplayAbilities (#156).
@@ -1116,5 +1122,47 @@ describe("isLandwalkUnblockable (landwalk-negation parity, CR 509.1b / 702.13)",
                 enchant(greatWall.id),
             ])
         ).toBe(true);
+    });
+
+    // CR 702.13 — supertype-keyed landwalk ("legendary landwalk", Livonya
+    // Silone). The client matcher must agree with the server's
+    // `LANDWALK_SUPERTYPE_RULES` so the board lights up the same blockers.
+    const FOREST_ID = "6f1c8cb0-38eb-408b-94e8-16db83999b3b";
+    const legendaryLandwalker = (): CardInstance =>
+        makeCardInstance({
+            id: "atk",
+            card: { id: livonyaSilone.id },
+            staticAbilities: ["legendary landwalk"],
+        });
+    const registryLand = (id: string): CardInstance =>
+        makeCardInstance({ id, card: { id }, types: ["Land"] });
+
+    it("legendary landwalk is unblockable behind a legendary land (Pendelhaven)", () => {
+        expect(
+            isLandwalkUnblockable(legendaryLandwalker(), [
+                registryLand(pendelhaven.id),
+            ])
+        ).toBe(true);
+    });
+
+    it("legendary landwalk is blockable behind only a nonlegendary land (Forest)", () => {
+        expect(
+            isLandwalkUnblockable(legendaryLandwalker(), [
+                registryLand(FOREST_ID),
+            ])
+        ).toBe(false);
+    });
+
+    it("legendary landwalk requires a LAND — a legendary nonland grants no evasion", () => {
+        // Livonya is herself Legendary but a creature, not a land.
+        expect(
+            isLandwalkUnblockable(legendaryLandwalker(), [
+                makeCardInstance({
+                    id: "legendary-creature",
+                    card: { id: livonyaSilone.id },
+                    types: ["Creature"],
+                }),
+            ])
+        ).toBe(false);
     });
 });

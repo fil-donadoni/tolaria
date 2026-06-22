@@ -11,10 +11,13 @@
  */
 
 import type { CardInstanceState } from "./state";
-import { LANDWALK_KEYWORDS } from "./constants";
+import { LANDWALK_KEYWORDS, LANDWALK_SUPERTYPE_KEYWORDS } from "./constants";
 import { hasColor } from "./rules";
 import { applySubstitution } from "./textChanges";
-import { negatedLandwalkSubtypes } from "../cards/landwalkNegation";
+import {
+    controlsLandWithSupertype,
+    negatedLandwalkSubtypes,
+} from "../cards/landwalkNegation";
 
 // ---------------------------------------------------------------------------
 // Rule types
@@ -96,6 +99,26 @@ const LANDWALK_RULES: EvasionRule[] = Object.entries(LANDWALK_KEYWORDS).map(
     })
 );
 
+// CR 702.13 — Landwalk keyed on a land *supertype* ("legendary landwalk",
+// Livonya Silone): the attacker can't be blocked while the defending player
+// controls a land with the named supertype. Same evasion shape as subtype
+// landwalk, but the match reads `supertypes` (CR 205.4) via the registry
+// instead of the instance's substitution-rewritten subtypes. Text-change
+// effects (CR 612) rewrite subtypes, not supertypes, so no `applySubstitution`
+// pass is needed here.
+const LANDWALK_SUPERTYPE_RULES: EvasionRule[] = Object.entries(
+    LANDWALK_SUPERTYPE_KEYWORDS
+).map(([keyword, supertype]) => ({
+    keyword,
+    cr: "702.13",
+    canBlock: (
+        _attacker: CardInstanceState,
+        _blocker: CardInstanceState,
+        defenderBattlefield: CardInstanceState[]
+    ) => !controlsLandWithSupertype(defenderBattlefield, supertype),
+    reason: `Attacker can't be blocked while defender controls a ${supertype} land`,
+}));
+
 // CR 702.36b — Fear: "This creature can't be blocked except by artifact
 // creatures and/or black creatures."
 const FEAR_RULE: EvasionRule = {
@@ -120,6 +143,7 @@ const FLYING_RULE: EvasionRule = {
 export const EVASION_RULES: readonly EvasionRule[] = [
     UNBLOCKABLE_RULE,
     ...LANDWALK_RULES,
+    ...LANDWALK_SUPERTYPE_RULES,
     FEAR_RULE,
     FLYING_RULE,
 ];

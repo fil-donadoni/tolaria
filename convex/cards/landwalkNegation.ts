@@ -46,3 +46,33 @@ export function negatedLandwalkSubtypes(
     }
     return negated;
 }
+
+/** Minimal land-permanent shape a supertype scan needs. `CardInstanceState`
+ *  (server) and the client's `CardInstance` both satisfy it: `types` is the
+ *  live array (so animated lands still count), `card.id` resolves the printed
+ *  supertypes through the registry. */
+interface LandSupertypePermanent {
+    types?: ReadonlyArray<string>;
+    card: { id?: string };
+}
+
+/** True if `battlefield` contains a Land whose printed supertypes include
+ *  `supertype` (CR 205.4). Backs supertype-keyed landwalk ("legendary landwalk",
+ *  Livonya Silone, LEG) — the attacker can't be blocked while the defending
+ *  player controls a land with the named supertype (CR 702.13). Supertypes live
+ *  on the card definition (not a text-changeable, instance-mutable field), so we
+ *  resolve them through the registry — the same frontend-safe lookup pattern as
+ *  `negatedLandwalkSubtypes`, keeping the client's block view in sync with the
+ *  server's keyword-evasion pass. */
+export function controlsLandWithSupertype(
+    battlefield: ReadonlyArray<LandSupertypePermanent>,
+    supertype: string
+): boolean {
+    return battlefield.some((perm) => {
+        if (!perm.types?.includes("Land")) return false;
+        const cardId = perm.card?.id;
+        if (!cardId) return false;
+        const def = tryGetCardById(cardId);
+        return def?.supertypes?.includes(supertype as never) ?? false;
+    });
+}
