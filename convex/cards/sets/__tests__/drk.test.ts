@@ -3390,7 +3390,7 @@ function fireEtbAndCopy(
 
 describe("Dance of Many — definition (modern Scryfall oracle, ADR 0004)", () => {
     it("is a {U}{U} Enchantment with the real Scryfall id", () => {
-        expect(danceOfMany.id).toBe("54d5d755-403a-4e81-837e-f516eb17e819");
+        expect(danceOfMany.id).toBe("13453abe-3f05-4956-8493-382d7d2af699");
         expect(danceOfMany.manaCost).toEqual({ U: 2 });
         expect(danceOfMany.types).toEqual(["Enchantment"]);
     });

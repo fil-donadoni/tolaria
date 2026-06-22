@@ -48,7 +48,7 @@ import { payOrSacrificeUpkeepTrigger } from "./leg";
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const squire: CardDefinition = {
-    id: "aa6cdcc7-f5ea-47bf-9448-1c63e36b18d1",
+    id: "374df061-ebd2-4f1f-9a6e-7940a49197a9",
     name: "Squire",
     oracleText: "",
     manaCost: { X: 1, W: 1 },
@@ -59,7 +59,7 @@ export const squire: CardDefinition = {
 };
 
 export const goblinHero: CardDefinition = {
-    id: "ee969637-a20e-4163-97c0-9fd5cb17b741",
+    id: "7135a569-e5d3-4a1f-924b-bdb86926b4e1",
     name: "Goblin Hero",
     oracleText: "",
     manaCost: { X: 2, R: 1 },
@@ -70,7 +70,7 @@ export const goblinHero: CardDefinition = {
 };
 
 export const scarwoodGoblins: CardDefinition = {
-    id: "5314e57b-107c-4478-9cdb-51d1732f9468",
+    id: "5542d236-af43-43b8-b30f-8980d74bbdd0",
     name: "Scarwood Goblins",
     oracleText: "",
     manaCost: { R: 1, G: 1 },
@@ -537,7 +537,7 @@ function sacrificeWhenNoIslands(
 // kept; everything else (instants, sorceries, creatures, artifacts,
 // enchantments) is discarded.
 export const amnesia: CardDefinition = {
-    id: "fb8a5b56-7c2e-4d3a-9c41-2d80d1f4a8e1",
+    id: "e07df65c-ebcc-4873-b928-d99040d1f2f6",
     name: "Amnesia",
     oracleText:
         "Target player reveals their hand and discards all nonland cards.",
@@ -563,7 +563,7 @@ export const amnesia: CardDefinition = {
 // resolves immediately, no stack, CR 605.3a.) Pays one blue to filter into
 // three colorless.
 export const apprenticeWizard: CardDefinition = {
-    id: "c0a8d6f2-1e4b-4f7a-8b3c-9d2e5a7c1f60",
+    id: "151b332e-164b-4646-8f52-741984cd71ad",
     name: "Apprentice Wizard",
     oracleText: "{U}, {T}: Add {C}{C}{C}.",
     manaCost: { X: 1, U: 2 },
@@ -591,7 +591,7 @@ export const apprenticeWizard: CardDefinition = {
 // prompts: mana first, then (if declined) 1 life; declining both destroys the
 // land.
 export const erosion: CardDefinition = {
-    id: "a1d7f3e5-2c9b-4e6a-8f1d-3b5c7e9a2d40",
+    id: "5f4b6507-89ee-482e-aafd-8e05ada8f1ce",
     name: "Erosion",
     oracleText:
         "Enchant land\nAt the beginning of the upkeep of enchanted land's controller, destroy that land unless that player pays {1} or 1 life.",
@@ -731,7 +731,7 @@ export const fasting: CardDefinition = {
 // ability; CR 701.20a tap; CR 702.9 the "without flying" filter excludes
 // flyers from legal targets via `excludeAbility`.)
 export const flood: CardDefinition = {
-    id: "d4b8a1c6-3f7e-4a9d-8c2b-1e6f5a3d7b90",
+    id: "fabc3267-b59b-4f36-8873-5b4b072711ca",
     name: "Flood",
     oracleText: "{U}{U}: Tap target creature without flying.",
     manaCost: { U: 1 },
@@ -759,7 +759,7 @@ export const flood: CardDefinition = {
 // CR 605 activated ability; CR 701.15a regenerate via a shield consumed by the
 // next destroy.)
 export const ghostShip: CardDefinition = {
-    id: "e7c2f5a8-4b9d-4e1a-9f3c-2d8b6a1e5c70",
+    id: "db591b28-37e5-4e7c-ae4d-d761262b12d0",
     name: "Ghost Ship",
     oracleText: "Flying\n{U}{U}{U}: Regenerate this creature.",
     manaCost: { X: 2, U: 2 },
@@ -793,7 +793,7 @@ export const ghostShip: CardDefinition = {
 // dealt damage this turn (CR 120.3, cleared at CLEANUP); CR 603.8 state-trigger
 // sacrifice.)
 export const giantShark: CardDefinition = {
-    id: "f0a3c6e9-5d1b-4f8a-8e2c-3a7b9d1f6e80",
+    id: "53ec4a19-0f2f-4713-a869-58832484648d",
     name: "Giant Shark",
     oracleText:
         "This creature can't attack unless defending player controls an Island.\nWhenever this creature blocks or becomes blocked by a creature that has been dealt damage this turn, this creature gets +2/+0 and gains trample until end of turn.\nWhen you control no Islands, sacrifice this creature.",
@@ -862,7 +862,7 @@ export const giantShark: CardDefinition = {
 // stack; CR 603.6a each-player upkeep land sacrifice; CR 603.8 state-trigger
 // self-sacrifice.) The cast trigger uses `spellCastTrigger` scope "self".
 export const manaVortex: CardDefinition = {
-    id: "0b1c4d7e-6a2f-4b9c-8d3e-4f8a1b2c5d90",
+    id: "f857a00a-82e0-4227-86ee-1f9c7ca232ae",
     name: "Mana Vortex",
     oracleText:
         "When you cast this spell, counter it unless you sacrifice a land.\nAt the beginning of each player's upkeep, that player sacrifices a land of their choice.\nWhen there are no lands on the battlefield, sacrifice this enchantment.",
@@ -965,7 +965,7 @@ export const manaVortex: CardDefinition = {
 // activated ability; CR 701.7 destroy; `requireAbility: "islandwalk"` scopes
 // legal targets to islandwalkers, CR 702.)
 export const merfolkAssassin: CardDefinition = {
-    id: "1c2d5e8f-7b3a-4c0d-9e4f-5a9b2c3d6e00",
+    id: "36313dc7-6bf2-4d73-b696-969d984a7466",
     name: "Merfolk Assassin",
     oracleText: "{T}: Destroy target creature with islandwalk.",
     manaCost: { U: 2 },
@@ -998,7 +998,7 @@ export const merfolkAssassin: CardDefinition = {
 // player independently chooses 0–3 cards to discard; the damage is 3 minus the
 // count they discarded. APNAP order via `allPlayerIds`.
 export const mindBomb: CardDefinition = {
-    id: "2d3e6f90-8c4b-4d1e-8f5a-6b0c3d4e7f10",
+    id: "0ee810a5-f0f9-4b73-8194-3d1344784050",
     name: "Mind Bomb",
     oracleText:
         "Each player may discard up to three cards. Mind Bomb deals damage to each player equal to 3 minus the number of cards they discarded this way.",
@@ -1045,7 +1045,7 @@ const PSYCHIC_ALLERGY_COLORS = ["W", "U", "B", "R", "G"] as const;
 // CR 603.6a opponents'-upkeep damage trigger; CR 603.6a + CR 117.3a own-upkeep
 // destroy-unless-sacrifice-two-Islands.)
 export const psychicAllergy: CardDefinition = {
-    id: "3e4f7091-9d5c-4e2f-9061-7c1d4e5f8021",
+    id: "fec3275e-4491-43a8-9f23-d7b48177c103",
     name: "Psychic Allergy",
     oracleText:
         "As this enchantment enters, choose a color.\nAt the beginning of each opponent's upkeep, this enchantment deals X damage to that player, where X is the number of nontoken permanents of the chosen color they control.\nAt the beginning of your upkeep, destroy this enchantment unless you sacrifice two Islands.",
@@ -1138,7 +1138,7 @@ export const psychicAllergy: CardDefinition = {
 // Riptide — "Tap all blue creatures." (CR 701.20a — tap every blue creature on
 // the battlefield, either controller; CR 202.2 colour.)
 export const riptide: CardDefinition = {
-    id: "4f508192-0e6d-4f30-8172-8d2e5f607132",
+    id: "b0f11ae4-e30e-441d-bb64-439930d9997c",
     name: "Riptide",
     oracleText: "Tap all blue creatures.",
     manaCost: { U: 1 },
@@ -1159,7 +1159,7 @@ export const riptide: CardDefinition = {
 // unless you pay {U}{U}.\nBlue creatures get +1/+1." (CR 603.6a + CR 117.3a
 // upkeep maintenance cost; CR 611 layer 7c anthem filtered on blue, CR 202.2.)
 export const sunkenCity: CardDefinition = {
-    id: "5061829a-1f7e-4041-8263-9e3f60718243",
+    id: "f1e0f9ec-2b06-4bda-8b80-a716d82d1f13",
     name: "Sunken City",
     oracleText:
         "At the beginning of your upkeep, sacrifice this enchantment unless you pay {U}{U}.\nBlue creatures get +1/+1.",
@@ -1190,7 +1190,7 @@ export const sunkenCity: CardDefinition = {
 // Island." (CR 611 layer 7d conditional buff via a `pt-cda` whose `compute`
 // reads the board — the Kird Ape pattern.)
 export const waterWurm: CardDefinition = {
-    id: "61728ab1-2081-4152-8374-0f4071829354",
+    id: "e3da4a88-5225-467f-9240-f30bc1eee520",
     name: "Water Wurm",
     oracleText:
         "This creature gets +0/+1 as long as an opponent controls an Island.",
@@ -1262,7 +1262,7 @@ export const waterWurm: CardDefinition = {
 // enchantment leaves it exiles the token, whose departure tries to sacrifice
 // the already-gone enchantment (silent no-op, CR 608.2b); and vice versa.
 export const danceOfMany: CardDefinition = {
-    id: "54d5d755-403a-4e81-837e-f516eb17e819",
+    id: "13453abe-3f05-4956-8493-382d7d2af699",
     name: "Dance of Many",
     oracleText:
         "When this enchantment enters, create a token that's a copy of target nontoken creature.\nWhen this enchantment leaves the battlefield, exile the token.\nWhen the token leaves the battlefield, sacrifice this enchantment.\nAt the beginning of your upkeep, sacrifice this enchantment unless you pay {U}{U}.",
@@ -1353,7 +1353,7 @@ export const danceOfMany: CardDefinition = {
 // 601.2c; `excludeTypes: "Artifact"` enforces "nonartifact"; CR 119 the 5
 // damage to the caster.)
 export const ashesToAshes: CardDefinition = {
-    id: "f8b1c2d3-4e5f-4a6b-8c7d-9e0f1a2b3c40",
+    id: "825496e5-19c7-4f50-8070-0265a58608dc",
     name: "Ashes to Ashes",
     oracleText:
         "Exile two target nonartifact creatures. Ashes to Ashes deals 5 damage to you.",
@@ -1377,7 +1377,7 @@ export const ashesToAshes: CardDefinition = {
 // with an {X} cost read at activation via `ctx.getX()`; CR 115.4 "any target";
 // CR 119 the floor/ceil split of half X.)
 export const banshee: CardDefinition = {
-    id: "a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c50",
+    id: "66eaa7d6-48b2-4b35-a834-790edd679e0e",
     name: "Banshee",
     oracleText:
         "{X}, {T}: This creature deals half X damage, rounded down, to any target, and half X damage, rounded up, to you.",
@@ -1418,7 +1418,7 @@ export const banshee: CardDefinition = {
 
 // Bog Imp — vanilla flier (CR 702.9). Keyword on `staticAbilities[]`.
 export const bogImp: CardDefinition = {
-    id: "b2c3d4e5-6f7a-4b8c-9d0e-1f2a3b4c5d60",
+    id: "e3bb7271-634a-4612-9073-7a5438e8c2b8",
     name: "Bog Imp",
     oracleText: "Flying",
     manaCost: { X: 1, B: 1 },
@@ -1433,7 +1433,7 @@ export const bogImp: CardDefinition = {
 // restriction, `side: "attacker"`: a candidate blocker that is a Wall is
 // rejected. CR 205.3 the Wall subtype.)
 export const bogRats: CardDefinition = {
-    id: "c3d4e5f6-7a8b-4c9d-8e1f-2a3b4c5d6e70",
+    id: "d64c9153-bc6d-4a64-885f-c039a5487a31",
     name: "Bog Rats",
     oracleText: "This creature can't be blocked by Walls.",
     manaCost: { B: 1 },
@@ -1461,7 +1461,7 @@ export const bogRats: CardDefinition = {
 // host-controller scope, but the "unless" is a sacrifice of the host, not a
 // mana/life payment, and the consequence is 2 damage rather than destroy.)
 export const curseArtifact: CardDefinition = {
-    id: "d4e5f6a7-8b9c-4d0e-9f2a-3b4c5d6e7f80",
+    id: "9fc0d070-8a42-4d5e-8f2b-ceb59147de6f",
     name: "Curse Artifact",
     oracleText:
         "Enchant artifact\nAt the beginning of the upkeep of enchanted artifact's controller, this Aura deals 2 damage to that player unless they sacrifice that artifact.",
@@ -1504,7 +1504,7 @@ export const curseArtifact: CardDefinition = {
 // loop" is harmless here — each activation requires a distinct creature card in
 // a graveyard, so it terminates when graveyards run dry.)
 export const eaterOfTheDead: CardDefinition = {
-    id: "e5f6a7b8-9c0d-4e1f-8a3b-4c5d6e7f8a90",
+    id: "d89fe2be-bb7e-4bae-9b1f-9f0d58f20ceb",
     name: "Eater of the Dead",
     oracleText:
         "{0}: If this creature is tapped, exile target creature card from a graveyard and untap this creature.",
@@ -1560,7 +1560,7 @@ export const eaterOfTheDead: CardDefinition = {
 // gain 2 life." (CR 605 activated ability; CR 701.18 exile the graveyard-card
 // target filtered to artifacts; CR 119.3 lifegain.)
 export const graveRobbers: CardDefinition = {
-    id: "a7b8c9d0-1e2f-4a3b-8c5d-6e7f8a9b0c10",
+    id: "a131605a-f646-4745-a1e4-48d155a3d94f",
     name: "Grave Robbers",
     oracleText:
         "{B}, {T}: Exile target artifact card from a graveyard. You gain 2 life.",
@@ -1596,7 +1596,7 @@ export const graveRobbers: CardDefinition = {
 // that player equal to the number of white cards in their hand." (CR 701.x
 // reveal; CR 202.2 colour count via `getHandCards().colors`; CR 119 damage.)
 export const inquisition: CardDefinition = {
-    id: "b8c9d0e1-2f3a-4b4c-9d6e-7f8a9b0c1d20",
+    id: "5f133f06-6398-4db1-8577-66c16fd3e00d",
     name: "Inquisition",
     oracleText:
         "Target player reveals their hand. Inquisition deals damage to that player equal to the number of white cards in their hand.",
@@ -1619,7 +1619,7 @@ export const inquisition: CardDefinition = {
 // Marsh Gas — "All creatures get -2/-0 until end of turn." (CR 611.2 temporary
 // P/T mod on every creature; mirrors Holy Light's iterate-all-creatures shape.)
 export const marshGas: CardDefinition = {
-    id: "c9d0e1f2-3a4b-4c5d-8e7f-8a9b0c1d2e30",
+    id: "b80ecb15-258b-4fc9-86e4-c2bf01891606",
     name: "Marsh Gas",
     oracleText: "All creatures get -2/-0 until end of turn.",
     manaCost: { B: 1 },
@@ -1642,7 +1642,7 @@ export const marshGas: CardDefinition = {
 // event fires once per unblocked attacker when the block graph is finalized;
 // CR 611.2 the +2/+0 pump scoped to end of combat.)
 export const murkDwellers: CardDefinition = {
-    id: "d0e1f2a3-4b5c-4d6e-9f8a-9b0c1d2e3f40",
+    id: "a213450f-02f4-4c08-8da8-891ebfa8e237",
     name: "Murk Dwellers",
     oracleText:
         "Whenever this creature attacks and isn't blocked, it gets +2/+0 until end of combat.",
@@ -1683,7 +1683,7 @@ export const murkDwellers: CardDefinition = {
 // amount is written as "life-paid" counters and the base P/T is set from it via
 // `setSelfBody`.
 export const namelessRace: CardDefinition = {
-    id: "e1f2a3b4-5c6d-4e7f-8a9b-0c1d2e3f4a50",
+    id: "348a467a-4661-4fdb-af1d-9171a1a930d9",
     name: "Nameless Race",
     oracleText:
         "Trample\nAs this creature enters, pay any amount of life. The amount you pay can't be more than the total number of white nontoken permanents your opponents control plus the total number of white cards in their graveyards.\nNameless Race's power and toughness are each equal to the life paid as it entered.",
@@ -1740,7 +1740,7 @@ export const namelessRace: CardDefinition = {
 // ability with `controllerTurnOnly`; CR 701.x reveal; CR 701.8a the filtered
 // random discard via `discardAtRandom(..., "Creature")`.)
 export const ragMan: CardDefinition = {
-    id: "f2a3b4c5-6d7e-4f8a-9b0c-1d2e3f4a5b60",
+    id: "f4c133b8-8383-433f-be96-c47a937287b7",
     name: "Rag Man",
     oracleText:
         "{B}{B}{B}, {T}: Target opponent reveals their hand and discards a creature card at random. Activate only during your turn.",
@@ -1780,7 +1780,7 @@ export const ragMan: CardDefinition = {
 // attack — excepting those that "couldn't attack": creatures with defender or
 // that were summoning-sick this turn.)
 export const seasonOfTheWitch: CardDefinition = {
-    id: "a3b4c5d6-7e8f-4a9b-8c1d-2e3f4a5b6c70",
+    id: "06900a71-34ca-48c6-94ac-fca744356829",
     name: "Season of the Witch",
     oracleText:
         "At the beginning of your upkeep, sacrifice this enchantment unless you pay 2 life.\nAt the beginning of the end step, destroy all untapped creatures that didn't attack this turn, except for creatures that couldn't attack.",
@@ -1851,7 +1851,7 @@ export const seasonOfTheWitch: CardDefinition = {
 // while the flag is set. Planeswalkers are out of scope, so only the opponent
 // player is tracked — exactly one opponent in a 2-player game.)
 export const theFallen: CardDefinition = {
-    id: "b4c5d6e7-8f9a-4b0c-9d2e-3f4a5b6c7d80",
+    id: "f4a176e1-b22b-4f36-ba7b-c506cb4e1bed",
     name: "The Fallen",
     oracleText:
         "At the beginning of your upkeep, this creature deals 1 damage to each opponent and planeswalker it has dealt damage to this game.",
@@ -1907,7 +1907,7 @@ export const theFallen: CardDefinition = {
 // Uncle Istvan; the Desert Nomads shape but filtered on `sourceTypes` rather
 // than `sourceSubtypes`.)
 export const uncleIstvan: CardDefinition = {
-    id: "c5d6e7f8-9a0b-4c1d-8e3f-4a5b6c7d8e90",
+    id: "848ad6d5-3a7e-4d6b-9929-36465796871f",
     name: "Uncle Istvan",
     oracleText:
         "Prevent all damage that would be dealt to this creature by creatures.",
@@ -1935,7 +1935,7 @@ export const uncleIstvan: CardDefinition = {
 // Word of Binding — "Tap X target creatures." (CR 601.2c a variable number of
 // creature targets fixed at announcement by X; CR 701.20a tap each.)
 export const wordOfBinding: CardDefinition = {
-    id: "d6e7f8a9-0b1c-4d2e-9f4a-5b6c7d8e9f00",
+    id: "ee30efdb-f1f1-497f-80a6-ec961db67c1d",
     name: "Word of Binding",
     oracleText: "Tap X target creatures.",
     manaCost: { X: 1, B: 2 },
@@ -1968,7 +1968,7 @@ export const wordOfBinding: CardDefinition = {
 // untap-prevention via the new `skipNextUntap` flag, cleared after exactly one
 // untap step.)
 export const barlsCage: CardDefinition = {
-    id: "a1b2c3d4-0001-4aaa-9111-100000000001",
+    id: "6768a307-da2e-435e-8efd-72d82b4d4a2b",
     name: "Barl's Cage",
     oracleText:
         "{3}: Target creature doesn't untap during its controller's next untap step.",
@@ -1994,7 +1994,7 @@ export const barlsCage: CardDefinition = {
 // activated ability; CR 611.2 / 613 layer 7c temporary P/T mod on every
 // creature, scoped to end of turn. Mirrors Marsh Gas' all-creatures pump.)
 export const boneFlute: CardDefinition = {
-    id: "a1b2c3d4-0002-4aaa-9111-100000000002",
+    id: "63a31de0-d764-4ff6-a85f-027e1e58d86c",
     name: "Bone Flute",
     oracleText: "{2}, {T}: All creatures get -1/-0 until end of turn.",
     manaCost: { X: 3 },
@@ -2027,7 +2027,7 @@ export const boneFlute: CardDefinition = {
 // CR 118.4 life payment as part of the cost; CR 121.1 draw. Same shape as
 // Greed.)
 export const bookOfRass: CardDefinition = {
-    id: "a1b2c3d4-0003-4aaa-9111-100000000003",
+    id: "5a391ada-e9e3-45db-ae84-17421ac6b44d",
     name: "Book of Rass",
     oracleText: "{2}, Pay 2 life: Draw a card.",
     manaCost: { X: 6 },
@@ -2053,7 +2053,7 @@ export const bookOfRass: CardDefinition = {
 // of your choice" is a permanent target — typically the attacker/burn source —
 // scoped to the activating player.)
 export const darkSphere: CardDefinition = {
-    id: "a1b2c3d4-0004-4aaa-9111-100000000004",
+    id: "72cfe9b9-677d-4ecb-83ab-67fb6481371d",
     name: "Dark Sphere",
     oracleText:
         "{T}, Sacrifice this artifact: The next time a source of your choice would deal damage to you this turn, prevent half that damage, rounded down.",
@@ -2092,7 +2092,7 @@ export const darkSphere: CardDefinition = {
 // activated ability; CR 701.15a regenerate via a shield consumed by the next
 // destroy. Same shape as Clay Statue.)
 export const diabolicMachine: CardDefinition = {
-    id: "a1b2c3d4-0005-4aaa-9111-100000000005",
+    id: "c3b0f228-6b06-4426-a557-1225d547b908",
     name: "Diabolic Machine",
     oracleText: "{3}: Regenerate this creature.",
     manaCost: { X: 7 },
@@ -2119,7 +2119,7 @@ export const diabolicMachine: CardDefinition = {
 // Fountain of Youth — "{2}, {T}: You gain 1 life." (CR 605 activated ability;
 // CR 119.3 lifegain.)
 export const fountainOfYouth: CardDefinition = {
-    id: "a1b2c3d4-0006-4aaa-9111-100000000006",
+    id: "2b60eb23-cb9a-4203-86fb-60e47dbd870b",
     name: "Fountain of Youth",
     oracleText: "{2}, {T}: You gain 1 life.",
     manaCost: {},
@@ -2142,7 +2142,7 @@ export const fountainOfYouth: CardDefinition = {
 // CR 122.1 counters; CR 202.3 mana value of the targeted permanent. +0/+1 is a
 // layer-7d P/T-modifying counter.)
 export const livingArmor: CardDefinition = {
-    id: "a1b2c3d4-0007-4aaa-9111-100000000007",
+    id: "3c31a957-ad1e-40cc-b3c4-2f4caa492b77",
     name: "Living Armor",
     oracleText:
         "{T}, Sacrifice this artifact: Put X +0/+1 counters on target creature, where X is that creature's mana value.",
@@ -2174,7 +2174,7 @@ export const livingArmor: CardDefinition = {
 // `getManaValue` returns 0 for graveyard cards, so X is read from
 // `getGraveyardCards`. CR 122.1 counters; +0/+1 is a layer-7d counter.)
 export const necropolis: CardDefinition = {
-    id: "a1b2c3d4-0008-4aaa-9111-100000000008",
+    id: "893e8e9c-983e-4db1-8d93-10637025a559",
     name: "Necropolis",
     oracleText:
         "Defender (This creature can't attack.)\nExile a creature card from your graveyard: Put X +0/+1 counters on this creature, where X is the exiled card's mana value.",
@@ -2266,7 +2266,7 @@ export const reflectingMirror: CardDefinition = {
 // matching the "flying" static ability, lasting the rest of the turn — high
 // `remaining` so it prevents every flyer's hit, not just the first.)
 export const scarecrow: CardDefinition = {
-    id: "a1b2c3d4-0009-4aaa-9111-100000000009",
+    id: "93850e74-744c-4261-a84e-01eaced6e49a",
     name: "Scarecrow",
     oracleText:
         "{6}, {T}: Prevent all damage that would be dealt to you this turn by creatures with flying.",
@@ -2300,7 +2300,7 @@ export const scarecrow: CardDefinition = {
 // to your hand." (CR 605 activated ability; CR 400.7 graveyard→hand zone move.
 // Same shape as Raise Dead, filtered to Enchantment cards in your graveyard.)
 export const skullOfOrm: CardDefinition = {
-    id: "a1b2c3d4-0010-4aaa-9111-100000000010",
+    id: "aa1d9bb5-972a-4705-bf22-0fa1e974dd26",
     name: "Skull of Orm",
     oracleText:
         "{5}, {T}: Return target enchantment card from your graveyard to your hand.",
@@ -2332,7 +2332,7 @@ export const skullOfOrm: CardDefinition = {
 // mana ability — resolves immediately, useStack: false, CR 605.3a; CR 106.1 mana
 // of any color via `manaChoices`; CR 118.4 life payment as part of the cost.)
 export const standingStones: CardDefinition = {
-    id: "a1b2c3d4-0011-4aaa-9111-100000000011",
+    id: "6d4c853e-2231-4af2-bcb0-1781c18ec3be",
     name: "Standing Stones",
     oracleText: "{1}, {T}, Pay 1 life: Add one mana of any color.",
     manaCost: { X: 3 },
@@ -2353,7 +2353,7 @@ export const standingStones: CardDefinition = {
 // reduction; CR 118.7 generic-only reduction. A `cost-modifier` static scoped to
 // the controller's own spells via `card.controllerId === effectSource.controllerId`.)
 export const stoneCalendar: CardDefinition = {
-    id: "a1b2c3d4-0012-4aaa-9111-100000000012",
+    id: "a49ba1a5-33b1-40f2-9780-26139ed829d7",
     name: "Stone Calendar",
     oracleText: "Spells you cast cost {1} less to cast.",
     manaCost: { X: 5 },
@@ -2376,7 +2376,7 @@ export const stoneCalendar: CardDefinition = {
 // graveyard." (CR 605 activated ability; CR 406 / 400.7 — move the whole target
 // player's graveyard to exile via `moveZone`.)
 export const tormodsCrypt: CardDefinition = {
-    id: "a1b2c3d4-0013-4aaa-9111-100000000013",
+    id: "0f9668ba-d26d-4484-b4b8-6fb91fbfb617",
     name: "Tormod's Crypt",
     oracleText:
         "{T}, Sacrifice this artifact: Exile target player's graveyard.",
@@ -2404,7 +2404,7 @@ export const tormodsCrypt: CardDefinition = {
 // `cant-be-blocked-by-subtype` until-EOT marker — same family as Tawnos's Wand's
 // can't-be-blocked. Scoped to the Wall subtype.)
 export const towerOfCoireall: CardDefinition = {
-    id: "a1b2c3d4-0014-4aaa-9111-100000000014",
+    id: "64c19977-ac7d-4ce7-925c-33a7503420f5",
     name: "Tower of Coireall",
     oracleText: "{T}: Target creature can't be blocked by Walls this turn.",
     manaCost: { X: 2 },
@@ -2448,7 +2448,7 @@ export const towerOfCoireall: CardDefinition = {
 // colorless output is computed from the source's storage counters via
 // `manaAmount`, CR 106.1 / 605.1a.)
 export const cityOfShadows: CardDefinition = {
-    id: "a1b2c3d4-0016-4aaa-9111-100000000016",
+    id: "76e5ee8a-34e5-4a2e-a04e-9fcdc7e53dda",
     name: "City of Shadows",
     oracleText:
         "{T}, Exile a creature you control: Put a storage counter on this land.\n{T}: Add {C} for each storage counter on this land.",
@@ -2499,7 +2499,7 @@ export const cityOfShadows: CardDefinition = {
 // `preventAllCombatDamageToAndBy`. Untapping an attacker does NOT remove it from
 // combat, CR 506.4c — the prevention is what neutralizes it.)
 export const mazeOfIth: CardDefinition = {
-    id: "a1b2c3d4-0017-4aaa-9111-100000000017",
+    id: "42dcceee-2a47-4eaa-a6a3-2931b3d50244",
     name: "Maze of Ith",
     oracleText:
         "{T}: Untap target attacking creature. Prevent all combat damage that would be dealt to and dealt by that creature this turn.",
@@ -2534,7 +2534,7 @@ export const mazeOfIth: CardDefinition = {
 // keyed to the source via `exileForSource`; CR 603 upkeep trigger that, on
 // sacrifice, returns the bundled cards via `returnExiledForSource`.)
 export const safeHaven: CardDefinition = {
-    id: "a1b2c3d4-0018-4aaa-9111-100000000018",
+    id: "0d48fb47-1bed-4791-a014-504515f3d36f",
     name: "Safe Haven",
     oracleText:
         "{2}, {T}: Exile target creature you control.\nAt the beginning of your upkeep, you may sacrifice this land. If you do, return each card exiled with this land to the battlefield under its owner's control.",
@@ -2841,7 +2841,7 @@ export const wormsOfTheEarth: CardDefinition = {
 // static `manaChoices` is the representative / fallback list for best-effort
 // callers without a board snapshot (affordability, autoTap).)
 export const fellwarStone: CardDefinition = {
-    id: "6722c0e0-13c7-5a24-bd60-f89836d48ef9",
+    id: "dc47e322-f8b8-4685-b035-fda0cc433e6b",
     name: "Fellwar Stone",
     oracleText:
         "{T}: Add one mana of any color that a land an opponent controls could produce.",
@@ -2890,7 +2890,7 @@ export const fellwarStone: CardDefinition = {
 // engine's single `applyLandManaReplacement` mana funnel; expires at CLEANUP,
 // CR 514.2.)
 export const deepWater: CardDefinition = {
-    id: "22fc22cd-5b76-5f93-bbb2-e15af8c0768b",
+    id: "9dd6a230-6bc0-499c-b7fd-4aaa2569f98f",
     name: "Deep Water",
     oracleText:
         "{U}: Until end of turn, if you tap a land you control for mana, it produces {U} instead of any other type.",
@@ -2921,7 +2921,7 @@ export const deepWater: CardDefinition = {
 // via `putFromHandOntoBattlefield`. The second is a mana ability with a
 // sacrifice cost, CR 605.1a.)
 export const gaeasTouch: CardDefinition = {
-    id: "766b09da-d1e1-568c-a543-88fc63f61896",
+    id: "0e1ae3d6-6d96-4db6-bbc4-cee91bae6cf7",
     name: "Gaea's Touch",
     oracleText:
         "{0}: You may put a basic Forest card from your hand onto the battlefield. Activate only as a sorcery and only once each turn.\nSacrifice this enchantment: Add {G}{G}.",
@@ -3020,7 +3020,7 @@ function enchantedLandIsBasicMountain(
 // step of the turn it was cast, and on any end step thereafter if it somehow
 // survives.)
 export const ballLightning: CardDefinition = {
-    id: "7485cf25-eb41-4397-be13-7f0b8c10c70a",
+    id: "c1ba83ab-83f5-421d-bba1-0f925870b5c8",
     name: "Ball Lightning",
     oracleText:
         "Trample (This creature can deal excess combat damage to the player or planeswalker it's attacking.)\nHaste (This creature can attack and {T} as soon as it comes under your control.)\nAt the beginning of the end step, sacrifice this creature.",
@@ -3046,7 +3046,7 @@ export const ballLightning: CardDefinition = {
 // 1 damage to you." (CR 605 activated ability on the stack; CR 115.4 "any
 // target"; the rider deals 1 to the controller — CR 120.3.)
 export const brothersOfFire: CardDefinition = {
-    id: "ee9208e7-2075-45b9-9ed7-b18e1a280d79",
+    id: "ba2cc4a6-fdcc-4082-801a-d2c50e560e8d",
     name: "Brothers of Fire",
     oracleText:
         "{1}{R}{R}: This creature deals 1 damage to any target and 1 damage to you.",
@@ -3079,7 +3079,7 @@ export const brothersOfFire: CardDefinition = {
 // activated ability granting the `mountainwalk` keyword to a target until EOT —
 // the Part Water grant pattern.)
 export const cavePeople: CardDefinition = {
-    id: "6a4e8d44-e6ee-40f7-8df4-52fa4cb346aa",
+    id: "72746a5d-faa1-44b7-97b5-0ef9302a3c13",
     name: "Cave People",
     oracleText:
         "Whenever this creature attacks, it gets +1/-2 until end of turn.\n{1}{R}{R}, {T}: Target creature gains mountainwalk until end of turn.",
@@ -3134,7 +3134,7 @@ export const cavePeople: CardDefinition = {
 // rounding, Math.ceil(X/2).) Modern oracle (ADR 0004): target is an opponent or
 // planeswalker.
 export const eternalFlame: CardDefinition = {
-    id: "b3119f27-45fd-4411-8a09-5f8d3cd8d927",
+    id: "d646feea-3c20-4737-8d20-ffad42258ced",
     name: "Eternal Flame",
     oracleText:
         "Eternal Flame deals X damage to target opponent or planeswalker and half X damage, rounded up, to you, where X is the number of Mountains you control.",
@@ -3171,7 +3171,7 @@ export const eternalFlame: CardDefinition = {
 // Activate only once each turn." (CR 702.9 flying keyword; CR 605 pump activated
 // ability with `oncePerTurn`.)
 export const fireDrake: CardDefinition = {
-    id: "fd3bcc9b-7d84-478e-aef5-2e44610107c7",
+    id: "d3419db6-1c38-4aa4-b953-1dde7d22b927",
     name: "Fire Drake",
     oracleText:
         "Flying\n{R}: This creature gets +1/+0 until end of turn. Activate only once each turn.",
@@ -3205,7 +3205,7 @@ export const fireDrake: CardDefinition = {
 // (CR 701.7 destroy with the regen-shield suppression; CR 114 multi-type
 // target.)
 export const fissure: CardDefinition = {
-    id: "c8b1e9f3-b014-4e57-b278-6d84a7e88b23",
+    id: "aa2d778d-d74b-45ec-a86b-5d52ffad6ba5",
     name: "Fissure",
     oracleText: "Destroy target creature or land. It can't be regenerated.",
     manaCost: { X: 3, R: 2 },
@@ -3223,7 +3223,7 @@ export const fissure: CardDefinition = {
 // creatures and whose `condition` gates on the enchanted land being a BASIC
 // Mountain, read from the Aura's host via `attachedTo`.)
 export const goblinCaves: CardDefinition = {
-    id: "3ab5c3a7-12e7-4394-a495-0bc7c310bf9c",
+    id: "c6a415b0-00a2-4a65-8994-4a395c50ae2d",
     name: "Goblin Caves",
     oracleText:
         "Enchant land\nAs long as enchanted land is a basic Mountain, Goblin creatures get +0/+2.",
@@ -3249,7 +3249,7 @@ export const goblinCaves: CardDefinition = {
 // (CR 605 activated ability with tap + self-sacrifice cost; CR 701.7 destroy
 // restricted to Wall-subtyped creatures via `subtypeFilter`.)
 export const goblinDiggingTeam: CardDefinition = {
-    id: "8408f2a1-e321-43f5-a7d1-1911eba9d706",
+    id: "8a538b9d-351e-40bb-be11-9ba08c16352b",
     name: "Goblin Digging Team",
     oracleText: "{T}, Sacrifice this creature: Destroy target Wall.",
     manaCost: { R: 1 },
@@ -3284,7 +3284,7 @@ export const goblinDiggingTeam: CardDefinition = {
 // untap, so a Sled that attacked this turn stays tapped next turn, CR 302.6 /
 // 502.1; the attack restriction is a pure board predicate, CR 508.1c.)
 export const goblinRockSled: CardDefinition = {
-    id: "ada3247e-ec5e-499d-bc15-1d9dd80a59ae",
+    id: "91e0b59d-8f9b-4a76-9845-bcb0dc32523d",
     name: "Goblin Rock Sled",
     oracleText:
         "Trample\nThis creature doesn't untap during your untap step if it attacked during your last turn.\nThis creature can't attack unless defending player controls a Mountain.",
@@ -3334,7 +3334,7 @@ export const goblinRockSled: CardDefinition = {
 // it deals 1 damage to each Goblin creature." (CR 611 conditional anthem +
 // CR 603.6 LTB trigger dealing 1 to each Goblin via `dealDamageToEach`.)
 export const goblinShrine: CardDefinition = {
-    id: "5e35df8a-2404-4b3b-888a-25d663bd4383",
+    id: "cd69a6dc-27f3-42aa-9e63-4417796e4ef5",
     name: "Goblin Shrine",
     oracleText:
         "Enchant land\nAs long as enchanted land is a basic Mountain, Goblin creatures get +1/+0.\nWhen this Aura leaves the battlefield, it deals 1 damage to each Goblin creature.",
@@ -3375,7 +3375,7 @@ export const goblinShrine: CardDefinition = {
 // battlefield zone move, CR 400.7, via `putFromHandOntoBattlefield`; the second
 // grants the `protection from white` keyword to a Goblin until EOT, CR 702.16.)
 export const goblinWizard: CardDefinition = {
-    id: "912c99a0-ee97-4bb9-8ab7-2e469d74fa03",
+    id: "9b73dfb4-d930-4a89-b621-129dd9f6328c",
     name: "Goblin Wizard",
     oracleText:
         "{T}: You may put a Goblin permanent card from your hand onto the battlefield.\n{R}: Target Goblin gains protection from white until end of turn.",
@@ -3447,7 +3447,7 @@ export const goblinWizard: CardDefinition = {
 // creature." (CR 702.19 landwalk keyword; CR 603.8 state-trigger self-sacrifice
 // when the controller controls a Dwarf.)
 export const goblinsOfTheFlarg: CardDefinition = {
-    id: "3a620d92-ec92-4733-8c05-7fa1b956bab6",
+    id: "fd333b18-b896-4ab8-9c46-eed4efdd94f2",
     name: "Goblins of the Flarg",
     oracleText:
         "Mountainwalk (This creature can't be blocked as long as defending player controls a Mountain.)\nWhen you control a Dwarf, sacrifice this creature.",
@@ -3480,7 +3480,7 @@ export const goblinsOfTheFlarg: CardDefinition = {
 // (CR 120.3 mass damage to every creature and both players via
 // `dealDamageToEach`.)
 export const inferno: CardDefinition = {
-    id: "69e2df4e-c7f3-4c3a-be5b-1c4afb29cead",
+    id: "a6b61512-5b24-424c-966f-36b595781e14",
     name: "Inferno",
     oracleText: "Inferno deals 6 damage to each creature and each player.",
     manaCost: { X: 5, R: 2 },
@@ -3497,7 +3497,7 @@ export const inferno: CardDefinition = {
 // round. Synchronous flips — no per-flip reveal pause — keep the loop a single
 // deterministic resolution.)
 export const manaClash: CardDefinition = {
-    id: "a2f5a5fd-14dc-48e8-bdb0-984a83288023",
+    id: "72955141-d990-459f-adbe-7d3d0f5f6c95",
     name: "Mana Clash",
     oracleText:
         "You and target opponent each flip a coin. Mana Clash deals 1 damage to each player whose coin comes up tails. Repeat this process until both players' coins come up heads on the same flip.",
@@ -3529,7 +3529,7 @@ export const manaClash: CardDefinition = {
 // "sacrifice another [Orc or Goblin]" cost via `sacrificeFilter`; the buff is a
 // team pump on OTHER Orcs the controller controls, CR 611.1.)
 export const orcGeneral: CardDefinition = {
-    id: "1f696446-30ba-42ab-b4fc-ee9c956b0a62",
+    id: "65a10fd5-506e-46bf-87e6-fde134c0dc04",
     name: "Orc General",
     oracleText:
         "{T}, Sacrifice another Orc or Goblin: Other Orc creatures get +1/+1 until end of turn.",
@@ -3577,7 +3577,7 @@ export const orcGeneral: CardDefinition = {
 // Sisters of the Flame — "{T}: Add {R}." (CR 605.1a mana ability — resolves
 // immediately, no stack, CR 605.3a.)
 export const sistersOfTheFlame: CardDefinition = {
-    id: "389a9d46-d3fb-47f0-91cd-f6d487636916",
+    id: "564e0ccd-decb-48d2-981f-cefa8045340f",
     name: "Sisters of the Flame",
     oracleText: "{T}: Add {R}.",
     manaCost: { X: 1, R: 2 },
@@ -3601,7 +3601,7 @@ export const sistersOfTheFlame: CardDefinition = {
 // ability with a {3} + self-sacrifice cost — the Gaea's Touch sacrifice-for-mana
 // shape, resolves immediately.)
 export const coalGolem: CardDefinition = {
-    id: "64b63847-27dd-469b-aad3-58e061f92817",
+    id: "1ad7692d-5a51-493f-a322-7b615446ea8e",
     name: "Coal Golem",
     oracleText: "{3}, Sacrifice this creature: Add {R}{R}{R}.",
     manaCost: { X: 5 },
@@ -3703,7 +3703,7 @@ export const tracker: CardDefinition = {
 //      fires this trigger (the cost taps the land → PERMANENT_TAPPED), which is
 //      exactly the printed self-punishing interaction.
 export const sorrowsPath: CardDefinition = {
-    id: "5d4b3c2a-1f0e-49d8-b7a6-426000000009",
+    id: "6f75946b-1690-43cc-993c-d4e451a1a41c",
     name: "Sorrow's Path",
     oracleText:
         "{T}: Choose two target blocking creatures controlled by the same opponent. If each of those creatures could block all creatures that the other is blocking, remove both of them from combat. Each one then blocks all creatures the other was blocking.\nWhenever this land becomes tapped, it deals 2 damage to you and each creature you control.",

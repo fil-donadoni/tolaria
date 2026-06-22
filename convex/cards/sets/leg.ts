@@ -84,7 +84,7 @@ export const ladyOrca: CardDefinition = {
 // Concordant Crossroads — World enchantment, "All creatures have haste."
 // (CR 702.10, 613.1a layer 6 — keyword-grant to every creature, any controller.)
 export const concordantCrossroads: CardDefinition = {
-    id: "ff01b408-6d17-40a3-9efd-a1b341ec1307",
+    id: "3bdcfae4-86c9-4d8a-bcfe-f0a928ec29db",
     name: "Concordant Crossroads",
     oracleText: "All creatures have haste.",
     manaCost: { G: 1 },
@@ -105,7 +105,7 @@ export const concordantCrossroads: CardDefinition = {
 // Gravity Sphere — World enchantment, "All creatures lose flying."
 // (CR 702.9, 613.1a layer 6 — keyword-remove on every creature, any controller.)
 export const gravitySphere: CardDefinition = {
-    id: "8ddf93fe-980b-4dc4-b56f-6a2ee50100a6",
+    id: "a2749332-e99a-4a0c-b3a3-5578b552fa11",
     name: "Gravity Sphere",
     oracleText: "All creatures lose flying.",
     manaCost: { X: 2, R: 1 },
@@ -1645,7 +1645,7 @@ export const cyclopeanMummy: CardDefinition = {
 // ranged choice's `min` enforces this server-side and the Done button enables
 // at that minimum client-side.
 export const sylvanLibrary: CardDefinition = {
-    id: "6ada256f-2e55-4c1f-b4d3-d7b10b498956",
+    id: "f486df00-7c4a-4ff0-bb0b-c8b5432ac742",
     name: "Sylvan Library",
     oracleText:
         "At the beginning of your draw step, you may draw two additional cards. If you do, choose two cards in your hand drawn this turn. For each of those cards, pay 4 life or put the card on top of your library.",
@@ -4185,7 +4185,7 @@ export const tolaria: CardDefinition = {
 // the live guard reads the host's tap state at each targeting gate, so the
 // shroud blinks off the moment the creature taps.)
 export const spectralCloak: CardDefinition = {
-    id: "fadfa9f9-d096-4083-8630-1c18928133ff",
+    id: "7524fd0d-a675-41d6-bc99-bd3ba336893b",
     name: "Spectral Cloak",
     oracleText:
         "Enchant creature\nEnchanted creature has shroud as long as it's untapped. (It can't be the target of spells or abilities.)",
@@ -4211,7 +4211,7 @@ export const spectralCloak: CardDefinition = {
 // abilities, so a `targetSourceMustBeSpell` guard; plus a `cantBeEnchanted`
 // guard, CR 303.4, blocking further Auras from attaching.)
 export const antiMagicAura: CardDefinition = {
-    id: "6f78c1e2-e38f-431b-8864-8aad982e9912",
+    id: "ff78eef1-efaa-4a12-bf5d-fec83c14aff8",
     name: "Anti-Magic Aura",
     oracleText:
         "Enchant creature\nEnchanted creature can't be the target of spells and can't be enchanted by other Auras.",
@@ -4244,7 +4244,7 @@ export const antiMagicAura: CardDefinition = {
 // `targetSourceSubtypeFilter: ["Aura"]`, CR 109.5 / 113.3. Vigilance is a plain
 // keyword, CR 702.21.)
 export const bartelRuneaxe: CardDefinition = {
-    id: "9beccf09-c024-408b-9f84-fe2c7462babb",
+    id: "f1a42691-98bb-4234-9b56-085e6677f3e4",
     name: "Bartel Runeaxe",
     oracleText: "Vigilance\nBartel Runeaxe can't be the target of Aura spells.",
     manaCost: { X: 3, B: 1, R: 1, G: 1 },
@@ -5126,7 +5126,7 @@ export const divineIntervention: CardDefinition = {
 // counter it unless that player pays {3}." (CR 601.2i cast trigger → CR 117.3a
 // may-pay billed to the spell's controller → CR 701.5a counter on decline.)
 export const netherVoid: CardDefinition = {
-    id: "481ea771-cfa8-526f-95d2-602953bcfaa1",
+    id: "2e72f8cb-5bc3-4711-9b7c-a6eea9a0beaf",
     name: "Nether Void",
     oracleText:
         "Whenever a player casts a spell, counter it unless that player pays {3}.",
@@ -5160,7 +5160,7 @@ export const netherVoid: CardDefinition = {
 // value." (CR 601.2i cast trigger restricted to instants → CR 117.3a may-pay
 // taxed at the cast spell's mana value → CR 701.5a counter on decline.)
 export const inTheEyeOfChaos: CardDefinition = {
-    id: "0ddb65ad-b6ff-5b5a-8a17-7cd7a7da484f",
+    id: "733933dd-c871-4f75-8b08-d7c010dddbe6",
     name: "In the Eye of Chaos",
     oracleText:
         "Whenever a player casts an instant spell, counter it unless that player pays {X}, where X is its mana value.",
@@ -5227,7 +5227,7 @@ export const inTheEyeOfChaos: CardDefinition = {
 // can attack each combat. No more than two creatures can block each combat."
 // (CR 508.1a / 509.1a — global declaration caps; engine-enforced by id.)
 export const cavernsOfDespair: CardDefinition = {
-    id: "a1034a02-36cf-4586-a001-9dc3fb76e904",
+    id: "209f7479-b3a0-4c27-9602-78babb8d2e99",
     name: "Caverns of Despair",
     oracleText:
         "No more than two creatures can attack each combat.\nNo more than two creatures can block each combat.",

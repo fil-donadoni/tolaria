@@ -16,7 +16,7 @@ import {
  *  combat caps / conditional attack restrictions (cluster C9, #386). Kept here
  *  so the engine recognises them without a string-parsing pass — they carry no
  *  per-card predicate, the rule is global. */
-export const CAVERNS_OF_DESPAIR_ID = "a1034a02-36cf-4586-a001-9dc3fb76e904";
+export const CAVERNS_OF_DESPAIR_ID = "209f7479-b3a0-4c27-9602-78babb8d2e99";
 export const ARBORIA_ID = "acb3e93c-a1d3-458f-b8c3-c426cd359fa4";
 
 /** True when any permanent with the given card id is on any player's

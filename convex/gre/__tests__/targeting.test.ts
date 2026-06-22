@@ -1013,9 +1013,9 @@ describe("spell resolution: Counterspell (CR 701.5a)", () => {
 
 describe("can't-be-targeted backend gate (#382)", () => {
     // Real shipped C6 cards (registry-resolved by id).
-    const SPECTRAL_CLOAK = "fadfa9f9-d096-4083-8630-1c18928133ff";
-    const ANTI_MAGIC_AURA = "6f78c1e2-e38f-431b-8864-8aad982e9912";
-    const BARTEL_RUNEAXE = "9beccf09-c024-408b-9f84-fe2c7462babb";
+    const SPECTRAL_CLOAK = "7524fd0d-a675-41d6-bc99-bd3ba336893b";
+    const ANTI_MAGIC_AURA = "ff78eef1-efaa-4a12-bf5d-fec83c14aff8";
+    const BARTEL_RUNEAXE = "f1a42691-98bb-4234-9b56-085e6677f3e4";
 
     it("getPendingTargetSourceSubtypes reads the cast source's subtypes", () => {
         // A spell waiting in hand carrying the Aura subtype.

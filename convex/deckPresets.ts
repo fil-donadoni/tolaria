@@ -321,7 +321,7 @@ const erhnamgeddon: DeckPreset = {
         ...times(1, "badc73ec-3728-4246-90c7-5f4eb7051ed5", "Regrowth"),
         ...times(1, "e0139f60-d48e-46fb-9f5a-1e3d7558c834", "Time Walk"),
         ...times(1, "9a49dc44-616e-4bdd-8220-0bb71eccc512", "Timetwister"),
-        ...times(1, "6ada256f-2e55-4c1f-b4d3-d7b10b498956", "Sylvan Library"),
+        ...times(1, "f486df00-7c4a-4ff0-bb0b-c8b5432ac742", "Sylvan Library"),
         ...times(3, "f4e32327-380d-471e-813b-4c27477787ce", "City of Brass"),
         ...times(
             1,

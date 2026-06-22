@@ -1756,7 +1756,7 @@ export const goblinArtisans: CardDefinition = {
 // Atog — {1}{R} 1/2. "Sacrifice an artifact: This creature gets +2/+2 until
 // end of turn." Self-pump (CR 611.1) funded by sacrificing a chosen artifact.
 export const atog: CardDefinition = {
-    id: "f77fda65-f70d-44b1-89db-910d2761b81c",
+    id: "2249fc40-4412-48fd-800a-7ea3678aee3f",
     name: "Atog",
     oracleText:
         "Sacrifice an artifact: This creature gets +2/+2 until end of turn.",
