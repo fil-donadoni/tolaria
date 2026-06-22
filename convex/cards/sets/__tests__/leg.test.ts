@@ -199,7 +199,11 @@ import {
 } from "../leg";
 import { enumerateMoves, type Move } from "../../../gre/moves";
 import { getCardById, getCardByName, getAllCards } from "../../index";
-import { getLegalTargets, getLegalActions } from "../../../gre/rules";
+import {
+    getLegalTargets,
+    getLegalActions,
+    spellWouldDestroyLandControlledBy,
+} from "../../../gre/rules";
 import { isGuardedAgainst } from "../../../gre/permanentGuard";
 import { isCombatDamagePreventedFromSource } from "../../../gre/combatDamagePrevention";
 import {
@@ -241,6 +245,7 @@ import {
     clergyOfTheHolyNimbus,
     greaterRealmOfPreservation,
     wallOfCaltrops,
+    equinox,
 } from "../leg";
 import { tapSourceIntoPayment } from "../../../game";
 import { getEffectiveManaChoices } from "../../../gre/constants";
@@ -10002,5 +10007,207 @@ describe("Wall of Caltrops (conditional banding grant, CR 509.1h / 603.4d / 702.
             (c) => c.id === "caltrops"
         )!;
         expect(slim.staticAbilities).toContain("banding");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Equinox (CR 303.4 enchant-land aura + 611.2 activated-grant + 701.5a counter
+// + 701.7 destroy). The enchanted land gains a {T} ability that counters target
+// spell ONLY IF it would destroy a land the activating player controls. The
+// hard part is targeting legality: `spellWouldDestroyLandControlledBy` must
+// accept land-destruction (Stone Rain at your land, Armageddon) and reject
+// everything else (Stone Rain at the OPPONENT's land, Counterspell, etc.).
+// ---------------------------------------------------------------------------
+
+const STONE_RAIN_ID = "57ff74cb-a2ed-4123-ac42-f72f9820049e";
+const ARMAGEDDON_ID = "5b6ddce7-b9c5-431d-a0b0-46d4aa93cbcb";
+const COUNTERSPELL_ID = "0df55e3f-14de-46ef-b6b1-616618724d9e";
+const PLAINS_ID = "b1623d57-4729-4796-b3f7-f1837a05c6ed";
+const FOREST_ID = "6f1c8cb0-38eb-408b-94e8-16db83999b3b";
+
+describe("Equinox (enchant land grants conditional counter, CR 303.4/611.2/701.5a)", () => {
+    function setup() {
+        const myLand = makeInstance(PLAINS_ID, {
+            id: "myLand",
+            controllerId: "p1",
+        });
+        const equinoxAura = makeInstance(equinox.id, {
+            id: "equinoxAura",
+            controllerId: "p1",
+            attachedTo: "myLand",
+        });
+        const oppLand = makeInstance(FOREST_ID, {
+            id: "oppLand",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [myLand, equinoxAura] }),
+                makePlayer("p2", { battlefield: [oppLand] }),
+            ],
+        });
+        // The activated-grant is applied imperatively on enter — apply the
+        // Aura's static effects so the enchanted land picks up the grant.
+        applySourceStaticEffects(state, equinoxAura);
+        return { state, myLand, equinoxAura, oppLand };
+    }
+
+    it("definition: {W} enchant-land Aura with the granted {T} counter template", () => {
+        expect(equinox.manaCost).toEqual({ W: 1 });
+        expect(equinox.subtypes).toContain("Aura");
+        expect(equinox.targetRequirement).toEqual({ type: "Land", count: 1 });
+        const tmpl = equinox.grantTemplates?.[0];
+        expect(tmpl?.cost.tap).toBe(true);
+        expect(tmpl?.targetRequirement?.spellWouldDestroyLandYouControl).toBe(
+            true
+        );
+    });
+
+    it("the enchanted land gains the granted {T} ability (CR 611.2)", () => {
+        const { state } = setup();
+        const land = state.players[0].battlefield.find(
+            (c) => c.id === "myLand"
+        )!;
+        expect(land.grantedActivatedAbilities).toHaveLength(1);
+        expect(land.grantedActivatedAbilities![0].abilityId).toBe(
+            "equinox-counter-land-destruction"
+        );
+        expect(land.grantedActivatedAbilities![0].sourceCardId).toBe(
+            equinox.id
+        );
+    });
+
+    it("CAN target Stone Rain aimed at a land you control (CR 701.7)", () => {
+        const { state } = setup();
+        const spell = pushSpell(state, STONE_RAIN_ID, "p2", [
+            { type: "permanent", id: "myLand" },
+        ]);
+        expect(spellWouldDestroyLandControlledBy(state, spell, "p1")).toBe(
+            true
+        );
+        const legal = getLegalTargets(
+            state,
+            { type: "spell", count: 1, spellWouldDestroyLandYouControl: true },
+            [],
+            "p1"
+        );
+        expect(legal.map((t) => t.id)).toContain(spell.id);
+    });
+
+    it("CANNOT target Stone Rain aimed at the OPPONENT's land", () => {
+        const { state } = setup();
+        const spell = pushSpell(state, STONE_RAIN_ID, "p2", [
+            { type: "permanent", id: "oppLand" },
+        ]);
+        expect(spellWouldDestroyLandControlledBy(state, spell, "p1")).toBe(
+            false
+        );
+        const legal = getLegalTargets(
+            state,
+            { type: "spell", count: 1, spellWouldDestroyLandYouControl: true },
+            [],
+            "p1"
+        );
+        expect(legal.map((t) => t.id)).not.toContain(spell.id);
+    });
+
+    it("CAN target Armageddon (mass land destruction) while you control a land", () => {
+        const { state } = setup();
+        const spell = pushSpell(state, ARMAGEDDON_ID, "p2", []);
+        expect(spellWouldDestroyLandControlledBy(state, spell, "p1")).toBe(
+            true
+        );
+    });
+
+    it("CANNOT target a Counterspell or other non-land-destruction spell", () => {
+        const { state } = setup();
+        const spell = pushSpell(state, COUNTERSPELL_ID, "p2", []);
+        expect(spellWouldDestroyLandControlledBy(state, spell, "p1")).toBe(
+            false
+        );
+        const legal = getLegalTargets(
+            state,
+            { type: "spell", count: 1, spellWouldDestroyLandYouControl: true },
+            [],
+            "p1"
+        );
+        expect(legal.map((t) => t.id)).not.toContain(spell.id);
+    });
+
+    it("activating the granted ability counters a qualifying Stone Rain (CR 701.5a)", () => {
+        const { state } = setup();
+        const stoneRainSpell = pushSpell(state, STONE_RAIN_ID, "p2", [
+            { type: "permanent", id: "myLand" },
+        ]);
+        // Activate Equinox's granted {T} ability on the enchanted land,
+        // targeting the Stone Rain. The land is `ctx.sourceInstanceId`.
+        state.stack.push({
+            ...makeInstance(PLAINS_ID, {
+                id: "myLand",
+                controllerId: "p1",
+                zone: "stack",
+            }),
+            castById: "p1",
+            abilityId: "equinox-counter-land-destruction",
+            grantedSourceCardId: equinox.id,
+            targets: [{ type: "spell", id: stoneRainSpell.id }],
+        });
+        resolveTopOfStack(state);
+        // Stone Rain is countered → no longer on the stack, in p2's graveyard.
+        expect(
+            state.stack.find((s) => s.id === stoneRainSpell.id)
+        ).toBeUndefined();
+        expect(
+            state.players[1].graveyard.some(
+                (c) => (c.card as { id: string }).id === STONE_RAIN_ID
+            )
+        ).toBe(true);
+        // The targeted land survives (the spell never resolved).
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "myLand")
+        ).toBe(true);
+    });
+
+    it("wire format: the granted ability survives projection (CR 611.2)", () => {
+        const { state } = setup();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "myLand"
+        )!;
+        expect(slim.grantedActivatedAbilities).toHaveLength(1);
+        expect(slim.grantedActivatedAbilities![0].abilityId).toBe(
+            "equinox-counter-land-destruction"
+        );
+    });
+
+    // Backend integration: reproduces the exact accept/reject decision the
+    // `selectTarget` mutation makes server-side for a `pendingTarget` carrying
+    // `spellWouldDestroyLandYouControl` (game.ts spell branch). The mutation
+    // throws when the predicate returns false; accepts otherwise.
+    function selectTargetWouldThrow(
+        state: GameState,
+        spell: StackItem,
+        playerId: string
+    ): boolean {
+        // pendingTarget.spellWouldDestroyLandYouControl === true (projected).
+        return !spellWouldDestroyLandControlledBy(state, spell, playerId);
+    }
+
+    it("backend: selectTarget ACCEPTS a qualifying land-destruction spell", () => {
+        const { state } = setup();
+        const spell = pushSpell(state, STONE_RAIN_ID, "p2", [
+            { type: "permanent", id: "myLand" },
+        ]);
+        expect(selectTargetWouldThrow(state, spell, "p1")).toBe(false);
+    });
+
+    it("backend: selectTarget REJECTS a non-qualifying spell", () => {
+        const { state } = setup();
+        const counter = pushSpell(state, COUNTERSPELL_ID, "p2", []);
+        const oppRain = pushSpell(state, STONE_RAIN_ID, "p2", [
+            { type: "permanent", id: "oppLand" },
+        ]);
+        expect(selectTargetWouldThrow(state, counter, "p1")).toBe(true);
+        expect(selectTargetWouldThrow(state, oppRain, "p1")).toBe(true);
     });
 });

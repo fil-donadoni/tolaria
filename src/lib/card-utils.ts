@@ -318,6 +318,46 @@ export function matchesSpellSingleTargetingController(
     return targets[0].type === "player" && targets[0].id === activatingPlayerId;
 }
 
+/** True if a stack item is a legal target for Equinox's
+ *  `spellWouldDestroyLandYouControl` requirement (CR 114.1 + 701.7): a spell
+ *  (not an ability) that would destroy a land `playerId` controls — either a
+ *  single-target `effect: "destroy-target"` whose chosen permanent is a land
+ *  they control, or a `destroysAllLands` spell while they control any land.
+ *  Mirrors `spellWouldDestroyLandControlledBy` in `gre/rules.ts`. When the flag
+ *  is off, any spell qualifies. */
+export function matchesSpellWouldDestroyLand(
+    item: {
+        card: { id: string };
+        targets?: { type: string; id: string }[];
+        abilityId?: string;
+        triggeredAbilityId?: string;
+    },
+    spellWouldDestroyLandYouControl: boolean | undefined,
+    players: { id: string; battlefield: CardInstance[] }[],
+    playerId: string
+): boolean {
+    if (!spellWouldDestroyLandYouControl) return true;
+    if (item.abilityId || item.triggeredAbilityId) return false;
+    const def = tryGetCardById(item.card.id);
+    if (!def) return false;
+    const controlsALand = players
+        .find((p) => p.id === playerId)
+        ?.battlefield.some((c) => isLand(c) && c.controllerId === playerId);
+    if (def.destroysAllLands) return !!controlsALand;
+    if (def.effect === "destroy-target") {
+        for (const t of item.targets ?? []) {
+            if (t.type !== "permanent") continue;
+            for (const p of players) {
+                const perm = p.battlefield.find((c) => c.id === t.id);
+                if (perm && isLand(perm) && perm.controllerId === playerId) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 /** Builds a `TriggerStateView` (the shape `canActivate` predicates read,
  *  CR 602.5b) from the viewer-visible players and turn state. Predicates
  *  legitimately inspect `state.players` (a controller's hand size — Library of

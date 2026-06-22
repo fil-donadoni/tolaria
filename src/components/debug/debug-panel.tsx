@@ -82,6 +82,45 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Equinox — Aura grants the enchanted land a conditional counter (#498,
+        // CR 303.4 attachment, 611.2 activated-grant, 701.5a counter, 701.7
+        // destroy).
+        //
+        // Board: you control a Forest (the land to protect) and a couple of
+        // Plains to pay {W}. In hand you hold Equinox. Your opponent holds Stone
+        // Rain (Destroy target land). `landCount: 2` adds basics for mana.
+        // Golden path:
+        //   1. Cast Equinox targeting your Forest. The Forest gains
+        //      "{T}: Counter target spell if it would destroy a land you
+        //      control."
+        //   2. Opponent casts Stone Rain targeting your Forest.
+        //   3. Tap the Equinox-enchanted Forest, target the Stone Rain on the
+        //      stack — it IS clickable (it would destroy your land) and is
+        //      countered. Your Forest survives.
+        // Edge: have the opponent instead cast Stone Rain at one of your basic
+        //   Plains, or hold a Counterspell — the Equinox land's ability still
+        //   targets only spells that would destroy a land you control (a Stone
+        //   Rain at YOUR land qualifies; a Counterspell does not).
+        label: "LEG: Equinox — enchanted land counters a spell that would destroy your land (#498)",
+        cards: [
+            { name: "Forest", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, count: 2 },
+            {
+                name: "Equinox",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Stone Rain",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "opp" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
         // Remove Enchantments — mass conditional return + destroy (#497, CR
         // 108.3 owner vs 110.2 control, 303.4b attachment, 701.7/701.10).
         //

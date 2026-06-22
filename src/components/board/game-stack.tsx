@@ -7,6 +7,7 @@ import {
     getTriggeredAbilityOracleText,
     matchesSpellTypeFilter,
     matchesSpellSingleTargetingController,
+    matchesSpellWouldDestroyLand,
     wantsSpellTarget,
 } from "~/lib/card-utils";
 import { useGameContext } from "~/hooks/useGameContext";
@@ -22,7 +23,7 @@ type GameStackProps = {
 };
 
 export default function GameStack({ stack }: GameStackProps) {
-    const { gameId, playerId, pendingTarget } = useGameContext();
+    const { gameId, playerId, pendingTarget, allPlayers } = useGameContext();
     const selectTarget = useMutation(api.game.selectTarget);
     const { offset, dragHandlers } = useDraggable();
     // Arrow hover-highlight (combat-read): a stack item dims when a relationship
@@ -90,6 +91,12 @@ export default function GameStack({ stack }: GameStackProps) {
                             matchesSpellSingleTargetingController(
                                 item,
                                 pendingTarget?.spellSingleTargetingController,
+                                playerId
+                            ) &&
+                            matchesSpellWouldDestroyLand(
+                                item,
+                                pendingTarget?.spellWouldDestroyLandYouControl,
+                                allPlayers,
                                 playerId
                             );
 
