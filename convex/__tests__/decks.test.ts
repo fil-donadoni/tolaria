@@ -5,6 +5,7 @@ import {
     presetsToSeed,
     presetRowToLobby,
     sortLobbyPresets,
+    buildPresetPatch,
     type LobbyPreset,
 } from "../decks";
 import { PRESET_DECKS, type DeckPreset } from "../deckPresets";
@@ -135,5 +136,89 @@ describe("sortLobbyPresets", () => {
         ];
         sortLobbyPresets(input);
         expect(input.map((p) => p.presetId)).toEqual(["b", "a"]);
+    });
+});
+
+describe("buildPresetPatch — slug is read-only (ADR 0033)", () => {
+    it("never includes a slug key, even when the name changes", () => {
+        const patch = buildPresetPatch({ name: "Totally Renamed Deck" });
+        expect("slug" in patch).toBe(false);
+        expect(patch.name).toBe("Totally Renamed Deck");
+    });
+
+    it("a rename to a name with a different slugify result still omits slug", () => {
+        // Renaming "Mono Red Burn" → "Big Blue Control" would slugify to a
+        // different value; the patch must NOT carry it — identity is immutable.
+        const renamed = "Big Blue Control";
+        expect(slugify(renamed)).toBe("big-blue-control");
+        const patch = buildPresetPatch({ name: renamed });
+        expect(patch).not.toHaveProperty("slug");
+    });
+
+    it("falls back to a default name when blank", () => {
+        expect(buildPresetPatch({ name: "   " }).name).toBe("Untitled preset");
+    });
+
+    it("only patches the fields present in the input", () => {
+        const patch = buildPresetPatch({
+            cards: [{ cardId: "a", cardName: "A" }],
+        });
+        expect(Object.keys(patch)).toEqual(["cards"]);
+    });
+
+    it("carries an explicit sideboard through (preset edit can include one)", () => {
+        const sb = [{ cardId: "s", cardName: "S" }];
+        expect(buildPresetPatch({ sideboard: sb }).sideboard).toEqual(sb);
+    });
+
+    it("yields an empty patch for an empty input (caller skips the write)", () => {
+        expect(buildPresetPatch({})).toEqual({});
+    });
+});
+
+describe("preset edit round-trip — getPreset → editor → list (ADR 0033)", () => {
+    // Integration at the pure-helper / projection level (no convex-test
+    // harness). Assert the data shapes the query/mutation produce flow end to
+    // end: a stored row projects to the editor wire shape, an admin edit
+    // patches the row, and the edited row re-projects into the lobby list.
+    const stored: Doc<"presetDecks"> = {
+        _id: "row1" as Doc<"presetDecks">["_id"],
+        _creationTime: 0,
+        slug: "mono-red-burn",
+        name: "Mono Red Burn",
+        format: "Freeform",
+        description: "Fast aggro.",
+        colors: ["R"],
+        cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],
+        sideboard: [{ cardId: "smash", cardName: "Smash to Smithereens" }],
+    };
+
+    it("getPreset's wire shape feeds the editor with the slug as presetId", () => {
+        const editorInput = presetRowToLobby(stored);
+        expect(editorInput.presetId).toBe("mono-red-burn");
+        expect(editorInput.name).toBe("Mono Red Burn");
+        expect(editorInput.sideboard).toEqual(stored.sideboard);
+    });
+
+    it("an admin edit patches the row but preserves slug, then re-lists", () => {
+        const patch = buildPresetPatch({
+            name: "Mono Red Aggro",
+            cards: [
+                { cardId: "bolt", cardName: "Lightning Bolt" },
+                { cardId: "shock", cardName: "Shock" },
+            ],
+        });
+        // Simulate ctx.db.patch: merge the patch into the stored row. The slug
+        // is untouched because the patch never carries it.
+        const edited: Doc<"presetDecks"> = { ...stored, ...patch };
+        expect(edited.slug).toBe("mono-red-burn"); // identity survives rename
+        expect(edited.name).toBe("Mono Red Aggro");
+
+        // The edited row re-projects into the lobby deck list unchanged in
+        // identity, with the new name/cards visible to every client.
+        const listed = sortLobbyPresets([presetRowToLobby(edited)]);
+        expect(listed[0].presetId).toBe("mono-red-burn");
+        expect(listed[0].name).toBe("Mono Red Aggro");
+        expect(listed[0].cards).toHaveLength(2);
     });
 });

@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
+import { canEditPresets } from "~/lib/adminGating";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { useUserDecks, useUserDeckMutations } from "~/hooks/useUserDecks";
 import {
@@ -215,6 +216,16 @@ function Lobby() {
         });
     };
 
+    // Admin-only: open the shared editor in preset mode (PRD #466, ADR 0033).
+    const handleEditPreset = (presetId: string) => {
+        void navigate({
+            to: "/presets/$slug/edit",
+            params: { slug: presetId },
+        });
+    };
+
+    const isAdmin = canEditPresets(user);
+
     const handleDeleteDeck = (presetId: string) => {
         const deck = userLobbyDecks.find((d) => d.presetId === presetId);
         if (!deck || deck.kind !== "user") return;
@@ -266,6 +277,18 @@ function Lobby() {
             </button>
         </>
     );
+
+    const renderPresetActions = isAdmin
+        ? (deck: LobbyDeck) => (
+              <button
+                  onClick={() => handleEditPreset(deck.presetId)}
+                  className="btn-base btn-tone-secondary px-3 py-2 text-xs"
+                  title="Edit preset (admin)"
+              >
+                  Edit
+              </button>
+          )
+        : undefined;
 
     return (
         <div className="relative min-h-dvh overflow-hidden bg-surface-base text-text">
@@ -336,6 +359,7 @@ function Lobby() {
                                 selectedPresetId={storedPresetId}
                                 onFocus={handleFocusDeck}
                                 onSelect={handleSelectDeck}
+                                renderActions={renderPresetActions}
                             />
                         </div>
                     </Panel>

@@ -14,3 +14,10 @@ export function useUserDeckMutations() {
     const remove = useMutation(api.userDecks.remove);
     return { create, update, remove };
 }
+
+// Admin-only preset edit mutation (PRD #466, ADR 0033). The deck editor uses
+// it in preset mode; the server gates it via `assertIsAdmin`.
+export function usePresetMutations() {
+    const update = useMutation(api.decks.updatePreset);
+    return { update };
+}

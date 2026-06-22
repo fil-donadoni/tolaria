@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCardById } from "@convex/cards";
 import { getCardColors } from "@convex/cards/colors";
-import type { Id } from "@convex/_generated/dataModel";
-import { useUserDeckMutations } from "~/hooks/useUserDecks";
-import { type UserLobbyDeck } from "~/lib/deckTypes";
+import { type LobbyDeck } from "~/lib/deckTypes";
+import {
+    type DeckBuilderKind,
+    type DeckBuilderSinks,
+    dispatchDeckSave,
+} from "~/lib/deckBuilderDispatch";
 import { nextDeckName } from "~/lib/userDecks";
 import {
     SIDEBOARD_LIMIT,
@@ -33,8 +36,18 @@ interface WorkingDeck {
 }
 
 interface DeckBuilderProps {
-    initialDeck: UserLobbyDeck | null;
-    initialDeckList: UserLobbyDeck[];
+    // The kind of deck being edited: a user's own deck or an admin-curated
+    // preset (PRD #466, ADR 0033). Drives the save dispatch and the read-only
+    // slug display in preset mode.
+    kind: DeckBuilderKind;
+    initialDeck: LobbyDeck | null;
+    // Stable identity of the deck being edited: a `userDeckId` for an existing
+    // user deck, the slug for a preset, or null for a brand-new user deck.
+    initialIdentity: string | null;
+    initialDeckList: LobbyDeck[];
+    // Mutation sinks for both kinds; the editor never branches on `kind` —
+    // `dispatchDeckSave` does.
+    sinks: DeckBuilderSinks;
     onClose: (savedDeckId: string | null) => void;
     onDelete?: () => Promise<void>;
 }
@@ -57,11 +70,15 @@ function computeDeckColors(cards: DeckCard[]): string[] {
 }
 
 export default function DeckBuilder({
+    kind,
     initialDeck,
+    initialIdentity,
     initialDeckList,
+    sinks,
     onClose,
     onDelete,
 }: DeckBuilderProps) {
+    const isPreset = kind === "preset";
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [deck, setDeck] = useState<WorkingDeck>(() =>
         initialDeck
@@ -82,10 +99,10 @@ export default function DeckBuilder({
     );
     const [filters, setFilters] = useFilterSearchParams();
 
-    const { create, update } = useUserDeckMutations();
-    const userDeckIdRef = useRef<Id<"userDecks"> | null>(
-        initialDeck?.userDeckId ?? null
-    );
+    // Current persisted identity: a userDeckId once a user deck is created, or
+    // the preset slug in preset mode. Null only for a brand-new user deck
+    // before its first flush.
+    const identityRef = useRef<string | null>(initialIdentity);
     const pendingRef = useRef<WorkingDeck | null>(null);
     const timerRef = useRef<number | null>(null);
     const inflightRef = useRef<Promise<unknown> | null>(null);
@@ -111,46 +128,31 @@ export default function DeckBuilder({
         const pending = pendingRef.current;
         if (!pending) return;
         pendingRef.current = null;
-        if (userDeckIdRef.current === null) {
-            const promise = create({
-                name: pending.name,
-                format: pending.format,
-                colors: pending.colors,
-                cards: pending.cards,
-                sideboard: pending.sideboard,
-            });
-            inflightRef.current = promise;
-            try {
-                userDeckIdRef.current = await promise;
-            } finally {
-                inflightRef.current = null;
-            }
-        } else {
-            const promise = update({
-                id: userDeckIdRef.current,
-                patch: {
-                    name: pending.name,
-                    format: pending.format,
-                    colors: pending.colors,
-                    cards: pending.cards,
-                    sideboard: pending.sideboard,
-                },
-            });
-            inflightRef.current = promise;
-            try {
-                await promise;
-            } finally {
-                inflightRef.current = null;
-            }
+        // The dispatch maps `kind` + current identity to the correct mutation
+        // pair (userDecks create-then-update vs decks.updatePreset by slug) and
+        // returns the resulting identity. The editor never branches on `kind`.
+        const save = dispatchDeckSave(kind, sinks, identityRef.current);
+        const promise = save({
+            name: pending.name,
+            format: pending.format,
+            colors: pending.colors,
+            cards: pending.cards,
+            sideboard: pending.sideboard,
+        });
+        inflightRef.current = promise;
+        try {
+            identityRef.current = await promise;
+        } finally {
+            inflightRef.current = null;
         }
-    }, [create, update]);
+    }, [kind, sinks]);
 
     const schedule = useCallback(
         (next: WorkingDeck) => {
             const shouldPersist =
                 next.cards.length > 0 ||
                 next.sideboard.length > 0 ||
-                userDeckIdRef.current !== null;
+                identityRef.current !== null;
             if (!shouldPersist) {
                 pendingRef.current = null;
                 clearTimer();
@@ -258,7 +260,7 @@ export default function DeckBuilder({
 
     const handleDone = useCallback(async () => {
         await flush();
-        onClose(userDeckIdRef.current);
+        onClose(identityRef.current);
     }, [flush, onClose]);
 
     const toggleColor = useCallback(
@@ -362,8 +364,20 @@ export default function DeckBuilder({
                             ← Back
                         </button>
                         <h1 className="text-lg font-semibold font-beleren tracking-wide text-parchment">
-                            {initialDeck ? "Edit Deck" : "New Deck"}
+                            {isPreset
+                                ? "Edit Preset"
+                                : initialDeck
+                                  ? "Edit Deck"
+                                  : "New Deck"}
                         </h1>
+                        {isPreset && initialIdentity && (
+                            <span
+                                className="rounded-sm border border-border-subtle/40 bg-surface/60 px-2 py-1 font-mono text-xs text-text-muted"
+                                title="Slug is read-only and never changes on rename"
+                            >
+                                slug: {initialIdentity}
+                            </span>
+                        )}
                     </div>
                     <SearchBar value={filters.text} onChange={setText} />
                 </div>

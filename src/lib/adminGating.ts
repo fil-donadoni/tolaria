@@ -1,0 +1,19 @@
+// UI admin gating (PRD #466, ADR 0033). The lobby shows an Edit control on
+// Preset Decks only to admins. Hiding it is cosmetic — the server still gates
+// `updatePreset` via `assertIsAdmin` — but the predicate is extracted and
+// unit-tested so the gate can't silently regress. `currentUser` may be
+// `undefined` (loading) or `null` (signed out); both must read as "not admin".
+
+export interface AdminGateUser {
+    isAdmin?: boolean;
+}
+
+/**
+ * Whether the lobby should expose the preset Edit control. True only when a
+ * loaded user is explicitly flagged `isAdmin`.
+ */
+export function canEditPresets(
+    user: AdminGateUser | null | undefined
+): boolean {
+    return user?.isAdmin === true;
+}
