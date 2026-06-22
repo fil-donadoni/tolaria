@@ -4,6 +4,7 @@ import { getCardColors } from "@convex/cards/colors";
 import { type LobbyDeck } from "~/lib/deckTypes";
 import {
     type DeckBuilderKind,
+    type DeckBuilderMode,
     type DeckBuilderSinks,
     dispatchDeckSave,
 } from "~/lib/deckBuilderDispatch";
@@ -40,6 +41,10 @@ interface DeckBuilderProps {
     // preset (PRD #466, ADR 0033). Drives the save dispatch and the read-only
     // slug display in preset mode.
     kind: DeckBuilderKind;
+    // Whether the editor is creating a brand-new deck or editing an existing
+    // one. Drives the save dispatch: a preset in create mode persists via
+    // `createPreset` on first flush, then patches by the derived slug.
+    mode?: DeckBuilderMode;
     initialDeck: LobbyDeck | null;
     // Stable identity of the deck being edited: a `userDeckId` for an existing
     // user deck, the slug for a preset, or null for a brand-new user deck.
@@ -71,6 +76,7 @@ function computeDeckColors(cards: DeckCard[]): string[] {
 
 export default function DeckBuilder({
     kind,
+    mode = "edit",
     initialDeck,
     initialIdentity,
     initialDeckList,
@@ -131,7 +137,7 @@ export default function DeckBuilder({
         // The dispatch maps `kind` + current identity to the correct mutation
         // pair (userDecks create-then-update vs decks.updatePreset by slug) and
         // returns the resulting identity. The editor never branches on `kind`.
-        const save = dispatchDeckSave(kind, sinks, identityRef.current);
+        const save = dispatchDeckSave(kind, sinks, identityRef.current, mode);
         const promise = save({
             name: pending.name,
             format: pending.format,
@@ -145,7 +151,7 @@ export default function DeckBuilder({
         } finally {
             inflightRef.current = null;
         }
-    }, [kind, sinks]);
+    }, [kind, mode, sinks]);
 
     const schedule = useCallback(
         (next: WorkingDeck) => {
@@ -365,7 +371,9 @@ export default function DeckBuilder({
                         </button>
                         <h1 className="text-lg font-semibold font-beleren tracking-wide text-parchment">
                             {isPreset
-                                ? "Edit Preset"
+                                ? mode === "create"
+                                    ? "New Preset"
+                                    : "Edit Preset"
                                 : initialDeck
                                   ? "Edit Deck"
                                   : "New Deck"}

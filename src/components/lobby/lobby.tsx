@@ -247,6 +247,13 @@ function Lobby() {
         void navigate({ to: "/decks/create" });
     };
 
+    // Admin-only: open the shared editor to author a brand-new preset (issue
+    // #469). The slug is derived from the name on first save (server-gated by
+    // `assertIsAdmin`); the new preset then appears in every client's lobby.
+    const handleNewPreset = () => {
+        void navigate({ to: "/presets/create" });
+    };
+
     if (
         presetDecks === undefined ||
         userDecks === undefined ||
@@ -360,6 +367,17 @@ function Lobby() {
                                 onFocus={handleFocusDeck}
                                 onSelect={handleSelectDeck}
                                 renderActions={renderPresetActions}
+                                headerExtra={
+                                    isAdmin ? (
+                                        <button
+                                            onClick={handleNewPreset}
+                                            className="btn-base btn-tone-primary px-3 py-1.5 text-xs"
+                                            title="Create a new preset (admin)"
+                                        >
+                                            + New Preset
+                                        </button>
+                                    ) : undefined
+                                }
                             />
                         </div>
                     </Panel>

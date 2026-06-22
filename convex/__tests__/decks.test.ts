@@ -6,6 +6,7 @@ import {
     presetRowToLobby,
     sortLobbyPresets,
     buildPresetPatch,
+    buildNewPresetRow,
     type LobbyPreset,
 } from "../decks";
 import { PRESET_DECKS, type DeckPreset } from "../deckPresets";
@@ -173,6 +174,102 @@ describe("buildPresetPatch — slug is read-only (ADR 0033)", () => {
 
     it("yields an empty patch for an empty input (caller skips the write)", () => {
         expect(buildPresetPatch({})).toEqual({});
+    });
+});
+
+describe("buildNewPresetRow — admin create (issue #469)", () => {
+    it("derives the slug from the name via slugify", () => {
+        const row = buildNewPresetRow({ name: "My Fresh Brew" });
+        expect(row.slug).toBe("my-fresh-brew");
+        expect(row.name).toBe("My Fresh Brew");
+        expect(slugify(row.name)).toBe(row.slug);
+    });
+
+    it("strips punctuation when slugging the name", () => {
+        const row = buildNewPresetRow({ name: "RG Channel Fireball!" });
+        expect(row.slug).toBe("rg-channel-fireball");
+    });
+
+    it("falls back to a default name (and its slug) when blank", () => {
+        const row = buildNewPresetRow({ name: "   " });
+        expect(row.name).toBe("Untitled preset");
+        expect(row.slug).toBe("untitled-preset");
+    });
+
+    it("defaults format/colors/cards and omits an absent sideboard", () => {
+        const row = buildNewPresetRow({ name: "Empty Deck" });
+        expect(row.format).toBe("Freeform");
+        expect(row.colors).toEqual([]);
+        expect(row.cards).toEqual([]);
+        expect(row.sideboard).toBeUndefined();
+    });
+
+    it("carries the full payload through (cards, colors, sideboard)", () => {
+        const row = buildNewPresetRow({
+            name: "Loaded",
+            format: "Vintage",
+            colors: ["R", "G"],
+            cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],
+            sideboard: [{ cardId: "smash", cardName: "Smash" }],
+            description: "A test deck.",
+        });
+        expect(row.format).toBe("Vintage");
+        expect(row.colors).toEqual(["R", "G"]);
+        expect(row.cards).toEqual([
+            { cardId: "bolt", cardName: "Lightning Bolt" },
+        ]);
+        expect(row.sideboard).toEqual([{ cardId: "smash", cardName: "Smash" }]);
+        expect(row.description).toBe("A test deck.");
+    });
+
+    it("produces a row whose lobby projection matches list's wire shape", () => {
+        // The mutation inserts this row verbatim; `list` projects it via
+        // `presetRowToLobby`. Assert the round-trip exposes the slug as the
+        // public presetId, so a newly created preset appears correctly for
+        // every user (no convex-test harness — assert the produced shapes).
+        const row = buildNewPresetRow({
+            name: "Mono White Aggro",
+            colors: ["W"],
+            cards: [{ cardId: "savannah", cardName: "Savannah Lions" }],
+        });
+        const lobby = presetRowToLobby({
+            _id: "row1" as Doc<"presetDecks">["_id"],
+            _creationTime: 0,
+            ...row,
+        });
+        expect(lobby.presetId).toBe("mono-white-aggro");
+        expect(lobby.name).toBe("Mono White Aggro");
+        expect(lobby.cards).toEqual([
+            { cardId: "savannah", cardName: "Savannah Lions" },
+        ]);
+    });
+});
+
+describe("createPreset — slug uniqueness (issue #469)", () => {
+    // The mutation builds the row, then rejects if the derived slug already
+    // exists in `presetDecks`. No convex-test harness — model the same pure
+    // collision decision the mutation makes against the existing slug set.
+    function collides(
+        name: string,
+        existingSlugs: ReadonlySet<string>
+    ): boolean {
+        return existingSlugs.has(buildNewPresetRow({ name }).slug);
+    }
+
+    it("rejects a name whose slug collides with an existing preset", () => {
+        const existing = new Set(PRESET_DECKS.map((p) => p.presetId));
+        // "Mono Red Burn" → mono-red-burn, an existing preset slug.
+        expect(collides("Mono Red Burn", existing)).toBe(true);
+    });
+
+    it("rejects a differently-cased/punctuated name that slugs to a taken slug", () => {
+        const existing = new Set(["mono-red-burn"]);
+        expect(collides("  Mono   Red   Burn!  ", existing)).toBe(true);
+    });
+
+    it("accepts a name whose slug is free", () => {
+        const existing = new Set(PRESET_DECKS.map((p) => p.presetId));
+        expect(collides("Totally New Brew", existing)).toBe(false);
     });
 });
 

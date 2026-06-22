@@ -170,6 +170,48 @@ export function buildPresetPatch(
     return patch;
 }
 
+/** The full editable payload an Admin submits to create a new preset. */
+export interface PresetCreateInput {
+    name?: string;
+    format?: string;
+    colors?: string[];
+    cards?: DeckCard[];
+    sideboard?: DeckCard[];
+    description?: string;
+}
+
+/**
+ * Pure builder for a brand-new preset row (PRD #466, ADR 0033, issue #469).
+ * Auto-derives the stable `slug` from the name via `slugify` — the slug is the
+ * preset's immutable identity. Applies the same blank-name fallback as
+ * `buildPresetPatch`. Returns the row ready to insert (minus Convex system
+ * fields). Pure and exported so slug generation is unit-tested without a Convex
+ * harness (the project has no convex-test harness).
+ */
+export function buildNewPresetRow(input: PresetCreateInput): PresetInsert {
+    const name = (input.name ?? "").trim() || "Untitled preset";
+    return {
+        slug: slugify(name),
+        name,
+        format: input.format ?? "Freeform",
+        description: input.description,
+        colors: input.colors ?? [],
+        cards: input.cards ?? [],
+        sideboard: input.sideboard,
+    };
+}
+
+// Validator for the full create payload of a preset. The `slug` is intentionally
+// absent: it is derived from the name server-side and immutable (ADR 0033).
+const presetCreateValidator = v.object({
+    name: v.optional(v.string()),
+    format: v.optional(v.string()),
+    colors: v.optional(v.array(v.string())),
+    cards: v.optional(v.array(deckCardValidator)),
+    sideboard: v.optional(v.array(deckCardValidator)),
+    description: v.optional(v.string()),
+});
+
 // Single preset by slug, backing the editor's preset edit mode (ADR 0033).
 // Returns null for a missing slug so the route can render a not-found state.
 export const getPreset = query({
@@ -202,6 +244,29 @@ export const updatePreset = mutation({
         if (Object.keys(patch).length === 0) return null;
         await ctx.db.patch(row._id, patch);
         return null;
+    },
+});
+
+// Admin-only creation of a brand-new preset (ADR 0033, issue #469).
+// `assertIsAdmin` runs FIRST — non-admins are rejected server-side, not just
+// hidden in the UI. The slug is auto-derived from the name and must be unique:
+// a collision with an existing preset throws, so two presets can never share an
+// identity. The inserted row matches exactly what `list` projects to the lobby.
+export const createPreset = mutation({
+    args: { input: presetCreateValidator },
+    returns: v.object({ slug: v.string() }),
+    handler: async (ctx, args) => {
+        await assertIsAdmin(ctx);
+        const row = buildNewPresetRow(args.input);
+        const existing = await ctx.db
+            .query("presetDecks")
+            .withIndex("by_slug", (q) => q.eq("slug", row.slug))
+            .unique();
+        if (existing) {
+            throw new Error(`A preset with slug "${row.slug}" already exists`);
+        }
+        await ctx.db.insert("presetDecks", row);
+        return { slug: row.slug };
     },
 });
 
