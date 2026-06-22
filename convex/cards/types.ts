@@ -1164,12 +1164,22 @@ export interface SpellContext {
      *
      *  `timing: "next-draw-step"` fires at the beginning of a specific player's
      *  next draw step (CR 504) — pass that player's id as `targetPlayerId` so
-     *  the trigger fires only on their draw step (Nafs Asp). The other timings
-     *  ignore `targetPlayerId` and fire at the next global boundary. */
+     *  the trigger fires only on their draw step (Nafs Asp).
+     *
+     *  `timing: "next-main-phase"` fires at the beginning of a specific player's
+     *  next main phase (CR 505) — the next PRECOMBAT_MAIN or POSTCOMBAT_MAIN of
+     *  the player passed as `targetPlayerId`, on that player's own turn. Used by
+     *  Mana Drain ("add {C} at the beginning of your next main phase"). The
+     *  remaining timings ignore `targetPlayerId` and fire at the next global
+     *  boundary. */
     scheduleDelayedTrigger: (
         sourceCardId: string,
         triggerId: string,
-        timing: "next-end-step" | "next-end-of-combat" | "next-draw-step",
+        timing:
+            | "next-end-step"
+            | "next-end-of-combat"
+            | "next-draw-step"
+            | "next-main-phase",
         payload: Record<string, string>,
         targetPlayerId?: string
     ) => void;
@@ -1688,7 +1698,11 @@ export interface DelayedTriggerDef {
     /** Oracle text shown on the stack when the trigger fires. */
     oracleText: string;
     /** When the trigger should fire. */
-    timing: "next-end-step" | "next-end-of-combat" | "next-draw-step";
+    timing:
+        | "next-end-step"
+        | "next-end-of-combat"
+        | "next-draw-step"
+        | "next-main-phase";
     /** Invoked when the trigger resolves from the stack. `payload` carries
      *  serialized references (ids) chosen at scheduling time. */
     resolve: (ctx: SpellContext, payload: Record<string, string>) => void;

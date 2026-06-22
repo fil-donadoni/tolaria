@@ -1133,8 +1133,9 @@ export function fireDelayedTriggers(
     const firing: DelayedTriggerInstance[] = [];
     const remaining: DelayedTriggerInstance[] = [];
     for (const t of state.delayedTriggers) {
-        // A `next-draw-step` instance fires only on its target player's draw
-        // step (CR 504); the global-boundary timings ignore `targetPlayerId`.
+        // A `next-draw-step` / `next-main-phase` instance fires only on its
+        // target player's draw step / main phase (CR 504 / CR 505); the
+        // global-boundary timings ignore `targetPlayerId`.
         const matches =
             t.timing === timing &&
             (t.targetPlayerId === undefined ||
@@ -1345,6 +1346,18 @@ function performPhaseEntry(state: GameState): void {
             }
             break;
         }
+        case "PRECOMBAT_MAIN":
+        case "POSTCOMBAT_MAIN":
+            // CR 505 / 603.7 — "at the beginning of your next main phase"
+            // delayed triggers (Mana Drain) fire on ENTRY of the controller's
+            // next main phase. Main phases only occur on a player's own turn,
+            // so the `targetPlayerId === activePlayerId` gate in
+            // `fireDelayedTriggers` restricts firing to the scheduling player's
+            // turn. Because the trigger is scheduled at spell resolution and a
+            // single fire dequeues it, "next" is satisfied: the immediate next
+            // main phase the controller reaches consumes it.
+            fireDelayedTriggers(state, "next-main-phase");
+            break;
         case "END_OF_COMBAT": {
             // CR 511.1 — "at the beginning of the end of combat step" delayed
             // triggers fire on ENTRY. The combat teardown (clearing

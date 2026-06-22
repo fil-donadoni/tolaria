@@ -183,6 +183,7 @@ import {
     arboria,
     moat,
     akronLegionnaire,
+    manaDrain,
 } from "../leg";
 import { enumerateMoves, type Move } from "../../../gre/moves";
 import { getCardById, getCardByName, getAllCards } from "../../index";
@@ -1544,6 +1545,110 @@ describe("Teleport (target creature can't be blocked, CR 509.1b)", () => {
             (c) => c.id === "atk"
         )!;
         expect(marked.cantBeBlockedThisTurn).toBe(true);
+    });
+});
+
+describe("Mana Drain (counter + next-main-phase {C}=MV, CR 701.5a/603.7/505)", () => {
+    // Build p1 (caster) with a Mana Drain on the stack targeting an opponent
+    // spell, and the opponent spell beneath it. Returns the assembled state.
+    function makeCounterScenario(targetMv: 4 = 4) {
+        void targetMv;
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            // Cast on p2's turn (the typical reactive window).
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+            phase: "PRECOMBAT_MAIN",
+        });
+        // Opponent's Azure Drake (MV 4) on the bottom of the stack.
+        const drakeSpell = pushSpell(state, azureDrake.id, "p2");
+        // p1's Mana Drain on top, targeting the Drake spell.
+        pushSpell(state, manaDrain.id, "p1", [
+            { type: "spell", id: drakeSpell.id },
+        ]);
+        return { state, drakeSpell };
+    }
+
+    it("counters the target spell (CR 701.5a) and the spell hits the graveyard", () => {
+        const { state, drakeSpell } = makeCounterScenario();
+        resolveTopOfStack(state); // resolve Mana Drain
+        // Drake spell is gone from the stack, in its owner's graveyard.
+        expect(state.stack.find((s) => s.id === drakeSpell.id)).toBeUndefined();
+        expect(
+            state.players[1].graveyard.some((c) => c.id === drakeSpell.id)
+        ).toBe(true);
+        // No mana added yet — the {C} is deferred to p1's next main phase.
+        expect(state.players[0].manaPool.C).toBe(0);
+    });
+
+    it("schedules a next-main-phase delayed trigger carrying the spell's MV (CR 603.7/505)", () => {
+        const { state } = makeCounterScenario();
+        resolveTopOfStack(state);
+        const queued = state.delayedTriggers ?? [];
+        expect(queued).toHaveLength(1);
+        expect(queued[0].timing).toBe("next-main-phase");
+        expect(queued[0].targetPlayerId).toBe("p1");
+        expect(queued[0].payload.mv).toBe("4");
+        expect(queued[0].payload.controller).toBe("p1");
+    });
+
+    it("adds {C} equal to the countered spell's MV when the caster's next main phase begins (CR 505/107.4c)", () => {
+        const { state } = makeCounterScenario();
+        resolveTopOfStack(state);
+        // Fire as p1's main phase begins (the gate keys on activePlayerId).
+        state.activePlayerId = "p1";
+        fireDelayedTriggers(state, "next-main-phase");
+        // The trigger is on the stack; resolve it to add the mana.
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.C).toBe(4);
+        // The delayed trigger is consumed (fires only once).
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
+    });
+
+    it("does NOT fire on the opponent's main phase (CR 505 — caster's own turn only)", () => {
+        const { state } = makeCounterScenario();
+        resolveTopOfStack(state);
+        // p2 (opponent) reaches a main phase first: must not fire.
+        state.activePlayerId = "p2";
+        fireDelayedTriggers(state, "next-main-phase");
+        expect(state.stack).toHaveLength(0);
+        expect((state.delayedTriggers ?? []).length).toBe(1);
+        expect(state.players[0].manaPool.C).toBe(0);
+    });
+
+    it("fires through advancePhase when the caster's turn reaches PRECOMBAT_MAIN (full phase path)", () => {
+        const { state } = makeCounterScenario();
+        resolveTopOfStack(state);
+        // Hand the turn to p1 at the very start of their turn.
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        state.phase = "DRAW";
+        // Advancing DRAW → PRECOMBAT_MAIN runs performPhaseEntry, which fires
+        // the next-main-phase trigger and pushes it on the stack.
+        advancePhase(state);
+        expect(state.phase).toBe("PRECOMBAT_MAIN");
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.C).toBe(4);
+    });
+
+    it("survives the wire projection — delayed {C} is observable client-side (gameProjections)", () => {
+        const { state } = makeCounterScenario();
+        resolveTopOfStack(state);
+        state.activePlayerId = "p1";
+        fireDelayedTriggers(state, "next-main-phase");
+        resolveTopOfStack(state);
+        // p1 viewer sees their own colorless mana in the projected state.
+        const projected = projectPublicState(state, 0, "p1");
+        expect(projected.players[0].manaPool.C).toBe(4);
+    });
+
+    it("is a {U}{U} instant with the modern oracle text", () => {
+        expect(manaDrain.manaCost).toEqual({ U: 2 });
+        expect(manaDrain.types).toEqual(["Instant"]);
+        expect(manaDrain.oracleText).toBe(
+            "Counter target spell. At the beginning of your next main phase, add an amount of {C} equal to that spell's mana value."
+        );
     });
 });
 

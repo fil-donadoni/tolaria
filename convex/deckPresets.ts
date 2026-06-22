@@ -303,8 +303,8 @@ const erhnamgeddon: DeckPreset = {
         ...times(1, "82da0972-b17b-4600-9efd-e9430a0db04b", "Mox Sapphire"),
         ...times(1, "c4300d24-1cae-4dd5-be7e-38cc677cf5bd", "Sol Ring"),
         ...times(1, "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b", "Ancestral Recall"),
-        // Mana Drain → 2nd Counterspell (Mana Drain not implemented).
-        ...times(2, "0df55e3f-14de-46ef-b6b1-616618724d9e", "Counterspell"),
+        ...times(1, "0df55e3f-14de-46ef-b6b1-616618724d9e", "Counterspell"),
+        ...times(1, "e691adef-3027-4e6a-889f-9f4e2df36a7c", "Mana Drain"),
         ...times(4, "2722d7e2-61c6-4934-9c21-875ee78fd06c", "Disenchant"),
         // Chaos Orb → 2nd Psionic Blast (Chaos Orb out of scope, ADR 0010).
         ...times(2, "a6a86e6e-bfff-46af-9d36-c912901fea92", "Psionic Blast"),
