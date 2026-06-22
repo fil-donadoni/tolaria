@@ -14,6 +14,7 @@ import {
     MANA_COLORS,
     PLACEHOLDER_CARD_ID,
     abilitiesSuppressed,
+    isLand,
     isTapLockedBySummoningSickness,
     manaValue,
 } from "./constants";
@@ -450,6 +451,54 @@ export function matchesMvFilter(
  *  resolved relative to the chooser. `chosenX` is required when the
  *  requirement carries a `mvFilter` whose bounds use the `"X"` placeholder
  *  (CR 107.3 / 202.3, e.g. Spell Blast). */
+/** CR 114.1 + 701.7 — would the spell `item` on the stack destroy a land that
+ *  `playerId` controls? Inspects the spell DECLARATIVELY (never runs its
+ *  imperative `resolve()`): a single-target `effect: "destroy-target"` whose
+ *  chosen permanent target is a land controlled by `playerId`, or a mass
+ *  land-destruction spell flagged `destroysAllLands` while `playerId` controls
+ *  at least one land. Abilities on the stack are not spells and never qualify.
+ *  Reusable predicate (not Equinox-specific) — drives the
+ *  `spellWouldDestroyLandYouControl` spell-target filter. Per the Legends
+ *  rulings, only DIRECT destruction counts (damage-to-animated-land,
+ *  sacrifice, and random/indirect destruction are excluded by construction —
+ *  they aren't `destroy-target`/`destroysAllLands`). */
+export function spellWouldDestroyLandControlledBy(
+    state: GameState,
+    item: GameState["stack"][number],
+    playerId: string
+): boolean {
+    // An activated/triggered/delayed ability on the stack is not a spell.
+    if (item.abilityId || item.triggeredAbilityId || item.delayedTriggerId) {
+        return false;
+    }
+    const cardId = (item.card as { id?: string }).id;
+    const def = cardId ? tryGetCardById(cardId) : undefined;
+    if (!def) return false;
+
+    const controlsALand = state.players
+        .find((p) => p.id === playerId)
+        ?.battlefield.some((c) => isLand(c) && c.controllerId === playerId);
+
+    // Mass land destruction (Armageddon): destroys every land in play, so it
+    // destroys the activator's land iff they control any land at all.
+    if (def.destroysAllLands) return !!controlsALand;
+
+    // Single-target "Destroy target land" (Stone Rain / Sinkhole / Ice Storm):
+    // qualifies iff one of the chosen targets is a land this player controls.
+    if (def.effect === "destroy-target") {
+        for (const t of item.targets ?? []) {
+            if (t.type !== "permanent") continue;
+            for (const p of state.players) {
+                const perm = p.battlefield.find((c) => c.id === t.id);
+                if (perm && isLand(perm) && perm.controllerId === playerId) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 export function getLegalTargets(
     state: GameState,
     requirement: TargetRequirement,
@@ -770,6 +819,15 @@ export function getLegalTargets(
                 if (tgts[0].type !== "player" || tgts[0].id !== casterId) {
                     continue;
                 }
+            }
+            // CR 114.1 + 701.7 — Equinox: only spells that would destroy a land
+            // the activating player controls are legal.
+            if (
+                requirement.spellWouldDestroyLandYouControl &&
+                (casterId === undefined ||
+                    !spellWouldDestroyLandControlledBy(state, item, casterId))
+            ) {
+                continue;
             }
             targets.push({ type: "spell", id: item.id });
         }

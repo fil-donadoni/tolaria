@@ -225,6 +225,17 @@ export interface TargetRequirement {
      *  single target if that target is you", CR 114.1 / 115.10). Ignored for
      *  non-spell target types. */
     spellSingleTargetingController?: boolean;
+    /** Restricts legal SPELL targets (`type: "spell"`) to spells that WOULD
+     *  destroy a land the activating player controls (CR 114.1 + 701.7). A
+     *  spell qualifies when either:
+     *    - it has `effect: "destroy-target"` and one of its chosen targets is a
+     *      Land the activating player controls, or
+     *    - its definition is flagged `destroysAllLands` (mass land destruction)
+     *      and the activating player controls at least one land.
+     *  Used by Equinox's granted "{T}: Counter target spell if it would destroy
+     *  a land you control." Evaluated by `spellWouldDestroyLandControlledBy` in
+     *  `gre/rules.ts`. Ignored for non-spell target types. */
+    spellWouldDestroyLandYouControl?: boolean;
 }
 
 /** "For as long as" condition on a conditional control change (CR 611.2b).
@@ -3536,6 +3547,15 @@ export interface CardDefinition {
      *  card definition stays pure data. Mutually exclusive with `resolve` and
      *  `resolveSteps` — combining them throws at lookup. */
     effect?: EffectShorthand;
+    /** Declarative marker: this spell's resolution destroys every land in play
+     *  (CR 701.7, e.g. Armageddon's `ctx.destroyAll("Land")`). Purely a
+     *  classification hint for effects that need to reason about a spell's
+     *  outcome WITHOUT running its imperative `resolve()` — currently
+     *  Equinox's "{T}: Counter target spell if it would destroy a land you
+     *  control" (`spellWouldDestroyLandControlledBy`). It does NOT change how
+     *  the spell resolves. Set it on any mass-land-destruction card whose
+     *  effect lives in an opaque `resolve()`/`destroyAll` body. */
+    destroysAllLands?: boolean;
     /** Multi-step resolve for spells that gather player choices mid-resolution
      *  (CR 608.2, 101.4). The engine runs steps in order; each step may call
      *  `SpellContext.requestChoice` to enqueue pending choices. When a step

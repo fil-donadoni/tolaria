@@ -31,7 +31,7 @@ import type {
     TargetSelection,
     TriggerStateView,
 } from "../types";
-import { EFFECT_AFFECTS_SELF } from "../types";
+import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../types";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
 import { tappedTrigger } from "../abilities/triggers/tappedTrigger";
@@ -1483,6 +1483,54 @@ export const forceSpike: CardDefinition = {
         if (paid === undefined) return; // suspended on the may-pay choice
         if (!paid) ctx.counter(target);
     },
+};
+
+// Equinox — {W} Aura (Enchant land). "Enchanted land has '{T}: Counter target
+// spell if it would destroy a land you control.'" (CR 303.4 aura attachment,
+// 611.2 continuous ability grant via `activated-grant`, 701.5a counter, 701.7
+// destroy.) The granted {T} ability lives on `grantTemplates` (kept off the
+// Aura's own `activatedAbilities` so Equinox itself doesn't expose it) and is
+// spliced onto the enchanted land by the layer system. Its target requirement
+// `spellWouldDestroyLandYouControl` limits legal targets to spells that would
+// directly destroy a land the activating player controls — Stone Rain / Sinkhole
+// targeting your land, or Armageddon-style mass land destruction. Per the
+// Legends rulings, indirect/random/sacrifice destruction and damage to animated
+// lands are excluded (they aren't `destroy-target` / `destroysAllLands`).
+export const equinox: CardDefinition = {
+    id: "840c6586-a7a9-4ae8-96be-a995a0693eb6",
+    rarity: "common",
+    name: "Equinox",
+    oracleText:
+        'Enchant land\nEnchanted land has "{T}: Counter target spell if it would destroy a land you control."',
+    manaCost: { W: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1 },
+    staticEffects: [
+        {
+            kind: "activated-grant",
+            applies: AURA_AFFECTS_HOST,
+            abilityId: "equinox-counter-land-destruction",
+        },
+    ],
+    grantTemplates: [
+        {
+            id: "equinox-counter-land-destruction",
+            oracleText:
+                "{T}: Counter target spell if it would destroy a land you control.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "spell",
+                count: 1,
+                spellWouldDestroyLandYouControl: true,
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "spell") ctx.counter(target);
+            },
+        },
+    ],
 };
 
 // --- Bounce / removal spells -----------------------------------------------

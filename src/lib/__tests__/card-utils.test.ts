@@ -5,6 +5,7 @@ import {
     matchesTargetRequirement,
     matchesSpellTypeFilter,
     matchesSpellSingleTargetingController,
+    matchesSpellWouldDestroyLand,
     wantsSpellTarget,
     getStackAbilities,
     getAnyPlayerStackAbilities,
@@ -744,6 +745,88 @@ describe("matchesSpellSingleTargetingController", () => {
                 undefined,
                 "p1"
             )
+        ).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// matchesSpellWouldDestroyLand (Equinox — CR 114.1 + 701.7). The UI marks a
+// stack spell clickable only if it would destroy a land the activator controls.
+// ---------------------------------------------------------------------------
+
+describe("matchesSpellWouldDestroyLand (Equinox clickability)", () => {
+    const STONE_RAIN_ID = "57ff74cb-a2ed-4123-ac42-f72f9820049e";
+    const ARMAGEDDON_ID = "5b6ddce7-b9c5-431d-a0b0-46d4aa93cbcb";
+    const COUNTERSPELL_ID = "0df55e3f-14de-46ef-b6b1-616618724d9e";
+    const PLAINS_ID = "b1623d57-4729-4796-b3f7-f1837a05c6ed";
+    const FOREST_ID = "6f1c8cb0-38eb-408b-94e8-16db83999b3b";
+
+    const myLand = makeCardInstance({
+        id: "myLand",
+        card: { id: PLAINS_ID },
+        controllerId: "p1",
+        types: ["Land"],
+    });
+    const oppLand = makeCardInstance({
+        id: "oppLand",
+        card: { id: FOREST_ID },
+        controllerId: "p2",
+        types: ["Land"],
+    });
+    const players = [
+        { id: "p1", battlefield: [myLand] },
+        { id: "p2", battlefield: [oppLand] },
+    ];
+
+    it("matches Stone Rain aimed at a land you control", () => {
+        const item = {
+            card: { id: STONE_RAIN_ID },
+            targets: [{ type: "permanent", id: "myLand" }],
+        };
+        expect(matchesSpellWouldDestroyLand(item, true, players, "p1")).toBe(
+            true
+        );
+    });
+
+    it("rejects Stone Rain aimed at the opponent's land", () => {
+        const item = {
+            card: { id: STONE_RAIN_ID },
+            targets: [{ type: "permanent", id: "oppLand" }],
+        };
+        expect(matchesSpellWouldDestroyLand(item, true, players, "p1")).toBe(
+            false
+        );
+    });
+
+    it("matches Armageddon while you control a land", () => {
+        const item = { card: { id: ARMAGEDDON_ID }, targets: [] };
+        expect(matchesSpellWouldDestroyLand(item, true, players, "p1")).toBe(
+            true
+        );
+    });
+
+    it("rejects a Counterspell (no land destruction)", () => {
+        const item = { card: { id: COUNTERSPELL_ID }, targets: [] };
+        expect(matchesSpellWouldDestroyLand(item, true, players, "p1")).toBe(
+            false
+        );
+    });
+
+    it("rejects an ability on the stack (not a spell)", () => {
+        const item = {
+            card: { id: STONE_RAIN_ID },
+            targets: [{ type: "permanent", id: "myLand" }],
+            abilityId: "some-ability",
+        };
+        expect(matchesSpellWouldDestroyLand(item, true, players, "p1")).toBe(
+            false
+        );
+    });
+
+    it("matches anything when the flag is off", () => {
+        const item = { card: { id: COUNTERSPELL_ID }, targets: [] };
+        expect(
+            matchesSpellWouldDestroyLand(item, undefined, players, "p1")
         ).toBe(true);
     });
 });

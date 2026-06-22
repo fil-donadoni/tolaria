@@ -68,6 +68,10 @@ export const armageddon: CardDefinition = {
     oracleText: "Destroy all lands.",
     manaCost: { X: 3, W: 1 },
     types: ["Sorcery"],
+    // CR 701.7 — mass land destruction. The declarative marker lets effects that
+    // reason about a spell's outcome (Equinox's counter) recognise this as
+    // land destruction without running the imperative resolve below.
+    destroysAllLands: true,
     resolve: (ctx: SpellContext) => {
         ctx.destroyAll("Land");
     },

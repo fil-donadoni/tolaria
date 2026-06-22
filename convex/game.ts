@@ -74,6 +74,7 @@ import {
     isProtectedFromColors,
     matchesMvFilter,
     resolveMvFilter,
+    spellWouldDestroyLandControlledBy,
 } from "./gre/rules";
 import {
     STATIC_EFFECT_CTX,
@@ -3335,6 +3336,16 @@ export const selectTarget = mutation({
                     );
                 }
             }
+            // CR 114.1 + 701.7 — Equinox: the chosen spell must be one that
+            // would destroy a land the activating player controls.
+            if (
+                pt.spellWouldDestroyLandYouControl &&
+                !spellWouldDestroyLandControlledBy(state, spell, pt.playerId)
+            ) {
+                throw new Error(
+                    "Target spell would not destroy a land you control"
+                );
+            }
         }
 
         pt.selected.push(target);
@@ -4856,6 +4867,9 @@ export const activateAbility = mutation({
                     : {}),
                 ...(effectiveTargetReq.spellSingleTargetingController
                     ? { spellSingleTargetingController: true }
+                    : {}),
+                ...(effectiveTargetReq.spellWouldDestroyLandYouControl
+                    ? { spellWouldDestroyLandYouControl: true }
                     : {}),
                 ...(() => {
                     const resolved = resolveMvFilter(
