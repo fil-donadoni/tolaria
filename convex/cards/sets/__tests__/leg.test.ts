@@ -28,6 +28,7 @@ import {
     divineTransformation,
     seeker,
     spiritLink,
+    infiniteAuthority,
     cleanse,
     divineOffering,
     greatDefender,
@@ -1126,6 +1127,161 @@ describe("Spirit Link (gain life when enchanted creature deals damage, CR 303.4)
             isCombat: true,
         } as StackItem["triggerEvent"]);
         expect(state.players[0].life).toBe(23);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Infinite Authority — {W}{W}{W} Aura. "Whenever enchanted creature blocks or
+// becomes blocked by a creature with toughness 3 or less, destroy the other
+// creature at end of combat. At the beginning of the next end step, if that
+// creature was destroyed this way, put a +1/+1 counter on the first creature."
+// (CR 303.4 aura, CR 509.1h combat pairing, CR 603.7a delayed destroy + counter)
+// ---------------------------------------------------------------------------
+describe("Infinite Authority (becomes-blocked-by → end-of-combat destroy + next-end-step counter, CR 509.1h / 603.7a)", () => {
+    const GRIZZLY_ID = grizzlyBears.id; // 2/2
+
+    // Enchanted host (p1) ATTACKS; an opponent (p2) creature with the given
+    // toughness BLOCKS it. Block confirmed so `emitBlockersConfirmedEvents`
+    // fires the per-pair trigger (CR 509.1h).
+    function setupCombat(opts: { blockerToughness: number }) {
+        const host = makeInstance(GRIZZLY_ID, {
+            id: "host",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isAttacking: true,
+        });
+        const aura = makeInstance(infiniteAuthority.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            attachedTo: "host",
+        });
+        const blocker = makeInstance(GRIZZLY_ID, {
+            id: "blocker",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            types: ["Creature"],
+            toughness: opts.blockerToughness,
+            isBlocking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["host"],
+                confirmed: true,
+                blockerAssignments: { blocker: ["host"] },
+                blockersConfirmed: true,
+            },
+        });
+        return { state, host, blocker };
+    }
+
+    it("is a {W}{W}{W} Aura that enchants a creature", () => {
+        expect(infiniteAuthority.manaCost).toEqual({ W: 3 });
+        expect(infiniteAuthority.types).toEqual(["Enchantment"]);
+        expect(infiniteAuthority.subtypes).toEqual(["Aura"]);
+        expect(infiniteAuthority.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+        });
+    });
+
+    it("triggers when the enchanted creature is blocked by a toughness-≤3 creature", () => {
+        const { state } = setupCombat({ blockerToughness: 2 });
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "infinite-authority-combat-kill"
+        );
+    });
+
+    it("fires ONCE per pair and references the OTHER creature (the blocker)", () => {
+        const { state } = setupCombat({ blockerToughness: 2 });
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].timing).toBe("next-end-of-combat");
+        expect(state.delayedTriggers![0].payload.targetId).toBe("blocker");
+    });
+
+    it("does NOT trigger when the blocker's toughness is 4 (CR 613 effective toughness)", () => {
+        const { state } = setupCombat({ blockerToughness: 4 });
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("destroys the toughness-≤3 blocker at END_OF_COMBAT", () => {
+        const { state } = setupCombat({ blockerToughness: 2 });
+        emitBlockersConfirmedEvents(state);
+        resolveTopOfStack(state); // schedule the deferred destroy
+        state.phase = "COMBAT_DAMAGE";
+        advancePhase(state);
+        expect(state.phase).toBe("END_OF_COMBAT");
+        expect(state.stack.length).toBeGreaterThanOrEqual(1);
+        resolveTopOfStack(state); // resolve the deferred destroy
+        const p2 = state.players[1];
+        expect(p2.battlefield.find((c) => c.id === "blocker")).toBeUndefined();
+        expect(p2.graveyard.find((c) => c.id === "blocker")).toBeDefined();
+    });
+
+    it("puts a +1/+1 counter on the enchanted creature at the NEXT end step (destroyed this way)", () => {
+        const { state, host } = setupCombat({ blockerToughness: 2 });
+        emitBlockersConfirmedEvents(state);
+        resolveTopOfStack(state);
+        // End-of-combat: destroy resolves AND schedules the counter trigger.
+        state.phase = "COMBAT_DAMAGE";
+        advancePhase(state);
+        expect(state.phase).toBe("END_OF_COMBAT");
+        resolveTopOfStack(state);
+        // The "destroyed this way" marker IS the freshly-scheduled next-end-step
+        // delayed trigger.
+        const counterDelayed = state.delayedTriggers?.find(
+            (t) => t.triggerId === "infinite-authority-counter"
+        );
+        expect(counterDelayed).toBeDefined();
+        expect(counterDelayed!.timing).toBe("next-end-step");
+        // Walk to the end step; the delayed trigger fires onto the stack.
+        state.phase = "POSTCOMBAT_MAIN";
+        advancePhase(state);
+        expect(state.phase).toBe("END_STEP");
+        expect(state.stack.length).toBeGreaterThanOrEqual(1);
+        resolveTopOfStack(state);
+        expect(host.counters?.["+1/+1"]).toBe(1);
+        // Effective toughness reflects the counter (CR 613 layer 7c): 2 + 1.
+        expect(getEffectiveToughness(state, host)).toBe(3);
+
+        // Wire format (mandatory for a visible P/T effect): the +1/+1 counter
+        // and the resulting effective toughness survive `projectPublicState`.
+        const projected = projectPublicState(state, 0, "p1");
+        const slimHost = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(slimHost.counters?.["+1/+1"]).toBe(1);
+        expect(getEffectiveToughness(projected, slimHost)).toBe(3);
+    });
+
+    it("does NOT add a counter when no creature was destroyed this way (toughness-4 blocker)", () => {
+        const { state, host } = setupCombat({ blockerToughness: 4 });
+        emitBlockersConfirmedEvents(state);
+        // No trigger, no deferred destroy, no scheduled counter.
+        state.phase = "COMBAT_DAMAGE";
+        advancePhase(state);
+        expect(
+            state.delayedTriggers?.some(
+                (t) => t.triggerId === "infinite-authority-counter"
+            )
+        ).toBeFalsy();
+        state.phase = "POSTCOMBAT_MAIN";
+        advancePhase(state);
+        expect(host.counters?.["+1/+1"]).toBeUndefined();
     });
 });
 

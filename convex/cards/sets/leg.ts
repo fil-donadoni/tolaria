@@ -37,6 +37,7 @@ import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
 import { rampageTrigger } from "../abilities/triggers/rampageTrigger";
+import { combatPairKill } from "../abilities/triggers/combatPairKillTrigger";
 import { manaCostForCardId } from "../manaCostLookup";
 import {
     isEnchantedByAura,
@@ -567,6 +568,80 @@ export const spiritLink: CardDefinition = {
                 ctx.gainLife(ctx.controller, event.amount);
             },
         }),
+    ],
+};
+
+// Infinite Authority — {W}{W}{W} Aura (Enchant creature). "Whenever enchanted
+// creature blocks or becomes blocked by a creature with toughness 3 or less,
+// destroy the other creature at end of combat. At the beginning of the next end
+// step, if that creature was destroyed this way, put a +1/+1 counter on the
+// first creature." (CR 303.4 aura, CR 509.1h combat-pairing trigger, CR 603.7a
+// delayed end-of-combat destroy + next-end-step counter.)
+//
+// Composed entirely from shared primitives: `combatPairKill` (becomes-blocked
+// → deferred destroy) with `combatant: "enchanted"` and a toughness-≤3 gate;
+// the `onDestroyed` hook (fired only when the destroy actually hit a graveyard)
+// schedules the next-end-step +1/+1 counter on the aura's host — that scheduling
+// IS the "destroyed this way" marker, so no persisted flag is needed.
+const INFINITE_AUTHORITY_ID = "dc60077f-d577-4a6c-a78f-697317024c40";
+const INFINITE_AUTHORITY_COUNTER_TRIGGER = "infinite-authority-counter";
+
+const infiniteAuthorityCombatKill = combatPairKill({
+    cardId: INFINITE_AUTHORITY_ID,
+    triggerId: "infinite-authority-combat-kill",
+    delayedTriggerId: "infinite-authority-destroy",
+    oracleText:
+        "Whenever enchanted creature blocks or becomes blocked by a creature with toughness 3 or less, destroy the other creature at end of combat.",
+    delayedOracleText: "Destroy the other creature at end of combat.",
+    combatant: "enchanted",
+    // "a creature with toughness 3 or less" (CR 613 effective toughness carried
+    // on the event). Treat a missing toughness (synthetic events) as not-≤3.
+    opponentFilter: (opponent) =>
+        opponent.toughness !== undefined && opponent.toughness <= 3,
+    // "if that creature was destroyed this way, put a +1/+1 counter on the
+    // first creature [the enchanted creature] at the beginning of the next end
+    // step." Scheduled only when the destroy succeeded. `ownId` is the host
+    // captured at trigger resolution (the delayed-destroy ctx can't read
+    // `getAttachedToId`).
+    onDestroyed: (ctx, payload) => {
+        const hostId = payload.ownId;
+        if (!hostId) return;
+        ctx.scheduleDelayedTrigger(
+            INFINITE_AUTHORITY_ID,
+            INFINITE_AUTHORITY_COUNTER_TRIGGER,
+            "next-end-step",
+            { hostId }
+        );
+    },
+});
+
+export const infiniteAuthority: CardDefinition = {
+    id: INFINITE_AUTHORITY_ID,
+    name: "Infinite Authority",
+    oracleText:
+        "Enchant creature\nWhenever enchanted creature blocks or becomes blocked by a creature with toughness 3 or less, destroy the other creature at end of combat. At the beginning of the next end step, if that creature was destroyed this way, put a +1/+1 counter on the first creature.",
+    manaCost: { W: 3 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    triggeredAbilities: [infiniteAuthorityCombatKill.trigger],
+    delayedTriggers: [
+        infiniteAuthorityCombatKill.delayed,
+        {
+            id: INFINITE_AUTHORITY_COUNTER_TRIGGER,
+            oracleText: "Put a +1/+1 counter on the first creature.",
+            timing: "next-end-step",
+            resolve: (ctx: SpellContext, payload: Record<string, string>) => {
+                if (!payload.hostId) return;
+                // CR 122 — +1/+1 counter on the enchanted creature (the "first
+                // creature"). No-op if the host has since left the battlefield.
+                ctx.addCounter(
+                    { type: "permanent", id: payload.hostId },
+                    "+1/+1",
+                    1
+                );
+            },
+        },
     ],
 };
 
@@ -1489,12 +1564,15 @@ function colorsOf(view: { card: Record<string, unknown> }): string[] {
 // Cards that genuinely need an unbuilt primitive are SKIPPED (not built here):
 //   • Transmutation — "switch power and toughness" has no swap primitive.
 //   • Abomination, Infernal Medusa — "whenever this blocks / becomes blocked by
-//     [a creature], destroy that creature at end of combat" needs a
-//     becomes-blocked trigger plus a deferred end-of-combat destroy; neither
-//     exists.
+//     [a creature], destroy that creature at end of combat". UNBLOCKED by the
+//     shared `combatPairKill` primitive (#486, combatPairKillTrigger.ts):
+//     `combatant: "self"` + an `opponentFilter` (Abomination: non-black/non-
+//     artifact; Infernal Medusa: blocked-by-only). Deferred to their tranche
+//     only for the per-card filter wiring; the primitive now exists.
 //   • Glyph of Doom — "at the next end of combat, destroy all creatures blocked
-//     by that Wall this turn" needs the same deferred-end-of-combat + per-combat
-//     block tracking.
+//     by that Wall this turn". The deferred-end-of-combat destroy now exists
+//     (#486); it still needs per-combat "blocked by that Wall" set tracking,
+//     so it stays deferred for that aggregation piece.
 //   • Imprison — counters a {T} activation of the enchanted creature and removes
 //     it from combat for {1}; no activate-an-ability "may pay to counter"
 //     replacement.

@@ -2867,10 +2867,19 @@ export interface BlockersConfirmedEvent {
     attackerControllerId: string;
     attackerTypes: ReadonlyArray<CardType>;
     attackerSubtypes: ReadonlyArray<string>;
+    /** Effective toughness of the attacker at block confirmation (CR 613,
+     *  including counters and continuous effects). Read by toughness-gated
+     *  combat-pairing triggers — Infinite Authority ("a creature with
+     *  toughness 3 or less"), Infernal Medusa. Optional only so synthetic
+     *  test events can omit it; the engine always populates it. */
+    attackerToughness?: number;
     blockerId: string;
     blockerControllerId: string;
     blockerTypes: ReadonlyArray<CardType>;
     blockerSubtypes: ReadonlyArray<string>;
+    /** Effective toughness of the blocker at block confirmation (CR 613).
+     *  Twin of `attackerToughness` for the becomes-blocked direction. */
+    blockerToughness?: number;
 }
 
 /** CR 509.1h — an attacker that remained UNBLOCKED after blocks were

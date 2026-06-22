@@ -165,6 +165,39 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // #486 Infinite Authority — {W}{W}{W} Aura (Enchant creature).
+        //   "Whenever enchanted creature blocks or becomes blocked by a creature
+        //    with toughness 3 or less, destroy the other creature at end of
+        //    combat. At the beginning of the next end step, if that creature was
+        //    destroyed this way, put a +1/+1 counter on the first creature."
+        // You hold Infinite Authority plus three Plains and control a Hill Giant
+        // (3/3) to enchant; the opponent has a Grizzly Bears (2/2, toughness ≤3)
+        // to block with. Golden path:
+        //   1. Cast Infinite Authority targeting your Hill Giant.
+        //   2. Attack with the enchanted Hill Giant; the opponent blocks with
+        //      Grizzly Bears (becomes-blocked-by, CR 509.1h).
+        //   3. At end of combat the Grizzly Bears is destroyed (CR 603.7a
+        //      deferred destroy) — it survived combat damage (3/3 vs 2/2 it
+        //      trades, but the trigger kills the blocker regardless).
+        //   4. At the next end step the Hill Giant gets a +1/+1 counter
+        //      (4/4) because a creature was destroyed this way.
+        // Edge: block instead with a toughness-4 creature → no destroy, no
+        // counter.
+        label: "LEG: Infinite Authority — small blocker dies, host gains a counter (#486)",
+        cards: [
+            {
+                name: "Infinite Authority",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Hill Giant", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+            { name: "Plains", owner: "me" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // #482 Red Mana Battery — {4} Artifact.
         //   "{2}, {T}: Put a charge counter on this artifact."
         //   "{T}, Remove any number of charge counters: Add {R}, then an
