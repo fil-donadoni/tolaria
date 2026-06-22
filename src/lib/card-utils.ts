@@ -6,12 +6,16 @@ import {
     DAMAGEABLE_PERMANENT_TYPES,
     LAND_SUBTYPE_MANA,
     LANDWALK_KEYWORDS,
+    LANDWALK_SUPERTYPE_KEYWORDS,
     getEffectiveManaChoices,
 } from "@convex/gre/constants";
 import type { CardInstanceState } from "@convex/gre/state";
 import { getCardById, tryGetCardById } from "@convex/cards";
 import { getColorsFromCost } from "@convex/cards/colors";
-import { negatedLandwalkSubtypes } from "@convex/cards/landwalkNegation";
+import {
+    controlsLandWithSupertype,
+    negatedLandwalkSubtypes,
+} from "@convex/cards/landwalkNegation";
 
 export function isLand(card: CardInstance): boolean {
     return card.types?.includes("Land") ?? false;
@@ -50,6 +54,17 @@ export function isLandwalkUnblockable(
             (c) => isLand(c) && (c.subtypes?.includes(subtype) ?? false)
         );
         if (hasLand) return true;
+    }
+    // CR 702.13 — supertype-keyed landwalk ("legendary landwalk", Livonya
+    // Silone): unblockable while the defender controls a land with the named
+    // supertype. Mirrors the server's `LANDWALK_SUPERTYPE_RULES`.
+    for (const [keyword, supertype] of Object.entries(
+        LANDWALK_SUPERTYPE_KEYWORDS
+    )) {
+        if (!abilities.includes(keyword)) continue;
+        if (controlsLandWithSupertype(defenderBattlefield, supertype)) {
+            return true;
+        }
     }
     return false;
 }

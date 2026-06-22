@@ -368,6 +368,30 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // #488 Livonya Silone — {2}{R}{R}{G}{G} 4/4 Legendary, "First strike;
+        // legendary landwalk." Landwalk keyed on the LAND supertype Legendary
+        // (CR 205.4 / 702.13) instead of a basic-land subtype: Livonya can't be
+        // blocked while the defending player controls a land with the Legendary
+        // supertype. Golden path:
+        //   1. Attack with Livonya Silone.
+        //   2. Advance to DECLARE_BLOCKERS on the opponent's seat.
+        //   3. The opponent controls Pendelhaven (a Legendary Land), so NO
+        //      blocker lights up — Grizzly Bears stays dim. Swap Pendelhaven for
+        //      a basic Forest and the Bears become a legal block (no legendary
+        //      land → no evasion). First strike still applies in the damage step.
+        label: "LEG: Livonya Silone — legendary landwalk (unblockable vs a legendary land) (#488)",
+        cards: [
+            { name: "Livonya Silone", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            { name: "Forest", owner: "me" as const, count: 2 },
+            // Opponent's legendary land makes the evasion live.
+            { name: "Pendelhaven", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Mana Drain — {U}{U} Instant. "Counter target spell. At the beginning
         // of your next main phase, add an amount of {C} equal to that spell's
         // mana value." (CR 701.5a counter + CR 603.7/505 next-main-phase
