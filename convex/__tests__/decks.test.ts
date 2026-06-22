@@ -52,7 +52,7 @@ describe("presetToInsert", () => {
         const withSb: DeckPreset = {
             presetId: "demo",
             name: "Demo",
-            format: "Freeform",
+            format: "freeform",
             description: "",
             colors: ["R"],
             cards: [{ cardId: "x", cardName: "X" }],
@@ -96,7 +96,7 @@ describe("presetRowToLobby — wire shape", () => {
         _creationTime: 0,
         slug: "mono-red-burn",
         name: "Mono Red Burn",
-        format: "Freeform",
+        format: "freeform",
         description: "Fast.",
         colors: ["R"],
         cards: [{ cardId: "a", cardName: "A" }],
@@ -199,7 +199,7 @@ describe("buildNewPresetRow — admin create (issue #469)", () => {
 
     it("defaults format/colors/cards and omits an absent sideboard", () => {
         const row = buildNewPresetRow({ name: "Empty Deck" });
-        expect(row.format).toBe("Freeform");
+        expect(row.format).toBe("freeform");
         expect(row.colors).toEqual([]);
         expect(row.cards).toEqual([]);
         expect(row.sideboard).toBeUndefined();
@@ -208,13 +208,13 @@ describe("buildNewPresetRow — admin create (issue #469)", () => {
     it("carries the full payload through (cards, colors, sideboard)", () => {
         const row = buildNewPresetRow({
             name: "Loaded",
-            format: "Vintage",
+            format: "old-school",
             colors: ["R", "G"],
             cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],
             sideboard: [{ cardId: "smash", cardName: "Smash" }],
             description: "A test deck.",
         });
-        expect(row.format).toBe("Vintage");
+        expect(row.format).toBe("old-school");
         expect(row.colors).toEqual(["R", "G"]);
         expect(row.cards).toEqual([
             { cardId: "bolt", cardName: "Lightning Bolt" },
@@ -354,7 +354,7 @@ describe("preset edit round-trip — getPreset → editor → list (ADR 0033)", 
         _creationTime: 0,
         slug: "mono-red-burn",
         name: "Mono Red Burn",
-        format: "Freeform",
+        format: "freeform",
         description: "Fast aggro.",
         colors: ["R"],
         cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],

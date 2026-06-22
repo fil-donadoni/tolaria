@@ -7,14 +7,37 @@
 // without React or a Convex harness.
 
 import type { DeckCard } from "~/types/game";
+import type { FormatId } from "@convex/formats";
 
-/** The editable deck payload the editor flushes on autosave. */
+/** The editable deck payload the editor flushes on autosave. The `format` is
+ *  carried for the create path only — it is immutable after creation (ADR
+ *  0036), so the update sinks drop it before patching. */
 export interface DeckSavePayload {
     name: string;
-    format: string;
+    format: FormatId;
     colors: string[];
     cards: DeckCard[];
     sideboard: DeckCard[];
+}
+
+/** The patch sent on an UPDATE — everything in a save payload EXCEPT the
+ *  immutable `format` (ADR 0036). */
+export type DeckUpdatePatch = Omit<DeckSavePayload, "format">;
+
+/**
+ * Strip the immutable `format` from a save payload to build an update patch
+ * (ADR 0036). Format is chosen at creation and can never change, and the
+ * `userDecks.update` / `decks.updatePreset` mutations reject it — so the update
+ * path must drop it. Pure and exported so the immutability boundary is
+ * unit-tested without React or a Convex harness.
+ */
+export function toUpdatePatch(payload: DeckSavePayload): DeckUpdatePatch {
+    return {
+        name: payload.name,
+        colors: payload.colors,
+        cards: payload.cards,
+        sideboard: payload.sideboard,
+    };
 }
 
 /** A user deck is created on first save (no id yet) then patched by id. */

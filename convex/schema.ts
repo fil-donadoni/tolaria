@@ -2,6 +2,16 @@ import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+// Typed, immutable deck Format (PRD #509, ADR 0036). `userDecks` and
+// `presetDecks` store one of exactly three literals — a non-conforming string
+// is rejected at the DB boundary. Kept in sync with `FormatId` in
+// `convex/formats.ts` (the single source of truth for format policy).
+const formatValidator = v.union(
+    v.literal("freeform"),
+    v.literal("alpha-40"),
+    v.literal("old-school")
+);
+
 export default defineSchema({
     ...authTables,
     users: defineTable({
@@ -40,7 +50,9 @@ export default defineSchema({
     userDecks: defineTable({
         userId: v.id("users"),
         name: v.string(),
-        format: v.string(),
+        // Typed, immutable deck Format (ADR 0036). Chosen at creation; edit is
+        // read-only. Existing `"Freeform"` rows are migrated to `"freeform"`.
+        format: formatValidator,
         description: v.optional(v.string()),
         colors: v.array(v.string()),
         // Maindeck: the cards that build the starting Library.
@@ -71,7 +83,9 @@ export default defineSchema({
     presetDecks: defineTable({
         slug: v.string(),
         name: v.string(),
-        format: v.string(),
+        // Typed deck Format (ADR 0036). An Admin chooses it when authoring a
+        // preset. Existing rows are wiped (not migrated) and recreated.
+        format: formatValidator,
         description: v.optional(v.string()),
         colors: v.array(v.string()),
         // Maindeck: the cards that build the starting Library.

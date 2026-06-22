@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { FORMAT_RULES } from "@convex/formats";
 import type { LobbyDeck } from "~/lib/deckTypes";
 import { cn } from "~/lib/utils";
 import ManaSymbol from "../cards/mana-symbol";
@@ -63,7 +64,8 @@ export default function DeckListItem({
                         </span>
                     )}
                     <span className="text-[10px] uppercase tracking-wide text-text-disabled">
-                        {deck.cards.length} cards · {deck.format}
+                        {deck.cards.length} cards ·{" "}
+                        {FORMAT_RULES[deck.format].label}
                     </span>
                 </div>
 

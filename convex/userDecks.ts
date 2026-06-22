@@ -1,13 +1,22 @@
 import { v } from "convex/values";
 import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Id } from "./_generated/dataModel";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { getCurrentUserId } from "./auth";
+import { type FormatId, isFormatId } from "./formats";
 
 const deckCardValidator = v.object({
     cardId: v.string(),
     cardName: v.string(),
 });
+
+// Typed deck Format (ADR 0036). Chosen at creation and immutable thereafter,
+// so create requires it but `update` intentionally does NOT accept it.
+const formatValidator = v.union(
+    v.literal("freeform"),
+    v.literal("alpha-40"),
+    v.literal("old-school")
+);
 
 type AnyCtx = GenericQueryCtx<DataModel> | GenericMutationCtx<DataModel>;
 
@@ -45,7 +54,8 @@ export const get = query({
 export const create = mutation({
     args: {
         name: v.string(),
-        format: v.string(),
+        // Required, typed Format — chosen at creation (ADR 0036).
+        format: formatValidator,
         colors: v.array(v.string()),
         cards: v.array(deckCardValidator),
         sideboard: v.optional(v.array(deckCardValidator)),
@@ -71,7 +81,8 @@ export const update = mutation({
         id: v.id("userDecks"),
         patch: v.object({
             name: v.optional(v.string()),
-            format: v.optional(v.string()),
+            // `format` is intentionally absent: it is immutable after creation
+            // (ADR 0036). Cross-format reuse goes through export → new deck.
             colors: v.optional(v.array(v.string())),
             cards: v.optional(v.array(deckCardValidator)),
             sideboard: v.optional(v.array(deckCardValidator)),
@@ -85,7 +96,6 @@ export const update = mutation({
         if (args.patch.name !== undefined) {
             patch.name = args.patch.name.trim() || "Untitled deck";
         }
-        if (args.patch.format !== undefined) patch.format = args.patch.format;
         if (args.patch.colors !== undefined) patch.colors = args.patch.colors;
         if (args.patch.cards !== undefined) patch.cards = args.patch.cards;
         if (args.patch.sideboard !== undefined)
@@ -105,5 +115,49 @@ export const remove = mutation({
         await assertOwnsDeck(ctx, args.id, userId);
         await ctx.db.delete(args.id);
         return null;
+    },
+});
+
+/**
+ * Map a legacy free-form `format` string to a typed `FormatId` (ADR 0036).
+ * Pre-#510 every deck stored the literal `"Freeform"`; the only legacy value in
+ * the wild is that string, which becomes `"freeform"`. Any already-typed value
+ * passes through unchanged; anything unrecognized falls back to `"freeform"`
+ * (the legal-by-default Format) so the migration never drops or breaks a deck.
+ * Pure and exported so the normalization is unit-tested without a Convex
+ * harness (the project has no convex-test harness).
+ */
+export function normalizeLegacyFormat(raw: string): FormatId {
+    if (isFormatId(raw)) return raw;
+    // "Freeform", "freeform " with stray casing/space, or anything else →
+    // freeform: every legacy deck is a legal draft, never lost.
+    return "freeform";
+}
+
+/**
+ * One-shot migration: normalize every `userDecks` row's legacy `format` string
+ * to a typed `FormatId` (ADR 0036). Idempotent — a row already on a typed value
+ * is left untouched, so re-running is safe. No user deck is deleted. Run once
+ * via the Convex dashboard / `mcp run` after this slice deploys. Reads the row
+ * format as a raw string (it predates the typed union) to decide the target.
+ */
+export const migrateLegacyFormats = internalMutation({
+    args: {},
+    returns: v.object({ migrated: v.number(), unchanged: v.number() }),
+    handler: async (ctx) => {
+        const rows = await ctx.db.query("userDecks").collect();
+        let migrated = 0;
+        let unchanged = 0;
+        for (const row of rows) {
+            const current = row.format as string;
+            const normalized = normalizeLegacyFormat(current);
+            if (current === normalized) {
+                unchanged++;
+                continue;
+            }
+            await ctx.db.patch(row._id, { format: normalized });
+            migrated++;
+        }
+        return { migrated, unchanged };
     },
 });

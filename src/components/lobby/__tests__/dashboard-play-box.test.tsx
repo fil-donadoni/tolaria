@@ -10,7 +10,7 @@ const DECK: LobbyDeck = {
     kind: "preset",
     presetId: "mono-red-burn",
     name: "Mono Red Burn",
-    format: "vintage",
+    format: "old-school",
     colors: ["R"],
     cards: [],
 };
@@ -26,7 +26,7 @@ function openGame(id: string, name: string, bestOf: 1 | 3): OpenGame {
                 id: "creator",
                 name: "Creator",
                 bgColor: "#000",
-                deck: { id: "d", name: "D", format: "vintage", cards: [] },
+                deck: { id: "d", name: "D", format: "old-school", cards: [] },
             },
         ],
         createdAt: 0,
