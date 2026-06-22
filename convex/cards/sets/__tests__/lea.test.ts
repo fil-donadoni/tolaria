@@ -17770,11 +17770,17 @@ describe("Living Lands ({3}{G} — all Forests are 1/1 creatures, still lands)",
         expect(getEffectiveToughness(state, f)).toBe(1);
     });
 
-    it("animated Forests get summoning sickness", () => {
+    // CR 302.6 — summoning sickness on an animated land is governed by the
+    // control-continuity flag (set at entry, cleared at the controller's untap
+    // step), NOT by the act of becoming a creature. A Forest that entered this
+    // turn is still sick when Living Lands animates it; a Forest controlled
+    // since a prior turn (flag already cleared) is not.
+    it("a Forest that entered this turn stays summoning-sick when animated", () => {
         const state = makeState();
         const f = makeInstance(forest.id, {
             controllerId: "p1",
             zone: "battlefield",
+            isSummoningSick: true, // entered this turn
         });
         state.players[0].battlefield.push(f);
 
@@ -17785,7 +17791,28 @@ describe("Living Lands ({3}{G} — all Forests are 1/1 creatures, still lands)",
         state.players[0].battlefield.push(ll);
         applySourceStaticEffects(state, ll);
 
+        expect(f.types).toContain("Creature");
         expect(f.isSummoningSick).toBe(true);
+    });
+
+    it("a Forest controlled since a prior turn is NOT summoning-sick when animated", () => {
+        const state = makeState();
+        const f = makeInstance(forest.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+            // isSummoningSick undefined — cleared at a prior untap step
+        });
+        state.players[0].battlefield.push(f);
+
+        const ll = makeInstance(livingLands.id, {
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(ll);
+        applySourceStaticEffects(state, ll);
+
+        expect(f.types).toContain("Creature");
+        expect(f.isSummoningSick).toBeUndefined();
     });
 
     it("removal of Living Lands reverts Forests to non-creature", () => {

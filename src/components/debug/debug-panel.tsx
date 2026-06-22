@@ -53,6 +53,12 @@ type PresetScenario = {
          *  controller's previous turn (CR 508.1) — sets `attackedDuringLastTurn`
          *  so self attack-restrictions (Giant Turtle #490) fire on declare. */
         attackedLastTurn?: boolean;
+        /** Mark this battlefield permanent as having entered this turn (CR
+         *  302.6) — sets `isSummoningSick`. For a manland (Mishra's Factory)
+         *  this makes animation the same turn read summoning-sick: the animated
+         *  creature can't attack and can't pay {T}. Battlefield default is
+         *  `false` (controlled since a prior turn). #545. */
+        summoningSick?: boolean;
     }[];
     phase: string;
     landCount: number;
@@ -88,6 +94,35 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         //   tap the Factory itself (strictly necessary), animating it tapped.
         label: "ATQ: Mishra's Factory animate — Auto-Tap spares the manland (#544)",
         cards: [
+            { name: "Mishra's Factory", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Summoning sickness on an animated manland (issue #545, CR 302.6).
+        // A permanent that becomes a creature is summoning-sick unless it has
+        // been controlled continuously since the start of the controller's
+        // most recent turn.
+        //
+        // Board: TWO Mishra's Factories — one that ENTERED this turn
+        // (`summoningSick`) and one controlled since a prior turn — plus two
+        // Mountains to pay the {1} animate cost. Started in PRECOMBAT_MAIN.
+        // Golden path:
+        //   1. Animate BOTH Factories ({1} each, paid by the Mountains).
+        //   2. Move to combat and declare attackers: only the OLD Factory is a
+        //      legal attacker; the freshly-entered one is summoning-sick and
+        //      cannot be declared (nor pay its {T} pump).
+        // Edge: pass to your next turn — after the untap step both Factories
+        //   may attack (the control-continuity flag clears at untap).
+        label: "ATQ: Mishra's Factory — animated land is summoning-sick the turn it entered (#545)",
+        cards: [
+            {
+                name: "Mishra's Factory",
+                owner: "me" as const,
+                summoningSick: true,
+            },
             { name: "Mishra's Factory", owner: "me" as const },
             { name: "Mountain", owner: "me" as const, count: 2 },
         ],

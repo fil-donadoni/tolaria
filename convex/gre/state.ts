@@ -2211,16 +2211,15 @@ function finalizeSpellResolution(
         // creatures, and lands your opponents control enter tapped") forces it.
         item.isTapped =
             cardDef?.entersTapped === true || shouldEnterTapped(state, item);
-        // CR 302.6 — creatures enter summoning-sick. Noncreature permanents
-        // that gate activations on continuous control (Rocket Launcher) opt in
-        // via `tracksControlContinuity`, reusing the same flag + untap-step
-        // clear so the precondition is "controlled since my most recent turn".
-        if (
-            item.types.includes("Creature") ||
-            cardDef?.tracksControlContinuity === true
-        ) {
-            item.isSummoningSick = true;
-        }
+        // CR 302.6 — every permanent begins tracking control continuity when
+        // it enters: the `isSummoningSick` flag is set on entry and cleared at
+        // the controller's untap step (see `untapStep`). For creatures this is
+        // ordinary summoning sickness; for noncreature permanents (lands,
+        // artifacts) the flag is inert in combat/{T}-checks (gated by
+        // `isCreature`) but becomes meaningful the instant the permanent BECOMES
+        // a creature — a manland animated the turn it entered reads sick, while
+        // one controlled since a prior turn (flag already cleared) does not.
+        markEnteredThisTurn(item);
         controller.battlefield.push(item);
         // CR 122.1, 614.1c — apply ETB-counters before the layer system runs
         // so effective P/T reads include them immediately (Clockwork Beast).
@@ -2431,7 +2430,6 @@ export function applySourceStaticEffects(
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
                         continue;
                     }
-                    const wasCreature = target.types.includes("Creature");
                     const origins = target.grantedTypes ?? [];
                     for (const type of effect.types) {
                         const already = origins.some(
@@ -2445,13 +2443,13 @@ export function applySourceStaticEffects(
                     }
                     target.grantedTypes =
                         origins.length > 0 ? origins : undefined;
-                    if (
-                        !wasCreature &&
-                        target.types.includes("Creature") &&
-                        target.isSummoningSick === undefined
-                    ) {
-                        target.isSummoningSick = true;
-                    }
+                    // CR 302.6 — becoming a creature via a type-grant does NOT
+                    // reset summoning sickness: every permanent already tracks
+                    // control continuity from entry (`markEnteredThisTurn`), so
+                    // `isSummoningSick` already reflects whether it has been
+                    // controlled since the start of its controller's most recent
+                    // turn. (Setting it on `=== undefined` here was a bug — it
+                    // re-sickened permanents controlled since a prior turn.)
                 } else if (effect.kind === "color-grant") {
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
                         continue;
@@ -2720,7 +2718,6 @@ export function applyExistingGrantsTo(
                     ) {
                         continue;
                     }
-                    const wasCreature = newPermanent.types.includes("Creature");
                     const origins = newPermanent.grantedTypes ?? [];
                     for (const type of effect.types) {
                         const already = origins.some(
@@ -2737,13 +2734,9 @@ export function applyExistingGrantsTo(
                     }
                     newPermanent.grantedTypes =
                         origins.length > 0 ? origins : undefined;
-                    if (
-                        !wasCreature &&
-                        newPermanent.types.includes("Creature") &&
-                        newPermanent.isSummoningSick === undefined
-                    ) {
-                        newPermanent.isSummoningSick = true;
-                    }
+                    // CR 302.6 — see the parallel `type-add` branch above:
+                    // control continuity is tracked from entry, so becoming a
+                    // creature here does not reset summoning sickness.
                 } else if (effect.kind === "color-grant") {
                     if (
                         !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
@@ -3871,6 +3864,26 @@ function unapplyAurasAttachedTo(state: GameState, hostId: string): void {
     }
 }
 
+/** CR 302.6 — marks a permanent as having entered the battlefield (or having
+ *  changed control) this turn, starting its control-continuity clock. The
+ *  `isSummoningSick` flag is set unconditionally for EVERY permanent — not just
+ *  creatures — and is cleared at the controller's untap step (`untapStep`).
+ *
+ *  For creatures this is ordinary summoning sickness (can't attack, can't pay
+ *  {T}/{Q}). For noncreature permanents the flag is inert in combat and
+ *  {T}-cost checks (both gated by `isCreature`), but it becomes meaningful the
+ *  moment the permanent BECOMES a creature: a manland (Mishra's Factory) or
+ *  animated artifact (Jade Statue) animated the same turn it entered reads
+ *  summoning-sick, while one that has been controlled continuously since the
+ *  start of a prior turn (flag already cleared) does not. This is the
+ *  class-wide control-continuity fix — every animate effect inherits it for
+ *  free instead of opting in per card.
+ *
+ *  Supersedes the former creature-only / `tracksControlContinuity` opt-in. */
+export function markEnteredThisTurn(card: CardInstanceState): void {
+    card.isSummoningSick = true;
+}
+
 /** CR 400.7 — when a card moves from the battlefield to a non-graveyard /
  *  non-exile zone (hand, library), it becomes a new object with no memory of
  *  its previous existence. Strips battlefield-only transient fields so the
@@ -3943,9 +3956,9 @@ function putReanimatedOnBattlefield(
     card.zone = "battlefield";
     card.controllerId = controllerId;
     card.attachedTo = undefined;
-    if (card.types.includes("Creature")) {
-        card.isSummoningSick = true;
-    }
+    // CR 302.6 — start the control-continuity clock for every reanimated /
+    // put-onto-battlefield permanent (see `markEnteredThisTurn`).
+    markEnteredThisTurn(card);
     // CR 614.1c + 110.5b — Kismet-style replacement taps an opponent-controlled
     // artifact/creature/land as it enters via reanimation / put-onto-battlefield.
     if (shouldEnterTapped(state, card)) card.isTapped = true;
@@ -5233,9 +5246,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     power: spec.power,
                     toughness: spec.toughness,
                     isTapped: false,
-                    isSummoningSick: spec.types.includes("Creature")
-                        ? true
-                        : undefined,
+                    // CR 302.6 — every token starts its control-continuity
+                    // clock on creation (see `markEnteredThisTurn`); the flag is
+                    // inert for noncreature tokens until they become creatures.
+                    isSummoningSick: true,
                     // CR 111 / 707.1 — token provenance link. Records the
                     // creating permanent so a source can later identify the
                     // tokens it made (Tetravus exiles its own Tetravites to
@@ -5387,10 +5401,13 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         // casing; the `animation` record tracks exactly what was added so
         // the phase-boundary purge can restore the original shape.
         //
-        // Caveat: this does not currently re-trigger summoning sickness on
-        // a permanent that entered this turn but wasn't a creature at ETB
-        // (CR 302.1). Acceptable for Jade Statue whose typical play pattern
-        // is "play on T_n, animate on T_{n+1}".
+        // CR 302.6 — summoning sickness is governed by the `isSummoningSick`
+        // control-continuity flag set at entry (`markEnteredThisTurn`) and
+        // cleared at the controller's untap step. Animation does NOT touch it:
+        // a manland (Mishra's Factory) animated the turn it entered is still
+        // sick (flag set), while one controlled since a prior turn is not (flag
+        // cleared). This applies class-wide to every animate effect (Jade
+        // Statue, etc.).
         animateAsCreature(target: TargetSelection, spec: AnimateSpec): void {
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);

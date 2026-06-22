@@ -5779,6 +5779,12 @@ export const debugSetupScenario = mutation({
                  *  ("can't attack if it attacked during your last turn",
                  *  Giant Turtle #490) fire immediately. Battlefield only. */
                 attackedLastTurn: v.optional(v.boolean()),
+                /** Mark this battlefield permanent as having entered this turn
+                 *  (CR 302.6) — sets `isSummoningSick`. For a manland (Mishra's
+                 *  Factory) this makes animation the same turn read
+                 *  summoning-sick: the animated creature can't attack and can't
+                 *  pay {T}. Battlefield default is `false`. #545. */
+                summoningSick: v.optional(v.boolean()),
             })
         ),
         phase: v.optional(v.string()),
@@ -5899,6 +5905,11 @@ export const debugSetupScenario = mutation({
                     if (entry.attackedLastTurn) {
                         (instance as CardInstanceState).attackedDuringLastTurn =
                             true;
+                    }
+                    // CR 302.6 — entered this turn: starts the control-continuity
+                    // clock so a manland animated the same turn reads sick (#545).
+                    if (entry.summoningSick) {
+                        (instance as CardInstanceState).isSummoningSick = true;
                     }
                     player.battlefield.push(instance);
                 }
