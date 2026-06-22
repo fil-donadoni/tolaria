@@ -6389,3 +6389,46 @@ export const giantTurtle: CardDefinition = {
         },
     ],
 };
+
+// Clergy of the Holy Nimbus — "If this creature would be destroyed, regenerate
+// it. {1}: This creature can't be regenerated this turn. Only your opponents
+// may activate this ability." (CR 614.5, 701.15c, 602.1)
+//
+// The first ability is a CONTINUOUS auto-regeneration replacement, modeled as
+// the `"auto-regenerate"` static ability keyword: `regenerateOrDestroy` reads
+// the live `staticAbilities` and applies the regen rider (tap, heal damage,
+// remove from combat) every time the creature would be destroyed, without
+// consuming a shield. Being a keyword it is layer-6 grant/loss aware.
+//
+// The second ability is controller-locked via `activatableByOpponentsOnly`:
+// only the controller's OPPONENTS may pay {1}, which sets the source's
+// `cantBeRegeneratedThisTurn` flag (CR 701.15c) — suppressing the auto-regen
+// so the next lethal destruction kills it. The flag clears at CLEANUP.
+export const clergyOfTheHolyNimbus: CardDefinition = {
+    id: "7a817107-fa2b-55e0-883b-c3ed2b06ba04",
+    rarity: "common",
+    name: "Clergy of the Holy Nimbus",
+    oracleText:
+        "If this creature would be destroyed, regenerate it.\n{1}: This creature can't be regenerated this turn. Only your opponents may activate this ability.",
+    manaCost: { W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Cleric"],
+    power: 1,
+    toughness: 1,
+    // CR 614.5 — continuous "if this would be destroyed, regenerate it"
+    // replacement (perpetual, not a one-shot shield).
+    staticAbilities: ["auto-regenerate"],
+    activatedAbilities: [
+        {
+            id: "clergy-cant-regen",
+            oracleText: "{1}: This creature can't be regenerated this turn.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            // CR 602.1 — controller may NOT activate; only opponents may.
+            activatableByOpponentsOnly: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.setSourceCantBeRegeneratedThisTurn();
+            },
+        },
+    ],
+};

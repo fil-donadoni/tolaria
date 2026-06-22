@@ -273,6 +273,39 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         libraryCount: 10,
     },
     {
+        // #491 Clergy of the Holy Nimbus — {W} 1/1. "If this creature would be
+        // destroyed, regenerate it. {1}: This creature can't be regenerated
+        // this turn. Only your opponents may activate this ability."
+        //   - Continuous auto-regeneration replacement (CR 614.5): a perpetual
+        //     shield, not a one-shot — it regenerates every time Clergy would be
+        //     destroyed.
+        //   - Opponent-only activation (CR 602.1): only the controller's
+        //     OPPONENT may pay {1}; the controller may not.
+        //
+        // Board: you (P1) control the Clergy. The opponent (P2) holds two
+        // Terrors (destroy target nonartifact, nonblack creature — Clergy is
+        // white, so legal) plus four Plains to cast both and pay the {1}.
+        // Golden path (solo mode, auto-switch to P2 on priority):
+        //   1. As P2, cast Terror on the Clergy → it would be destroyed but
+        //      auto-regenerates (CR 614.5): survives, tapped, damage healed.
+        //   2. As P2, activate Clergy's {1} ability ("can't be regenerated this
+        //      turn") — the opponent-only ability is offered on P2's view of
+        //      P1's Clergy; P1 can NOT activate it (CR 602.1).
+        //   3. As P2, cast the second Terror → auto-regen is suppressed, the
+        //      Clergy is destroyed and goes to the graveyard (CR 701.15c).
+        // Edge: skip step 2 → the second Terror still bounces off auto-regen,
+        //   and the flag wears off at CLEANUP so a fresh turn restores it.
+        label: "LEG: Clergy of the Holy Nimbus — auto-regen + opponent-only {1} (#491)",
+        cards: [
+            { name: "Clergy of the Holy Nimbus", owner: "me" as const },
+            { name: "Terror", owner: "opp" as const, zone: "hand" as const },
+            { name: "Terror", owner: "opp" as const, zone: "hand" as const },
+            { name: "Plains", owner: "opp" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // #486 Infinite Authority — {W}{W}{W} Aura (Enchant creature).
         //   "Whenever enchanted creature blocks or becomes blocked by a creature
         //    with toughness 3 or less, destroy the other creature at end of

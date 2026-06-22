@@ -231,12 +231,14 @@ import {
     wallOfTombstones,
     halfdane,
     petraSphinx,
+    clergyOfTheHolyNimbus,
 } from "../leg";
 import { tapSourceIntoPayment } from "../../../game";
 import { getEffectiveManaChoices } from "../../../gre/constants";
 import {
     resolveTopOfStack,
     removePermanentTo,
+    destroyWithReplacements,
     applySourceStaticEffects,
     unapplySourceStaticEffects,
     applyExistingGrantsTo,
@@ -8788,5 +8790,151 @@ describe("Giant Turtle (#490 — self attack restriction, CR 508.1)", () => {
             restriction?.kind === "attack-restriction" &&
                 restriction.predicate(slim as never, [])
         ).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Clergy of the Holy Nimbus — continuous auto-regeneration replacement
+// (CR 614.5) + opponent-only activation (CR 602.1) — issue #491
+// ---------------------------------------------------------------------------
+describe("Clergy of the Holy Nimbus (CR 614.5, 701.15c, 602.1)", () => {
+    const CANT_REGEN_ID = "clergy-cant-regen";
+
+    function setup() {
+        const clergy = makeInstance(clergyOfTheHolyNimbus.id, {
+            id: "clergy",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [clergy] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        return { state, clergy };
+    }
+
+    // Activate the {1} ability as `castById` (the player paying). The stack
+    // item id equals the source instance id so `setSourceCantBeRegenerated`
+    // finds it via `item.id`.
+    function activateCantRegen(
+        state: GameState,
+        source: CardInstanceState,
+        castById: string
+    ) {
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById,
+            abilityId: CANT_REGEN_ID,
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("definition: 1/1, {W}, auto-regenerate static ability, opponent-only {1} ability", () => {
+        expect(clergyOfTheHolyNimbus.manaCost).toEqual({ W: 1 });
+        expect(clergyOfTheHolyNimbus.power).toBe(1);
+        expect(clergyOfTheHolyNimbus.toughness).toBe(1);
+        expect(clergyOfTheHolyNimbus.staticAbilities).toContain(
+            "auto-regenerate"
+        );
+        const ability = clergyOfTheHolyNimbus.activatedAbilities?.[0];
+        expect(ability?.id).toBe(CANT_REGEN_ID);
+        expect(ability?.cost).toEqual({ mana: { X: 1 } });
+        expect(ability?.activatableByOpponentsOnly).toBe(true);
+    });
+
+    it("auto-regenerates when it would be destroyed: survives, tapped, damage removed, not consumed (CR 614.5)", () => {
+        const { state, clergy } = setup();
+        clergy.damageMarked = 5;
+        const destroyed = destroyWithReplacements(state, "clergy");
+        expect(destroyed).toBe(false);
+        const survivor = state.players[0].battlefield.find(
+            (c) => c.id === "clergy"
+        );
+        expect(survivor).toBeDefined();
+        // CR 701.15a regen rider: tapped + all marked damage removed.
+        expect(survivor!.isTapped).toBe(true);
+        expect(survivor!.damageMarked).toBeUndefined();
+        // Perpetual replacement: it regenerates AGAIN on the next destroy.
+        survivor!.isTapped = false;
+        const destroyedAgain = destroyWithReplacements(state, "clergy");
+        expect(destroyedAgain).toBe(false);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "clergy")
+        ).toBe(true);
+    });
+
+    it("an OPPONENT pays {1} → cantBeRegeneratedThisTurn set → next destroy is lethal (CR 701.15c)", () => {
+        const { state, clergy } = setup();
+        activateCantRegen(state, clergy, "p2");
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === "clergy"
+        );
+        expect(onBoard!.cantBeRegeneratedThisTurn).toBe(true);
+        const destroyed = destroyWithReplacements(state, "clergy");
+        expect(destroyed).toBe(true);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "clergy")
+        ).toBe(false);
+        expect(state.players[0].graveyard.some((c) => c.id === "clergy")).toBe(
+            true
+        );
+    });
+
+    it("the CONTROLLER cannot enable the {1} ability as a bot move (CR 602.1)", () => {
+        const { state } = setup();
+        const p1Moves = enumerateMoves(state, "p1");
+        const controllerCanActivate = p1Moves.some(
+            (m: Move) =>
+                m.kind === "activate-ability" &&
+                m.cardInstanceId === "clergy" &&
+                m.abilityId === CANT_REGEN_ID
+        );
+        expect(controllerCanActivate).toBe(false);
+    });
+
+    it("an OPPONENT with priority CAN enable the {1} ability as a bot move (CR 602.1)", () => {
+        const { state, clergy } = setup();
+        // Give p2 priority and an untapped land so the {1} cost is fundable by
+        // the mana planner; the enumerator surfaces opponent-only abilities off
+        // the opponent's board.
+        state.priorityPlayerId = "p2";
+        const land = makeInstance(getCardByName("Plains").id, {
+            id: "p2-plains",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield = [land];
+        void clergy;
+        const p2Moves = enumerateMoves(state, "p2");
+        const opponentCanActivate = p2Moves.some(
+            (m: Move) =>
+                m.kind === "activate-ability" &&
+                m.cardInstanceId === "clergy" &&
+                m.abilityId === CANT_REGEN_ID
+        );
+        expect(opponentCanActivate).toBe(true);
+    });
+
+    it("cantBeRegeneratedThisTurn is transient — a fresh turn restores auto-regen", () => {
+        const { state, clergy } = setup();
+        activateCantRegen(state, clergy, "p2");
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === "clergy"
+        )!;
+        expect(onBoard.cantBeRegeneratedThisTurn).toBe(true);
+        // Simulate CLEANUP wiping the turn-scoped flag (CR 514.2).
+        onBoard.cantBeRegeneratedThisTurn = undefined;
+        const destroyed = destroyWithReplacements(state, "clergy");
+        expect(destroyed).toBe(false);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "clergy")
+        ).toBe(true);
     });
 });
