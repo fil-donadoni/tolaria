@@ -1,5 +1,9 @@
 import type { Phase } from "./types";
-import type { GameEvent, StaticUntapRestriction } from "../cards/types";
+import type {
+    CardType,
+    GameEvent,
+    StaticUntapRestriction,
+} from "../cards/types";
 import type {
     CardInstanceState,
     DelayedTriggerInstance,
@@ -1915,8 +1919,15 @@ function revertAnimation(card: CardInstanceState): void {
             ];
         }
     }
-    if (anim.addedCreatureType) {
-        const idx = card.types.indexOf("Creature");
+    // CR 208.2, 611.1: remove exactly the types the animation added — the
+    // creature type and any `additionalTypes` (e.g. "Artifact" for Mishra's
+    // Factory) — restoring the permanent's original type line.
+    const typesToRemove = [
+        ...(anim.addedCreatureType ? (["Creature"] as CardType[]) : []),
+        ...(anim.addedTypes ?? []),
+    ];
+    for (const t of typesToRemove) {
+        const idx = card.types.indexOf(t);
         if (idx !== -1) {
             card.types = [
                 ...card.types.slice(0, idx),

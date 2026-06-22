@@ -339,6 +339,11 @@ export type CardInstanceState = {
         savedToughness: number | undefined;
         /** True if "Creature" was added to `types` by the animation. */
         addedCreatureType: boolean;
+        /** Additional card types (beyond "Creature") that the animation added
+         *  to `types` — e.g. ["Artifact"] for Mishra's Factory's "2/2
+         *  Assembly-Worker artifact creature". Only types not already present
+         *  are recorded, and exactly these are spliced out on expiry. */
+        addedTypes?: CardType[];
         /** Subtype added to `subtypes` by the animation (undefined if none
          *  or already present). Exactly one occurrence is spliced out on
          *  expiry. */
@@ -5447,6 +5452,12 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const card = found.card;
             if (card.animation) return; // already animated — one at a time
             const addedCreatureType = !card.types.includes("Creature");
+            // CR 208.2, 611.1: add only the types this animation grants that
+            // aren't already present, so the end-of-turn revert removes
+            // exactly what was added (e.g. Mishra's Factory gains "Artifact").
+            const addedTypes = (spec.additionalTypes ?? []).filter(
+                (t) => t !== "Creature" && !card.types.includes(t)
+            );
             const addedSubtype =
                 spec.subtype !== undefined &&
                 !card.subtypes.includes(spec.subtype)
@@ -5456,12 +5467,16 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 savedPower: card.power,
                 savedToughness: card.toughness,
                 addedCreatureType,
+                addedTypes: addedTypes.length > 0 ? addedTypes : undefined,
                 addedSubtype,
                 duration: resolveDuration(spec.duration, item.castById, state),
             };
+            const newTypes = [...card.types];
             if (addedCreatureType) {
-                card.types = [...card.types, "Creature"];
+                newTypes.push("Creature");
             }
+            newTypes.push(...addedTypes);
+            card.types = newTypes;
             if (addedSubtype !== undefined) {
                 card.subtypes = [...card.subtypes, addedSubtype];
             }

@@ -1226,20 +1226,12 @@ export const staffOfZegon: CardDefinition = {
 // Mishra's Factory — Land (the "manland"). Three abilities:
 //  • "{T}: Add {C}." (CR 605.1a/605.3a mana ability, useStack:false.)
 //  • "{1}: This land becomes a 2/2 Assembly-Worker artifact creature until end
-//    of turn. It's still a land." (CR 611.1 animate; the engine restores the
-//    original types/subtypes/P-T at end of turn.)
+//    of turn. It's still a land." (CR 611.1 animate; the engine adds the
+//    Creature + Artifact types and the Assembly-Worker subtype via
+//    `AnimateSpec.additionalTypes`, and restores the original
+//    types/subtypes/P-T at end of turn.)
 //  • "{T}: Target Assembly-Worker creature gets +1/+1 until end of turn."
 //    (CR 611.1 temp buff, restricted to Assembly-Workers via subtypeFilter.)
-//
-// DIVERGENCE (flagged, no engine change): `animateAsCreature` adds the
-// "Creature" type and the "Assembly-Worker" subtype but NOT the "Artifact"
-// type (AnimateSpec has no type list; the engine only adds Creature). The
-// animated land is therefore a 2/2 Assembly-Worker Creature Land, not an
-// Artifact Creature, for the duration. This is observable only to
-// artifact-matters effects targeting the animated Factory; the card's own
-// abilities (mana, self-animate, Assembly-Worker pump) are unaffected. A
-// general `AnimateSpec.additionalTypes` would close the gap and is deferred to
-// a feature tranche.
 export const mishrasFactory: CardDefinition = {
     id: "a696c5b6-f216-454d-8029-74e84bbd1428",
     rarity: "uncommon",
@@ -1273,6 +1265,9 @@ export const mishrasFactory: CardDefinition = {
                         power: 2,
                         toughness: 2,
                         subtype: "Assembly-Worker",
+                        // CR 208.2: becomes a 2/2 Assembly-Worker *artifact*
+                        // creature; it's still a land.
+                        additionalTypes: ["Artifact"],
                         duration: { phase: "end-of-turn" },
                     }
                 );

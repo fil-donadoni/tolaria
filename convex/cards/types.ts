@@ -523,6 +523,12 @@ export interface AnimateSpec {
     toughness: number;
     /** Optional creature subtype to add while animated (e.g. "Golem"). */
     subtype?: string;
+    /** Additional card types to add while animated, beyond "Creature" (which
+     *  every animate effect grants implicitly). Mishra's Factory becomes a
+     *  "2/2 Assembly-Worker artifact creature" — `additionalTypes: ["Artifact"]`
+     *  (CR 208.2, 611.1). Only types not already present are added, and the
+     *  revert removes exactly those that were added. */
+    additionalTypes?: CardType[];
     duration: DurationSpec;
 }
 
