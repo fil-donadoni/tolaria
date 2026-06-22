@@ -1,5 +1,6 @@
 import { getInstanceManaCost } from "../cards";
 import type { Demand } from "./autoTap";
+import { hasInstantSpeed } from "./constants";
 import type { CardInstanceState } from "./state";
 import { normalizeManaCost } from "./state";
 
@@ -15,14 +16,27 @@ import { normalizeManaCost } from "./state";
  * each candidate tap plan, how many of these stay individually affordable
  * after the payment.
  *
+ * **Timing filter (issue #475, CR 307 / 601.3a / 602 / 603).** A hand spell is
+ * a preservable Demand only when it is legal to *cast at the current timing*:
+ *  - Instant-speed spells (Instants and Flash cards, CR 702.8) can be cast in
+ *    any priority window, including the opponent's turn — they always count.
+ *  - Sorcery-speed spells (creatures, sorceries, and any non-flash permanent)
+ *    may be cast only when the player could cast a sorcery (CR 307.1 / 601.3a):
+ *    their own main phase, empty stack, holding priority. They count only when
+ *    `isSorceryTiming` is true. Off-turn / instant-window payments do NOT
+ *    preserve mana for them — auto-tap must not hoard mana for plays the player
+ *    cannot legally make right now (PRD #472 user stories 4 & 5).
+ *
+ * `isSorceryTiming` is computed by the caller via the engine's existing
+ * `isSorceryTiming(state)` helper (`phases.ts`) — the timing condition is never
+ * re-derived here. Instant-speed legality is the canonical `hasInstantSpeed`
+ * predicate (`constants.ts`).
+ *
  * Scope of this slice (deliberately narrow — siblings layer on top):
  *  - Lands are skipped (they aren't cast and have no mana cost).
  *  - Cards with no mana cost (can't strand mana) are skipped.
  *  - The card being cast (`excludeInstanceId`) is excluded — it's the payment
  *    target, not a Demand.
- *  - No **timing filter** yet (issue #475): every non-land hand spell counts
- *    regardless of instant/sorcery speed. #475 narrows this to timing-legal
- *    Demands.
  *  - X in a cost is treated as 0 here (`normalizeManaCost` default). Issue
  *    #477 inflates X-spells to an assumed X=1.
  *
@@ -33,13 +47,18 @@ import { normalizeManaCost } from "./state";
  */
 export function buildHandSpellDemands(
     hand: CardInstanceState[],
-    excludeInstanceId: string
+    excludeInstanceId: string,
+    isSorceryTiming: boolean
 ): Demand[] {
     const demands: Demand[] = [];
     for (const card of hand) {
         if (card.id === excludeInstanceId) continue;
         // Lands aren't cast (CR 305.1) — no mana cost to preserve for.
         if (card.types.includes("Land")) continue;
+        // Timing filter (CR 307.1 / 601.3a): a sorcery-speed spell is a
+        // preservable Demand only at sorcery timing; instant-speed spells
+        // (Instant / Flash, CR 702.8) count in any priority window.
+        if (!hasInstantSpeed(card) && !isSorceryTiming) continue;
         const rawCost = getInstanceManaCost(card);
         if (!rawCost) continue;
         const cost = normalizeManaCost(rawCost);

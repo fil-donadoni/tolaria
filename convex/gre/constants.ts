@@ -113,6 +113,18 @@ export function isLand(card: CardInstanceState): boolean {
     return card.types.includes("Land");
 }
 
+/** Whether a card can be cast at **instant speed** (CR 601.3a / 702.8) — an
+ *  Instant, or any card with the Flash keyword. Sorcery-speed-only cards
+ *  (creatures, sorceries, and non-flash permanents) return false: they may be
+ *  cast only when the player could cast a sorcery (CR 307.1, 601.3a). Canonical
+ *  predicate reused by the auto-tap timing filter (issue #475) and the search
+ *  heuristics (`evaluate`, `heldInteraction`). */
+export function hasInstantSpeed(card: CardInstanceState): boolean {
+    return (
+        card.types.includes("Instant") || card.staticAbilities.includes("flash")
+    );
+}
+
 /** True if the card has the "Aura" subtype (CR 303.4). Auras ETB attached
  *  to an object via `attachedTo` and are subject to SBA 704.5m. */
 export function isAura(card: {

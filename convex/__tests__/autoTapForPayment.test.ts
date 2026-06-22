@@ -22,6 +22,7 @@ import {
     solveAutoTapPartial,
 } from "../gre/autoTap";
 import { buildHandSpellDemands } from "../gre/autoTapDemands";
+import { isSorceryTiming } from "../gre/phases";
 import { tapSourceIntoPayment, tryAutoCommitPendingCast } from "../game";
 import {
     getManaSubstitutions,
@@ -45,7 +46,11 @@ function runAutoTap(state: GameState, player: PlayerState): boolean {
     const pending = state.pendingCast!;
     const substitutions = getManaSubstitutions(state, player.id);
     const sources = buildAutoTapSources(player.battlefield);
-    const demands = buildHandSpellDemands(player.hand, pending.cardInstanceId);
+    const demands = buildHandSpellDemands(
+        player.hand,
+        pending.cardInstanceId,
+        isSorceryTiming(state)
+    );
     const fullPlan = solveSmartAutoTap(
         player.manaPool,
         pending.manaCost,
@@ -342,5 +347,148 @@ describe("autoTapForPayment — smart demand-aware spine (ADR 0034)", () => {
         // 2-color. Tie-break leaves a dual up: exactly two taps, dual preserved.
         const tapped = player.battlefield.filter((c) => c.isTapped);
         expect(tapped).toHaveLength(2);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Smart auto-tap: timing-aware Demand filter (issue #475, CR 307 / 601.3a /
+// 602 / 603). A sorcery-speed hand spell is a preservable Demand only at
+// sorcery timing (own main, empty stack, holding priority); instant-speed
+// spells (Instants / Flash, CR 702.8) count in any priority window — including
+// the opponent's turn, when auto-tapping to pay for an instant. Exercised
+// through the mutation-replica seam so the real `isSorceryTiming` gate runs.
+// ---------------------------------------------------------------------------
+
+const COUNTERSPELL = "0df55e3f-14de-46ef-b6b1-616618724d9e"; // {U}{U} Instant
+
+describe("autoTapForPayment — timing-aware Demand filter (issue #475)", () => {
+    /** Opponent's turn (p2 active), p1 holds priority to cast an instant {U}.
+     *  Board: Island + Island + Tundra (W/U). Hand: Counterspell ({U}{U},
+     *  instant) + Savannah Lions ({W}, creature) + the instant being paid for.
+     *  Paying {U}: minimal tap = 1. */
+    function offTurnInstantState() {
+        const cast = makeInstance(ISLAND, {
+            // Stand-in for the instant being cast; only its instance id matters
+            // to the payment path — its cost comes from pendingCast below.
+            id: "spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const counter = makeInstance(COUNTERSPELL, {
+            id: "counter",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const lions = makeInstance(SAVANNAH_LIONS, {
+            id: "lions",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const battlefield = [
+            makeInstance(ISLAND, { id: "isl1", controllerId: "p1" }),
+            makeInstance(ISLAND, { id: "isl2", controllerId: "p1" }),
+            makeInstance(TUNDRA, { id: "tundra", controllerId: "p1" }),
+        ];
+        const pendingCast: PendingCast = {
+            playerId: "p1",
+            cardInstanceId: "spell",
+            manaCost: { U: 1 }, // a {U} instant
+            tappedLandIds: [],
+        };
+        const p1 = makePlayer("p1", {
+            hand: [cast, counter, lions],
+            battlefield,
+        });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            // Opponent's turn: p2 active, p1 has priority (instant window).
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            pendingCast,
+        });
+        return { state, player: state.players[0] };
+    }
+
+    it("preserves {U}{U} for Counterspell when paying for an instant on the opponent's turn", () => {
+        const { state, player } = offTurnInstantState();
+        const committed = runAutoTap(state, player);
+
+        // The {U} instant is paid and committed.
+        expect(committed).toBe(true);
+        expect(state.pendingCast).toBeUndefined();
+
+        // Minimal-tap invariant: exactly one source spent for {U}.
+        const tapped = player.battlefield.filter((c) => c.isTapped);
+        expect(tapped).toHaveLength(1);
+
+        // Counterspell ({U}{U}) is still castable from the two untapped sources:
+        // the instant-speed Demand was preserved across the off-turn payment.
+        const sub = getManaSubstitutions(state, player.id);
+        const sources = buildAutoTapSources(player.battlefield);
+        const counterPlan = solveSmartAutoTap(
+            player.manaPool,
+            { U: 2 },
+            sub,
+            sources,
+            []
+        );
+        expect(counterPlan).not.toBeNull();
+    });
+
+    it("does not hold mana for a sorcery-speed creature off-turn (tap set is creature-independent)", () => {
+        // With the creature in hand off-turn:
+        const withCreature = offTurnInstantState();
+        runAutoTap(withCreature.state, withCreature.player);
+        const tappedWith = withCreature.player.battlefield
+            .filter((c) => c.isTapped)
+            .map((c) => c.id)
+            .sort();
+
+        // Same board off-turn but with the creature removed from hand:
+        const withoutCreature = offTurnInstantState();
+        withoutCreature.player.hand = withoutCreature.player.hand.filter(
+            (c) => c.id !== "lions"
+        );
+        runAutoTap(withoutCreature.state, withoutCreature.player);
+        const tappedWithout = withoutCreature.player.battlefield
+            .filter((c) => c.isTapped)
+            .map((c) => c.id)
+            .sort();
+
+        // The sorcery-speed creature exerts zero preservation pressure off-turn:
+        // removing it does not change which source the engine taps. (Contrast:
+        // at sorcery timing it WOULD count — see autoTapDemands.test.ts.)
+        expect(tappedWith).toEqual(tappedWithout);
+    });
+
+    it("at sorcery timing (own main, empty stack, holding priority), a creature Demand IS preserved", () => {
+        // Same board, but now it's p1's own main phase with priority: the
+        // creature {W} becomes a live Demand, so the white-capable Tundra is
+        // kept up and one of the two Islands is spent for the {U} cost.
+        const { state, player } = offTurnInstantState();
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        // Drop Counterspell so the creature's {W} preservation is unambiguous.
+        player.hand = player.hand.filter((c) => c.id !== "counter");
+
+        const committed = runAutoTap(state, player);
+        expect(committed).toBe(true);
+
+        const tundra = player.battlefield.find((c) => c.id === "tundra")!;
+        // Tundra (the only white source) is preserved for Savannah Lions ({W}).
+        expect(tundra.isTapped).toBeFalsy();
+        const sub = getManaSubstitutions(state, player.id);
+        const sources = buildAutoTapSources(player.battlefield);
+        const lionsPlan = solveSmartAutoTap(
+            player.manaPool,
+            { W: 1 },
+            sub,
+            sources,
+            []
+        );
+        expect(lionsPlan).not.toBeNull();
     });
 });
