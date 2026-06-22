@@ -41,6 +41,13 @@ export type ManaCost = {
     R?: number;
     G?: number;
     C?: number;
+    /** How many times the chosen X is added to the generic cost when `X` is
+     *  the variable `"X"` (CR 107.3). Defaults to 1; set to 2 for `{X}{X}`
+     *  costs (Recall — "{X}{X}{U}") so the player pays twice the announced X.
+     *  Ignored when `X` is a fixed number (plain generic mana). The printed
+     *  mana value (`manaValue`) still treats variable X as 0 regardless of the
+     *  factor (CR 202.3b). */
+    xFactor?: number;
 };
 
 export type CardType =
@@ -1376,7 +1383,7 @@ export interface SpellContext {
         playerId: string;
         choiceId: string;
         kind: ZonePickKind;
-        zone: "battlefield" | "hand" | "library";
+        zone: "battlefield" | "hand" | "library" | "graveyard";
         filter?: PermanentFilter;
         count: number | { min: number; max: number };
         prompt: string;
@@ -1687,6 +1694,12 @@ export interface SpellContext {
      *  resolves next into a face-down permanent. No-op if the id isn't in the
      *  caster's hand. */
     castFaceDown: (cardInstanceId: string) => void;
+    /** CR 608.2 — the resolving spell exiles itself as the last thing it does
+     *  ("Exile <this spell>", e.g. Recall). Flags the stack item so
+     *  `finalizeSpellResolution` routes the card to exile instead of the
+     *  graveyard when resolution completes. No-op on a stack item that is a
+     *  copy (a copy ceases to exist anyway, CR 707.10) or an ability. */
+    exileSelf: () => void;
 }
 
 /** Delayed triggered ability template (CR 603.7a). Declared on the

@@ -84,9 +84,7 @@ export default function DeckListItem({
                                 isSelected ? "btn-disabled" : "btn-tone-primary"
                             )}
                             title={
-                                isSelected
-                                    ? "Already selected"
-                                    : "Select deck"
+                                isSelected ? "Already selected" : "Select deck"
                             }
                         >
                             {isSelected ? "Selected" : "Select"}

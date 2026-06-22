@@ -37,6 +37,7 @@ import {
     lifeblood,
     presenceOfTheMaster,
     visions,
+    recall,
     azureDrake,
     zephyrFalcon,
     devouringDeep,
@@ -6741,5 +6742,225 @@ describe("Akron Legionnaire (only Akron / artifact creatures you control can att
         // never appears in any declared subset.
         expect(sets.some((s) => s.includes("ally"))).toBe(false);
         expect(sets).toContainEqual(["akron", "robot"].sort());
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Recall — "Discard X cards, then return a card from your graveyard to your
+// hand for each card discarded this way. Exile Recall."
+// CR 107.3 (X chosen on cast) / 701.8 (discard) / 400.7 (graveyard→hand) /
+// 608.2 (self-exile). Cost {X}{X}{U} → xFactor 2 on the generic.
+// ---------------------------------------------------------------------------
+
+/** Builds a p1 board with the given hand and graveyard ids, then pushes Recall
+ *  on the stack with the chosen X already announced (`chosenX`). Filler cards
+ *  reuse `greed.id` (art only). Returns the state and the Recall stack item. */
+function makeRecallState(opts: {
+    handIds: string[];
+    graveyardIds: string[];
+    chosenX: number;
+}): { state: GameState; recallItem: StackItem } {
+    const hand = opts.handIds.map((id) =>
+        makeInstance(greed.id, { id, controllerId: "p1", zone: "hand" })
+    );
+    const graveyard = opts.graveyardIds.map((id) =>
+        makeInstance(greed.id, { id, controllerId: "p1", zone: "graveyard" })
+    );
+    const state = makeState({
+        players: [makePlayer("p1", { hand, graveyard }), makePlayer("p2")],
+    });
+    const recallItem = pushSpell(state, recall.id, "p1");
+    recallItem.chosenX = opts.chosenX;
+    return { state, recallItem };
+}
+
+/** Pushes Recall and starts resolution, raising the first pending choice (or
+ *  resolving through entirely when X=0). */
+function startRecall(opts: {
+    handIds: string[];
+    graveyardIds: string[];
+    chosenX: number;
+}): GameState {
+    const { state } = makeRecallState(opts);
+    resolveTopOfStack(state);
+    return state;
+}
+
+describe("Recall ({X}{X}{U} sorcery, CR 107.3/701.8/400.7/608.2)", () => {
+    it("definition: {X}{X}{U} cost (xFactor 2) and self-exiling sorcery", () => {
+        expect(recall.types).toEqual(["Sorcery"]);
+        expect(recall.manaCost).toEqual({ X: "X", xFactor: 2, U: 1 });
+    });
+
+    it("X=2 discards two then returns two, including a just-discarded card", () => {
+        // Hand: h0, h1; graveyard already holds g0. X = 2.
+        const state = startRecall({
+            handIds: ["h0", "h1"],
+            graveyardIds: ["g0"],
+            chosenX: 2,
+        });
+        // Step 0 — discard h0, h1 (CR 701.8). They land in the graveyard.
+        answerChoice(state, ["h0", "h1"]);
+        const p1 = () => state.players[0];
+        expect(p1().hand.map((c) => c.id)).toEqual([]);
+        // Graveyard now g0 + the two discarded cards → all three returnable.
+        const grave = state.pendingChoices?.[0];
+        expect(grave?.kind).toBe("choose-graveyard-card");
+        expect(grave?.zone).toBe("graveyard");
+        expect(grave?.count).toEqual({ min: 0, max: 2 });
+        expect(new Set(grave?.candidateIds)).toEqual(
+            new Set(["g0", "h0", "h1"])
+        );
+        // Return g0 and the just-discarded h0 (CR 400.7).
+        answerChoice(state, ["g0", "h0"]);
+        expect(new Set(p1().hand.map((c) => c.id))).toEqual(
+            new Set(["g0", "h0"])
+        );
+        // h1 stays in the graveyard.
+        expect(p1().graveyard.map((c) => c.id)).toEqual(["h1"]);
+        // CR 608.2 — Recall exiled itself, never reached the graveyard.
+        expect(p1().exile.map((c) => c.card?.id)).toEqual([recall.id]);
+        expect(p1().graveyard.some((c) => c.card?.id === recall.id)).toBe(
+            false
+        );
+        expect(state.stack.length).toBe(0);
+        expect(state.pendingChoices?.length ?? 0).toBe(0);
+    });
+
+    it("X=0 discards nothing, returns nothing, and still exiles Recall", () => {
+        const { state } = makeRecallState({
+            handIds: ["h0", "h1"],
+            graveyardIds: ["g0"],
+            chosenX: 0,
+        });
+        // No discard pick and no return pick are raised — resolution completes
+        // in a single pass.
+        resolveTopOfStack(state);
+        const p1 = state.players[0];
+        expect(p1.hand.map((c) => c.id)).toEqual(["h0", "h1"]);
+        expect(p1.graveyard.map((c) => c.id)).toEqual(["g0"]);
+        expect(p1.exile.map((c) => c.card?.id)).toEqual([recall.id]);
+        expect(state.stack.length).toBe(0);
+        expect(state.pendingChoices?.length ?? 0).toBe(0);
+    });
+
+    it("caps the return at graveyard size when fewer cards are available", () => {
+        // X = 2 but only one card to discard (hand size 1). Discard count = 1,
+        // so the return is capped at 1 even though the graveyard has more.
+        const state = startRecall({
+            handIds: ["h0"],
+            graveyardIds: ["g0", "g1"],
+            chosenX: 2,
+        });
+        // Step 0 — discard clamps to hand size (1), discarding h0.
+        const discard = state.pendingChoices?.[0];
+        expect(discard?.count).toBe(1);
+        answerChoice(state, ["h0"]);
+        // Return is capped at the one card actually discarded.
+        const grave = state.pendingChoices?.[0];
+        expect(grave?.count).toEqual({ min: 0, max: 1 });
+        expect(new Set(grave?.candidateIds)).toEqual(
+            new Set(["g0", "g1", "h0"])
+        );
+        answerChoice(state, ["g0"]);
+        const p1 = state.players[0];
+        expect(p1.hand.map((c) => c.id)).toEqual(["g0"]);
+        expect(p1.exile.map((c) => c.card?.id)).toEqual([recall.id]);
+        expect(state.stack.length).toBe(0);
+    });
+
+    it("X=2 with an empty graveyard discards but returns nothing, still exiles", () => {
+        const state = startRecall({
+            handIds: ["h0", "h1"],
+            graveyardIds: [],
+            chosenX: 2,
+        });
+        answerChoice(state, ["h0", "h1"]); // discard both
+        // Discarded cards are the only graveyard contents → returnable.
+        const grave = state.pendingChoices?.[0];
+        expect(grave?.count).toEqual({ min: 0, max: 2 });
+        answerChoice(state, []); // return none
+        const p1 = state.players[0];
+        expect(p1.hand.map((c) => c.id)).toEqual([]);
+        expect(new Set(p1.graveyard.map((c) => c.id))).toEqual(
+            new Set(["h0", "h1"])
+        );
+        expect(p1.exile.map((c) => c.card?.id)).toEqual([recall.id]);
+        expect(state.stack.length).toBe(0);
+    });
+
+    it("drives the discard → graveyard-return chain through the real submit mutations", () => {
+        // Integration: every choice resumes via the production
+        // `applyPendingChoiceSubmit`, exercising the candidateIds allow-list and
+        // the [min,max] range guard end-to-end (GRE → game.ts boundary).
+        const state = startRecall({
+            handIds: ["h0", "h1"],
+            graveyardIds: ["g0"],
+            chosenX: 2,
+        });
+        const submit = (ids: string[]) => {
+            const head = state.pendingChoices![0];
+            applyPendingChoiceSubmit(state, {
+                playerId: head.playerId,
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ids,
+            });
+        };
+        submit(["h0", "h1"]); // discard both
+        // A card outside the graveyard candidate set is rejected.
+        expect(() => submit(["not-in-grave"])).toThrow();
+        // Picking more than max (2) is rejected by the range guard.
+        expect(() => submit(["g0", "h0", "h1"])).toThrow();
+        submit(["g0", "h1"]); // return two
+        const p1 = state.players[0];
+        expect(new Set(p1.hand.map((c) => c.id))).toEqual(
+            new Set(["g0", "h1"])
+        );
+        expect(p1.exile.map((c) => c.card?.id)).toEqual([recall.id]);
+        expect(state.stack.length).toBe(0);
+        expect(state.pendingChoices?.length ?? 0).toBe(0);
+    });
+
+    it("the self-exile and returned hand survive the wire projection (CR 608.2)", () => {
+        const state = startRecall({
+            handIds: ["h0"],
+            graveyardIds: ["g0"],
+            chosenX: 1,
+        });
+        answerChoice(state, ["h0"]); // discard h0
+        answerChoice(state, ["g0"]); // return g0
+        const projected = projectPublicState(state, 1, "p1");
+        // Recall sits in p1's exile, not the graveyard, after the wire round.
+        expect(projected.players[0].exile.map((c) => c.card?.id)).toEqual([
+            recall.id,
+        ]);
+        expect(
+            projected.players[0].graveyard.some((c) => c.card?.id === recall.id)
+        ).toBe(false);
+        // g0 returned to hand; h0 (discarded, not returned) stays in graveyard.
+        expect(projected.players[0].hand.length).toBe(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// normalizeManaCost — {X}{X} doubles the chosen X (Recall), CR 107.3.
+// ---------------------------------------------------------------------------
+
+describe("normalizeManaCost xFactor ({X}{X} costs, CR 107.3)", () => {
+    it("doubles the chosen X for a {X}{X}{U} cost (Recall)", () => {
+        const norm = normalizeManaCost(recall.manaCost!, { chosenX: 3 });
+        // 3 × 2 = 6 generic (folded into the `X` key), plus {U}. xFactor itself
+        // is never emitted as a mana entry.
+        expect(norm.X).toBe(6);
+        expect(norm.U).toBe(1);
+        expect(norm.xFactor).toBeUndefined();
+    });
+
+    it("X=0 yields just the colored portion", () => {
+        const norm = normalizeManaCost(recall.manaCost!, { chosenX: 0 });
+        expect(norm.X ?? 0).toBe(0);
+        expect(norm.U).toBe(1);
     });
 });

@@ -689,8 +689,14 @@ export function manaCostToString(cost?: ManaCost): string {
     if (!cost) return "";
     const parts: string[] = [];
     const x = cost.X;
-    if (typeof x === "string") parts.push(`{${x}}`);
-    else if (typeof x === "number" && x > 0) parts.push(`{${x}}`);
+    if (typeof x === "string") {
+        // `{X}{X}` costs (Recall) repeat the variable symbol `xFactor` times.
+        const factor =
+            typeof cost.xFactor === "number" && cost.xFactor > 0
+                ? cost.xFactor
+                : 1;
+        for (let i = 0; i < factor; i++) parts.push(`{${x}}`);
+    } else if (typeof x === "number" && x > 0) parts.push(`{${x}}`);
     for (const c of MANA_DISPLAY_COLORS) {
         const n = cost[c] ?? 0;
         for (let i = 0; i < n; i++) parts.push(`{${c}}`);

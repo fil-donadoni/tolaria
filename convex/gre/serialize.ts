@@ -582,6 +582,7 @@ function compactStackItem(item: StackItem): CompactCard {
     }
     if (item.collectedChoices) base.collectedChoices = item.collectedChoices;
     if (item.isCopy) base.isCopy = item.isCopy;
+    if (item.exileOnResolve) base.exileOnResolve = item.exileOnResolve;
     return base;
 }
 
@@ -631,6 +632,9 @@ function expandStackItem(compact: CompactCard): StackItem {
         >;
     }
     if (compact.isCopy) item.isCopy = compact.isCopy as boolean;
+    if (compact.exileOnResolve) {
+        item.exileOnResolve = compact.exileOnResolve as boolean;
+    }
     return item;
 }
 

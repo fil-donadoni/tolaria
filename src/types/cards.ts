@@ -12,6 +12,9 @@ export type ManaCost = {
     R?: number;
     G?: number;
     C?: number;
+    /** How many times the chosen X is added to the generic cost for a variable
+     *  `{X}` cost (CR 107.3). Defaults to 1; `2` for `{X}{X}` (Recall). */
+    xFactor?: number;
 };
 
 export type CardType =

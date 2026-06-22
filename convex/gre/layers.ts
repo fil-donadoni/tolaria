@@ -105,7 +105,9 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
             embedded ?? (cardId ? tryGetCardById(cardId)?.manaCost : undefined);
         if (!cost) return 0;
         let total = 0;
-        for (const [, v] of Object.entries(cost)) {
+        for (const [k, v] of Object.entries(cost)) {
+            // `xFactor` is an X-multiplier, not a mana amount — exclude it.
+            if (k === "xFactor") continue;
             if (typeof v === "number") total += v;
         }
         return total;

@@ -371,6 +371,14 @@ export function chooseResolution(choice: OwedChoice): string[] {
                 .slice(0, min)
                 .map((c) => c.id);
 
+        // Recall (CR 400.7): return up to `max` cards from the graveyard to
+        // hand. Greedy value-max (ADR 0018) — take the best-valued cards first
+        // so the bot recurs its strongest cards, capping at `max`.
+        case "choose-graveyard-card":
+            return bestFirst(candidates)
+                .slice(0, max)
+                .map((c) => c.id);
+
         // Reveal-hand only acknowledges (count 0) — submit nothing.
         case "reveal-hand":
             return [];

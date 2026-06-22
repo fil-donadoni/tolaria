@@ -759,9 +759,80 @@ export const visions: CardDefinition = {
 //     - Gaseous Form — "Prevent all combat damage to and dealt by enchanted
 //       creature" is a CONTINUOUS aura prevention; only a turn-scoped combat
 //       shield exists, no "for as long as enchanted" prevention static.
-//     - Recall — needs a graveyard-return zone-pick kind and a cross-step
-//       discarded-count carry; deferred until those primitives exist.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Recall — "Discard X cards, then return a card from your graveyard to your
+// hand for each card discarded this way. Exile Recall." (CR 107.3 X chosen on
+// cast; CR 701.8 discard; CR 400.7 graveyard→hand; CR 608.2 self-exile.)
+//
+// Cost is {X}{X}{U}: the player pays twice the chosen X (`xFactor: 2`) but the
+// DISCARD COUNT equals the announced X (`getX()`), not the paid generic.
+//
+// Two resolveSteps so the discard and the return are isolated suspension
+// points (CR 608.2 stepped resolution):
+//   • Step 0 — discard X chosen cards from hand (clamped to hand size). The
+//     discarded cards land in the graveyard BEFORE the return step, so they
+//     are themselves valid return targets — the classic Recall loop.
+//   • Step 1 — return up to (number actually discarded) chosen cards from the
+//     graveyard to hand. The discarded count is read back across steps via
+//     `recallChoice`. Then Recall exiles itself (CR 608.2).
+// X = 0 discards nothing, returns nothing, and still exiles. A graveyard with
+// fewer cards than the discard count caps the return at what's available.
+export const recall: CardDefinition = {
+    id: "33296718-0625-4422-a65c-b21cf99c52ec",
+    name: "Recall",
+    oracleText:
+        "Discard X cards, then return a card from your graveyard to your hand for each card discarded this way. Exile Recall.",
+    manaCost: { X: "X", xFactor: 2, U: 1 },
+    types: ["Sorcery"],
+    resolveSteps: [
+        // Step 0 — discard X chosen cards (CR 701.8). Clamp to hand size so a
+        // chosen X above hand count discards everything held without stalling.
+        (ctx: SpellContext) => {
+            const me = ctx.controller;
+            const x = ctx.getX();
+            const max = Math.min(x, ctx.getHandSize(me));
+            if (max <= 0) return; // X = 0 or empty hand — nothing to discard.
+            const picks = ctx.requestChoice({
+                playerId: me,
+                choiceId: "recall-discard",
+                kind: "discard-hand",
+                zone: "hand",
+                count: max,
+                prompt: `Recall: discard ${max} ${max === 1 ? "card" : "cards"}.`,
+            });
+            if (picks === undefined) return; // suspended for the discard pick
+            for (const id of picks) ctx.discardCard(me, id);
+        },
+        // Step 1 — return up to (cards actually discarded) cards from the
+        // graveyard to hand (CR 400.7), then exile Recall (CR 608.2). The
+        // discarded ids are read back across the step boundary; the just-
+        // discarded cards are in the graveyard now, so they're valid targets.
+        (ctx: SpellContext) => {
+            const me = ctx.controller;
+            const discarded = ctx.recallChoice("recall-discard")?.length ?? 0;
+            const graveyardIds = ctx.getGraveyardCards(me).map((c) => c.id);
+            const max = Math.min(discarded, graveyardIds.length);
+            if (max > 0) {
+                const picks = ctx.requestChoice({
+                    playerId: me,
+                    choiceId: "recall-return",
+                    kind: "choose-graveyard-card",
+                    zone: "graveyard",
+                    candidateIds: graveyardIds,
+                    count: { min: 0, max },
+                    prompt: `Recall: return up to ${max} ${max === 1 ? "card" : "cards"} from your graveyard to your hand.`,
+                });
+                if (picks === undefined) return; // suspended for the return pick
+                for (const id of picks) {
+                    ctx.moveCardById(me, id, "graveyard", "hand");
+                }
+            }
+            // CR 608.2 — "Exile Recall." Last instruction in the spell.
+            ctx.exileSelf();
+        },
+    ],
+};
 
 // --- Vanilla / keyword creatures (CR 702 — pure data) ---------------------
 

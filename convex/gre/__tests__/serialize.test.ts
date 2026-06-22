@@ -149,6 +149,21 @@ describe("game_state serialize round-trip", () => {
         expect(top.targets).toEqual([{ type: "player", id: "p2" }]);
     });
 
+    it("preserves a stack item's exileOnResolve flag (Recall, CR 608.2)", () => {
+        const state = freshState();
+        const recall = state.players[0].hand[0];
+        state.stack = [
+            {
+                ...recall,
+                zone: "stack",
+                castById: "p1",
+                exileOnResolve: true,
+            },
+        ];
+        const expanded = expandState(compactState(state));
+        expect(expanded.stack[0].exileOnResolve).toBe(true);
+    });
+
     it("library entries derive owner/controller/zone implicitly", () => {
         const state = freshState();
         const compact = compactState(state);

@@ -788,6 +788,12 @@ export type StackItem = CardInstanceState & {
      *  rather than moving to a graveyard (CR 707.10/112.5), and it can never
      *  return to a hand/library. Set by `SpellContext.copyStackItem`. */
     isCopy?: boolean;
+    /** True iff the resolving spell instructs itself to be exiled as the last
+     *  thing it does (CR 608.2 — "Exile <this spell>", e.g. Recall). When set,
+     *  `finalizeSpellResolution` routes the non-permanent card to its owner's
+     *  exile zone instead of the graveyard. Set via
+     *  `SpellContext.exileSelf()`. */
+    exileOnResolve?: boolean;
 };
 
 /** A delayed triggered ability waiting to fire (CR 603.7a). Queued on
@@ -981,8 +987,11 @@ export type PendingChoice = {
      *  decide which battlefield receives click routing for the choice. */
     zoneOwnerId?: string;
     /** Zone of the choosable items — restricts the set offered to the chooser.
-     *  Undefined for choice kinds that don't pick from a zone (`may-pay`). */
-    zone?: "battlefield" | "hand" | "library";
+     *  Undefined for choice kinds that don't pick from a zone (`may-pay`).
+     *  `graveyard` picks (Recall) always carry a `candidateIds` allow-list — a
+     *  graveyard is a public zone, so the submit-validator gates eligibility on
+     *  `candidateIds` rather than a hidden-zone snapshot. */
+    zone?: "battlefield" | "hand" | "library" | "graveyard";
     /** Optional battlefield filter (card types / subtypes / keywords). Ignored
      *  for hand choices. */
     filter?: PermanentFilter;
@@ -2169,6 +2178,14 @@ function finalizeSpellResolution(
         // of being put into a graveyard.
         if (item.isCopy) return;
         const owner = getPlayer(state, item.ownerId);
+        // CR 608.2 — a spell that instructs "Exile <this spell>" as part of its
+        // own resolution goes to exile instead of the graveyard (Recall). The
+        // flag is set by `SpellContext.exileSelf()` during the resolve.
+        if (item.exileOnResolve) {
+            item.zone = "exile";
+            owner.exile.push(item);
+            return;
+        }
         item.zone = "graveyard";
         owner.graveyard.push(item);
     }
@@ -4763,7 +4780,12 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         addMana(cost: CardManaCost): void {
             const player = getPlayer(state, item.castById);
             for (const [color, amount] of Object.entries(cost)) {
-                if (color === "X" || typeof amount !== "number" || amount <= 0)
+                if (
+                    color === "X" ||
+                    color === "xFactor" ||
+                    typeof amount !== "number" ||
+                    amount <= 0
+                )
                     continue;
                 player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
             }
@@ -4771,7 +4793,12 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         addManaTo(playerId: string, cost: CardManaCost): void {
             const player = getPlayer(state, playerId);
             for (const [color, amount] of Object.entries(cost)) {
-                if (color === "X" || typeof amount !== "number" || amount <= 0)
+                if (
+                    color === "X" ||
+                    color === "xFactor" ||
+                    typeof amount !== "number" ||
+                    amount <= 0
+                )
                     continue;
                 player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
             }
@@ -4783,7 +4810,12 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         ): void {
             const player = getPlayer(state, playerId);
             for (const [color, amount] of Object.entries(cost)) {
-                if (color === "X" || typeof amount !== "number" || amount <= 0)
+                if (
+                    color === "X" ||
+                    color === "xFactor" ||
+                    typeof amount !== "number" ||
+                    amount <= 0
+                )
                     continue;
                 addRestrictedManaToPool(player, color, amount, restriction);
             }
@@ -6143,6 +6175,13 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (idx === -1) state.stack.push(stackItem);
             else state.stack.splice(idx, 0, stackItem);
         },
+        exileSelf(): void {
+            // CR 608.2 — "Exile <this spell>". A copy ceases to exist anyway
+            // (CR 707.10) and an ability has no card to exile; both no-op.
+            if (item.isCopy) return;
+            if (item.abilityId || item.triggeredAbilityId) return;
+            item.exileOnResolve = true;
+        },
     };
     return ctx;
 }
@@ -6693,9 +6732,14 @@ export function normalizeManaCost(
 ): Record<string, number> {
     const result: Record<string, number> = {};
     let extraGeneric = opts.additionalGeneric ?? 0;
+    // CR 107.3 — a `{X}{X}` cost adds the chosen X `xFactor` times (Recall:
+    // `{X}{X}{U}` → twice). Defaults to 1 for a single `{X}`.
+    const xFactor =
+        typeof cost.xFactor === "number" && cost.xFactor > 0 ? cost.xFactor : 1;
     for (const [key, val] of Object.entries(cost)) {
+        if (key === "xFactor") continue;
         if (key === "X" && typeof val === "string") {
-            extraGeneric += opts.chosenX ?? 0;
+            extraGeneric += (opts.chosenX ?? 0) * xFactor;
             continue;
         }
         const n = typeof val === "number" ? val : 0;

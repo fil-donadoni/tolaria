@@ -178,6 +178,13 @@ function readChoiceZone(
                 );
             }
             break;
+        case "graveyard":
+            // Recall (CR 400.7) — return N cards from the bot's own graveyard
+            // to hand. The graveyard is a public zone, fully projected; the
+            // `candidateIds` allow-list (applied below) narrows it to the
+            // eligible snapshot.
+            cards = owner.graveyard;
+            break;
         default:
             return [];
     }
