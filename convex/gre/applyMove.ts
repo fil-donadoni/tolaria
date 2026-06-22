@@ -157,6 +157,7 @@ export function applyMoveForSearch(
         case "mulligan-bottom":
         case "resolution-choice":
         case "may-pay":
+        case "name-card":
         case "random-reveal-ack":
             // No board change worth modelling for a 1-ply leaf: passing keeps
             // the position; a mulligan / resolution-choice / may-pay /

@@ -63,8 +63,13 @@ export type { PlayerInput, DeckInput } from "./setup";
 export {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
+    applyNameCardSubmit,
 } from "./pendingChoiceSubmit";
-export type { SubmitChoiceArgs, SubmitMayPayArgs } from "./pendingChoiceSubmit";
+export type {
+    SubmitChoiceArgs,
+    SubmitMayPayArgs,
+    SubmitNameCardArgs,
+} from "./pendingChoiceSubmit";
 export { recordDeclaration } from "./mulligan";
 
 // ISMCTS + determinization — the searching Bot (issue #112). `search` replaces

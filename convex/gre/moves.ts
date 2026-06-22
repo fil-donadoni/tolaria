@@ -80,6 +80,15 @@ export type Move =
           accept: boolean;
       }
     | {
+          /** Name a card for a `name-card` pending choice (CR 202.3 / ADR 0016)
+           *  — the bot's legal default when it is targeted by a name-a-card
+           *  effect (Petra Sphinx). Realised through the dedicated
+           *  `submitNameCard` mutation; the choice identity is read from the
+           *  active pending choice, only the name string travels on the Move. */
+          kind: "name-card";
+          cardName: string;
+      }
+    | {
           /** Acknowledge a suspended `random-reveal` flip (CR 705.2, ADR 0023).
            *  Carries no choice data — the engine drew and persisted the
            *  outcome; this only means "resume". Realised through the

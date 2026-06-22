@@ -3514,9 +3514,12 @@ export const sylvanParadise: CardDefinition = {
 //   • Lady Evangela — "prevent all combat damage that would be dealt BY target
 //     creature this turn"; only `preventAllCombatDamageToAndBy` (both
 //     directions, Ebony Horse) exists — a by-only shield would over-prevent.
-//   • Nebuchadnezzar — "reveal X cards at random from hand, then discard all
-//     with the chosen name" needs a name-guess + random-reveal-from-hand
-//     primitive with no surface.
+//   • Nebuchadnezzar — "name a card, reveal X cards at random from target
+//     player's hand, then discard all with the chosen name". The name-a-card
+//     half now exists (`requestNameCard`, #489 — Petra Sphinx); what's still
+//     missing is a random-reveal-N-from-hand primitive (pick X hand cards at
+//     random and reveal them). Unblocked on the naming side; deferred on the
+//     random-hand-reveal side.
 //   • Ramses Overdark — "destroy target enchanted creature"; no
 //     enchanted-permanent target filter on `TargetRequirement`.
 //   • Stangg — creates a linked legendary token twin with a sacrifice-the-pair
@@ -6295,6 +6298,60 @@ export const halfdane: CardDefinition = {
                 );
             },
         }),
+    ],
+};
+
+// Petra Sphinx — {2}{W}{W}{W} 3/4 Sphinx (CR 202.3 name-a-card + CR 701.13
+// reveal). "{T}: Target player chooses a card name, then reveals the top card
+// of their library. If that card has the chosen name, that player puts it into
+// their hand. If it doesn't, the player puts it into their graveyard." The
+// targeted player is the chooser AND the controller of the consequence (a
+// player may name a card to dig for their own top card). Composition: a
+// `name-card` open choice (#489 `requestNameCard`) → `peekLibraryTop(1)` to
+// read the top instance → `getCardName` to compare against the named card →
+// `markKnownToAll` (CR 701.13 the card is revealed to all) → `moveCardById`
+// library → hand on a match, library → graveyard on a mismatch.
+export const petraSphinx: CardDefinition = {
+    id: "5ef99f07-c987-451a-b18a-2719eea654cd",
+    rarity: "rare",
+    name: "Petra Sphinx",
+    oracleText:
+        "{T}: Target player chooses a card name, then reveals the top card of their library. If that card has the chosen name, that player puts it into their hand. If it doesn't, the player puts it into their graveyard.",
+    manaCost: { X: 2, W: 3 },
+    types: ["Creature"],
+    subtypes: ["Sphinx"],
+    power: 3,
+    toughness: 4,
+    activatedAbilities: [
+        {
+            id: "petra-sphinx-name-card",
+            oracleText:
+                "{T}: Target player chooses a card name, then reveals the top card of their library. If that card has the chosen name, that player puts it into their hand. If it doesn't, the player puts it into their graveyard.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "player", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type !== "player") return;
+                // CR 202.3 — the targeted player names a card. Suspends until
+                // the name is submitted via `submitNameCard`.
+                const named = ctx.requestNameCard({
+                    playerId: target.id,
+                    choiceId: "petra-name",
+                    prompt: "Name a card.",
+                });
+                if (named === undefined) return; // suspended on the choice
+                // CR 701.13 — reveal the top card of the chooser's library.
+                const top = ctx.peekLibraryTop(target.id, 1);
+                if (top.length === 0) return; // empty library — nothing to do
+                const topId = top[0];
+                ctx.markKnownToAll(target.id, [topId]);
+                const topName = ctx.getCardName(topId);
+                // CR 201.2 — exact name match (registry-canonical casing).
+                const dest = topName === named ? "hand" : "graveyard";
+                ctx.moveCardById(target.id, topId, "library", dest);
+            },
+        },
     ],
 };
 

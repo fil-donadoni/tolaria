@@ -8,6 +8,7 @@ import { advancePhase, untapStep } from "../phases";
 import { recordDeclaration, makeMulliganState } from "../mulligan";
 import {
     applyPendingChoiceSubmit,
+    applyNameCardSubmit,
     applyRandomRevealAck,
 } from "../pendingChoiceSubmit";
 import { checkStateBasedActions } from "../sba";
@@ -18,7 +19,7 @@ import {
     plains,
     winterOrb,
 } from "../../cards/sets/lea";
-import { jasmineBoreal } from "../../cards/sets/leg";
+import { jasmineBoreal, petraSphinx, tundraWolves } from "../../cards/sets/leg";
 import {
     bottleOfSuleiman,
     cuombajjWitches,
@@ -945,5 +946,104 @@ describe("applyPendingChoiceSubmit — legend-keep (CR 704.5j)", () => {
             })
         ).toThrow();
         expect(state.pendingChoices).toHaveLength(1);
+    });
+});
+
+describe("applyNameCardSubmit — name-a-card mid-resolution (CR 202.3 / 701.x)", () => {
+    // Drives Petra Sphinx's {T} ability to suspend on a `name-card` head, then
+    // exercises the dedicated submit path (the primitive the `submitNameCard`
+    // mutation drives).
+    function setupNameCard(): GameState {
+        const top = makeInstance(tundraWolves.id, {
+            id: "top",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const sphinx = makeInstance(petraSphinx.id, {
+            id: "sphinx",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sphinx] }),
+                makePlayer("p2", { library: [top] }),
+            ],
+        });
+        const ability = petraSphinx.activatedAbilities![0];
+        state.stack.push({
+            ...sphinx,
+            zone: "stack",
+            castById: "p1",
+            abilityId: ability.id,
+            targets: [{ type: "player", id: "p2" }],
+        });
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("happy path: commits the name and resumes resolution", () => {
+        const state = setupNameCard();
+        expect(state.pendingChoices![0].kind).toBe("name-card");
+        applyNameCardSubmit(state, {
+            playerId: "p2",
+            cardName: "Tundra Wolves",
+        });
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["top"]);
+    });
+
+    it("rejects a name not in the registry (CR 201.2)", () => {
+        const state = setupNameCard();
+        expect(() =>
+            applyNameCardSubmit(state, {
+                playerId: "p2",
+                cardName: "No Such Card",
+            })
+        ).toThrow(/recognized/i);
+        expect(state.pendingChoices).toHaveLength(1);
+    });
+
+    it("rejects a submission from the wrong player", () => {
+        const state = setupNameCard();
+        expect(() =>
+            applyNameCardSubmit(state, {
+                playerId: "p1",
+                cardName: "Tundra Wolves",
+            })
+        ).toThrow(/your pending choice/i);
+    });
+
+    it("rejects an empty name", () => {
+        const state = setupNameCard();
+        expect(() =>
+            applyNameCardSubmit(state, { playerId: "p2", cardName: "   " })
+        ).toThrow();
+        expect(state.pendingChoices).toHaveLength(1);
+    });
+
+    it("throws when the head is not a name-card choice", () => {
+        const state = setupCleanupDiscard(STARTING_HAND_SIZE + 2);
+        expect(() =>
+            applyNameCardSubmit(state, {
+                playerId: "p1",
+                cardName: "Tundra Wolves",
+            })
+        ).toThrow(/not a name-card/i);
+    });
+
+    it("generic submit rejects a name-card head (routes to submitNameCard)", () => {
+        const state = setupNameCard();
+        const head = state.pendingChoices![0];
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: head.playerId,
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["top"],
+            })
+        ).toThrow(/submitNameCard/i);
     });
 });

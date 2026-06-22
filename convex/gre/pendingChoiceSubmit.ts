@@ -26,6 +26,7 @@ import {
 } from "./phases";
 import { checkStateBasedActions, finalizeLegendKeep } from "./sba";
 import { applyMulliganBottomChoice } from "./mulligan";
+import { tryGetCardByName } from "../cards";
 
 export type SubmitChoiceArgs = {
     playerId: string;
@@ -93,6 +94,74 @@ export function applyMayPaySubmit(
             state.priorityPlayerId = state.pendingChoices![0].playerId;
         } else if (state.pendingTarget) {
             // Resolution requested a copy-retarget (CR 707.10b, Fork).
+            state.priorityPlayerId = state.pendingTarget.playerId;
+        } else {
+            state.priorityPlayerId = state.activePlayerId;
+            state.passCount = 0;
+            drainAutoPasses(state);
+        }
+        checkStateBasedActions(state);
+    } else {
+        state.priorityPlayerId = state.pendingChoices![0].playerId;
+    }
+}
+
+export type SubmitNameCardArgs = {
+    playerId: string;
+    cardName: string;
+};
+
+/** Validates and applies a `name-card` submission (CR 202.3 / 701.x "chooses a
+ *  card name") against the current head pending choice. The submitted name must
+ *  resolve (case-insensitively) to a card in the registry — naming a card that
+ *  isn't implemented is rejected (a user-facing throw). On success the chosen
+ *  name is committed into the stack item's `collectedChoices` so the resolve
+ *  step reads it back via `requestNameCard`, then the head is dropped and
+ *  resolution resumes. Mutates `state` in place. Throws on identity mismatch,
+ *  a non-`name-card` head, or an unregistered name. Mirrors `applyMayPaySubmit`
+ *  so the mutation and the bot's headless resolution path drive the SAME
+ *  primitive. */
+export function applyNameCardSubmit(
+    state: GameState,
+    args: SubmitNameCardArgs
+): void {
+    const queue = state.pendingChoices ?? [];
+    if (queue.length === 0) throw new Error("No pending choice");
+    const head = queue[0];
+    if (head.kind !== "name-card") {
+        throw new Error("Pending choice is not a name-card");
+    }
+    if (head.playerId !== args.playerId) {
+        throw new Error("Not your pending choice");
+    }
+
+    const name = args.cardName.trim();
+    if (name.length === 0) throw new Error("Name a card");
+    // CR 201.2 — the named card must exist (here: be in the registry). The
+    // registry is the canonical card name set; an unregistered name is illegal.
+    const def = tryGetCardByName(name);
+    if (!def) throw new Error("Not a recognized card name");
+    // Normalize to the registry's canonical casing so the resolve step's name
+    // comparison is exact.
+    const canonical = def.name;
+
+    head.chosenName = canonical;
+    const stackItem = state.stack.find((s) => s.id === head.stackItemId);
+    if (!stackItem) throw new Error("Stack item not found");
+    const key = `${head.step}:${head.choiceId}`;
+    stackItem.collectedChoices = {
+        ...(stackItem.collectedChoices ?? {}),
+        [key]: [canonical],
+    };
+
+    queue.shift();
+    state.pendingChoices = queue.length > 0 ? queue : undefined;
+
+    if ((state.pendingChoices?.length ?? 0) === 0) {
+        resolveTopOfStack(state);
+        if ((state.pendingChoices?.length ?? 0) > 0) {
+            state.priorityPlayerId = state.pendingChoices![0].playerId;
+        } else if (state.pendingTarget) {
             state.priorityPlayerId = state.pendingTarget.playerId;
         } else {
             state.priorityPlayerId = state.activePlayerId;
@@ -185,6 +254,10 @@ export function applyPendingChoiceSubmit(
     // `may-pay` has its own mutation (`submitMayPay`) — reject here.
     if (head.kind === "may-pay") {
         throw new Error("Use submitMayPay for may-pay choices");
+    }
+    // `name-card` has its own mutation (`submitNameCard`) — reject here.
+    if (head.kind === "name-card") {
+        throw new Error("Use submitNameCard for name-card choices");
     }
 
     if (new Set(args.cardInstanceIds).size !== args.cardInstanceIds.length) {

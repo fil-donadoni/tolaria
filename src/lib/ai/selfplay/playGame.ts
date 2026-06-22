@@ -39,6 +39,7 @@ import {
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
+    applyNameCardSubmit,
     recordDeclaration,
 } from "@convex/gre";
 import { manaValue } from "@convex/gre/constants";
@@ -178,6 +179,23 @@ function resolvePending(state: GameState): boolean {
         // v1: accept a costless "may", decline a costed one (see file header).
         const accept = !head.cost;
         applyMayPaySubmit(state, { playerId: head.playerId, accept });
+        return true;
+    }
+
+    if (head.kind === "name-card") {
+        // CR 202.3 — name a card. Headless default: name the chooser's own top
+        // library card so a self-targeted Petra Sphinx digs it into hand; falls
+        // back to any registered card name. Routed through the dedicated
+        // resolver (the submission is a name string, not instance ids).
+        const chooser = state.players.find((p) => p.id === head.playerId);
+        const topId = chooser?.library[0]?.id;
+        const topDef = topId
+            ? tryGetCardById(
+                  (chooser!.library[0].card as { id?: string }).id ?? ""
+              )
+            : undefined;
+        const cardName = topDef?.name ?? "Plains";
+        applyNameCardSubmit(state, { playerId: head.playerId, cardName });
         return true;
     }
 

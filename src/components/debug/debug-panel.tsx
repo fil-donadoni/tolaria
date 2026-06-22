@@ -252,6 +252,27 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // #489 Petra Sphinx — {2}{W}{W}{W} 3/4 Sphinx (CR 202.3 name-a-card +
+        //   CR 701.13 reveal). "{T}: Target player chooses a card name, then
+        //   reveals the top card of their library. If that card has the chosen
+        //   name, that player puts it into their hand. If it doesn't, the player
+        //   puts it into their graveyard."
+        // You control an untapped Petra Sphinx; `libraryCount` fills both
+        // libraries with Plains, so the top card is a known Plains. Golden path:
+        //   1. Activate the Sphinx's {T} ability targeting yourself.
+        //   2. The name-a-card input opens — type "Plains" (autocomplete over
+        //      the implemented registry) and submit.
+        //   3. The top card (Plains) is revealed; it matches → it goes to your
+        //      HAND. Watch your hand count tick up.
+        // Edge: name any other card (e.g. "Tundra Wolves") → the revealed Plains
+        // doesn't match and goes to your GRAVEYARD instead.
+        label: "LEG: Petra Sphinx — name a card, reveal top (#489)",
+        cards: [{ name: "Petra Sphinx", owner: "me" as const }],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 5,
+        libraryCount: 10,
+    },
+    {
         // #486 Infinite Authority — {W}{W}{W} Aura (Enchant creature).
         //   "Whenever enchanted creature blocks or becomes blocked by a creature
         //    with toughness 3 or less, destroy the other creature at end of

@@ -259,7 +259,39 @@ function buildOwedChoice(
             head.kind === "discard-hand"
                 ? buildManaSituation(state, botId)
                 : undefined,
+        // CR 202.3 — name-a-card default. Name the chooser's own top library
+        // card when the bot can see it (the bot is the chooser; Petra Sphinx
+        // names to dig the top into hand), else a guaranteed-registered
+        // fallback ("Plains"). Validated server-side against the registry.
+        nameCardDefault:
+            head.kind === "name-card"
+                ? nameCardDefaultFor(state, head)
+                : undefined,
     };
+}
+
+/** The bot's default named card for a `name-card` choice (CR 202.3). Prefers
+ *  the chooser's own top library card name when it is visible to the bot in the
+ *  projection (the bot is the chooser), so a self-targeted Petra Sphinx digs the
+ *  top into hand. Falls back to "Plains" (always registered) when the top is
+ *  hidden or unknown. */
+function nameCardDefaultFor(
+    state: PublicGameState,
+    head: PendingChoice
+): string {
+    const owner = state.players.find((p) => p.id === head.playerId);
+    // The projected library is sparse (ADR 0026): `{ count, known }` carrying
+    // only cards the viewer knows, each at its top-relative `index`. The top
+    // card is the known entry at index 0 when present.
+    const lib = owner?.library;
+    const top =
+        lib && !Array.isArray(lib)
+            ? lib.known.find((k) => k.index === 0)?.card
+            : undefined;
+    // `top` is a slim instance; its DEFINITION id lives at `top.card.id`.
+    const defId = top?.card?.id;
+    const def = defId ? tryGetCardById(defId) : undefined;
+    return def?.name ?? "Plains";
 }
 
 /** Project the bot-viewpoint `PublicGameState` into the gate's decision window.
@@ -366,6 +398,15 @@ export function botActionToMove(
             return null;
         }
         return { kind: "may-pay", accept: action.accept };
+    }
+    if (action.kind === "name-card") {
+        // CR 202.3 — routes through `submitNameCard`. Only the name travels;
+        // the server reads the head choice and validates the name.
+        const head = state.pendingChoices?.[0];
+        if (!head || head.kind !== "name-card" || head.playerId !== botId) {
+            return null;
+        }
+        return { kind: "name-card", cardName: action.cardName };
     }
     if (action.kind === "random-reveal-ack") {
         // CR 705.2 / ADR 0023 — routes through `submitRandomRevealAck`. No

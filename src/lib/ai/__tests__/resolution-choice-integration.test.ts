@@ -23,6 +23,7 @@ import { advancePhase } from "@convex/gre/phases";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
+    applyNameCardSubmit,
     applyRandomRevealAck,
 } from "@convex/gre/pendingChoiceSubmit";
 import { enumerateMoves } from "@convex/gre";
@@ -42,6 +43,7 @@ const IVORY_CUP = getCardByName("Ivory Cup").id; // "you may pay {1}: gain 1 lif
 const CLONE = getCardByName("Clone").id; // may-pay → choose-permanents (Creature)
 const NATURAL_SELECTION = getCardByName("Natural Selection").id; // reorder-library
 const PLAINS = getCardByName("Plains").id; // white-producing land
+const PETRA_SPHINX = getCardByName("Petra Sphinx").id; // name-a-card (CR 202.3)
 const MOUNTAIN = getCardByName("Mountain").id; // red-producing land
 const SHIVAN_DRAGON = getCardByName("Shivan Dragon").id; // 4RR — castable only off red sources
 const WINTER_ORB = getCardByName("Winter Orb").id; // "untap up to one land" (cap 1)
@@ -74,6 +76,9 @@ function engineMutations(state: GameState): MoveMutations {
         },
         submitMayPay: async ({ playerId, accept }) => {
             applyMayPaySubmit(state, { playerId, accept });
+        },
+        submitNameCard: async ({ playerId, cardName }) => {
+            applyNameCardSubmit(state, { playerId, cardName });
         },
         submitRandomRevealAck: async ({ playerId, stackItemId, choiceId }) => {
             applyRandomRevealAck(state, { playerId, stackItemId, choiceId });
@@ -616,5 +621,84 @@ describe("bot resolution-choice full path — untap-pick (Winter Orb, issue #325
         const forest = bot.battlefield.find((c) => c.id === "bot-forest")!;
         expect(library.isTapped).toBe(false);
         expect(forest.isTapped).toBe(true);
+    });
+});
+
+/** A state where the bot controls a Petra Sphinx and has activated its {T}
+ *  ability targeting itself; the engine has enqueued the `name-card` choice for
+ *  the bot. The bot's library top is a Grizzly Bears so the default-naming path
+ *  (name the visible top) digs it into hand. */
+function makeNameCardState(): GameState {
+    const top = makeInstance(BEARS, {
+        id: "bot-top",
+        controllerId: BOT,
+        ownerId: BOT,
+        zone: "library",
+        // The bot must SEE its own top to name it (ADR 0026 — knownTo gates the
+        // projected library). Grant the bot knowledge of its own top card.
+        knownTo: [BOT],
+    });
+    const sphinx = makeInstance(PETRA_SPHINX, {
+        id: "sphinx",
+        controllerId: BOT,
+        ownerId: BOT,
+    });
+    const state = makeState({
+        players: [
+            makePlayer(HUMAN),
+            makePlayer(BOT, { battlefield: [sphinx], library: [top] }),
+        ],
+        activePlayerId: BOT,
+        priorityPlayerId: BOT,
+    });
+    const ability = getCardByName("Petra Sphinx").activatedAbilities![0];
+    state.stack.push({
+        ...sphinx,
+        zone: "stack",
+        castById: BOT,
+        abilityId: ability.id,
+        targets: [{ type: "player", id: BOT }],
+    });
+    resolveTopOfStack(state);
+    return state;
+}
+
+describe("bot name-card full path — Petra Sphinx (CR 202.3 / ADR 0016, #489)", () => {
+    it("the GRE surfaces no move while the name-card choice is pending", () => {
+        const state = makeNameCardState();
+        expect(state.pendingChoices?.[0].kind).toBe("name-card");
+        expect(enumerateMoves(state, BOT)).toEqual([]);
+    });
+
+    it("buildBotView surfaces the owed name-card choice with a registered default", () => {
+        const state = makeNameCardState();
+        const view = buildBotView(projectPublicState(state, 1, BOT), BOT);
+        expect(view.owedChoice?.kind).toBe("name-card");
+        // The default names the bot's visible top card (Grizzly Bears).
+        expect(view.owedChoice?.nameCardDefault).toBe("Grizzly Bears");
+    });
+
+    it("resolves the name choice without freezing — the named top moves to hand", async () => {
+        const state = makeNameCardState();
+        const projected = projectPublicState(state, 1, BOT);
+        const view = buildBotView(projected, BOT);
+        const action = decideBotAction(view);
+        expect(action.kind).toBe("name-card");
+
+        const move = botActionToMove(action, projected, BOT);
+        expect(move?.kind).toBe("name-card");
+        if (!move) throw new Error("unreachable");
+
+        await executeMove(move, {
+            gameId: "g" as never,
+            botId: BOT,
+            mutations: engineMutations(state),
+        });
+
+        expect(state.pendingChoices).toBeUndefined();
+        // The named card (Grizzly Bears) matched the top → into the bot's hand.
+        const bot = state.players.find((p) => p.id === BOT)!;
+        expect(bot.hand.map((c) => c.id)).toEqual(["bot-top"]);
+        expect(bot.library).toHaveLength(0);
     });
 });

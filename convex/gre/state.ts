@@ -950,6 +950,7 @@ import type {
     YesNoChoiceKind,
     OrderChoiceKind,
     OptionChoiceKind,
+    NameCardChoiceKind,
     RandomRevealKind,
     RandomKind,
     RealizedOutcome,
@@ -961,6 +962,7 @@ export type {
     YesNoChoiceKind,
     OrderChoiceKind,
     OptionChoiceKind,
+    NameCardChoiceKind,
     RandomRevealKind,
     RandomKind,
     RealizedOutcome,
@@ -1052,6 +1054,14 @@ export type PendingChoice = {
      *  validates it against this list. The frontend renders one button per
      *  option. Used by Primal Clay / Shapeshifter (choose-body-on-entry). */
     options?: { id: string; label: string }[];
+    /** For `kind: "name-card"` only — the chosen card name once the chooser has
+     *  submitted it (CR 202.3 / 701.x "chooses a card name"). The candidate set
+     *  is the whole card registry (no zone, no `options` allow-list); the
+     *  submission carries the name string, validated server-side. Echoed here so
+     *  it survives the pending-choice projection (a head whose name has been
+     *  committed but whose resolve hasn't replayed yet), though in practice the
+     *  head is consumed on submit. Undefined until the chooser submits. */
+    chosenName?: string;
 
     // --- random-reveal family (CR 705, ADR 0023) ---
     /** For `kind: "random-reveal"` only — which random device produced the
@@ -5915,6 +5925,51 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 prompt: req.prompt,
             };
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            return undefined;
+        },
+        requestNameCard(req): string | undefined {
+            // CR 202.3 / 701.x "chooses a card name" — open name choice over the
+            // whole card registry. Mirrors `requestChoice`'s suspend/replay
+            // contract: first call enqueues a `name-card` PendingChoice and
+            // returns undefined (the step must return early to suspend); the
+            // replay after `submitNameCard` reads the stored name back. The
+            // name (a single string) is committed into collectedChoices as a
+            // one-element array, like every other resolved answer.
+            const step = item.resolutionStep ?? 0;
+            const key = `${step}:${req.choiceId}`;
+            const stored = item.collectedChoices?.[key];
+            if (stored) return stored[0];
+            const entry: PendingChoice = {
+                stackItemId: item.id,
+                step,
+                choiceId: req.choiceId,
+                playerId: req.playerId,
+                kind: "name-card",
+                count: 1,
+                prompt: req.prompt,
+            };
+            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            return undefined;
+        },
+        getCardName(cardInstanceId): string | undefined {
+            // CR 108.1 / 201.1 — resolve any instance (any zone) to its printed
+            // name via the registry. Used to compare a revealed card against a
+            // named card (Petra Sphinx).
+            for (const p of state.players) {
+                for (const zone of [
+                    p.library,
+                    p.hand,
+                    p.graveyard,
+                    p.exile,
+                    p.battlefield,
+                ]) {
+                    const found = zone.find((c) => c.id === cardInstanceId);
+                    if (found) {
+                        const id = (found.card as { id?: string }).id;
+                        return id ? tryGetCardById(id)?.name : undefined;
+                    }
+                }
+            }
             return undefined;
         },
         requestCoinFlip(req): boolean | undefined {

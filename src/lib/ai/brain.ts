@@ -144,6 +144,12 @@ export type OwedChoice = {
      *  heuristic can protect scarce lands and rank spells by castability
      *  (issue #242). Undefined for every other choice kind. */
     manaSituation?: ManaSituation;
+    /** `name-card` only (CR 202.3): the bot's legal default card name to submit
+     *  through `submitNameCard`. The name is validated server-side against the
+     *  registry; `buildOwedChoice` populates it with the chooser's own top
+     *  library card name when visible to the bot, else a guaranteed-registered
+     *  fallback. Undefined for every other choice kind. */
+    nameCardDefault?: string;
 };
 
 /** A bot decision, realised by the executor through EXISTING mutations only
@@ -164,6 +170,7 @@ export type BotAction =
     | { kind: "mulligan-bottom"; cardInstanceIds: string[] }
     | { kind: "resolution-choice"; cardInstanceIds: string[] }
     | { kind: "may-pay"; accept: boolean }
+    | { kind: "name-card"; cardName: string }
     | { kind: "random-reveal-ack" }
     | { kind: "declare-attackers" }
     | { kind: "declare-blockers" }
@@ -424,6 +431,7 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "may-pay":
         case "mulligan-bottom":
         case "random-reveal":
+        case "name-card":
             throw new Error(
                 `chooseResolution: "${kind}" is not resolved here (use the dedicated path)`
             );
@@ -476,6 +484,15 @@ export function decideBotAction(view: BotView): BotAction {
             // drew the outcome. The bot just acknowledges to resume (the human
             // client auto-acks on animation end).
             return { kind: "random-reveal-ack" };
+        }
+        if (choice.kind === "name-card") {
+            // CR 202.3 — name a card. The default (the bot's own top library
+            // card when visible, else a registered fallback) is computed in
+            // `buildOwedChoice`; submit it through `submitNameCard`.
+            return {
+                kind: "name-card",
+                cardName: choice.nameCardDefault ?? "Plains",
+            };
         }
         return {
             kind: "resolution-choice",

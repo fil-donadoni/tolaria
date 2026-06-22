@@ -1483,6 +1483,29 @@ export interface SpellContext {
         prompt: string;
     }) => string | undefined;
 
+    /** Requests a player name ANY card (CR 202.3 / 701.x "chooses a card
+     *  name"). On first call, enqueues a `name-card` `PendingChoice` and
+     *  returns `undefined` — the caller MUST return early to suspend. On resume
+     *  (after the chooser submits via `submitNameCard`) the call returns the
+     *  chosen card name string. The candidate set is the whole card registry —
+     *  there is no zone or `options` allow-list; the name is validated
+     *  server-side against the registry (an unregistered name is rejected).
+     *  `choiceId` disambiguates multiple name choices within a step and must be
+     *  stable across replays. Used by Petra Sphinx ("Target player chooses a
+     *  card name, then reveals the top card of their library …"). */
+    requestNameCard: (req: {
+        playerId: string;
+        choiceId: string;
+        prompt: string;
+    }) => string | undefined;
+
+    /** The card name of an instance in any zone, read from the card registry
+     *  (CR 108.1 / 201.1). Resolves the instance's definition id to its printed
+     *  name. Returns undefined if the id isn't on any player's
+     *  library/hand/graveyard/exile/battlefield or its definition is unknown.
+     *  Used to compare a revealed card against a named card (Petra Sphinx). */
+    getCardName: (cardInstanceId: string) => string | undefined;
+
     /** Reads back an answer collected by an EARLIER resolution step of the same
      *  stack item (CR 608.2 stepped resolution). `requestChoice` /
      *  `requestMayPay` key their answers under `${step}:${choiceId}`, so a later
