@@ -72,6 +72,50 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Recall — {X}{X}{U} sorcery (CR 107.3/701.8/400.7/608.2). "Discard X
+        // cards, then return a card from your graveyard to your hand for each
+        // card discarded this way. Exile Recall."
+        //
+        // Board: you hold Recall plus three discardable cards (Lightning Bolt,
+        // Grizzly Bears, Hill Giant) and already have a Headless Horseman in
+        // your graveyard. Five Islands pay {X}{X}{U} up to X = 2.
+        // Golden path:
+        //   1. Cast Recall, announce X = 2 (pays four blue + {U}).
+        //   2. Discard two chosen cards — they drop into your graveyard.
+        //   3. The graveyard picker opens: return up to two cards, including a
+        //      just-discarded one (the classic Recall loop). Recall then exiles
+        //      itself rather than going to the graveyard (CR 608.2).
+        // Edge: announce X = 0 to discard/return nothing while Recall still
+        // self-exiles.
+        label: "LEG: Recall (discard-X then return-X from graveyard, self-exile)",
+        cards: [
+            { name: "Recall", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Lightning Bolt",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Hill Giant",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Headless Horseman",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 5 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // The Abyss — {3}{B} World enchantment (CR 205.4a / 704.5m). "At the
         // beginning of each player's upkeep, destroy target nonartifact
         // creature that player controls of their choice. It can't be

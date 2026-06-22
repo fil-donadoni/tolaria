@@ -250,12 +250,7 @@ const robots: DeckPreset = {
         ...times(1, "e68ac362-6cdc-48a6-bdd3-4f8ea32add64", "Earthquake"),
         ...times(3, "b7623c00-144b-4a8f-9c6c-f5e9e4f65ece", "Fireball"),
         ...times(1, "eee9e106-a248-49d2-b8c8-6bbcd56ce739", "Mind Twist"),
-        // Recall → Bazaar of Baghdad.
-        ...times(
-            1,
-            "ff37b863-f8c4-4584-8cc2-ac0e096e583f",
-            "Bazaar of Baghdad"
-        ),
+        ...times(1, "33296718-0625-4422-a65c-b21cf99c52ec", "Recall"),
         ...times(1, "e0139f60-d48e-46fb-9f5a-1e3d7558c834", "Time Walk"),
         ...times(1, "9a49dc44-616e-4bdd-8220-0bb71eccc512", "Timetwister"),
         ...times(1, "67b369c4-faa8-45c8-a1b9-98f228b69682", "Wheel of Fortune"),

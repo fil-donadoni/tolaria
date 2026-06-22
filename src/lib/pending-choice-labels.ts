@@ -20,6 +20,7 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "choose-permanents": "Choose",
     partition: "Divide",
     "choose-hand-card": "Cast face down",
+    "choose-graveyard-card": "Return",
     "choose-damage-target": "Choose target",
     "draw-look-keep": "Keep",
     // legend rule (CR 704.5j)

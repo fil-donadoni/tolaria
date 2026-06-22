@@ -326,6 +326,21 @@ export function applyPendingChoiceSubmit(
                 throw new Error("Card is not an eligible choice");
             }
         }
+    } else if (head.zone === "graveyard") {
+        // Recall (LEG) — return N cards from the chooser's graveyard to hand
+        // (CR 400.7). The graveyard is public; eligibility is the snapshot taken
+        // when the choice was raised (after any earlier discard in the same
+        // resolution), carried verbatim in `candidateIds`.
+        for (const id of args.cardInstanceIds) {
+            if (
+                !zoneOwner.graveyard.find((c: CardInstanceState) => c.id === id)
+            ) {
+                throw new Error("Card not in graveyard");
+            }
+            if (head.candidateIds && !head.candidateIds.includes(id)) {
+                throw new Error("Card is not an eligible choice");
+            }
+        }
     }
 
     // --- Kind-specific dispatchers ---

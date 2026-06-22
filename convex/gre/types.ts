@@ -48,6 +48,12 @@ export type ZonePickKind =
     | "choose-permanents"
     | "partition"
     | "choose-hand-card"
+    // Recall (LEG): mid-resolution pick of N cards from the chooser's OWN
+    // graveyard to return to hand (CR 400.7). The first graveyard-zone
+    // requestChoice kind; `candidateIds` carry the eligible graveyard ids
+    // (cards present at the moment the choice is raised, after any earlier
+    // discard step in the same resolution).
+    | "choose-graveyard-card"
     | "choose-damage-target"
     // Aladdin's Lamp (#189): the chooser looks at the top X library cards
     // (`candidateIds`) and keeps one to draw; the rest are bottomed in a
