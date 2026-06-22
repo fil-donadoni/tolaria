@@ -21,6 +21,11 @@ type BoardNextHandProps = {
     layout: (count: number, width: number, height: number) => Placement[];
     /** Mirror placements onto the opponent's (top) side. */
     mirror?: boolean;
+    /** Base card footprint in px for this zone's slots. Defaults to the shared
+     *  card size; the opponent's hand passes a smaller size so its backs read as
+     *  a slimmer Arena-style sliver. */
+    cardWidth?: number;
+    cardHeight?: number;
     "data-testid"?: string;
 };
 
@@ -47,6 +52,8 @@ export default function BoardNextHand({
     interactive,
     layout,
     mirror = false,
+    cardWidth,
+    cardHeight,
     "data-testid": testId,
 }: BoardNextHandProps) {
     const zoneRef = useRef<HTMLDivElement>(null);
@@ -119,11 +126,11 @@ export default function BoardNextHand({
                                 }
                             />
                         ) : (
-                            <BoardNextCard card={card} />
+                            <BoardNextCard card={card} mirror={mirror} />
                         ),
                 };
             }),
-        [order, cardById, interactive, canReorder, reorderTo]
+        [order, cardById, interactive, canReorder, reorderTo, mirror]
     );
 
     return (
@@ -132,6 +139,8 @@ export default function BoardNextHand({
                 items={orderedItems}
                 layout={layout}
                 mirror={mirror}
+                cardWidth={cardWidth}
+                cardHeight={cardHeight}
                 overflowVisible={interactive}
                 data-testid={testId}
             />

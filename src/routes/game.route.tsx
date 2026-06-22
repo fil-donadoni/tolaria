@@ -64,6 +64,13 @@ export default function GameRoute() {
         return (
             <div className="flex h-dvh flex-col">
                 <Board
+                    // Key by gameId: switching games (Restart Solo / rematch /
+                    // Switch Game) reuses this route, so without a key the board
+                    // subtree keeps every per-game client ref from the prior game
+                    // (driver dedupe guards, auto-pass seq, zone anchors). Remount
+                    // on game change for a clean slate (fixes the bot freezing on
+                    // the new game's mulligan after a restart).
+                    key={gameId}
                     gameId={gameId}
                     playerId={playerId}
                     solo={game.solo === true}

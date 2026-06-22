@@ -33,7 +33,7 @@ export default function BoardNextPlayer({
     // off and would be clipped to the viewport edge.
     return (
         <div
-            className={`absolute left-1/2 -translate-x-1/2 z-10 ${
+            className={`absolute left-[calc(50%-var(--right-piles-w,0)/2)] -translate-x-1/2 z-10 ${
                 side === "top" ? "top-1" : "bottom-1"
             }`}
         >

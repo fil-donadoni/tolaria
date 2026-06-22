@@ -1,7 +1,13 @@
+import type { CSSProperties } from "react";
 import { LayoutGroup } from "motion/react";
 import type { Player } from "~/types/game";
 import type { StackItem } from "~/types/game";
-import { fanLayout, type Placement } from "~/lib/board-layout";
+import {
+    fanLayout,
+    CARD_WIDTH,
+    CARD_HEIGHT,
+    type Placement,
+} from "~/lib/board-layout";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { ArrowAnchorProvider } from "~/hooks/useArrowAnchors";
@@ -26,6 +32,26 @@ type BoardNextProps = {
  *  lifts upward into view (`fanLayout`, #251). */
 function handLayout(count: number, width: number, height: number): Placement[] {
     return fanLayout({ count, width, baseY: height * 0.6 });
+}
+
+/** Opponent hand: slimmer backs (≈70% size) tucked higher up so only a small
+ *  Arena-style sliver peeks below the top edge. A larger `baseY` pushes the
+ *  mirrored fan toward the top edge ({@link mirrorVertical} flips it), and the
+ *  shrunk card footprint must match the fan's step math. */
+const OPP_HAND_CARD_WIDTH = Math.round(CARD_WIDTH * 0.7);
+const OPP_HAND_CARD_HEIGHT = Math.round(CARD_HEIGHT * 0.7);
+function opponentHandLayout(
+    count: number,
+    width: number,
+    height: number
+): Placement[] {
+    return fanLayout({
+        count,
+        width,
+        baseY: height * 0.72,
+        cardWidth: OPP_HAND_CARD_WIDTH,
+        cardHeight: OPP_HAND_CARD_HEIGHT,
+    });
 }
 
 /** New spatial root — DOM-only board (PRD #249). Slice #251 makes the shared
@@ -60,13 +86,30 @@ export default function BoardNext({
         <ArrowAnchorProvider>
             <ArrowHighlightProvider>
                 <LayoutGroup>
-                    <div className="absolute inset-0" data-board-variant="next">
+                    <div
+                        className="absolute inset-0"
+                        data-board-variant="next"
+                        style={
+                            {
+                                // Horizontal band reserved on the right edge by the
+                                // pile columns (graveyard/library/exile): right-3
+                                // (0.75rem) + 3 × --card-w-sm + 2 × gap-2 (1rem).
+                                // Life nameplate + hand center within the space that
+                                // excludes this band, not the full viewport (#). In
+                                // portrait the piles collapse to bottom chips, so the
+                                // band is 0 and centering falls back to the viewport.
+                                "--right-piles-w": isPortrait
+                                    ? "0px"
+                                    : "calc(1.75rem + 3 * var(--card-w-sm))",
+                            } as CSSProperties
+                        }
+                    >
                         {/* Opponent: hand on the top edge, battlefield below it — same
                     layout math, mirrored to the top half. */}
                         {opponent && (
                             <>
                                 <BoardNextPlayer player={opponent} side="top" />
-                                <div className="absolute left-0 right-0 top-0 h-[18%]">
+                                <div className="absolute left-0 right-[var(--right-piles-w)] top-0 h-[18%]">
                                     {isPortrait ? (
                                         <BoardNextHandPortrait
                                             player={opponent}
@@ -81,7 +124,9 @@ export default function BoardNext({
                                             interactive={
                                                 opponent.id === viewerId
                                             }
-                                            layout={handLayout}
+                                            layout={opponentHandLayout}
+                                            cardWidth={OPP_HAND_CARD_WIDTH}
+                                            cardHeight={OPP_HAND_CARD_HEIGHT}
                                             mirror
                                             data-testid="zone-opponent-hand"
                                         />
@@ -115,7 +160,7 @@ export default function BoardNext({
                                               // bar (#335) so the hand stays
                                               // fully thumb-reachable.
                                               "absolute left-0 right-0 bottom-32 h-[16%]"
-                                            : "absolute left-0 right-0 bottom-0 h-[18%]"
+                                            : "absolute left-0 right-[var(--right-piles-w)] bottom-0 h-[18%]"
                                     }
                                 >
                                     {isPortrait ? (

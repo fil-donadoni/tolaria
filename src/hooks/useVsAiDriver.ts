@@ -75,9 +75,25 @@ export function useVsAiDriver(
 
     const inFlight = useRef(false);
     const lastSignature = useRef<string | null>(null);
+    const lastGameId = useRef<Id<"games"> | null>(null);
 
     useEffect(() => {
         if (!botId || !botState) return;
+
+        // A new game (Restart Solo / rematch / Switch Game) swaps the `gameId`
+        // prop WITHOUT remounting this hook, because `game.route` renders the
+        // board unkeyed. The per-game dedupe guards must be reset on the swap,
+        // otherwise the prior game's recorded signature — at the SAME low seq
+        // the opening mulligan always lands on — collides with the new game's
+        // mulligan window and the bot's keep/mull declaration is silently
+        // suppressed (the reported freeze, "fixed" only by a page refresh that
+        // remounts the hook). A stuck `inFlight` from a search the prior game
+        // never settled would block it the same way, so clear both.
+        if (lastGameId.current !== gameId) {
+            lastGameId.current = gameId;
+            lastSignature.current = null;
+            inFlight.current = false;
+        }
 
         // Cheap main-thread gate: only consult the Worker when the bot actually
         // owes an action in this window.
@@ -90,7 +106,7 @@ export function useVsAiDriver(
         // priority window (play a land, then cast, then pass) — each bumps the
         // seq, so keying on seq lets the next action fire while still guarding
         // against double-submitting the same state.
-        const signature = String(botState.seq);
+        const signature = `${gameId}:${botState.seq}`;
         if (lastSignature.current === signature) return;
 
         // Combat-damage confirmation (CR 510.1c, multi-block): the gate already

@@ -55,6 +55,7 @@ vi.mock("convex/react", () => ({
 const { useVsAiDriver } = await import("../useVsAiDriver");
 
 const GAME = "game1" as Id<"games">;
+const GAME2 = "game2" as Id<"games">;
 const BOT = "u1-p2";
 const HUMAN = "u1-p1";
 
@@ -183,6 +184,70 @@ describe("useVsAiDriver (issue #110)", () => {
             gameId: GAME,
             playerId: BOT,
             decision: "mull",
+        });
+    });
+
+    it("re-fires the opening mulligan after the game id swaps under a reused hook", async () => {
+        // game.route renders <Board> UNKEYED by gameId, so starting a new game
+        // (Restart Solo / rematch) swaps the gameId prop WITHOUT remounting the
+        // driver hook. Its dedupe refs must reset on the new gameId, else the
+        // prior game's recorded signature — at the SAME low seq the opening
+        // mulligan always lands on — collides and silently suppresses the new
+        // game's mulligan declaration (the reported freeze, fixed only by a
+        // page refresh that remounts the hook).
+        const handFor = (seat: ReturnType<typeof player>) => {
+            seat.hand = [
+                makeInstance(MOUNTAIN, {
+                    id: "m1",
+                    controllerId: BOT,
+                    zone: "hand",
+                }),
+                makeInstance(BEARS, {
+                    id: "b1",
+                    controllerId: BOT,
+                    zone: "hand",
+                }),
+            ] as never;
+            return seat;
+        };
+        const mulliganState = (gameId: Id<"games">) =>
+            botState({
+                seq: 2, // both games' opening mulligan lands at the same low seq
+                phase: "MULLIGAN",
+                players: [handFor(player(BOT)), player(HUMAN)],
+                mulligan: {
+                    mulligansTaken: [0, 0],
+                    declarations: [null, null],
+                    locked: [false, false],
+                    declaringPlayerId: BOT,
+                    bottoming: false,
+                },
+                _gameId: gameId,
+            });
+
+        currentState = mulliganState(GAME);
+        const { rerender } = renderHook(
+            ({ gameId }) => useVsAiDriver(gameId, BOT),
+            { initialProps: { gameId: GAME } }
+        );
+        await vi.runAllTimersAsync();
+        expect(calls).toHaveLength(1);
+        expect(calls[0].args).toEqual({
+            gameId: GAME,
+            playerId: BOT,
+            decision: "keep",
+        });
+
+        // New game, same low seq, same reused hook instance.
+        currentState = mulliganState(GAME2);
+        rerender({ gameId: GAME2 });
+        await vi.runAllTimersAsync();
+
+        expect(calls).toHaveLength(2);
+        expect(calls[1].args).toEqual({
+            gameId: GAME2,
+            playerId: BOT,
+            decision: "keep",
         });
     });
 
