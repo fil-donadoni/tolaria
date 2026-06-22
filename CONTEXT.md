@@ -326,6 +326,38 @@ _Avoid_: Side, bench, reserve
 The step between two **Games** of a **Match** where a **Player** may exchange cards between **Maindeck** and **Sideboard**, keeping the **Maindeck** size constant and the combined card pool unchanged. Produces the **Maindeck** used to build the next **Game**'s **Library**.
 _Avoid_: Swapping, boarding, side-in/side-out
 
+**Format**:
+A named set of deck-construction constraints a **Deck** is built under, chosen at deck creation and **immutable** thereafter. Determines which **Sets** are legal, the **Maindeck**/**Sideboard** size bounds, and the copy/category limits. Three exist: **Freeform** (no constraints), **Alpha 40** (Alpha/Beta only, ≥40 main, no sideboard, rarity- and category-based limits), **Old School** (Alpha/Beta/Arabian Nights/Antiquities/Legends/The Dark, ≥60 main, ≤15 sideboard, 4-copy + **Restricted**/**Banned** lists). A **Format** constrains deck authoring only — it is **not** a property of a **Game**, and two **Players** may bring **Decks** of different **Formats** to the same **Match**.
+_Avoid_: Mode, ruleset (overloaded — see **Format Ruleset**), variant
+
+**Format Ruleset**:
+The published banned/restricted policy a **Format** is modelled on. **Old School** follows **Eternal Central** for its **Restricted** list, with the **Swedish (n00bcon)** ban of the manual-dexterity cards (Chaos Orb, Falling Star) layered on. Lives entirely in code — a policy change is a code release, not a data edit.
+_Avoid_: Banlist (that's one part of it)
+
+**Deck Legality**:
+Whether a **Deck** satisfies its **Format**'s constraints — a derived boolean plus a list of human-readable reasons, computed by validating the **Deck** against its **Format** at read time. **Never stored**: it is a pure function of deck contents, **Format**, and current code, so a ruleset deploy reclassifies every **Deck** automatically. An illegal **Deck** is still saved (a draft) but cannot be selected to start a **Game**.
+_Avoid_: Valid, well-formed, deck check
+
+**Restricted Card**:
+A card a **Format** limits to **one copy** in a **Deck** (Old School, per the **Eternal Central** list). Counted by **Card ID** across all **Card Prints** — two printings of the same card share the one-copy budget.
+_Avoid_: Limited card, banned card (banned means zero)
+
+**Banned Card**:
+A card a **Format** forbids entirely (zero copies). In practice every **Banned Card** here is also unimplementable (ante cards, Shahrazad, manual-dexterity cards) — so the list is a documentation guard against a future stub, not an active filter.
+_Avoid_: Restricted (restricted means one), illegal
+
+**Moderated Card** (Alpha 40):
+A card **Alpha 40** caps at **three copies** regardless of its **Rarity** (e.g. Lightning Bolt, Counterspell, Swords to Plowshares — commons that would otherwise be unlimited). One of Alpha 40's per-card overrides.
+_Avoid_: Restricted (that's a one-copy, different-format concept)
+
+**Category Budget** (Alpha 40):
+A named list of cards from which an **Alpha 40** **Deck** may include **at most one card total** (not one of each): Fast Mana, Power, Draw, Destruction, Charm. A card appearing in two lists consumes **both** budgets (Ancestral Recall is both Power and Draw, so including it bars every other Power and Draw card).
+_Avoid_: Restricted slot, power category (overloaded with the "Power" budget itself)
+
+**Rarity**:
+A card's print rarity (`common` / `uncommon` / `rare`), carried per **Card Print** (and on the home-set **Card Definition**) and sourced from MTGJSON. Used only by **Alpha 40**, which caps copies by rarity (commons unlimited, uncommons ≤6, rares ≤3) before its **Moderated** and **Category Budget** overrides apply.
+_Avoid_: Frequency, tier
+
 **Preset Deck**:
 A curated, shared **Deck** that every **User** can pick but only an **Admin** can edit — the built-in decklists offered in the lobby. Has no **Owner**: it belongs to the application, not to a **User**. Identified by a stable **Slug** (not a Convex id) so external references (saved lobby selection, debug scenarios) survive edits. Distinct from a **User Deck**, which a single **User** owns and edits.
 _Avoid_: Default deck, starter deck, template (overloaded)
