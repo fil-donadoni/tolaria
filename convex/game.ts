@@ -87,6 +87,7 @@ import {
     applyAllCombatDamage,
     emitBlockersConfirmedEvents,
     emitAttackersDeclaredEvents,
+    isSorceryTiming,
 } from "./gre/phases";
 import { freshSeed, seededShuffle } from "./gre/rng";
 import {
@@ -2717,9 +2718,14 @@ export const autoTapForPayment = mutation({
         // *paying* player's own hand — no hidden-info leak, works for every
         // seat including the AI bot's own casts. The card being paid for is
         // excluded from the Demand set.
+        // Timing-aware Demand filter (issue #475, CR 307 / 601.3a): sorcery-
+        // speed hand spells count as preservable Demands only at sorcery timing
+        // (own main, empty stack, holding priority); instant-speed spells count
+        // in any window. Reuses the engine's canonical `isSorceryTiming` helper.
         const demands: Demand[] = buildHandSpellDemands(
             player.hand,
-            pending.cardInstanceId
+            pending.cardInstanceId,
+            isSorceryTiming(state)
         );
         // Prefer a minimal full plan. When the pure-mana sources can't cover
         // the whole cost (the rest must come from an excluded manual source,
