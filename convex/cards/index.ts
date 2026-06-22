@@ -405,6 +405,12 @@ const printById = new Map<string, CardPrint>(
  *  resolve to the same definition for the Basic check. `null` for an id absent
  *  from the registry (e.g. a removed card) so the validator can flag it. */
 export interface DeckCardMeta {
+    /** The CANONICAL definition id (`CardDefinition.id`) this deck-card id maps
+     *  to. Every reprint `printId` of a card resolves to the SAME `cardId`, so a
+     *  Format validator can count copies / apply restricted/banned budgets "by
+     *  Card ID across printings" (ADR 0036) by grouping on this value, not the
+     *  raw deck-card id. */
+    cardId: string;
     setCode: string;
     rarity: Rarity;
     isBasic: boolean;
@@ -416,11 +422,19 @@ export const resolveDeckCardMeta = (cardId: string): DeckCardMeta | null => {
     const isBasic = def.supertypes?.includes("Basic") ?? false;
     // A reprint id pins to its own printing; otherwise it is the original
     // definition, whose set is the home set and whose rarity is the definition's.
+    // `def.id` is the canonical key shared by every printing of the card, so the
+    // Format validators can count "by Card ID across printings" (ADR 0036).
     const print = printById.get(cardId);
     if (print) {
-        return { setCode: print.setCode, rarity: print.rarity, isBasic };
+        return {
+            cardId: def.id,
+            setCode: print.setCode,
+            rarity: print.rarity,
+            isBasic,
+        };
     }
     return {
+        cardId: def.id,
         setCode: definitionSetCode.get(def.id) ?? "",
         rarity: def.rarity,
         isBasic,
