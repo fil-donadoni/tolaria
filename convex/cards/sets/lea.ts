@@ -7240,6 +7240,7 @@ export const jadeStatue: CardDefinition = {
                 "{2}: This artifact becomes a 3/6 Golem artifact creature until end of combat. Activate only during combat.",
             cost: { mana: { X: 2 } },
             useStack: true,
+            animatesSelf: true,
             activationPhaseRestriction: [
                 "BEGINNING_OF_COMBAT",
                 "DECLARE_ATTACKERS",

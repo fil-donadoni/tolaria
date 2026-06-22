@@ -478,6 +478,15 @@ function enumerateAbilityMoves(
         ) {
             continue;
         }
+        // CR 611.1 — a self-animate ability (manlands: Mishra's Factory, Jade
+        // Statue) is a no-op while the source is already animated (one
+        // animation at a time; `state.ts` `animateAsCreature` returns early
+        // when `card.animation` is set). Enumerating it would let the bot pay
+        // the activation cost for zero gain, so it's not a legal macro-move
+        // while animated.
+        if (ability.animatesSelf && perm.animation) {
+            continue;
+        }
         // CR 117.1b — phase/turn restrictions.
         if (
             ability.activationPhaseRestriction &&
