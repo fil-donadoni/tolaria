@@ -32,6 +32,7 @@ import {
     infiniteAuthority,
     cleanse,
     divineOffering,
+    removeEnchantments,
     greatDefender,
     shieldWall,
     holyDay,
@@ -1484,6 +1485,158 @@ describe("Divine Offering (destroy artifact + gain life = MV, CR 701.7)", () => 
             state.players[1].battlefield.find((c) => c.id === "art")
         ).toBeUndefined();
         expect(state.players[0].life).toBe(24); // 20 + MV 4
+    });
+});
+
+describe("Remove Enchantments (mass conditional return+destroy, CR 108.3/110.2/701)", () => {
+    const HILL_GIANT = "0ddb98e8-13fe-4786-83f7-b72c56db135a"; // vanilla creature
+
+    // Build a board exercising every ownership/control/attachment branch, then
+    // resolve Remove Enchantments cast by p1.
+    function setup() {
+        // (1) Enchantment p1 owns AND controls → returned to p1's hand.
+        const myEnch = makeInstance(presenceOfTheMaster.id, {
+            id: "myEnch",
+            ownerId: "p1",
+            controllerId: "p1",
+        });
+        // (2) Enchantment p1 does NOT own but controls (gained control) →
+        //     destroyed ("all other enchantments you control").
+        const foreignEnch = makeInstance(fortifiedArea.id, {
+            id: "foreignEnch",
+            ownerId: "p2",
+            controllerId: "p1",
+        });
+        // (3) Unrelated enchantment p2 owns+controls → untouched.
+        const otherEnch = makeInstance(fortifiedArea.id, {
+            id: "otherEnch",
+            ownerId: "p2",
+            controllerId: "p2",
+        });
+
+        // p1's creature host (for an Aura on a permanent p1 controls).
+        const myCreature = makeInstance(HILL_GIANT, {
+            id: "myCreature",
+            ownerId: "p1",
+            controllerId: "p1",
+        });
+        // p2's ATTACKING creature host (for an Aura on an opponent's attacker).
+        const oppAttacker = makeInstance(HILL_GIANT, {
+            id: "oppAttacker",
+            ownerId: "p2",
+            controllerId: "p2",
+            isAttacking: true,
+        });
+        // p2's NON-attacking creature host (Aura here is out of scope).
+        const oppIdle = makeInstance(HILL_GIANT, {
+            id: "oppIdle",
+            ownerId: "p2",
+            controllerId: "p2",
+        });
+
+        // (4) Aura p1 owns on a permanent p1 controls → returned to p1's hand,
+        //     NOT destroyed.
+        const myAuraOnMine = makeInstance(spiritLink.id, {
+            id: "myAuraOnMine",
+            ownerId: "p1",
+            controllerId: "p1",
+            attachedTo: "myCreature",
+        });
+        // (5) Aura p1 owns on an opponent's ATTACKING creature → returned.
+        const myAuraOnAttacker = makeInstance(spiritLink.id, {
+            id: "myAuraOnAttacker",
+            ownerId: "p1",
+            controllerId: "p1",
+            attachedTo: "oppAttacker",
+        });
+        // (6) Aura p2 owns on a permanent p1 controls → destroyed
+        //     ("all other Auras attached to permanents you control").
+        const foreignAuraOnMine = makeInstance(divineTransformation.id, {
+            id: "foreignAuraOnMine",
+            ownerId: "p2",
+            controllerId: "p2",
+            attachedTo: "myCreature",
+        });
+        // (7) Aura p1 owns on an opponent's NON-attacking creature → out of
+        //     scope (no clause matches) → untouched.
+        const myAuraOnIdleOpp = makeInstance(spiritLink.id, {
+            id: "myAuraOnIdleOpp",
+            ownerId: "p1",
+            controllerId: "p1",
+            attachedTo: "oppIdle",
+        });
+
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS" as Phase,
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        myEnch,
+                        foreignEnch,
+                        myCreature,
+                        myAuraOnMine,
+                        myAuraOnAttacker,
+                        myAuraOnIdleOpp,
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        otherEnch,
+                        oppAttacker,
+                        oppIdle,
+                        foreignAuraOnMine,
+                    ],
+                }),
+            ],
+        });
+        return state;
+    }
+
+    function onBattlefield(state: ReturnType<typeof setup>, id: string) {
+        return state.players.some((p) =>
+            p.battlefield.some((c) => c.id === id)
+        );
+    }
+    function inHand(
+        state: ReturnType<typeof setup>,
+        playerIdx: number,
+        id: string
+    ) {
+        return state.players[playerIdx].hand.some((c) => c.id === id);
+    }
+
+    it("returns owned enchantments/Auras in scope and destroys the rest (CR 108.3 owner vs CR 110.2 control)", () => {
+        const state = setup();
+        pushSpell(state, removeEnchantments.id, "p1");
+        resolveTopOfStack(state);
+
+        // Returned to p1's hand (owned + in scope):
+        expect(inHand(state, 0, "myEnch")).toBe(true); // own+control enchantment
+        expect(inHand(state, 0, "myAuraOnMine")).toBe(true); // Aura on my permanent
+        expect(inHand(state, 0, "myAuraOnAttacker")).toBe(true); // Aura on opp attacker
+
+        // Destroyed (in scope but not owned by p1):
+        expect(onBattlefield(state, "foreignEnch")).toBe(false); // enchantment p1 controls, p2 owns
+        expect(onBattlefield(state, "foreignAuraOnMine")).toBe(false); // Aura on my permanent, p2 owns
+
+        // Untouched (out of scope):
+        expect(onBattlefield(state, "otherEnch")).toBe(true); // p2 own+control enchantment
+        expect(onBattlefield(state, "myAuraOnIdleOpp")).toBe(true); // Aura on opp NON-attacker
+
+        // Returned cards were not also destroyed (return precedes destroy):
+        expect(onBattlefield(state, "myEnch")).toBe(false);
+        expect(onBattlefield(state, "myAuraOnMine")).toBe(false);
+        expect(onBattlefield(state, "myAuraOnAttacker")).toBe(false);
+
+        // Hosts and unrelated permanents survive the sweep.
+        expect(onBattlefield(state, "myCreature")).toBe(true);
+        expect(onBattlefield(state, "oppAttacker")).toBe(true);
+    });
+
+    it("is a {W} instant with no target requirement (mass effect, CR 608.2)", () => {
+        expect(removeEnchantments.types).toEqual(["Instant"]);
+        expect(removeEnchantments.manaCost).toEqual({ W: 1 });
+        expect(removeEnchantments.targetRequirement).toBeUndefined();
     });
 });
 

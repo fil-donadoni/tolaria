@@ -4741,6 +4741,19 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             }
             return requirePermanent(target).controllerId;
         },
+        // CR 108.3 — ownership is immutable. Returns undefined if the id is no
+        // longer on the battlefield (the lookup half of "you own" clauses).
+        getOwnerId(cardInstanceId: string): string | undefined {
+            return findOnBattlefield(state, cardInstanceId)?.card.ownerId;
+        },
+        // CR 508.1 — true while the permanent is a declared attacker. False for
+        // permanents off the battlefield or not attacking.
+        getIsAttacking(cardInstanceId: string): boolean {
+            return (
+                findOnBattlefield(state, cardInstanceId)?.card.isAttacking ===
+                true
+            );
+        },
         getIsTapped(target: TargetSelection): boolean {
             if (target.type === "player") return false;
             const found = findOnBattlefield(state, target.id);
