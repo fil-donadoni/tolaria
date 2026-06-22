@@ -633,3 +633,169 @@ describe("autoTapForPayment — on-board activated-ability Demands (issue #476)"
         expect(tappedA).toEqual(tappedB);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Smart auto-tap: X-spell Demands at assumed X=1 (issue #477, CR 107.3 /
+// 601.2b). A variable-X spell ({X}{R} Fireball) in hand is a preservable
+// Demand at its base cost plus one generic per `{X}` pip — X=0 would
+// under-preserve and strand it. Auto-tap therefore prefers a minimal-tap plan
+// that keeps the X-spell castable at X=1 when the board allows. Exercised
+// through the mutation-replica seam so the real X inflation + payment run.
+// ---------------------------------------------------------------------------
+
+describe("autoTapForPayment — X-spell Demands at X=1 (issue #477)", () => {
+    /** Own main phase (sorcery timing). Hand: Time Walk ({1}{U}, being cast) +
+     *  Fireball ({X}{R}). Board: Island (U) + Tropical Island (U/G) + Tundra
+     *  (W/U) + Mountain (R). Paying {1}{U} costs two taps. The Mountain is the
+     *  only red source, so keeping Fireball castable at X=1 ({1}{R} = two mana
+     *  incl. a red source) forces a plan that leaves the Mountain untapped —
+     *  which the flexibility heuristic alone would NOT do (the mono-color
+     *  Mountain has the lowest breadth and would be spent first). The X-spell
+     *  Demand is therefore what moves the decision. */
+    function fireballInHandState() {
+        const walk = makeInstance(TIME_WALK, {
+            id: "walk",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const fireball = makeInstance(FIREBALL, {
+            id: "fireball",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const battlefield = [
+            makeInstance(ISLAND, { id: "island", controllerId: "p1" }),
+            makeInstance(TROPICAL_ISLAND, { id: "trop", controllerId: "p1" }),
+            makeInstance(TUNDRA, { id: "tundra", controllerId: "p1" }),
+            makeInstance(MOUNTAIN, { id: "mtn", controllerId: "p1" }),
+        ];
+        const pendingCast: PendingCast = {
+            playerId: "p1",
+            cardInstanceId: "walk",
+            manaCost: { U: 1, X: 1 }, // {1}{U}
+            tappedLandIds: [],
+        };
+        const p1 = makePlayer("p1", {
+            hand: [walk, fireball],
+            battlefield,
+        });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            pendingCast,
+        });
+        return { state, player: state.players[0] };
+    }
+
+    it("preserves a plan keeping {X}{R} Fireball castable at X=1 ({1}{R})", () => {
+        const { state, player } = fireballInHandState();
+        const committed = runAutoTap(state, player);
+
+        // {1}{U} paid and committed.
+        expect(committed).toBe(true);
+        expect(state.pendingCast).toBeUndefined();
+
+        // Minimal-tap invariant: exactly two sources spent for {1}{U}.
+        const tapped = player.battlefield.filter((c) => c.isTapped);
+        expect(tapped).toHaveLength(2);
+
+        // The red Mountain is preserved — never spent on the blue/generic cost.
+        const mtn = player.battlefield.find((c) => c.id === "mtn")!;
+        expect(mtn.isTapped).toBeFalsy();
+        expect(player.manaPool.R ?? 0).toBe(0);
+
+        // Fireball at X=1 → {1}{R}: still payable from the untapped sources
+        // (Mountain for {R} plus one more for the generic). The X-spell Demand
+        // was preserved across the payment.
+        const sub = getManaSubstitutions(state, player.id);
+        const sources = buildAutoTapSources(player.battlefield);
+        const fireballPlan = solveSmartAutoTap(
+            player.manaPool,
+            { R: 1, X: 1 }, // {1}{R} = Fireball at X=1
+            sub,
+            sources,
+            []
+        );
+        expect(fireballPlan).not.toBeNull();
+    });
+
+    it("the X-spell exerts preservation pressure (removing it frees the Mountain)", () => {
+        // With Fireball in hand the red Mountain is held back.
+        const withX = fireballInHandState();
+        runAutoTap(withX.state, withX.player);
+        const mtnWith = withX.player.battlefield.find((c) => c.id === "mtn")!;
+        expect(mtnWith.isTapped).toBeFalsy();
+
+        // Drop Fireball: no red Demand, so the flexibility tie-break spends the
+        // inflexible mono-color sources first — the Mountain becomes tappable.
+        const withoutX = fireballInHandState();
+        withoutX.player.hand = withoutX.player.hand.filter(
+            (c) => c.id !== "fireball"
+        );
+        runAutoTap(withoutX.state, withoutX.player);
+        const tappedWith = withX.player.battlefield
+            .filter((c) => c.isTapped)
+            .map((c) => c.id)
+            .sort();
+        const tappedWithout = withoutX.player.battlefield
+            .filter((c) => c.isTapped)
+            .map((c) => c.id)
+            .sort();
+        // The X-spell moved the decision: the two tap-sets differ.
+        expect(tappedWith).not.toEqual(tappedWithout);
+    });
+
+    it("no false preservation: X-spell not held when even X=1 is unaffordable", () => {
+        // Only three lands now — paying {1}{U} taps two, leaving a single source.
+        // Fireball at X=1 needs {1}{R} = two mana, unaffordable from one land, so
+        // it is NOT a live Demand and exerts no pressure. The tap-set with the
+        // X-spell in hand must equal the tap-set without it (the red source can
+        // be freely spent because reserving it could never make X=1 castable).
+        function threeLandState() {
+            const { state, player } = fireballInHandState();
+            player.battlefield = player.battlefield.filter(
+                (c) => c.id !== "trop"
+            );
+            return { state, player };
+        }
+        const withX = threeLandState();
+        runAutoTap(withX.state, withX.player);
+        const tappedWith = withX.player.battlefield
+            .filter((c) => c.isTapped)
+            .map((c) => c.id)
+            .sort();
+
+        const withoutX = threeLandState();
+        withoutX.player.hand = withoutX.player.hand.filter(
+            (c) => c.id !== "fireball"
+        );
+        runAutoTap(withoutX.state, withoutX.player);
+        const tappedWithout = withoutX.player.battlefield
+            .filter((c) => c.isTapped)
+            .map((c) => c.id)
+            .sort();
+
+        expect(tappedWith).toEqual(tappedWithout);
+    });
+
+    it("deterministic: same board casts twice → identical tapped set", () => {
+        const a = fireballInHandState();
+        runAutoTap(a.state, a.player);
+        const tappedA = a.player.battlefield
+            .filter((c) => c.isTapped)
+            .map((c) => c.id)
+            .sort();
+
+        const b = fireballInHandState();
+        runAutoTap(b.state, b.player);
+        const tappedB = b.player.battlefield
+            .filter((c) => c.isTapped)
+            .map((c) => c.id)
+            .sort();
+
+        expect(tappedA).toEqual(tappedB);
+    });
+});

@@ -17,6 +17,8 @@ const COUNTERSPELL = "0df55e3f-14de-46ef-b6b1-616618724d9e"; // {U}{U} Instant
 const SAVANNAH_LIONS = "d05b92bd-797e-413f-a8b0-32e0937a1ee0"; // {W} Creature
 const TIME_WALK = "e0139f60-d48e-46fb-9f5a-1e3d7558c834"; // {1}{U} Sorcery
 const FOREST = "6f1c8cb0-38eb-408b-94e8-16db83999b3b"; // basic Land
+const FIREBALL = "b7623c00-144b-4a8f-9c6c-f5e9e4f65ece"; // {X}{R} Sorcery
+const POWER_SINK = "1b342dd3-09b9-4108-bf12-a65d4cef4eb9"; // {X}{U} Instant
 // Shivan Dragon — "{R}: This creature gets +1/+0" (firebreathing, instant-speed).
 const SHIVAN_DRAGON = "fefbf149-f988-4f8b-9f53-56f5878116a6";
 // Jade Statue — "{2}: becomes a 3/6 ... Activate only during combat".
@@ -82,6 +84,39 @@ describe("buildHandSpellDemands — timing filter (issue #475, CR 307 / 601.3a)"
         const hand = [inHand(FOREST, "forest"), inHand(COUNTERSPELL, "cs")];
         expect(ids(buildHandSpellDemands(hand, "x", true))).toEqual(["cs"]);
         expect(ids(buildHandSpellDemands(hand, "x", false))).toEqual(["cs"]);
+    });
+});
+
+describe("buildHandSpellDemands — X-spell inflation at X=1 (issue #477, CR 107.3 / 601.2b)", () => {
+    const costOf = (cardId: string) => {
+        const demands = buildHandSpellDemands(
+            [inHand(cardId, "x")],
+            "other",
+            /* sorceryTiming */ true
+        );
+        return demands[0]?.cost;
+    };
+
+    it("a {X}{R} sorcery is preserved as {R}+1 generic (assumed X=1), not just {R}", () => {
+        // Fireball ({X}{R}): without inflation X=0 → {R:1}; the spell would be
+        // under-preserved and could be stranded. At X=1 it is {R:1, X:1}.
+        expect(costOf(FIREBALL)).toEqual({ R: 1, X: 1 });
+    });
+
+    it("a {X}{U} instant is preserved as {U}+1 generic at X=1", () => {
+        // Power Sink ({X}{U}) — instant, counts at any timing; demanded at X=1.
+        const demands = buildHandSpellDemands(
+            [inHand(POWER_SINK, "x")],
+            "other",
+            /* sorceryTiming */ false
+        );
+        expect(demands[0]?.cost).toEqual({ U: 1, X: 1 });
+    });
+
+    it("a fixed (non-variable) cost is untouched by the X=1 assumption", () => {
+        // Time Walk's {1}{U} has a plain numeric generic, not a variable {X};
+        // the chosenX=1 fold must NOT add a phantom extra generic to it.
+        expect(costOf(TIME_WALK)).toEqual({ U: 1, X: 1 });
     });
 });
 
