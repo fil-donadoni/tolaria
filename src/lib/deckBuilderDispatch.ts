@@ -24,11 +24,12 @@ export interface UserDeckSink {
 }
 
 /**
- * A preset is edited only (create/delete are #469/#470). It always exists in
- * edit mode and is patched by its immutable slug — the slug is never sent in
- * the payload, so a rename can't change identity.
+ * A preset is created on first save (no slug yet — the server derives it from
+ * the name) then patched by its immutable slug. The slug is never sent in the
+ * update payload, so a rename can't change identity (delete is #470).
  */
 export interface PresetDeckSink {
+    create: (payload: DeckSavePayload) => Promise<string>;
     update: (slug: string, payload: DeckSavePayload) => Promise<void>;
 }
 
@@ -68,23 +69,52 @@ export async function savePreset(
     return slug;
 }
 
+/**
+ * Persist a save for a brand-new-or-existing PRESET deck (issue #469). On the
+ * first flush there is no slug yet — the create mutation derives it from the
+ * name server-side and returns it; subsequent flushes patch by that slug, which
+ * is then immutable (a rename never changes it).
+ */
+export async function savePresetCreate(
+    sink: PresetDeckSink,
+    currentSlug: string | null,
+    payload: DeckSavePayload
+): Promise<string> {
+    if (currentSlug === null) {
+        return await sink.create(payload);
+    }
+    await sink.update(currentSlug, payload);
+    return currentSlug;
+}
+
 export type DeckBuilderKind = "user" | "preset";
+export type DeckBuilderMode = "create" | "edit";
 
 /**
- * Pure dispatch: map the editor `kind` + current identity to the single async
- * "save this payload, return the resulting identity" call the editor needs.
- * The editor never branches on `kind` itself — it calls the returned function.
- * For `kind: "preset"`, `identity` is the (always-present) slug; for
- * `kind: "user"` it is the deck id or null on the first save.
+ * Pure dispatch: map the editor `kind` + `mode` + current identity to the
+ * single async "save this payload, return the resulting identity" call the
+ * editor needs. The editor never branches on `kind` itself — it calls the
+ * returned function.
+ *
+ * - `kind: "user"` — create on the first save (null id), then patch by id.
+ * - `kind: "preset"`, `mode: "create"` — create on the first save (null slug;
+ *   the server derives the slug from the name), then patch by that slug.
+ * - `kind: "preset"`, `mode: "edit"` — patch the (always-present) slug; a null
+ *   identity is an error (an editable preset must already exist).
  */
 export function dispatchDeckSave(
     kind: DeckBuilderKind,
     sinks: DeckBuilderSinks,
-    identity: string | null
+    identity: string | null,
+    mode: DeckBuilderMode = "edit"
 ): (payload: DeckSavePayload) => Promise<string> {
     if (kind === "preset") {
+        if (mode === "create") {
+            return (payload) =>
+                savePresetCreate(sinks.preset, identity, payload);
+        }
         if (identity === null) {
-            // Edit-only in this slice: a preset must already exist.
+            // Edit mode requires an existing preset slug.
             throw new Error("Preset edit requires an existing slug");
         }
         return (payload) => savePreset(sinks.preset, identity, payload);

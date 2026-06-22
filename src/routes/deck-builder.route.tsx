@@ -38,7 +38,7 @@ export default function DeckBuilderRoute({
 
     const userDecks = useUserDecks();
     const { create, update, remove } = useUserDeckMutations();
-    const { update: updatePreset } = usePresetMutations();
+    const { create: createPreset, update: updatePreset } = usePresetMutations();
 
     // A single set of mutation sinks; `dispatchDeckSave` selects the pair by
     // `kind`, so the editor itself never branches.
@@ -54,12 +54,16 @@ export default function DeckBuilderRoute({
                 },
             },
             preset: {
+                create: async (payload) => {
+                    const { slug } = await createPreset({ input: payload });
+                    return slug;
+                },
                 update: async (presetSlug, payload) => {
                     await updatePreset({ slug: presetSlug, patch: payload });
                 },
             },
         }),
-        [create, update, updatePreset]
+        [create, update, createPreset, updatePreset]
     );
 
     // ---- Preset edit mode: load the single preset by slug ----
@@ -157,6 +161,24 @@ export default function DeckBuilderRoute({
         );
     }
 
+    // ---- Preset create mode (admin only; server-gated by assertIsAdmin) ----
+    // The new preset's slug is derived from its name server-side on first save.
+    // On close we return to the lobby, where the reactive `api.decks.list` query
+    // already shows the freshly created preset.
+    if (kind === "preset") {
+        return (
+            <DeckBuilder
+                kind="preset"
+                mode="create"
+                initialDeck={null}
+                initialIdentity={null}
+                initialDeckList={[]}
+                sinks={sinks}
+                onClose={() => void navigate({ to: "/" })}
+            />
+        );
+    }
+
     if (userDecks === undefined) {
         return (
             <div className="flex h-screen items-center justify-center text-text">
@@ -168,6 +190,7 @@ export default function DeckBuilderRoute({
     return (
         <DeckBuilder
             kind="user"
+            mode="create"
             initialDeck={null}
             initialIdentity={null}
             initialDeckList={userDecks}

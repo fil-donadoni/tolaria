@@ -15,9 +15,11 @@ export function useUserDeckMutations() {
     return { create, update, remove };
 }
 
-// Admin-only preset edit mutation (PRD #466, ADR 0033). The deck editor uses
-// it in preset mode; the server gates it via `assertIsAdmin`.
+// Admin-only preset mutations (PRD #466, ADR 0033). The deck editor uses them
+// in preset mode; the server gates both via `assertIsAdmin`. `createPreset`
+// derives the slug from the name and returns it (issue #469).
 export function usePresetMutations() {
+    const create = useMutation(api.decks.createPreset);
     const update = useMutation(api.decks.updatePreset);
-    return { update };
+    return { create, update };
 }
