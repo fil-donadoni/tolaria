@@ -8430,6 +8430,46 @@ describe("Chain Lightning (CR 119 / 608.2 / 707.12)", () => {
         expect(head?.cost).toEqual({ R: 2 });
     });
 
+    it("offers the may-pay to the controller even when the damage kills the permanent (CR 608.2h)", () => {
+        // 3 damage destroys a 1-toughness target inline (CR 704.5g); the
+        // chooser ("that permanent's controller") must be recovered by
+        // last-known information, not read off the now-empty battlefield —
+        // otherwise resolution throws and the mutation rolls back, freezing
+        // the game.
+        const victim = makeInstance(
+            "5712e87a-2381-4f5b-a853-6973841f9bf1", // Faerie, 2/1
+            {
+                id: "victim",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "battlefield",
+            }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        pushSpell(state, chainLightning.id, "p1", [
+            { type: "permanent", id: "victim" },
+        ]);
+
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+
+        // The creature died to the damage.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "victim")
+        ).toBeUndefined();
+        expect(
+            state.players[1].graveyard.find((c) => c.id === "victim")
+        ).toBeDefined();
+        // The {R}{R} may-pay is offered to the dead permanent's controller (p2).
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        expect(head?.playerId).toBe("p2");
+    });
+
     it("declining the may-pay does nothing further (CR 707.12)", () => {
         const state = makeState();
         pushSpell(state, chainLightning.id, "p1", [

@@ -6096,6 +6096,22 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             }
             return undefined;
         },
+        noteChoice(choiceId: string, values: string[]): void {
+            // Persist a value computed in the CURRENT step so a LATER step can
+            // read it via `recallChoice` (CR 608.2h last-known information): a
+            // step that must reference an object BEFORE an irreversible op in
+            // the same resolution destroys it — e.g. Chain Lightning capturing
+            // the targeted permanent's controller before dealing lethal damage
+            // — records it here, then recalls it after the suspend/replay. Keyed
+            // under the current step like the `request*` primitives; survives
+            // serialization in `collectedChoices` and is cleared on completion.
+            const step = item.resolutionStep ?? 0;
+            const key = `${step}:${choiceId}`;
+            item.collectedChoices = {
+                ...(item.collectedChoices ?? {}),
+                [key]: values,
+            };
+        },
         // CR 701.16: to sacrifice a permanent is for its controller to put
         // it into its owner's graveyard. Indestructible does not prevent
         // sacrifice (CR 701.16a). No-op if the id is not on the battlefield.

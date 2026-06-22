@@ -2368,13 +2368,13 @@ export const chainLightning: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: "any", count: 1 },
     resolveSteps: [
-        // Step 0 — deal the damage (CR 119.3 "any target").
-        (ctx: SpellContext) => {
-            const target = ctx.targets[0];
-            if (target) ctx.dealDamage(target, 3);
-        },
-        // Step 1 — offer the damaged player / permanent's controller the
-        // {R}{R} may-pay; on pay, copy this spell and let them retarget.
+        // Step 0 — capture the chooser by last-known information (CR 608.2h),
+        // THEN deal the damage (CR 119.3 "any target"). The chooser must be
+        // read BEFORE the damage: 3 damage can destroy the targeted permanent
+        // inline (CR 704.5g), after which `getController` would have no live
+        // permanent to read. Persisted for step 1 via `noteChoice`; the damage
+        // stays in step 0 so the suspend/replay of the step-1 may-pay never
+        // re-applies it.
         (ctx: SpellContext) => {
             const target = ctx.targets[0];
             if (!target) return;
@@ -2383,6 +2383,18 @@ export const chainLightning: CardDefinition = {
                 target.type === "player"
                     ? target.id
                     : ctx.getController(target);
+            ctx.noteChoice("chain-lightning-chooser", [chooser]);
+            ctx.dealDamage(target, 3);
+        },
+        // Step 1 — offer the damaged player / permanent's controller the
+        // {R}{R} may-pay; on pay, copy this spell and let them retarget.
+        (ctx: SpellContext) => {
+            const target = ctx.targets[0];
+            if (!target) return;
+            // Last-known chooser captured in step 0 (the permanent may have died
+            // to the damage, so it can no longer be read off the battlefield).
+            const chooser = ctx.recallChoice("chain-lightning-chooser")?.[0];
+            if (!chooser) return;
             const paid = ctx.requestMayPay({
                 playerId: chooser,
                 choiceId: "chain-lightning-pay",

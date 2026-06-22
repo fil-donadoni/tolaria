@@ -1519,6 +1519,18 @@ export interface SpellContext {
      *  forward to the per-card pay-or-topdeck steps. */
     recallChoice: (choiceId: string) => string[] | undefined;
 
+    /** Persists a value computed in the CURRENT resolution step so a LATER step
+     *  can read it back with `recallChoice` (CR 608.2h last-known information).
+     *  Use when a step must reference an object BEFORE an irreversible operation
+     *  later in the same resolution destroys it — e.g. Chain Lightning captures
+     *  the targeted permanent's controller before dealing lethal damage, then
+     *  recalls it in the may-pay step once the permanent may already be gone.
+     *  Keyed under the current step like `requestChoice` / `requestMayPay`, so
+     *  the `choiceId` must be unique within the resolution. Stored in
+     *  `collectedChoices` (serialized across suspend/replay, cleared on
+     *  completion). */
+    noteChoice: (choiceId: string, values: string[]) => void;
+
     /** Flips a coin and PAUSES resolution to reveal the outcome before the
      *  consequence is applied (CR 705.2, ADR 0023). Unlike `flipCoin` (which
      *  draws a bit synchronously and returns immediately), this enqueues a
