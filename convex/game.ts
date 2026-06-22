@@ -53,9 +53,11 @@ import {
 } from "./gre/state";
 import {
     buildAutoTapSources,
-    solveAutoTap,
+    solveSmartAutoTap,
     solveAutoTapPartial,
+    type Demand,
 } from "./gre/autoTap";
+import { buildHandSpellDemands } from "./gre/autoTapDemands";
 import { isGuardedAgainst } from "./gre/permanentGuard";
 import type { Color, ManaCost, SpellMode } from "./cards/types";
 import {
@@ -2709,16 +2711,27 @@ export const autoTapForPayment = mutation({
         const player = getPlayer(state, args.playerId);
         const substitutions = getManaSubstitutions(state, player.id);
         const sources = buildAutoTapSources(player.battlefield);
+        // Smart auto-tap (PRD #472, ADR 0034): among all minimal-tap plans that
+        // cover the cost, prefer the one that best preserves the paying
+        // player's other castable hand spells (their Demands). Reads the
+        // *paying* player's own hand — no hidden-info leak, works for every
+        // seat including the AI bot's own casts. The card being paid for is
+        // excluded from the Demand set.
+        const demands: Demand[] = buildHandSpellDemands(
+            player.hand,
+            pending.cardInstanceId
+        );
         // Prefer a minimal full plan. When the pure-mana sources can't cover
         // the whole cost (the rest must come from an excluded manual source,
         // e.g. Black Lotus — issue #321), fall back to the maximal-useful
         // partial plan: tap what we can toward the cost and leave the manual
         // remainder to the player rather than no-op + throw.
-        const fullPlan = solveAutoTap(
+        const fullPlan = solveSmartAutoTap(
             player.manaPool,
             pending.manaCost,
             substitutions,
-            sources
+            sources,
+            demands
         );
         const plan =
             fullPlan ??

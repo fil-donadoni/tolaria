@@ -3,7 +3,12 @@ import {
     buildAutoTapSources,
     solveAutoTap,
     solveAutoTapPartial,
+    solveSmartAutoTap,
+    scorePreservedDemands,
+    remainingFlexibility,
+    AUTO_TAP_PLAN_CAP,
     type AutoTapSource,
+    type Demand,
 } from "../autoTap";
 import { makeInstance } from "../../cards/__tests__/setup";
 
@@ -318,5 +323,244 @@ describe("buildAutoTapSources + solveAutoTap — end to end", () => {
         // needed. The generic pip can be Forest or Birds.
         const ids = plan!.map((p) => p.cardId);
         expect(ids).toContain("i1");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Smart auto-tap: demand-aware minimal-tap selection (PRD #472, ADR 0034, #474)
+//
+// Auto-tap is CR-neutral UX (CR 601.2g does not dictate *which* legal sources a
+// player taps). These tests pin the spine: the minimal-tap invariant, the
+// preserved-Demand scorer, the 3-tier deterministic tie-break, the 512-plan cap
+// fallback, and the empty-hand flexibility fallback.
+// ---------------------------------------------------------------------------
+
+/** Single-color demand cost helper. */
+function demand(id: string, cost: Record<string, number>): Demand {
+    return { id, cost };
+}
+
+describe("solveSmartAutoTap — minimal-tap invariant (ADR 0034)", () => {
+    it("never taps more sources than the cost requires", () => {
+        // {1}{U}: two taps, no more, even with four sources available.
+        const plan = solveSmartAutoTap(
+            EMPTY_POOL,
+            { U: 1, X: 1 },
+            [],
+            [
+                choice("tundra", ["W", "U"]),
+                fixed("island", "U"),
+                choice("trop", ["U", "G"]),
+                fixed("forest", "G"),
+            ]
+        );
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(2);
+    });
+
+    it("returns [] when the pool already covers the cost", () => {
+        const plan = solveSmartAutoTap(
+            { ...EMPTY_POOL, U: 1, R: 1 },
+            { U: 1, X: 1 },
+            [],
+            [fixed("forest", "G")]
+        );
+        expect(plan).toEqual([]);
+    });
+
+    it("returns null when no combination can pay", () => {
+        const plan = solveSmartAutoTap(
+            EMPTY_POOL,
+            { W: 1 },
+            [],
+            [fixed("island", "U")]
+        );
+        expect(plan).toBeNull();
+    });
+});
+
+describe("solveSmartAutoTap — preserved-Demand selection (ADR 0034)", () => {
+    // The motivating bug (PRD #472 user story 2): board Tundra (W/U) + Island
+    // (U) + Tropical Island (U/G); hand Savannah Lions ({W}); cast Time Walk
+    // ({1}{U}). The plan must leave a white source (Tundra) untapped.
+    it("Savannah Lions / Time Walk: leaves Tundra (a white source) untapped", () => {
+        const sources = [
+            choice("tundra", ["W", "U"]),
+            fixed("island", "U"),
+            choice("trop", ["U", "G"]),
+        ];
+        const plan = solveSmartAutoTap(
+            EMPTY_POOL,
+            { U: 1, X: 1 }, // Time Walk = {1}{U}
+            [],
+            sources,
+            [demand("lions", { W: 1 })] // Savannah Lions
+        );
+        expect(plan).not.toBeNull();
+        const tapped = plan!.map((p) => p.cardId);
+        expect(tapped).not.toContain("tundra");
+        expect(tapped.sort()).toEqual(["island", "trop"]);
+    });
+
+    it("prefers the plan that preserves the most affordable demands", () => {
+        // Cast {U}: a single tap. Demands: a W spell and a U spell. Tapping the
+        // mono-U island leaves plains (W) + the dual (W/U) → both demands stay
+        // live (score 2). Tapping the W/U dual for the U pip would strand the U
+        // demand against a lone plains (score 1). The higher-score plan wins.
+        const sources = [
+            fixed("plains", "W"),
+            fixed("island", "U"),
+            choice("trop", ["W", "U"]),
+        ];
+        const plan = solveSmartAutoTap(EMPTY_POOL, { U: 1 }, [], sources, [
+            demand("wspell", { W: 1 }),
+            demand("uspell", { U: 1 }),
+        ]);
+        expect(plan).not.toBeNull();
+        // Taps the mono-U island; the dual and plains stay up for both demands.
+        expect(plan!.map((p) => p.cardId)).toEqual(["island"]);
+    });
+
+    it("ignores demands that were unaffordable before payment", () => {
+        // A {B} demand can't be paid from W/U sources at all — it must not skew
+        // the choice (candidate filter (a): affordable-before-payment).
+        const sources = [fixed("plains", "W"), fixed("island", "U")];
+        const plan = solveSmartAutoTap(EMPTY_POOL, { W: 1 }, [], sources, [
+            demand("bspell", { B: 1 }),
+        ]);
+        expect(plan).toEqual([{ cardId: "plains" }]);
+    });
+});
+
+describe("scorePreservedDemands (ADR 0034 — per-demand isolation)", () => {
+    it("counts a demand still affordable after payment, drops a stranded one", () => {
+        const sources = [fixed("plains", "W"), fixed("island", "U")];
+        // Pay {W} by tapping plains → island (U) remains. The U demand survives;
+        // the W demand is stranded.
+        const wPlan = [{ cardId: "plains" }];
+        const score = scorePreservedDemands(
+            EMPTY_POOL,
+            { W: 1 },
+            [],
+            sources,
+            wPlan,
+            [demand("wspell", { W: 1 }), demand("uspell", { U: 1 })]
+        );
+        expect(score).toBe(1);
+    });
+
+    it("over-counts two demands sharing one surviving source (isolation accepted)", () => {
+        // After paying, only one U source remains but two U demands both 'fit'
+        // it in isolation — both count. ADR 0034 accepts this over-count.
+        const sources = [fixed("forest", "G"), fixed("island", "U")];
+        const plan = [{ cardId: "forest" }];
+        const score = scorePreservedDemands(
+            EMPTY_POOL,
+            { G: 1 },
+            [],
+            sources,
+            plan,
+            [demand("u1", { U: 1 }), demand("u2", { U: 1 })]
+        );
+        expect(score).toBe(2);
+    });
+
+    it("uses leftover floating mana from an over-producing plan", () => {
+        // Cost {1}; tapping Sol Ring ({C}{C}) covers it and floats one C. A {C}
+        // demand survives off that floating mana even with no source left.
+        const sources: AutoTapSource[] = [
+            { cardId: "sol", options: [{ mana: { C: 2 } as never }] },
+        ];
+        const score = scorePreservedDemands(
+            EMPTY_POOL,
+            { X: 1 },
+            [],
+            sources,
+            [{ cardId: "sol" }],
+            [demand("art", { X: 1 })]
+        );
+        expect(score).toBe(1);
+    });
+
+    it("scores 0 with no demands", () => {
+        const score = scorePreservedDemands(
+            EMPTY_POOL,
+            { W: 1 },
+            [],
+            [fixed("plains", "W")],
+            [{ cardId: "plains" }],
+            []
+        );
+        expect(score).toBe(0);
+    });
+});
+
+describe("solveSmartAutoTap — flexibility tie-break / empty-hand fallback", () => {
+    it("empty hand: spends the least-flexible source first (basics before duals)", () => {
+        // Cost {1}: one tap. A mono-color Mountain vs a 2-color dual. With no
+        // demands, tie-break #2 keeps the more flexible dual untapped → taps
+        // the Mountain.
+        const sources = [fixed("mountain", "R"), choice("trop", ["U", "G"])];
+        const plan = solveSmartAutoTap(
+            EMPTY_POOL,
+            { X: 1 },
+            [],
+            sources,
+            [] // empty hand
+        );
+        expect(plan).toEqual([{ cardId: "mountain" }]);
+    });
+
+    it("remainingFlexibility sums distinct colors of untapped sources", () => {
+        const sources = [
+            fixed("mountain", "R"), // 1 color
+            choice("trop", ["U", "G"]), // 2 colors
+        ];
+        // Tapping the mountain leaves the 2-color dual → flexibility 2.
+        expect(remainingFlexibility(sources, [{ cardId: "mountain" }])).toBe(2);
+        // Tapping the dual leaves the mono mountain → flexibility 1.
+        expect(remainingFlexibility(sources, [{ cardId: "trop" }])).toBe(1);
+    });
+});
+
+describe("solveSmartAutoTap — determinism & cap (ADR 0034)", () => {
+    it("same board casts twice → identical tapped set", () => {
+        const build = () => [
+            choice("tundra", ["W", "U"]),
+            fixed("island", "U"),
+            choice("trop", ["U", "G"]),
+        ];
+        const args = (s: AutoTapSource[]) =>
+            solveSmartAutoTap(EMPTY_POOL, { U: 1, X: 1 }, [], s, [
+                demand("lions", { W: 1 }),
+            ]);
+        const a = args(build());
+        const b = args(build());
+        expect(a).toEqual(b);
+    });
+
+    it("tertiary tie-break is lexicographic by tapped cardId", () => {
+        // Two symmetric mono-R sources, cost {1}, no demands, equal flexibility
+        // (both leave one R source, flexibility 1). Lexicographic 'a' < 'b'.
+        const sources = [fixed("b-src", "R"), fixed("a-src", "R")];
+        const plan = solveSmartAutoTap(EMPTY_POOL, { X: 1 }, [], sources, []);
+        expect(plan).toEqual([{ cardId: "a-src" }]);
+    });
+
+    it("enforces the 512-plan cap without hanging on a wide board", () => {
+        // 12 dual sources, cost {2}: a combinatorial explosion of 2-tap plans.
+        // The cap bounds enumeration; the call must still return a valid 2-tap
+        // plan quickly.
+        const sources: AutoTapSource[] = [];
+        for (let i = 0; i < 12; i++) {
+            sources.push(choice(`d${i}`, ["U", "G"]));
+        }
+        const start = Date.now();
+        const plan = solveSmartAutoTap(EMPTY_POOL, { X: 2 }, [], sources, []);
+        const elapsed = Date.now() - start;
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(2);
+        expect(elapsed).toBeLessThan(1000);
+        expect(AUTO_TAP_PLAN_CAP).toBe(512);
     });
 });
