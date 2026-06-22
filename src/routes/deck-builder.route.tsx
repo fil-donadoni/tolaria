@@ -1,39 +1,127 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import DeckBuilder from "~/components/lobby/deck-builder/deck-builder";
-import { useUserDecks, useUserDeckMutations } from "~/hooks/useUserDecks";
-import { toUserLobbyDeck } from "~/lib/deckTypes";
+import {
+    useUserDecks,
+    useUserDeckMutations,
+    usePresetMutations,
+} from "~/hooks/useUserDecks";
+import {
+    type LobbyDeck,
+    toPresetLobbyDeck,
+    toUserLobbyDeck,
+} from "~/lib/deckTypes";
+import type {
+    DeckBuilderKind,
+    DeckBuilderSinks,
+} from "~/lib/deckBuilderDispatch";
 
 interface DeckBuilderRouteProps {
     mode: "create" | "edit";
+    // "user" (default) edits a user's own deck; "preset" edits an admin
+    // Preset Deck loaded by slug (PRD #466, ADR 0033). Create is user-only in
+    // this slice (preset create/delete are #469/#470).
+    kind?: DeckBuilderKind;
 }
 
-export default function DeckBuilderRoute({ mode }: DeckBuilderRouteProps) {
+export default function DeckBuilderRoute({
+    mode,
+    kind = "user",
+}: DeckBuilderRouteProps) {
     const navigate = useNavigate();
     const params = useParams({ strict: false }) as { slug?: string };
     const slug = mode === "edit" ? params.slug : undefined;
     const [deleting, setDeleting] = useState(false);
 
     const userDecks = useUserDecks();
-    const editingDeck = useQuery(
-        api.userDecks.get,
-        slug && !deleting ? { id: slug as Id<"userDecks"> } : "skip"
+    const { create, update, remove } = useUserDeckMutations();
+    const { create: createPreset, update: updatePreset } = usePresetMutations();
+
+    // A single set of mutation sinks; `dispatchDeckSave` selects the pair by
+    // `kind`, so the editor itself never branches.
+    const sinks = useMemo<DeckBuilderSinks>(
+        () => ({
+            user: {
+                create: (payload) => create(payload) as Promise<string>,
+                update: async (id, payload) => {
+                    await update({
+                        id: id as Id<"userDecks">,
+                        patch: payload,
+                    });
+                },
+            },
+            preset: {
+                create: async (payload) => {
+                    const { slug } = await createPreset({ input: payload });
+                    return slug;
+                },
+                update: async (presetSlug, payload) => {
+                    await updatePreset({ slug: presetSlug, patch: payload });
+                },
+            },
+        }),
+        [create, update, createPreset, updatePreset]
     );
 
-    const { remove } = useUserDeckMutations();
+    // ---- Preset edit mode: load the single preset by slug ----
+    const editingPreset = useQuery(
+        api.decks.getPreset,
+        kind === "preset" && slug ? { slug } : "skip"
+    );
+    // ---- User edit mode: load the user deck by id ----
+    const editingUserDeck = useQuery(
+        api.userDecks.get,
+        kind === "user" && slug && !deleting
+            ? { id: slug as Id<"userDecks"> }
+            : "skip"
+    );
 
     if (mode === "edit") {
-        if (editingDeck === undefined || userDecks === undefined) {
+        if (kind === "preset") {
+            if (editingPreset === undefined) {
+                return (
+                    <div className="flex h-screen items-center justify-center text-text">
+                        Loading...
+                    </div>
+                );
+            }
+            if (editingPreset === null) {
+                return (
+                    <div className="flex h-screen flex-col items-center justify-center gap-4 text-text bg-surface-base">
+                        <p>Preset not found.</p>
+                        <button
+                            onClick={() => void navigate({ to: "/" })}
+                            className="btn-base btn-tone-secondary px-4 py-2 text-sm"
+                        >
+                            Back to lobby
+                        </button>
+                    </div>
+                );
+            }
+            const presetDeck: LobbyDeck = toPresetLobbyDeck(editingPreset);
+            return (
+                <DeckBuilder
+                    kind="preset"
+                    initialDeck={presetDeck}
+                    initialIdentity={editingPreset.presetId}
+                    initialDeckList={[]}
+                    sinks={sinks}
+                    onClose={() => void navigate({ to: "/" })}
+                />
+            );
+        }
+
+        if (editingUserDeck === undefined || userDecks === undefined) {
             return (
                 <div className="flex h-screen items-center justify-center text-text">
                     Loading...
                 </div>
             );
         }
-        if (editingDeck === null) {
+        if (editingUserDeck === null) {
             return (
                 <div className="flex h-screen flex-col items-center justify-center gap-4 text-text bg-surface-base">
                     <p>Deck not found.</p>
@@ -46,10 +134,14 @@ export default function DeckBuilderRoute({ mode }: DeckBuilderRouteProps) {
                 </div>
             );
         }
+        const userDeck = toUserLobbyDeck(editingUserDeck);
         return (
             <DeckBuilder
-                initialDeck={toUserLobbyDeck(editingDeck)}
+                kind="user"
+                initialDeck={userDeck}
+                initialIdentity={userDeck.userDeckId}
                 initialDeckList={userDecks}
+                sinks={sinks}
                 onClose={(savedId) => {
                     if (savedId) {
                         void navigate({
@@ -69,6 +161,24 @@ export default function DeckBuilderRoute({ mode }: DeckBuilderRouteProps) {
         );
     }
 
+    // ---- Preset create mode (admin only; server-gated by assertIsAdmin) ----
+    // The new preset's slug is derived from its name server-side on first save.
+    // On close we return to the lobby, where the reactive `api.decks.list` query
+    // already shows the freshly created preset.
+    if (kind === "preset") {
+        return (
+            <DeckBuilder
+                kind="preset"
+                mode="create"
+                initialDeck={null}
+                initialIdentity={null}
+                initialDeckList={[]}
+                sinks={sinks}
+                onClose={() => void navigate({ to: "/" })}
+            />
+        );
+    }
+
     if (userDecks === undefined) {
         return (
             <div className="flex h-screen items-center justify-center text-text">
@@ -79,8 +189,12 @@ export default function DeckBuilderRoute({ mode }: DeckBuilderRouteProps) {
 
     return (
         <DeckBuilder
+            kind="user"
+            mode="create"
             initialDeck={null}
+            initialIdentity={null}
             initialDeckList={userDecks}
+            sinks={sinks}
             onClose={(savedId) => {
                 if (savedId) {
                     void navigate({

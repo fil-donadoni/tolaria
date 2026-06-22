@@ -14,3 +14,12 @@ export function useUserDeckMutations() {
     const remove = useMutation(api.userDecks.remove);
     return { create, update, remove };
 }
+
+// Admin-only preset mutations (PRD #466, ADR 0033). The deck editor uses them
+// in preset mode; the server gates both via `assertIsAdmin`. `createPreset`
+// derives the slug from the name and returns it (issue #469).
+export function usePresetMutations() {
+    const create = useMutation(api.decks.createPreset);
+    const update = useMutation(api.decks.updatePreset);
+    return { create, update };
+}

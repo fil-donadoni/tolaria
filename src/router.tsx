@@ -43,6 +43,25 @@ const deckEditRoute = createRoute({
     component: () => <DeckBuilderRoute mode="edit" />,
 });
 
+// Admin-only Preset create (PRD #466, ADR 0033, issue #469). Opens the shared
+// editor in preset create mode; the first save calls `decks.createPreset`
+// (server-gated by `assertIsAdmin`), which derives the slug from the name. The
+// lobby exposes the entry point only to admins.
+const presetCreateRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/presets/create",
+    component: () => <DeckBuilderRoute mode="create" kind="preset" />,
+});
+
+// Admin-only Preset edit (PRD #466, ADR 0033). Loads the preset by slug via
+// `api.decks.getPreset` and saves through `decks.updatePreset` (server-gated by
+// `assertIsAdmin`). The lobby exposes the entry point only to admins.
+const presetEditRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/presets/$slug/edit",
+    component: () => <DeckBuilderRoute mode="edit" kind="preset" />,
+});
+
 const gameRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/game",
@@ -54,6 +73,8 @@ const routeTree = rootRoute.addChildren([
     decksCreateRoute,
     deckDetailRoute,
     deckEditRoute,
+    presetCreateRoute,
+    presetEditRoute,
     gameRoute,
 ]);
 

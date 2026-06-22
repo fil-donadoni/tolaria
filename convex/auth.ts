@@ -58,3 +58,29 @@ export async function getCurrentUser(ctx: AnyCtx): Promise<Doc<"users">> {
     if (!user) throw new Error("User not found");
     return user;
 }
+
+/**
+ * Pure admin predicate (PRD #466, ADR 0033). Decides whether a loaded user
+ * doc is an admin: a missing user is rejected; the `isAdmin` flag must be
+ * explicitly `true`. Extracted from `assertIsAdmin` so it is unit-testable
+ * without a Convex harness (the project has no convex-test harness).
+ */
+export function isAdminUser(user: Doc<"users"> | null): boolean {
+    return user?.isAdmin === true;
+}
+
+/**
+ * Server-side admin gate (ADR 0033). Loads the current user and throws unless
+ * they are flagged `isAdmin`. Hiding the editor controls in the UI is cosmetic
+ * only — every admin-gated mutation MUST call this FIRST. Returns the user doc
+ * for callers that need it.
+ */
+export async function assertIsAdmin(ctx: AnyCtx): Promise<Doc<"users">> {
+    const userId = await auth.getUserId(ctx);
+    const user = userId ? await ctx.db.get(userId) : null;
+    if (!isAdminUser(user)) {
+        throw new Error("Forbidden: admin only");
+    }
+    // `isAdminUser` guarantees user is non-null here.
+    return user as Doc<"users">;
+}
