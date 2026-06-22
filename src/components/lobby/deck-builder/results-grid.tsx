@@ -1,5 +1,7 @@
+import { useEffect, useRef } from "react";
 import type { CardIndexEntry } from "./useCardSearch";
 import ResultCard from "./result-card";
+import { usePagedEntries } from "./usePagedEntries";
 
 interface ResultsGridProps {
     entries: CardIndexEntry[] | undefined;
@@ -16,6 +18,28 @@ export default function ResultsGrid({
     activeSets,
     onAdd,
 }: ResultsGridProps) {
+    // Issue #505 / PRD #501: render a bounded batch and grow it as the user
+    // scrolls, so the grid never has to render (and image-fetch) a thousand
+    // matches at once. The header below still reports the true filtered total.
+    const { visible, hasMore, loadMore } = usePagedEntries(entries);
+
+    // IntersectionObserver sentinel: when the element near the grid bottom
+    // enters the viewport, append the next batch. Thin glue — not unit-tested;
+    // the slice logic lives in `usePagedEntries`.
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+        const node = sentinelRef.current;
+        if (!node || !hasMore) return;
+        const observer = new IntersectionObserver(
+            (observed) => {
+                if (observed.some((e) => e.isIntersecting)) loadMore();
+            },
+            { rootMargin: "200px" }
+        );
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, [hasMore, loadMore, visible.length]);
+
     if (entries === undefined) {
         return (
             <div className="flex h-full items-center justify-center text-sm text-text-muted">
@@ -49,7 +73,7 @@ export default function ResultsGrid({
                 {entries.length} {entries.length === 1 ? "card" : "cards"} found
             </div>
             <div className="flex flex-wrap gap-2 p-2 md:gap-3">
-                {entries.map((entry) => (
+                {visible.map((entry) => (
                     <ResultCard
                         key={entry.cardId}
                         entry={entry}
@@ -58,6 +82,13 @@ export default function ResultsGrid({
                     />
                 ))}
             </div>
+            {hasMore && (
+                <div
+                    ref={sentinelRef}
+                    aria-hidden
+                    className="h-px w-full shrink-0"
+                />
+            )}
         </div>
     );
 }
