@@ -102,6 +102,25 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // D'Avenant Archer — "{T}: deals 1 damage to target attacking or
+        // blocking creature." (CR 508.1 / 509.1 combat-role target.) You control
+        // the Archer (untapped, no summoning sickness). Golden path:
+        //   1. Pass to the opponent's turn and attack with their Goblin Hero
+        //      (2/2), OR advance your own combat and have a creature block.
+        //   2. While a creature is attacking/blocking, activate the Archer's
+        //      {T} ability and target it → it takes 1 damage.
+        // The point is the target filter: idle creatures are NOT selectable;
+        // only attackers and blockers light up.
+        label: "LEG: D'Avenant Archer — ping attacker/blocker",
+        cards: [
+            { name: "D'Avenant Archer", owner: "me" as const },
+            { name: "Goblin Hero", owner: "opp" as const },
+            { name: "Goblin Hero", owner: "me" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // C1.1 Poison foundation (#452) — poison as a player resource (CR 122)
         // and its loss SBA (CR 704.5c). The opponent is seeded to NINE poison
         // counters (near-lethal): the danger-token badge renders under their

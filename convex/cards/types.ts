@@ -148,8 +148,10 @@ export interface TargetRequirement {
     /** Restricts legal permanent targets by live combat role (CR 508.1,
      *  509.1). "attacking" requires `isAttacking === true`; "blocking"
      *  requires `isBlocking === true`. Used by Righteousness ("target
-     *  blocking creature"). Ignored for player / spell / graveyard targets. */
-    combatRoleFilter?: "attacking" | "blocking";
+     *  blocking creature"). An array matches ANY listed role (OR semantics) —
+     *  "target attacking or blocking creature" (D'Avenant Archer). Ignored for
+     *  player / spell / graveyard targets. */
+    combatRoleFilter?: "attacking" | "blocking" | ("attacking" | "blocking")[];
     /** Excludes permanents whose `types` include any of these (CR 205).
      *  Used by Terror ("target nonartifact, nonblack creature"). Single
      *  string is shorthand for one type. */

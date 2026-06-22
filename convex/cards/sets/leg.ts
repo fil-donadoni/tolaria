@@ -199,6 +199,41 @@ export const keepersOfTheFaith: CardDefinition = {
     toughness: 3,
 };
 
+// D'Avenant Archer — {T}: deal 1 damage to target attacking or blocking
+// creature (CR 508.1 / 509.1 combat-role-restricted target). "Attacking or
+// blocking" is the array form of `combatRoleFilter` (a single role can't
+// express the union). Standard tap-to-ping; no summoning-sickness exception.
+export const davenantArcher: CardDefinition = {
+    id: "b09aee5c-8b9e-46c2-b4d4-508062f8af05",
+    name: "D'Avenant Archer",
+    oracleText:
+        "{T}: This creature deals 1 damage to target attacking or blocking creature.",
+    manaCost: { X: 2, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Soldier", "Archer"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "davenant-archer-ping",
+            oracleText:
+                "{T}: This creature deals 1 damage to target attacking or blocking creature.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatRoleFilter: ["attacking", "blocking"],
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type !== "permanent") return;
+                ctx.dealDamage(target, 1);
+            },
+        },
+    ],
+};
+
 // --- Block / evasion restriction creatures (CR 509.1b) --------------------
 
 // Amrou Kithkin — can't be blocked by power 3 or greater (CR 509.1b). The

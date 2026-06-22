@@ -17,7 +17,7 @@ import {
  *  so the engine recognises them without a string-parsing pass — they carry no
  *  per-card predicate, the rule is global. */
 export const CAVERNS_OF_DESPAIR_ID = "209f7479-b3a0-4c27-9602-78babb8d2e99";
-export const ARBORIA_ID = "acb3e93c-a1d3-458f-b8c3-c426cd359fa4";
+export const ARBORIA_ID = "095078b0-0f26-442f-9d3b-45e30cdb33c4";
 
 /** True when any permanent with the given card id is on any player's
  *  battlefield. Used for global World-enchantment effects (CR 109.2 — the

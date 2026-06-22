@@ -611,11 +611,20 @@ export function getLegalTargets(
                 if (tappedFilter === "tapped" && !card.isTapped) continue;
                 if (tappedFilter === "untapped" && card.isTapped) continue;
                 // CR 508.1 / 509.1: combat-role filter for "target attacking
-                // creature" or "target blocking creature".
-                if (combatRoleFilter === "attacking" && !card.isAttacking)
-                    continue;
-                if (combatRoleFilter === "blocking" && !card.isBlocking)
-                    continue;
+                // creature", "target blocking creature", or an array form
+                // matching either role ("attacking or blocking", D'Avenant
+                // Archer).
+                if (combatRoleFilter) {
+                    const roles = Array.isArray(combatRoleFilter)
+                        ? combatRoleFilter
+                        : [combatRoleFilter];
+                    const matchesRole = roles.some(
+                        (r) =>
+                            (r === "attacking" && card.isAttacking) ||
+                            (r === "blocking" && card.isBlocking)
+                    );
+                    if (!matchesRole) continue;
+                }
                 // CR 702: keyword filter for "target creature with flying"
                 // (Island of Wak-Wak).
                 if (

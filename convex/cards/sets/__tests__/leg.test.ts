@@ -11,6 +11,7 @@
 import { describe, it, expect } from "vitest";
 import {
     theAbyss,
+    davenantArcher,
     jasmineBoreal,
     ladyOrca,
     tundraWolves,
@@ -6250,5 +6251,63 @@ describe("The Abyss (each-player upkeep destroy, CR 603.6a / 704.5m)", () => {
         const p1 = projected.players.find((p) => p.id === "p1")!;
         expect(p1.battlefield.some((c) => c.id === "victim")).toBe(false);
         expect(p1.battlefield.some((c) => c.id === "abyss")).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// D'Avenant Archer — {T}: 1 damage to target attacking OR blocking creature
+// (CR 508.1 / 509.1). Exercises the array form of `combatRoleFilter`.
+// ---------------------------------------------------------------------------
+
+describe("D'Avenant Archer ({T}: ping attacking-or-blocking, CR 508.1/509.1)", () => {
+    const ARCHER_REQ = davenantArcher.activatedAbilities![0].targetRequirement!;
+
+    it("getLegalTargets with role array admits both attackers and blockers, rejects idle creatures", () => {
+        const attacker = makeInstance(HEADLESS, {
+            id: "atk",
+            controllerId: "p2",
+            isAttacking: true,
+        });
+        const blocker = makeInstance(HEADLESS, {
+            id: "blk",
+            controllerId: "p1",
+            isBlocking: true,
+        });
+        const idle = makeInstance(HEADLESS, { id: "idle", controllerId: "p2" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [blocker] }),
+                makePlayer("p2", { battlefield: [attacker, idle] }),
+            ],
+        });
+        const legal = getLegalTargets(state, ARCHER_REQ, [], "p1").map(
+            (t) => t.id
+        );
+        expect(legal).toContain("atk");
+        expect(legal).toContain("blk");
+        expect(legal).not.toContain("idle");
+    });
+
+    it("deals 1 damage to a chosen attacking creature", () => {
+        const archer = makeInstance(davenantArcher.id, {
+            id: "archer",
+            controllerId: "p1",
+        });
+        const attacker = makeInstance(HEADLESS, {
+            id: "atk",
+            controllerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [archer] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+        });
+        resolveActivated(state, archer, "davenant-archer-ping", [
+            { type: "permanent", id: "atk" },
+        ]);
+        const hit = state.players[1].battlefield.find((c) => c.id === "atk")!;
+        expect(hit.damageMarked).toBe(1);
     });
 });
