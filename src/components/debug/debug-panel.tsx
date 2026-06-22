@@ -210,6 +210,69 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 2,
     },
     {
+        // #485 Enchanted Being — {1}{W}{W} 2/2. "Prevent all combat damage that
+        // would be dealt to this creature by enchanted creatures." (CR 615
+        // prevention / CR 611 continuous — a source-filtered
+        // `combat-damage-prevention` static re-evaluated each combat.) You
+        // control Enchanted Being; the opponent has a Grizzly Bears (2/2)
+        // attacker. You hold Spirit Link (an Aura) to make that attacker
+        // "enchanted". Golden path:
+        //   1. Cast Spirit Link onto the opponent's Grizzly Bears (you have a
+        //      Plains to pay {W}). The Bears is now an enchanted creature.
+        //   2. Pass to the opponent's turn; they attack with the Bears.
+        //   3. Block the Bears with Enchanted Being. At the combat-damage step
+        //      Enchanted Being takes NO damage (prevented) and survives, while
+        //      its own 2 power kills the Bears.
+        // Edge: without the Aura the Bears trades normally (each 2/2 dies).
+        label: "LEG: Enchanted Being — no combat damage from enchanted creatures (#485)",
+        cards: [
+            {
+                name: "Enchanted Being",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Spirit Link",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
+        // #485 Wall of Vapor — {3}{U} 0/1 Wall, Defender. "Prevent all damage
+        // that would be dealt to this creature by creatures it's blocking."
+        // (CR 615 / 611 — source-filtered `combat-damage-prevention` keyed to
+        // the live block graph.) You control the Wall; the opponent has a
+        // Grizzly Bears (2/2) attacker. Golden path:
+        //   1. Pass to the opponent's turn; they attack with the Bears.
+        //   2. Block the Bears with Wall of Vapor (0/1). At the damage step the
+        //      Wall takes NO damage from the creature it's blocking and
+        //      survives — an indestructible-feeling wall against its blockees.
+        // Edge: a creature the Wall is NOT blocking damages it normally.
+        label: "LEG: Wall of Vapor — no damage from creatures it blocks (#485)",
+        cards: [
+            {
+                name: "Wall of Vapor",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // #481 Moat — {2}{W}{W} Enchantment. "Creatures without flying can't
         // attack." (CR 508.1c — a battlefield-scanned `global-attack-restriction`
         // static that locks attacks by creatures OTHER than its source.) You

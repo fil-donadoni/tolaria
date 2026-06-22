@@ -2427,6 +2427,61 @@ export interface StaticPermanentGuard {
     controlCantChange?: boolean;
 }
 
+/** Read-only board + combat view passed to a `combat-damage-prevention`
+ *  predicate. Extends the layer-system `StaticEffectStateView` (so the
+ *  predicate can scan every battlefield for an Aura attached to the damage
+ *  source — Enchanted Being) with the live block graph (so it can ask "is the
+ *  damage source a creature `self` is currently blocking?" — Wall of Vapor).
+ *  Both the fat `GameState` and the projected public state satisfy it. */
+export interface CombatPreventionStateView extends StaticEffectStateView {
+    /** Live block graph (CR 509.1): blockerId → the attackers it is blocking.
+     *  Present only during the combat phase; absent (undefined) outside combat,
+     *  where no source-is-blocked relationship can exist. */
+    combat?: {
+        blockerAssignments: Record<string, readonly string[]>;
+    };
+}
+
+/** Continuous, source-filtered combat-damage prevention static (CR 615, CR 611
+ *  continuous effect — evaluated LIVE at each combat-damage step, never
+ *  timestamp-applied or consumed once). The carrier creature prevents all
+ *  combat damage that would be dealt TO IT by any source matching `prevents`.
+ *
+ *  Distinct from the TURN-SCOPED prevention shields (`combatDamageImmunity`,
+ *  `preventAllCombatDamageThisTurn`, the per-player source-matched
+ *  `playerDamagePrevention`): those are one-shot / single-turn entries written
+ *  into game state and purged at a duration boundary. This kind is a property
+ *  of the creature's card definition, re-queried at the moment damage is about
+ *  to be applied, so it re-applies automatically every combat for as long as
+ *  the creature is on the battlefield ("for as long as", CR 611.2).
+ *
+ *  Mirrors the live-query model of `StaticPermanentGuard` / `isCombatDamageImmune`:
+ *  the predicate observes current board/combat state, so e.g. Wall of Vapor's
+ *  "creatures it's blocking" reads the live block graph with no per-instance
+ *  flag. Two LEG users:
+ *    - Enchanted Being — `damageSource` is enchanted by any Aura.
+ *    - Wall of Vapor — `damageSource` is a creature `self` is currently
+ *      blocking. */
+export interface StaticCombatDamagePrevention {
+    kind: "combat-damage-prevention";
+    /** Stable id (for debugging / oracle tracing). */
+    id: string;
+    /** Returns `true` when combat damage from `damageSource` to `self` (the
+     *  permanent carrying this effect) must be prevented.
+     *  `self` = the prevention's owner (the creature taking damage).
+     *  `damageSource` = the creature about to deal the combat damage.
+     *  `state` = live board + block graph.
+     *  `ctx` = static-effect helpers (colors, types, subtypes, ...). */
+    prevents: (
+        self: PermanentView,
+        damageSource: PermanentView,
+        state: CombatPreventionStateView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Oracle text, surfaced for debugging / UI tooltips. */
+    oracleText: string;
+}
+
 export type StaticEffect =
     | StaticPTBuff
     | StaticPTCDA
@@ -2448,6 +2503,7 @@ export type StaticEffect =
     | StaticCostModifier
     | StaticManaSubstitution
     | StaticPermanentGuard
+    | StaticCombatDamagePrevention
     | StaticKeywordRemove
     | StaticAbilityLoss;
 

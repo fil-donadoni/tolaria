@@ -42,6 +42,7 @@ import {
     STATIC_EFFECT_CTX,
 } from "./layers";
 import { isProtectedFromSource } from "./protection";
+import { isCombatDamagePreventedFromSource } from "./combatDamagePrevention";
 import { collectTriggers } from "./triggers";
 import { hasAnyLegalBlock, getRequiredAttackerIds } from "./combat";
 import {
@@ -895,6 +896,11 @@ export function applyAllCombatDamage(
                 defender.battlefield.find((c) => c.id === finalTarget.id);
             if (!targetCard) return;
             if (isProtectedFromSource(targetCard, source)) return;
+            // CR 615 / 611 — continuous source-filtered combat-damage
+            // prevention (Enchanted Being, Wall of Vapor). Re-evaluated live
+            // each combat: prevents all combat damage from a matching source.
+            if (isCombatDamagePreventedFromSource(state, targetCard, source))
+                return;
             const reduced = applyTargetPrevention(
                 state,
                 "permanent",

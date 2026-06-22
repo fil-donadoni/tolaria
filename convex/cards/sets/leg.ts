@@ -38,6 +38,10 @@ import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
 import { rampageTrigger } from "../abilities/triggers/rampageTrigger";
 import { manaCostForCardId } from "../manaCostLookup";
+import {
+    isEnchantedByAura,
+    isBlockingCreature,
+} from "../combatDamagePrevention";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vanilla legendary creatures (CR 205.4a — Legendary supertype; CR 704.5j legend
@@ -269,6 +273,69 @@ export const davenantArcher: CardDefinition = {
                 if (target?.type !== "permanent") return;
                 ctx.dealDamage(target, 1);
             },
+        },
+    ],
+};
+
+// --- Continuous source-filtered combat-damage prevention (CR 615 / 611) ----
+//
+// A `combat-damage-prevention` static effect is carried by the creature taking
+// damage and evaluated LIVE at the combat-damage step (convex/gre/
+// combatDamagePrevention.ts) — re-applied every combat for as long as the
+// creature is on the battlefield, NOT a one-shot turn-scoped shield. Each
+// effect's `prevents(self, damageSource, state, ctx)` predicate filters on the
+// damage SOURCE.
+
+// Enchanted Being — {1}{W}{W} 2/2. "Prevent all combat damage that would be
+// dealt to this creature by enchanted creatures." Source filter: the attacker/
+// blocker is enchanted by any Aura (CR 303.4b).
+export const enchantedBeing: CardDefinition = {
+    id: "94c2880d-b37a-43ea-9fee-cd5a8ed75a7e",
+    name: "Enchanted Being",
+    oracleText:
+        "Prevent all combat damage that would be dealt to this creature by enchanted creatures.",
+    manaCost: { X: 1, W: 2 },
+    types: ["Creature"],
+    subtypes: ["Human"],
+    power: 2,
+    toughness: 2,
+    staticEffects: [
+        {
+            kind: "combat-damage-prevention",
+            id: "enchanted-being-prevent",
+            oracleText:
+                "Prevent all combat damage that would be dealt to this creature by enchanted creatures.",
+            prevents: (_self, damageSource, state) =>
+                isEnchantedByAura(damageSource, state),
+        },
+    ],
+};
+
+// Wall of Vapor — {3}{U} 0/1 Wall, Defender. "Prevent all damage that would be
+// dealt to this creature by creatures it's blocking." Source filter: the
+// damage source is a creature this Wall is currently blocking (CR 509.1).
+// Simplification: the Oracle says "all damage", but a creature only deals
+// damage to a creature blocking it during the combat-damage step, so the
+// combat-damage-prevention static covers the practical case (CR 615).
+export const wallOfVapor: CardDefinition = {
+    id: "6a6c0a27-d410-4ded-a842-70e1656ea21e",
+    name: "Wall of Vapor",
+    oracleText:
+        "Defender (This creature can't attack.)\nPrevent all damage that would be dealt to this creature by creatures it's blocking.",
+    manaCost: { X: 3, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 1,
+    staticAbilities: ["defender"],
+    staticEffects: [
+        {
+            kind: "combat-damage-prevention",
+            id: "wall-of-vapor-prevent",
+            oracleText:
+                "Prevent all damage that would be dealt to this creature by creatures it's blocking.",
+            prevents: (self, damageSource, state) =>
+                isBlockingCreature(self, damageSource, state),
         },
     ],
 };
@@ -793,8 +860,6 @@ export const visions: CardDefinition = {
 //     - Psychic Purge — its punisher half is a from-hand discard trigger (no
 //       discard-from-hand trigger); shipping only the damage half would be
 //       partial.
-//     - Wall of Vapor — prevent damage to it from creatures it's blocking (no
-//       blocking-pair-scoped prevention).
 //     - Gaseous Form — "Prevent all combat damage to and dealt by enchanted
 //       creature" is a CONTINUOUS aura prevention; only a turn-scoped combat
 //       shield exists, no "for as long as enchanted" prevention static.
@@ -1409,7 +1474,11 @@ function colorsOf(view: { card: Record<string, unknown> }): string[] {
 //     its host, Evil Eye gates on its own untapped/blocked state — but the
 //     other-creature attack-lock primitive they were waiting on now exists.)
 //   • Wall of Putrid Flesh — its "prevent all damage dealt to this by enchanted
-//     creatures" clause needs a continuous, source-filtered prevention static.
+//     creatures" clause is UNBLOCKED by the continuous, source-filtered
+//     `combat-damage-prevention` static shipped with Enchanted Being / Wall of
+//     Vapor (#485): reuse the `isEnchantedByAura` source filter. (Remains
+//     unimplemented only because its other clauses/stats are out of this
+//     batch's scope — the prevention primitive it waited on now exists.)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // --- World enchantments with an upkeep trigger (CR 205.4a / 704.5m) --------
