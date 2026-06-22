@@ -28,18 +28,15 @@
 
 import type { CardInstanceState, GameState, StackItem } from "./state";
 import {
-    moveCard,
-    markEnteredThisTurn,
     removeFromZone,
     removePermanentTo,
     resolveTopOfStack,
-    emitPermanentEntered,
-    processPendingActionTriggers,
     getOpponentId,
     tapPermanent,
 } from "./state";
 import { matchesPermanentFilter } from "../cards/filters";
 import { checkStateBasedActions } from "./sba";
+import { applyPlayLand } from "./playLand";
 import { applyAllCombatDamage, buildAutoDamageAssignments } from "./phases";
 import { recordBlockedAttackers } from "./banding";
 import { cloneGameState } from "./clone";
@@ -168,24 +165,9 @@ export function applyMoveForSearch(
             return next;
 
         case "play-land": {
-            const card = moveCard(
-                player,
-                move.cardInstanceId,
-                "hand",
-                "battlefield"
-            );
-            if (card.types.includes("Land")) {
-                player.landsPlayedThisTurn =
-                    (player.landsPlayedThisTurn ?? 0) + 1;
-            }
-            // CR 302.6 — a land (or any permanent) played this turn starts its
-            // control-continuity clock. Inert until the permanent becomes a
-            // creature; a manland (Mishra's Factory) animated the same turn it
-            // was played then correctly reads summoning-sick.
-            markEnteredThisTurn(card);
-            emitPermanentEntered(next, card);
-            processPendingActionTriggers(next);
-            checkStateBasedActions(next);
+            // Shared canonical play-land core (CR 305 / 302.6) — identical to
+            // the authoritative `playCard` mutation in game.ts. See playLand.ts.
+            applyPlayLand(next, player, move.cardInstanceId);
             return next;
         }
 
