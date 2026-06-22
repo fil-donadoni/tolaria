@@ -14,9 +14,10 @@ import {
     toPresetLobbyDeck,
     toUserLobbyDeck,
 } from "~/lib/deckTypes";
-import type {
-    DeckBuilderKind,
-    DeckBuilderSinks,
+import {
+    type DeckBuilderKind,
+    type DeckBuilderSinks,
+    toUpdatePatch,
 } from "~/lib/deckBuilderDispatch";
 
 interface DeckBuilderRouteProps {
@@ -46,10 +47,12 @@ export default function DeckBuilderRoute({
         () => ({
             user: {
                 create: (payload) => create(payload) as Promise<string>,
+                // `format` is immutable after creation (ADR 0036) and the
+                // `update` mutation rejects it — strip it from the patch.
                 update: async (id, payload) => {
                     await update({
                         id: id as Id<"userDecks">,
-                        patch: payload,
+                        patch: toUpdatePatch(payload),
                     });
                 },
             },
@@ -58,8 +61,13 @@ export default function DeckBuilderRoute({
                     const { slug } = await createPreset({ input: payload });
                     return slug;
                 },
+                // `format` is immutable after creation (ADR 0036); the preset
+                // `update` mutation rejects it — strip it from the patch.
                 update: async (presetSlug, payload) => {
-                    await updatePreset({ slug: presetSlug, patch: payload });
+                    await updatePreset({
+                        slug: presetSlug,
+                        patch: toUpdatePatch(payload),
+                    });
                 },
             },
         }),

@@ -8,13 +8,14 @@ import {
     saveUserDeck,
     savePreset,
     savePresetCreate,
+    toUpdatePatch,
     type DeckBuilderSinks,
     type DeckSavePayload,
 } from "../deckBuilderDispatch";
 
 const payload: DeckSavePayload = {
     name: "Deck",
-    format: "Freeform",
+    format: "freeform",
     colors: ["R"],
     cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],
     sideboard: [],
@@ -31,6 +32,21 @@ function makeSinks() {
     };
     return { sinks, userCreate, userUpdate, presetCreate, presetUpdate };
 }
+
+describe("toUpdatePatch — format is immutable on update (ADR 0036)", () => {
+    it("drops the format from the update patch", () => {
+        const patch = toUpdatePatch(payload);
+        expect("format" in patch).toBe(false);
+    });
+
+    it("preserves every other editable field", () => {
+        const patch = toUpdatePatch(payload);
+        expect(patch.name).toBe(payload.name);
+        expect(patch.colors).toEqual(payload.colors);
+        expect(patch.cards).toEqual(payload.cards);
+        expect(patch.sideboard).toEqual(payload.sideboard);
+    });
+});
 
 describe("saveUserDeck", () => {
     it("creates on first save (null id) and returns the new id", async () => {

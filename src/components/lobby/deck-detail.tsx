@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { FORMAT_RULES } from "@convex/formats";
 import type { LobbyDeck } from "~/lib/deckTypes";
 import { cn } from "~/lib/utils";
 import ManaSymbol from "../cards/mana-symbol";
@@ -43,7 +44,8 @@ export default function DeckDetail({
                 </div>
                 <div className="flex flex-wrap items-center gap-3 md:flex-1">
                     <span className="text-xs text-text-muted">
-                        {deck.cards.length} cards · {deck.format}
+                        {deck.cards.length} cards ·{" "}
+                        {FORMAT_RULES[deck.format].label}
                     </span>
                     {deck.description && (
                         <p className="text-sm text-text-muted">

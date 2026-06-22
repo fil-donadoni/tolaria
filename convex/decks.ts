@@ -3,7 +3,15 @@ import { mutation, query } from "./_generated/server";
 import { internalMutation } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { assertIsAdmin } from "./auth";
-import { PRESET_DECKS, type DeckCard, type DeckPreset } from "./deckPresets";
+import { type DeckCard, type DeckPreset } from "./deckPresets";
+import type { FormatId } from "./formats";
+
+// Typed deck Format (ADR 0036). An Admin chooses it when authoring a preset.
+const formatValidator = v.union(
+    v.literal("freeform"),
+    v.literal("alpha-40"),
+    v.literal("old-school")
+);
 
 // Preset Decks now live in the `presetDecks` DB table (PRD #466, ADR 0033).
 // `convex/deckPresets.ts` is retained ONLY as the seed source for the
@@ -19,7 +27,7 @@ const deckCardValidator = v.object({
 const lobbyPresetValidator = v.object({
     presetId: v.string(),
     name: v.string(),
-    format: v.string(),
+    format: formatValidator,
     description: v.string(),
     colors: v.array(v.string()),
     cards: v.array(deckCardValidator),
@@ -32,7 +40,7 @@ const lobbyPresetValidator = v.object({
 export interface LobbyPreset {
     presetId: string;
     name: string;
-    format: string;
+    format: FormatId;
     description: string;
     colors: string[];
     cards: DeckCard[];
@@ -128,7 +136,8 @@ export const list = query({
 // absent: it is the stable identity and is read-only after creation (ADR 0033).
 const presetPatchValidator = v.object({
     name: v.optional(v.string()),
-    format: v.optional(v.string()),
+    // `format` is intentionally absent: it is immutable after creation (ADR
+    // 0036), so a preset edit can never change it.
     colors: v.optional(v.array(v.string())),
     cards: v.optional(v.array(deckCardValidator)),
     sideboard: v.optional(v.array(deckCardValidator)),
@@ -138,7 +147,6 @@ const presetPatchValidator = v.object({
 /** The editable subset of a preset, mirroring `presetPatchValidator`. */
 export interface PresetPatchInput {
     name?: string;
-    format?: string;
     colors?: string[];
     cards?: DeckCard[];
     sideboard?: DeckCard[];
@@ -162,7 +170,6 @@ export function buildPresetPatch(
     if (input.name !== undefined) {
         patch.name = input.name.trim() || "Untitled preset";
     }
-    if (input.format !== undefined) patch.format = input.format;
     if (input.colors !== undefined) patch.colors = input.colors;
     if (input.cards !== undefined) patch.cards = input.cards;
     if (input.sideboard !== undefined) patch.sideboard = input.sideboard;
@@ -173,7 +180,7 @@ export function buildPresetPatch(
 /** The full editable payload an Admin submits to create a new preset. */
 export interface PresetCreateInput {
     name?: string;
-    format?: string;
+    format?: FormatId;
     colors?: string[];
     cards?: DeckCard[];
     sideboard?: DeckCard[];
@@ -193,7 +200,7 @@ export function buildNewPresetRow(input: PresetCreateInput): PresetInsert {
     return {
         slug: slugify(name),
         name,
-        format: input.format ?? "Freeform",
+        format: input.format ?? "freeform",
         description: input.description,
         colors: input.colors ?? [],
         cards: input.cards ?? [],
@@ -205,7 +212,9 @@ export function buildNewPresetRow(input: PresetCreateInput): PresetInsert {
 // absent: it is derived from the name server-side and immutable (ADR 0033).
 const presetCreateValidator = v.object({
     name: v.optional(v.string()),
-    format: v.optional(v.string()),
+    // Typed Format chosen by the Admin at creation (ADR 0036). Optional in the
+    // payload; `buildNewPresetRow` defaults a missing value to `"freeform"`.
+    format: v.optional(formatValidator),
     colors: v.optional(v.array(v.string())),
     cards: v.optional(v.array(deckCardValidator)),
     sideboard: v.optional(v.array(deckCardValidator)),
@@ -293,19 +302,21 @@ export const deletePreset = mutation({
     },
 });
 
-// Idempotent migration: insert each preset whose slug is not already present,
-// skip the rest. Never overwrites — safe to re-run. Run once via the Convex
-// dashboard / `mcp run` after this slice deploys to populate the table.
-export const seedPresets = internalMutation({
+// Preset wipe (PRD #509, ADR 0036). With typed Formats, the legacy preset rows
+// (all `format: "Freeform"`) are deleted rather than migrated — an Admin
+// recreates them with proper typed Formats out of band. The in-code seed is
+// emptied too (`presetsToSeed` over an empty list never inserts), so a stray
+// `seedPresets`-style call can't bring the old presets back. Idempotent: a
+// second run finds an empty table and deletes nothing. Run once via the Convex
+// dashboard / `mcp run` after this slice deploys.
+export const wipePresets = internalMutation({
     args: {},
-    returns: v.object({ inserted: v.number(), skipped: v.number() }),
+    returns: v.object({ deleted: v.number() }),
     handler: async (ctx) => {
-        const existing = await ctx.db.query("presetDecks").collect();
-        const existingSlugs = new Set(existing.map((r) => r.slug));
-        const toInsert = presetsToSeed(PRESET_DECKS, existingSlugs);
-        for (const row of toInsert) {
-            await ctx.db.insert("presetDecks", row);
+        const rows = await ctx.db.query("presetDecks").collect();
+        for (const row of rows) {
+            await ctx.db.delete(row._id);
         }
-        return { inserted: toInsert.length, skipped: existingSlugs.size };
+        return { deleted: rows.length };
     },
 });

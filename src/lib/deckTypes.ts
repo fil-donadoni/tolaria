@@ -1,10 +1,11 @@
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import type { DeckCard, DeckPreset } from "@convex/deckPresets";
+import type { FormatId } from "@convex/formats";
 
 export interface LobbyDeckBase {
     presetId: string;
     name: string;
-    format: string;
+    format: FormatId;
     description?: string;
     colors: string[];
     // Maindeck — the cards that build the starting Library.
@@ -71,7 +72,7 @@ export function selectPreset(
 export function deckPayload(d: LobbyDeck): {
     id: string;
     name: string;
-    format: string;
+    format: FormatId;
     cards: DeckCard[];
     sideboard: DeckCard[];
 } {

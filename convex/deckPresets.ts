@@ -1,3 +1,5 @@
+import type { FormatId } from "./formats";
+
 export interface DeckCard {
     cardId: string;
     cardName: string;
@@ -6,7 +8,7 @@ export interface DeckCard {
 export interface DeckPreset {
     presetId: string;
     name: string;
-    format: string;
+    format: FormatId;
     description: string;
     colors: string[];
     cards: DeckCard[];
@@ -25,7 +27,7 @@ function times(n: number, cardId: string, cardName: string): DeckCard[] {
 const whiteWeenie: DeckPreset = {
     presetId: "white-weenie",
     name: "White Weenie",
-    format: "Freeform",
+    format: "freeform",
     description: "Small creatures backed by removal.",
     colors: ["W"],
     cards: [
@@ -48,7 +50,7 @@ const whiteWeenie: DeckPreset = {
 const monoRedBurn: DeckPreset = {
     presetId: "mono-red-burn",
     name: "Mono Red Burn",
-    format: "Freeform",
+    format: "freeform",
     description: "Fast creatures and direct damage.",
     colors: ["R"],
     cards: [
@@ -75,7 +77,7 @@ const monoRedBurn: DeckPreset = {
 const channelFireball: DeckPreset = {
     presetId: "channel-fireball",
     name: "RG Channel Fireball",
-    format: "Freeform",
+    format: "freeform",
     description: "Cast big X Spells.",
     colors: ["R", "G"],
     cards: [
@@ -100,7 +102,7 @@ const channelFireball: DeckPreset = {
 const monoGreenStompy: DeckPreset = {
     presetId: "mono-green-stompy",
     name: "Mono Green Stompy",
-    format: "Freeform",
+    format: "freeform",
     description: "Mana ramp into big creatures.",
     colors: ["G"],
     cards: [
@@ -128,7 +130,7 @@ const monoGreenStompy: DeckPreset = {
 const leDeck: DeckPreset = {
     presetId: "le-deck",
     name: "LE Deck",
-    format: "Freeform",
+    format: "freeform",
     description: "UW control with Jade Statue finishers and artifact theft.",
     colors: ["W", "U"],
     cards: [
@@ -158,7 +160,7 @@ const leDeck: DeckPreset = {
 const gueddon: DeckPreset = {
     presetId: "gueddon",
     name: "Gueddon",
-    format: "Freeform",
+    format: "freeform",
     description: "GW aggro with mana dorks, Juggernauts and Armageddon lock.",
     colors: ["G", "W"],
     cards: [
@@ -187,7 +189,7 @@ const gueddon: DeckPreset = {
 const monoBlack: DeckPreset = {
     presetId: "mono-black",
     name: "Mono Black",
-    format: "Freeform",
+    format: "freeform",
     description: "Disruption, direct drain, and evasive black creatures.",
     colors: ["B"],
     cards: [
@@ -213,7 +215,7 @@ const monoBlack: DeckPreset = {
 const robots: DeckPreset = {
     presetId: "robots",
     name: "Robots",
-    format: "Freeform",
+    format: "freeform",
     description:
         "Artifact aggro: fast Moxen into Su-Chi, Triskelion and big bombs.",
     colors: ["U", "B", "R"],
@@ -282,7 +284,7 @@ const robots: DeckPreset = {
 const erhnamgeddon: DeckPreset = {
     presetId: "erhnamgeddon",
     name: "Erhnamgeddon",
-    format: "Freeform",
+    format: "freeform",
     description:
         "GWU aggro-control: efficient beaters, then Armageddon under a board lead.",
     colors: ["G", "W", "U"],
