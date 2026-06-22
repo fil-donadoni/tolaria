@@ -1806,6 +1806,12 @@ function tickAllDurations(state: GameState): void {
             if (!card.temporaryPTSet?.length) continue;
             const kept: typeof card.temporaryPTSet = [];
             for (const entry of card.temporaryPTSet) {
+                // Indefinite set (CR 613.4b — Wall of Tombstones): no duration,
+                // never ticked out at a phase boundary. Kept as-is.
+                if (entry.duration === undefined) {
+                    kept.push(entry);
+                    continue;
+                }
                 const next = tickDuration(entry.duration, view);
                 if (next !== null) kept.push({ ...entry, duration: next });
             }

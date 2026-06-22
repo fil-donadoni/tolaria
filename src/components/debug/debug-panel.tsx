@@ -146,6 +146,55 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // #487 Dynamic base-P/T set (layer 7b) with a stated duration
+        // (CR 613.4b / 611.2 / 500.2). Two upkeep triggers that SET base P/T to
+        // a value computed and LOCKED at resolution:
+        //   • Wall of Tombstones ({1}{B} 0/1 Defender) — "change this creature's
+        //     base toughness to 1 plus the number of creature cards in your
+        //     graveyard" (indefinite). With three creature cards in your
+        //     graveyard the set is 1 + 3 = 4 toughness.
+        //   • Halfdane ({1}{W}{U}{B} 3/3 Legendary) — "change Halfdane's base
+        //     power and toughness to the power and toughness of target creature
+        //     other than Halfdane until your next upkeep."
+        //
+        // Board: you control the Wall + Halfdane, with three creature cards
+        // (Headless Horseman, Hill Giant, Grizzly Bears) already in your
+        // graveyard. The opponent has a Hill Giant (3/3) to copy. Started in
+        // your UPKEEP so both triggers are waiting on the stack.
+        // Golden path:
+        //   1. Resolve Wall of Tombstones' trigger → its base toughness becomes
+        //      4 (1 + 3). The set is indefinite (survives later upkeeps).
+        //   2. Resolve Halfdane's trigger → choose the opponent's Hill Giant →
+        //      Halfdane becomes 3/3 (already 3/3, pick the smaller bear instead
+        //      to see it shrink to 2/2). Pass to your NEXT upkeep → it reverts.
+        // Edge: drop a +1/+1 counter on either after the set — it stacks on top
+        // (layer 7c over 7b).
+        label: "LEG: Wall of Tombstones + Halfdane — dynamic base P/T (#487)",
+        cards: [
+            { name: "Wall of Tombstones", owner: "me" as const },
+            { name: "Halfdane", owner: "me" as const },
+            {
+                name: "Headless Horseman",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Hill Giant",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            { name: "Hill Giant", owner: "opp" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "UPKEEP",
+        landCount: 0,
+    },
+    {
         // D'Avenant Archer — "{T}: deals 1 damage to target attacking or
         // blocking creature." (CR 508.1 / 509.1 combat-role target.) You control
         // the Archer (untapped, no summoning sickness). Golden path:

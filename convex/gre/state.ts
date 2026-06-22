@@ -338,16 +338,19 @@ export type CardInstanceState = {
         toughness: number;
         duration: Duration;
     }[];
-    /** Layer 7b set-P/T effects scoped to a phase boundary (CR 613.4b, ADR
-     *  0017). Each entry SETS power and/or toughness to a fixed value
-     *  (independently optional). The latest entry per characteristic wins at
-     *  read time (array order = timestamp, CR 613.7). Spliced out by
-     *  `tickAllDurations` when `duration` expires, exactly like
-     *  `temporaryPTMods`. Pushed by `setBasePT`. */
+    /** Layer 7b set-P/T effects (CR 613.4b, ADR 0017). Each entry SETS power
+     *  and/or toughness to a fixed value (independently optional). The latest
+     *  entry per characteristic wins at read time (array order = timestamp,
+     *  CR 613.7). A phase-scoped `duration` is spliced out by `tickAllDurations`
+     *  when it expires, exactly like `temporaryPTMods` (Singing Tree, Halfdane
+     *  "until your next upkeep"). When `duration` is undefined the set is
+     *  INDEFINITE — it lasts until the source leaves or another set overrides
+     *  it (CR 613.4b; Wall of Tombstones "change ... base toughness ...
+     *  indefinitely"). Pushed by `setBasePT`. */
     temporaryPTSet?: {
         power?: number;
         toughness?: number;
-        duration: Duration;
+        duration?: Duration;
     }[];
     /** Conditional P/T modifications held "for as long as [the source] remains
      *  tapped" (CR 611.2 — duration tied to a continuously re-evaluated game
@@ -4474,19 +4477,30 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             target: TargetSelection,
             power: number | undefined,
             toughness: number | undefined,
-            duration: DurationSpec
+            duration: DurationSpec | "indefinite"
         ): void {
             if (target.type !== "permanent") return;
             if (power === undefined && toughness === undefined) return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             // CR 613.4b / 613.7 — append; the latest entry per characteristic
-            // wins at read time. Purged with temporaryPTMods at the boundary.
+            // wins at read time. A phase-scoped set is purged with
+            // temporaryPTMods at the boundary; "indefinite" (Wall of
+            // Tombstones) carries no duration and is never ticked out.
             const entry: {
                 power?: number;
                 toughness?: number;
-                duration: Duration;
-            } = { duration: resolveDuration(duration, item.castById, state) };
+                duration?: Duration;
+            } =
+                duration === "indefinite"
+                    ? {}
+                    : {
+                          duration: resolveDuration(
+                              duration,
+                              item.castById,
+                              state
+                          ),
+                      };
             if (power !== undefined) entry.power = power;
             if (toughness !== undefined) entry.toughness = toughness;
             found.card.temporaryPTSet = [

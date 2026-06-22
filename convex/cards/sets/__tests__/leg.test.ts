@@ -225,6 +225,8 @@ import {
     whiteManaBattery,
     enchantedBeing,
     wallOfVapor,
+    wallOfTombstones,
+    halfdane,
 } from "../leg";
 import { tapSourceIntoPayment } from "../../../game";
 import { getEffectiveManaChoices } from "../../../gre/constants";
@@ -7848,5 +7850,253 @@ describe("Wall of Vapor (prevent combat damage from creatures it's blocking, CR 
                 pAtk as never
             )
         ).toBe(true);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dynamic base-P/T set (layer 7b) with a stated duration (#487, CR 613.4b)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function upkeepEvent487(activePlayerId: string): StackItem["triggerEvent"] {
+    return { type: "PHASE_BEGIN", phase: "UPKEEP", activePlayerId };
+}
+
+describe("Wall of Tombstones (upkeep: base toughness = 1 + GY creatures, indefinite, CR 613.4b)", () => {
+    it("is a {1}{B} 0/1 Wall with Defender and an upkeep trigger", () => {
+        expect(wallOfTombstones.manaCost).toEqual({ X: 1, B: 1 });
+        expect(wallOfTombstones.power).toBe(0);
+        expect(wallOfTombstones.toughness).toBe(1);
+        expect(wallOfTombstones.subtypes).toContain("Wall");
+        expect(wallOfTombstones.staticAbilities).toContain("defender");
+        expect(wallOfTombstones.triggeredAbilities?.[0]?.event).toBe(
+            "PHASE_BEGIN"
+        );
+    });
+
+    function setup(graveyardCreatureCount: number) {
+        const wall = makeInstance(wallOfTombstones.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Mix of creature cards (counted) + a noncreature card (Lightning Bolt,
+        // NOT counted) — the set value reads creature cards only.
+        const graveyard: CardInstanceState[] = [];
+        for (let i = 0; i < graveyardCreatureCount; i++) {
+            graveyard.push(
+                makeInstance(grizzlyBears.id, {
+                    id: `gy-cre-${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "graveyard",
+                })
+            );
+        }
+        graveyard.push(
+            makeInstance(lightningBolt.id, {
+                id: "gy-bolt",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+            })
+        );
+        const state = makeState({
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [wall], graveyard }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, wall };
+    }
+
+    it("sets base toughness to 1 + creature cards in graveyard (noncreature cards excluded)", () => {
+        const { state, wall } = setup(3); // 3 creatures + 1 bolt in GY
+        resolveTrigger(
+            state,
+            wall,
+            "wall-of-tombstones-set-toughness",
+            upkeepEvent487("p1")
+        );
+        // 1 + 3 = 4; power untouched (still 0).
+        expect(getEffectiveToughness(state, wall)).toBe(4);
+        expect(getEffectivePower(state, wall)).toBe(0);
+    });
+
+    it("locks the value at resolution — later graveyard changes don't retro-recompute (CR 611.2)", () => {
+        const { state, wall } = setup(2); // 1 + 2 = 3
+        resolveTrigger(
+            state,
+            wall,
+            "wall-of-tombstones-set-toughness",
+            upkeepEvent487("p1")
+        );
+        expect(getEffectiveToughness(state, wall)).toBe(3);
+        // Empty the graveyard AFTER resolution — the locked set is unaffected.
+        state.players[0].graveyard = [];
+        expect(getEffectiveToughness(state, wall)).toBe(3);
+    });
+
+    it("is indefinite — survives the next upkeep boundary (no duration to tick out)", () => {
+        const { state, wall } = setup(2); // 1 + 2 = 3
+        resolveTrigger(
+            state,
+            wall,
+            "wall-of-tombstones-set-toughness",
+            upkeepEvent487("p1")
+        );
+        expect(getEffectiveToughness(state, wall)).toBe(3);
+        // Advance to p1's NEXT upkeep — an indefinite set must NOT be purged.
+        for (let i = 0; i < 40; i++) {
+            advancePhase(state);
+            if (state.phase === "UPKEEP" && state.activePlayerId === "p1") {
+                break;
+            }
+        }
+        // The wall's stored set persists (still 3) before its trigger re-fires.
+        expect(wall.temporaryPTSet?.length).toBe(1);
+        expect(getEffectiveToughness(state, wall)).toBe(3);
+    });
+
+    it("a +1/+1 counter (layer 7c) stacks on top of the 7b set (CR 613.4)", () => {
+        const { state, wall } = setup(2); // set toughness to 3 (1 + 2)
+        resolveTrigger(
+            state,
+            wall,
+            "wall-of-tombstones-set-toughness",
+            upkeepEvent487("p1")
+        );
+        expect(getEffectiveToughness(state, wall)).toBe(3);
+        // Add a +1/+1 counter — it applies AFTER the 7b set: 3 + 1 = 4.
+        wall.counters = { "+1/+1": 1 };
+        expect(getEffectiveToughness(state, wall)).toBe(4);
+        expect(getEffectivePower(state, wall)).toBe(1); // 0 + 1 counter
+    });
+
+    it("wire format: the dynamic base toughness survives projectPublicState", () => {
+        const { state } = setup(3); // 1 + 3 = 4
+        const wall = state.players[0].battlefield.find((c) => c.id === "wall")!;
+        resolveTrigger(
+            state,
+            wall,
+            "wall-of-tombstones-set-toughness",
+            upkeepEvent487("p1")
+        );
+        expect(getEffectiveToughness(state, wall)).toBe(4);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "wall"
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+        expect(getEffectivePower(projected, slim)).toBe(0);
+    });
+});
+
+describe("Halfdane (upkeep: copy target creature's P/T until next upkeep, CR 613.4b / 500.2)", () => {
+    it("is a {1}{W}{U}{B} 3/3 Legendary Shapeshifter with an upkeep trigger", () => {
+        expect(halfdane.manaCost).toEqual({ X: 1, W: 1, U: 1, B: 1 });
+        expect(halfdane.power).toBe(3);
+        expect(halfdane.toughness).toBe(3);
+        expect(halfdane.supertypes).toContain("Legendary");
+        expect(halfdane.subtypes).toContain("Shapeshifter");
+        expect(halfdane.triggeredAbilities?.[0]?.event).toBe("PHASE_BEGIN");
+    });
+
+    function setup() {
+        const hd = makeInstance(halfdane.id, {
+            id: "hd",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Target: a 2/2 Grizzly Bears the opponent controls.
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [hd] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        return { state, hd };
+    }
+
+    it("offers every creature other than Halfdane, then copies the chosen creature's P/T", () => {
+        const { state, hd } = setup();
+        resolveTrigger(state, hd, "halfdane-copy-pt", upkeepEvent487("p1"));
+        const head = state.pendingChoices?.[0];
+        // CR 603.3d — the choice spans every battlefield (allControllers) and
+        // the filter excludes Halfdane itself ("a creature other than ~").
+        expect(head?.allControllers).toBe(true);
+        expect(head?.filter?.types).toBe("Creature");
+        expect(head?.filter?.excludeInstanceIds).toEqual(["hd"]);
+        answerChoice(state, ["bear"]);
+        // Halfdane becomes 2/2 (the bear's P/T).
+        expect(getEffectivePower(state, hd)).toBe(2);
+        expect(getEffectiveToughness(state, hd)).toBe(2);
+    });
+
+    it("reverts to printed 3/3 at the controller's next upkeep (CR 500.2)", () => {
+        const { state, hd } = setup();
+        resolveTrigger(state, hd, "halfdane-copy-pt", upkeepEvent487("p1"));
+        answerChoice(state, ["bear"]);
+        expect(getEffectivePower(state, hd)).toBe(2);
+        // Run to p1's NEXT upkeep — the "until your next upkeep" set expires as
+        // the boundary is crossed, before the trigger would re-fire.
+        for (let i = 0; i < 40; i++) {
+            advancePhase(state);
+            if (state.phase === "UPKEEP" && state.activePlayerId === "p1") {
+                break;
+            }
+        }
+        expect(state.phase).toBe("UPKEEP");
+        expect(hd.temporaryPTSet).toBeUndefined();
+        expect(getEffectivePower(state, hd)).toBe(3);
+        expect(getEffectiveToughness(state, hd)).toBe(3);
+    });
+
+    it("does NOT revert at the opponent's upkeep (player-scoped duration)", () => {
+        const { state, hd } = setup();
+        resolveTrigger(state, hd, "halfdane-copy-pt", upkeepEvent487("p1"));
+        answerChoice(state, ["bear"]);
+        for (let i = 0; i < 40; i++) {
+            advancePhase(state);
+            if (state.phase === "UPKEEP" && state.activePlayerId === "p2") {
+                break;
+            }
+        }
+        expect(state.activePlayerId).toBe("p2");
+        // p1's set survives p2's upkeep.
+        expect(getEffectivePower(state, hd)).toBe(2);
+        expect(getEffectiveToughness(state, hd)).toBe(2);
+    });
+
+    it("a +1/+1 counter (7c) stacks on the copied 7b base P/T (CR 613.4)", () => {
+        const { state, hd } = setup();
+        resolveTrigger(state, hd, "halfdane-copy-pt", upkeepEvent487("p1"));
+        answerChoice(state, ["bear"]);
+        expect(getEffectivePower(state, hd)).toBe(2);
+        hd.counters = { "+1/+1": 1 };
+        // Set base 2/2 (7b) + counter (7c) = 3/3.
+        expect(getEffectivePower(state, hd)).toBe(3);
+        expect(getEffectiveToughness(state, hd)).toBe(3);
+    });
+
+    it("wire format: the copied base P/T survives projectPublicState", () => {
+        const { state, hd } = setup();
+        resolveTrigger(state, hd, "halfdane-copy-pt", upkeepEvent487("p1"));
+        answerChoice(state, ["bear"]);
+        expect(getEffectivePower(state, hd)).toBe(2);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "hd"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(2);
     });
 });
