@@ -34,6 +34,7 @@ import { damageTakenTrigger } from "../abilities/triggers/damageTakenTrigger";
 import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
+import { combatPairKill } from "../abilities/triggers/combatPairKillTrigger";
 import { untapRestriction } from "../abilities/static/untapRestriction";
 import { tokenPrintIdFor } from "../tokenPrintLookup";
 
@@ -5282,55 +5283,33 @@ export const channel: CardDefinition = {
 // "Whenever this creature blocks or becomes blocked by a non-Wall creature,
 // destroy that creature at end of combat." (CR 509.1h, CR 511.3)
 
-function combatKillTrigger(
+// Built from the shared `combatPairKill` primitive (becomes-blocked → deferred
+// end-of-combat destroy). The non-Wall gate is the only card-specific input;
+// `combatant: "self"` because the trigger source IS the combatant.
+function combatKillPair(
     cardId: string,
     abilityId: string
-): TriggeredAbility {
-    const destroyTriggerId = `${abilityId}-destroy`;
-    return {
-        id: abilityId,
+): { trigger: TriggeredAbility; delayed: DelayedTriggerDef } {
+    return combatPairKill({
+        cardId,
+        triggerId: abilityId,
+        delayedTriggerId: `${abilityId}-destroy`,
         oracleText:
             "Whenever this creature blocks or becomes blocked by a non-Wall creature, destroy that creature at end of combat.",
-        event: "BLOCKERS_CONFIRMED",
-        matches: (event, self) => {
-            if (event.type !== "BLOCKERS_CONFIRMED") return false;
-            const isSelfAttacker = event.attackerId === self.id;
-            const isSelfBlocker = event.blockerId === self.id;
-            if (!isSelfAttacker && !isSelfBlocker) return false;
-            const opponentSubtypes = isSelfAttacker
-                ? event.blockerSubtypes
-                : event.attackerSubtypes;
-            return !opponentSubtypes.includes("Wall");
-        },
-        resolve: (ctx, event) => {
-            if (event.type !== "BLOCKERS_CONFIRMED") return;
-            const isSelfAttacker = event.attackerId === ctx.sourceInstanceId;
-            const opponentId = isSelfAttacker
-                ? event.blockerId
-                : event.attackerId;
-            ctx.scheduleDelayedTrigger(
-                cardId,
-                destroyTriggerId,
-                "next-end-of-combat",
-                {
-                    targetId: opponentId,
-                }
-            );
-        },
-    };
+        delayedOracleText: "Destroy that creature at end of combat.",
+        combatant: "self",
+        opponentFilter: (opponent) => !opponent.subtypes.includes("Wall"),
+    });
 }
 
-function combatKillDelayed(triggerId: string): DelayedTriggerDef {
-    return {
-        id: triggerId,
-        oracleText: "Destroy that creature at end of combat.",
-        timing: "next-end-of-combat",
-        resolve: (ctx, payload) => {
-            if (!payload.targetId) return;
-            ctx.destroy({ type: "permanent", id: payload.targetId });
-        },
-    };
-}
+const cockatriceCombatKill = combatKillPair(
+    "9cd91814-6177-4a3d-a1c1-a3be7d7c7957",
+    "cockatrice-combat-kill"
+);
+const thicketBasiliskCombatKill = combatKillPair(
+    "e92cce01-b3bd-4307-aae5-9a7c8fa386ab",
+    "basilisk-combat-kill"
+);
 
 // Cockatrice — {3}{G}{G} 2/4, flying. "Whenever this creature blocks or
 // becomes blocked by a non-Wall creature, destroy that creature at end of
@@ -5347,10 +5326,8 @@ export const cockatrice: CardDefinition = {
     power: 2,
     toughness: 4,
     staticAbilities: ["flying"],
-    triggeredAbilities: [
-        combatKillTrigger(COCKATRICE_ID, "cockatrice-combat-kill"),
-    ],
-    delayedTriggers: [combatKillDelayed("cockatrice-combat-kill-destroy")],
+    triggeredAbilities: [cockatriceCombatKill.trigger],
+    delayedTriggers: [cockatriceCombatKill.delayed],
 };
 
 export const crawWurm: CardDefinition = {
@@ -6067,10 +6044,8 @@ export const thicketBasilisk: CardDefinition = {
     subtypes: ["Basilisk"],
     power: 2,
     toughness: 4,
-    triggeredAbilities: [
-        combatKillTrigger(THICKET_BASILISK_ID, "basilisk-combat-kill"),
-    ],
-    delayedTriggers: [combatKillDelayed("basilisk-combat-kill-destroy")],
+    triggeredAbilities: [thicketBasiliskCombatKill.trigger],
+    delayedTriggers: [thicketBasiliskCombatKill.delayed],
 };
 
 // Timber Wolves — vanilla 1/1 Wolf with banding (CR 702.21).

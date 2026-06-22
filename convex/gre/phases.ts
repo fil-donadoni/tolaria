@@ -1198,10 +1198,15 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
                 attackerControllerId: attacker.controllerId,
                 attackerTypes: attacker.types,
                 attackerSubtypes: attacker.subtypes,
+                // CR 613 effective toughness, so toughness-gated combat-pairing
+                // triggers (Infinite Authority, Infernal Medusa) read the live
+                // value including counters / continuous effects.
+                attackerToughness: getEffectiveToughness(state, attacker),
                 blockerId: blocker.id,
                 blockerControllerId: blocker.controllerId,
                 blockerTypes: blocker.types,
                 blockerSubtypes: blocker.subtypes,
+                blockerToughness: getEffectiveToughness(state, blocker),
             });
         }
     }
