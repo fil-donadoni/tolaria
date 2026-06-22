@@ -4643,10 +4643,19 @@ export const activateAbility = mutation({
         const resolved = resolveActivatedAbility(card, args.abilityId);
         if (!resolved) throw new Error("Ability not found");
         const ability = resolved.ability;
-        // CR 602.1 — enforce the controller-only default unless the ability is
-        // explicitly "any player may activate". `card.controllerId` is the
-        // source's controller; only that player may activate otherwise.
-        if (
+        // CR 602.1 — "only your opponents may activate this ability" (Clergy of
+        // the Holy Nimbus): the source's controller may NOT activate it; any
+        // other player may. Checked before the controller-only default below.
+        if (ability.activatableByOpponentsOnly) {
+            if (card.controllerId === args.playerId) {
+                throw new Error(
+                    "Only your opponents may activate this ability"
+                );
+            }
+        } else if (
+            // CR 602.1 — enforce the controller-only default unless the ability
+            // is explicitly "any player may activate". `card.controllerId` is
+            // the source's controller; only that player may activate otherwise.
             !ability.activatableByAnyPlayer &&
             card.controllerId !== args.playerId
         ) {

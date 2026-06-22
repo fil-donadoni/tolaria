@@ -1609,6 +1609,11 @@ export function finalizeCleanup(state: GameState): void {
             if (card.exileOnDeath !== undefined) {
                 card.exileOnDeath = undefined;
             }
+            // CR 701.15c — "can't be regenerated this turn" wears off here
+            // (Clergy of the Holy Nimbus's {1} ability).
+            if (card.cantBeRegeneratedThisTurn !== undefined) {
+                card.cantBeRegeneratedThisTurn = undefined;
+            }
             // CR 508.1d — forced-attack flag is turn-scoped.
             if (card.mustAttackThisTurn !== undefined) {
                 card.mustAttackThisTurn = undefined;

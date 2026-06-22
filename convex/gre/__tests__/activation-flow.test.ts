@@ -8,6 +8,7 @@ import {
     payManaCost,
     commitLandsForCost,
     removePermanentTo,
+    destroyWithReplacements,
     resolveTopOfStack,
     canPayDiscardLastDrawn,
     payDiscardLastDrawn,
@@ -36,6 +37,7 @@ import {
     bazaarOfBaghdad,
 } from "../../cards/sets/arn";
 import type { CardType } from "../../cards/types";
+import { clergyOfTheHolyNimbus } from "../../cards/sets/leg";
 import { ashnodsBattleGear } from "../../cards/sets/atq";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { untapStep } from "../phases";
@@ -76,7 +78,17 @@ function activateAbility(
     if (!ability || !ability.useStack) {
         throw new Error("Not a stack ability");
     }
-    if (!ability.activatableByAnyPlayer && card.controllerId !== playerId) {
+    // CR 602.1 — "only your opponents may activate" (Clergy of the Holy
+    // Nimbus): the controller may NOT activate; any other player may. Checked
+    // before the controller-only default. Mirrors convex/game.ts.
+    if (ability.activatableByOpponentsOnly) {
+        if (card.controllerId === playerId) {
+            throw new Error("Only your opponents may activate this ability");
+        }
+    } else if (
+        !ability.activatableByAnyPlayer &&
+        card.controllerId !== playerId
+    ) {
         throw new Error("You do not control this permanent");
     }
     if (ability.cost.tap && card.isTapped) {
@@ -1151,5 +1163,74 @@ describe("activation flow — Tracker Fight ({G}{G},{T}: mutual damage)", () => 
         expect(state.players[1].graveyard.some((c) => c.id === "foe")).toBe(
             true
         );
+    });
+});
+
+describe("activation flow — Clergy of the Holy Nimbus ({1}, opponents-only, CR 602.1 / 614.5) — issue #491", () => {
+    const CANT_REGEN_ID = "clergy-cant-regen";
+
+    function setup() {
+        const clergy = makeInstance({
+            id: "clergy",
+            card: { id: clergyOfTheHolyNimbus.id },
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const plains = makeInstance({
+            id: "p2-plains",
+            card: { name: "Plains", types: ["Land"], subtypes: ["Plains"] },
+            types: ["Land"],
+            subtypes: ["Plains"],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeGame({
+            players: [
+                makePlayer({ id: "p1", battlefield: [clergy] }),
+                makePlayer({ id: "p2", battlefield: [plains] }),
+            ],
+        });
+        return { state };
+    }
+
+    it("the controller CANNOT activate the opponents-only {1} ability (CR 602.1)", () => {
+        const { state } = setup();
+        expect(() =>
+            activateAbility(state, "p1", "clergy", CANT_REGEN_ID)
+        ).toThrow(/Only your opponents/);
+    });
+
+    it("an opponent pays {1}, the ability resolves, and the next destroy is lethal (CR 701.15c)", () => {
+        const { state } = setup();
+        // Opponent (p2) activates the controller's Clergy — empty pool → pending.
+        expect(activateAbility(state, "p2", "clergy", CANT_REGEN_ID)).toBe(
+            "pending"
+        );
+        // Pay {1} from p2's own Plains → commits.
+        expect(tapForActivationPayment(state, "p2", "p2-plains")).toBe(
+            "committed"
+        );
+        expect(state.stack[0]?.castById).toBe("p2");
+        resolveTopOfStack(state);
+        const clergy = state.players[0].battlefield.find(
+            (c) => c.id === "clergy"
+        )!;
+        expect(clergy.cantBeRegeneratedThisTurn).toBe(true);
+        // Now a destroy is lethal — auto-regen is suppressed.
+        const destroyed = destroyWithReplacements(state, "clergy");
+        expect(destroyed).toBe(true);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "clergy")
+        ).toBe(false);
+    });
+
+    it("without the opponent's activation, auto-regen saves Clergy from destruction (CR 614.5)", () => {
+        const { state } = setup();
+        const destroyed = destroyWithReplacements(state, "clergy");
+        expect(destroyed).toBe(false);
+        const survivor = state.players[0].battlefield.find(
+            (c) => c.id === "clergy"
+        )!;
+        expect(survivor.isTapped).toBe(true);
     });
 });
