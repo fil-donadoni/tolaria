@@ -34,6 +34,8 @@ import {
 import type { Difficulty } from "@convex/gre";
 import { Panel } from "~/components/ui/panel";
 import GameDialog from "~/components/ui/game-dialog";
+import LoadingScreen from "~/components/ui/loading-screen";
+import LobbyFooter from "~/components/legal/lobby-footer";
 import ActionButton from "~/components/board/action-button";
 import DashboardTopBar from "./dashboard-top-bar";
 import DashboardPlayBox from "./dashboard-play-box";
@@ -318,11 +320,7 @@ function Lobby() {
         userDecks === undefined ||
         user === undefined
     ) {
-        return (
-            <div className="flex h-dvh items-center justify-center text-text">
-                Loading...
-            </div>
-        );
+        return <LoadingScreen />;
     }
 
     const renderUserActions = (deck: LobbyDeck) => (
@@ -475,6 +473,8 @@ function Lobby() {
                         </div>
                     </Panel>
                 </div>
+
+                <LobbyFooter />
             </div>
 
             <GameDialog

@@ -6,6 +6,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import Board from "~/components/board/board";
 import DebugPanel from "~/components/debug/debug-panel";
 import AiDecisionTraceBox from "~/components/debug/ai-decision-trace-box";
+import LoadingScreen from "~/components/ui/loading-screen";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { clearSession, getStoredSession } from "~/lib/session";
 
@@ -97,9 +98,5 @@ export default function GameRoute() {
         );
     }
 
-    return (
-        <div className="flex h-dvh items-center justify-center text-white">
-            Loading...
-        </div>
-    );
+    return <LoadingScreen />;
 }
