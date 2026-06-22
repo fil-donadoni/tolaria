@@ -6,7 +6,7 @@ import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { isCreature, isLand } from "~/lib/card-utils";
 import { bandedRowsLayout, RIGHT_GUTTER } from "~/lib/board-layout";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
-import BoardNextBattlefieldCard from "./board-next-battlefield-card";
+import BoardBattlefieldCard from "./board-battlefield-card";
 import CombatPanels from "./combat-panels";
 
 /** Two battlefield rows: creatures hold the combat line in FRONT (toward the
@@ -22,7 +22,7 @@ const CREATURES_CENTER_Y_FRAC = 0.28;
 const BACK_CENTER_Y_FRAC = 0.74;
 type BandKey = "creatures" | "back";
 
-type BoardNextBattlefieldProps = {
+type BoardBattlefieldProps = {
     player: Player;
     /** Mirror the opponent's side to the top half. */
     mirror?: boolean;
@@ -48,12 +48,12 @@ function backRowRank(card: CardInstance): number {
  *  it calls the shared {@link useBattlefieldInteraction} hook ONCE (which itself
  *  composes {@link useBattlefieldVisualState}, #256) and hands each permanent
  *  its {@link CardVisualState} (combat rings, tap, marked damage, legal-target
- *  highlight) plus its click handler to {@link BoardNextBattlefieldCard}. The
+ *  highlight) plus its click handler to {@link BoardBattlefieldCard}. The
  *  click handler dispatches the SAME mutations as the classic board for tap /
  *  in-payment tap / mana-choice pick (#272); the hook's `overlays` node (the
  *  mana-choice picker + validation toast) is mounted here so the spatial board
  *  surfaces them. Isolating the hook in this component (rather than inside
- *  `board-next.tsx`'s item builder) keeps the rules-of-hooks contract clean —
+ *  `board.tsx`'s item builder) keeps the rules-of-hooks contract clean —
  *  the hook runs unconditionally per mounted battlefield.
  *
  *  Cards are split into the {@link BANDS} rows (creatures / others / lands) and
@@ -61,11 +61,11 @@ function backRowRank(card: CardInstance): number {
  *  {@link SpatialZone}; all bands live in the same `LayoutGroup` so a permanent
  *  that changes band (an animated land, a creature that loses its types) still
  *  FLIP-animates by `slotId` rather than teleporting. */
-export default function BoardNextBattlefield({
+export default function BoardBattlefield({
     player,
     mirror,
     "data-testid": testId,
-}: BoardNextBattlefieldProps) {
+}: BoardBattlefieldProps) {
     // Scan every battlefield for cross-controlled auras (CR 303.4). Falls back
     // to this player alone when the context has no roster (minimal test
     // contexts) so own-battlefield auras still resolve and nothing crashes.
@@ -119,7 +119,7 @@ export default function BoardNextBattlefield({
 
     function renderCard(card: CardInstance) {
         return (
-            <BoardNextBattlefieldCard
+            <BoardBattlefieldCard
                 card={card}
                 vs={getVisualState(card)}
                 onClick={(e) => handleClickWithEvent(card, e)}

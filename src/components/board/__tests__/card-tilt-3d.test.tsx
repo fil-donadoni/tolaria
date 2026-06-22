@@ -1,4 +1,4 @@
-// Slice #253 (PRD #249) — Arena-style hover interactions on BoardNext cards.
+// Slice #253 (PRD #249) — Arena-style hover interactions on Board cards.
 //
 // These tests assert the OBSERVABLE behavior of the imperative tilt+glare,
 // not pixels (jsdom does not render real 3D): pointermove writes a tilt

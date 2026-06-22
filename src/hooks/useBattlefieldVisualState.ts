@@ -25,7 +25,7 @@ import type { CardVisualState } from "~/components/board/battlefield-card";
  *  board: combat grouping rings, tap state, marked damage badges, and
  *  legal-target / legal-choice highlighting during selection.
  *
- *  The spatial battlefield (`board-next-battlefield-card.tsx`) consumes the
+ *  The spatial battlefield (`board-battlefield-card.tsx`) consumes the
  *  `getVisualState` produced here.
  *
  *  Reads ONLY projected (`PublicGameState` / `FullGameState`) fields exposed

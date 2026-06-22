@@ -11,7 +11,7 @@ import CounterBadges from "./counter-badges";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
 import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
 
-type BoardNextBattlefieldCardProps = {
+type BoardBattlefieldCardProps = {
     card: CardInstance;
     /** Board-coupled visual state computed by `useBattlefieldVisualState`
      *  (combat rings, tap, legal-target highlight, dim, badge). The SAME
@@ -21,7 +21,7 @@ type BoardNextBattlefieldCardProps = {
      *  (#272). The battlefield is click-only on the spatial board (no drag):
      *  clicking a mana source taps/untaps it (or routes cast/activation
      *  payment), and the event carries the pointer coords the mana-choice
-     *  picker anchors to. Wired by `BoardNextBattlefield`; omitted means inert
+     *  picker anchors to. Wired by `BoardBattlefield`; omitted means inert
      *  (e.g. opponent's permanents the viewer can't act on). The ability menu /
      *  targeting / combat branches live in the same handler and ship in the
      *  follow-up slices (#278/#279/#281). */
@@ -64,13 +64,13 @@ type BoardNextBattlefieldCardProps = {
  *  import — consistent with the CLAUDE.md wire-format rule. The battlefield is
  *  click-only on the spatial board (no drag): the click handler is wired by the
  *  parent in a later slice; this slice renders state only. */
-export default function BoardNextBattlefieldCard({
+export default function BoardBattlefieldCard({
     card,
     vs,
     onClick,
     activatableAbilities,
     onActivateAbility,
-}: BoardNextBattlefieldCardProps) {
+}: BoardBattlefieldCardProps) {
     const { allPlayers } = useGameContext();
     const creature = isCreature(card);
 

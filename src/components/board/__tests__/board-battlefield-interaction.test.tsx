@@ -1,5 +1,5 @@
 // Battlefield tap/pay parity (PRD #249, issue #272). The spatial board's
-// battlefield card (`BoardNextBattlefieldCard`, wired by `BoardNextBattlefield`)
+// battlefield card (`BoardBattlefieldCard`, wired by `BoardBattlefield`)
 // and the classic board (`PlayerBattlefield`) BOTH consume the extracted
 // `useBattlefieldInteraction` hook, so a click on a mana source must dispatch
 // the SAME GRE-boundary mutation with the SAME args on either board.
@@ -116,7 +116,7 @@ vi.mock("../spatial-zone", () => ({
         </div>
     ),
 }));
-import BoardNextBattlefield from "../board-next-battlefield";
+import BoardBattlefield from "../board-battlefield";
 
 function land(id: string): CardInstance {
     return {
@@ -185,7 +185,7 @@ function renderSpatial(
 ) {
     return render(
         <GameContext value={makeContext(me, ctx)}>
-            <BoardNextBattlefield player={me} />
+            <BoardBattlefield player={me} />
         </GameContext>
     );
 }
@@ -199,7 +199,7 @@ beforeEach(() => {
     cleanup();
 });
 
-describe("board-next battlefield tap/pay parity with the classic board (#272)", () => {
+describe("board battlefield tap/pay parity with the classic board (#272)", () => {
     it("(a) a plain tap dispatches the SAME tapUntap args on both boards", () => {
         const me = makePlayer([land("forest1")]);
 
@@ -279,7 +279,7 @@ describe("board-next battlefield tap/pay parity with the classic board (#272)", 
         fireEvent.click(
             container.querySelector('[data-arrow-anchor-permanent="forest1"]')!
         );
-        // The extracted hook's `overlays` (mounted by BoardNextBattlefield)
+        // The extracted hook's `overlays` (mounted by BoardBattlefield)
         // includes the ErrorToast; the rejected mutation surfaces its inner
         // message as the toast title.
         expect(await findByText("It's not your turn")).toBeTruthy();

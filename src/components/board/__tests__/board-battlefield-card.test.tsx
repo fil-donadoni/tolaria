@@ -31,7 +31,7 @@ vi.mock("../card-tilt-3d", () => ({
     ),
 }));
 
-import BoardNextBattlefieldCard from "../board-next-battlefield-card";
+import BoardBattlefieldCard from "../board-battlefield-card";
 
 // "Bird Maiden" (ARN) — a real 1/2 creature def so effectivePower/Toughness
 // resolve from the registry.
@@ -92,12 +92,12 @@ function renderCard(card: CardInstance, vs: CardVisualState) {
     } as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>
-            <BoardNextBattlefieldCard card={card} vs={vs} />
+            <BoardBattlefieldCard card={card} vs={vs} />
         </GameContext>
     );
 }
 
-describe("BoardNextBattlefieldCard visual state + anchors (#256)", () => {
+describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
     beforeEach(() => cleanup());
 
     it("emits the target-arrow anchor for the permanent", () => {
@@ -213,7 +213,7 @@ describe("BoardNextBattlefieldCard visual state + anchors (#256)", () => {
     });
 });
 
-describe("BoardNextBattlefieldCard click wiring (#272)", () => {
+describe("BoardBattlefieldCard click wiring (#272)", () => {
     beforeEach(() => cleanup());
 
     it("invokes onClick with the mouse event when the permanent is clicked", () => {
@@ -234,7 +234,7 @@ describe("BoardNextBattlefieldCard click wiring (#272)", () => {
         } as React.ContextType<typeof GameContext>;
         const { container } = render(
             <GameContext value={value}>
-                <BoardNextBattlefieldCard
+                <BoardBattlefieldCard
                     card={card}
                     vs={NEUTRAL_VS}
                     onClick={onClick}
@@ -273,7 +273,7 @@ describe("BoardNextBattlefieldCard click wiring (#272)", () => {
                     } as React.ContextType<typeof GameContext>
                 }
             >
-                <BoardNextBattlefieldCard
+                <BoardBattlefieldCard
                     card={card}
                     vs={enabledVs}
                     onClick={onClick}
@@ -308,7 +308,7 @@ describe("BoardNextBattlefieldCard click wiring (#272)", () => {
                     } as React.ContextType<typeof GameContext>
                 }
             >
-                <BoardNextBattlefieldCard
+                <BoardBattlefieldCard
                     card={card}
                     vs={blockedVs}
                     onClick={onClick}

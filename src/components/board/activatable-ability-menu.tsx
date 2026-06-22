@@ -11,7 +11,7 @@ import { formatOracleText } from "~/lib/oracle-text";
 import type { ActivatableAbility } from "./battlefield-card";
 
 /** Shared activated-ability affordance UI for both the classic
- *  ({@link BattlefieldCard}) and the spatial ({@link BoardNextBattlefieldCard})
+ *  ({@link BattlefieldCard}) and the spatial ({@link BoardBattlefieldCard})
  *  battlefield cards (PRD #249, slice #278).
  *
  *  Owns the desktop right-click context menu and the mobile touch action-sheet

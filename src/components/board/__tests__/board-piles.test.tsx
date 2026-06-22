@@ -1,5 +1,5 @@
 // Slice #255 (PRD #249): the card piles (graveyard / library / exile) render on
-// the spatial BoardNext for both seats, reusing the existing pile components so
+// the spatial Board for both seats, reusing the existing pile components so
 // their collapsed stack AND expanded reveal dialog come along unchanged. These
 // tests assert external behavior: which piles are present per seat, that they
 // carry their target-arrow anchors, and that clicking a non-empty pile opens
@@ -19,7 +19,7 @@ import {
     type PendingChoiceBuffer,
 } from "~/hooks/usePendingChoiceBuffer";
 import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
-import BoardNextPiles from "../board-next-piles";
+import BoardPiles from "../board-piles";
 
 const noopMinimized = {
     isMinimized: false,
@@ -98,7 +98,7 @@ function renderPiles(opponent: Player, me: Player) {
         <GameContext value={value}>
             <PendingChoiceBufferContext value={noopBuffer}>
                 <MinimizedChoiceContext value={noopMinimized}>
-                    <BoardNextPiles orderedPlayers={[opponent, me]} />
+                    <BoardPiles orderedPlayers={[opponent, me]} />
                 </MinimizedChoiceContext>
             </PendingChoiceBufferContext>
         </GameContext>
@@ -107,7 +107,7 @@ function renderPiles(opponent: Player, me: Player) {
 
 beforeEach(() => cleanup());
 
-describe("BoardNextPiles (slice #255)", () => {
+describe("BoardPiles (slice #255)", () => {
     it("renders graveyard, library and exile for both seats", () => {
         const me = makePlayer("me");
         const opp = makePlayer("opp");

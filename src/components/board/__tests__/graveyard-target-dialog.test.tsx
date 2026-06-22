@@ -1,5 +1,5 @@
 // Graveyard target dialog routing + cancel + disable-while-pending (#314).
-// Mirrors the board-next targeting-choice test's mutation-capture pattern.
+// Mirrors the board targeting-choice test's mutation-capture pattern.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import type { CardInstance, PendingTarget, Player } from "~/types/game";

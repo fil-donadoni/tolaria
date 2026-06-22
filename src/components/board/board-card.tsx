@@ -3,7 +3,7 @@ import CardImage from "../cards/card-image";
 import CardBack from "../cards/card-back";
 import CardTilt3D from "./card-tilt-3d";
 
-type BoardNextCardProps = {
+type BoardCardProps = {
     /** The card to show, or `null` for a hidden (opponent-hand) slot. */
     card: CardInstance | null;
     /** Opponent's side: the hidden back is flipped 180° so its "up" faces the
@@ -26,10 +26,7 @@ type BoardNextCardProps = {
  *    element — so a small or overlapped board card can still be read in full.
  *
  *  Clicks, mana taps, combat, and drag-to-cast are wired in later slices. */
-export default function BoardNextCard({
-    card,
-    mirror = false,
-}: BoardNextCardProps) {
+export default function BoardCard({ card, mirror = false }: BoardCardProps) {
     return (
         <CardTilt3D>
             <div className="w-full h-full rounded-sm overflow-hidden ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)]">

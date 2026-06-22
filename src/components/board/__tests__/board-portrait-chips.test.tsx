@@ -18,7 +18,7 @@ import {
     type PendingChoiceBuffer,
 } from "~/hooks/usePendingChoiceBuffer";
 import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
-import BoardNextPortraitChips from "../board-next-portrait-chips";
+import BoardPortraitChips from "../board-portrait-chips";
 
 const noopMinimized = {
     isMinimized: false,
@@ -106,7 +106,7 @@ function renderChips(
         <GameContext value={value}>
             <PendingChoiceBufferContext value={noopBuffer}>
                 <MinimizedChoiceContext value={noopMinimized}>
-                    <BoardNextPortraitChips
+                    <BoardPortraitChips
                         orderedPlayers={[opponent, me]}
                         stackItems={stackItems}
                     />
@@ -118,7 +118,7 @@ function renderChips(
 
 beforeEach(() => cleanup());
 
-describe("BoardNextPortraitChips (#336)", () => {
+describe("BoardPortraitChips (#336)", () => {
     it("renders a pile-chip row for each seat with zone labels + counts", () => {
         const me = makePlayer("me", {
             graveyard: [makeCard("g1", "graveyard")],

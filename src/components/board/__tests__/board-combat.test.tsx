@@ -1,7 +1,7 @@
 // Combat declaration parity on the spatial board (PRD #249, issue #281).
 //
-// The spatial battlefield card (`BoardNextBattlefieldCard`, wired by
-// `BoardNextBattlefield`) and the classic board (`PlayerBattlefield`) BOTH
+// The spatial battlefield card (`BoardBattlefieldCard`, wired by
+// `BoardBattlefield`) and the classic board (`PlayerBattlefield`) BOTH
 // consume the extracted `useBattlefieldInteraction` hook, so a combat click
 // must dispatch the SAME GRE-boundary mutation with the SAME args on either
 // board. This file asserts that parity for:
@@ -133,7 +133,7 @@ vi.mock("../damage-assignment-panel", () => ({
     default: () => <div data-testid="damage-panel" />,
 }));
 
-import BoardNextBattlefield from "../board-next-battlefield";
+import BoardBattlefield from "../board-battlefield";
 
 function creature(id: string, defId: string): CardInstance {
     return {
@@ -192,7 +192,7 @@ function renderSpatial(
 ) {
     return render(
         <GameContext value={makeContext(me, ctx)}>
-            <BoardNextBattlefield player={me} />
+            <BoardBattlefield player={me} />
         </GameContext>
     );
 }
@@ -214,7 +214,7 @@ const attackCombat = (attackerIds: string[] = []): Combat =>
         blockersConfirmed: false,
     }) as Combat;
 
-describe("board-next combat declaration parity with the classic board (#281)", () => {
+describe("board combat declaration parity with the classic board (#281)", () => {
     it("(a) attacker toggle dispatches the SAME toggleAttacker args on both boards", () => {
         const me = makePlayer("me", [creature("bear1", "plain-def")]);
         const ctx: Partial<React.ContextType<typeof GameContext>> = {
@@ -313,7 +313,7 @@ describe("board-next combat declaration parity with the classic board (#281)", (
 
         const spatial = render(
             <GameContext value={makeContext(me, ctx)}>
-                <BoardNextBattlefield player={opp} />
+                <BoardBattlefield player={opp} />
             </GameContext>
         );
         fireEvent.click(
@@ -360,7 +360,7 @@ describe("board-next combat declaration parity with the classic board (#281)", (
     });
 });
 
-describe("board-next mounts the combat panels at the right steps (#281)", () => {
+describe("board mounts the combat panels at the right steps (#281)", () => {
     it("mounts the band-formation panel during DECLARE_ATTACKERS for the active player", () => {
         const me = makePlayer("me", [creature("bear1", "plain-def")]);
         const { queryByTestId } = renderSpatial(me, {

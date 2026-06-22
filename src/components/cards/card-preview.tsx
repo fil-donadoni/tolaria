@@ -68,7 +68,7 @@ export default function CardPreview({
 
     // While hovered, a document-level pointer watcher closes the preview the
     // instant the pointer leaves the card's CURRENT (tilt-shifted) rect. This is
-    // the reliable close signal: a card under a live 3D tilt (board-next
+    // the reliable close signal: a card under a live 3D tilt (board
     // CardTilt3D) rewrites its transform on every move, so the element's own
     // mouseleave fires spuriously (pointer still inside the moved rect) AND, once
     // ignored, never fires again — leaving stale previews that overlap. Sampling

@@ -41,7 +41,7 @@ function nameplateShadow(
 }
 
 /** Presentational life total + nameplate shared by the classic life chrome
- *  (`player-life.tsx`) and the spatial board (`board-next-player.tsx`), slice
+ *  (`player-life.tsx`) and the spatial board (`board-player.tsx`), slice
  *  #280. Bracketed compact box (Panel corner-bracket motif): a large
  *  accent-strong life total over an uppercase, muted name. The seat-coloured
  *  priority ring and the targeting / damage-choice ring are box-shadows from
@@ -50,7 +50,7 @@ function nameplateShadow(
  *
  *  Carries `data-arrow-anchor-player` so a spell/ability that targets a player
  *  (e.g. Lightning Bolt to the face) can attach its arrow
- *  (`target-arrows-overlay.tsx` / `board-next-arrows.tsx`). */
+ *  (`target-arrows-overlay.tsx` / `board-arrows.tsx`). */
 export default function PlayerNameplate({
     player,
     interaction,

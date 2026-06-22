@@ -13,7 +13,7 @@ import {
  * Each zone / edge anchor publishes its items' centers in **board-root
  * coordinates** — derived from the shared layout placements that position the
  * cards (`board-layout.ts`), not from sampling the moving DOM. The arrow layer
- * (`board-next-arrows.tsx`) subscribes to the assembled {@link AnchorMap} and
+ * (`board-arrows.tsx`) subscribes to the assembled {@link AnchorMap} and
  * recomputes arrow geometry whenever any anchor moves, so arrows stay glued to
  * continuously-animating cards with no reflow.
  *

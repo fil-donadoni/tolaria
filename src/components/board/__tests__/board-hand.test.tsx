@@ -1,6 +1,6 @@
 // #271 fix 2 — the viewer's hand reorders (view-only) when a card is dragged
 // sideways, snapping it to the slot under the drop position. These tests drive
-// the real BoardNextHand: leaf cards are inert markers that expose their
+// the real BoardHand: leaf cards are inert markers that expose their
 // onDragMove callback, and slot rects are stubbed so reorderIndexForDragX has
 // real geometry to snap against. The order is asserted via the rendered slot
 // DOM order, and the resync-to-server behavior is checked on a hand change.
@@ -20,7 +20,7 @@ vi.mock("~/hooks/useElementSize", () => ({
 // Capture each interactive hand card's onDragMove so the test can fire a drag
 // reorder without a full pointer simulation. The marker carries its card id.
 const dragMoves = new Map<string, (x: number) => void>();
-vi.mock("../board-next-hand-card", () => ({
+vi.mock("../board-hand-card", () => ({
     default: ({
         card,
         onDragMove,
@@ -32,13 +32,13 @@ vi.mock("../board-next-hand-card", () => ({
         return <div data-testid="hand-card" data-card-id={card.id} />;
     },
 }));
-vi.mock("../board-next-card", () => ({
+vi.mock("../board-card", () => ({
     default: ({ card }: { card: CardInstance | null }) => (
         <div data-testid="bn-card" data-card-id={card ? card.id : "back"} />
     ),
 }));
 
-import BoardNextHand from "../board-next-hand";
+import BoardHand from "../board-hand";
 import { fanLayout } from "~/lib/board-layout";
 
 function handLayout(count: number, width: number, height: number) {
@@ -106,12 +106,10 @@ beforeEach(() => {
     cleanup();
 });
 
-describe("BoardNextHand drag-reorder (#271 fix 2)", () => {
+describe("BoardHand drag-reorder (#271 fix 2)", () => {
     it("snaps a dragged card to the slot under the drop position", () => {
         const player = makePlayer(["a", "b", "c", "d"]);
-        render(
-            <BoardNextHand player={player} interactive layout={handLayout} />
-        );
+        render(<BoardHand player={player} interactive layout={handLayout} />);
         expect(renderedOrder()).toEqual(["a", "b", "c", "d"]);
 
         // Slots at 100/200/300/400. Drag "a" to under slot 3 (x≈400).
@@ -126,7 +124,7 @@ describe("BoardNextHand drag-reorder (#271 fix 2)", () => {
     it("keeps the view-only order and appends a draw (no remount/reset)", () => {
         const player = makePlayer(["a", "b", "c"]);
         const { rerender } = render(
-            <BoardNextHand player={player} interactive layout={handLayout} />
+            <BoardHand player={player} interactive layout={handLayout} />
         );
         stubSlotRects(["a", "b", "c"]);
         act(() => dragMoves.get("a")!(300)); // reorder to a,b,c -> b,c,a
@@ -136,7 +134,7 @@ describe("BoardNextHand drag-reorder (#271 fix 2)", () => {
         // honoured for existing ids; the drawn card folds in at the end. The
         // existing slots are NOT remounted/reset (reconcile, not key-remount).
         rerender(
-            <BoardNextHand
+            <BoardHand
                 player={makePlayer(["a", "b", "c", "d"])}
                 interactive
                 layout={handLayout}
@@ -148,7 +146,7 @@ describe("BoardNextHand drag-reorder (#271 fix 2)", () => {
     it("drops a played/discarded card from the view order", () => {
         const player = makePlayer(["a", "b", "c"]);
         const { rerender } = render(
-            <BoardNextHand player={player} interactive layout={handLayout} />
+            <BoardHand player={player} interactive layout={handLayout} />
         );
         stubSlotRects(["a", "b", "c"]);
         act(() => dragMoves.get("a")!(300)); // a,b,c -> b,c,a
@@ -156,7 +154,7 @@ describe("BoardNextHand drag-reorder (#271 fix 2)", () => {
 
         // "c" leaves the hand (played): it drops out, the rest keep their order.
         rerender(
-            <BoardNextHand
+            <BoardHand
                 player={makePlayer(["a", "b"])}
                 interactive
                 layout={handLayout}
@@ -167,13 +165,13 @@ describe("BoardNextHand drag-reorder (#271 fix 2)", () => {
 
     it("does not wire reorder on a non-interactive (opponent) hand", () => {
         render(
-            <BoardNextHand
+            <BoardHand
                 player={makePlayer(["x", "y"])}
                 interactive={false}
                 layout={handLayout}
             />
         );
-        // Opponent cards render the presentational BoardNextCard, not the
+        // Opponent cards render the presentational BoardCard, not the
         // interactive hand card, so no drag-move callbacks are registered.
         expect(dragMoves.size).toBe(0);
         expect(screen.getAllByTestId("bn-card").length).toBe(2);

@@ -78,7 +78,7 @@ vi.mock("../../cards/mode-picker", async () => {
     };
 });
 
-import BoardNextHandCard from "../board-next-hand-card";
+import BoardHandCard from "../board-hand-card";
 
 function makeCard(
     id: string,
@@ -111,7 +111,7 @@ function renderCard(card: CardInstance) {
     return render(
         <GameContext value={value}>
             <PendingChoiceBufferContext value={noopBuffer}>
-                <BoardNextHandCard card={card} />
+                <BoardHandCard card={card} />
             </PendingChoiceBufferContext>
         </GameContext>
     );
@@ -145,7 +145,7 @@ beforeEach(() => {
     Element.prototype.releasePointerCapture = vi.fn();
 });
 
-describe("BoardNextHandCard drag-commit parity (seam 3, #254)", () => {
+describe("BoardHandCard drag-commit parity (seam 3, #254)", () => {
     it("a committed land drag dispatches the SAME playCard args as a click", () => {
         const card = makeCard("land1", ["play"]);
 
@@ -278,7 +278,7 @@ describe("BoardNextHandCard drag-commit parity (seam 3, #254)", () => {
     });
 });
 
-describe("BoardNextHandCard commit threshold (#271 fix 3, #294 fix 3)", () => {
+describe("BoardHandCard commit threshold (#271 fix 3, #294 fix 3)", () => {
     it("commits a modest upward flick just past the lowered threshold", () => {
         const card = makeCard("spell1", ["cast"]);
         renderCard(card);
@@ -295,7 +295,7 @@ describe("BoardNextHandCard commit threshold (#271 fix 3, #294 fix 3)", () => {
     });
 });
 
-describe("BoardNextHandCard drag is up-only / gated (#294 fix 2-3)", () => {
+describe("BoardHandCard drag is up-only / gated (#294 fix 2-3)", () => {
     it("pins downward drag to 0 — the card never floats below its slot", () => {
         const card = makeCard("spell1", ["cast"]);
         renderCard(card);
@@ -338,7 +338,7 @@ describe("BoardNextHandCard drag is up-only / gated (#294 fix 2-3)", () => {
     });
 });
 
-describe("BoardNextHandCard hover-zoom preview (#271 fix 1)", () => {
+describe("BoardHandCard hover-zoom preview (#271 fix 1)", () => {
     it("mounts the CardImage (hover-zoom vehicle) when idle", () => {
         renderCard(makeCard("spell1", ["cast"]));
         // CardImage owns CardPreview; its presence is the hover vehicle, same
@@ -363,7 +363,7 @@ describe("BoardNextHandCard hover-zoom preview (#271 fix 1)", () => {
     });
 });
 
-describe("BoardNextHandCard drag containment (#271 fix 4)", () => {
+describe("BoardHandCard drag containment (#271 fix 4)", () => {
     it("clamps the rendered upward lift so the card stays visible", () => {
         const card = makeCard("spell1", ["cast"]);
         renderCard(card);
@@ -393,7 +393,7 @@ describe("BoardNextHandCard drag containment (#271 fix 4)", () => {
 // ADR 0026 / PRD #338 (slice 3) — the eye icon renders per-card ONLY on the
 // viewer's own hand cards that an opponent legitimately knows (derived
 // `seenByOpponent` flag), never generically on the whole hand.
-describe("BoardNextHandCard seenByOpponent eye icon (ADR 0026)", () => {
+describe("BoardHandCard seenByOpponent eye icon (ADR 0026)", () => {
     it("renders the eye badge when the card is seenByOpponent", () => {
         const card = { ...makeCard("seen", ["cast"]), seenByOpponent: true };
         renderCard(card);

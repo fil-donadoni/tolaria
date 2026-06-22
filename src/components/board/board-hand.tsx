@@ -7,10 +7,10 @@ import {
     reorderIndexForDragX,
 } from "~/lib/board-layout";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
-import BoardNextCard from "./board-next-card";
-import BoardNextHandCard from "./board-next-hand-card";
+import BoardCard from "./board-card";
+import BoardHandCard from "./board-hand-card";
 
-type BoardNextHandProps = {
+type BoardHandProps = {
     /** The hand owner. */
     player: Player;
     /** True for the viewer's own hand — its cards are interactive (click +
@@ -47,7 +47,7 @@ type BoardNextHandProps = {
  * The opponent's hand is rendered through the same component but stays
  * presentational (no reorder, backs only).
  */
-export default function BoardNextHand({
+export default function BoardHand({
     player,
     interactive,
     layout,
@@ -55,7 +55,7 @@ export default function BoardNextHand({
     cardWidth,
     cardHeight,
     "data-testid": testId,
-}: BoardNextHandProps) {
+}: BoardHandProps) {
     const zoneRef = useRef<HTMLDivElement>(null);
 
     // Authoritative hand, as instance ids (hidden backs get a stable handle).
@@ -116,7 +116,7 @@ export default function BoardNextHand({
                     key: id,
                     node:
                         interactive && card ? (
-                            <BoardNextHandCard
+                            <BoardHandCard
                                 card={card}
                                 onDragMove={
                                     canReorder
@@ -126,7 +126,7 @@ export default function BoardNextHand({
                                 }
                             />
                         ) : (
-                            <BoardNextCard card={card} mirror={mirror} />
+                            <BoardCard card={card} mirror={mirror} />
                         ),
                 };
             }),

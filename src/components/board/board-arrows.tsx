@@ -12,7 +12,7 @@ import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
 import { useDomAnchorPublisher } from "~/hooks/useDomAnchorPublisher";
 import type { Combat } from "~/types/game";
 
-type BoardNextArrowsProps = {
+type BoardArrowsProps = {
     stack: StackItem[];
     /** Current combat — drives blocker → attacker arrows. Omitted when not in
      *  combat (or in tests that exercise only target arrows). */
@@ -50,10 +50,7 @@ const DIM = 0.14;
  * **transitive cluster** for combat (banding-aware): in a 1-attacker /
  * 2-blocker knot, hovering either arrow lights both arrows and all three cards.
  */
-export default function BoardNextArrows({
-    stack,
-    combat,
-}: BoardNextArrowsProps) {
+export default function BoardArrows({ stack, combat }: BoardArrowsProps) {
     const svgRef = useRef<SVGSVGElement>(null);
     const registry = useArrowAnchors();
     const channel = useArrowHighlight();
@@ -95,11 +92,11 @@ export default function BoardNextArrows({
             ref={svgRef}
             className="pointer-events-none absolute inset-0 z-[60] h-full w-full overflow-visible"
             aria-hidden
-            data-testid="board-next-arrows"
+            data-testid="board-arrows"
         >
             <defs>
                 <linearGradient
-                    id="board-next-arrow-grad"
+                    id="board-arrow-grad"
                     x1="0"
                     y1="0"
                     x2="1"
@@ -110,7 +107,7 @@ export default function BoardNextArrows({
                 </linearGradient>
                 {/* Crisp ornamental arrowhead, bright filament colour. */}
                 <marker
-                    id="board-next-arrowhead"
+                    id="board-arrowhead"
                     markerWidth="9"
                     markerHeight="9"
                     refX="6"
@@ -121,7 +118,7 @@ export default function BoardNextArrows({
                     <path d="M0,0.5 L8.5,4 L0,7.5 Q3,4 0,0.5 Z" fill={STRONG} />
                 </marker>
                 <filter
-                    id="board-next-arrow-shadow"
+                    id="board-arrow-shadow"
                     x="-20%"
                     y="-20%"
                     width="140%"
@@ -147,7 +144,7 @@ export default function BoardNextArrows({
                         key={arrow.key}
                         opacity={active ? 1 : DIM}
                         style={{ transition: "opacity 140ms ease" }}
-                        filter="url(#board-next-arrow-shadow)"
+                        filter="url(#board-arrow-shadow)"
                     >
                         {/* Wide invisible hit-stroke: only the line grabs hover;
                             the rest of every card underneath stays clickable. */}
@@ -175,10 +172,10 @@ export default function BoardNextArrows({
                             data-arrow-kind={arrow.kind}
                             d={arrow.path}
                             fill="none"
-                            stroke="url(#board-next-arrow-grad)"
+                            stroke="url(#board-arrow-grad)"
                             strokeWidth={emphasized ? 3.4 : 2.4}
                             strokeLinecap="round"
-                            markerEnd="url(#board-next-arrowhead)"
+                            markerEnd="url(#board-arrowhead)"
                         />
                         {/* Bright hairline highlight along the top — gives the
                             filament its metallic catch-light. */}

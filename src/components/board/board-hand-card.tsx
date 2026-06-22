@@ -10,9 +10,9 @@ import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
 import SeenByOpponentBadge from "./seen-by-opponent-badge";
 
-type BoardNextHandCardProps = {
+type BoardHandCardProps = {
     /** The viewer's own hand card (never null — opponent/back slots render the
-     *  presentational {@link BoardNextCard} instead). */
+     *  presentational {@link BoardCard} instead). */
     card: CardInstance;
     /** Called on every drag move with the live pointer x (client px) so the
      *  hand container can reorder the presentation slots under the drop
@@ -53,11 +53,11 @@ type BoardNextHandCardProps = {
  * untouched — the lift is applied to an inner wrapper. The rendered upward lift
  * is clamped in {@link useDragToCommit} so the card never escapes into the
  * clipped band above the hand (#271, fix 4). */
-export default function BoardNextHandCard({
+export default function BoardHandCard({
     card,
     onDragMove,
     onDragEnd,
-}: BoardNextHandCardProps) {
+}: BoardHandCardProps) {
     const { playerId, pendingChoices } = useGameContext();
     const bufferCtx = usePendingChoiceBuffer();
 

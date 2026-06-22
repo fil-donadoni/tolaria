@@ -12,7 +12,7 @@ const ANCHOR_ATTR: Record<AnchorKind, string> = {
 
 /** Marker attribute identifying the spatial board root — the coordinate space
  *  every published anchor point lives in. */
-const BOARD_ROOT_SELECTOR = "[data-board-variant='next']";
+const BOARD_ROOT_SELECTOR = "[data-board-root]";
 
 type Published = { kind: AnchorKind; id: string };
 

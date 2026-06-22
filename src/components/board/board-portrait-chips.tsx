@@ -1,11 +1,11 @@
 import { useState } from "react";
 import type { Player, StackItem } from "~/types/game";
-import BoardNextPileChips from "./board-next-pile-chips";
+import BoardPileChips from "./board-pile-chips";
 import StackChip from "./stack-chip";
 import GameStack from "./game-stack";
 
-type BoardNextPortraitChipsProps = {
-    /** Opponent first, viewer second (same ordering as the rest of BoardNext). */
+type BoardPortraitChipsProps = {
+    /** Opponent first, viewer second (same ordering as the rest of Board). */
     orderedPlayers: Player[];
     stackItems: StackItem[];
 };
@@ -22,12 +22,12 @@ type BoardNextPortraitChipsProps = {
  *
  *  Every chip opens the EXISTING reveal / stack view (the pile components in
  *  controlled-open mode, the stack panel toggled) — nothing is rebuilt. Mounted
- *  only on the portrait branch; landscape/desktop keep {@link BoardNextPiles}.
+ *  only on the portrait branch; landscape/desktop keep {@link BoardPiles}.
  *  View layer only. */
-export default function BoardNextPortraitChips({
+export default function BoardPortraitChips({
     orderedPlayers,
     stackItems,
-}: BoardNextPortraitChipsProps) {
+}: BoardPortraitChipsProps) {
     const [opponent, me] = orderedPlayers;
     const [stackOpen, setStackOpen] = useState(false);
 
@@ -38,7 +38,7 @@ export default function BoardNextPortraitChips({
                     className="absolute left-2 top-2 z-30"
                     data-testid="pile-chips-row-opponent"
                 >
-                    <BoardNextPileChips player={opponent} />
+                    <BoardPileChips player={opponent} />
                 </div>
             )}
 
@@ -51,7 +51,7 @@ export default function BoardNextPortraitChips({
                     open={stackOpen}
                     onToggle={() => setStackOpen((v) => !v)}
                 />
-                {me && <BoardNextPileChips player={me} />}
+                {me && <BoardPileChips player={me} />}
             </div>
 
             {/* The stack overlay is the EXISTING panel, toggled by the chip

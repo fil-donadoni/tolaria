@@ -3,8 +3,8 @@ import PlayerGraveyard from "./player-graveyard";
 import PlayerLibrary from "./player-library";
 import PlayerExile from "./player-exile";
 
-type BoardNextPilesProps = {
-    /** Opponent first, viewer second (same ordering as the rest of BoardNext). */
+type BoardPilesProps = {
+    /** Opponent first, viewer second (same ordering as the rest of Board). */
     orderedPlayers: Player[];
 };
 
@@ -23,9 +23,7 @@ type BoardNextPilesProps = {
  *  right edge reads as one symmetric control column — opponent piles · stack ·
  *  pod · viewer piles — with both halves symmetric about the midline. View-layer
  *  only — the GRE boundary is untouched. */
-export default function BoardNextPiles({
-    orderedPlayers,
-}: BoardNextPilesProps) {
+export default function BoardPiles({ orderedPlayers }: BoardPilesProps) {
     const [opponent, me] = orderedPlayers;
 
     return (

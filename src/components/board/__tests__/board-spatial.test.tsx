@@ -1,17 +1,16 @@
-// Seam 2 (PRD #249, issue #251): every card in every BoardNext zone is placed
-// from the shared pure layout math (`src/lib/board-layout.ts`), not static CSS.
-// This render test asserts the wiring: each card instance gets a positioned
-// slot, and the slot's transform matches the layout function's output for the
-// measured container size — so the layout module is provably the single source
-// of truth for card positions.
-import { describe, it, expect, vi } from "vitest";
+// Seam 2 (PRD #249, issue #251): every card in every spatial zone of the board
+// is placed from the shared pure layout math (`src/lib/board-layout.ts`), not
+// static CSS. This render test asserts the wiring: each card instance gets a
+// positioned slot, and the slot's transform matches the layout function's
+// output for the measured container size — so the layout module is provably the
+// single source of truth for card positions.
+//
+// The spatial surface now lives inline in the `Board` orchestrator (the old
+// standalone `BoardNext` was merged in), so this test renders `Board` with its
+// Convex data layer + chrome mocked out, leaving the real spatial subtree.
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import type { CardInstance, Player } from "~/types/game";
-import { GameContext } from "~/hooks/useGameContext";
-import {
-    PendingChoiceBufferContext,
-    type PendingChoiceBuffer,
-} from "~/hooks/usePendingChoiceBuffer";
 import {
     rowLayout,
     fanLayout,
@@ -31,18 +30,44 @@ vi.mock("~/hooks/useElementSize", () => ({
     }),
 }));
 
-// Leaf card visuals + board chrome → inert markers (no Convex/router/refs).
-vi.mock("../board-next-card", () => ({
+// Convex data layer. `api` is a proxy whose property access yields fresh
+// (non-identical) function references, so we can't discriminate queries by
+// identity. Board only consumes `getPublicState` for its render `state`; the
+// other queries' results are either ignored or tolerate the same object, so the
+// mock returns one shared state value for every `useQuery`.
+const h = vi.hoisted(() => ({ state: undefined as unknown }));
+vi.mock("convex/react", () => ({
+    useQuery: () => h.state,
+    useMutation: () => async () => {},
+    useAction: () => async () => {},
+}));
+vi.mock("~/lib/image-preload", () => ({ preloadCardImages: () => {} }));
+
+// Board chrome (data-driven / portal-heavy) → inert. The spatial subtree is the
+// system under test; everything else is mocked to null.
+vi.mock("../controller", () => ({ default: () => null }));
+vi.mock("../auto-pass-controller", () => ({ default: () => null }));
+vi.mock("../pause-menu-dialog", () => ({ default: () => null }));
+vi.mock("../error-toast", () => ({ default: () => null }));
+vi.mock("../board-background", () => ({ default: () => null }));
+vi.mock("../vs-ai-driver", () => ({ default: () => null }));
+vi.mock("../game-stack", () => ({ default: () => null }));
+vi.mock("../priority-indicator", () => ({ default: () => null }));
+vi.mock("../board-arrows", () => ({ default: () => null }));
+vi.mock("../board-piles", () => ({ default: () => null }));
+
+// Leaf card visuals → inert markers (no Convex/router/refs).
+vi.mock("../board-card", () => ({
     default: ({ card }: { card: CardInstance | null }) => (
         <div data-testid="bn-card" data-card-id={card ? card.id : "back"} />
     ),
 }));
-// The battlefield wrapper runs `useBattlefieldVisualState` (calls getCardById
-// on real card defs). This placement test uses synthetic defs, so stub the
-// wrapper to render the SAME shared SpatialZone with inert nodes — slot
-// placement is still asserted; the visual-state computation + anchors are
-// exercised separately in board-next-battlefield-card.test.tsx.
-vi.mock("../board-next-battlefield", async () => {
+// The battlefield wrapper runs `useBattlefieldVisualState` (calls getCardById on
+// real card defs). This placement test uses synthetic defs, so stub the wrapper
+// to render the SAME shared SpatialZone with inert nodes — slot placement is
+// still asserted; the visual-state computation + anchors are exercised
+// separately in board-battlefield-card.test.tsx.
+vi.mock("../board-battlefield", async () => {
     const { default: SpatialZone } = await import("../spatial-zone");
     const { rowLayout } = await import("~/lib/board-layout");
     return {
@@ -73,24 +98,21 @@ vi.mock("../board-next-battlefield", async () => {
 });
 // The viewer's own hand renders the interactive card (#254), which pulls in
 // Convex's useMutation. This is a layout-placement test, so stub it inert.
-vi.mock("../board-next-hand-card", () => ({
+vi.mock("../board-hand-card", () => ({
     default: ({ card }: { card: CardInstance }) => (
         <div data-testid="bn-hand-card" data-card-id={card.id} />
     ),
 }));
-// The player nameplate (#280) runs useMutation/usePendingChoiceBuffer; this is
-// a layout-placement test, so stub it to an inert node that still emits the
+// The player nameplate (#280) runs useMutation/usePendingChoiceBuffer; this is a
+// layout-placement test, so stub it to an inert node that still emits the
 // per-seat target-arrow anchor the seam-#256 assertion checks.
-vi.mock("../board-next-player", () => ({
+vi.mock("../board-player", () => ({
     default: ({ player }: { player: Player }) => (
         <div data-arrow-anchor-player={player.id} />
     ),
 }));
-vi.mock("../game-stack", () => ({ default: () => null }));
-vi.mock("../board-next-piles", () => ({ default: () => null }));
-vi.mock("../priority-indicator", () => ({ default: () => null }));
 
-import BoardNext from "../board-next";
+import Board from "../board";
 
 function makeCard(id: string): CardInstance {
     return {
@@ -120,31 +142,23 @@ function makePlayer(id: string, overrides: Partial<Player> = {}): Player {
 }
 
 function renderBoard(opponent: Player, me: Player) {
-    const value = {
-        gameId: "game-id" as never,
-        playerId: "me",
+    h.state = {
+        players: [opponent, me],
         activePlayerId: "me",
         priorityPlayerId: "me",
         phase: "PRECOMBAT_MAIN",
         turn: 1,
-        stackCount: 0,
-        allPlayers: [opponent, me],
-        showAllCards: false,
-        debugAllActions: false,
-    } as React.ContextType<typeof GameContext>;
-    const buffer: PendingChoiceBuffer = {
-        buffer: [],
-        toggle: () => {},
-        clear: () => {},
-        submit: () => {},
-        isSubmitting: false,
-    } as unknown as PendingChoiceBuffer;
+        stack: [],
+    };
     return render(
-        <GameContext value={value}>
-            <PendingChoiceBufferContext value={buffer}>
-                <BoardNext orderedPlayers={[opponent, me]} stackItems={[]} />
-            </PendingChoiceBufferContext>
-        </GameContext>
+        <Board
+            gameId={"game-id" as never}
+            playerId="me"
+            solo={false}
+            vsAi={false}
+            showAllCards={false}
+            debugAllActions={false}
+        />
     );
 }
 
@@ -165,9 +179,10 @@ function rotationFromSlot(el: HTMLElement) {
     return Number(m![1]);
 }
 
-describe("BoardNext spatial placement (seam 2, #251)", () => {
+describe("Board spatial placement (seam 2, #251)", () => {
+    beforeEach(() => cleanup());
+
     it("places each battlefield card from rowLayout output", () => {
-        cleanup();
         const me = makePlayer("me", {
             battlefield: [makeCard("a"), makeCard("b"), makeCard("c")],
         });
@@ -194,7 +209,6 @@ describe("BoardNext spatial placement (seam 2, #251)", () => {
     });
 
     it("places each hand card from fanLayout output (fanned rotation)", () => {
-        cleanup();
         const me = makePlayer("me", {
             hand: [makeCard("h0"), makeCard("h1"), makeCard("h2")],
         });
@@ -223,7 +237,6 @@ describe("BoardNext spatial placement (seam 2, #251)", () => {
     });
 
     it("mirrors the opponent's battlefield with the same math", () => {
-        cleanup();
         const opp = makePlayer("opp", {
             battlefield: [makeCard("opp-a"), makeCard("opp-b")],
         });
@@ -250,7 +263,6 @@ describe("BoardNext spatial placement (seam 2, #251)", () => {
     });
 
     it("renders a back slot for each hidden opponent hand card", () => {
-        cleanup();
         const opp = makePlayer("opp", { hand: [null, null, null] });
         const me = makePlayer("me");
         renderBoard(opp, me);
@@ -261,7 +273,6 @@ describe("BoardNext spatial placement (seam 2, #251)", () => {
     });
 
     it("exposes a target-arrow player anchor per seat (#256)", () => {
-        cleanup();
         const opp = makePlayer("opp");
         const me = makePlayer("me");
         const { container } = renderBoard(opp, me);

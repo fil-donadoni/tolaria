@@ -75,7 +75,7 @@ accepted
 - `bandedRowsLayout` callers on the board must pass a right inset equal to the
   pod column width on BOTH sides; the opponent's reserved column is intentional
   even though it hosts no pod.
-- `BoardNextPiles` opponent block moves top-LEFT → top-RIGHT.
+- `BoardPiles` opponent block moves top-LEFT → top-RIGHT.
 - `CardPreview` gains a desktop fixed-dock mode distinct from the mobile
   overlay; the lateral `clampZoomPosition` path is retired on desktop.
 - The pod reuses the existing priority/phase logic (`action-bar` priority

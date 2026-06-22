@@ -10,17 +10,17 @@ import {
     PORTRAIT_HAND_SCROLL_THRESHOLD,
     portraitHandScrolls,
 } from "~/lib/board-layout";
-import BoardNextHandPortrait from "../board-next-hand-portrait";
+import BoardHandPortrait from "../board-hand-portrait";
 
 // The hand cards pull in the full drag-to-cast / tilt / preview stack; stub them
 // to plain markers so the test isolates the LAYOUT contract (scroll threshold,
 // card count, interactive split).
-vi.mock("../board-next-hand-card", () => ({
+vi.mock("../board-hand-card", () => ({
     default: ({ card }: { card: CardInstance }) => (
         <div data-testid="hand-card-interactive" data-card-id={card.id} />
     ),
 }));
-vi.mock("../board-next-card", () => ({
+vi.mock("../board-card", () => ({
     default: ({ card }: { card: CardInstance | null }) => (
         <div
             data-testid="hand-card-presentational"
@@ -72,10 +72,10 @@ describe("portraitHandScrolls (#336 threshold)", () => {
     });
 });
 
-describe("BoardNextHandPortrait (#336)", () => {
+describe("BoardHandPortrait (#336)", () => {
     it("lays out WITHOUT a horizontal scroll at exactly 6 cards", () => {
         render(
-            <BoardNextHandPortrait
+            <BoardHandPortrait
                 player={makePlayer(6)}
                 interactive
                 data-testid="hand"
@@ -90,7 +90,7 @@ describe("BoardNextHandPortrait (#336)", () => {
 
     it("scrolls HORIZONTALLY at 7 cards (more than 6)", () => {
         render(
-            <BoardNextHandPortrait
+            <BoardHandPortrait
                 player={makePlayer(7)}
                 interactive
                 data-testid="hand"
@@ -105,7 +105,7 @@ describe("BoardNextHandPortrait (#336)", () => {
 
     it("renders the opponent hand as presentational cards (not interactive)", () => {
         render(
-            <BoardNextHandPortrait
+            <BoardHandPortrait
                 player={makePlayer(3)}
                 interactive={false}
                 data-testid="hand"

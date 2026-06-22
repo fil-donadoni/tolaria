@@ -7,7 +7,7 @@ import { api } from "@convex/_generated/api";
 /** Player-facing interaction controller for one player nameplate/face (PRD
  *  #249, slice #280). Mirrors how {@link useBattlefieldInteraction} (#272) was
  *  extracted from `PlayerBattlefield`: the classic life chrome
- *  (`player-life.tsx`) and the spatial player (`board-next-player.tsx`) both
+ *  (`player-life.tsx`) and the spatial player (`board-player.tsx`) both
  *  consume this hook, so clicking a player as a target / damage-choice
  *  dispatches the SAME GRE-boundary mutation / toggles the SAME buffer on
  *  either board.

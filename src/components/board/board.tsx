@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { LayoutGroup } from "motion/react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -19,7 +20,24 @@ import {
 } from "~/hooks/useMinimizedChoice";
 import { preloadCardImages } from "~/lib/image-preload";
 import { computeSoloViewerId } from "~/lib/priority";
-import BoardNext from "./board-next";
+import {
+    fanLayout,
+    CARD_WIDTH,
+    CARD_HEIGHT,
+    type Placement,
+} from "~/lib/board-layout";
+import { useIsPortrait } from "~/hooks/useIsPortrait";
+import { ArrowAnchorProvider } from "~/hooks/useArrowAnchors";
+import { ArrowHighlightProvider } from "~/hooks/ArrowHighlightProvider";
+import BoardBattlefield from "./board-battlefield";
+import BoardPlayer from "./board-player";
+import BoardHand from "./board-hand";
+import BoardHandPortrait from "./board-hand-portrait";
+import BoardPiles from "./board-piles";
+import BoardPortraitChips from "./board-portrait-chips";
+import BoardArrows from "./board-arrows";
+import GameStack from "./game-stack";
+import PriorityIndicator from "./priority-indicator";
 import BoardBackground from "./board-background";
 import Controller from "./controller";
 import AutoPassController from "./auto-pass-controller";
@@ -53,6 +71,32 @@ type BoardProps = {
     debugAllActions: boolean;
 };
 
+/** Hand: shallow fanned arc, baseline near the bottom of its zone so the dome
+ *  lifts upward into view (`fanLayout`, #251). */
+function handLayout(count: number, width: number, height: number): Placement[] {
+    return fanLayout({ count, width, baseY: height * 0.6 });
+}
+
+/** Opponent hand: slimmer backs (≈70% size) tucked higher up so only a small
+ *  Arena-style sliver peeks below the top edge. A larger `baseY` pushes the
+ *  mirrored fan toward the top edge ({@link mirrorVertical} flips it), and the
+ *  shrunk card footprint must match the fan's step math. */
+const OPP_HAND_CARD_WIDTH = Math.round(CARD_WIDTH * 0.7);
+const OPP_HAND_CARD_HEIGHT = Math.round(CARD_HEIGHT * 0.7);
+function opponentHandLayout(
+    count: number,
+    width: number,
+    height: number
+): Placement[] {
+    return fanLayout({
+        count,
+        width,
+        baseY: height * 0.72,
+        cardWidth: OPP_HAND_CARD_WIDTH,
+        cardHeight: OPP_HAND_CARD_HEIGHT,
+    });
+}
+
 export default function Board({
     gameId,
     playerId,
@@ -61,6 +105,7 @@ export default function Board({
     showAllCards,
     debugAllActions,
 }: BoardProps) {
+    const isPortrait = useIsPortrait();
     const pageVisible = usePageVisible();
     const skipPhasePrefs = useSkipPhasePrefsState();
     const [pauseMenuOpen, setPauseMenuOpen] = useState(false);
@@ -243,10 +288,202 @@ export default function Board({
                             {vsAi && (
                                 <VsAiDriver gameId={gameId} botId={botId} />
                             )}
-                            <BoardNext
-                                orderedPlayers={orderedPlayers}
-                                stackItems={stackItems}
-                            />
+                            {/* Spatial board surface (PRD #249): the single
+                                source of truth for card positions is the shared
+                                pure layout math (`src/lib/board-layout.ts`) —
+                                every card in every zone is placed from
+                                `rowLayout` / `fanLayout` output rather than
+                                static CSS. Both seats use the same math; the
+                                opponent's side is mirrored vertically. A single
+                                LayoutGroup spans every zone so a card's
+                                shared-layout element (keyed by instance id in
+                                SpatialSlot) is matched across zone boundaries —
+                                moving hand → battlefield animates the SAME
+                                element via a FLIP rather than unmount/remount
+                                (#252). */}
+                            <ArrowAnchorProvider>
+                                <ArrowHighlightProvider>
+                                    <LayoutGroup>
+                                        <div
+                                            className="absolute inset-0"
+                                            data-board-root
+                                            style={
+                                                {
+                                                    // Horizontal band reserved on
+                                                    // the right edge by the pile
+                                                    // columns (graveyard/library/
+                                                    // exile): right-3 (0.75rem) +
+                                                    // 3 × --card-w-sm + 2 × gap-2
+                                                    // (1rem). Life nameplate + hand
+                                                    // center within the space that
+                                                    // excludes this band, not the
+                                                    // full viewport. In portrait the
+                                                    // piles collapse to bottom chips,
+                                                    // so the band is 0 and centering
+                                                    // falls back to the viewport.
+                                                    "--right-piles-w":
+                                                        isPortrait
+                                                            ? "0px"
+                                                            : "calc(1.75rem + 3 * var(--card-w-sm))",
+                                                } as CSSProperties
+                                            }
+                                        >
+                                            {/* Opponent: hand on the top edge,
+                                                battlefield below it — same layout
+                                                math, mirrored to the top half. */}
+                                            {opponent && (
+                                                <>
+                                                    <BoardPlayer
+                                                        player={opponent}
+                                                        side="top"
+                                                    />
+                                                    <div className="absolute left-0 right-[var(--right-piles-w)] top-0 h-[18%]">
+                                                        {isPortrait ? (
+                                                            <BoardHandPortrait
+                                                                player={
+                                                                    opponent
+                                                                }
+                                                                interactive={
+                                                                    opponent.id ===
+                                                                    viewerId
+                                                                }
+                                                                data-testid="zone-opponent-hand"
+                                                            />
+                                                        ) : (
+                                                            <BoardHand
+                                                                player={
+                                                                    opponent
+                                                                }
+                                                                interactive={
+                                                                    opponent.id ===
+                                                                    viewerId
+                                                                }
+                                                                layout={
+                                                                    opponentHandLayout
+                                                                }
+                                                                cardWidth={
+                                                                    OPP_HAND_CARD_WIDTH
+                                                                }
+                                                                cardHeight={
+                                                                    OPP_HAND_CARD_HEIGHT
+                                                                }
+                                                                mirror
+                                                                data-testid="zone-opponent-hand"
+                                                            />
+                                                        )}
+                                                    </div>
+                                                    <div className="absolute left-0 right-0 top-[18%] h-[32%]">
+                                                        <BoardBattlefield
+                                                            player={opponent}
+                                                            mirror
+                                                            data-testid="zone-opponent-battlefield"
+                                                        />
+                                                    </div>
+                                                </>
+                                            )}
+
+                                            {/* Viewer: battlefield on the bottom
+                                                half, hand on the bottom edge. */}
+                                            {me && (
+                                                <>
+                                                    <BoardPlayer
+                                                        player={me}
+                                                        side="bottom"
+                                                    />
+                                                    <div className="absolute left-0 right-0 top-1/2 h-[32%]">
+                                                        <BoardBattlefield
+                                                            player={me}
+                                                            data-testid="zone-player-battlefield"
+                                                        />
+                                                    </div>
+                                                    <div
+                                                        className={
+                                                            isPortrait
+                                                                ? // Lifted clear of the
+                                                                  // pile chips (bottom-24)
+                                                                  // + the bottom action bar
+                                                                  // (#335) so the hand stays
+                                                                  // fully thumb-reachable.
+                                                                  "absolute left-0 right-0 bottom-32 h-[16%]"
+                                                                : "absolute left-0 right-[var(--right-piles-w)] bottom-0 h-[18%]"
+                                                        }
+                                                    >
+                                                        {isPortrait ? (
+                                                            <BoardHandPortrait
+                                                                player={me}
+                                                                interactive={
+                                                                    me.id ===
+                                                                    viewerId
+                                                                }
+                                                                data-testid="zone-player-hand"
+                                                            />
+                                                        ) : (
+                                                            <BoardHand
+                                                                player={me}
+                                                                interactive={
+                                                                    me.id ===
+                                                                    viewerId
+                                                                }
+                                                                layout={
+                                                                    handLayout
+                                                                }
+                                                                data-testid="zone-player-hand"
+                                                            />
+                                                        )}
+                                                    </div>
+                                                </>
+                                            )}
+
+                                            {/* Card piles (graveyard / library /
+                                                exile) for both seats.
+                                                Landscape/desktop reuse the spatial
+                                                pile columns (#255); portrait
+                                                collapses them — and the stack —
+                                                into tappable chips that open the
+                                                SAME reveal / stack views (#336). */}
+                                            {isPortrait ? (
+                                                <BoardPortraitChips
+                                                    orderedPlayers={
+                                                        orderedPlayers
+                                                    }
+                                                    stackItems={stackItems}
+                                                />
+                                            ) : (
+                                                <BoardPiles
+                                                    orderedPlayers={
+                                                        orderedPlayers
+                                                    }
+                                                />
+                                            )}
+
+                                            {/* Spatial chrome. The controller pod
+                                                (phase + priority cue + actions) is
+                                                mounted below on the right edge
+                                                (#331). */}
+                                            <PriorityIndicator />
+                                            {/* Portrait toggles the stack behind a
+                                                chip (above); landscape/desktop keep
+                                                it always-on. */}
+                                            {!isPortrait &&
+                                                stackItems.length > 0 && (
+                                                    <GameStack
+                                                        stack={stackItems}
+                                                    />
+                                                )}
+                                            {/* Our own SVG target arrows (#257):
+                                                endpoints derive from the shared
+                                                layout placements via the
+                                                arrow-anchor registry, so arrows
+                                                stay glued through the spring/tilt
+                                                motion. */}
+                                            <BoardArrows
+                                                stack={stackItems}
+                                                combat={combat}
+                                            />
+                                        </div>
+                                    </LayoutGroup>
+                                </ArrowHighlightProvider>
+                            </ArrowAnchorProvider>
                             {pendingTarget &&
                                 pendingTarget.playerId === viewerId &&
                                 (isGraveyardTargetForViewer(

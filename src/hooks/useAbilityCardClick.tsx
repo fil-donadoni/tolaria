@@ -3,7 +3,7 @@ import type { ActivatableAbility } from "~/components/board/battlefield-card";
 
 /** Touch-vs-click decision for a battlefield card that carries activatable
  *  abilities (PRD #249, slice #278). Shared by the classic
- *  ({@link BattlefieldCard}) and spatial ({@link BoardNextBattlefieldCard})
+ *  ({@link BattlefieldCard}) and spatial ({@link BoardBattlefieldCard})
  *  cards so both surface abilities identically; the menu/action-sheet MARKUP
  *  lives in {@link ActivatableAbilityMenu}, this owns the gesture.
  *

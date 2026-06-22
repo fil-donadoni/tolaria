@@ -1,6 +1,6 @@
 // Player-facing chrome + interaction parity on the spatial board (PRD #249,
 // issue #280). The classic life chrome (`PlayerLife`) and the spatial player
-// (`BoardNextPlayer`) BOTH consume the extracted `usePlayerInteraction` hook,
+// (`BoardPlayer`) BOTH consume the extracted `usePlayerInteraction` hook,
 // so clicking a player as a target / damage-choice dispatches the SAME
 // GRE-boundary mutation / toggles the SAME buffer on either board:
 //   (a) target selection  → selectTarget (targetType "player")
@@ -22,7 +22,7 @@ vi.mock("convex/react", () => ({
 }));
 
 import PlayerLife from "../player-life";
-import BoardNextPlayer from "../board-next-player";
+import BoardPlayer from "../board-player";
 
 function makePlayer(id: string, overrides: Partial<Player> = {}): Player {
     return {
@@ -94,7 +94,7 @@ function renderSpatial(
     return render(
         <GameContext value={makeContext(ctx)}>
             <PendingChoiceBufferContext value={buffer ?? makeBuffer()}>
-                <BoardNextPlayer player={player} side={side} />
+                <BoardPlayer player={player} side={side} />
             </PendingChoiceBufferContext>
         </GameContext>
     );
@@ -105,7 +105,7 @@ beforeEach(() => {
     cleanup();
 });
 
-describe("board-next player target parity (#280)", () => {
+describe("board player target parity (#280)", () => {
     // The viewer (p2) is asked to choose a player target; p1 is targetable.
     const targetCtx: Partial<NonNullable<Ctx>> = {
         playerId: "p2",
@@ -153,7 +153,7 @@ describe("board-next player target parity (#280)", () => {
     });
 });
 
-describe("board-next damage-target choice parity (#280, CR 115.4)", () => {
+describe("board damage-target choice parity (#280, CR 115.4)", () => {
     // The choice is owed to the viewer (p2 — the opponent doing the choosing);
     // p1 is an eligible candidate.
     const damageChoice = [
@@ -220,7 +220,7 @@ describe("board-next damage-target choice parity (#280, CR 115.4)", () => {
     });
 });
 
-describe("board-next player life totals (#280)", () => {
+describe("board player life totals (#280)", () => {
     it("renders the life total and name for each player on the spatial board", () => {
         const opp = renderSpatial(
             makePlayer("p1", { life: 17, name: "Opponent" }),

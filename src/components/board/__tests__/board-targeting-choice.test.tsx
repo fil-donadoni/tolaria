@@ -1,6 +1,6 @@
 // Targeting + mid-resolution choice + additional-cost parity (PRD #249, issue
-// #279). The spatial board's battlefield card (`BoardNextBattlefieldCard`, wired
-// by `BoardNextBattlefield`) and the classic board (`PlayerBattlefield`) BOTH
+// #279). The spatial board's battlefield card (`BoardBattlefieldCard`, wired
+// by `BoardBattlefield`) and the classic board (`PlayerBattlefield`) BOTH
 // consume the extracted `useBattlefieldInteraction` hook, so the selection
 // click-paths dispatch the SAME GRE-boundary mutation / toggle the SAME buffer
 // on either board:
@@ -96,8 +96,8 @@ vi.mock("../spatial-zone", () => ({
         </div>
     ),
 }));
-import BoardNextBattlefield from "../board-next-battlefield";
-import BoardNextHandCard from "../board-next-hand-card";
+import BoardBattlefield from "../board-battlefield";
+import BoardHandCard from "../board-hand-card";
 import SelectableCard from "../../cards/selectable-card";
 
 function creature(id: string, ownerId = "me"): CardInstance {
@@ -183,7 +183,7 @@ function renderSpatialBf(
     return render(
         <GameContext value={makeContext(players, ctx)}>
             <PendingChoiceBufferContext value={makeBuffer()}>
-                <BoardNextBattlefield player={player} />
+                <BoardBattlefield player={player} />
             </PendingChoiceBufferContext>
         </GameContext>
     );
@@ -204,7 +204,7 @@ beforeEach(() => {
 const spatialCard = (root: ParentNode, id: string) =>
     root.querySelector(`[data-arrow-anchor-permanent="${id}"]`)!;
 
-describe("board-next targeting parity (#279)", () => {
+describe("board targeting parity (#279)", () => {
     it("(a) clicking a legal permanent dispatches the SAME selectTarget args on both boards", () => {
         const me = makePlayer("me", [creature("bear1")]);
         const targetCtx: Partial<React.ContextType<typeof GameContext>> = {
@@ -243,7 +243,7 @@ describe("board-next targeting parity (#279)", () => {
     });
 });
 
-describe("board-next additional-cost parity (#279, CR 117.9)", () => {
+describe("board additional-cost parity (#279, CR 117.9)", () => {
     it("(b) clicking a battlefield permanent dispatches the SAME selectAdditionalCost args on both boards", () => {
         const me = makePlayer("me", [creature("bear1")]);
         const costCtx: Partial<React.ContextType<typeof GameContext>> = {
@@ -269,7 +269,7 @@ describe("board-next additional-cost parity (#279, CR 117.9)", () => {
     });
 });
 
-describe("board-next battlefield choice parity (#279, CR 608.2)", () => {
+describe("board battlefield choice parity (#279, CR 608.2)", () => {
     function choiceCtx(
         extra: Record<string, unknown> = {}
     ): Partial<React.ContextType<typeof GameContext>> {
@@ -329,7 +329,7 @@ describe("board-next battlefield choice parity (#279, CR 608.2)", () => {
     });
 });
 
-describe("board-next hand choice parity (#279, CR 608.2)", () => {
+describe("board hand choice parity (#279, CR 608.2)", () => {
     function handChoiceCtx(): Partial<React.ContextType<typeof GameContext>> {
         return {
             pendingChoices: [
@@ -351,7 +351,7 @@ describe("board-next hand choice parity (#279, CR 608.2)", () => {
                 value={makeContext([makePlayer("me", [])], handChoiceCtx())}
             >
                 <PendingChoiceBufferContext value={makeBuffer()}>
-                    <BoardNextHandCard card={card} />
+                    <BoardHandCard card={card} />
                 </PendingChoiceBufferContext>
             </GameContext>
         );
@@ -402,7 +402,7 @@ describe("board-next hand choice parity (#279, CR 608.2)", () => {
 
     it("an opponent's hand card is NOT choice-selectable (ownerId mismatch)", () => {
         const card = handCard("oh1", "opp");
-        // Spatial board only ever renders BoardNextHandCard for the viewer's own
+        // Spatial board only ever renders BoardHandCard for the viewer's own
         // hand, but the guard must still hold defensively.
         const { container } = renderSpatialHand(card);
         const el = container.querySelector('[data-board-hand-card="oh1"]')!;
@@ -410,7 +410,7 @@ describe("board-next hand choice parity (#279, CR 608.2)", () => {
     });
 });
 
-describe("board-next activation sacrifice-cost picker (#282, CR 602.1)", () => {
+describe("board activation sacrifice-cost picker (#282, CR 602.1)", () => {
     it("clicking a matching battlefield permanent dispatches the SAME selectActivationCost args on both boards", () => {
         const me = makePlayer("me", [creature("bear1")]);
         const costCtx: Partial<React.ContextType<typeof GameContext>> = {

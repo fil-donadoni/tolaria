@@ -5,7 +5,7 @@ import { useArrowAnchors, type AnchorKind } from "~/hooks/arrowAnchorContext";
 
 /** Marker attribute identifying the spatial board root — the coordinate space
  *  every published anchor point lives in. */
-const BOARD_ROOT_SELECTOR = "[data-board-variant='next']";
+const BOARD_ROOT_SELECTOR = "[data-board-root]";
 
 type ZoneAnchorPublisherArgs = {
     /** Anchor bucket to publish under, or `undefined` to publish nothing

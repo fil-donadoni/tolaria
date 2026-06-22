@@ -3,7 +3,7 @@ import { usePlayerInteraction } from "~/hooks/usePlayerInteraction";
 import PlayerNameplate from "./player-nameplate";
 import PlayerManaPool from "./player-mana-pool";
 
-type BoardNextPlayerProps = {
+type BoardPlayerProps = {
     player: Player;
     /** Anchor on the top edge (opponent) vs the bottom edge (viewer). */
     side: "top" | "bottom";
@@ -21,10 +21,7 @@ type BoardNextPlayerProps = {
  *  target-arrow anchor the inert handle used to provide — there is exactly one
  *  anchor element per player, which the arrow publisher
  *  ({@link useDomAnchorPublisher}) measures. */
-export default function BoardNextPlayer({
-    player,
-    side,
-}: BoardNextPlayerProps) {
+export default function BoardPlayer({ player, side }: BoardPlayerProps) {
     const interaction = usePlayerInteraction(player);
     // Relative wrapper so the floating mana-pool indicator anchors to the
     // nameplate (its absolute `bottom-full` / `top-full` need a positioned

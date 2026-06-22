@@ -17,7 +17,7 @@ type OpenZone = "graveyard" | "library" | "exile" | null;
  *  the pile renders only its dialog (collapsed card stack suppressed), so all
  *  its real behaviour (target clicks, draw / mill / search context menu,
  *  inertial-scroll fan / grid) is reused unchanged. View layer only. */
-export default function BoardNextPileChips({ player }: { player: Player }) {
+export default function BoardPileChips({ player }: { player: Player }) {
     const [openZone, setOpenZone] = useState<OpenZone>(null);
     const toggle = (zone: Exclude<OpenZone, null>) =>
         setOpenZone((cur) => (cur === zone ? null : zone));

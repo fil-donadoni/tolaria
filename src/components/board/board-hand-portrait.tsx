@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import type { Player } from "~/types/game";
 import { portraitHandScrolls } from "~/lib/board-layout";
-import BoardNextCard from "./board-next-card";
-import BoardNextHandCard from "./board-next-hand-card";
+import BoardCard from "./board-card";
+import BoardHandCard from "./board-hand-card";
 
-type BoardNextHandPortraitProps = {
+type BoardHandPortraitProps = {
     /** The hand owner. */
     player: Player;
     /** True for the viewer's own hand — its cards are interactive (click +
@@ -20,7 +20,7 @@ const PORTRAIT_CARD_W = 76;
 /** Overlap between adjacent cards (px) — a flat overlap, not a fanned arc. */
 const PORTRAIT_OVERLAP = 26;
 
-/** Portrait hand (#336). On a phone the fanned-arc {@link BoardNextHand} crams
+/** Portrait hand (#336). On a phone the fanned-arc {@link BoardHand} crams
  *  cards into thin slivers as the hand grows. This is a FLAT overlap instead:
  *  cards sit in a single row with a constant overlap, and once the hand holds
  *  MORE THAN six cards the row scrolls HORIZONTALLY ({@link portraitHandScrolls})
@@ -28,14 +28,14 @@ const PORTRAIT_OVERLAP = 26;
  *  below six the row lays out without a scroll (`overflow-x-hidden`, centered).
  *
  *  Drag-to-cast / play and the long-press preview ride along unchanged via the
- *  same {@link BoardNextHandCard} / {@link BoardNextCard} the spatial hand uses —
+ *  same {@link BoardHandCard} / {@link BoardCard} the spatial hand uses —
  *  this is a layout fork only. The opponent's hand renders as backs. View layer
  *  only. */
-export default function BoardNextHandPortrait({
+export default function BoardHandPortrait({
     player,
     interactive,
     "data-testid": testId,
-}: BoardNextHandPortraitProps) {
+}: BoardHandPortraitProps) {
     const scrolls = portraitHandScrolls(player.hand.length);
 
     const items = useMemo(
@@ -70,9 +70,9 @@ export default function BoardNextHandPortrait({
                         }}
                     >
                         {interactive && card ? (
-                            <BoardNextHandCard card={card} />
+                            <BoardHandCard card={card} />
                         ) : (
-                            <BoardNextCard card={card} />
+                            <BoardCard card={card} />
                         )}
                     </div>
                 ))}

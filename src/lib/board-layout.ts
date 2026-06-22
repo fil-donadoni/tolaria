@@ -1,5 +1,5 @@
 /**
- * Shared, pure layout math for the new spatial board (`BoardNext`, PRD #249,
+ * Shared, pure layout math for the new spatial board (`Board`, PRD #249,
  * slice #251). Maps `(card count, container size)` → per-card placements. The
  * same placement data is the single source of truth used to position cards and,
  * later, to anchor target arrows — so positions never have to be reverse-
@@ -323,7 +323,7 @@ const FAN_MAX_DEG_PER_CARD = 7;
 /** Inter-card step as a fraction of card width in the fan. */
 const FAN_STEP_FRACTION = 0.62;
 /** Edge lift as a fraction of card height per card-step from center. */
-const FAN_LIFT_FRACTION = 0.04;
+const FAN_LIFT_FRACTION = 0.07;
 
 /**
  * Shallow fanned arc layout (the hand). Cards rotate symmetrically toward the

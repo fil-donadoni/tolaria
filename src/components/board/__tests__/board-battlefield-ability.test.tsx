@@ -1,5 +1,5 @@
 // Activated-ability dispatch parity (PRD #249, issue #278). The spatial board's
-// battlefield card (`BoardNextBattlefieldCard`, wired by `BoardNextBattlefield`)
+// battlefield card (`BoardBattlefieldCard`, wired by `BoardBattlefield`)
 // gains the same activated-ability affordance the classic board
 // (`PlayerBattlefield` → `BattlefieldCard`) already has: a right-click context
 // menu / touch action-sheet listing the permanent's activatable abilities, both
@@ -157,7 +157,7 @@ vi.mock("../spatial-zone", () => ({
     ),
 }));
 
-import BoardNextBattlefield from "../board-next-battlefield";
+import BoardBattlefield from "../board-battlefield";
 
 function permanent(
     id: string,
@@ -217,7 +217,7 @@ function renderSpatial(
 ) {
     return render(
         <GameContext value={makeContext(players, ctx)}>
-            <BoardNextBattlefield player={player} />
+            <BoardBattlefield player={player} />
         </GameContext>
     );
 }
@@ -260,7 +260,7 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-describe("board-next battlefield activated-ability parity with the classic board (#278)", () => {
+describe("board battlefield activated-ability parity with the classic board (#278)", () => {
     it("(a) a plain stack ability dispatches identical activateAbility args on both boards", () => {
         const me = makePlayer("me", [permanent("tim1", "stack-def")]);
 

@@ -5,7 +5,7 @@ import DamageAssignmentPanel from "./damage-assignment-panel";
 import BandFormationPanel from "./band-formation-panel";
 
 /** Combat declaration / damage modals for one player's battlefield on the
- *  spatial board ({@link BoardNextBattlefield}, PRD #249 / slice #281).
+ *  spatial board ({@link BoardBattlefield}, PRD #249 / slice #281).
  *
  *  These are NOT card-click driven (those branches live in
  *  {@link useBattlefieldInteraction}). They are separate modals gated by the

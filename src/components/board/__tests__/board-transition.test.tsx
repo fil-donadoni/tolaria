@@ -1,20 +1,17 @@
 // Slice #252 (PRD #249) — board-level integration: when a card changes zone
 // (hand → battlefield on cast) or a zone's count changes (draw / reflow), the
-// new spatial board keeps the card's slot identity (keyed by instance id) and
+// spatial board keeps the card's slot identity (keyed by instance id) and
 // re-places it via the shared layout math, animating instead of jumping.
 //
-// Asserts observable facts across the full BoardNext → SpatialZone → SpatialSlot
+// Asserts observable facts across the full Board → SpatialZone → SpatialSlot
 // path: the card's slot is present (by id) before and after the move, its
 // placement updates, neighbours reflow, and the LayoutGroup that drives the
-// cross-zone FLIP wraps the tree.
+// cross-zone FLIP wraps the tree. The spatial surface now lives inline in the
+// `Board` orchestrator (the old standalone `BoardNext` was merged in), so this
+// test renders `Board` with its Convex data layer + chrome mocked out.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, cleanup } from "@testing-library/react";
 import type { CardInstance, Player } from "~/types/game";
-import { GameContext } from "~/hooks/useGameContext";
-import {
-    PendingChoiceBufferContext,
-    type PendingChoiceBuffer,
-} from "~/hooks/usePendingChoiceBuffer";
 import { CARD_WIDTH } from "~/lib/board-layout";
 
 const ZONE_W = 1000;
@@ -26,17 +23,40 @@ vi.mock("~/hooks/useElementSize", () => ({
     }),
 }));
 
+// Convex data layer: Board only consumes `getPublicState` for its render state;
+// the other queries' results are ignored or tolerate the same object, so the
+// mock returns one shared, mutable state value for every `useQuery`.
+const h = vi.hoisted(() => ({ state: undefined as unknown }));
+vi.mock("convex/react", () => ({
+    useQuery: () => h.state,
+    useMutation: () => async () => {},
+    useAction: () => async () => {},
+}));
+vi.mock("~/lib/image-preload", () => ({ preloadCardImages: () => {} }));
+
+// Board chrome → inert; the spatial subtree is the system under test.
+vi.mock("../controller", () => ({ default: () => null }));
+vi.mock("../auto-pass-controller", () => ({ default: () => null }));
+vi.mock("../pause-menu-dialog", () => ({ default: () => null }));
+vi.mock("../error-toast", () => ({ default: () => null }));
+vi.mock("../board-background", () => ({ default: () => null }));
+vi.mock("../vs-ai-driver", () => ({ default: () => null }));
+vi.mock("../game-stack", () => ({ default: () => null }));
+vi.mock("../priority-indicator", () => ({ default: () => null }));
+vi.mock("../board-arrows", () => ({ default: () => null }));
+vi.mock("../board-piles", () => ({ default: () => null }));
+
 // Leaf card visuals → inert marker carrying the card id, so we can follow a
 // specific card across zones. Note: spatial-slot is NOT mocked — the real
 // animated slot runs through this test.
-vi.mock("../board-next-card", () => ({
+vi.mock("../board-card", () => ({
     default: ({ card }: { card: CardInstance | null }) => (
         <div data-testid="bn-card" data-card-id={card ? card.id : "back"} />
     ),
 }));
 // Interactive viewer-hand card (#254) pulls in Convex useMutation — stub inert;
 // slot identity for the FLIP comes from SpatialSlot, not this leaf.
-vi.mock("../board-next-hand-card", () => ({
+vi.mock("../board-hand-card", () => ({
     default: ({ card }: { card: CardInstance }) => (
         <div data-testid="bn-card" data-card-id={card.id} />
     ),
@@ -44,7 +64,7 @@ vi.mock("../board-next-hand-card", () => ({
 // The battlefield wrapper runs useBattlefieldVisualState (needs real card
 // defs); stub it to the SAME shared SpatialZone with inert nodes so slot
 // identity / reflow is still exercised through the real SpatialSlot path.
-vi.mock("../board-next-battlefield", async () => {
+vi.mock("../board-battlefield", async () => {
     const { default: SpatialZone } = await import("../spatial-zone");
     const { rowLayout } = await import("~/lib/board-layout");
     return {
@@ -73,12 +93,9 @@ vi.mock("../board-next-battlefield", async () => {
 });
 // Player nameplate (#280) runs useMutation; this transition test is concerned
 // only with card slot identity, so stub it inert.
-vi.mock("../board-next-player", () => ({ default: () => null }));
-vi.mock("../game-stack", () => ({ default: () => null }));
-vi.mock("../board-next-piles", () => ({ default: () => null }));
-vi.mock("../priority-indicator", () => ({ default: () => null }));
+vi.mock("../board-player", () => ({ default: () => null }));
 
-import BoardNext from "../board-next";
+import Board from "../board";
 
 function makeCard(id: string): CardInstance {
     return {
@@ -107,41 +124,38 @@ function makePlayer(id: string, overrides: Partial<Player> = {}): Player {
     };
 }
 
-function ctx(): React.ContextType<typeof GameContext> {
-    return {
-        gameId: "game-id" as never,
-        playerId: "me",
+/** Point the shared Convex state at this seat layout (opponent first). */
+function setState(opp: Player, me: Player) {
+    h.state = {
+        players: [opp, me],
         activePlayerId: "me",
         priorityPlayerId: "me",
         phase: "PRECOMBAT_MAIN",
         turn: 1,
-        stackCount: 0,
-        allPlayers: [],
-        showAllCards: false,
-        debugAllActions: false,
-    } as React.ContextType<typeof GameContext>;
+        stack: [],
+    };
 }
 
-const BUFFER: PendingChoiceBuffer = {
-    buffer: [],
-    toggle: () => {},
-    clear: () => {},
-    submit: () => {},
-    isSubmitting: false,
-} as unknown as PendingChoiceBuffer;
-
-function tree(opp: Player, me: Player) {
+// A FRESH element each call: re-rendering the SAME element object lets React
+// bail out of reconciliation, so the board would never pick up the new Convex
+// state. No `key` is set, so the component type is reused and slot identity
+// (the FLIP) is preserved across the rerender.
+function boardEl() {
     return (
-        <GameContext value={ctx()}>
-            <PendingChoiceBufferContext value={BUFFER}>
-                <BoardNext orderedPlayers={[opp, me]} stackItems={[]} />
-            </PendingChoiceBufferContext>
-        </GameContext>
+        <Board
+            gameId={"game-id" as never}
+            playerId="me"
+            solo={false}
+            vsAi={false}
+            showAllCards={false}
+            debugAllActions={false}
+        />
     );
 }
 
 function renderBoard(me: Player, opp: Player) {
-    return render(tree(opp, me));
+    setState(opp, me);
+    return render(boardEl());
 }
 
 function slot(id: string) {
@@ -153,7 +167,7 @@ function centerX(el: HTMLElement) {
     return Number(m![1]) + CARD_WIDTH / 2;
 }
 
-describe("BoardNext zone-transition (#252)", () => {
+describe("Board zone-transition (#252)", () => {
     beforeEach(() => cleanup());
 
     it("wraps the board in a shared LayoutGroup (cross-zone FLIP context)", () => {
@@ -176,34 +190,30 @@ describe("BoardNext zone-transition (#252)", () => {
         expect(inHand).toBeTruthy();
         // It lives in the hand zone before the move.
         expect(
-            screen
-                .getByTestId("zone-player-hand")
+            document
+                .querySelector("[data-testid='zone-player-hand']")!
                 .querySelector("[data-card-slot='bolt']")
         ).toBeTruthy();
 
         // Cast: the same card instance is now on the battlefield.
-        rerender(
-            tree(
-                makePlayer("opp"),
-                makePlayer("me", {
-                    hand: [],
-                    battlefield: [makeCard("bolt")],
-                })
-            )
+        setState(
+            makePlayer("opp"),
+            makePlayer("me", { hand: [], battlefield: [makeCard("bolt")] })
         );
+        rerender(boardEl());
 
         const onBf = slot("bolt");
         // Same logical card slot (same instance id) — animates across zones, not
         // a fresh element. It now lives in the battlefield zone.
         expect(onBf).toBeTruthy();
         expect(
-            screen
-                .getByTestId("zone-player-battlefield")
+            document
+                .querySelector("[data-testid='zone-player-battlefield']")!
                 .querySelector("[data-card-slot='bolt']")
         ).toBeTruthy();
         expect(
-            screen
-                .getByTestId("zone-player-hand")
+            document
+                .querySelector("[data-testid='zone-player-hand']")!
                 .querySelector("[data-card-slot='bolt']")
         ).toBeNull();
     });
@@ -219,14 +229,13 @@ describe("BoardNext zone-transition (#252)", () => {
         const bX0 = centerX(bBefore);
 
         // Draw a third card — the hand re-flows.
-        rerender(
-            tree(
-                makePlayer("opp"),
-                makePlayer("me", {
-                    hand: [makeCard("a"), makeCard("b"), makeCard("c")],
-                })
-            )
+        setState(
+            makePlayer("opp"),
+            makePlayer("me", {
+                hand: [makeCard("a"), makeCard("b"), makeCard("c")],
+            })
         );
+        rerender(boardEl());
 
         // Existing cards keep their DOM node (no jump/remount) ...
         expect(slot("a")).toBe(aBefore);

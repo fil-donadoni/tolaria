@@ -13,7 +13,7 @@ import { ArrowAnchorProvider } from "~/hooks/useArrowAnchors";
 import { useArrowAnchors, type AnchorKind } from "~/hooks/arrowAnchorContext";
 import type { AnchorPoint } from "~/lib/target-arrow-geometry";
 import type { StackItem } from "~/types/game";
-import BoardNextArrows from "../board-next-arrows";
+import BoardArrows from "../board-arrows";
 
 function stackItem(id: string, targets?: StackItem["targets"]): StackItem {
     return {
@@ -40,10 +40,10 @@ function Publisher({ entries }: { entries: Published[] }) {
 function renderArrows(stack: StackItem[], entries: Published[]) {
     return render(
         // The board root marker so the DOM-anchor publisher resolves a root.
-        <div data-board-variant="next">
+        <div data-board-root>
             <ArrowAnchorProvider>
                 <Publisher entries={entries} />
-                <BoardNextArrows stack={stack} />
+                <BoardArrows stack={stack} />
             </ArrowAnchorProvider>
         </div>
     );
@@ -59,7 +59,7 @@ function endpoints(d: string) {
     };
 }
 
-describe("BoardNextArrows (#257)", () => {
+describe("BoardArrows (#257)", () => {
     beforeEach(() => cleanup());
 
     it("renders no path when the stack is empty", () => {
@@ -100,7 +100,7 @@ describe("BoardNextArrows (#257)", () => {
         // The permanent's placement moves (spring/tilt): re-publish, same id.
         act(() => {
             rerender(
-                <div data-board-variant="next">
+                <div data-board-root>
                     <ArrowAnchorProvider>
                         <Publisher
                             entries={[
@@ -116,7 +116,7 @@ describe("BoardNextArrows (#257)", () => {
                                 },
                             ]}
                         />
-                        <BoardNextArrows stack={stack} />
+                        <BoardArrows stack={stack} />
                     </ArrowAnchorProvider>
                 </div>
             );
@@ -149,7 +149,7 @@ describe("BoardNextArrows (#257)", () => {
     it("is a pass-through overlay (pointer-events none, aria-hidden)", () => {
         const { container } = renderArrows([], []);
         const svg = container.querySelector<SVGSVGElement>(
-            "[data-testid='board-next-arrows']"
+            "[data-testid='board-arrows']"
         )!;
         expect(svg.getAttribute("aria-hidden")).toBe("true");
         expect(svg.getAttribute("class")).toContain("pointer-events-none");
