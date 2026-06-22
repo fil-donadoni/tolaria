@@ -210,6 +210,15 @@ import {
     castle,
 } from "../lea";
 import {
+    blackManaBattery,
+    blueManaBattery,
+    greenManaBattery,
+    redManaBattery,
+    whiteManaBattery,
+} from "../leg";
+import { tapSourceIntoPayment } from "../../../game";
+import { getEffectiveManaChoices } from "../../../gre/constants";
+import {
     resolveTopOfStack,
     removePermanentTo,
     applySourceStaticEffects,
@@ -6741,5 +6750,210 @@ describe("Akron Legionnaire (only Akron / artifact creatures you control can att
         // never appears in any declared subset.
         expect(sets.some((s) => s.includes("ally"))).toBe(false);
         expect(sets).toContainEqual(["akron", "robot"].sort());
+    });
+});
+
+// --- Mana Batteries (#482) -------------------------------------------------
+//
+// "{2}, {T}: Put a charge counter on this artifact." (stack ability, CR 605)
+// "{T}, Remove any number of charge counters: Add 1 + N mana of the battery's
+//  colour." (mana ability, CR 605.1a — resolves immediately, no stack; the
+//  removed-counter cost and the produced amount are both driven by the single
+//  chosen index N, CR 106.1 / 122.6.)
+//
+// The mana-ability tap is exercised through `tapSourceIntoPayment` — the real
+// GRE primitive every tap mutation (`tapUntap`, `tapForPayment`,
+// `tapForActivationPayment`) routes through — so the cost/output coupling is
+// tested end-to-end, not just the card definition's chooser.
+describe("Mana Batteries (charge-counter scaling mana ability, CR 106 / 605)", () => {
+    const BATTERIES = [
+        {
+            def: blackManaBattery,
+            color: "B" as const,
+            name: "Black Mana Battery",
+        },
+        {
+            def: blueManaBattery,
+            color: "U" as const,
+            name: "Blue Mana Battery",
+        },
+        {
+            def: greenManaBattery,
+            color: "G" as const,
+            name: "Green Mana Battery",
+        },
+        { def: redManaBattery, color: "R" as const, name: "Red Mana Battery" },
+        {
+            def: whiteManaBattery,
+            color: "W" as const,
+            name: "White Mana Battery",
+        },
+    ];
+
+    it("ships all five colour variants from one parametric definition", () => {
+        for (const { def, color, name } of BATTERIES) {
+            expect(def.name).toBe(name);
+            expect(def.types).toEqual(["Artifact"]);
+            expect(def.manaCost).toEqual({ X: 4 });
+            const charge = def.activatedAbilities?.find(
+                (a) => a.id === "mana-battery-charge"
+            );
+            const tap = def.activatedAbilities?.find(
+                (a) => a.id === "mana-battery-tap"
+            );
+            // Charge half uses the stack (adds a counter, not mana).
+            expect(charge?.useStack).toBe(true);
+            expect(charge?.cost).toEqual({ mana: { X: 2 }, tap: true });
+            // Mana half is a mana ability (resolves immediately, no stack).
+            expect(tap?.useStack).toBe(false);
+            expect(tap?.cost).toEqual({ tap: true });
+            expect(tap?.manaChoiceRemovesCounters).toBe("charge");
+            // Fallback / representative output: one mana of the colour.
+            expect(tap?.manaChoices).toEqual([{ [color]: 1 }]);
+        }
+    });
+
+    it("adds a charge counter via the {2},{T} ability (CR 122.1)", () => {
+        const battery = makeInstance(redManaBattery.id, {
+            id: "battery",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [battery] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Cost assumed already paid (mirrors post-activateAbility state).
+        resolveActivated(state, battery, "mana-battery-charge");
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === "battery"
+        )!;
+        expect(onBoard.counters?.charge).toBe(1);
+        // A second activation stacks a second counter.
+        resolveActivated(state, onBoard, "mana-battery-charge");
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "battery")!
+                .counters?.charge
+        ).toBe(2);
+    });
+
+    it("offers 1..1+available mana choices scaled by charge counters (CR 106.1)", () => {
+        const battery = makeInstance(greenManaBattery.id, {
+            id: "battery",
+            controllerId: "p1",
+            counters: { charge: 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [battery] }),
+                makePlayer("p2"),
+            ],
+        });
+        const choices = getEffectiveManaChoices(
+            battery,
+            "p1",
+            state.players.map((p) => ({
+                playerId: p.id,
+                battlefield: p.battlefield,
+            }))
+        );
+        // 3 counters → remove 0..3 → produce 1..4 {G}.
+        expect(choices).toEqual([{ G: 1 }, { G: 2 }, { G: 3 }, { G: 4 }]);
+    });
+
+    it("tap removing N counters produces 1 + N mana of the battery's colour (CR 106.1/122.6)", () => {
+        const battery = makeInstance(blueManaBattery.id, {
+            id: "battery",
+            controllerId: "p1",
+            counters: { charge: 2 },
+        });
+        const player = makePlayer("p1", { battlefield: [battery] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        // Choose index 2 = remove 2 counters → produce 3 {U}.
+        const tappedLandIds: string[] = [];
+        tapSourceIntoPayment(state, player, battery, 2, tappedLandIds);
+        expect(player.manaPool.U).toBe(3);
+        expect(battery.isTapped).toBe(true);
+        // All 2 charge counters were removed to pay the scaling cost.
+        expect(battery.counters?.charge ?? 0).toBe(0);
+    });
+
+    it("N = 0 (remove no counters) produces exactly 1 mana and keeps the counters (CR 106.1)", () => {
+        const battery = makeInstance(whiteManaBattery.id, {
+            id: "battery",
+            controllerId: "p1",
+            counters: { charge: 4 },
+        });
+        const player = makePlayer("p1", { battlefield: [battery] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        tapSourceIntoPayment(state, player, battery, 0, []);
+        expect(player.manaPool.W).toBe(1);
+        // No counters removed when N = 0.
+        expect(battery.counters?.charge).toBe(4);
+    });
+
+    it("resolves immediately without using the stack (mana ability, CR 605.1a)", () => {
+        const battery = makeInstance(blackManaBattery.id, {
+            id: "battery",
+            controllerId: "p1",
+            counters: { charge: 1 },
+        });
+        const player = makePlayer("p1", { battlefield: [battery] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        tapSourceIntoPayment(state, player, battery, 1, []);
+        // Mana is in the pool and nothing was placed on the stack.
+        expect(player.manaPool.B).toBe(2);
+        expect(state.stack.length).toBe(0);
+    });
+
+    it("rejects removing more counters than are available (CR 122.6)", () => {
+        const battery = makeInstance(redManaBattery.id, {
+            id: "battery",
+            controllerId: "p1",
+            counters: { charge: 1 },
+        });
+        const player = makePlayer("p1", { battlefield: [battery] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        // With 1 counter the chooser only offers indices 0 and 1 (remove 0 or
+        // 1), so an out-of-range index 2 is rejected up-front — the counter
+        // count bounds the legal choices (CR 106.1 / 122.6). Nothing is paid.
+        expect(() =>
+            tapSourceIntoPayment(state, player, battery, 2, [])
+        ).toThrow(/Invalid mana choice/);
+        expect(battery.isTapped).toBe(false);
+        expect(battery.counters?.charge).toBe(1);
+    });
+
+    it("scaled counter state and produced mana survive projection to the wire", () => {
+        const battery = makeInstance(redManaBattery.id, {
+            id: "battery",
+            controllerId: "p1",
+            counters: { charge: 2 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [battery] }),
+                makePlayer("p2"),
+            ],
+        });
+        // The counter count is what drives the scaled chooser; assert it
+        // survives the GameState → PublicGameState projection so the client
+        // computes the same option list the server validates against.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "battery"
+        )!;
+        expect(slim.counters?.charge).toBe(2);
+        const choices = getEffectiveManaChoices(
+            slim as unknown as CardInstanceState,
+            "p1",
+            projected.players.map((p) => ({
+                playerId: p.id,
+                battlefield: p.battlefield as unknown as CardInstanceState[],
+            }))
+        );
+        expect(choices).toEqual([{ R: 1 }, { R: 2 }, { R: 3 }]);
     });
 });
