@@ -76,6 +76,25 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Auto-Tap self-source deprioritization (issue #544, CR 602.1).
+        // Mishra's Factory has both "{T}: Add {C}" and "{1}: becomes a 2/2".
+        // Board: one Mishra's Factory + two Mountains, all untapped.
+        // Golden path:
+        //   1. Activate the Factory's "{1}: animate" ability.
+        //   2. Click Auto-Tap on the payment banner.
+        //   3. A Mountain pays the {1}; the Factory stays UNTAPPED, so the
+        //      freshly-animated 2/2 Assembly-Worker can attack/block.
+        // Edge: remove the Mountains (only the Factory left) and Auto-Tap may
+        //   tap the Factory itself (strictly necessary), animating it tapped.
+        label: "ATQ: Mishra's Factory animate — Auto-Tap spares the manland (#544)",
+        cards: [
+            { name: "Mishra's Factory", owner: "me" as const },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Recall — {X}{X}{U} sorcery (CR 107.3/701.8/400.7/608.2). "Discard X
         // cards, then return a card from your graveyard to your hand for each
         // card discarded this way. Exile Recall."
