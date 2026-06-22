@@ -191,6 +191,25 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 2,
     },
     {
+        // #483 Kismet — {3}{W} Enchantment. "Artifacts, creatures, and lands
+        // your opponents control enter tapped." (CR 614.1c replacement + CR
+        // 110.5b — a battlefield-scanned, opponent-filtered `enters-tapped-
+        // restriction` static.) You control Kismet; the opponent holds a
+        // Grizzly Bears and some lands. Golden path:
+        //   1. Pass to the opponent's turn.
+        //   2. The opponent plays a land → it enters TAPPED.
+        //   3. The opponent casts Grizzly Bears → it enters TAPPED (can't
+        //      attack the turn it resolves, and is tapped on the board).
+        // Edge: your own permanents enter untapped as usual.
+        label: "LEG: Kismet — opponents' permanents enter tapped (#483)",
+        cards: [
+            { name: "Kismet", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const, zone: "hand" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
         // #481 Moat — {2}{W}{W} Enchantment. "Creatures without flying can't
         // attack." (CR 508.1c — a battlefield-scanned `global-attack-restriction`
         // static that locks attacks by creatures OTHER than its source.) You
