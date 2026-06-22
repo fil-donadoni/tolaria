@@ -116,6 +116,40 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Chain Lightning — {R} sorcery (CR 119.3 / 608.2 / 707.12). "Chain
+        // Lightning deals 3 damage to any target. Then that player or that
+        // permanent's controller may pay {R}{R}. If the player does, they may
+        // copy this spell and may choose a new target for that copy."
+        //
+        // Board: you hold Chain Lightning and six Mountains (one to cast, two
+        // for each {R}{R} chain link). The opponent fields a Hill Giant (3/3)
+        // and a Headless Horseman (2/3) to bounce the chain between.
+        // Golden path:
+        //   1. Cast Chain Lightning at the opponent's Hill Giant — it takes 3
+        //      and dies (or pick a creature that survives to keep chaining).
+        //   2. The opponent (controller of the damaged permanent) is offered
+        //      "Pay {R}{R} to copy?". If they have red mana they may pay; the
+        //      copy then prompts them to choose a NEW target.
+        //   3. Retarget the copy at the Headless Horseman (or a player) — it
+        //      deals another 3, and its damaged controller may chain again.
+        // Edge: decline the may-pay → nothing further happens, Chain Lightning
+        // goes to the graveyard.
+        label: "LEG: Chain Lightning — 3 damage, may-pay {R}{R} to copy & retarget",
+        cards: [
+            {
+                name: "Chain Lightning",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "me" as const, count: 6 },
+            { name: "Hill Giant", owner: "opp" as const },
+            { name: "Headless Horseman", owner: "opp" as const },
+            { name: "Mountain", owner: "opp" as const, count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // The Abyss — {3}{B} World enchantment (CR 205.4a / 704.5m). "At the
         // beginning of each player's upkeep, destroy target nonartifact
         // creature that player controls of their choice. It can't be

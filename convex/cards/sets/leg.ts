@@ -2306,12 +2306,12 @@ export const darkness: CardDefinition = {
 //
 // Cards that genuinely need an unbuilt primitive are SKIPPED (not built here):
 //   • Backdraft — "half the damage dealt by one of those sorcery spells this
-//     turn" needs a per-spell damage tally; no such surface exists.
+//     turn" needs a per-spell damage tally; no such surface exists. (Its
+//     "copy that spell" clause is now expressible via the `copyResolvingSpell`
+//     / `copyStackItem` primitives shipped with Chain Lightning — only the
+//     per-spell damage tally remains unbuilt.)
 //   • Blazing Effigy — death damage = 3 + "damage dealt to this by other
 //     sources named Blazing Effigy this turn"; no per-source-name damage tally.
-//   • Chain Lightning — "that player may pay {R}{R}; if so, copy this spell" is
-//     a self-copy of a resolving spell with a may-pay gate; `copyStackItem`
-//     copies a DIFFERENT spell still on the stack, not the resolving one.
 //   • Crevasse — "creatures with mountainwalk can be blocked as though they
 //     didn't have mountainwalk" — buildable with the `landwalk-negation` static
 //     (Great Wall / Undertow, #484), `subtypes: ["Mountain"]`. Deferred to its
@@ -2339,6 +2339,65 @@ export const darkness: CardDefinition = {
 //     attack during its controller's next turn" needs an other-creature
 //     cross-turn attack-lock (same gap flagged for Demonic Torment in black).
 // ─────────────────────────────────────────────────────────────────────────────
+
+// --- Burn / copy spells (CR 119 damage, CR 707.12 "copy this spell") -------
+
+// Chain Lightning — "Chain Lightning deals 3 damage to any target. Then that
+// player or that permanent's controller may pay {R}{R}. If the player does,
+// they may copy this spell and may choose a new target for that copy."
+//
+// Two resolveSteps so the irreversible damage (step 0) is checkpointed before
+// the may-pay gate (step 1) suspends for player input (CR 608.2 stepped
+// resolution). The "may copy" / "may choose a new target" clauses compose the
+// `copyResolvingSpell` (CR 707.12 "copy this spell") + `requestCopyRetarget`
+// (CR 707.12c new targets) primitives — the copy is a fresh resolution that
+// can itself chain again if its damaged player pays {R}{R}.
+//
+// "that player or that permanent's controller" (CR 119.3): for a player target
+// the chooser is the player dealt damage; for a permanent target it's the
+// permanent's controller. The copy is OPTIONAL and uses the stack, so it does
+// not auto-resolve — paying {R}{R} is a genuine tactical choice (per the
+// auto-resolve rule, a real branch keeps its prompt).
+export const chainLightning: CardDefinition = {
+    id: "b5883762-ca0a-4932-8d2a-41a45796a5f8",
+    rarity: "common",
+    name: "Chain Lightning",
+    oracleText:
+        "Chain Lightning deals 3 damage to any target. Then that player or that permanent's controller may pay {R}{R}. If the player does, they may copy this spell and may choose a new target for that copy.",
+    manaCost: { R: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "any", count: 1 },
+    resolveSteps: [
+        // Step 0 — deal the damage (CR 119.3 "any target").
+        (ctx: SpellContext) => {
+            const target = ctx.targets[0];
+            if (target) ctx.dealDamage(target, 3);
+        },
+        // Step 1 — offer the damaged player / permanent's controller the
+        // {R}{R} may-pay; on pay, copy this spell and let them retarget.
+        (ctx: SpellContext) => {
+            const target = ctx.targets[0];
+            if (!target) return;
+            // CR 119.3 — "that player or that permanent's controller".
+            const chooser =
+                target.type === "player"
+                    ? target.id
+                    : ctx.getController(target);
+            const paid = ctx.requestMayPay({
+                playerId: chooser,
+                choiceId: "chain-lightning-pay",
+                cost: { R: 2 },
+                prompt: "Pay {R}{R} to copy Chain Lightning (you may choose a new target)?",
+            });
+            if (paid === undefined) return; // suspended on the may-pay choice
+            if (!paid) return; // declined — nothing further happens
+            // CR 707.12 — the chooser copies THIS spell. The copy is controlled
+            // by the chooser (the player who paid), who may choose a new target.
+            const copyId = ctx.copyResolvingSpell({ controllerId: chooser });
+            if (copyId) ctx.requestCopyRetarget(copyId);
+        },
+    ],
+};
 
 // --- Vanilla / keyword creatures (CR 110.1 — pure data) -------------------
 

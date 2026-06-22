@@ -11,6 +11,7 @@
 import { describe, it, expect } from "vitest";
 import {
     theAbyss,
+    chainLightning,
     davenantArcher,
     jasmineBoreal,
     ladyOrca,
@@ -8232,5 +8233,195 @@ describe("Halfdane (upkeep: copy target creature's P/T until next upkeep, CR 613
         )!;
         expect(getEffectivePower(projected, slim)).toBe(2);
         expect(getEffectiveToughness(projected, slim)).toBe(2);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Chain Lightning — 3 damage to any target, then the damaged player / that
+// permanent's controller may pay {R}{R} to copy this spell and retarget the
+// copy (CR 119 damage, CR 608.2 stepped resolution, CR 707.12 "copy this
+// spell"). Exercises the `copyResolvingSpell` + may-pay primitives end to end.
+// ---------------------------------------------------------------------------
+describe("Chain Lightning (CR 119 / 608.2 / 707.12)", () => {
+    type Targets = NonNullable<StackItem["targets"]>;
+
+    // Mirrors finalizeTargetSelection's "copy-retarget" branch in
+    // convex/game.ts: writes the chosen targets onto the spell copy and clears
+    // the prompt. Pure helper so the test needs no Convex context (mirrors the
+    // Fork tests in lea.test.ts).
+    function applyCopyRetarget(state: GameState, newTargets: Targets): void {
+        const pt = state.pendingTarget!;
+        const copy = state.stack.find((s) => s.id === pt.cardInstanceId);
+        if (copy) copy.targets = newTargets;
+        state.pendingTarget = undefined;
+    }
+
+    it("definition: {R} sorcery dealing 3 to any target (Scryfall)", () => {
+        expect(chainLightning.manaCost).toEqual({ R: 1 });
+        expect(chainLightning.types).toEqual(["Sorcery"]);
+        expect(chainLightning.targetRequirement).toEqual({
+            type: "any",
+            count: 1,
+        });
+        expect(getCardById(chainLightning.id)).toBe(chainLightning);
+    });
+
+    it("deals 3 damage to a player target (CR 119.3)", () => {
+        const state = makeState();
+        pushSpell(state, chainLightning.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state); // step 0 damage → step 1 suspends on may-pay
+
+        expect(state.players[1].life).toBe(17);
+        // The damaged player (p2) is offered the {R}{R} may-pay.
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        expect(head?.playerId).toBe("p2");
+        expect(head?.cost).toEqual({ R: 2 });
+    });
+
+    it("declining the may-pay does nothing further (CR 707.12)", () => {
+        const state = makeState();
+        pushSpell(state, chainLightning.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        // p2 declines.
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+
+        expect(state.players[1].life).toBe(17); // only the original 3
+        expect(state.stack).toHaveLength(0); // no copy was made
+        expect(state.pendingTarget).toBeUndefined();
+        // The real card went to its owner's graveyard.
+        expect(
+            state.players[0].graveyard.map((c) => (c.card as { id: string }).id)
+        ).toEqual([chainLightning.id]);
+    });
+
+    it("paying {R}{R} copies the spell; the copy retargets and deals 3 more", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    manaPool: { W: 0, U: 0, B: 0, R: 2, G: 0, C: 0 },
+                }),
+            ],
+        });
+        pushSpell(state, chainLightning.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17);
+
+        // p2 (the damaged player) pays {R}{R} from their pool.
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        expect(state.players[1].manaPool.R).toBe(0); // cost was paid
+
+        // Chain Lightning itself is gone; a copy controlled by p2 awaits a
+        // (new) target. p2 — who paid — chooses (CR 707.12b/c).
+        const pt = state.pendingTarget!;
+        expect(pt.kind).toBe("copy-retarget");
+        expect(pt.playerId).toBe("p2");
+        const copy = state.stack.find((s) => s.id === pt.cardInstanceId)!;
+        expect(copy.isCopy).toBe(true);
+        expect(copy.controllerId).toBe("p2");
+        expect((copy.card as { id: string }).id).toBe(chainLightning.id);
+
+        // p2 points the copy at p1; resolve it. The copy's own may-pay then
+        // suspends (p1 may chain again) — decline it.
+        applyCopyRetarget(state, [{ type: "player", id: "p1" }]);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(17); // p1 took the copy's 3
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p1"); // p1 may chain
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+
+        expect(state.stack).toHaveLength(0);
+        // Only the original real card is in a graveyard; the copy ceased to
+        // exist (CR 707.12 / 112.5).
+        const allGy = [
+            ...state.players[0].graveyard,
+            ...state.players[1].graveyard,
+        ];
+        expect(allGy.some((c) => c.id === copy.id)).toBe(false);
+    });
+
+    it("the copy can chain again when its damaged player pays (CR 707.12)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    manaPool: { W: 0, U: 0, B: 0, R: 2, G: 0, C: 0 },
+                }),
+                makePlayer("p2", {
+                    manaPool: { W: 0, U: 0, B: 0, R: 2, G: 0, C: 0 },
+                }),
+            ],
+        });
+        pushSpell(state, chainLightning.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+
+        // First link: p2 pays, retargets the copy at p1.
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        applyCopyRetarget(state, [{ type: "player", id: "p1" }]);
+        resolveTopOfStack(state); // copy deals 3 to p1 → p1's may-pay suspends
+        expect(state.players[0].life).toBe(17);
+
+        // Second link: p1 pays and chains again, back at p2.
+        const head = state.pendingChoices?.[0];
+        expect(head?.playerId).toBe("p1");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        const pt = state.pendingTarget!;
+        expect(pt.playerId).toBe("p1"); // p1 controls this copy now
+        applyCopyRetarget(state, [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state); // second copy deals 3 to p2
+
+        expect(state.players[1].life).toBe(14); // 17 - 3 from the chain
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("permanent target: the controller (not the caster) is offered the pay", () => {
+        // jasmineBoreal is a 4/5 — survives 3 and stays on the battlefield so
+        // its controller can be asked to pay.
+        const jasmine = makeInstance(jasmineBoreal.id, {
+            id: "jasmine",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [jasmine] }),
+            ],
+        });
+        pushSpell(state, chainLightning.id, "p1", [
+            { type: "permanent", id: "jasmine" },
+        ]);
+        resolveTopOfStack(state);
+
+        // CR 119.3 — "that permanent's controller" (p2), not the caster (p1).
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        expect(head?.playerId).toBe("p2");
+        // The 4/5 survived the 3 damage.
+        const onField = state.players[1].battlefield.find(
+            (c) => c.id === "jasmine"
+        )!;
+        expect(onField.damageMarked ?? 0).toBe(3);
+    });
+
+    it("wire format: the may-pay prompt survives projectPublicState", () => {
+        const state = makeState();
+        pushSpell(state, chainLightning.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        // The damaged player p2 sees the pending may-pay through the projection.
+        const projected = projectPublicState(state, 1, "p2");
+        const head = projected.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        expect(head?.playerId).toBe("p2");
+        expect(head?.cost).toEqual({ R: 2 });
     });
 });

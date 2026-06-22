@@ -3943,6 +3943,71 @@ function tokenDefinitionId(spec: TokenSpec): string {
     return `token:${parts.join("|")}`;
 }
 
+/** Shared clone-onto-stack helper for spell-copy primitives (CR 707.10/707.12).
+ *  `original` is the spell being copied; `creator` is the resolving stack item
+ *  whose effect creates the copy (Fork's spell, or the resolving spell itself
+ *  for "copy this spell"). Returns the copy's new stack id, or `null` when
+ *  `original` is an ability or a non-instant/sorcery spell (copies of permanent
+ *  spells / abilities are out of scope, CR 707.10).
+ *
+ *  The copy is controlled by `creator`'s controller (CR 707.10b) and inserted
+ *  directly below `creator` on the stack so it becomes the new top once
+ *  `creator` is popped — works identically whether `creator` and `original` are
+ *  the same object (self-copy) or different. */
+function cloneSpellOntoStack(
+    state: GameState,
+    original: StackItem,
+    creator: StackItem,
+    modifications?: { colorOverride?: Color[]; controllerId?: string }
+): string | null {
+    // CR 707.10 — abilities aren't spells; this primitive copies only
+    // instant/sorcery SPELLS. Copies of permanent spells (which would create
+    // token permanents) are out of scope.
+    if (
+        original.abilityId ||
+        original.triggeredAbilityId ||
+        original.delayedTriggerId
+    ) {
+        return null;
+    }
+    if (
+        !original.types.includes("Instant") &&
+        !original.types.includes("Sorcery")
+    ) {
+        return null;
+    }
+    const copy: StackItem = structuredClone(original);
+    copy.id = allocInstanceId(state);
+    copy.isCopy = true;
+    // A self-copy must start its OWN resolution from step 0 — clear the
+    // creator's mid-resolution checkpoint so the copy re-runs every step
+    // (including its own may-pay gate) rather than inheriting a half-resolved
+    // state (CR 608.2 / 707.12).
+    delete copy.resolutionStep;
+    delete copy.collectedChoices;
+    // CR 707.10b / 707.12 — the copy is controlled by the controller of the
+    // effect that created it (e.g. Fork's controller, or the resolving spell's
+    // own controller for "copy this spell"), unless the effect names a specific
+    // player as the copier (Chain Lightning: the player who paid {R}{R}). A
+    // `controllerId` override sets that player; the copy's controller (whoever
+    // it is) is the one `requestCopyRetarget` lets choose new targets.
+    const copyController = modifications?.controllerId ?? creator.controllerId;
+    copy.castById = copyController;
+    copy.controllerId = copyController;
+    copy.ownerId = copyController;
+    if (modifications?.colorOverride) {
+        copy.colorOverride = modifications.colorOverride;
+    }
+    // Insert the copy directly above the original so it resolves first.
+    // `creator` (the copying spell) is the current top of the stack and is
+    // popped immediately after this resolve completes; inserting just below it
+    // leaves the copy as the new top.
+    const selfIdx = state.stack.findIndex((s) => s.id === creator.id);
+    const insertAt = selfIdx === -1 ? state.stack.length : selfIdx;
+    state.stack.splice(insertAt, 0, copy);
+    return copy.id;
+}
+
 /** Builds a SpellContext with primitives bound to the current game state. */
 function buildSpellContext(state: GameState, item: StackItem): SpellContext {
     function requirePermanent(target: TargetSelection): CardInstanceState {
@@ -5616,47 +5681,21 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             ];
         },
         copyStackItem(targetStackItemId, modifications): string | null {
-            const targetIdx = state.stack.findIndex(
+            const original = state.stack.find(
                 (s) => s.id === targetStackItemId
             );
-            if (targetIdx === -1) return null;
-            const original = state.stack[targetIdx];
-            // CR 707.10 — abilities aren't spells; this primitive copies only
-            // instant/sorcery SPELLS. Copies of permanent spells (which would
-            // create token permanents) are out of scope.
-            if (
-                original.abilityId ||
-                original.triggeredAbilityId ||
-                original.delayedTriggerId
-            ) {
-                return null;
-            }
-            if (
-                !original.types.includes("Instant") &&
-                !original.types.includes("Sorcery")
-            ) {
-                return null;
-            }
-            const copy: StackItem = structuredClone(original);
-            copy.id = allocInstanceId(state);
-            copy.isCopy = true;
-            // CR 707.10b — the copy is controlled by the controller of the
-            // effect that created it (e.g. Fork's controller), not by the
-            // original spell's controller.
-            copy.castById = item.castById;
-            copy.controllerId = item.controllerId;
-            copy.ownerId = item.controllerId;
-            if (modifications?.colorOverride) {
-                copy.colorOverride = modifications.colorOverride;
-            }
-            // Insert the copy directly above the original so it resolves
-            // first. `item` (the copying spell) is the current top of the
-            // stack and is popped immediately after this resolve completes;
-            // inserting just below it leaves the copy as the new top.
-            const selfIdx = state.stack.findIndex((s) => s.id === item.id);
-            const insertAt = selfIdx === -1 ? state.stack.length : selfIdx;
-            state.stack.splice(insertAt, 0, copy);
-            return copy.id;
+            if (!original) return null;
+            return cloneSpellOntoStack(state, original, item, modifications);
+        },
+        copyResolvingSpell(modifications): string | null {
+            // CR 707.12 — "copy this spell". A resolving spell that copies
+            // ITSELF (Chain Lightning, Backdraft-likes) clones `item`, the
+            // currently-resolving stack object, rather than a different spell
+            // still on the stack (that's `copyStackItem`). During a stepped
+            // resolve the resolving spell is still on the stack (peek-and-pop),
+            // so the same insert-below-self discipline leaves the copy as the
+            // new top once this spell finishes and is popped.
+            return cloneSpellOntoStack(state, item, item, modifications);
         },
         requestCopyRetarget(copyStackItemId): void {
             const copy = state.stack.find((s) => s.id === copyStackItemId);
@@ -5710,9 +5749,12 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                           : {}),
                   }
                 : undefined;
-            // CR 707.10b — the copy's controller may choose new targets.
+            // CR 707.10b / 707.12c — the COPY's controller chooses new targets.
+            // For Fork this equals the resolving spell's caster; for Chain
+            // Lightning it's the player who paid {R}{R} (the copy's controller),
+            // so key the chooser off the copy itself, not `item.castById`.
             state.pendingTarget = {
-                playerId: item.castById,
+                playerId: copy.controllerId,
                 cardInstanceId: copy.id,
                 targetType: req.type,
                 count,
