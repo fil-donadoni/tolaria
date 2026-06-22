@@ -1,8 +1,13 @@
-// Integration test for the autoTapForPayment mutation path (issue #321).
+// Integration test for the autoTapForPayment mutation path (issues #321, #474).
 //
 // Exercises the full chain the mutation runs server-side:
-//   buildAutoTapSources → solveAutoTap (full) / solveAutoTapPartial (fallback)
-//   → tapSourceIntoPayment (real GRE primitive) → tryAutoCommitPendingCast.
+//   buildAutoTapSources + buildHandSpellDemands → solveSmartAutoTap (full) /
+//   solveAutoTapPartial (fallback) → tapSourceIntoPayment (real GRE primitive)
+//   → tryAutoCommitPendingCast.
+//
+// Smart auto-tap (PRD #472, ADR 0034) selects, among all minimal-tap covering
+// plans, the one that best preserves the paying player's other castable hand
+// spells (their Demands) — see the bottom describe block.
 //
 // The bug: with pure-mana sources that can't cover the whole cost but a manual
 // sacrifice source (Black Lotus) also present, the mutation threw
@@ -13,9 +18,10 @@
 import { describe, it, expect } from "vitest";
 import {
     buildAutoTapSources,
-    solveAutoTap,
+    solveSmartAutoTap,
     solveAutoTapPartial,
 } from "../gre/autoTap";
+import { buildHandSpellDemands } from "../gre/autoTapDemands";
 import { tapSourceIntoPayment, tryAutoCommitPendingCast } from "../game";
 import {
     getManaSubstitutions,
@@ -39,11 +45,13 @@ function runAutoTap(state: GameState, player: PlayerState): boolean {
     const pending = state.pendingCast!;
     const substitutions = getManaSubstitutions(state, player.id);
     const sources = buildAutoTapSources(player.battlefield);
-    const fullPlan = solveAutoTap(
+    const demands = buildHandSpellDemands(player.hand, pending.cardInstanceId);
+    const fullPlan = solveSmartAutoTap(
         player.manaPool,
         pending.manaCost,
         substitutions,
-        sources
+        sources,
+        demands
     );
     const plan =
         fullPlan ??
@@ -214,5 +222,125 @@ describe("autoTapForPayment under Blood Moon (#419)", () => {
         // Tapped for red (the Mountain subtype), not its printed G/U.
         expect(player.manaPool.G ?? 0).toBe(0);
         expect(player.manaPool.U ?? 0).toBe(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Smart auto-tap: demand-aware spine through the real mutation path
+// (PRD #472, ADR 0034, issue #474). Behavioral seam — asserts which sources
+// end up tapped and which hand spells stay castable, not solver internals.
+// ---------------------------------------------------------------------------
+
+const TUNDRA = "a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb"; // {T}: W or U
+const ISLAND = "90a57c0e-fa61-45ef-955d-d296403967d5"; // {T}: U
+const TIME_WALK = "e0139f60-d48e-46fb-9f5a-1e3d7558c834"; // {1}{U} (Sorcery)
+const SAVANNAH_LIONS = "d05b92bd-797e-413f-a8b0-32e0937a1ee0"; // {W} (Creature)
+
+describe("autoTapForPayment — smart demand-aware spine (ADR 0034)", () => {
+    /** Board Tundra (W/U) + Island (U) + Tropical Island (U/G); hand Time Walk
+     *  (the spell being cast) + Savannah Lions ({W}). Casting Time Walk. */
+    function timeWalkState() {
+        const walk = makeInstance(TIME_WALK, {
+            id: "walk",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const lions = makeInstance(SAVANNAH_LIONS, {
+            id: "lions",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const battlefield = [
+            makeInstance(TUNDRA, { id: "tundra", controllerId: "p1" }),
+            makeInstance(ISLAND, { id: "island", controllerId: "p1" }),
+            makeInstance(TROPICAL_ISLAND, { id: "trop", controllerId: "p1" }),
+        ];
+        const pendingCast: PendingCast = {
+            playerId: "p1",
+            cardInstanceId: "walk",
+            manaCost: { U: 1, X: 1 }, // {1}{U}
+            tappedLandIds: [],
+        };
+        const p1 = makePlayer("p1", {
+            hand: [walk, lions],
+            battlefield,
+        });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            pendingCast,
+        });
+        return { state, player: state.players[0] };
+    }
+
+    it("leaves Tundra (white source) untapped so Savannah Lions stays castable", () => {
+        const { state, player } = timeWalkState();
+        const committed = runAutoTap(state, player);
+
+        // Time Walk paid and committed.
+        expect(committed).toBe(true);
+        expect(state.pendingCast).toBeUndefined();
+
+        const tundra = player.battlefield.find((c) => c.id === "tundra")!;
+        const island = player.battlefield.find((c) => c.id === "island")!;
+        const trop = player.battlefield.find((c) => c.id === "trop")!;
+        // The two U sources are tapped; the white source is preserved.
+        expect(tundra.isTapped).toBeFalsy();
+        expect(island.isTapped).toBe(true);
+        expect(trop.isTapped).toBe(true);
+
+        // Savannah Lions ({W}) is still castable from the untapped Tundra.
+        const sub = getManaSubstitutions(state, player.id);
+        const sources = buildAutoTapSources(player.battlefield);
+        const lionsPlan = solveSmartAutoTap(
+            player.manaPool,
+            { W: 1 },
+            sub,
+            sources,
+            []
+        );
+        expect(lionsPlan).not.toBeNull();
+    });
+
+    it("minimal-tap-count never exceeded: taps exactly two sources for {1}{U}", () => {
+        const { state, player } = timeWalkState();
+        runAutoTap(state, player);
+        const tapped = player.battlefield.filter((c) => c.isTapped);
+        expect(tapped).toHaveLength(2);
+    });
+
+    it("deterministic: same board casts twice → identical tapped set", () => {
+        const a = timeWalkState();
+        runAutoTap(a.state, a.player);
+        const tappedA = a.player.battlefield
+            .filter((c) => c.isTapped)
+            .map((c) => c.id)
+            .sort();
+
+        const b = timeWalkState();
+        runAutoTap(b.state, b.player);
+        const tappedB = b.player.battlefield
+            .filter((c) => c.isTapped)
+            .map((c) => c.id)
+            .sort();
+
+        expect(tappedA).toEqual(tappedB);
+        expect(tappedA).toEqual(["island", "trop"]);
+    });
+
+    it("empty hand: still pays {1}{U}, leaving the most flexible source up", () => {
+        const { state, player } = timeWalkState();
+        // Drop Savannah Lions — only the spell being cast remains in hand.
+        player.hand = player.hand.filter((c) => c.id === "walk");
+        const committed = runAutoTap(state, player);
+        expect(committed).toBe(true);
+        // Flexibility fallback keeps the 2-color Tropical Island untapped over a
+        // 1-color Island, so Island + Tundra are tapped... but Tundra is also
+        // 2-color. Tie-break leaves a dual up: exactly two taps, dual preserved.
+        const tapped = player.battlefield.filter((c) => c.isTapped);
+        expect(tapped).toHaveLength(2);
     });
 });
