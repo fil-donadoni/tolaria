@@ -121,6 +121,45 @@ export const gravitySphere: CardDefinition = {
     ],
 };
 
+// Kismet — {3}{W} Enchantment. "Artifacts, creatures, and lands your opponents
+// control enter tapped." (CR 614.1c + 110.5b — a battlefield-scanned,
+// player-scoped enters-tapped replacement via the `enters-tapped-restriction`
+// static kind. The engine scans EVERY permanent at every ETB site
+// (`entersTappedByReplacement`) and asks each source's
+// `forcesTapped(entering, source, state, ctx)` predicate whether the entering
+// permanent must be tapped — the symmetric analogue of how Crusade-style
+// anthems (`pt-buff`) scan all permanents and buff a filtered set, and of the
+// `global-attack-restriction` kind. Only OTHER players' artifacts/creatures/
+// lands are affected; the controller's own permanents and non-(artifact/
+// creature/land) permanents enter as usual.)
+export const kismet: CardDefinition = {
+    id: "7e0651ad-6901-4f9b-8807-d66e53a4ada8",
+    name: "Kismet",
+    oracleText:
+        "Artifacts, creatures, and lands your opponents control enter tapped.",
+    manaCost: { X: 3, W: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "enters-tapped-restriction",
+            id: "kismet-opponents-enter-tapped",
+            forcesTapped: (entering: PermanentView, source: PermanentView) => {
+                // Opponent filter: "your opponents control" — the entering
+                // permanent's prospective controller is NOT Kismet's controller.
+                if (entering.controllerId === source.controllerId) return false;
+                // Type filter: only Artifacts, Creatures, and Lands.
+                return (
+                    entering.types.includes("Artifact") ||
+                    entering.types.includes("Creature") ||
+                    entering.types.includes("Land")
+                );
+            },
+            oracleText:
+                "Artifacts, creatures, and lands your opponents control enter tapped (Kismet).",
+        },
+    ],
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // White free tranche (#371) — every mono-white Legends card expressible with
 // existing primitives (keywords, staticEffects / layer system, trigger
