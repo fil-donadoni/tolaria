@@ -16,6 +16,7 @@ import * as arn from "./sets/arn";
 import * as atq from "./sets/atq";
 import * as leg from "./sets/leg";
 import * as drk from "./sets/drk";
+import * as unlimited from "./sets/2ed";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -48,6 +49,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "atq", exports: atq },
     { code: "leg", exports: leg },
     { code: "drk", exports: drk },
+    { code: "2ed", exports: unlimited },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
