@@ -345,6 +345,16 @@ export interface ActivatedAbility {
     /** Target requirements declared at activation time (CR 602.2b). Chosen
      *  when the ability is activated, validated again on resolution. */
     targetRequirement?: TargetRequirement;
+    /** Marks an ability whose only effect is to animate its own source
+     *  (`SpellContext.animateAsCreature` targeting `ctx.sourceInstanceId`).
+     *  The animate primitive is a no-op while the source already carries an
+     *  `animation` record (CR 611.1 — one animation at a time; see
+     *  `state.ts` `animateAsCreature`), so re-activating spends mana for
+     *  nothing. The bot move enumerator (`gre/moves.ts`) skips such an
+     *  ability while the source is already animated, so the Brain never
+     *  wastes mana on the redundant activation (manlands: Mishra's Factory,
+     *  Jade Statue). */
+    animatesSelf?: boolean;
     /** Effect for mana abilities (useStack: false). */
     effect?: (ctx: ActivatedAbilityContext) => void;
     /** Mana abilities don't use the stack — they resolve immediately (CR 605.3a). */

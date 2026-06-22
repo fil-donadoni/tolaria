@@ -1265,6 +1265,7 @@ export const mishrasFactory: CardDefinition = {
                 "{1}: This land becomes a 2/2 Assembly-Worker artifact creature until end of turn. It's still a land.",
             cost: { mana: { X: 1 } },
             useStack: true,
+            animatesSelf: true,
             resolve: (ctx: SpellContext) => {
                 ctx.animateAsCreature(
                     { type: "permanent", id: ctx.sourceInstanceId },

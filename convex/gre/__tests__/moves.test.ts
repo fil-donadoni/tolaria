@@ -12,7 +12,7 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup";
-import type { CardInstanceState } from "../state";
+import type { CardInstanceState, GameState } from "../state";
 import { enumerateMoves, planManaPayment, type Move } from "../moves";
 
 const FOREST = getCardByName("Forest").id;
@@ -369,5 +369,77 @@ describe("enumerateMoves — any-player abilities on opponents (CR 113.3c)", () 
             (m) => m.kind === "activate-ability" && m.cardInstanceId === "queen"
         );
         expect(onOpponent).toEqual([]);
+    });
+});
+
+// Issue #546 — the bot must not pay an animate ability's cost while the source
+// is already animated this turn (CR 611.1, one animation at a time). The
+// animate primitive (`state.ts` `animateAsCreature`) returns early when
+// `card.animation` is set, so a re-activation wastes mana for no effect; the
+// enumerator must not produce the redundant `activate-ability` macro-move.
+describe("enumerateMoves — self-animate guard (issue #546, CR 611.1)", () => {
+    const FACTORY = getCardByName("Mishra's Factory").id;
+
+    function animatedFactory(): CardInstanceState {
+        return makeInstance(FACTORY, {
+            id: "factory",
+            controllerId: "p1",
+            ownerId: "p1",
+            // Already a 2/2 Assembly-Worker creature land this turn.
+            animation: {
+                savedPower: undefined,
+                savedToughness: undefined,
+                addedCreatureType: true,
+                addedSubtype: "Assembly-Worker",
+                duration: { phase: "end-of-turn" },
+            },
+        });
+    }
+
+    function plainFactory(): CardInstanceState {
+        return makeInstance(FACTORY, {
+            id: "factory",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+    }
+
+    function animateMoves(state: GameState): Move[] {
+        return enumerateMoves(state, "p1").filter(
+            (m) =>
+                m.kind === "activate-ability" &&
+                m.cardInstanceId === "factory" &&
+                m.abilityId === "mishras-factory-animate"
+        );
+    }
+
+    it("does not offer the animate ability while already animated", () => {
+        // Factory is animated; a spare Forest can fund the {1} cost, so the
+        // ONLY reason the move is absent must be the self-animate guard.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [animatedFactory(), land(FOREST, "p1")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(animateMoves(state)).toEqual([]);
+    });
+
+    it("still offers the animate ability when not yet animated (control)", () => {
+        // Same board, Factory NOT animated — the move must be present and carry
+        // a tap plan (proving the prior absence is the guard, not lack of mana).
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [plainFactory(), land(FOREST, "p1")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const moves = animateMoves(state);
+        expect(moves).toHaveLength(1);
+        expect(moves[0].kind).toBe("activate-ability");
     });
 });
