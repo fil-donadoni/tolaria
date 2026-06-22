@@ -1193,6 +1193,21 @@ export interface SpellContext {
         target: TargetSelection,
         ability: string
     ) => void;
+    /** Grants a triggered ability to `target` for a limited duration
+     *  (CR 113.1, 611.1b). The template is looked up at trigger-scan time on
+     *  the granting card's `triggeredGrantTemplates[]` (`sourceCardId` +
+     *  `abilityId`) and unioned into the target's effective triggers, so the
+     *  engine scans and resolves it as if printed on `target`. The
+     *  duration-scoped sibling of the continuous `triggered-grant` static
+     *  effect; the phase-boundary purge removes it when `duration` expires.
+     *  No-op if target has left the battlefield. Used by Rapid Fire's "that
+     *  creature gains rampage 2 until end of turn". */
+    grantTriggeredAbility: (
+        target: TargetSelection,
+        sourceCardId: string,
+        abilityId: string,
+        duration: DurationSpec
+    ) => void;
     /** Removes every keyword static ability matching `predicate` from a
      *  permanent for a limited duration (CR 611.1b layer 6). Each removed
      *  keyword is spliced out of `staticAbilities` so combat / rules checks stop
@@ -1257,6 +1272,14 @@ export interface SpellContext {
      *  resolve body (Season of the Witch's "couldn't attack" defender check).
      *  False for players / permanents off the battlefield. */
     hasStaticAbility: (target: TargetSelection, ability: string) => boolean;
+    /** The target permanent's effective keyword static abilities at read time
+     *  (CR 702), including ones granted by continuous effects or until-end-of-
+     *  turn grants (everything spliced into `staticAbilities`). Parametric
+     *  keywords carry their value (e.g. `"rampage 2"`), so a "does it already
+     *  have rampage" check is `.some(a => a.startsWith("rampage"))`. Returns an
+     *  empty array for players / permanents off the battlefield. Used by Rapid
+     *  Fire's conditional rampage grant. */
+    getStaticAbilities: (target: TargetSelection) => string[];
     /** Prevents all combat damage for the remainder of this turn (CR 615,
      *  Fog). Cleared at CLEANUP. Non-combat damage is unaffected. */
     preventAllCombatDamage: () => void;

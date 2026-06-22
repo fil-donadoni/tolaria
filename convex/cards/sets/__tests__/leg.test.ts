@@ -155,6 +155,7 @@ import {
     aerathiBerserker,
     frostGiant,
     crawGiant,
+    rapidFire,
     wolverinePack,
     chromium,
     hundingGjornersen,
@@ -196,7 +197,7 @@ import {
 } from "../leg";
 import { enumerateMoves, type Move } from "../../../gre/moves";
 import { getCardById, getCardByName, getAllCards } from "../../index";
-import { getLegalTargets } from "../../../gre/rules";
+import { getLegalTargets, getLegalActions } from "../../../gre/rules";
 import { isGuardedAgainst } from "../../../gre/permanentGuard";
 import { isCombatDamagePreventedFromSource } from "../../../gre/combatDamagePrevention";
 import {
@@ -252,6 +253,7 @@ import {
     type GameState,
     type StackItem,
 } from "../../../gre/state";
+import type { Phase } from "../../../gre/types";
 import { collectTriggers } from "../../../gre/triggers";
 import { effectiveTriggeredAbilities } from "../../../gre/copy";
 import { applyMayPaySubmit } from "../../../gre/pendingChoiceSubmit";
@@ -5006,6 +5008,215 @@ describe("Rampage N (CR 702.23)", () => {
         )!;
         expect(getEffectivePower(projected, slim)).toBe(8);
         expect(getEffectiveToughness(projected, slim)).toBe(8);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Rapid Fire ({3}{W} instant, #494) — cast only before blockers are declared
+// (CR 117.1b); target gains first strike EOT (CR 702.7, 611.1b) and, only if it
+// has no rampage, rampage 2 EOT (CR 702.23). Composes existing rampage (#380)
+// and first-strike grants with a conditional grant + the parametric cast-phase
+// restriction (shared with Teleport / Berserk).
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Rapid Fire (CR 117.1b cast timing + CR 702.23 conditional rampage)", () => {
+    /** A single creature on p1's battlefield + Rapid Fire in p1's hand with a
+     *  full mana pool, p1 holding priority. `creatureDef` lets a test field a
+     *  vanilla creature or a printed-rampage creature. */
+    function setup(
+        creatureDef: { id: string },
+        phase: Phase = "DECLARE_ATTACKERS"
+    ) {
+        const creature = makeInstance(creatureDef.id, {
+            id: "tgt",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const handCard = makeInstance(rapidFire.id, {
+            id: "rf",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            phase,
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [creature],
+                    hand: [handCard],
+                    manaPool: { W: 1, U: 0, B: 0, R: 0, G: 0, C: 3 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, creature, handCard };
+    }
+
+    /** Pushes Rapid Fire on the stack targeting `tgt` and resolves it. */
+    function castAtTarget(state: GameState): void {
+        pushSpell(state, rapidFire.id, "p1", [
+            { type: "permanent", id: "tgt" },
+        ]);
+        resolveTopOfStack(state);
+    }
+
+    function liveTarget(state: GameState): CardInstanceState {
+        return state.players[0].battlefield.find((c) => c.id === "tgt")!;
+    }
+
+    it("is a {3}{W} instant restricted to before declare-blockers", () => {
+        expect(rapidFire.manaCost).toEqual({ X: 3, W: 1 });
+        expect(rapidFire.types).toEqual(["Instant"]);
+        // The allow-list stops at DECLARE_ATTACKERS — DECLARE_BLOCKERS and later
+        // combat steps are excluded.
+        expect(rapidFire.castPhaseRestriction).not.toContain(
+            "DECLARE_BLOCKERS"
+        );
+        expect(rapidFire.castPhaseRestriction).toContain("DECLARE_ATTACKERS");
+    });
+
+    it("cast is LEGAL up to and including declare-attackers (CR 117.1b)", () => {
+        for (const phase of [
+            "PRECOMBAT_MAIN",
+            "BEGINNING_OF_COMBAT",
+            "DECLARE_ATTACKERS",
+        ] as Phase[]) {
+            const { state, handCard } = setup(grizzlyBears, phase);
+            const actions = getLegalActions(state, state.players[0], handCard);
+            expect(actions).toContain("cast");
+        }
+    });
+
+    it("cast is ILLEGAL once declare-blockers (or later) has begun (CR 117.1b)", () => {
+        for (const phase of [
+            "DECLARE_BLOCKERS",
+            "COMBAT_DAMAGE",
+            "END_OF_COMBAT",
+        ] as Phase[]) {
+            const { state, handCard } = setup(grizzlyBears, phase);
+            const actions = getLegalActions(state, state.players[0], handCard);
+            expect(actions).not.toContain("cast");
+        }
+    });
+
+    it("grants first strike until end of turn (CR 702.7, 611.1b)", () => {
+        const { state } = setup(grizzlyBears);
+        castAtTarget(state);
+        const t = liveTarget(state);
+        expect(t.staticAbilities).toContain("first strike");
+        expect(
+            t.grantedStaticAbilities?.some(
+                (g) => g.ability === "first strike" && g.duration
+            )
+        ).toBe(true);
+    });
+
+    it("target WITHOUT rampage gains rampage 2 EOT — keyword + trigger (CR 702.23)", () => {
+        const { state } = setup(grizzlyBears);
+        castAtTarget(state);
+        const t = liveTarget(state);
+        expect(t.staticAbilities).toContain("rampage 2");
+        // The matching rampageTrigger(2) is granted for the duration.
+        expect(
+            effectiveTriggeredAbilities(t).some((a) => a.id === "rampage-2")
+        ).toBe(true);
+        expect(
+            t.grantedTriggeredAbilities?.some(
+                (g) => g.abilityId === "rampage-2" && g.duration
+            )
+        ).toBe(true);
+    });
+
+    it("granted rampage 2 actually fires in combat: blocked by THREE → +4/+4", () => {
+        const { state } = setup(grizzlyBears);
+        castAtTarget(state); // grizzly (2/2) now has rampage 2 EOT
+        // Stage a combat where the granted creature attacks into three blockers.
+        const t = liveTarget(state);
+        t.isAttacking = true;
+        const blockers = ["b0", "b1", "b2"].map((id) =>
+            makeInstance(grizzlyBears.id, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+                isBlocking: true,
+            })
+        );
+        state.players[1].battlefield.push(...blockers);
+        state.phase = "DECLARE_BLOCKERS";
+        state.combat = {
+            attackerIds: ["tgt"],
+            confirmed: true,
+            blockerAssignments: { b0: ["tgt"], b1: ["tgt"], b2: ["tgt"] },
+            blockersConfirmed: true,
+        };
+        recordBlockedAttackers(state);
+        emitBlockersConfirmedEvents(state);
+        expect(
+            state.stack.filter((s) => s.triggeredAbilityId === "rampage-2")
+        ).toHaveLength(1);
+        resolveTopOfStack(state);
+        const atk = liveTarget(state);
+        // base 2/2, rampage 2 × (3 − 1) = +4/+4 → 6/6.
+        expect(getEffectivePower(state, atk)).toBe(6);
+        expect(getEffectiveToughness(state, atk)).toBe(6);
+    });
+
+    it("target that ALREADY has rampage gains NO extra rampage (CR 702.23)", () => {
+        // Frost Giant has printed rampage 2.
+        const { state } = setup(frostGiant);
+        castAtTarget(state);
+        const t = liveTarget(state);
+        // First strike still granted…
+        expect(t.staticAbilities).toContain("first strike");
+        // …but rampage is NOT re-granted: exactly one "rampage 2" keyword (the
+        // printed one), and no duration-scoped granted rampage trigger.
+        expect(
+            t.staticAbilities.filter((a) => a.startsWith("rampage"))
+        ).toEqual(["rampage 2"]);
+        expect(
+            t.grantedStaticAbilities?.some((g) =>
+                g.ability.startsWith("rampage")
+            )
+        ).not.toBe(true);
+        expect(t.grantedTriggeredAbilities?.some((g) => g.duration)).not.toBe(
+            true
+        );
+    });
+
+    it("both grants wear off at end of turn (CR 514.2 cleanup)", () => {
+        const { state } = setup(grizzlyBears, "END_STEP");
+        castAtTarget(state);
+        const before = liveTarget(state);
+        expect(before.staticAbilities).toContain("first strike");
+        expect(before.staticAbilities).toContain("rampage 2");
+        // advancePhase from END_STEP traverses CLEANUP (auto) and purges EOT grants.
+        advancePhase(state);
+        const after = liveTarget(state);
+        expect(after.staticAbilities).not.toContain("first strike");
+        expect(after.staticAbilities).not.toContain("rampage 2");
+        expect(after.grantedTriggeredAbilities).toBeUndefined();
+        expect(
+            effectiveTriggeredAbilities(after).some((a) => a.id === "rampage-2")
+        ).toBe(false);
+    });
+
+    it("wire format: granted first strike + rampage survive projectPublicState", () => {
+        const { state } = setup(grizzlyBears);
+        castAtTarget(state);
+        for (const viewer of ["p1", "p2"] as const) {
+            const projected = projectPublicState(state, 1, viewer);
+            const slim = projected.players[0].battlefield.find(
+                (c) => c.id === "tgt"
+            )!;
+            expect(slim.staticAbilities).toContain("first strike");
+            expect(slim.staticAbilities).toContain("rampage 2");
+            expect(
+                effectiveTriggeredAbilities(slim).some(
+                    (a) => a.id === "rampage-2"
+                )
+            ).toBe(true);
+        }
     });
 });
 
