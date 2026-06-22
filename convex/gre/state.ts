@@ -161,6 +161,12 @@ export type CardInstanceState = {
     /** Mana choice made when activating a manaChoices ability (e.g. Birds of Paradise).
      *  Stored so untap can refund the exact mana that was added. Cleared at untap step. */
     chosenMana?: CardManaCost;
+    /** Counters removed to pay the scaling part of a mana-choice cost
+     *  (CR 122.6 / 605.1a — the Mana Batteries' "Remove any number of charge
+     *  counters: Add 1 + N mana"). Snapshotted at tap commit so untapping the
+     *  source before the produced mana is spent restores the removed counters.
+     *  Cleared at untap / cleanup, like `chosenMana`. */
+    manaCounterRemoval?: { type: string; count: number };
     /** Mode chosen at cast time for modal permanents (CR 700.2c). Survives
      *  from the stack to the battlefield so the layer system can read
      *  mode-specific static effects (e.g. Phantasmal Terrain). */
@@ -3775,6 +3781,7 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.removedKeywords;
     delete card.animation;
     delete card.chosenMana;
+    delete card.manaCounterRemoval;
     delete card.manaCommitted;
     delete card.counters;
     delete card.temporaryPTMods;

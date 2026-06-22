@@ -18,6 +18,7 @@ import {
 } from "../card-utils";
 import type { CardInstance } from "~/types/game";
 import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
+import { redManaBattery } from "@convex/cards/sets/leg";
 
 // Real card ids from convex/cards/sets/lea.ts, used to exercise the
 // definition-vs-instance keyword diff in getDisplayAbilities (#156).
@@ -1017,5 +1018,42 @@ describe("getManaChoices — Fellwar Stone (board-conditional)", () => {
             subtypes: [],
         });
         expect(getManaChoices(dw)).toBeNull();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Mana Battery — client picker offers 1..1+available scaled choices (#482)
+// ---------------------------------------------------------------------------
+
+describe("Mana Battery mana picker (charge-counter scaling, #482)", () => {
+    function battery(counters?: Record<string, number>): CardInstance {
+        return makeCardInstance({
+            id: "battery",
+            card: { id: redManaBattery.id },
+            controllerId: "p1",
+            types: ["Artifact"],
+            subtypes: [],
+            ...(counters ? { counters } : {}),
+        });
+    }
+
+    it("exposes a tap mana ability", () => {
+        expect(hasManaAbility(battery())).toBe(true);
+    });
+
+    it("offers 1..1+available {R} options scaled by charge counters", () => {
+        const players = [{ id: "p1", battlefield: [battery({ charge: 2 })] }];
+        // 2 counters → remove 0..2 → produce 1..3 {R}. The same resolver the
+        // server validates against, so the index the picker submits matches.
+        expect(getManaChoices(battery({ charge: 2 }), players)).toEqual([
+            { R: 1 },
+            { R: 2 },
+            { R: 3 },
+        ]);
+    });
+
+    it("offers only the base 1 {R} when the battery has no counters", () => {
+        const players = [{ id: "p1", battlefield: [battery()] }];
+        expect(getManaChoices(battery(), players)).toEqual([{ R: 1 }]);
     });
 });

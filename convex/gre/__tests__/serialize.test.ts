@@ -239,6 +239,9 @@ describe("game_state serialize round-trip", () => {
         lion.damageMarked = 2;
         lion.regenerationShields = 1;
         lion.chosenMana = { R: 1, G: 1 };
+        // #482 — charge counters removed to pay a Mana Battery's scaling cost,
+        // snapshotted for untap refund.
+        lion.manaCounterRemoval = { type: "charge", count: 2 };
         lion.attachedTo = "host-id";
         lion.temporaryPTMods = [
             { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
@@ -317,6 +320,7 @@ describe("game_state serialize round-trip", () => {
         expect(got.damageMarked).toBe(2);
         expect(got.regenerationShields).toBe(1);
         expect(got.chosenMana).toEqual({ R: 1, G: 1 });
+        expect(got.manaCounterRemoval).toEqual({ type: "charge", count: 2 });
         expect(got.attachedTo).toBe("host-id");
         expect(got.temporaryPTMods).toEqual([
             { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },

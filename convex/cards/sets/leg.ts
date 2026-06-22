@@ -3681,10 +3681,6 @@ export const sunastianFalconer: CardDefinition = {
 //   • Arena of the Ancients — "Legendary creatures don't untap" needs a
 //     supertype-scoped untap-restriction; PermanentFilter has no supertypes
 //     field.
-//   • Black/Blue/Green/Red/White Mana Battery — "{T}, Remove any number of
-//     charge counters: Add 1 + N mana" needs an interactive count choice inside
-//     a mana ability; immediate (useStack:false) mana abilities can't suspend
-//     for a choice.
 //   • Al-abara's Carpet — "prevent all damage to you by attacking creatures
 //     without flying" needs an attacker-flying-filtered player damage shield;
 //     no primitive (Island Sanctuary is an attack restriction, not prevention).
@@ -5481,3 +5477,124 @@ export const akronLegionnaire: CardDefinition = {
         },
     ],
 };
+
+// --- Mana Batteries (#482) ---------------------------------------------------
+//
+// The five {4} colour Mana Batteries share one shape:
+//   "{2}, {T}: Put a charge counter on this artifact."
+//   "{T}, Remove any number of charge counters from this artifact: Add {C}, then
+//    add an additional {C} for each charge counter removed this way."
+//   ({C} = the battery's colour.)
+//
+// The first half is an ordinary activated ability that uses the stack (CR 605 —
+// it is NOT a mana ability: it adds a counter, not mana) with a {2} mana cost
+// and a {T} cost; it accrues one `charge` counter per activation via
+// `ctx.addCounter` (CR 122.1).
+//
+// The second half is a mana ability (CR 605.1a, `useStack: false` → resolves
+// immediately, no stack). The player chooses N = 0..available charge counters;
+// the ability removes N counters as part of its cost and produces 1 + N mana of
+// the battery's colour (CR 106.1). This is expressed by reusing the existing
+// board-conditional `getManaChoices` chooser (the Fellwar Stone primitive):
+// each choice index N maps to "produce 1 + N mana", and the new
+// `manaChoiceRemovesCounters` field tells the engine the chosen index N is also
+// the number of `charge` counters to remove (CR 122.6) — keeping the cost and
+// the output locked to the same single player choice. No new SpellContext
+// primitive and no per-card engine code: one factory drives all five colours.
+function makeManaBattery(config: {
+    id: string;
+    name: string;
+    color: Color;
+}): CardDefinition {
+    const { id, name, color } = config;
+    const colorLabel = `{${color}}`;
+    return {
+        id,
+        name,
+        oracleText:
+            `{2}, {T}: Put a charge counter on this artifact.\n` +
+            `{T}, Remove any number of charge counters from this artifact: ` +
+            `Add ${colorLabel}, then add an additional ${colorLabel} for each ` +
+            `charge counter removed this way.`,
+        manaCost: { X: 4 },
+        types: ["Artifact"],
+        activatedAbilities: [
+            {
+                id: "mana-battery-charge",
+                oracleText: "{2}, {T}: Put a charge counter on this artifact.",
+                cost: { mana: { X: 2 }, tap: true },
+                // CR 605: this ability adds a counter, not mana, so it uses the
+                // stack like any ordinary activated ability.
+                useStack: true,
+                resolve: (ctx: SpellContext) => {
+                    // CR 122.1 — accrue one charge counter on the source.
+                    ctx.addCounter(
+                        { type: "permanent", id: ctx.sourceInstanceId },
+                        "charge",
+                        1
+                    );
+                },
+            },
+            {
+                id: "mana-battery-tap",
+                oracleText:
+                    `{T}, Remove any number of charge counters from this artifact: ` +
+                    `Add ${colorLabel}, then add an additional ${colorLabel} for ` +
+                    `each charge counter removed this way.`,
+                cost: { tap: true },
+                // CR 605.1a — mana ability: resolves immediately, no stack.
+                useStack: false,
+                // Representative / fallback output (used by best-effort callers
+                // without a board snapshot): the base one mana with no counters
+                // removed. The board-conditional `getManaChoices` below is what
+                // the player actually picks from.
+                manaChoices: [{ [color]: 1 } as ManaCost],
+                effect: (ctx) => ctx.addMana({ [color]: 1 } as ManaCost),
+                // CR 106.1 / 122.6 — index N = "remove N charge counters, add
+                // 1 + N mana of the battery's colour". With `available` counters
+                // the chooser offers N = 0..available, i.e. 1..1+available mana.
+                getManaChoices: (source) => {
+                    const available = source.counters?.charge ?? 0;
+                    const out: ManaCost[] = [];
+                    for (let n = 0; n <= available; n++) {
+                        out.push({ [color]: 1 + n } as ManaCost);
+                    }
+                    return out;
+                },
+                // The chosen index N is also the number of `charge` counters
+                // removed to pay the scaling cost (CR 122.6), restored on untap.
+                manaChoiceRemovesCounters: "charge",
+            },
+        ],
+    };
+}
+
+export const blackManaBattery: CardDefinition = makeManaBattery({
+    id: "d0c66e64-e357-457d-8302-b3a1fc0c56ce",
+    name: "Black Mana Battery",
+    color: "B",
+});
+
+export const blueManaBattery: CardDefinition = makeManaBattery({
+    id: "35393661-2c53-46f0-bb33-2390d552b060",
+    name: "Blue Mana Battery",
+    color: "U",
+});
+
+export const greenManaBattery: CardDefinition = makeManaBattery({
+    id: "4671fa01-4a9e-4cd9-8154-b0d45e11b702",
+    name: "Green Mana Battery",
+    color: "G",
+});
+
+export const redManaBattery: CardDefinition = makeManaBattery({
+    id: "363cc5d6-70f8-4a3c-92bd-8f49774bdce2",
+    name: "Red Mana Battery",
+    color: "R",
+});
+
+export const whiteManaBattery: CardDefinition = makeManaBattery({
+    id: "35fbbe41-d21b-4028-905f-054c44d30eb2",
+    name: "White Mana Battery",
+    color: "W",
+});

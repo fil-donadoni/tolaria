@@ -88,6 +88,8 @@ function compactCard(
         out.regenerationShields = card.regenerationShields;
     }
     if (card.chosenMana) out.chosenMana = card.chosenMana;
+    if (card.manaCounterRemoval)
+        out.manaCounterRemoval = card.manaCounterRemoval;
     if (card.grantedStaticAbilities?.length) {
         out.grantedStaticAbilities = card.grantedStaticAbilities;
     }
@@ -243,6 +245,10 @@ function expandCard(
         result.regenerationShields = compact.regenerationShields as number;
     }
     if (compact.chosenMana) result.chosenMana = compact.chosenMana as ManaCost;
+    if (compact.manaCounterRemoval) {
+        result.manaCounterRemoval =
+            compact.manaCounterRemoval as CardInstanceState["manaCounterRemoval"];
+    }
     if (compact.grantedStaticAbilities) {
         result.grantedStaticAbilities =
             compact.grantedStaticAbilities as CardInstanceState["grantedStaticAbilities"];

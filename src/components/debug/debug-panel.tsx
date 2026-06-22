@@ -121,6 +121,32 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // #482 Red Mana Battery — {4} Artifact.
+        //   "{2}, {T}: Put a charge counter on this artifact."
+        //   "{T}, Remove any number of charge counters: Add {R}, then an
+        //    additional {R} for each counter removed this way."
+        // You control a Red Mana Battery pre-seeded with 3 charge counters
+        // (untapped) plus 2 lands to pay the {2} charge cost. Golden path:
+        //   1. Tap the battery for mana → the colour picker offers 1..4 {R}
+        //      (remove 0..3 charge counters). Pick "4 {R}" → 4 red mana floats
+        //      and all 3 counters are removed. The mana ability resolves
+        //      immediately (no stack).
+        //   2. Or use "{2},{T}: Put a charge counter" first (tap 2 lands) to
+        //      grow the battery before discharging it.
+        // Edge: pick "1 {R}" (remove 0) → 1 mana, counters untouched.
+        label: "LEG: Mana Battery — scaled mana from charge counters (#482)",
+        cards: [
+            {
+                name: "Red Mana Battery",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                counters: { charge: 3 },
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
         // #481 Moat — {2}{W}{W} Enchantment. "Creatures without flying can't
         // attack." (CR 508.1c — a battlefield-scanned `global-attack-restriction`
         // static that locks attacks by creatures OTHER than its source.) You
