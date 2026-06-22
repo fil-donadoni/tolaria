@@ -38,8 +38,19 @@ import { normalizeManaCost } from "./state";
  *  - Cards with no mana cost (can't strand mana) are skipped.
  *  - The card being cast (`excludeInstanceId`) is excluded — it's the payment
  *    target, not a Demand.
- *  - X in a cost is treated as 0 here (`normalizeManaCost` default). Issue
- *    #477 inflates X-spells to an assumed X=1.
+ *
+ * **X-spells assumed at X=1 (issue #477, CR 107.3 / 601.2b).** A variable-X
+ * spell ({X}{R} Fireball, {X}{U} Power Sink) is folded into the Demand set at
+ * an assumed **X=1** — its preserve-cost is the base cost plus one generic per
+ * `{X}` pip (`xFactor`: {X}{X}{U} → X=1 contributes 2 generic). X=0 would
+ * under-preserve and strand the spell: on any turn the player actually casts an
+ * X-spell, at least one mana goes to X, so reserving for X=1 is the minimum
+ * meaningful demand. This is achieved by handing `chosenX: 1` to
+ * `normalizeManaCost`, which (CR 107.3) only folds the chosen X into the generic
+ * portion when the cost's `X` is the *variable* `"X"`; a fixed-number X (plain
+ * generic) is untouched. Downstream affordability still decides whether X=1 is
+ * actually payable from leftover sources — an X-spell unaffordable even at X=1
+ * is simply not preserved (no false preservation).
  *
  * Demand affordability *before* and *after* payment is decided downstream in
  * `solveSmartAutoTap` against the real untapped sources + floating mana — this
@@ -62,7 +73,12 @@ export function buildHandSpellDemands(
         if (!hasInstantSpeed(card) && !isSorceryTiming) continue;
         const rawCost = getInstanceManaCost(card);
         if (!rawCost) continue;
-        const cost = normalizeManaCost(rawCost);
+        // X-spell inflation (issue #477, CR 107.3 / 601.2b): assume X=1 so a
+        // variable-X spell ({X}{R}) is preserved as base + one generic per `{X}`
+        // pip. `chosenX` is a no-op for fixed (already-generic) costs — it only
+        // folds into the generic portion when the printed `X` is the variable
+        // `"X"`, matching how the engine resolves an announced X.
+        const cost = normalizeManaCost(rawCost, { chosenX: 1 });
         // A free (no-mana) spell can never be stranded by auto-tap.
         if (Object.keys(cost).length === 0) continue;
         demands.push({ id: card.id, cost });

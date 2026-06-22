@@ -40,6 +40,7 @@ import TypeFilter from "./type-filter";
 import { useCardZoom } from "./useCardZoom";
 import { useFilterSearchParams } from "./useFilterSearchParams";
 import { type ColorMode, type MatchMode, useCardSearch } from "./useCardSearch";
+import { useDebouncedValue } from "~/hooks/useDebouncedValue";
 
 // Responsive base card width; per-zone zoom multiplies it.
 const CARD_BASE = "min(8rem, 18vw, 9.5dvh)";
@@ -83,6 +84,9 @@ interface DeckBuilderProps {
 
 const COLOR_ORDER = ["W", "U", "B", "R", "G"] as const;
 const SAVE_DEBOUNCE_MS = 800;
+// Trailing-edge delay before a search keystroke feeds the filter pass + URL
+// (PRD #501, issue #503). Tuned for feel; the input itself stays responsive.
+const SEARCH_DEBOUNCE_MS = 180;
 const DEFAULT_FORMAT = "Freeform";
 
 function computeDeckColors(cards: DeckCard[]): string[] {
@@ -129,6 +133,12 @@ export default function DeckBuilder({
               }
     );
     const [filters, setFilters] = useFilterSearchParams();
+
+    // The search box is a responsive local value; only its debounced form feeds
+    // the filter pass + URL encoding, so neither runs per keystroke (issue #503).
+    // Seeded once from the URL so a shared link's query pre-fills the box.
+    const [rawText, setRawText] = useState(() => filters.text);
+    const debouncedText = useDebouncedValue(rawText, SEARCH_DEBOUNCE_MS);
 
     // Current persisted identity: a userDeckId once a user deck is created, or
     // the preset slug in preset mode. Null only for a brand-new user deck
@@ -391,12 +401,20 @@ export default function DeckBuilder({
         [setFilters]
     );
 
-    const setText = useCallback(
-        (text: string) => {
-            setFilters((f) => ({ ...f, text }));
-        },
-        [setFilters]
-    );
+    // Typing only touches local state — the box never stutters. The debounced
+    // value is the one that reaches the filter/URL (effect below).
+    const setText = useCallback((text: string) => {
+        setRawText(text);
+    }, []);
+
+    // Propagate the settled (debounced) query into the URL-backed filter set,
+    // which in turn drives the filter pass and `encodeFilters`. Guarded so an
+    // unchanged value doesn't re-navigate.
+    useEffect(() => {
+        setFilters((f) =>
+            f.text === debouncedText ? f : { ...f, text: debouncedText }
+        );
+    }, [debouncedText, setFilters]);
 
     // Per-zone card zoom (MTGO-style). Each zone's current density is its floor;
     // the default sits slightly above so cards start a touch larger.
@@ -512,7 +530,7 @@ export default function DeckBuilder({
                                 Import
                             </button>
                         </div>
-                        <SearchBar value={filters.text} onChange={setText} />
+                        <SearchBar value={rawText} onChange={setText} />
                     </div>
                     <div className="flex flex-wrap items-center gap-4">
                         <ColorFilter

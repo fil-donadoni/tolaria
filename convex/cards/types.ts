@@ -2165,6 +2165,35 @@ export interface StaticAttackRestriction {
     oracleText: string;
 }
 
+/** Battlefield-scanned, player-scoped enters-tapped replacement (CR 614.1c +
+ *  110.5b). Unlike the self-only `entersTapped` card flag (which taps only the
+ *  card that carries it as it enters), this kind is scanned across EVERY
+ *  permanent on the battlefield and can force OTHER players' permanents to enter
+ *  tapped — the symmetric analogue of how Crusade-style anthems (`pt-buff`)
+ *  scan all permanents and buff a filtered set, and of
+ *  `StaticGlobalAttackRestriction`. Kismet ("Artifacts, creatures, and lands
+ *  your opponents control enter tapped") is expressed with this kind.
+ *
+ *  As a replacement effect (CR 614) it modifies the entering-the-battlefield
+ *  event before the permanent is on the battlefield, so the engine evaluates
+ *  it at every ETB site against the would-be permanent and its prospective
+ *  controller. */
+export interface StaticEntersTappedRestriction {
+    kind: "enters-tapped-restriction";
+    id: string;
+    /** Returns `true` when `entering` (a permanent about to enter under
+     *  `entering.controllerId`) must enter tapped because of `source`.
+     *  `source` = the permanent carrying this effect (Kismet). */
+    forcesTapped: (
+        entering: PermanentView,
+        source: PermanentView,
+        state: StaticEffectStateView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Oracle text, surfaced for debugging / UI tooltips. */
+    oracleText: string;
+}
+
 /** Battlefield-scanned, global attack restriction (CR 508.1c). Unlike
  *  `StaticAttackRestriction`, whose predicate reads only the ATTACKING
  *  creature's own static effects (so a creature can restrict only itself),
@@ -2441,6 +2470,7 @@ export type StaticEffect =
     | StaticAttackRestriction
     | StaticGlobalAttackRestriction
     | StaticLandwalkNegation
+    | StaticEntersTappedRestriction
     | StaticAttackRequirement
     | StaticBlockRequirement
     | StaticHandSizeOverride

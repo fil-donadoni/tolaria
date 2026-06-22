@@ -24,6 +24,7 @@ import {
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
 import { turnFaceDown } from "./faceDown";
+import { entersTappedByReplacement } from "../cards/entersTapped";
 import { getResolveFn } from "../cards/effectRegistry";
 import { matchesPermanentFilter } from "../cards/filters";
 import type { Phase, Zone, PhaseReturnCondition } from "./types";
@@ -2049,6 +2050,22 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     return top;
 }
 
+/** CR 614.1c + 110.5b — returns true when a battlefield-scanned, player-scoped
+ *  enters-tapped replacement (Kismet) forces `entering` to enter tapped. The
+ *  permanent's `controllerId` must already be set to its prospective controller.
+ *  Card-agnostic: the source's `forcesTapped` predicate owns the opponent +
+ *  type filter, so no card is hardcoded here. Called at every ETB site that
+ *  places a permanent onto the battlefield. */
+function shouldEnterTapped(
+    state: GameState,
+    entering: CardInstanceState
+): boolean {
+    return entersTappedByReplacement(
+        entering as unknown as PermanentView,
+        state as never
+    );
+}
+
 /** Moves a resolved spell from the stack to its destination zone (CR 608.3
  *  for permanents, CR 608.2k for instants/sorceries). Extracted so both
  *  stepped and single-shot paths share the same transition. */
@@ -2131,7 +2148,11 @@ function finalizeSpellResolution(
             item.attachedTo = host.id;
         }
         item.zone = "battlefield";
-        item.isTapped = cardDef?.entersTapped === true;
+        // CR 614.1c + 110.5b — a permanent enters tapped if its own card flag
+        // says so OR a battlefield-scanned replacement (Kismet — "Artifacts,
+        // creatures, and lands your opponents control enter tapped") forces it.
+        item.isTapped =
+            cardDef?.entersTapped === true || shouldEnterTapped(state, item);
         // CR 302.6 — creatures enter summoning-sick. Noncreature permanents
         // that gate activations on continuous control (Rocket Launcher) opt in
         // via `tracksControlContinuity`, reusing the same flag + untap-step
@@ -3852,6 +3873,9 @@ function putReanimatedOnBattlefield(
     if (card.types.includes("Creature")) {
         card.isSummoningSick = true;
     }
+    // CR 614.1c + 110.5b — Kismet-style replacement taps an opponent-controlled
+    // artifact/creature/land as it enters via reanimation / put-onto-battlefield.
+    if (shouldEnterTapped(state, card)) card.isTapped = true;
     getPlayer(state, controllerId).battlefield.push(card);
     // CR 611.2 first read: existing battlefield grants reach the newcomer
     // (Goblin King-style "Goblins have mountainwalk" still grants to a
@@ -5047,6 +5071,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     // recover +1/+1 counters).
                     ...(createdBy ? { createdBy } : {}),
                 };
+                // CR 614.1c + 110.5b — Kismet-style replacement taps an
+                // opponent-controlled artifact/creature/land token as it enters.
+                if (shouldEnterTapped(state, token)) token.isTapped = true;
                 owner.battlefield.push(token);
                 applyExistingGrantsTo(state, token);
                 applySourceStaticEffects(state, token);

@@ -187,6 +187,7 @@ import {
     moat,
     akronLegionnaire,
     manaDrain,
+    kismet,
 } from "../leg";
 import { enumerateMoves, type Move } from "../../../gre/moves";
 import { getCardById, getCardByName, getAllCards } from "../../index";
@@ -211,6 +212,7 @@ import {
     grizzlyBears,
     crusade,
     castle,
+    blackLotus,
 } from "../lea";
 import {
     blackManaBattery,
@@ -253,6 +255,7 @@ import { checkStateBasedActions } from "../../../gre/sba";
 import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
 import { emitSpellCastEvent, emitPermanentEntered } from "../../../gre/state";
 import { projectPublicState } from "../../../gameProjections";
+import { entersTappedByReplacement } from "../../entersTapped";
 import {
     makeInstance,
     makePlayer,
@@ -7333,5 +7336,150 @@ describe("Mana Batteries (charge-counter scaling mana ability, CR 106 / 605)", (
             }))
         );
         expect(choices).toEqual([{ R: 1 }, { R: 2 }, { R: 3 }]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Kismet — battlefield-scanned, opponent-filtered enters-tapped replacement.
+// CR 614.1c (replacement modifies the enters-the-battlefield event) + CR
+// 110.5b (a permanent can enter tapped). "Artifacts, creatures, and lands your
+// opponents control enter tapped."
+// ---------------------------------------------------------------------------
+
+describe("Kismet (CR 614.1c replacement, CR 110.5b enters tapped)", () => {
+    /** p1 controls Kismet; p2 is the opponent whose permanents should enter
+     *  tapped. Returns the live state plus the Kismet instance. */
+    function makeKismetState(): {
+        state: GameState;
+        kismet: CardInstanceState;
+    } {
+        const k = makeInstance(kismet.id, {
+            id: "kismet-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [k] }), makePlayer("p2")],
+        });
+        return { state, kismet: k };
+    }
+
+    /** A would-be-entering permanent view for the scanner (controllerId is its
+     *  prospective controller). */
+    function entering(cardId: string, controllerId: string): CardInstanceState {
+        return makeInstance(cardId, { controllerId, ownerId: controllerId });
+    }
+
+    it("forces an opponent's creature/artifact/land to enter tapped", () => {
+        const { state } = makeKismetState();
+        expect(
+            entersTappedByReplacement(
+                entering(grizzlyBears.id, "p2"),
+                state as never
+            )
+        ).toBe(true);
+        expect(
+            entersTappedByReplacement(
+                entering(blackLotus.id, "p2"),
+                state as never
+            )
+        ).toBe(true);
+        expect(
+            entersTappedByReplacement(entering(forest.id, "p2"), state as never)
+        ).toBe(true);
+    });
+
+    it("does NOT tap the controller's own artifacts/creatures/lands", () => {
+        const { state } = makeKismetState();
+        expect(
+            entersTappedByReplacement(
+                entering(grizzlyBears.id, "p1"),
+                state as never
+            )
+        ).toBe(false);
+        expect(
+            entersTappedByReplacement(entering(forest.id, "p1"), state as never)
+        ).toBe(false);
+    });
+
+    it("does NOT tap an opponent's non-(artifact/creature/land) permanent", () => {
+        const { state } = makeKismetState();
+        // Concordant Crossroads is an Enchantment — outside the filter.
+        expect(
+            entersTappedByReplacement(
+                entering(concordantCrossroads.id, "p2"),
+                state as never
+            )
+        ).toBe(false);
+    });
+
+    it("does nothing while Kismet is not on the battlefield", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        expect(
+            entersTappedByReplacement(
+                entering(grizzlyBears.id, "p2"),
+                state as never
+            )
+        ).toBe(false);
+    });
+
+    it("taps an opponent's creature as it resolves onto the battlefield (full ETB path)", () => {
+        // p1 controls Kismet; p2 casts a creature. After resolution the creature
+        // is on p2's battlefield and tapped.
+        const { state } = makeKismetState();
+        pushSpell(state, grizzlyBears.id, "p2");
+        resolveTopOfStack(state);
+        const bears = state.players[1].battlefield.find(
+            (c) => (c.card as { id?: string }).id === grizzlyBears.id
+        );
+        expect(bears).toBeDefined();
+        expect(bears!.isTapped).toBe(true);
+    });
+
+    it("does not tap the controller's own creature as it resolves (full ETB path)", () => {
+        const { state } = makeKismetState();
+        // p1 (Kismet's controller) casts the creature.
+        pushSpell(state, grizzlyBears.id, "p1");
+        resolveTopOfStack(state);
+        const bears = state.players[0].battlefield.find(
+            (c) => (c.card as { id?: string }).id === grizzlyBears.id
+        );
+        expect(bears).toBeDefined();
+        expect(bears!.isTapped).toBe(false);
+    });
+
+    it("re-asserts the tapped outcome after projectPublicState (wire format)", () => {
+        // Resolve an opponent's creature with Kismet up, then project and verify
+        // the tapped flag AND the replacement re-evaluation both survive the wire.
+        const { state } = makeKismetState();
+        pushSpell(state, grizzlyBears.id, "p2");
+        resolveTopOfStack(state);
+        const bearsId = state.players[1].battlefield.find(
+            (c) => (c.card as { id?: string }).id === grizzlyBears.id
+        )!.id;
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBears = projected.players[1].battlefield.find(
+            (c) => c.id === bearsId
+        )!;
+        // The tapped state itself is client-visible and must survive projection.
+        expect(slimBears.isTapped).toBe(true);
+        // The replacement predicate must also still evaluate identically against
+        // the projected (slim `card: { id }`) battlefield — Kismet is found by id.
+        expect(
+            entersTappedByReplacement(
+                entering(grizzlyBears.id, "p2"),
+                projected as never
+            )
+        ).toBe(true);
+        expect(
+            entersTappedByReplacement(
+                entering(grizzlyBears.id, "p1"),
+                projected as never
+            )
+        ).toBe(false);
     });
 });
