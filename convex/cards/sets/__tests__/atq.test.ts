@@ -138,7 +138,11 @@ import {
     getPendingTargetSourceTypes,
 } from "../../../gre/rules";
 import { isGuardedAgainst } from "../../../gre/permanentGuard";
-import { validateBlockerEligibility } from "../../../gre/combat";
+import {
+    validateBlockerEligibility,
+    validateAttackerEligibility,
+} from "../../../gre/combat";
+import { isTapLockedBySummoningSickness } from "../../../gre/constants";
 import {
     advancePhase,
     untapStep,
@@ -146,6 +150,7 @@ import {
     effectiveMaxHandSize,
 } from "../../../gre/phases";
 import { checkStateBasedActions } from "../../../gre/sba";
+import { applyMoveForSearch } from "../../../gre/applyMove";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
@@ -2556,6 +2561,134 @@ describe("Mishra's Factory (animate + Assembly-Worker pump, CR 611.1)", () => {
         ).map((t) => t.id);
         expect(legal).toContain("worker");
         expect(legal).not.toContain("bear");
+    });
+
+    // CR 302.6 — a permanent that becomes a creature is summoning-sick unless
+    // it has been under its controller's control continuously since the start
+    // of their most recent turn. A manland animated the turn it entered cannot
+    // attack and cannot pay {T}; one controlled since a prior turn can. The
+    // control-continuity flag is set at entry and cleared at the controller's
+    // untap step — animation itself never touches it (class-wide across every
+    // animate effect). Issue #545.
+    describe("summoning sickness on the animated land (CR 302.6)", () => {
+        /** Animate a Factory, returning the live instance. */
+        const animate = (factory: CardInstanceState, state: GameState) => {
+            resolveActivated(state, factory, "mishras-factory-animate");
+            return state.players[0].battlefield.find(
+                (c) => c.id === factory.id
+            )!;
+        };
+
+        it("a Factory played this turn, animated this turn, is NOT a legal attacker", () => {
+            // Enter via the play-land path so the control-continuity flag is set.
+            const factory = makeInstance(mishrasFactory.id, {
+                id: "factory",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+            let state = makeState({
+                players: [makePlayer("p1", { hand: [factory] })],
+            });
+            state = applyMoveForSearch(state, "p1", {
+                kind: "play-land",
+                cardInstanceId: "factory",
+            });
+            const played = state.players[0].battlefield.find(
+                (c) => c.id === "factory"
+            )!;
+            expect(played.isSummoningSick).toBe(true);
+
+            const live = animate(played, state);
+            expect(live.types).toContain("Creature");
+            expect(live.isSummoningSick).toBe(true);
+            const result = validateAttackerEligibility(live);
+            expect(result.eligible).toBe(false);
+            if (!result.eligible) {
+                expect(result.reason).toMatch(/summoning sickness/i);
+            }
+
+            // Wire format: the sickness flag survives projection, so a client
+            // also sees the animated manland as an ineligible attacker.
+            const projected = projectPublicState(state, 1, "p1");
+            const slim = projected.players[0].battlefield.find(
+                (c) => c.id === "factory"
+            )!;
+            expect(slim.isSummoningSick).toBe(true);
+            expect(validateAttackerEligibility(slim).eligible).toBe(false);
+        });
+
+        it("a Factory controlled since a prior turn, animated this turn, IS a legal attacker", () => {
+            // Already on the battlefield, flag cleared at a prior untap step.
+            const factory = makeInstance(mishrasFactory.id, {
+                id: "factory",
+                controllerId: "p1",
+                ownerId: "p1",
+                // isSummoningSick undefined
+            });
+            const state = makeState({
+                players: [makePlayer("p1", { battlefield: [factory] })],
+            });
+            const live = animate(factory, state);
+            expect(live.types).toContain("Creature");
+            expect(live.isSummoningSick).toBeUndefined();
+            expect(validateAttackerEligibility(live).eligible).toBe(true);
+        });
+
+        it("the {T} pump ability is tap-locked while the animated Factory is summoning-sick", () => {
+            const factory = makeInstance(mishrasFactory.id, {
+                id: "factory",
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: true, // entered this turn
+            });
+            const state = makeState({
+                players: [makePlayer("p1", { battlefield: [factory] })],
+            });
+            const live = animate(factory, state);
+            // CR 302.6 — the creature can't pay {T} (covers both the mana and
+            // the pump abilities) the turn it was animated after entering.
+            expect(isTapLockedBySummoningSickness(live)).toBe(true);
+        });
+
+        it("the {T} ability is NOT tap-locked once controlled since a prior turn", () => {
+            const factory = makeInstance(mishrasFactory.id, {
+                id: "factory",
+                controllerId: "p1",
+                ownerId: "p1",
+                // isSummoningSick undefined — controlled since a prior turn
+            });
+            const state = makeState({
+                players: [makePlayer("p1", { battlefield: [factory] })],
+            });
+            const live = animate(factory, state);
+            expect(isTapLockedBySummoningSickness(live)).toBe(false);
+        });
+
+        it("the untap step clears the control-continuity flag so the Factory can attack next turn", () => {
+            const factory = makeInstance(mishrasFactory.id, {
+                id: "factory",
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: true, // entered this turn
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [factory] }),
+                    makePlayer("p2"),
+                ],
+                activePlayerId: "p1",
+                phase: "BEGINNING" as GameState["phase"],
+            });
+            // Controller's next untap step clears the flag (CR 502.4 / 302.6).
+            untapStep(state);
+            const after = state.players[0].battlefield.find(
+                (c) => c.id === "factory"
+            )!;
+            expect(after.isSummoningSick).toBeUndefined();
+            const live = animate(after, state);
+            expect(validateAttackerEligibility(live).eligible).toBe(true);
+        });
     });
 });
 

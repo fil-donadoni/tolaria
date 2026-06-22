@@ -29,6 +29,7 @@
 import type { CardInstanceState, GameState, StackItem } from "./state";
 import {
     moveCard,
+    markEnteredThisTurn,
     removeFromZone,
     removePermanentTo,
     resolveTopOfStack,
@@ -177,6 +178,11 @@ export function applyMoveForSearch(
                 player.landsPlayedThisTurn =
                     (player.landsPlayedThisTurn ?? 0) + 1;
             }
+            // CR 302.6 — a land (or any permanent) played this turn starts its
+            // control-continuity clock. Inert until the permanent becomes a
+            // creature; a manland (Mishra's Factory) animated the same turn it
+            // was played then correctly reads summoning-sick.
+            markEnteredThisTurn(card);
             emitPermanentEntered(next, card);
             processPendingActionTriggers(next);
             checkStateBasedActions(next);
