@@ -30,6 +30,7 @@ describe("getCardColors", () => {
     const stub = (overrides: Partial<CardDefinition>): CardDefinition => ({
         id: "stub",
         name: "Stub",
+        rarity: "common",
         types: ["Creature"],
         ...overrides,
     });

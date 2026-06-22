@@ -48,8 +48,8 @@ function makeCard(
 // ---------------------------------------------------------------------------
 
 describe("EVASION_RULES registry", () => {
-    it("contains 9 entries: unblockable + 6 landwalk + fear + flying", () => {
-        expect(EVASION_RULES).toHaveLength(9);
+    it("contains 10 entries: unblockable + 6 landwalk + legendary landwalk + fear + flying", () => {
+        expect(EVASION_RULES).toHaveLength(10);
         const keywords = EVASION_RULES.map((r) => r.keyword);
         expect(keywords).toContain("unblockable");
         expect(keywords).toContain("plainswalk");
@@ -58,6 +58,8 @@ describe("EVASION_RULES registry", () => {
         expect(keywords).toContain("mountainwalk");
         expect(keywords).toContain("forestwalk");
         expect(keywords).toContain("desertwalk");
+        // CR 702.13 — supertype-keyed landwalk (Livonya Silone).
+        expect(keywords).toContain("legendary landwalk");
         expect(keywords).toContain("fear");
         expect(keywords).toContain("flying");
     });

@@ -290,6 +290,10 @@ _Avoid_: Edition, variant, version
 The Scryfall UUID of one specific printing of a card. Distinct from the **Card ID** (which keys the mechanics). A **Card Instance** stores the **Print ID** so the chosen edition's art renders while behaviour comes from the shared **Card Definition**.
 _Avoid_: Edition ID, art ID
 
+**Rarity**:
+The printed rarity of a card — one of `common`, `uncommon`, `rare` (CR 206). A property of a **printing**, not of the underlying card: a home-set **Card Definition** carries its home-set rarity and each **Card Print** carries its own, so a card reprinted at a different rarity differs per edition. Backfilled across the catalogue from MTGJSON; the card generator emits it for every new card and refuses any value outside the three. Informational for **Basic** lands (they are gated by the `Basic` supertype, not rarity). Consumed by rarity-budgeted **Formats** (Alpha 40).
+_Avoid_: Frequency, tier
+
 **Reprint**:
 A card appearing in a later **Set** whose mechanics already exist as a **Card Definition** in an earlier set. Modelled as a **Card Print** only — never a duplicated definition. A **Set** file contains a mix of new **Card Definitions** (cards first implemented in that set) and **Card Prints** (reprints of cards already implemented).
 _Avoid_: Duplicate, copy (overloaded — see **Spell Copy**)
@@ -365,6 +369,18 @@ _Avoid_: Default deck, starter deck, template (overloaded)
 **User Deck**:
 A **Deck** owned and edited by a single **User**, private to them. The counterpart to a **Preset Deck**: same shape, but **Owner**-scoped and identified by its Convex id rather than a **Slug**.
 _Avoid_: Custom deck, personal deck
+
+**Format**:
+The set of deck-construction constraints a **Deck** is built under — one of `freeform`, `alpha-40`, or `old-school`. Chosen at deck creation and immutable thereafter (cross-format reuse goes through export → new deck → import). Stored as a typed value on the **Deck** row; its rules live entirely in code (`convex/formats.ts`, the **Format Ruleset**), never in the DB (ADR 0036). Distinct from a **Match Format** (Bo1/Bo3), which is about how many **Games** a **Match** runs.
+_Avoid_: Match format, Bo1/Bo3 (different concept), game mode
+
+**Format Ruleset**:
+The code-side rules for a **Format**: its label, allowed **Sets**, deck-size bounds, and a pure `validate()` seam producing the **Deck Legality**. Lives in the `FORMAT_RULES` registry in `convex/formats.ts`, imported by both server and client so the authoritative gate and the live builder panel never disagree. In the foundation slice the validators return no reasons (every deck is legal); later slices add Old School's restricted/banned lists and Alpha 40's rarity/category budgets.
+_Avoid_: Format config, format data (it is code, not DB data)
+
+**Deck Legality**:
+Whether a **Deck** satisfies its **Format**'s **Format Ruleset** — an `isLegal` flag plus a list of failure reasons. Always **derived** at read time from the deck contents + the code-side rules, never stored, so a ruleset or card-pool change reclassifies every deck with no migration.
+_Avoid_: Validity (too generic), legal flag (it carries reasons too)
 
 **Slug**:
 A stable, human-readable string key for a **Preset Deck** (e.g. `mono-red-burn`), derived from its name at creation and immutable thereafter. The public identity used wherever a preset is referenced outside the DB (lobby selection persisted client-side, debug scenarios). Distinct from a Convex id, which is random and per-row.

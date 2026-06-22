@@ -23,6 +23,7 @@ const LIFE_WARD_ID = "test:life-ward";
 const lifeWard: CardDefinition = {
     id: LIFE_WARD_ID,
     name: "Test Life Ward",
+    rarity: "common",
     oracleText: "You don't lose the game for having zero or less life.",
     manaCost: { W: 1 },
     types: ["Enchantment"],

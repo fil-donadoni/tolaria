@@ -30,6 +30,7 @@ const WITNESS_ID = "test-witness";
 const testCard: CardDefinition = {
     id: SOURCE_CARD_ID,
     name: "Test Intervening-If Source",
+    rarity: "common",
     types: ["Artifact"],
     triggeredAbilities: [
         {

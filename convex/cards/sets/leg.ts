@@ -22,6 +22,7 @@
 import type {
     CardDefinition,
     ManaCost,
+    Rarity,
     SpellContext,
     PermanentView,
     StaticEffectContext,
@@ -53,6 +54,7 @@ import {
 
 export const jasmineBoreal: CardDefinition = {
     id: "db6ef678-4ce9-48d6-aa4f-2afd9a1ad724",
+    rarity: "uncommon",
     name: "Jasmine Boreal",
     oracleText: "",
     manaCost: { X: 3, G: 1, W: 1 },
@@ -65,6 +67,7 @@ export const jasmineBoreal: CardDefinition = {
 
 export const ladyOrca: CardDefinition = {
     id: "b2779553-74eb-42ba-97d0-96269f48c269",
+    rarity: "uncommon",
     name: "Lady Orca",
     oracleText: "",
     manaCost: { X: 5, B: 1, R: 1 },
@@ -90,6 +93,7 @@ export const ladyOrca: CardDefinition = {
 // (CR 702.10, 613.1a layer 6 — keyword-grant to every creature, any controller.)
 export const concordantCrossroads: CardDefinition = {
     id: "3bdcfae4-86c9-4d8a-bcfe-f0a928ec29db",
+    rarity: "rare",
     name: "Concordant Crossroads",
     oracleText: "All creatures have haste.",
     manaCost: { G: 1 },
@@ -111,6 +115,7 @@ export const concordantCrossroads: CardDefinition = {
 // (CR 702.9, 613.1a layer 6 — keyword-remove on every creature, any controller.)
 export const gravitySphere: CardDefinition = {
     id: "a2749332-e99a-4a0c-b3a3-5578b552fa11",
+    rarity: "rare",
     name: "Gravity Sphere",
     oracleText: "All creatures lose flying.",
     manaCost: { X: 2, R: 1 },
@@ -139,6 +144,7 @@ export const gravitySphere: CardDefinition = {
 // creature/land) permanents enter as usual.)
 export const kismet: CardDefinition = {
     id: "7e0651ad-6901-4f9b-8807-d66e53a4ada8",
+    rarity: "uncommon",
     name: "Kismet",
     oracleText:
         "Artifacts, creatures, and lands your opponents control enter tapped.",
@@ -180,6 +186,7 @@ export const kismet: CardDefinition = {
 // Tundra Wolves — first strike (CR 702.7).
 export const tundraWolves: CardDefinition = {
     id: "8f649cb5-e19c-453f-b062-4fd452d92257",
+    rarity: "common",
     name: "Tundra Wolves",
     oracleText:
         "First strike (This creature deals combat damage before creatures without first strike.)",
@@ -194,6 +201,7 @@ export const tundraWolves: CardDefinition = {
 // Thunder Spirit — flying, first strike (CR 702.9, 702.7).
 export const thunderSpirit: CardDefinition = {
     id: "61a59775-b1cd-4ed0-8abf-c2b37f7be0d5",
+    rarity: "rare",
     name: "Thunder Spirit",
     oracleText: "Flying, first strike",
     manaCost: { X: 1, W: 2 },
@@ -207,6 +215,7 @@ export const thunderSpirit: CardDefinition = {
 // Wall of Light — Defender, protection from black (CR 702.3, 702.16).
 export const wallOfLight: CardDefinition = {
     id: "f5758e82-f901-42b7-b705-0e68ca7ba59e",
+    rarity: "uncommon",
     name: "Wall of Light",
     oracleText: "Defender (This creature can't attack.)\nProtection from black",
     manaCost: { X: 2, W: 1 },
@@ -220,6 +229,7 @@ export const wallOfLight: CardDefinition = {
 // Righteous Avengers — plainswalk (CR 702.19 landwalk variant).
 export const righteousAvengers: CardDefinition = {
     id: "d96b463e-9579-4e7b-87c2-342527b91e7c",
+    rarity: "uncommon",
     name: "Righteous Avengers",
     oracleText:
         "Plainswalk (This creature can't be blocked as long as defending player controls a Plains.)",
@@ -239,6 +249,7 @@ export const righteousAvengers: CardDefinition = {
 // Undertow (Island) and the LEG suppression statics (Gosta Dirk et al.).
 export const greatWall: CardDefinition = {
     id: "cd860a1d-aa17-4579-b9b1-d101d2416387",
+    rarity: "uncommon",
     name: "Great Wall",
     oracleText:
         "Creatures with plainswalk can be blocked as though they didn't have plainswalk.",
@@ -258,6 +269,7 @@ export const greatWall: CardDefinition = {
 // Keepers of the Faith — vanilla 2/3 (CR 208 — stats only).
 export const keepersOfTheFaith: CardDefinition = {
     id: "b63a69ae-99ce-4d26-88b7-784793c43cd4",
+    rarity: "common",
     name: "Keepers of the Faith",
     oracleText: "",
     manaCost: { X: 1, W: 2 },
@@ -273,6 +285,7 @@ export const keepersOfTheFaith: CardDefinition = {
 // express the union). Standard tap-to-ping; no summoning-sickness exception.
 export const davenantArcher: CardDefinition = {
     id: "b09aee5c-8b9e-46c2-b4d4-508062f8af05",
+    rarity: "common",
     name: "D'Avenant Archer",
     oracleText:
         "{T}: This creature deals 1 damage to target attacking or blocking creature.",
@@ -316,6 +329,7 @@ export const davenantArcher: CardDefinition = {
 // blocker is enchanted by any Aura (CR 303.4b).
 export const enchantedBeing: CardDefinition = {
     id: "94c2880d-b37a-43ea-9fee-cd5a8ed75a7e",
+    rarity: "common",
     name: "Enchanted Being",
     oracleText:
         "Prevent all combat damage that would be dealt to this creature by enchanted creatures.",
@@ -344,6 +358,7 @@ export const enchantedBeing: CardDefinition = {
 // combat-damage-prevention static covers the practical case (CR 615).
 export const wallOfVapor: CardDefinition = {
     id: "6a6c0a27-d410-4ded-a842-70e1656ea21e",
+    rarity: "common",
     name: "Wall of Vapor",
     oracleText:
         "Defender (This creature can't attack.)\nPrevent all damage that would be dealt to this creature by creatures it's blocking.",
@@ -372,6 +387,7 @@ export const wallOfVapor: CardDefinition = {
 // effective power (post-layer-7c) by the combat validator.
 export const amrouKithkin: CardDefinition = {
     id: "cbce1c55-123c-4a05-bde4-18a1601fcc5a",
+    rarity: "common",
     name: "Amrou Kithkin",
     oracleText:
         "This creature can't be blocked by creatures with power 3 or greater.",
@@ -400,6 +416,7 @@ export const amrouKithkin: CardDefinition = {
 // anthem on the board state (CR 611.2c).
 export const angelicVoices: CardDefinition = {
     id: "8068c263-e5fa-4449-8887-418e9d0a4da4",
+    rarity: "rare",
     name: "Angelic Voices",
     oracleText:
         "Creatures you control get +1/+1 as long as you control no nonartifact, nonwhite creatures.",
@@ -436,6 +453,7 @@ const IVORY_GUARDIANS_ID = "9bf9cccd-fe97-4632-a90a-9eeb0d41135e";
 
 export const ivoryGuardians: CardDefinition = {
     id: IVORY_GUARDIANS_ID,
+    rarity: "uncommon",
     name: "Ivory Guardians",
     oracleText:
         "Protection from red\nCreatures named Ivory Guardians get +1/+1 as long as an opponent controls a nontoken red permanent.",
@@ -472,6 +490,7 @@ export const ivoryGuardians: CardDefinition = {
 // (CR 611 — filtered anthem + keyword grant; plain banding is already shipped.)
 export const fortifiedArea: CardDefinition = {
     id: "dc64f19c-5b2b-4697-b4dc-2be9c3790794",
+    rarity: "uncommon",
     name: "Fortified Area",
     oracleText: "Wall creatures you control get +1/+0 and have banding.",
     manaCost: { X: 1, W: 2 },
@@ -501,6 +520,7 @@ export const fortifiedArea: CardDefinition = {
 // Divine Transformation — Enchanted creature gets +3/+3 (CR 303.4, 611).
 export const divineTransformation: CardDefinition = {
     id: "a89ad9fd-33a6-4d31-9f4c-8bf192882f21",
+    rarity: "rare",
     name: "Divine Transformation",
     oracleText: "Enchant creature\nEnchanted creature gets +3/+3.",
     manaCost: { X: 2, W: 2 },
@@ -521,6 +541,7 @@ export const divineTransformation: CardDefinition = {
 // and/or white creatures." (CR 509.1b block restriction via the aura's host.)
 export const seeker: CardDefinition = {
     id: "df608b59-cc07-4e1d-b6d6-f15e69b15b92",
+    rarity: "uncommon",
     name: "Seeker",
     oracleText:
         "Enchant creature\nEnchanted creature can't be blocked except by artifact creatures and/or white creatures.",
@@ -548,6 +569,7 @@ export const seeker: CardDefinition = {
 // life." (CR 303.4 aura host trigger via the damage-dealt factory.)
 export const spiritLink: CardDefinition = {
     id: "5e2d35f8-3cf6-4843-9030-0e9a885d836c",
+    rarity: "uncommon",
     name: "Spirit Link",
     oracleText:
         "Enchant creature (Target a creature as you cast this. This card enters attached to that creature.)\nWhenever enchanted creature deals damage, you gain that much life.",
@@ -617,6 +639,7 @@ const infiniteAuthorityCombatKill = combatPairKill({
 
 export const infiniteAuthority: CardDefinition = {
     id: INFINITE_AUTHORITY_ID,
+    rarity: "rare",
     name: "Infinite Authority",
     oracleText:
         "Enchant creature\nWhenever enchanted creature blocks or becomes blocked by a creature with toughness 3 or less, destroy the other creature at end of combat. At the beginning of the next end step, if that creature was destroyed this way, put a +1/+1 counter on the first creature.",
@@ -651,6 +674,7 @@ export const infiniteAuthority: CardDefinition = {
 // colour, CR 202.2.)
 export const cleanse: CardDefinition = {
     id: "2fbd611b-ac97-4516-bad7-cc9ee4ef74f7",
+    rarity: "rare",
     name: "Cleanse",
     oracleText: "Destroy all black creatures.",
     manaCost: { X: 2, W: 2 },
@@ -674,6 +698,7 @@ export const cleanse: CardDefinition = {
 // value." (CR 701.7 + 118.3 lifegain; snapshot the MV before the destroy.)
 export const divineOffering: CardDefinition = {
     id: "9c78c2f3-2f40-48ad-9dc4-55d1fa399a56",
+    rarity: "common",
     name: "Divine Offering",
     oracleText:
         "Destroy target artifact. You gain life equal to its mana value.",
@@ -695,6 +720,7 @@ export const divineOffering: CardDefinition = {
 // its mana value." (CR 202.3 mana value snapshot + 611.1 temporary buff.)
 export const greatDefender: CardDefinition = {
     id: "879a8653-1538-4f78-a3d3-a900a4d9499b",
+    rarity: "uncommon",
     name: "Great Defender",
     oracleText:
         "Target creature gets +0/+X until end of turn, where X is its mana value.",
@@ -713,6 +739,7 @@ export const greatDefender: CardDefinition = {
 // one-shot team buff applied per matching permanent.)
 export const shieldWall: CardDefinition = {
     id: "a5032bf0-f9c0-4ef0-8ec2-fe7ccea9bdf3",
+    rarity: "uncommon",
     name: "Shield Wall",
     oracleText: "Creatures you control get +0/+2 until end of turn.",
     manaCost: { X: 1, W: 1 },
@@ -734,6 +761,7 @@ export const shieldWall: CardDefinition = {
 // (CR 615 — the global combat-damage prevention used by Fog-style cards.)
 export const holyDay: CardDefinition = {
     id: "f6c95a2b-bf44-4ff2-9c6a-916773346edd",
+    rarity: "common",
     name: "Holy Day",
     oracleText: "Prevent all combat damage that would be dealt this turn.",
     manaCost: { W: 1 },
@@ -748,6 +776,7 @@ export const holyDay: CardDefinition = {
 // as a very large prevention amount consumed across the turn.)
 export const indestructibleAura: CardDefinition = {
     id: "ed2a7333-c9ce-4011-b00e-1304e1eec25e",
+    rarity: "common",
     name: "Indestructible Aura",
     oracleText:
         "Prevent all damage that would be dealt to target creature this turn.",
@@ -768,6 +797,7 @@ export const indestructibleAura: CardDefinition = {
 // damage that would be dealt to any target this turn." (CR 700.2 modal spell.)
 export const alabasterPotion: CardDefinition = {
     id: "2806c7f6-8fdd-4e65-9c71-f2e8b0cdede2",
+    rarity: "common",
     name: "Alabaster Potion",
     oracleText:
         "Choose one —\n• Target player gains X life.\n• Prevent the next X damage that would be dealt to any target this turn.",
@@ -809,6 +839,7 @@ export const alabasterPotion: CardDefinition = {
 // player controls a Plains, they gain 1 life." (CR 603.6a + 603.4d if-clause.)
 export const spiritualSanctuary: CardDefinition = {
     id: "654dd1e0-a91d-44ee-af20-c025bf360c3f",
+    rarity: "rare",
     name: "Spiritual Sanctuary",
     oracleText:
         "At the beginning of each player's upkeep, if that player controls a Plains, they gain 1 life.",
@@ -840,6 +871,7 @@ export const spiritualSanctuary: CardDefinition = {
 // gain 1 life." (CR 701.20a tap trigger, scoped to opponents' Mountains.)
 export const lifeblood: CardDefinition = {
     id: "4ecb1362-9a67-4d4c-8d69-9ac2ebf4d0b0",
+    rarity: "rare",
     name: "Lifeblood",
     oracleText:
         "Whenever a Mountain an opponent controls becomes tapped, you gain 1 life.",
@@ -863,6 +895,7 @@ export const lifeblood: CardDefinition = {
 // counter it." (CR 601.2i cast trigger → CR 701.5a counter.)
 export const presenceOfTheMaster: CardDefinition = {
     id: "1cb86b2f-116d-4952-b35a-1398341baaf5",
+    rarity: "uncommon",
     name: "Presence of the Master",
     oracleText: "Whenever a player casts an enchantment spell, counter it.",
     manaCost: { X: 3, W: 1 },
@@ -888,6 +921,7 @@ export const presenceOfTheMaster: CardDefinition = {
 // the caster; optional shuffle, CR 701.20.)
 export const visions: CardDefinition = {
     id: "21d00299-e183-4b3d-b015-18808e7135b9",
+    rarity: "uncommon",
     name: "Visions",
     oracleText:
         "Look at the top five cards of target player's library. You may then have that player shuffle that library.",
@@ -982,6 +1016,7 @@ export const visions: CardDefinition = {
 // fewer cards than the discard count caps the return at what's available.
 export const recall: CardDefinition = {
     id: "33296718-0625-4422-a65c-b21cf99c52ec",
+    rarity: "rare",
     name: "Recall",
     oracleText:
         "Discard X cards, then return a card from your graveyard to your hand for each card discarded this way. Exile Recall.",
@@ -1041,6 +1076,7 @@ export const recall: CardDefinition = {
 // Azure Drake — flying (CR 702.9).
 export const azureDrake: CardDefinition = {
     id: "fb5f13a2-0896-4230-8957-6ad1cb2b895b",
+    rarity: "uncommon",
     name: "Azure Drake",
     oracleText: "Flying",
     manaCost: { X: 3, U: 1 },
@@ -1054,6 +1090,7 @@ export const azureDrake: CardDefinition = {
 // Zephyr Falcon — flying, vigilance (CR 702.9, 702.21).
 export const zephyrFalcon: CardDefinition = {
     id: "25a173fd-e10c-45f8-a6e5-ad7a747a8050",
+    rarity: "common",
     name: "Zephyr Falcon",
     oracleText: "Flying, vigilance",
     manaCost: { X: 1, U: 1 },
@@ -1070,6 +1107,7 @@ export const zephyrFalcon: CardDefinition = {
 // though they didn't have it, regardless of the defender's Islands.
 export const undertow: CardDefinition = {
     id: "cf05e5c9-b7e4-4bd8-ab73-b54565710527",
+    rarity: "uncommon",
     name: "Undertow",
     oracleText:
         "Creatures with islandwalk can be blocked as though they didn't have islandwalk.",
@@ -1089,6 +1127,7 @@ export const undertow: CardDefinition = {
 // Devouring Deep — islandwalk (CR 702.19 landwalk variant).
 export const devouringDeep: CardDefinition = {
     id: "0855a5a8-8c40-4396-9ad1-8fa0fc6a0c59",
+    rarity: "common",
     name: "Devouring Deep",
     oracleText:
         "Islandwalk (This creature can't be blocked as long as defending player controls an Island.)",
@@ -1103,6 +1142,7 @@ export const devouringDeep: CardDefinition = {
 // Segovian Leviathan — islandwalk (CR 702.19).
 export const segovianLeviathan: CardDefinition = {
     id: "e5a814f1-7f8d-4c2c-b706-ee0ed5892f7b",
+    rarity: "uncommon",
     name: "Segovian Leviathan",
     oracleText:
         "Islandwalk (This creature can't be blocked as long as defending player controls an Island.)",
@@ -1121,6 +1161,7 @@ export const segovianLeviathan: CardDefinition = {
 // to the source permanent.)
 export const psionicEntity: CardDefinition = {
     id: "ec082062-5394-4340-bc29-0efd2af4b822",
+    rarity: "rare",
     name: "Psionic Entity",
     oracleText:
         "{T}: This creature deals 2 damage to any target and 3 damage to itself.",
@@ -1157,6 +1198,7 @@ export const psionicEntity: CardDefinition = {
 // suspends defender.
 export const wallOfWonder: CardDefinition = {
     id: "bcd9af40-b46c-44b4-878e-8eb026c96b51",
+    rarity: "uncommon",
     name: "Wall of Wonder",
     oracleText:
         "Defender (This creature can't attack.)\n{2}{U}{U}: This creature gets +4/-4 until end of turn and can attack this turn as though it didn't have defender.",
@@ -1197,6 +1239,7 @@ export const wallOfWonder: CardDefinition = {
 // CR 120.1 damage.)
 export const backfire: CardDefinition = {
     id: "04bc57aa-d4d9-4bd9-ba09-984370c7e23b",
+    rarity: "uncommon",
     name: "Backfire",
     oracleText:
         "Enchant creature\nWhenever enchanted creature deals damage to you, this Aura deals that much damage to that creature's controller.",
@@ -1243,6 +1286,7 @@ export const backfire: CardDefinition = {
 // phase begins.
 export const manaDrain: CardDefinition = {
     id: "e691adef-3027-4e6a-889f-9f4e2df36a7c",
+    rarity: "uncommon",
     name: "Mana Drain",
     oracleText:
         "Counter target spell. At the beginning of your next main phase, add an amount of {C} equal to that spell's mana value.",
@@ -1288,6 +1332,7 @@ export const manaDrain: CardDefinition = {
 // for the instant-only restriction, CR 114.1.)
 export const flashCounter: CardDefinition = {
     id: "3c3cd450-f1cd-416b-9271-37d95815c089",
+    rarity: "common",
     name: "Flash Counter",
     oracleText: "Counter target instant spell.",
     manaCost: { X: 1, U: 1 },
@@ -1306,6 +1351,7 @@ export const flashCounter: CardDefinition = {
 // Remove Soul — "Counter target creature spell." (CR 701.5a, CR 114.1.)
 export const removeSoul: CardDefinition = {
     id: "63de147c-2e62-41b9-8ada-93406387f08b",
+    rarity: "common",
     name: "Remove Soul",
     oracleText: "Counter target creature spell.",
     manaCost: { X: 1, U: 1 },
@@ -1326,6 +1372,7 @@ export const removeSoul: CardDefinition = {
 // controller.)
 export const forceSpike: CardDefinition = {
     id: "70e64028-ae96-4950-aa6c-9d347409fad3",
+    rarity: "common",
     name: "Force Spike",
     oracleText: "Counter target spell unless its controller pays {1}.",
     manaCost: { U: 1 },
@@ -1351,6 +1398,7 @@ export const forceSpike: CardDefinition = {
 // Boomerang — "Return target permanent to its owner's hand." (CR 701.10.)
 export const boomerang: CardDefinition = {
     id: "b8286edd-644b-4135-8dca-af97f3920de3",
+    rarity: "common",
     name: "Boomerang",
     oracleText: "Return target permanent to its owner's hand.",
     manaCost: { U: 2 },
@@ -1366,6 +1414,7 @@ export const boomerang: CardDefinition = {
 // Forest land subtype, CR 205.3.)
 export const acidRain: CardDefinition = {
     id: "ba93c50a-2440-4e92-9cba-d97e20b1d29c",
+    rarity: "rare",
     name: "Acid Rain",
     oracleText: "Destroy all Forests.",
     manaCost: { X: 3, U: 1 },
@@ -1379,6 +1428,7 @@ export const acidRain: CardDefinition = {
 // Mountain to its owner's hand." (CR 700.2 modal spell.)
 export const flashFlood: CardDefinition = {
     id: "5ae88c06-f28c-4fbc-a28c-5eb203a04722",
+    rarity: "common",
     name: "Flash Flood",
     oracleText:
         "Choose one —\n• Destroy target red permanent.\n• Return target Mountain to its owner's hand.",
@@ -1419,6 +1469,7 @@ export const flashFlood: CardDefinition = {
 // more" = a variable-count target requirement, CR 601.2c.)
 export const seaKingsBlessing: CardDefinition = {
     id: "11d1f02d-533e-4b77-a72a-ff5f91ae0626",
+    rarity: "uncommon",
     name: "Sea Kings' Blessing",
     oracleText: "One or more target creatures become blue until end of turn.",
     manaCost: { U: 1 },
@@ -1437,6 +1488,7 @@ export const seaKingsBlessing: CardDefinition = {
 // (CR 107.3 X count + 702.19 keyword grant, end-of-turn duration.)
 export const partWater: CardDefinition = {
     id: "4b659475-c8b7-493d-af63-04f34d8cc3b1",
+    rarity: "uncommon",
     name: "Part Water",
     oracleText:
         "X target creatures gain islandwalk until end of turn. (They can't be blocked as long as defending player controls an Island.)",
@@ -1459,6 +1511,7 @@ export const partWater: CardDefinition = {
 // can't-be-blocked on the attacker side).
 export const teleport: CardDefinition = {
     id: "18f86e13-f942-423e-b175-930d768cb811",
+    rarity: "rare",
     name: "Teleport",
     oracleText:
         "Cast this spell only during the declare attackers step.\nTarget creature can't be blocked this turn.",
@@ -1481,6 +1534,7 @@ export const teleport: CardDefinition = {
 // CR 106.1 mana, snapshotting the MV before the tap.)
 export const energyTap: CardDefinition = {
     id: "37e69940-bdc8-48ff-a296-540343910adf",
+    rarity: "common",
     name: "Energy Tap",
     oracleText:
         "Tap target untapped creature you control. If you do, add an amount of {C} equal to that creature's mana value.",
@@ -1506,6 +1560,7 @@ export const energyTap: CardDefinition = {
 // post-upkeep window is approximated by excluding the opponent's UPKEEP).
 export const reset: CardDefinition = {
     id: "1c829d83-d5b8-4be7-80f7-55b42f52b309",
+    rarity: "uncommon",
     name: "Reset",
     oracleText:
         "Cast this spell only during an opponent's turn after their upkeep step.\nUntap all lands you control.",
@@ -1623,6 +1678,7 @@ function colorsOf(view: { card: Record<string, unknown> }): string[] {
 // creature the ability does nothing (CR 603.2c — no legal choice).
 export const theAbyss: CardDefinition = {
     id: "86a27d68-3e58-4ade-976d-36381beed451",
+    rarity: "rare",
     name: "The Abyss",
     oracleText:
         "At the beginning of each player's upkeep, destroy target nonartifact creature that player controls of their choice. It can't be regenerated.",
@@ -1674,6 +1730,7 @@ export const theAbyss: CardDefinition = {
 // Headless Horseman — vanilla 2/2 (CR 110.1 pure data).
 export const headlessHorseman: CardDefinition = {
     id: "d1aa37c8-98fa-4984-b09b-cf65ad84e97b",
+    rarity: "common",
     name: "Headless Horseman",
     oracleText: "",
     manaCost: { X: 2, B: 1 },
@@ -1686,6 +1743,7 @@ export const headlessHorseman: CardDefinition = {
 // Lost Soul — swampwalk (CR 702.19 landwalk variant).
 export const lostSoul: CardDefinition = {
     id: "601eed5c-436d-425b-a45f-07881ad893c8",
+    rarity: "common",
     name: "Lost Soul",
     oracleText:
         "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)",
@@ -1703,6 +1761,7 @@ export const lostSoul: CardDefinition = {
 // repeatable temporary buff.)
 export const carrionAnts: CardDefinition = {
     id: "cbc0b009-3951-4aa3-985a-97139882da7e",
+    rarity: "rare",
     name: "Carrion Ants",
     oracleText: "{1}: This creature gets +1/+1 until end of turn.",
     manaCost: { X: 2, B: 2 },
@@ -1732,6 +1791,7 @@ export const carrionAnts: CardDefinition = {
 // shield.)
 export const walkingDead: CardDefinition = {
     id: "d7533a72-77d1-40cd-b3a1-7597d566c428",
+    rarity: "common",
     name: "Walking Dead",
     oracleText: "{B}: Regenerate this creature.",
     manaCost: { X: 1, B: 1 },
@@ -1759,6 +1819,7 @@ export const walkingDead: CardDefinition = {
 // (CR 611.1 temporary debuff via a tap ability.)
 export const ghostsOfTheDamned: CardDefinition = {
     id: "20275678-3488-43d8-a93b-993e2267ab07",
+    rarity: "common",
     name: "Ghosts of the Damned",
     oracleText: "{T}: Target creature gets -1/-0 until end of turn.",
     manaCost: { X: 1, B: 2 },
@@ -1790,6 +1851,7 @@ export const ghostsOfTheDamned: CardDefinition = {
 // `sacrificeFilter`, CR 611.1 buff.)
 export const fallenAngel: CardDefinition = {
     id: "0f4174e4-0be8-49b5-8c52-22001790f6eb",
+    rarity: "uncommon",
     name: "Fallen Angel",
     oracleText:
         "Flying\nSacrifice a creature: This creature gets +2/+1 until end of turn.",
@@ -1823,6 +1885,7 @@ export const fallenAngel: CardDefinition = {
 // (CR 602.5b activation-window restriction + CR 400.7 reanimation.)
 export const hellsCaretaker: CardDefinition = {
     id: "336b3b8f-d104-4f06-ad4f-c92b8a9038ca",
+    rarity: "rare",
     name: "Hell's Caretaker",
     oracleText:
         "{T}, Sacrifice a creature: Return target creature card from your graveyard to the battlefield. Activate only during your upkeep.",
@@ -1866,6 +1929,7 @@ export const hellsCaretaker: CardDefinition = {
 // (CR 303.4 host trigger via the tapped factory → CR 701.7 destroy.)
 export const blight: CardDefinition = {
     id: "9ca19b39-4201-463c-bd40-fbffa31c9eda",
+    rarity: "uncommon",
     name: "Blight",
     oracleText: "Enchant land\nWhen enchanted land becomes tapped, destroy it.",
     manaCost: { B: 2 },
@@ -1893,6 +1957,7 @@ export const blight: CardDefinition = {
 // team debuff applied per creature on the battlefield.)
 export const hellSwarm: CardDefinition = {
     id: "64164d1b-75f4-456e-a717-90ce554dc16c",
+    rarity: "common",
     name: "Hell Swarm",
     oracleText: "All creatures get -1/-0 until end of turn.",
     manaCost: { B: 1 },
@@ -1916,6 +1981,7 @@ export const hellSwarm: CardDefinition = {
 // then CR 120.1 damage to caster.)
 export const hellfire: CardDefinition = {
     id: "362f1fe9-20af-434c-9957-7a1a564d89e6",
+    rarity: "rare",
     name: "Hellfire",
     oracleText:
         "Destroy all nonblack creatures. Hellfire deals X plus 3 damage to you, where X is the number of creatures that died this way.",
@@ -1952,6 +2018,7 @@ export const hellfire: CardDefinition = {
 // 119.3 lifegain; 2-player so a single opponent contributes 2.)
 export const syphonSoul: CardDefinition = {
     id: "f3020304-7a39-411e-b055-3ade72b4bff8",
+    rarity: "common",
     name: "Syphon Soul",
     oracleText:
         "Syphon Soul deals 2 damage to each other player. You gain life equal to the damage dealt this way.",
@@ -1973,6 +2040,7 @@ export const syphonSoul: CardDefinition = {
 // snapshot at resolution → CR 120.1 damage.)
 export const jovialEvil: CardDefinition = {
     id: "c993c74c-a574-423b-81c8-96b0a7a6e529",
+    rarity: "rare",
     name: "Jovial Evil",
     oracleText:
         "Jovial Evil deals X damage to target opponent, where X is twice the number of white creatures that player controls.",
@@ -1997,6 +2065,7 @@ export const jovialEvil: CardDefinition = {
 // target count, CR 601.2c.)
 export const touchOfDarkness: CardDefinition = {
     id: "eda7177f-1354-4008-aaaa-2c8b823ed5e9",
+    rarity: "uncommon",
     name: "Touch of Darkness",
     oracleText: "One or more target creatures become black until end of turn.",
     manaCost: { B: 1 },
@@ -2016,6 +2085,7 @@ export const touchOfDarkness: CardDefinition = {
 // shield on a colour-restricted target.)
 export const horrorOfHorrors: CardDefinition = {
     id: "b9f68dc2-c048-41ec-b237-c36fdd99c27d",
+    rarity: "uncommon",
     name: "Horror of Horrors",
     oracleText: "Sacrifice a Swamp: Regenerate target black creature.",
     manaCost: { X: 3, B: 2 },
@@ -2043,6 +2113,7 @@ export const horrorOfHorrors: CardDefinition = {
 // trigger → CR 406 exile of the card now in the graveyard.)
 export const cyclopeanMummy: CardDefinition = {
     id: "479ccc50-2d72-4adc-901e-fbd4eef2cf92",
+    rarity: "common",
     name: "Cyclopean Mummy",
     oracleText: "When this creature dies, exile it.",
     manaCost: { X: 1, B: 1 },
@@ -2097,6 +2168,7 @@ export const cyclopeanMummy: CardDefinition = {
 // at that minimum client-side.
 export const sylvanLibrary: CardDefinition = {
     id: "f486df00-7c4a-4ff0-bb0b-c8b5432ac742",
+    rarity: "uncommon",
     name: "Sylvan Library",
     oracleText:
         "At the beginning of your draw step, you may draw two additional cards. If you do, choose two cards in your hand drawn this turn. For each of those cards, pay 4 life or put the card on top of your library.",
@@ -2179,6 +2251,7 @@ export const sylvanLibrary: CardDefinition = {
 // draw.)
 export const greed: CardDefinition = {
     id: "111a16a2-e875-4756-80db-290f9e8606db",
+    rarity: "rare",
     name: "Greed",
     oracleText: "{B}, Pay 2 life: Draw a card.",
     manaCost: { X: 3, B: 1 },
@@ -2200,6 +2273,7 @@ export const greed: CardDefinition = {
 // (CR 615 — the global combat-damage prevention used by Fog-style cards.)
 export const darkness: CardDefinition = {
     id: "53b04dab-45b7-418b-a0f0-bcf35145fc53",
+    rarity: "common",
     name: "Darkness",
     oracleText: "Prevent all combat damage that would be dealt this turn.",
     manaCost: { B: 1 },
@@ -2271,6 +2345,7 @@ export const darkness: CardDefinition = {
 // Crimson Kobolds — vanilla 0/1 Kobold (CR 110.1; cost {0}, CR 202.1).
 export const crimsonKobolds: CardDefinition = {
     id: "13696657-aeef-4add-9a3b-8137fce01fe3",
+    rarity: "common",
     name: "Crimson Kobolds",
     oracleText: "",
     manaCost: {},
@@ -2283,6 +2358,7 @@ export const crimsonKobolds: CardDefinition = {
 // Crookshank Kobolds — vanilla 0/1 Kobold (CR 110.1).
 export const crookshankKobolds: CardDefinition = {
     id: "7af6b119-7db4-49dd-aaa4-044b8c133f13",
+    rarity: "common",
     name: "Crookshank Kobolds",
     oracleText: "",
     manaCost: {},
@@ -2295,6 +2371,7 @@ export const crookshankKobolds: CardDefinition = {
 // Kobolds of Kher Keep — vanilla 0/1 Kobold (CR 110.1).
 export const koboldsOfKherKeep: CardDefinition = {
     id: "df0320d9-7c2a-456a-9159-1b4fae67bfb5",
+    rarity: "common",
     name: "Kobolds of Kher Keep",
     oracleText: "",
     manaCost: {},
@@ -2307,6 +2384,7 @@ export const koboldsOfKherKeep: CardDefinition = {
 // Raging Bull — vanilla 2/2 Ox (CR 110.1).
 export const ragingBull: CardDefinition = {
     id: "ec10a51c-d2c3-4d14-9a71-9e59155bf980",
+    rarity: "common",
     name: "Raging Bull",
     oracleText: "",
     manaCost: { X: 2, R: 1 },
@@ -2320,6 +2398,7 @@ export const ragingBull: CardDefinition = {
 // white (CR 702.16).
 export const mountainYeti: CardDefinition = {
     id: "09242f08-3bfc-4082-b32f-703c7fed62a0",
+    rarity: "uncommon",
     name: "Mountain Yeti",
     oracleText:
         "Mountainwalk (This creature can't be blocked as long as defending player controls a Mountain.)\nProtection from white",
@@ -2334,6 +2413,7 @@ export const mountainYeti: CardDefinition = {
 // Wall of Earth — Defender (CR 702.3).
 export const wallOfEarth: CardDefinition = {
     id: "c12e97c1-ca28-432a-8140-3f08bb4485a3",
+    rarity: "common",
     name: "Wall of Earth",
     oracleText: "Defender (This creature can't attack.)",
     manaCost: { X: 1, R: 1 },
@@ -2347,6 +2427,7 @@ export const wallOfEarth: CardDefinition = {
 // Wall of Heat — Defender (CR 702.3).
 export const wallOfHeat: CardDefinition = {
     id: "a38059a8-be69-4cc1-969b-951c610f2f11",
+    rarity: "common",
     name: "Wall of Heat",
     oracleText: "Defender (This creature can't attack.)",
     manaCost: { X: 2, R: 1 },
@@ -2363,6 +2444,7 @@ export const wallOfHeat: CardDefinition = {
 // (CR 611 filtered anthem excluding self.)
 export const koboldTaskmaster: CardDefinition = {
     id: "1b9c63eb-8d4e-4d8b-8637-308459ef036b",
+    rarity: "uncommon",
     name: "Kobold Taskmaster",
     oracleText: "Other Kobold creatures you control get +1/+0.",
     manaCost: { X: 1, R: 1 },
@@ -2387,6 +2469,7 @@ export const koboldTaskmaster: CardDefinition = {
 // have trample." (CR 611 filtered anthem + keyword grant, excluding self.)
 export const koboldDrillSergeant: CardDefinition = {
     id: "741b14f8-625d-41be-a734-0efe042a6ee8",
+    rarity: "uncommon",
     name: "Kobold Drill Sergeant",
     oracleText:
         "Other Kobold creatures you control get +0/+1 and have trample.",
@@ -2420,6 +2503,7 @@ export const koboldDrillSergeant: CardDefinition = {
 // control have first strike." (CR 611 keyword grant, excluding self.)
 export const koboldOverlord: CardDefinition = {
     id: "490eeedb-9c03-4dc7-81fd-ae54a7932e4d",
+    rarity: "rare",
     name: "Kobold Overlord",
     oracleText:
         "First strike\nOther Kobold creatures you control have first strike.",
@@ -2448,6 +2532,7 @@ const BEASTS_OF_BOGARDAN_ID = "f885d776-2953-4ed4-b63f-91dc2b42783b";
 
 export const beastsOfBogardan: CardDefinition = {
     id: BEASTS_OF_BOGARDAN_ID,
+    rarity: "uncommon",
     name: "Beasts of Bogardan",
     oracleText:
         "Protection from red\nThis creature gets +1/+1 as long as an opponent controls a nontoken white permanent.",
@@ -2483,6 +2568,7 @@ export const beastsOfBogardan: CardDefinition = {
 // colour-restricted target, CR 202.2.)
 export const spinalVillain: CardDefinition = {
     id: "d6d5e36f-0049-4be8-bf85-8dc0186339a4",
+    rarity: "rare",
     name: "Spinal Villain",
     oracleText: "{T}: Destroy target blue creature.",
     manaCost: { X: 2, R: 1 },
@@ -2510,6 +2596,7 @@ export const spinalVillain: CardDefinition = {
 // single option choice — choose tap, untap, or decline.)
 export const hyperionBlacksmith: CardDefinition = {
     id: "44d499a9-fe7c-4a1a-9eb3-a7fd9f85ae08",
+    rarity: "uncommon",
     name: "Hyperion Blacksmith",
     oracleText:
         "{T}: You may tap or untap target artifact an opponent controls.",
@@ -2557,6 +2644,7 @@ export const hyperionBlacksmith: CardDefinition = {
 // until end of turn." (CR 611.1 repeatable temporary pump.)
 export const wallOfOpposition: CardDefinition = {
     id: "2b3d1430-9978-4983-a4fd-d1fa8dea2169",
+    rarity: "rare",
     name: "Wall of Opposition",
     oracleText:
         "Defender (This creature can't attack.)\n{1}: This creature gets +1/+0 until end of turn.",
@@ -2589,6 +2677,7 @@ export const wallOfOpposition: CardDefinition = {
 // Giant Strength — Enchanted creature gets +2/+2 (CR 303.4, 611).
 export const giantStrength: CardDefinition = {
     id: "a86190bb-1f41-4128-b9fb-dfb1d178359d",
+    rarity: "common",
     name: "Giant Strength",
     oracleText: "Enchant creature\nEnchanted creature gets +2/+2.",
     manaCost: { R: 2 },
@@ -2608,6 +2697,7 @@ export const giantStrength: CardDefinition = {
 // Immolation — Enchanted creature gets +2/-2 (CR 303.4, 611).
 export const immolation: CardDefinition = {
     id: "9b3d34fa-398c-4ea0-a392-6690bd3a615c",
+    rarity: "common",
     name: "Immolation",
     oracleText: "Enchant creature\nEnchanted creature gets +2/-2.",
     manaCost: { R: 1 },
@@ -2628,6 +2718,7 @@ export const immolation: CardDefinition = {
 // CR 702.21).
 export const eternalWarrior: CardDefinition = {
     id: "97cdc38e-1d96-4de2-98e2-713f5d4d2180",
+    rarity: "uncommon",
     name: "Eternal Warrior",
     oracleText: "Enchant creature\nEnchanted creature has vigilance.",
     manaCost: { R: 1 },
@@ -2648,6 +2739,7 @@ export const eternalWarrior: CardDefinition = {
 // CR 701.15a.)
 export const theBrute: CardDefinition = {
     id: "f9ffb265-872f-47b3-974c-92bcbebd557e",
+    rarity: "common",
     name: "The Brute",
     oracleText:
         "Enchant creature\nEnchanted creature gets +1/+0.\n{R}{R}{R}: Regenerate enchanted creature.",
@@ -2688,6 +2780,7 @@ export const theBrute: CardDefinition = {
 // CR 601.2c.)
 export const dwarvenSong: CardDefinition = {
     id: "29a50f72-9524-4440-9380-9d3e0b693351",
+    rarity: "uncommon",
     name: "Dwarven Song",
     oracleText: "One or more target creatures become red until end of turn.",
     manaCost: { R: 1 },
@@ -2709,6 +2802,7 @@ export const dwarvenSong: CardDefinition = {
 // +4/-(T-1) makes the new toughness T - (T-1) = 1.)
 export const bloodLust: CardDefinition = {
     id: "fbbf1a9c-8b94-4ee7-92db-65b531149990",
+    rarity: "uncommon",
     name: "Blood Lust",
     oracleText:
         "If target creature has toughness 5 or greater, it gets +4/-4 until end of turn. Otherwise, it gets +4/-X until end of turn, where X is its toughness minus 1.",
@@ -2732,6 +2826,7 @@ export const bloodLust: CardDefinition = {
 // of combat + CR 615 prevention shield + CR 603.7a delayed destroy.)
 export const glyphOfDestruction: CardDefinition = {
     id: "8e9c153c-9224-491b-bc84-8a9f0a83ee5a",
+    rarity: "common",
     name: "Glyph of Destruction",
     oracleText:
         "Target blocking Wall you control gets +10/+0 until end of combat. Prevent all damage that would be dealt to it this turn. Destroy it at the beginning of the next end step.",
@@ -2779,6 +2874,7 @@ export const glyphOfDestruction: CardDefinition = {
 // Island to its owner's hand." (CR 700.2 modal spell.)
 export const activeVolcano: CardDefinition = {
     id: "ad402e65-6fac-4005-a2d4-592983df0c30",
+    rarity: "common",
     name: "Active Volcano",
     oracleText:
         "Choose one —\n• Destroy target blue permanent.\n• Return target Island to its owner's hand.",
@@ -2819,6 +2915,7 @@ export const activeVolcano: CardDefinition = {
 // hand → library, shuffle, redraw that many. CR 701.20 / 121.1.)
 export const windsOfChange: CardDefinition = {
     id: "186fd917-8d65-4de5-8546-a32a5f6d3bab",
+    rarity: "uncommon",
     name: "Winds of Change",
     oracleText:
         "Each player shuffles the cards from their hand into their library, then draws that many cards.",
@@ -2908,6 +3005,7 @@ export const windsOfChange: CardDefinition = {
 // Barbary Apes — vanilla 2/2 Ape (CR 110.1).
 export const barbaryApes: CardDefinition = {
     id: "df25ffdd-995d-46ae-856b-f6368f9438ed",
+    rarity: "common",
     name: "Barbary Apes",
     oracleText: "",
     manaCost: { X: 1, G: 1 },
@@ -2920,6 +3018,7 @@ export const barbaryApes: CardDefinition = {
 // Durkwood Boars — vanilla 4/4 Boar (CR 110.1).
 export const durkwoodBoars: CardDefinition = {
     id: "8d41f08b-68fb-45f2-bdc9-488baedc7d6f",
+    rarity: "common",
     name: "Durkwood Boars",
     oracleText: "",
     manaCost: { X: 4, G: 1 },
@@ -2932,6 +3031,7 @@ export const durkwoodBoars: CardDefinition = {
 // Moss Monster — vanilla 3/6 Elemental (CR 110.1).
 export const mossMonster: CardDefinition = {
     id: "9903c043-9a7a-4994-b532-136d4c46edfd",
+    rarity: "common",
     name: "Moss Monster",
     oracleText: "",
     manaCost: { X: 3, G: 2 },
@@ -2944,6 +3044,7 @@ export const mossMonster: CardDefinition = {
 // Cat Warriors — forestwalk (CR 702.19 landwalk variant).
 export const catWarriors: CardDefinition = {
     id: "d2187a64-2823-4f58-ad35-70f8913db2dc",
+    rarity: "common",
     name: "Cat Warriors",
     oracleText:
         "Forestwalk (This creature can't be blocked as long as defending player controls a Forest.)",
@@ -2958,6 +3059,7 @@ export const catWarriors: CardDefinition = {
 // Hornet Cobra — first strike (CR 702.7).
 export const hornetCobra: CardDefinition = {
     id: "27180bad-9bbc-462b-8832-626dc403a3fd",
+    rarity: "common",
     name: "Hornet Cobra",
     oracleText: "First strike",
     manaCost: { X: 1, G: 2 },
@@ -2973,6 +3075,7 @@ export const hornetCobra: CardDefinition = {
 // attacker side; the combat validator scans the attacker's own statics).
 export const elvenRiders: CardDefinition = {
     id: "ad1d349b-b5ab-4b2b-9b39-f8d8f6374aa5",
+    rarity: "rare",
     name: "Elven Riders",
     oracleText:
         "This creature can't be blocked except by Walls and/or creatures with flying.",
@@ -3010,6 +3113,7 @@ export const elvenRiders: CardDefinition = {
 // source at stat-read time, added on top of its base 0/1.)
 export const rabidWombat: CardDefinition = {
     id: "9d9b9eb8-6367-4ab5-8e00-a9c9e1d69032",
+    rarity: "uncommon",
     name: "Rabid Wombat",
     oracleText:
         "Vigilance\nThis creature gets +2/+2 for each Aura attached to it.",
@@ -3047,6 +3151,7 @@ export const rabidWombat: CardDefinition = {
 // end of turn." (CR 702.9 flying + CR 611.1b end-of-turn keyword grant.)
 export const emeraldDragonfly: CardDefinition = {
     id: "a3e81250-52c3-49f6-be43-17c34339e177",
+    rarity: "common",
     name: "Emerald Dragonfly",
     oracleText:
         "Flying\n{G}{G}: This creature gains first strike until end of turn.",
@@ -3078,6 +3183,7 @@ export const emeraldDragonfly: CardDefinition = {
 // ability — `useStack: false`, resolves immediately, no priority.)
 export const fireSprites: CardDefinition = {
     id: "d26fa79a-ede8-4c80-98d5-f49696f8104d",
+    rarity: "common",
     name: "Fire Sprites",
     oracleText: "Flying\n{G}, {T}: Add {R}.",
     manaCost: { X: 1, G: 1 },
@@ -3102,6 +3208,7 @@ export const fireSprites: CardDefinition = {
 // (CR 702.9 flying + CR 611.1 repeatable temporary buff.)
 export const killerBees: CardDefinition = {
     id: "2e30b5ff-1239-4c4d-ac7c-554ecf8e1e27",
+    rarity: "rare",
     name: "Killer Bees",
     oracleText: "Flying\n{G}: This creature gets +1/+1 until end of turn.",
     manaCost: { X: 1, G: 2 },
@@ -3132,6 +3239,7 @@ export const killerBees: CardDefinition = {
 // of turn." (CR 702.9 flying + CR 611.1b keyword grant on a chosen target.)
 export const pixieQueen: CardDefinition = {
     id: "b9527c2a-23bb-4d33-9e72-6e0ab3de0e6b",
+    rarity: "rare",
     name: "Pixie Queen",
     oracleText:
         "Flying\n{G}{G}{G}, {T}: Target creature gains flying until end of turn.",
@@ -3165,6 +3273,7 @@ export const pixieQueen: CardDefinition = {
 // turn." (CR 611.1 temporary debuff via a tap ability.)
 export const pradeshGypsies: CardDefinition = {
     id: "0370330d-83d9-44d2-a1ed-c4827edc60fd",
+    rarity: "uncommon",
     name: "Pradesh Gypsies",
     oracleText: "{1}{G}, {T}: Target creature gets -2/-0 until end of turn.",
     manaCost: { X: 2, G: 1 },
@@ -3199,6 +3308,7 @@ export const pradeshGypsies: CardDefinition = {
 // at resolution, CR 402.1.)
 export const stormSeeker: CardDefinition = {
     id: "3b66d0cc-84d7-41ad-b0e7-74ebf604543f",
+    rarity: "uncommon",
     name: "Storm Seeker",
     oracleText:
         "Storm Seeker deals damage to target player equal to the number of cards in that player's hand.",
@@ -3217,6 +3327,7 @@ export const stormSeeker: CardDefinition = {
 // count, CR 205.3.)
 export const typhoon: CardDefinition = {
     id: "254e0403-67d8-4e73-8d89-c901ebeba49f",
+    rarity: "rare",
     name: "Typhoon",
     oracleText:
         "Typhoon deals damage to each opponent equal to the number of Islands that player controls.",
@@ -3243,6 +3354,7 @@ export const typhoon: CardDefinition = {
 // of each target → CR 120.1 damage gated on flying, snapshot at resolution.)
 export const winterBlast: CardDefinition = {
     id: "fb846366-2105-4999-8af1-a11687f42e17",
+    rarity: "rare",
     name: "Winter Blast",
     oracleText:
         "Tap X target creatures. Winter Blast deals 2 damage to each of those creatures with flying.",
@@ -3275,6 +3387,7 @@ export const winterBlast: CardDefinition = {
 // target count, CR 601.2c.)
 export const sylvanParadise: CardDefinition = {
     id: "f323c3bb-cece-4035-b1a7-c4817cf7a08c",
+    rarity: "uncommon",
     name: "Sylvan Paradise",
     oracleText: "One or more target creatures become green until end of turn.",
     manaCost: { G: 1 },
@@ -3357,6 +3470,7 @@ export const sylvanParadise: CardDefinition = {
 // Barktooth Warbeard — vanilla legendary 6/5 (CR 205.4a Legendary supertype).
 export const barktoothWarbeard: CardDefinition = {
     id: "0ea52228-f8ad-4623-9e05-f162473bfc03",
+    rarity: "uncommon",
     name: "Barktooth Warbeard",
     oracleText: "",
     manaCost: { X: 4, B: 1, R: 2 },
@@ -3370,6 +3484,7 @@ export const barktoothWarbeard: CardDefinition = {
 // Jedit Ojanen — vanilla legendary 5/5.
 export const jeditOjanen: CardDefinition = {
     id: "97b80124-2b59-425c-93cc-9b032e631c6e",
+    rarity: "uncommon",
     name: "Jedit Ojanen",
     oracleText: "",
     manaCost: { X: 4, W: 2, U: 1 },
@@ -3383,6 +3498,7 @@ export const jeditOjanen: CardDefinition = {
 // Jerrard of the Closed Fist — vanilla legendary 6/5.
 export const jerrardOfTheClosedFist: CardDefinition = {
     id: "7f841918-813b-4784-ab57-907185b0a355",
+    rarity: "uncommon",
     name: "Jerrard of the Closed Fist",
     oracleText: "",
     manaCost: { X: 3, R: 1, G: 2 },
@@ -3396,6 +3512,7 @@ export const jerrardOfTheClosedFist: CardDefinition = {
 // Kasimir the Lone Wolf — vanilla legendary 5/3.
 export const kasimirTheLoneWolf: CardDefinition = {
     id: "45b1e60d-54dd-41cd-b9a2-00890725a3df",
+    rarity: "uncommon",
     name: "Kasimir the Lone Wolf",
     oracleText: "",
     manaCost: { X: 4, W: 1, U: 1 },
@@ -3409,6 +3526,7 @@ export const kasimirTheLoneWolf: CardDefinition = {
 // Sir Shandlar of Eberyn — vanilla legendary 4/7.
 export const sirShandlarOfEberyn: CardDefinition = {
     id: "31570ded-f5e3-44c4-b95f-294ac10b2cd2",
+    rarity: "uncommon",
     name: "Sir Shandlar of Eberyn",
     oracleText: "",
     manaCost: { X: 4, G: 1, W: 1 },
@@ -3422,6 +3540,7 @@ export const sirShandlarOfEberyn: CardDefinition = {
 // Sivitri Scarzam — vanilla legendary 6/4.
 export const sivitriScarzam: CardDefinition = {
     id: "9c12ee9e-db13-4b4d-a061-b6566f538f09",
+    rarity: "uncommon",
     name: "Sivitri Scarzam",
     oracleText: "",
     manaCost: { X: 5, U: 1, B: 1 },
@@ -3435,6 +3554,7 @@ export const sivitriScarzam: CardDefinition = {
 // The Lady of the Mountain — vanilla legendary 5/5.
 export const theLadyOfTheMountain: CardDefinition = {
     id: "83717eb2-220e-4086-be09-dee9174798b8",
+    rarity: "uncommon",
     name: "The Lady of the Mountain",
     oracleText: "",
     manaCost: { X: 4, R: 1, G: 1 },
@@ -3448,6 +3568,7 @@ export const theLadyOfTheMountain: CardDefinition = {
 // Tobias Andrion — vanilla legendary 4/4.
 export const tobiasAndrion: CardDefinition = {
     id: "cac56eda-5ed3-4abd-beec-f5063fbf930a",
+    rarity: "uncommon",
     name: "Tobias Andrion",
     oracleText: "",
     manaCost: { X: 3, W: 1, U: 1 },
@@ -3461,6 +3582,7 @@ export const tobiasAndrion: CardDefinition = {
 // Torsten Von Ursus — vanilla legendary 5/5.
 export const torstenVonUrsus: CardDefinition = {
     id: "5fd99522-4a91-4ccd-91bf-5f32a6ac3510",
+    rarity: "uncommon",
     name: "Torsten Von Ursus",
     oracleText: "",
     manaCost: { X: 3, G: 2, W: 1 },
@@ -3474,6 +3596,7 @@ export const torstenVonUrsus: CardDefinition = {
 // Ramirez DePietro — first strike (CR 702.7) legendary 4/3.
 export const ramirezDePietro: CardDefinition = {
     id: "e5c66c61-aadf-433b-9958-fc9b44b327b9",
+    rarity: "uncommon",
     name: "Ramirez DePietro",
     oracleText: "First strike",
     manaCost: { X: 3, U: 1, B: 2 },
@@ -3485,6 +3608,28 @@ export const ramirezDePietro: CardDefinition = {
     staticAbilities: ["first strike"],
 };
 
+// Livonya Silone — first strike (CR 702.7) + legendary landwalk (CR 702.13).
+// "Legendary landwalk" is landwalk keyed on the land *supertype* Legendary
+// (CR 205.4) rather than a basic-land subtype: Livonya can't be blocked while
+// the defending player controls a land with the Legendary supertype. The
+// evasion is a parametric registry rule (`LANDWALK_SUPERTYPE_KEYWORDS` →
+// `LANDWALK_SUPERTYPE_RULES`), so the keyword string carries the whole
+// behavior — no per-card resolve() or staticEffect.
+export const livonyaSilone: CardDefinition = {
+    id: "b9211949-66a5-4039-ac6d-3e42b008b58e",
+    rarity: "rare",
+    name: "Livonya Silone",
+    oracleText:
+        "First strike; legendary landwalk (This creature can't be blocked as long as defending player controls a legendary land.)",
+    manaCost: { X: 2, R: 2, G: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Warrior"],
+    power: 4,
+    toughness: 4,
+    staticAbilities: ["first strike", "legendary landwalk"],
+};
+
 // --- Characteristic-defining P/T (CR 604.3) --------------------------------
 
 // Dakkon Blackblade — "Dakkon Blackblade's power and toughness are each equal
@@ -3492,6 +3637,7 @@ export const ramirezDePietro: CardDefinition = {
 // supplies the whole value from a land count.)
 export const dakkonBlackblade: CardDefinition = {
     id: "fbfd1278-1486-4516-8846-007ce1985ee9",
+    rarity: "rare",
     name: "Dakkon Blackblade",
     oracleText:
         "Dakkon Blackblade's power and toughness are each equal to the number of lands you control.",
@@ -3529,6 +3675,7 @@ export const dakkonBlackblade: CardDefinition = {
 // anthem keyed on colour + controller.)
 export const jacquesLeVert: CardDefinition = {
     id: "ee5a45b1-169b-468e-9251-424c09cd7f0f",
+    rarity: "rare",
     name: "Jacques le Vert",
     oracleText: "Green creatures you control get +0/+2.",
     manaCost: { X: 1, R: 1, G: 1, W: 1 },
@@ -3557,6 +3704,7 @@ export const jacquesLeVert: CardDefinition = {
 // colour-filtered → CR 119.3 lifegain.)
 export const solkanarTheSwampKing: CardDefinition = {
     id: "7a20dcb0-5350-40e0-82d3-c8d0186fc9d2",
+    rarity: "rare",
     name: "Sol'kanar the Swamp King",
     oracleText:
         "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)\nWhenever a player casts a black spell, you gain 1 life.",
@@ -3586,6 +3734,7 @@ export const solkanarTheSwampKing: CardDefinition = {
 // move on a chosen graveyard creature.)
 export const adunOakenshield: CardDefinition = {
     id: "60252226-a102-4d88-9b80-42d021b5184d",
+    rarity: "rare",
     name: "Adun Oakenshield",
     oracleText:
         "{B}{R}{G}, {T}: Return target creature card from your graveyard to your hand.",
@@ -3629,6 +3778,7 @@ export const adunOakenshield: CardDefinition = {
 // prevention.)
 export const angusMackenzie: CardDefinition = {
     id: "57264bd9-94f6-4d4d-baff-2b2900585635",
+    rarity: "rare",
     name: "Angus Mackenzie",
     oracleText:
         "{G}{W}{U}, {T}: Prevent all combat damage that would be dealt this turn. Activate only before the combat damage step.",
@@ -3662,6 +3812,7 @@ export const angusMackenzie: CardDefinition = {
 // creation.)
 export const borisDevilboon: CardDefinition = {
     id: "82ae30e8-2dcd-46b8-925b-cc24e11fb95d",
+    rarity: "rare",
     name: "Boris Devilboon",
     oracleText:
         "{2}{B}{R}, {T}: Create a 1/1 black and red Demon creature token named Minor Demon.",
@@ -3700,6 +3851,7 @@ export const borisDevilboon: CardDefinition = {
 // discard.)
 export const gwendlynDiCorci: CardDefinition = {
     id: "473d70b6-a88c-49f4-9415-19919c4468ae",
+    rarity: "rare",
     name: "Gwendlyn Di Corci",
     oracleText:
         "{T}: Target player discards a card at random. Activate only during your turn.",
@@ -3733,6 +3885,7 @@ export const gwendlynDiCorci: CardDefinition = {
 // chosen target.)
 export const keiTakahashi: CardDefinition = {
     id: "6a4a524a-fdc7-432d-994b-953808528349",
+    rarity: "rare",
     name: "Kei Takahashi",
     oracleText:
         "{T}: Prevent the next 2 damage that would be dealt to target creature this turn.",
@@ -3766,6 +3919,7 @@ export const keiTakahashi: CardDefinition = {
 // repeatable temporary buff.)
 export const pavelMaliki: CardDefinition = {
     id: "304f9d39-3ea2-4274-b23e-e4eaabbc1c4b",
+    rarity: "uncommon",
     name: "Pavel Maliki",
     oracleText: "{B}{R}: Pavel Maliki gets +1/+0 until end of turn.",
     manaCost: { X: 4, B: 1, R: 1 },
@@ -3796,6 +3950,7 @@ export const pavelMaliki: CardDefinition = {
 // CR 701.15a regeneration shield on a chosen target.)
 export const ragnar: CardDefinition = {
     id: "2cf6a3a3-4a06-4eb7-981a-b70cf05b2473",
+    rarity: "rare",
     name: "Ragnar",
     oracleText: "{G}{W}{U}, {T}: Regenerate target creature.",
     manaCost: { G: 1, W: 1, U: 1 },
@@ -3825,6 +3980,7 @@ export const ragnar: CardDefinition = {
 // +2/+2 until end of turn." (CR 611.1 buff on a chosen target.)
 export const tuknirDeathlock: CardDefinition = {
     id: "9dfbcb4d-a9ae-4d76-8dde-7312fbad56b0",
+    rarity: "rare",
     name: "Tuknir Deathlock",
     oracleText:
         "Flying\n{R}{G}, {T}: Target creature gets +2/+2 until end of turn.",
@@ -3859,6 +4015,7 @@ export const tuknirDeathlock: CardDefinition = {
 // card." (CR 602 tap ability + CR 121.1 draw.)
 export const xiraArien: CardDefinition = {
     id: "cc6c7d89-32e7-4c3f-ac90-7db3a46eed4b",
+    rarity: "rare",
     name: "Xira Arien",
     oracleText: "Flying\n{B}{R}{G}, {T}: Target player draws a card.",
     manaCost: { B: 1, R: 1, G: 1 },
@@ -3890,6 +4047,7 @@ export const xiraArien: CardDefinition = {
 // Princess Lucrezia — "{T}: Add {U}." (CR 605.1a mana ability.)
 export const princessLucrezia: CardDefinition = {
     id: "a1dcf48c-2700-4024-807e-9244e4c649ac",
+    rarity: "uncommon",
     name: "Princess Lucrezia",
     oracleText: "{T}: Add {U}.",
     manaCost: { X: 3, U: 2, B: 1 },
@@ -3913,6 +4071,7 @@ export const princessLucrezia: CardDefinition = {
 // Riven Turnbull — "{T}: Add {B}." (CR 605.1a mana ability.)
 export const rivenTurnbull: CardDefinition = {
     id: "d11f90e7-ced1-4d80-8083-99acbf459ad7",
+    rarity: "uncommon",
     name: "Riven Turnbull",
     oracleText: "{T}: Add {B}.",
     manaCost: { X: 5, U: 1, B: 1 },
@@ -3936,6 +4095,7 @@ export const rivenTurnbull: CardDefinition = {
 // Sunastian Falconer — "{T}: Add {C}{C}." (CR 605.1a mana ability.)
 export const sunastianFalconer: CardDefinition = {
     id: "587075f3-a568-4089-83ca-fe1e473c025d",
+    rarity: "uncommon",
     name: "Sunastian Falconer",
     oracleText: "{T}: Add {C}{C}.",
     manaCost: { X: 3, R: 1, G: 1 },
@@ -4030,6 +4190,7 @@ export const sunastianFalconer: CardDefinition = {
 // controllerId matching the artifact's controllerId.
 export const manaMatrix: CardDefinition = {
     id: "a3eedc11-0b47-430c-8391-577a2d05c2ae",
+    rarity: "rare",
     name: "Mana Matrix",
     oracleText:
         "Instant and enchantment spells you cast cost {2} less to cast.",
@@ -4054,6 +4215,7 @@ export const manaMatrix: CardDefinition = {
 // Planar Gate — "Creature spells you cast cost {2} less to cast."
 export const planarGate: CardDefinition = {
     id: "dd27f0fe-c032-4f61-9f3d-98a6d2e2c426",
+    rarity: "rare",
     name: "Planar Gate",
     oracleText: "Creature spells you cast cost {2} less to cast.",
     manaCost: { X: 6 },
@@ -4078,6 +4240,7 @@ export const planarGate: CardDefinition = {
 // Relic Barrier — "{T}: Tap target artifact." (CR 701.20 tap.)
 export const relicBarrier: CardDefinition = {
     id: "c062cbae-ce5e-43be-9932-c81a0a3622e8",
+    rarity: "uncommon",
     name: "Relic Barrier",
     oracleText: "{T}: Tap target artifact.",
     manaCost: { X: 2 },
@@ -4102,6 +4265,7 @@ export const relicBarrier: CardDefinition = {
 // indefinite setColorOverride; the color is a player option choice.)
 export const alchorsTomb: CardDefinition = {
     id: "f4395b19-2118-4a09-8932-f9ce9bc54d6d",
+    rarity: "rare",
     name: "Alchor's Tomb",
     oracleText:
         "{2}, {T}: Target permanent you control becomes the color of your choice. (This effect lasts indefinitely.)",
@@ -4148,6 +4312,7 @@ export const alchorsTomb: CardDefinition = {
 // modeled as gain/loss deltas since there is no setLife primitive.)
 export const mirrorUniverse: CardDefinition = {
     id: "a8f05d5e-bb7d-4554-b880-f0c6b4688357",
+    rarity: "rare",
     name: "Mirror Universe",
     oracleText:
         "{T}, Sacrifice Mirror Universe: Exchange life totals with target opponent. Activate only during your upkeep.",
@@ -4192,6 +4357,7 @@ export const mirrorUniverse: CardDefinition = {
 // gated by a 1/1 power+toughness filter.)
 export const pendelhaven: CardDefinition = {
     id: "79427109-c1f3-476d-a029-0049217237b5",
+    rarity: "uncommon",
     name: "Pendelhaven",
     oracleText:
         "{T}: Add {G}.\n{T}: Target 1/1 creature gets +1/+2 until end of turn.",
@@ -4248,6 +4414,7 @@ export const pendelhaven: CardDefinition = {
 // Aerathi Berserker — {2}{R}{R}{R} 2/4, Rampage 3.
 export const aerathiBerserker: CardDefinition = {
     id: "06673800-22a7-4ee3-92fa-7c7cd4865d30",
+    rarity: "uncommon",
     name: "Aerathi Berserker",
     oracleText:
         "Rampage 3 (Whenever this creature becomes blocked, it gets +3/+3 until end of turn for each creature blocking it beyond the first.)",
@@ -4263,6 +4430,7 @@ export const aerathiBerserker: CardDefinition = {
 // Frost Giant — {3}{R}{R}{R} 4/4, Rampage 2.
 export const frostGiant: CardDefinition = {
     id: "6955d54f-7b37-4e43-8183-51677fb1ee11",
+    rarity: "uncommon",
     name: "Frost Giant",
     oracleText:
         "Rampage 2 (Whenever this creature becomes blocked, it gets +2/+2 until end of turn for each creature blocking it beyond the first.)",
@@ -4278,6 +4446,7 @@ export const frostGiant: CardDefinition = {
 // Craw Giant — {3}{G}{G}{G}{G} 6/4, Trample, Rampage 2.
 export const crawGiant: CardDefinition = {
     id: "707dadf0-735f-445d-9240-e49660913314",
+    rarity: "uncommon",
     name: "Craw Giant",
     oracleText:
         "Trample\nRampage 2 (Whenever this creature becomes blocked, it gets +2/+2 until end of turn for each creature blocking it beyond the first.)",
@@ -4293,6 +4462,7 @@ export const crawGiant: CardDefinition = {
 // Wolverine Pack — {2}{G}{G} 2/4, Rampage 2.
 export const wolverinePack: CardDefinition = {
     id: "ba5aee52-095e-4c69-93eb-5adac11ed1fc",
+    rarity: "common",
     name: "Wolverine Pack",
     oracleText:
         "Rampage 2 (Whenever this creature becomes blocked, it gets +2/+2 until end of turn for each creature blocking it beyond the first.)",
@@ -4311,6 +4481,7 @@ export const wolverinePack: CardDefinition = {
 // `payOrSacrificeUpkeepTrigger` (see the C7 section at the foot of this file).
 export const chromium: CardDefinition = {
     id: "8cd7d7e1-f928-4429-9a59-ba0590a78e98",
+    rarity: "rare",
     name: "Chromium",
     oracleText:
         "Flying\nRampage 2 (Whenever this creature becomes blocked, it gets +2/+2 until end of turn for each creature blocking it beyond the first.)\nAt the beginning of your upkeep, sacrifice Chromium unless you pay {W}{U}{B}.",
@@ -4335,6 +4506,7 @@ export const chromium: CardDefinition = {
 // Hunding Gjornersen — {3}{W}{U}{U} 5/4, Rampage 1. Legendary.
 export const hundingGjornersen: CardDefinition = {
     id: "07d8e501-6857-4a52-a3b9-2bf0bee5b08c",
+    rarity: "uncommon",
     name: "Hunding Gjornersen",
     oracleText:
         "Rampage 1 (Whenever this creature becomes blocked, it gets +1/+1 until end of turn for each creature blocking it beyond the first.)",
@@ -4351,6 +4523,7 @@ export const hundingGjornersen: CardDefinition = {
 // Marhault Elsdragon — {3}{R}{R}{G} 4/6, Rampage 1. Legendary.
 export const marhaultElsdragon: CardDefinition = {
     id: "67330004-6720-46d9-9de0-c79230110583",
+    rarity: "uncommon",
     name: "Marhault Elsdragon",
     oracleText:
         "Rampage 1 (Whenever this creature becomes blocked, it gets +1/+1 until end of turn for each creature blocking it beyond the first.)",
@@ -4412,6 +4585,7 @@ const legendaryCreatureGrant =
 // with other legendary creatures.'" (CR 702.22j via keyword-grant.)
 export const adventurersGuildhouse: CardDefinition = {
     id: "32865e68-5842-4f17-b2ea-4ffa743b511f",
+    rarity: "uncommon",
     name: "Adventurers' Guildhouse",
     oracleText:
         'Green legendary creatures you control have "bands with other legendary creatures." (Any legendary creatures can attack in a band as long as at least one has "bands with other legendary creatures." Bands are blocked as a group. If at least two legendary creatures you control, one of which has "bands with other legendary creatures," are blocking or being blocked by the same creature, you divide that creature\'s combat damage, not its controller, among any of the creatures it\'s being blocked by or is blocking.)',
@@ -4429,6 +4603,7 @@ export const adventurersGuildhouse: CardDefinition = {
 // Cathedral of Serra — White legendary creatures grant-land.
 export const cathedralOfSerra: CardDefinition = {
     id: "e65356e6-0ead-49fd-b069-be1ea9b1c105",
+    rarity: "uncommon",
     name: "Cathedral of Serra",
     oracleText:
         'White legendary creatures you control have "bands with other legendary creatures." (Any legendary creatures can attack in a band as long as at least one has "bands with other legendary creatures." Bands are blocked as a group. If at least two legendary creatures you control, one of which has "bands with other legendary creatures," are blocking or being blocked by the same creature, you divide that creature\'s combat damage, not its controller, among any of the creatures it\'s being blocked by or is blocking.)',
@@ -4446,6 +4621,7 @@ export const cathedralOfSerra: CardDefinition = {
 // Mountain Stronghold — Red legendary creatures grant-land.
 export const mountainStronghold: CardDefinition = {
     id: "314fd1d7-4bd8-4d95-b7c2-1aa6660ab88a",
+    rarity: "uncommon",
     name: "Mountain Stronghold",
     oracleText:
         'Red legendary creatures you control have "bands with other legendary creatures." (Any legendary creatures can attack in a band as long as at least one has "bands with other legendary creatures." Bands are blocked as a group. If at least two legendary creatures you control, one of which has "bands with other legendary creatures," are blocking or being blocked by the same creature, you divide that creature\'s combat damage, not its controller, among any of the creatures it\'s being blocked by or is blocking.)',
@@ -4463,6 +4639,7 @@ export const mountainStronghold: CardDefinition = {
 // Seafarer's Quay — Blue legendary creatures grant-land.
 export const seafarersQuay: CardDefinition = {
     id: "66641d88-b3f0-4bcd-8d2d-29aa2de69e30",
+    rarity: "uncommon",
     name: "Seafarer's Quay",
     oracleText:
         'Blue legendary creatures you control have "bands with other legendary creatures." (Any legendary creatures can attack in a band as long as at least one has "bands with other legendary creatures." Bands are blocked as a group. If at least two legendary creatures you control, one of which has "bands with other legendary creatures," are blocking or being blocked by the same creature, you divide that creature\'s combat damage, not its controller, among any of the creatures it\'s being blocked by or is blocking.)',
@@ -4480,6 +4657,7 @@ export const seafarersQuay: CardDefinition = {
 // Unholy Citadel — Black legendary creatures grant-land.
 export const unholyCitadel: CardDefinition = {
     id: "9de534ff-fb48-4692-bd0f-dd237ca28502",
+    rarity: "uncommon",
     name: "Unholy Citadel",
     oracleText:
         'Black legendary creatures you control have "bands with other legendary creatures." (Any legendary creatures can attack in a band as long as at least one has "bands with other legendary creatures." Bands are blocked as a group. If at least two legendary creatures you control, one of which has "bands with other legendary creatures," are blocking or being blocked by the same creature, you divide that creature\'s combat damage, not its controller, among any of the creatures it\'s being blocked by or is blocking.)',
@@ -4501,6 +4679,7 @@ export const unholyCitadel: CardDefinition = {
 // token band together (CR 702.22j: all members share the name).
 export const masterOfTheHunt: CardDefinition = {
     id: "4e6bf56e-2d74-4e4d-a667-885853979377",
+    rarity: "rare",
     name: "Master of the Hunt",
     oracleText:
         '{2}{G}{G}: Create a 1/1 green Wolf creature token named Wolves of the Hunt. It has "bands with other creatures named Wolves of the Hunt."',
@@ -4540,6 +4719,7 @@ export const masterOfTheHunt: CardDefinition = {
 // until end of turn." (CR 611.1b layer-6 duration-scoped keyword removal.)
 export const shelkinBrownie: CardDefinition = {
     id: "fddcc557-871d-425b-b4ee-bc0c9bc717aa",
+    rarity: "common",
     name: "Shelkin Brownie",
     oracleText:
         '{T}: Target creature loses all "bands with other" abilities until end of turn.',
@@ -4575,6 +4755,7 @@ export const shelkinBrownie: CardDefinition = {
 // a phase-restricted activation.) Legendary land.
 export const tolaria: CardDefinition = {
     id: "d43c01b7-443d-4061-a934-6863d230c9b8",
+    rarity: "uncommon",
     name: "Tolaria",
     oracleText:
         '{T}: Add {U}.\n{T}: Target creature loses banding and all "bands with other" abilities until end of turn. Activate only during any upkeep step.',
@@ -4636,6 +4817,7 @@ export const tolaria: CardDefinition = {
 // shroud blinks off the moment the creature taps.)
 export const spectralCloak: CardDefinition = {
     id: "7524fd0d-a675-41d6-bc99-bd3ba336893b",
+    rarity: "uncommon",
     name: "Spectral Cloak",
     oracleText:
         "Enchant creature\nEnchanted creature has shroud as long as it's untapped. (It can't be the target of spells or abilities.)",
@@ -4662,6 +4844,7 @@ export const spectralCloak: CardDefinition = {
 // guard, CR 303.4, blocking further Auras from attaching.)
 export const antiMagicAura: CardDefinition = {
     id: "ff78eef1-efaa-4a12-bf5d-fec83c14aff8",
+    rarity: "common",
     name: "Anti-Magic Aura",
     oracleText:
         "Enchant creature\nEnchanted creature can't be the target of spells and can't be enchanted by other Auras.",
@@ -4695,6 +4878,7 @@ export const antiMagicAura: CardDefinition = {
 // keyword, CR 702.21.)
 export const bartelRuneaxe: CardDefinition = {
     id: "f1a42691-98bb-4234-9b56-085e6677f3e4",
+    rarity: "rare",
     name: "Bartel Runeaxe",
     oracleText: "Vigilance\nBartel Runeaxe can't be the target of Aura spells.",
     manaCost: { X: 3, B: 1, R: 1, G: 1 },
@@ -4826,6 +5010,7 @@ export function payOrSacrificeUpkeepTrigger(args: {
 // added by that batch; the oracleText is the full card.
 export const arcadesSabboth: CardDefinition = {
     id: "2c1dbc62-ceb5-4540-ae38-901e5deafc75",
+    rarity: "rare",
     name: "Arcades Sabboth",
     oracleText:
         "Flying\nAt the beginning of your upkeep, sacrifice Arcades Sabboth unless you pay {G}{W}{U}.\nEach untapped creature you control gets +0/+2 as long as it's not attacking.\n{W}: Arcades Sabboth gets +0/+1 until end of turn.",
@@ -4853,6 +5038,7 @@ export const arcadesSabboth: CardDefinition = {
 // the C7 maintenance-cost cluster — and is added there; oracleText is full.
 export const nicolBolas: CardDefinition = {
     id: "729feb73-4581-4f9d-ba47-bece72481b86",
+    rarity: "rare",
     name: "Nicol Bolas",
     oracleText:
         "Flying\nAt the beginning of your upkeep, sacrifice Nicol Bolas unless you pay {U}{B}{R}.\nWhenever Nicol Bolas deals damage to an opponent, that player discards their hand.",
@@ -4877,6 +5063,7 @@ export const nicolBolas: CardDefinition = {
 // the C7 upkeep tax. CR 603.6a + CR 117.3a.
 export const palladiaMors: CardDefinition = {
     id: "ad64874d-ce33-4e0a-bcca-723f129ef415",
+    rarity: "rare",
     name: "Palladia-Mors",
     oracleText:
         "Flying, trample\nAt the beginning of your upkeep, sacrifice Palladia-Mors unless you pay {R}{G}{W}.",
@@ -4904,6 +5091,7 @@ export const palladiaMors: CardDefinition = {
 // are added there; oracleText is the full card.
 export const vaevictisAsmadi: CardDefinition = {
     id: "22ea73ec-1325-4437-a23f-dcda1767c713",
+    rarity: "rare",
     name: "Vaevictis Asmadi",
     oracleText:
         "Flying\nAt the beginning of your upkeep, sacrifice Vaevictis Asmadi unless you pay {B}{R}{G}.\n{B}: Vaevictis Asmadi gets +1/+0 until end of turn.\n{R}: Vaevictis Asmadi gets +1/+0 until end of turn.\n{G}: Vaevictis Asmadi gets +1/+0 until end of turn.",
@@ -4931,6 +5119,7 @@ export const vaevictisAsmadi: CardDefinition = {
 // CR 701.7 destroy. The self-damage only fires on the destroy branch.
 export const cosmicHorror: CardDefinition = {
     id: "18bc6ac2-19e0-4765-852b-e303a5bb4040",
+    rarity: "rare",
     name: "Cosmic Horror",
     oracleText:
         "First strike\nAt the beginning of your upkeep, destroy this creature unless you pay {3}{B}{B}{B}. If this creature is destroyed this way, it deals 7 damage to you.",
@@ -4979,6 +5168,7 @@ export const cosmicHorror: CardDefinition = {
 // gate) + a `sacrifice-permanents` `requestChoice` for the Swamp cost.
 export const moldDemon: CardDefinition = {
     id: "649a33aa-7eac-4161-ae1a-fcbc758abccf",
+    rarity: "rare",
     name: "Mold Demon",
     oracleText:
         "When this creature enters, sacrifice it unless you sacrifice two Swamps.",
@@ -5057,6 +5247,7 @@ const IS_CREATURE: (
 // rule applies once the C1 SBA lands.
 export const theTabernacleAtPendrellVale: CardDefinition = {
     id: "64bc9b1d-5818-4d9e-b771-e49af4ff9a5c",
+    rarity: "rare",
     name: "The Tabernacle at Pendrell Vale",
     oracleText:
         'All creatures have "At the beginning of your upkeep, destroy this creature unless you pay {1}."',
@@ -5140,6 +5331,7 @@ export const theTabernacleAtPendrellVale: CardDefinition = {
 // P/T pipeline, so the toughness drop is visible the moment the counter lands.)
 export const spiritShackle: CardDefinition = {
     id: "a30bb266-5bd1-4998-ae94-56f0f3354167",
+    rarity: "common",
     name: "Spirit Shackle",
     oracleText:
         "Enchant creature\nWhenever enchanted creature becomes tapped, put a -0/-2 counter on it.",
@@ -5174,6 +5366,7 @@ export const spiritShackle: CardDefinition = {
 // "put X sleep counters on it" / "if it has a sleep counter on it").
 export const venarianGold: CardDefinition = {
     id: "11fb92c0-bb1e-463a-a6b6-887a5d0cb873",
+    rarity: "common",
     name: "Venarian Gold",
     oracleText:
         "Enchant creature\nWhen this Aura enters, tap enchanted creature and put X sleep counters on it.\nEnchanted creature doesn't untap during its controller's untap step if it has a sleep counter on it.\nAt the beginning of the upkeep of enchanted creature's controller, remove a sleep counter from that creature.",
@@ -5237,6 +5430,7 @@ export const venarianGold: CardDefinition = {
 // CR 701.16 sacrifice, CR 613.1b/6 flying grant.
 export const cocoon: CardDefinition = {
     id: "a82c87b1-de37-4423-a1a4-533a1d8108b2",
+    rarity: "uncommon",
     name: "Cocoon",
     oracleText:
         "Enchant creature you control\nWhen this Aura enters, tap enchanted creature and put three pupa counters on this Aura.\nEnchanted creature doesn't untap during your untap step if this Aura has a pupa counter on it.\nAt the beginning of your upkeep, remove a pupa counter from this Aura. If you can't, sacrifice it, put a +1/+1 counter on enchanted creature, and that creature gains flying.",
@@ -5308,6 +5502,7 @@ export const cocoon: CardDefinition = {
 // flag), CR 122.1 +1/+1 counter.
 export const whirlingDervish: CardDefinition = {
     id: "eba294e7-7097-4bc3-b396-72e85dd4f441",
+    rarity: "uncommon",
     name: "Whirling Dervish",
     oracleText:
         "Protection from black\nAt the beginning of each end step, if this creature dealt damage to an opponent this turn, put a +1/+1 counter on it.",
@@ -5346,6 +5541,7 @@ export const whirlingDervish: CardDefinition = {
 // scaled {X} cost (X read from the live counter count).
 export const primordialOoze: CardDefinition = {
     id: "a46e47e1-8639-48f7-94c4-5f9e9666839a",
+    rarity: "uncommon",
     name: "Primordial Ooze",
     oracleText:
         "This creature attacks each combat if able.\nAt the beginning of your upkeep, put a +1/+1 counter on this creature. Then you may pay {X}, where X is the number of +1/+1 counters on it. If you don't, tap this creature and it deals X damage to you.",
@@ -5410,6 +5606,7 @@ export const primordialOoze: CardDefinition = {
 // untapped" flag, CR 614 damage prevention.
 export const rasputinDreamweaver: CardDefinition = {
     id: "503256f8-3aab-49d0-b78b-6502aa29ce52",
+    rarity: "rare",
     name: "Rasputin Dreamweaver",
     oracleText:
         "Rasputin Dreamweaver enters with seven dream counters on it.\nRemove a dream counter from Rasputin Dreamweaver: Add {C}.\nRemove a dream counter from Rasputin Dreamweaver: Prevent the next 1 damage that would be dealt to Rasputin Dreamweaver this turn.\nAt the beginning of your upkeep, if Rasputin Dreamweaver started the turn untapped, put a dream counter on it.\nRasputin Dreamweaver can't have more than seven dream counters on it.",
@@ -5478,6 +5675,7 @@ export const rasputinDreamweaver: CardDefinition = {
 // upkeep resolve: removing the second counter ends the game in a draw.
 export const divineIntervention: CardDefinition = {
     id: "9eae0ba1-1383-4505-b4e7-4f17dd8f20c5",
+    rarity: "rare",
     name: "Divine Intervention",
     oracleText:
         "This enchantment enters with two intervention counters on it.\nAt the beginning of your upkeep, remove an intervention counter from this enchantment.\nWhen you remove the last intervention counter from this enchantment, the game is a draw.",
@@ -5577,6 +5775,7 @@ export const divineIntervention: CardDefinition = {
 // may-pay billed to the spell's controller → CR 701.5a counter on decline.)
 export const netherVoid: CardDefinition = {
     id: "2e72f8cb-5bc3-4711-9b7c-a6eea9a0beaf",
+    rarity: "rare",
     name: "Nether Void",
     oracleText:
         "Whenever a player casts a spell, counter it unless that player pays {3}.",
@@ -5611,6 +5810,7 @@ export const netherVoid: CardDefinition = {
 // taxed at the cast spell's mana value → CR 701.5a counter on decline.)
 export const inTheEyeOfChaos: CardDefinition = {
     id: "733933dd-c871-4f75-8b08-d7c010dddbe6",
+    rarity: "rare",
     name: "In the Eye of Chaos",
     oracleText:
         "Whenever a player casts an instant spell, counter it unless that player pays {X}, where X is its mana value.",
@@ -5678,6 +5878,7 @@ export const inTheEyeOfChaos: CardDefinition = {
 // (CR 508.1a / 509.1a — global declaration caps; engine-enforced by id.)
 export const cavernsOfDespair: CardDefinition = {
     id: "209f7479-b3a0-4c27-9602-78babb8d2e99",
+    rarity: "rare",
     name: "Caverns of Despair",
     oracleText:
         "No more than two creatures can attack each combat.\nNo more than two creatures can block each combat.",
@@ -5692,6 +5893,7 @@ export const cavernsOfDespair: CardDefinition = {
 // restriction; engine-enforced by id via per-player turn-history flags.)
 export const arboria: CardDefinition = {
     id: "095078b0-0f26-442f-9d3b-45e30cdb33c4",
+    rarity: "uncommon",
     name: "Arboria",
     oracleText:
         "Creatures can't attack a player unless that player cast a spell or put a nontoken permanent onto the battlefield during their last turn.",
@@ -5723,6 +5925,7 @@ export const arboria: CardDefinition = {
 // effective `staticAbilities`, so a creature granted flying by an Aura attacks.)
 export const moat: CardDefinition = {
     id: "952ba126-0915-47f0-9b6a-a0a6dcd22c6f",
+    rarity: "rare",
     name: "Moat",
     oracleText: "Creatures without flying can't attack.",
     manaCost: { X: 2, W: 2 },
@@ -5748,6 +5951,7 @@ export const moat: CardDefinition = {
 // controller; Akron-named creatures and artifact creatures are exempt.)
 export const akronLegionnaire: CardDefinition = {
     id: "5d074af2-8dbd-42d3-87eb-30f6e7d171ff",
+    rarity: "rare",
     name: "Akron Legionnaire",
     oracleText:
         "Except for creatures named Akron Legionnaire and artifact creatures, creatures you control can't attack.",
@@ -5810,13 +6014,15 @@ export const akronLegionnaire: CardDefinition = {
 function makeManaBattery(config: {
     id: string;
     name: string;
+    rarity: Rarity;
     color: Color;
 }): CardDefinition {
-    const { id, name, color } = config;
+    const { id, name, rarity, color } = config;
     const colorLabel = `{${color}}`;
     return {
         id,
         name,
+        rarity,
         oracleText:
             `{2}, {T}: Put a charge counter on this artifact.\n` +
             `{T}, Remove any number of charge counters from this artifact: ` +
@@ -5877,30 +6083,35 @@ function makeManaBattery(config: {
 
 export const blackManaBattery: CardDefinition = makeManaBattery({
     id: "d0c66e64-e357-457d-8302-b3a1fc0c56ce",
+    rarity: "uncommon",
     name: "Black Mana Battery",
     color: "B",
 });
 
 export const blueManaBattery: CardDefinition = makeManaBattery({
     id: "35393661-2c53-46f0-bb33-2390d552b060",
+    rarity: "uncommon",
     name: "Blue Mana Battery",
     color: "U",
 });
 
 export const greenManaBattery: CardDefinition = makeManaBattery({
     id: "4671fa01-4a9e-4cd9-8154-b0d45e11b702",
+    rarity: "uncommon",
     name: "Green Mana Battery",
     color: "G",
 });
 
 export const redManaBattery: CardDefinition = makeManaBattery({
     id: "363cc5d6-70f8-4a3c-92bd-8f49774bdce2",
+    rarity: "uncommon",
     name: "Red Mana Battery",
     color: "R",
 });
 
 export const whiteManaBattery: CardDefinition = makeManaBattery({
     id: "35fbbe41-d21b-4028-905f-054c44d30eb2",
+    rarity: "uncommon",
     name: "White Mana Battery",
     color: "W",
 });
@@ -5929,6 +6140,7 @@ export const whiteManaBattery: CardDefinition = makeManaBattery({
 // cards in your graveyard." The effect lasts indefinitely (CR 613.4b).
 export const wallOfTombstones: CardDefinition = {
     id: "55da1e86-fe18-486a-b510-f941e6f6e378",
+    rarity: "uncommon",
     name: "Wall of Tombstones",
     oracleText:
         "Defender (This creature can't attack.)\nAt the beginning of your upkeep, change this creature's base toughness to 1 plus the number of creature cards in your graveyard. (This effect lasts indefinitely.)",
@@ -5977,6 +6189,7 @@ export const wallOfTombstones: CardDefinition = {
 // re-fire.
 export const halfdane: CardDefinition = {
     id: "2e939761-3542-4044-9038-d1d30c6a38fc",
+    rarity: "rare",
     name: "Halfdane",
     oracleText:
         "At the beginning of your upkeep, change Halfdane's base power and toughness to the power and toughness of target creature other than Halfdane until your next upkeep.",

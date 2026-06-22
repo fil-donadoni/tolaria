@@ -48,6 +48,7 @@ describe("token CardDefinition lookup (regression — client lazy synthesis)", (
         const explicit: CardDefinition = {
             id,
             name: "Soldier",
+            rarity: "common",
             types: ["Creature"],
             subtypes: ["Soldier"],
             power: 1,

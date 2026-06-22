@@ -13,7 +13,7 @@ function userDeck(overrides: Partial<Doc<"userDecks">> = {}): Doc<"userDecks"> {
         _creationTime: 0,
         userId: "user_1" as Doc<"userDecks">["userId"],
         name: "My Deck",
-        format: "Freeform",
+        format: "freeform",
         colors: ["R"],
         cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],
         ...overrides,
@@ -43,7 +43,7 @@ describe("toPresetLobbyDeck (issue #391)", () => {
     const base: DeckPreset = {
         presetId: "p1",
         name: "Preset",
-        format: "Freeform",
+        format: "freeform",
         description: "",
         colors: ["W"],
         cards: [{ cardId: "plains", cardName: "Plains" }],
@@ -67,7 +67,7 @@ describe("selectPreset — null-safe stored-selection fallback (issue #470)", ()
         toPresetLobbyDeck({
             presetId: "mono-red-burn",
             name: "Mono Red Burn",
-            format: "Freeform",
+            format: "freeform",
             description: "",
             colors: ["R"],
             cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],
@@ -75,7 +75,7 @@ describe("selectPreset — null-safe stored-selection fallback (issue #470)", ()
         toPresetLobbyDeck({
             presetId: "white-weenie",
             name: "White Weenie",
-            format: "Freeform",
+            format: "freeform",
             description: "",
             colors: ["W"],
             cards: [{ cardId: "lions", cardName: "Savannah Lions" }],

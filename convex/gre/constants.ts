@@ -1,4 +1,9 @@
-import type { Color, ManaCost, PermanentView } from "../cards/types";
+import type {
+    CardSupertype,
+    Color,
+    ManaCost,
+    PermanentView,
+} from "../cards/types";
 import type { ManaRestriction } from "./types";
 import { getCardById } from "../cards";
 import type { CardInstanceState, GameState } from "./state";
@@ -29,6 +34,18 @@ export const LANDWALK_KEYWORDS: Record<string, string> = {
     mountainwalk: "Mountain",
     forestwalk: "Forest",
     desertwalk: "Desert",
+};
+
+/** Landwalk keywords keyed on a land *supertype* (CR 205.4 / 702.13) rather
+ *  than a subtype. "Legendary landwalk" (Livonya Silone, LEG) is the only
+ *  printed instance — the attacker can't be blocked while the defending player
+ *  controls a land with the named supertype. Kept separate from
+ *  `LANDWALK_KEYWORDS` because the match reads `supertypes`, which lives on the
+ *  card definition (CR 205.4 — not a text-changeable, instance-mutable field),
+ *  whereas subtype landwalk reads the instance's substitution-rewritten
+ *  `subtypes`. */
+export const LANDWALK_SUPERTYPE_KEYWORDS: Record<string, CardSupertype> = {
+    "legendary landwalk": "Legendary",
 };
 
 /** Card types that represent permanents on the battlefield. */

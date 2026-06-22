@@ -8,6 +8,7 @@ import {
 import { PointerActivationConstraints } from "@dnd-kit/dom";
 import { getCardById } from "@convex/cards";
 import { getCardColors } from "@convex/cards/colors";
+import type { FormatId } from "@convex/formats";
 import { type LobbyDeck } from "~/lib/deckTypes";
 import {
     type DeckBuilderKind,
@@ -35,6 +36,7 @@ import ManaValueFilter from "./mana-value-filter";
 import ResultsGrid from "./results-grid";
 import SaveDeckBar from "./save-deck-bar";
 import SearchBar from "./search-bar";
+import FormatSelect from "./format-select";
 import SetFilter from "./set-filter";
 import TypeFilter from "./type-filter";
 import { useCardZoom } from "./useCardZoom";
@@ -55,7 +57,7 @@ function zoomVars(mult: number): React.CSSProperties {
 
 interface WorkingDeck {
     name: string;
-    format: string;
+    format: FormatId;
     colors: string[];
     cards: DeckCard[];
     sideboard: DeckCard[];
@@ -87,7 +89,7 @@ const SAVE_DEBOUNCE_MS = 800;
 // Trailing-edge delay before a search keystroke feeds the filter pass + URL
 // (PRD #501, issue #503). Tuned for feel; the input itself stays responsive.
 const SEARCH_DEBOUNCE_MS = 180;
-const DEFAULT_FORMAT = "Freeform";
+const DEFAULT_FORMAT: FormatId = "freeform";
 
 function computeDeckColors(cards: DeckCard[]): string[] {
     const set = new Set<string>();
@@ -236,6 +238,19 @@ export default function DeckBuilder({
         },
         [updateDeck]
     );
+
+    // Format is chosen at creation and immutable (ADR 0036): the select only
+    // exists in create mode, so this handler is wired only when editable.
+    const handleSetFormat = useCallback(
+        (format: FormatId) => {
+            updateDeck((d) => ({ ...d, format }));
+        },
+        [updateDeck]
+    );
+
+    // Read-only once the deck exists — editing an existing user deck or preset
+    // never changes its Format (ADR 0036).
+    const formatReadOnly = initialDeck !== null;
 
     const handleAdd = useCallback(
         (cardId: string, cardName: string) => {
@@ -529,6 +544,11 @@ export default function DeckBuilder({
                             >
                                 Import
                             </button>
+                            <FormatSelect
+                                value={deck.format}
+                                readOnly={formatReadOnly}
+                                onChange={handleSetFormat}
+                            />
                         </div>
                         <SearchBar value={rawText} onChange={setText} />
                     </div>
