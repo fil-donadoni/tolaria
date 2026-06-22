@@ -62,12 +62,17 @@ for (const [code, jsonPath] of SETS) {
 }
 
 if (mismatches.length === 0) {
-    console.log("No scryfall id mismatches found.");
+    console.log("✓ scryfall ids: no mismatches");
 } else {
-    console.log(`Found ${mismatches.length} mismatched card id(s):\n`);
+    console.error(`✗ scryfall ids: ${mismatches.length} mismatched card id(s):\n`);
     for (const x of mismatches) {
-        console.log(
+        console.error(
             `[${x.code}] ${x.name}\n  wrong:   ${x.wrong}\n  correct: ${x.correct}${x.note ? `\n  NOTE: ${x.note}` : ""}\n`
         );
     }
+    console.error(
+        "Each card def `id` must equal the JSON `identifiers.scryfallId` " +
+            "(NOT scryfallOracleId). Run with the corrections above."
+    );
+    process.exit(1);
 }
