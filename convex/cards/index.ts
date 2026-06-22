@@ -127,6 +127,9 @@ export const FACE_DOWN_CARD_ID = "face-down:2-2-vanilla";
 registry.set(FACE_DOWN_CARD_ID, {
     id: FACE_DOWN_CARD_ID,
     name: "Face-down creature",
+    // Rarity is a property of a printing (CR 206); a face-down permanent is
+    // not a printed object, so its sentinel def carries a nominal "common".
+    rarity: "common",
     manaCost: {},
     types: ["Creature"],
     power: 2,
@@ -248,6 +251,9 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
     const def: CardDefinition = {
         id: cardId,
         name,
+        // Tokens are not printed objects, so they have no real rarity (CR 206);
+        // a nominal "common" satisfies the required field.
+        rarity: "common",
         manaCost,
         types,
         ...(subtypes.length > 0 ? { subtypes } : {}),

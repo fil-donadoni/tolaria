@@ -79,6 +79,15 @@ export type CardSupertype =
     | "Snow"
     | "World";
 
+/** Printed rarity of a card (CR 206). Rarity is a property of a *printing*,
+ *  not of the underlying card — a card reprinted at a different rarity carries
+ *  a different `rarity` on each `CardPrint`. Restricted to the three classic
+ *  rarities used by the implemented sets (LEA–LEG era); modern "mythic" /
+ *  "special" / "bonus" can be added when those sets ship. Consumed by
+ *  rarity-budgeted Formats (Alpha 40, ADR 0036). Informational for Basic
+ *  lands — they are gated by the `Basic` supertype, not by rarity. */
+export type Rarity = "common" | "uncommon" | "rare";
+
 // --- Targeting ---
 
 export interface TargetRequirement {
@@ -3317,6 +3326,11 @@ export interface AiCombatHint {
 export interface CardDefinition {
     id: CardId;
     name: string;
+    /** Printed rarity of this card in its HOME set (the set the definition is
+     *  declared in). Reprints in other sets carry their own rarity on the
+     *  `CardPrint`. Required: a new card must declare its rarity (CR 206) —
+     *  the registry self-check and the generator both enforce presence. */
+    rarity: Rarity;
     manaCost?: ManaCost;
     types: CardType[];
     subtypes?: string[];
@@ -3532,4 +3546,8 @@ export interface CardPrint {
     /** Lowercase set code of this printing (e.g. "leb", "2ed"). Informational
      *  — used by the deck builder UI to label the print. */
     setCode: string;
+    /** Printed rarity of THIS printing (CR 206). May differ from the home-set
+     *  `CardDefinition.rarity` when a card is reprinted at a different rarity.
+     *  Required: every printing declares its own rarity. */
+    rarity: Rarity;
 }

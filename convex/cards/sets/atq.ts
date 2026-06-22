@@ -45,6 +45,7 @@ import { makeCircleOfProtection } from "../abilities";
 // The classic free flyer; a zero-cost evasive blocker/chump.
 export const ornithopter: CardDefinition = {
     id: "59cc9bdb-7cf2-4795-bac7-ffff605c9eb0",
+    rarity: "common",
     name: "Ornithopter",
     oracleText: "Flying",
     manaCost: {},
@@ -59,6 +60,7 @@ export const ornithopter: CardDefinition = {
 // (CR 702.21). A durable attacker that stays back to block.
 export const yotianSoldier: CardDefinition = {
     id: "27cf53e3-76f6-4831-800e-1259394d779d",
+    rarity: "common",
     name: "Yotian Soldier",
     oracleText: "Vigilance",
     manaCost: { X: 3 },
@@ -74,6 +76,7 @@ export const yotianSoldier: CardDefinition = {
 // combat damage in the first-strike step). Pure keyword mapping, no resolve().
 export const wallOfSpears: CardDefinition = {
     id: "b1dda179-c49a-4995-ba5a-db93ac43dbe7",
+    rarity: "uncommon",
     name: "Wall of Spears",
     oracleText: "Defender (This creature can't attack.)\nFirst strike",
     manaCost: { X: 3 },
@@ -94,6 +97,7 @@ export const wallOfSpears: CardDefinition = {
 // CR 514.2 cleanup expiry). Same shape as Wall of Water's pump (lea.ts).
 export const dragonEngine: CardDefinition = {
     id: "07793a71-1106-4303-b620-e403bd378020",
+    rarity: "common",
     name: "Dragon Engine",
     oracleText: "{2}: This creature gets +1/+0 until end of turn.",
     manaCost: { X: 3 },
@@ -125,6 +129,7 @@ export const dragonEngine: CardDefinition = {
 // combat). The shield is armed via `applyRegenerationShield` on the source.
 export const clayStatue: CardDefinition = {
     id: "64975352-8d35-4d02-94ac-fa0c6ee12409",
+    rarity: "common",
     name: "Clay Statue",
     oracleText: "{2}: Regenerate this creature.",
     manaCost: { X: 4 },
@@ -154,6 +159,7 @@ export const clayStatue: CardDefinition = {
 // `requireAbility: "flying"` filter restricts legal targets to flyers).
 export const grapeshotCatapult: CardDefinition = {
     id: "4c7a7348-c82e-453c-975c-e5365e152a3a",
+    rarity: "common",
     name: "Grapeshot Catapult",
     oracleText:
         "{T}: This creature deals 1 damage to target creature with flying.",
@@ -192,6 +198,7 @@ export const grapeshotCatapult: CardDefinition = {
 // ["UPKEEP"]` + `controllerTurnOnly` enforces "during your upkeep").
 export const colossusOfSardia: CardDefinition = {
     id: "067c44e9-1b23-42fd-9acb-daafb62c32a2",
+    rarity: "rare",
     name: "Colossus of Sardia",
     oracleText:
         "Trample (This creature can deal excess combat damage to the player or planeswalker it's attacking.)\nThis creature doesn't untap during your untap step.\n{9}: Untap this creature. Activate only during your upkeep.",
@@ -228,6 +235,7 @@ export const colossusOfSardia: CardDefinition = {
 // resolves later from the stack.
 export const stripMine: CardDefinition = {
     id: "e7880157-7f27-4f1b-9cdc-ab36a6252376",
+    rarity: "uncommon",
     name: "Strip Mine",
     oracleText: "{T}: Add {C}.\n{T}, Sacrifice this land: Destroy target land.",
     manaCost: {},
@@ -270,6 +278,7 @@ export const stripMine: CardDefinition = {
 // any type. Mana cost {1} per MTGJSON ATQ.json (ADR 0004 authoritative).
 export const obeliskOfUndoing: CardDefinition = {
     id: "1ba61ccd-4429-4f7c-b9f3-30867878d88e",
+    rarity: "rare",
     name: "Obelisk of Undoing",
     oracleText:
         "{6}, {T}: Return target permanent you both own and control to your hand.",
@@ -320,6 +329,7 @@ export const obeliskOfUndoing: CardDefinition = {
 // the regen-shield replacement (CR 701.15c); indestructible still protects.
 export const crumble: CardDefinition = {
     id: "d2101f86-8d3c-4ba8-ac42-bd3df0644280",
+    rarity: "common",
     name: "Crumble",
     oracleText:
         "Destroy target artifact. It can't be regenerated. That artifact's controller gains life equal to its mana value.",
@@ -346,6 +356,7 @@ export const crumble: CardDefinition = {
 // (CR 608.2c).
 export const detonate: CardDefinition = {
     id: "ffd7eb90-ae95-49df-898a-9510187bce1c",
+    rarity: "uncommon",
     name: "Detonate",
     oracleText:
         "Destroy target artifact with mana value X. It can't be regenerated. Detonate deals X damage to that artifact's controller.",
@@ -371,6 +382,7 @@ export const detonate: CardDefinition = {
 // true })` (CR 701.7, 701.15c); indestructible artifacts are still spared.
 export const shatterstorm: CardDefinition = {
     id: "0987461a-45c0-4956-8627-cd27a7e038d0",
+    rarity: "rare",
     name: "Shatterstorm",
     oracleText: "Destroy all artifacts. They can't be regenerated.",
     manaCost: { X: 2, R: 2 },
@@ -386,6 +398,7 @@ export const shatterstorm: CardDefinition = {
 // target has left the stack (CR 608.2b, handled by `counter`).
 export const artifactBlast: CardDefinition = {
     id: "1506d99d-7b2e-4101-84a5-c950dadb263a",
+    rarity: "common",
     name: "Artifact Blast",
     oracleText: "Counter target artifact spell.",
     manaCost: { R: 1 },
@@ -415,6 +428,7 @@ export const artifactBlast: CardDefinition = {
 // in this tranche).
 export const hurkylsRecall: CardDefinition = {
     id: "f32373dd-06d8-45d1-8777-3b1411bcb30a",
+    rarity: "rare",
     name: "Hurkyl's Recall",
     oracleText: "Return all artifacts target player owns to their hand.",
     manaCost: { X: 1, U: 1 },
@@ -451,6 +465,7 @@ export const hurkylsRecall: CardDefinition = {
 // card graveyard → hand.
 export const reconstruction: CardDefinition = {
     id: "1aa2d27b-cc25-4baa-86f4-4db45b30e2a4",
+    rarity: "common",
     name: "Reconstruction",
     oracleText: "Return target artifact card from your graveyard to your hand.",
     manaCost: { U: 1 },
@@ -476,6 +491,7 @@ export const reconstruction: CardDefinition = {
 // (useStack: true). MTGJSON ATQ.json: casting cost {1}{W}{W}, 1/2.
 export const argivianArchaeologist: CardDefinition = {
     id: "ce83a3cb-467d-44f6-a051-4855c8cf52a6",
+    rarity: "rare",
     name: "Argivian Archaeologist",
     oracleText:
         "{W}{W}, {T}: Return target artifact card from your graveyard to your hand.",
@@ -525,6 +541,7 @@ export const argivianArchaeologist: CardDefinition = {
 // deferred to a feature tranche.
 export const feldonsCane: CardDefinition = {
     id: "bb6af436-bcfd-4d47-a1aa-e84b587a725a",
+    rarity: "uncommon",
     name: "Feldon's Cane",
     oracleText:
         "{T}, Exile this artifact: Shuffle your graveyard into your library.",
@@ -565,6 +582,7 @@ export const feldonsCane: CardDefinition = {
 // — placing them on top in the chosen order ahead of the pre-existing library.
 export const drafnasRestoration: CardDefinition = {
     id: "4be2aa3b-207b-4d21-abfb-6788520c7676",
+    rarity: "common",
     name: "Drafna's Restoration",
     oracleText:
         "Put any number of target artifact cards from target player's graveyard on top of their library in any order.",
@@ -622,6 +640,7 @@ export const drafnasRestoration: CardDefinition = {
 // activated ability. Mill stops naturally when the library empties.
 export const millstone: CardDefinition = {
     id: "107646bc-2181-49f4-8821-1eaa46291855",
+    rarity: "uncommon",
     name: "Millstone",
     oracleText: "{2}, {T}: Target player mills two cards.",
     manaCost: { X: 2 },
@@ -655,6 +674,7 @@ export const millstone: CardDefinition = {
 // two-step resolve so the drawn card is in hand before the discard pick.
 export const jalumTome: CardDefinition = {
     id: "5a5b7c5a-ee63-4a1b-9a0f-fb0a309168df",
+    rarity: "uncommon",
     name: "Jalum Tome",
     oracleText: "{2}, {T}: Draw a card, then discard a card.",
     manaCost: { X: 3 },
@@ -692,6 +712,7 @@ export const jalumTome: CardDefinition = {
 // selection and untaps nothing.
 export const candelabraOfTawnos: CardDefinition = {
     id: "35a335bf-7358-460f-b7c9-1e8bc4300f64",
+    rarity: "rare",
     name: "Candelabra of Tawnos",
     oracleText: "{X}, {T}: Untap X target lands.",
     manaCost: { X: 1 },
@@ -728,6 +749,7 @@ export const candelabraOfTawnos: CardDefinition = {
 // 122.1 +1/+1 counter feeding layer 7d P/T.)
 export const citanulDruid: CardDefinition = {
     id: "f8a130dc-3b1f-4fae-8459-b26bb5647fec",
+    rarity: "uncommon",
     name: "Citanul Druid",
     oracleText:
         "Whenever an opponent casts an artifact spell, put a +1/+1 counter on this creature.",
@@ -760,6 +782,7 @@ export const citanulDruid: CardDefinition = {
 // color-sphere cycle, filtered to artifact spells instead of a color.
 export const urzasChalice: CardDefinition = {
     id: "f3728537-86d3-42be-9046-90bba1bfafc1",
+    rarity: "common",
     name: "Urza's Chalice",
     oracleText:
         "Whenever a player casts an artifact spell, you may pay {1}. If you do, you gain 1 life.",
@@ -791,6 +814,7 @@ export const urzasChalice: CardDefinition = {
 // trigger scoped to self.)
 export const onulet: CardDefinition = {
     id: "d77fe8e2-8438-473e-ace5-01baddd2c4ed",
+    rarity: "uncommon",
     name: "Onulet",
     oracleText: "When this creature dies, you gain 2 life.",
     manaCost: { X: 3 },
@@ -816,6 +840,7 @@ export const onulet: CardDefinition = {
 // is added on resolution — it empties at end of the step/phase like any mana.
 export const suChi: CardDefinition = {
     id: "a64d4f93-0c04-4078-aec0-7e9de92f260f",
+    rarity: "uncommon",
     name: "Su-Chi",
     oracleText: "When this creature dies, add {C}{C}{C}{C}.",
     manaCost: { X: 4 },
@@ -841,6 +866,7 @@ export const suChi: CardDefinition = {
 // + Artifact filter; CR 117.3a optional may-pay.)
 export const tabletOfEpityr: CardDefinition = {
     id: "6d7a2718-301f-4191-b348-0c44c7c07d43",
+    rarity: "common",
     name: "Tablet of Epityr",
     oracleText:
         "Whenever an artifact you control is put into a graveyard from the battlefield, you may pay {1}. If you do, you gain 1 life.",
@@ -874,6 +900,7 @@ export const tabletOfEpityr: CardDefinition = {
 // when hand < 4.)
 export const ivoryTower: CardDefinition = {
     id: "a5f23039-45ca-4c15-af50-bfd40ea26453",
+    rarity: "uncommon",
     name: "Ivory Tower",
     oracleText:
         "At the beginning of your upkeep, you gain X life, where X is the number of cards in your hand minus 4.",
@@ -906,6 +933,7 @@ export const ivoryTower: CardDefinition = {
 // each player in APNAP order.
 export const armageddonClock: CardDefinition = {
     id: "44a31889-6a8d-450c-a73d-381a7ff28bf9",
+    rarity: "uncommon",
     name: "Armageddon Clock",
     oracleText:
         "At the beginning of your upkeep, put a doom counter on this artifact.\nAt the beginning of your draw step, this artifact deals damage equal to the number of doom counters on it to each player.\n{4}: Remove a doom counter from this artifact. Any player may activate this ability but only during any upkeep step.",
@@ -973,6 +1001,7 @@ export const armageddonClock: CardDefinition = {
 // cost; CR 115.4 "any target" = damageable permanent or player.)
 export const triskelion: CardDefinition = {
     id: "a79c99e1-722a-44b6-8fa3-2be3f0c193d8",
+    rarity: "rare",
     name: "Triskelion",
     oracleText:
         "This creature enters with three +1/+1 counters on it.\nRemove a +1/+1 counter from this creature: It deals 1 damage to any target.",
@@ -1012,6 +1041,7 @@ export const triskelion: CardDefinition = {
 //    UPKEEP/your-turn activation restriction.)
 export const clockworkAvian: CardDefinition = {
     id: "1dea8c2f-4aea-478d-aee7-cba1f74edd6c",
+    rarity: "rare",
     name: "Clockwork Avian",
     oracleText:
         "Flying\nThis creature enters with four +1/+0 counters on it.\nAt end of combat, if this creature attacked or blocked this combat, remove a +1/+0 counter from it.\n{X}, {T}: Put up to X +1/+0 counters on this creature. This ability can't cause the total number of +1/+0 counters on this creature to be greater than four. Activate only during your upkeep.",
@@ -1088,6 +1118,7 @@ export const clockworkAvian: CardDefinition = {
 // Orcish Oriflamme's "you control"). Same `pt-buff` + `isAttacking` shape.
 export const mightstone: CardDefinition = {
     id: "b28ba599-5299-4831-a118-1712ada10ef6",
+    rarity: "uncommon",
     name: "Mightstone",
     oracleText: "Attacking creatures get +1/+0.",
     manaCost: { X: 4 },
@@ -1109,6 +1140,7 @@ export const mightstone: CardDefinition = {
 // rules purposes, but combat damage uses the floored value).
 export const weakstone: CardDefinition = {
     id: "46adf48f-99d2-440e-9129-794584c1ea21",
+    rarity: "uncommon",
     name: "Weakstone",
     oracleText: "Attacking creatures get -1/-0.",
     manaCost: { X: 4 },
@@ -1132,6 +1164,7 @@ export const weakstone: CardDefinition = {
 // stat read, so it tracks artifacts entering/leaving play.
 export const gaeasAvenger: CardDefinition = {
     id: "39d763bd-b0a9-46ba-bcd2-9304063446f2",
+    rarity: "rare",
     name: "Gaea's Avenger",
     oracleText:
         "Gaea's Avenger's power and toughness are each equal to 1 plus the number of artifacts your opponents control.",
@@ -1165,6 +1198,7 @@ export const gaeasAvenger: CardDefinition = {
 // Dragon Engine's pump, applied to a chosen target with a negative power buff.
 export const staffOfZegon: CardDefinition = {
     id: "a6bf858d-bba9-4a16-9045-55384b1de633",
+    rarity: "common",
     name: "Staff of Zegon",
     oracleText: "{3}, {T}: Target creature gets -2/-0 until end of turn.",
     manaCost: { X: 4 },
@@ -1208,6 +1242,7 @@ export const staffOfZegon: CardDefinition = {
 // a feature tranche.
 export const mishrasFactory: CardDefinition = {
     id: "a696c5b6-f216-454d-8029-74e84bbd1428",
+    rarity: "uncommon",
     name: "Mishra's Factory",
     oracleText:
         "{T}: Add {C}.\n{1}: This land becomes a 2/2 Assembly-Worker artifact creature until end of turn. It's still a land.\n{T}: Target Assembly-Worker creature gets +1/+1 until end of turn.",
@@ -1313,6 +1348,7 @@ function batteringRamWallDelayed(): DelayedTriggerDef {
 }
 export const batteringRam: CardDefinition = {
     id: BATTERING_RAM_ID,
+    rarity: "common",
     name: "Battering Ram",
     oracleText:
         "At the beginning of combat on your turn, this creature gains banding until end of combat.\nWhenever this creature becomes blocked by a Wall, destroy that Wall at end of combat.",
@@ -1361,6 +1397,7 @@ const URZAS_AVENGER_KEYWORDS = [
 ] as const;
 export const urzasAvenger: CardDefinition = {
     id: "448e1811-fb16-4390-ac22-b7066a4a019c",
+    rarity: "rare",
     name: "Urza's Avenger",
     oracleText:
         "{0}: This creature gets -1/-1 and gains your choice of banding, flying, first strike, or trample until end of turn.",
@@ -1390,6 +1427,7 @@ export const urzasAvenger: CardDefinition = {
 // prevention shield via `preventNextNDamageToTarget`, purged end-of-turn.)
 export const amuletOfKroog: CardDefinition = {
     id: "b094f8dd-0184-41a2-9767-e848a6e4eac1",
+    rarity: "common",
     name: "Amulet of Kroog",
     oracleText:
         "{2}, {T}: Prevent the next 1 damage that would be dealt to any target this turn.",
@@ -1427,6 +1465,7 @@ export const amuletOfKroog: CardDefinition = {
 // AND-types target filter (engine/rules change) and is deferred.
 export const argivianBlacksmith: CardDefinition = {
     id: "5f604338-5ee4-4c47-ad5a-5c805c96c8de",
+    rarity: "common",
     name: "Argivian Blacksmith",
     oracleText:
         "{T}: Prevent the next 2 damage that would be dealt to target artifact creature this turn.",
@@ -1463,6 +1502,7 @@ export const argivianBlacksmith: CardDefinition = {
 const RAKALITE_ID = "0fd7c711-3ff4-4691-914f-242e6737066c";
 export const rakalite: CardDefinition = {
     id: RAKALITE_ID,
+    rarity: "uncommon",
     name: "Rakalite",
     oracleText:
         "{2}: Prevent the next 1 damage that would be dealt to any target this turn. Return this artifact to its owner's hand at the beginning of the next end step.",
@@ -1513,6 +1553,7 @@ export const rakalite: CardDefinition = {
 export const circleOfProtectionArtifacts: CardDefinition =
     makeCircleOfProtection({
         id: "22ebd5a3-fef8-4097-b038-89a6cb38227d",
+        rarity: "uncommon",
         name: "Circle of Protection: Artifacts",
         oracleText:
             "{2}: The next time an artifact source of your choice would deal damage to you this turn, prevent that damage.",
@@ -1537,6 +1578,7 @@ export const circleOfProtectionArtifacts: CardDefinition =
 // "becomes an artifact in addition to its other types" clause.
 export const ashnodsTransmogrant: CardDefinition = {
     id: "2aa5b289-36ba-49b1-a5ac-f23bf71f8241",
+    rarity: "uncommon",
     name: "Ashnod's Transmogrant",
     oracleText:
         "{T}, Sacrifice this artifact: Put a +1/+1 counter on target nonartifact creature. That creature becomes an artifact in addition to its other types.",
@@ -1573,6 +1615,7 @@ export const ashnodsTransmogrant: CardDefinition = {
 // artifact) runs the else-branch: tap self + 2 damage to the controller.
 export const yawgmothDemon: CardDefinition = {
     id: "04bbd231-0d5f-4cbf-92a7-10d2c5c4b82c",
+    rarity: "rare",
     name: "Yawgmoth Demon",
     oracleText:
         "Flying\nFirst strike\nAt the beginning of your upkeep, you may sacrifice an artifact. If you don't, tap this creature and it deals 2 damage to you.",
@@ -1634,6 +1677,7 @@ export const yawgmothDemon: CardDefinition = {
 // cost.) Declining the discard runs the else-branch: 3 damage + tap self.
 export const mishrasWarMachine: CardDefinition = {
     id: "8f6b4652-a1d4-418f-a89b-6a977a920a9e",
+    rarity: "rare",
     name: "Mishra's War Machine",
     oracleText:
         "Banding\nAt the beginning of your upkeep, this creature deals 3 damage to you unless you discard a card. If it deals damage to you this way, tap it.",
@@ -1701,6 +1745,7 @@ export const mishrasWarMachine: CardDefinition = {
 // spell, an edge the current pool/UI doesn't exercise.
 export const goblinArtisans: CardDefinition = {
     id: "6669d96e-9a7b-4427-a477-f4e76831f593",
+    rarity: "uncommon",
     name: "Goblin Artisans",
     oracleText:
         "{T}: Flip a coin. If you win the flip, draw a card. If you lose the flip, counter target artifact spell you control that isn't the target of an ability from another creature named Goblin Artisans.",
@@ -1757,6 +1802,7 @@ export const goblinArtisans: CardDefinition = {
 // end of turn." Self-pump (CR 611.1) funded by sacrificing a chosen artifact.
 export const atog: CardDefinition = {
     id: "2249fc40-4412-48fd-800a-7ea3678aee3f",
+    rarity: "common",
     name: "Atog",
     oracleText:
         "Sacrifice an artifact: This creature gets +2/+2 until end of turn.",
@@ -1789,6 +1835,7 @@ export const atog: CardDefinition = {
 // CR 605.1a note above) so the sacrifice choice can be made.
 export const ashnodsAltar: CardDefinition = {
     id: "cdcccb0f-ce96-453b-9e82-41d87f52e58b",
+    rarity: "uncommon",
     name: "Ashnod's Altar",
     oracleText: "Sacrifice a creature: Add {C}{C}.",
     manaCost: { X: 3 },
@@ -1810,6 +1857,7 @@ export const ashnodsAltar: CardDefinition = {
 // deals 2 damage to any target." Tap + filtered-sacrifice cost, targeted ping.
 export const orcishMechanics: CardDefinition = {
     id: "5e34fc6b-5f00-4a22-9ee2-afc1caf99961",
+    rarity: "common",
     name: "Orcish Mechanics",
     oracleText:
         "{T}, Sacrifice an artifact: This creature deals 2 damage to any target.",
@@ -1837,6 +1885,7 @@ export const orcishMechanics: CardDefinition = {
 // Sage of Lat-Nam — {1}{U} 1/2. "{T}, Sacrifice an artifact: Draw a card."
 export const sageOfLatNam: CardDefinition = {
     id: "b4ff60ce-073c-46b8-807c-8b40467b960c",
+    rarity: "common",
     name: "Sage of Lat-Nam",
     oracleText: "{T}, Sacrifice an artifact: Draw a card.",
     manaCost: { X: 1, U: 1 },
@@ -1863,6 +1912,7 @@ export const sageOfLatNam: CardDefinition = {
 // (snapshotted at commit). Modeled as a stack ability (see CR 605.1a note).
 export const priestOfYawgmoth: CardDefinition = {
     id: "c9fd4054-42fc-4f95-a6f7-369a5da43dd5",
+    rarity: "common",
     name: "Priest of Yawgmoth",
     oracleText:
         "{T}, Sacrifice an artifact: Add an amount of {B} equal to the sacrificed artifact's mana value.",
@@ -1891,6 +1941,7 @@ export const priestOfYawgmoth: CardDefinition = {
 // timing via activationPhaseRestriction + controllerTurnOnly.)
 export const dwarvenWeaponsmith: CardDefinition = {
     id: "0848d94a-2704-460f-986b-b192dd6d26b7",
+    rarity: "uncommon",
     name: "Dwarven Weaponsmith",
     oracleText:
         "{T}, Sacrifice an artifact: Put a +1/+1 counter on target creature. Activate only during your upkeep.",
@@ -1924,6 +1975,7 @@ export const dwarvenWeaponsmith: CardDefinition = {
 // (CR 602.5 once-per-turn + upkeep timing.)
 export const gateToPhyrexia: CardDefinition = {
     id: "1f372950-6693-4838-80ef-8fd9aa3e0349",
+    rarity: "uncommon",
     name: "Gate to Phyrexia",
     oracleText:
         "Sacrifice a creature: Destroy target artifact. Activate only during your upkeep and only once each turn.",
@@ -1961,6 +2013,7 @@ export const gateToPhyrexia: CardDefinition = {
 // serialization, emptying, and settlement machinery as-is — no new subsystem.
 export const mishrasWorkshop: CardDefinition = {
     id: "135de5c7-6ac9-4b68-8f1a-97f120a4b125",
+    rarity: "rare",
     name: "Mishra's Workshop",
     oracleText:
         "{T}: Add {C}{C}{C}. Spend this mana only to cast artifact spells.",
@@ -2027,6 +2080,7 @@ function urzaManaAmount(
 
 export const urzasMine: CardDefinition = {
     id: "ddf85792-470b-4b42-99ac-9cb43a575523",
+    rarity: "uncommon",
     name: "Urza's Mine",
     oracleText:
         "{T}: Add {C}. If you control an Urza's Power-Plant and an Urza's Tower, add {C}{C} instead.",
@@ -2051,6 +2105,7 @@ export const urzasMine: CardDefinition = {
 
 export const urzasPowerPlant: CardDefinition = {
     id: "94896e0b-859c-47e4-bf27-35ed37b841e0",
+    rarity: "common",
     name: "Urza's Power Plant",
     oracleText:
         "{T}: Add {C}. If you control an Urza's Mine and an Urza's Tower, add {C}{C} instead.",
@@ -2075,6 +2130,7 @@ export const urzasPowerPlant: CardDefinition = {
 
 export const urzasTower: CardDefinition = {
     id: "8ed85655-fc59-4a57-bcf9-75e1899dff78",
+    rarity: "common",
     name: "Urza's Tower",
     oracleText:
         "{T}: Add {C}. If you control an Urza's Mine and an Urza's Power-Plant, add {C}{C}{C} instead.",
@@ -2118,6 +2174,7 @@ export const urzasTower: CardDefinition = {
 // controller (carried on each event payload).
 export const hauntingWind: CardDefinition = {
     id: "a2f6ef2f-a3a2-4e1f-b7eb-59abc8414114",
+    rarity: "uncommon",
     name: "Haunting Wind",
     oracleText:
         "Whenever an artifact becomes tapped or a player activates an artifact's ability without {T} in its activation cost, this enchantment deals 1 damage to that artifact's controller.",
@@ -2157,6 +2214,7 @@ export const hauntingWind: CardDefinition = {
 // controller (`ctx.controller`).
 export const powerleech: CardDefinition = {
     id: "ae1d7b09-3a1f-410f-b330-04ae768b0455",
+    rarity: "uncommon",
     name: "Powerleech",
     oracleText:
         "Whenever an artifact an opponent controls becomes tapped or an opponent activates an artifact's ability without {T} in its activation cost, you gain 1 life.",
@@ -2194,6 +2252,7 @@ export const powerleech: CardDefinition = {
 // plus a `self.attachedTo` host-check condition is the idiomatic expression.
 export const artifactPossession: CardDefinition = {
     id: "587d6ac8-fad8-49e0-862e-636e06628ff9",
+    rarity: "common",
     name: "Artifact Possession",
     oracleText:
         "Enchant artifact\nWhenever enchanted artifact becomes tapped or a player activates an ability of enchanted artifact without {T} in its activation cost, this Aura deals 2 damage to that artifact's controller.",
@@ -2249,6 +2308,7 @@ export const artifactPossession: CardDefinition = {
 // the Battle Gear stays tapped and disappears the moment it untaps.
 export const ashnodsBattleGear: CardDefinition = {
     id: "aeeec853-dd3f-4ac3-8b20-c07fada8888f",
+    rarity: "uncommon",
     name: "Ashnod's Battle Gear",
     oracleText:
         "You may choose not to untap this artifact during your untap step.\n{2}, {T}: Target creature you control gets +2/-2 for as long as this artifact remains tapped.",
@@ -2283,6 +2343,7 @@ export const ashnodsBattleGear: CardDefinition = {
 // +1/+1 buff.
 export const tawnossWeaponry: CardDefinition = {
     id: "3035cead-a501-4204-9154-5fd648577d32",
+    rarity: "uncommon",
     name: "Tawnos's Weaponry",
     oracleText:
         "You may choose not to untap this artifact during your untap step.\n{2}, {T}: Target creature gets +1/+1 for as long as this artifact remains tapped.",
@@ -2315,6 +2376,7 @@ export const tawnossWeaponry: CardDefinition = {
 // stays tapped through its controller's untap steps until the Gremlin untaps.
 export const phyrexianGremlins: CardDefinition = {
     id: "21a985a9-5612-4844-982e-fd1aa6249770",
+    rarity: "common",
     name: "Phyrexian Gremlins",
     oracleText:
         "You may choose not to untap this creature during your untap step.\n{T}: Tap target artifact. It doesn't untap during its controller's untap step for as long as this creature remains tapped.",
@@ -2399,6 +2461,7 @@ function artifactSourcePreventionEffect(opts: {
 // artifact creatures.)
 export const argothianPixies: CardDefinition = {
     id: "5712e87a-2381-4f5b-a853-6973841f9bf1",
+    rarity: "common",
     name: "Argothian Pixies",
     oracleText:
         "This creature can't be blocked by artifact creatures.\nPrevent all damage that would be dealt to this creature by artifact creatures.",
@@ -2435,6 +2498,7 @@ export const argothianPixies: CardDefinition = {
 // continuous prevention narrowed to artifact sources.)
 export const argothianTreefolk: CardDefinition = {
     id: "8db8882e-4db6-4e3c-9e9e-8c71d557a071",
+    rarity: "common",
     name: "Argothian Treefolk",
     oracleText:
         "Prevent all damage that would be dealt to this creature by artifact sources.",
@@ -2461,6 +2525,7 @@ export const argothianTreefolk: CardDefinition = {
 // host; CR 611 source-type-filtered targeting guard.)
 export const artifactWard: CardDefinition = {
     id: "b3a5101a-ec66-4658-950c-9ad49c29b836",
+    rarity: "common",
     name: "Artifact Ward",
     oracleText:
         "Enchant creature\nEnchanted creature can't be blocked by artifact creatures.\nPrevent all damage that would be dealt to enchanted creature by artifact sources.\nEnchanted creature can't be the target of abilities from artifact sources.",
@@ -2507,6 +2572,7 @@ export const artifactWard: CardDefinition = {
 // self.isTapped and the source being an artifact.)
 export const martyrsOfKorlis: CardDefinition = {
     id: "bde037b9-4947-4ff7-8ea4-e9f1a7e4ab88",
+    rarity: "uncommon",
     name: "Martyrs of Korlis",
     oracleText:
         "As long as this creature is untapped, all damage that would be dealt to you by artifacts is dealt to this creature instead.",
@@ -2550,6 +2616,7 @@ export const martyrsOfKorlis: CardDefinition = {
 // the artifact-narrowed per-turn damage tally.)
 export const reversePolarity: CardDefinition = {
     id: "da7ed8ba-3886-4779-a9b3-6892a7ed3527",
+    rarity: "common",
     name: "Reverse Polarity",
     oracleText:
         "You gain X life, where X is twice the damage dealt to you so far this turn by artifacts.",
@@ -2612,6 +2679,7 @@ const IS_NONCREATURE_ARTIFACT: (
 // deferred to a later tranche.
 export const titaniasSong: CardDefinition = {
     id: "583a53af-2e2a-4f3f-8eab-bd874c6ed80a",
+    rarity: "uncommon",
     name: "Titania's Song",
     oracleText:
         "Each noncreature artifact loses all abilities and becomes an artifact creature with power and toughness each equal to its mana value. If this enchantment leaves the battlefield, this effect continues until end of turn.",
@@ -2655,6 +2723,7 @@ export const titaniasSong: CardDefinition = {
 // creature" type line is correct without an Artifact type-add.
 export const xenicPoltergeist: CardDefinition = {
     id: "5149ffff-d38f-458e-bcfa-a4b6b332a0b4",
+    rarity: "uncommon",
     name: "Xenic Poltergeist",
     oracleText:
         "{T}: Until your next upkeep, target noncreature artifact becomes an artifact creature with power and toughness each equal to its mana value.",
@@ -2712,6 +2781,7 @@ export const xenicPoltergeist: CardDefinition = {
 // creature; only the Wall mode adds subtype "Wall" + keyword "defender".)
 export const primalClay: CardDefinition = {
     id: "ab9d0e3f-cf7c-41f8-bcd7-bb08ea8cc2f8",
+    rarity: "uncommon",
     name: "Primal Clay",
     oracleText:
         "As this creature enters, it becomes your choice of a 3/3 artifact creature, a 2/2 artifact creature with flying, or a 1/6 Wall artifact creature with defender in addition to its other types.",
@@ -2772,6 +2842,7 @@ const SHAPESHIFTER_NUMBER_OPTIONS = Array.from({ length: 8 }, (_, n) => ({
 
 export const shapeshifter: CardDefinition = {
     id: "cc278af4-b60d-41b7-b9d7-36c8aefca1a7",
+    rarity: "rare",
     name: "Shapeshifter",
     oracleText:
         "As this creature enters, choose a number between 0 and 7.\nAt the beginning of your upkeep, you may choose a number between 0 and 7.\nShapeshifter's power is equal to the last chosen number and its toughness is equal to 7 minus that number.",
@@ -2851,6 +2922,7 @@ export const shapeshifter: CardDefinition = {
 // to {1}, and "{2}, {T}" drops to "{T}" only down to the one-mana floor.
 export const powerArtifact: CardDefinition = {
     id: "e48bc89e-6da5-43da-b4e0-60d5f850199c",
+    rarity: "uncommon",
     name: "Power Artifact",
     oracleText:
         "Enchant artifact\nEnchanted artifact's activated abilities cost {2} less to activate. This effect can't reduce the mana in that cost to less than one mana.",
@@ -2912,6 +2984,7 @@ const IS_ARTIFACT: (
 // pay-or-sacrifice decision is independent per artifact (CR 603.3b).
 export const energyFlux: CardDefinition = {
     id: "bd1f624b-e8f2-462f-838a-7cb9e8fda988",
+    rarity: "uncommon",
     name: "Energy Flux",
     oracleText:
         'All artifacts have "At the beginning of your upkeep, sacrifice this artifact unless you pay {2}."',
@@ -2983,6 +3056,7 @@ function singleOpponentId(ctx: SpellContext): string | undefined {
 // player's CLEANUP.)
 export const cursedRack: CardDefinition = {
     id: "720d871d-1e7b-482e-bd1e-8ec79519fb86",
+    rarity: "uncommon",
     name: "Cursed Rack",
     oracleText:
         "As this artifact enters, choose an opponent.\nThe chosen player's maximum hand size is four.",
@@ -3019,6 +3093,7 @@ export const cursedRack: CardDefinition = {
 // the trigger only enters the stack on their upkeep — CR 603.4.)
 export const theRack: CardDefinition = {
     id: "ec0686ba-1277-4412-a397-7a6227808311",
+    rarity: "uncommon",
     name: "The Rack",
     oracleText:
         "As this artifact enters, choose an opponent.\nAt the beginning of the chosen player's upkeep, this artifact deals X damage to that player, where X is 3 minus the number of cards in their hand.",
@@ -3063,6 +3138,7 @@ export const theRack: CardDefinition = {
 // payment via `requestMayPay`.)
 export const urzasMiter: CardDefinition = {
     id: "438f0c61-a61d-4a9e-b21f-4e86420c7913",
+    rarity: "rare",
     name: "Urza's Miter",
     oracleText:
         "Whenever an artifact you control is put into a graveyard from the battlefield, if it wasn't sacrificed, you may pay {3}. If you do, draw a card.",
@@ -3098,6 +3174,7 @@ export const urzasMiter: CardDefinition = {
 // `addTemporaryPTBuff`.)
 export const coralHelm: CardDefinition = {
     id: "6c6df9db-0a46-40a5-ae9d-59f47dae9056",
+    rarity: "rare",
     name: "Coral Helm",
     oracleText:
         "{3}, Discard a card at random: Target creature gets +2/+2 until end of turn.",
@@ -3131,6 +3208,7 @@ export const coralHelm: CardDefinition = {
 // sacrifices itself too.)
 export const golgothianSylex: CardDefinition = {
     id: "856be1dd-a20b-49c2-be9d-7db76c7efd8b",
+    rarity: "rare",
     name: "Golgothian Sylex",
     oracleText:
         "{1}, {T}: Each nontoken permanent with a name originally printed in the Antiquities expansion is sacrificed by its controller.",
@@ -3176,6 +3254,7 @@ export const golgothianSylex: CardDefinition = {
 // most recent turn began".)
 export const rocketLauncher: CardDefinition = {
     id: "d5bb2093-78a8-4a6c-abe7-9a5afc181ec5",
+    rarity: "uncommon",
     name: "Rocket Launcher",
     oracleText:
         "{2}: This artifact deals 1 damage to any target. Destroy this artifact at the beginning of the next end step. Activate only if you've controlled this artifact continuously since the beginning of your most recent turn.",
@@ -3229,6 +3308,7 @@ export const rocketLauncher: CardDefinition = {
 // `powerFilter: { max: 2 }` restricts legal targets — CR 613 effective power.)
 export const tawnossWand: CardDefinition = {
     id: "978f09dd-121a-4da5-ba16-5c03fbdce084",
+    rarity: "uncommon",
     name: "Tawnos's Wand",
     oracleText:
         "{2}, {T}: Target creature with power 2 or less can't be blocked this turn.",
@@ -3293,6 +3373,7 @@ const TETRAVITE_TOKEN: TokenSpec = {
 // 0004).
 export const tetravus: CardDefinition = {
     id: "23eb19f9-2e8f-4bf0-9bf8-868e6da70e2d",
+    rarity: "rare",
     name: "Tetravus",
     oracleText:
         'Flying\nThis creature enters with three +1/+1 counters on it.\nAt the beginning of your upkeep, you may remove any number of +1/+1 counters from this creature. If you do, create that many 1/1 colorless Tetravite artifact creature tokens. They each have flying and "This token can\'t be enchanted."\nAt the beginning of your upkeep, you may exile any number of tokens created with this creature. If you do, put that many +1/+1 counters on this creature.',
@@ -3414,6 +3495,7 @@ export const tetravus: CardDefinition = {
 // the same resolution; no priority intervenes).
 export const transmuteArtifact: CardDefinition = {
     id: "6eab6765-eba3-4844-81ca-ae37a6e903df",
+    rarity: "uncommon",
     name: "Transmute Artifact",
     oracleText:
         "Sacrifice an artifact. If you do, search your library for an artifact card. If that card's mana value is less than or equal to the sacrificed artifact's mana value, put it onto the battlefield. If it's greater, you may pay {X}, where X is the difference. If you do, put it onto the battlefield. If you don't, put it into its owner's graveyard. Then shuffle.",
@@ -3536,6 +3618,7 @@ const tawnossCoffinHoldsSomething = (
 
 export const tawnossCoffin: CardDefinition = {
     id: "c27bc1de-8246-4dc8-af51-ec21def9e226",
+    rarity: "rare",
     name: "Tawnos's Coffin",
     oracleText:
         "You may choose not to untap this artifact during your untap step.\n{3}, {T}: Exile target creature and all Auras attached to it. Note the number and kind of counters that were on that creature. When this artifact leaves the battlefield or becomes untapped, return that exiled card to the battlefield under its owner's control tapped with the noted number and kind of counters on it. If you do, return the other exiled cards to the battlefield under their owner's control attached to that permanent.",

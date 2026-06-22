@@ -128,9 +128,22 @@ for (const card of cards) {
     const toughness =
         card.toughness !== undefined ? Number(card.toughness) : undefined;
 
+    // Rarity is required on every CardDefinition (CR 206, issue #511). MTGJSON
+    // carries it per printing; bail loudly on an unexpected value so a new card
+    // can never be generated without a valid rarity.
+    const rarity = card.rarity;
+    if (!["common", "uncommon", "rare"].includes(rarity)) {
+        console.error(
+            `Card "${card.name}" has unsupported rarity "${rarity}" — ` +
+                `only common/uncommon/rare are modelled. Skipping.`
+        );
+        continue;
+    }
+
     const fields = [];
     fields.push(`    id: "${scryfallId}"`);
     fields.push(`    name: "${card.name.replace(/"/g, '\\"')}"`);
+    fields.push(`    rarity: "${rarity}"`);
     if (manaCost) fields.push(`    manaCost: ${formatCost(manaCost)}`);
     fields.push(`    types: ${formatArray(types)}`);
     if (supertypes) fields.push(`    supertypes: ${formatArray(supertypes)}`);

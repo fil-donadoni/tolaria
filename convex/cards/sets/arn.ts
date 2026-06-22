@@ -36,6 +36,7 @@ import { stateTrigger } from "../abilities/triggers/stateTrigger";
 
 export const flyingMen: CardDefinition = {
     id: "25ab9a2b-e248-4ae2-aac3-b49fdb3e260a",
+    rarity: "common",
     name: "Flying Men",
     oracleText: "Flying",
     manaCost: { U: 1 },
@@ -48,6 +49,7 @@ export const flyingMen: CardDefinition = {
 
 export const birdMaiden: CardDefinition = {
     id: "5c1ba0b9-db01-447f-90cc-a2fc2c24146e",
+    rarity: "common",
     name: "Bird Maiden",
     oracleText: "Flying",
     manaCost: { X: 2, R: 1 },
@@ -60,6 +62,7 @@ export const birdMaiden: CardDefinition = {
 
 export const moorishCavalry: CardDefinition = {
     id: "f86f0781-7614-4779-a58d-f13ce96bdf33",
+    rarity: "common",
     name: "Moorish Cavalry",
     oracleText: "Trample",
     manaCost: { X: 2, W: 2 },
@@ -72,6 +75,7 @@ export const moorishCavalry: CardDefinition = {
 
 export const stoneThrowingDevils: CardDefinition = {
     id: "d1c387dd-1347-4443-91ce-b71f7ccdceba",
+    rarity: "common",
     name: "Stone-Throwing Devils",
     oracleText: "First strike",
     manaCost: { B: 1 },
@@ -84,6 +88,7 @@ export const stoneThrowingDevils: CardDefinition = {
 
 export const dancingScimitar: CardDefinition = {
     id: "1eb2e494-1414-4d1f-91d2-7cb20acdb128",
+    rarity: "rare",
     name: "Dancing Scimitar",
     oracleText: "Flying",
     manaCost: { X: 4 },
@@ -96,6 +101,7 @@ export const dancingScimitar: CardDefinition = {
 
 export const repentantBlacksmith: CardDefinition = {
     id: "61fc30b6-1355-425b-a86f-18f59f83141c",
+    rarity: "rare",
     name: "Repentant Blacksmith",
     oracleText: "Protection from red",
     manaCost: { X: 1, W: 1 },
@@ -108,6 +114,7 @@ export const repentantBlacksmith: CardDefinition = {
 
 export const warElephant: CardDefinition = {
     id: "7416c366-95cc-4799-b6c6-34d8fad8c202",
+    rarity: "common",
     name: "War Elephant",
     oracleText: "Trample, banding",
     manaCost: { X: 3, W: 1 },
@@ -124,6 +131,7 @@ export const warElephant: CardDefinition = {
 
 export const wyluliWolf: CardDefinition = {
     id: "15ccebe1-ef08-4805-a65f-a1c57abed9f2",
+    rarity: "common",
     name: "Wyluli Wolf",
     oracleText: "{T}: Target creature gets +1/+1 until end of turn.",
     manaCost: { X: 1, G: 1 },
@@ -152,6 +160,7 @@ export const wyluliWolf: CardDefinition = {
 
 export const aliBaba: CardDefinition = {
     id: "29cd7064-3703-43e0-8702-d1ba13703fd8",
+    rarity: "uncommon",
     name: "Ali Baba",
     oracleText: "{R}: Tap target Wall.",
     manaCost: { R: 1 },
@@ -180,6 +189,7 @@ export const aliBaba: CardDefinition = {
 
 export const kingSuleiman: CardDefinition = {
     id: "4d3dce0f-2168-4f63-b2f9-156a11beeea7",
+    rarity: "rare",
     name: "King Suleiman",
     oracleText: "{T}: Destroy target Djinn or Efreet.",
     manaCost: { X: 1, W: 1 },
@@ -212,6 +222,7 @@ export const kingSuleiman: CardDefinition = {
 
 export const juzamDjinn: CardDefinition = {
     id: "31bf3f14-b5df-498b-a1bb-965885c82401",
+    rarity: "rare",
     name: "Juzám Djinn",
     oracleText:
         "At the beginning of your upkeep, Juzám Djinn deals 1 damage to you.",
@@ -236,6 +247,7 @@ export const juzamDjinn: CardDefinition = {
 
 export const serendibEfreet: CardDefinition = {
     id: "cf56e862-3169-4f63-acd0-731080fa32f2",
+    rarity: "rare",
     name: "Serendib Efreet",
     oracleText:
         "Flying\nAt the beginning of your upkeep, Serendib Efreet deals 1 damage to you.",
@@ -261,6 +273,7 @@ export const serendibEfreet: CardDefinition = {
 
 export const jununEfreet: CardDefinition = {
     id: "5f46783a-b91e-4829-a173-5515b09ca615",
+    rarity: "rare",
     name: "Junún Efreet",
     oracleText:
         "Flying\nAt the beginning of your upkeep, sacrifice Junún Efreet unless you pay {B}{B}.",
@@ -293,6 +306,7 @@ export const jununEfreet: CardDefinition = {
 
 export const serendibDjinn: CardDefinition = {
     id: "0458b733-d689-4cb5-8970-3b675c67fc4d",
+    rarity: "rare",
     name: "Serendib Djinn",
     oracleText:
         "Flying\nAt the beginning of your upkeep, sacrifice a land. If you sacrifice an Island this way, Serendib Djinn deals 3 damage to you.\nWhen you control no lands, sacrifice Serendib Djinn.",
@@ -363,6 +377,7 @@ export const serendibDjinn: CardDefinition = {
 // the keyword falls off as that player's next upkeep begins.
 export const erhnamDjinn: CardDefinition = {
     id: "42bc0c3f-0a52-4bdc-83da-6484bf3102f3",
+    rarity: "rare",
     name: "Erhnam Djinn",
     oracleText:
         "At the beginning of your upkeep, target non-Wall creature an opponent controls gains forestwalk until your next upkeep. (It can't be blocked as long as defending player controls a Forest.)",
@@ -418,6 +433,7 @@ export const erhnamDjinn: CardDefinition = {
 
 export const hasranOgress: CardDefinition = {
     id: "9f310cf5-0985-4826-9779-19a713089d6d",
+    rarity: "common",
     name: "Hasran Ogress",
     oracleText:
         "Whenever Hasran Ogress attacks, it deals 3 damage to you unless you pay {2}.",
@@ -453,6 +469,7 @@ export const hasranOgress: CardDefinition = {
 
 export const elHajjaj: CardDefinition = {
     id: "c4b610d3-2005-4347-bcda-c30b5b7972e5",
+    rarity: "rare",
     name: "El-Hajjâj",
     oracleText: "Whenever El-Hajjâj deals damage, you gain that much life.",
     manaCost: { X: 1, B: 2 },
@@ -475,6 +492,7 @@ export const elHajjaj: CardDefinition = {
 
 export const khabalGhoul: CardDefinition = {
     id: "18607bf6-ce11-41cb-b001-0c9538406ba0",
+    rarity: "uncommon",
     name: "Khabál Ghoul",
     oracleText:
         "At the beginning of each end step, put a +1/+1 counter on Khabál Ghoul for each creature that died this turn.",
@@ -514,6 +532,7 @@ export const khabalGhoul: CardDefinition = {
 // true for exactly the turn the creature came under your control.
 export const ergRaiders: CardDefinition = {
     id: "35c73a97-531d-4dd5-8236-39b89c183c38",
+    rarity: "common",
     name: "Erg Raiders",
     oracleText:
         "At the beginning of your end step, if Erg Raiders didn't attack this turn, Erg Raiders deals 2 damage to you. This ability doesn't trigger if Erg Raiders came under your control this turn.",
@@ -544,6 +563,7 @@ export const ergRaiders: CardDefinition = {
 
 export const rukhEgg: CardDefinition = {
     id: "b28f9e63-e5e4-44b5-a17e-8301ff17c623",
+    rarity: "common",
     name: "Rukh Egg",
     oracleText:
         "When Rukh Egg dies, create a 4/4 red Bird creature token with flying at the beginning of the next end step.",
@@ -599,6 +619,7 @@ export const rukhEgg: CardDefinition = {
 
 export const dandan: CardDefinition = {
     id: "414d3cae-b8cf-4d53-bd6b-1aa83a828ba9",
+    rarity: "common",
     name: "Dandân",
     oracleText:
         "Dandân can't attack unless defending player controls an Island.\nWhen you control no Islands, sacrifice Dandân.",
@@ -636,6 +657,7 @@ export const dandan: CardDefinition = {
 
 export const islandFishJasconius: CardDefinition = {
     id: "8537cb0f-4821-417b-80cc-ea57d51ee9b8",
+    rarity: "rare",
     name: "Island Fish Jasconius",
     oracleText:
         "Island Fish Jasconius doesn't untap during your untap step.\nAt the beginning of your upkeep, you may pay {U}{U}{U}. If you do, untap Island Fish Jasconius.\nIsland Fish Jasconius can't attack unless defending player controls an Island.\nWhen you control no Islands, sacrifice Island Fish Jasconius.",
@@ -701,6 +723,7 @@ export const islandFishJasconius: CardDefinition = {
 
 export const kirdApe: CardDefinition = {
     id: "ebe8845e-df1c-481c-949c-aab84af99a05",
+    rarity: "common",
     name: "Kird Ape",
     oracleText: "Kird Ape gets +1/+2 as long as you control a Forest.",
     manaCost: { R: 1 },
@@ -732,6 +755,7 @@ export const kirdApe: CardDefinition = {
 
 export const giantTortoise: CardDefinition = {
     id: "096f7ac8-c639-4347-9767-7305eaf490ba",
+    rarity: "common",
     name: "Giant Tortoise",
     oracleText: "Giant Tortoise gets +0/+3 as long as it's untapped.",
     manaCost: { X: 1, U: 1 },
@@ -756,6 +780,7 @@ export const giantTortoise: CardDefinition = {
 
 export const fishliverOil: CardDefinition = {
     id: "deb6ed87-aa07-4b5e-ac40-1e16dc2a817a",
+    rarity: "common",
     name: "Fishliver Oil",
     oracleText: "Enchant creature\nEnchanted creature has islandwalk.",
     manaCost: { X: 1, U: 1 },
@@ -773,6 +798,7 @@ export const fishliverOil: CardDefinition = {
 
 export const unstableMutation: CardDefinition = {
     id: "a79e9236-a39e-471a-b18a-2c2ba16e7774",
+    rarity: "common",
     name: "Unstable Mutation",
     oracleText:
         "Enchant creature\nEnchanted creature gets +3/+3.\nAt the beginning of the upkeep of enchanted creature's controller, put a -1/-1 counter on that creature.",
@@ -815,6 +841,7 @@ export const unstableMutation: CardDefinition = {
 
 export const jandorsSaddlebags: CardDefinition = {
     id: "bc4f4b92-7d4e-4b03-8cb4-e6b356c338b4",
+    rarity: "rare",
     name: "Jandor's Saddlebags",
     oracleText: "{3}, {T}: Untap target creature.",
     manaCost: { X: 2 },
@@ -836,6 +863,7 @@ export const jandorsSaddlebags: CardDefinition = {
 
 export const flyingCarpet: CardDefinition = {
     id: "4b71ff49-ee0a-4065-9131-380468d62a30",
+    rarity: "uncommon",
     name: "Flying Carpet",
     oracleText: "{2}, {T}: Target creature gains flying until end of turn.",
     manaCost: { X: 4 },
@@ -862,6 +890,7 @@ export const flyingCarpet: CardDefinition = {
 
 export const aladdinsRing: CardDefinition = {
     id: "bb2b74a2-cb74-4b54-b9c6-78c63f14cf5b",
+    rarity: "rare",
     name: "Aladdin's Ring",
     oracleText: "{8}, {T}: Aladdin's Ring deals 4 damage to any target.",
     manaCost: { X: 8 },
@@ -884,6 +913,7 @@ export const aladdinsRing: CardDefinition = {
 
 export const jandorsRing: CardDefinition = {
     id: "71504078-a16f-4dc4-9626-0ecc42b1e93b",
+    rarity: "rare",
     name: "Jandor's Ring",
     oracleText:
         "{2}, {T}, Discard the last card you drew this turn: Draw a card.",
@@ -909,6 +939,7 @@ export const jandorsRing: CardDefinition = {
 
 export const brassMan: CardDefinition = {
     id: "1a364362-e42b-415c-9d95-b6ec7139f5e7",
+    rarity: "uncommon",
     name: "Brass Man",
     oracleText:
         "Brass Man doesn't untap during your untap step.\nAt the beginning of your upkeep, you may pay {1}. If you do, untap Brass Man.",
@@ -948,6 +979,7 @@ export const brassMan: CardDefinition = {
 
 export const armyOfAllah: CardDefinition = {
     id: "3d170015-b125-49a6-a15e-8fd116bbcb14",
+    rarity: "common",
     name: "Army of Allah",
     oracleText: "Attacking creatures get +2/+0 until end of turn.",
     manaCost: { X: 1, W: 2 },
@@ -957,6 +989,7 @@ export const armyOfAllah: CardDefinition = {
 
 export const piety: CardDefinition = {
     id: "f649c571-d7ec-4ebc-9e18-b0657cab495b",
+    rarity: "common",
     name: "Piety",
     oracleText: "Blocking creatures get +0/+3 until end of turn.",
     manaCost: { X: 2, W: 1 },
@@ -966,6 +999,7 @@ export const piety: CardDefinition = {
 
 export const sandstorm: CardDefinition = {
     id: "73cba9cd-73d9-442e-bd99-9cba9f398b64",
+    rarity: "common",
     name: "Sandstorm",
     oracleText: "Sandstorm deals 1 damage to each attacking creature.",
     manaCost: { G: 1 },
@@ -977,6 +1011,7 @@ export const sandstorm: CardDefinition = {
 
 export const desertTwister: CardDefinition = {
     id: "0d77c149-cca2-45c7-bc83-5ba1872ad5e0",
+    rarity: "uncommon",
     name: "Desert Twister",
     oracleText: "Destroy target permanent.",
     manaCost: { X: 4, G: 2 },
@@ -991,6 +1026,7 @@ export const desertTwister: CardDefinition = {
 
 export const cityOfBrass: CardDefinition = {
     id: "f4e32327-380d-471e-813b-4c27477787ce",
+    rarity: "uncommon",
     name: "City of Brass",
     oracleText:
         "Whenever City of Brass becomes tapped, it deals 1 damage to you.\n{T}: Add one mana of any color.",
@@ -1023,6 +1059,7 @@ export const cityOfBrass: CardDefinition = {
 
 export const elephantGraveyard: CardDefinition = {
     id: "18348df2-9037-4db4-bddb-76dc933229bf",
+    rarity: "rare",
     name: "Elephant Graveyard",
     oracleText: "{T}: Add {C}.\n{T}: Regenerate target Elephant.",
     types: ["Land"],
@@ -1057,6 +1094,7 @@ export const elephantGraveyard: CardDefinition = {
 
 export const libraryOfAlexandria: CardDefinition = {
     id: "ee266113-34ce-4189-84e7-ee2c86a2722c",
+    rarity: "uncommon",
     name: "Library of Alexandria",
     oracleText:
         "{T}: Add {C}.\n{T}: Draw a card. Activate this ability only if you have exactly seven cards in hand.",
@@ -1097,6 +1135,7 @@ export const libraryOfAlexandria: CardDefinition = {
 // why this card was deferred until activated-ability `resolveSteps` shipped.
 export const bazaarOfBaghdad: CardDefinition = {
     id: "ff37b863-f8c4-4584-8cc2-ac0e096e583f",
+    rarity: "uncommon",
     name: "Bazaar of Baghdad",
     oracleText: "{T}: Draw two cards, then discard three cards.",
     types: ["Land"],
@@ -1144,6 +1183,7 @@ export const bazaarOfBaghdad: CardDefinition = {
 // nonbasic land with no mana ability, only the prevent activation.
 export const oasis: CardDefinition = {
     id: "6f38565e-88b9-433d-b0e9-a3b9734f183f",
+    rarity: "uncommon",
     name: "Oasis",
     oracleText:
         "{T}: Prevent the next 1 damage that would be dealt to target creature this turn.",
@@ -1172,6 +1212,7 @@ export const oasis: CardDefinition = {
 // Fires per damage event (repeatable, CR 616.1d).
 export const aliFromCairo: CardDefinition = {
     id: "42027613-d261-4ce2-8ba1-7a2480c660f8",
+    rarity: "rare",
     name: "Ali from Cairo",
     oracleText:
         "Damage that would reduce your life total to less than 1 reduces it to 1 instead.",
@@ -1217,6 +1258,7 @@ export const aliFromCairo: CardDefinition = {
 // damage both ways this turn (CR 615, per-instance transient shield).
 export const ebonyHorse: CardDefinition = {
     id: "9ae81ec7-2b7d-4301-8114-032be5e6b663",
+    rarity: "rare",
     name: "Ebony Horse",
     oracleText:
         "{2}, {T}: Untap target attacking creature you control. Prevent all combat damage that would be dealt to and dealt by that creature this turn.",
@@ -1252,6 +1294,7 @@ export const ebonyHorse: CardDefinition = {
 // equal amount is dealt to that source's controller.
 export const eyeForAnEye: CardDefinition = {
     id: "2933ca2a-097b-44f4-ae56-ad524d26fd06",
+    rarity: "uncommon",
     name: "Eye for an Eye",
     oracleText:
         "The next time a source of your choice would deal damage to you this turn, instead that source deals that much damage to you and Eye for an Eye deals that much damage to that source's controller.",
@@ -1280,6 +1323,7 @@ export const eyeForAnEye: CardDefinition = {
 // destroys an Aura; mode 2 records a one-shot destroy replacement on a land.
 export const pyramids: CardDefinition = {
     id: "d2e9decf-47b7-44e0-b380-8055b6011021",
+    rarity: "rare",
     name: "Pyramids",
     oracleText:
         "{2}: Choose one —\n• Destroy target Aura attached to a land.\n• The next time target land would be destroyed this turn, remove all damage marked on it instead.",
@@ -1326,6 +1370,7 @@ export const pyramids: CardDefinition = {
 
 export const singingTree: CardDefinition = {
     id: "3003bf1e-8085-45d8-882b-c449109e7631",
+    rarity: "rare",
     name: "Singing Tree",
     oracleText:
         "{T}: Target attacking creature has base power 0 until end of turn.",
@@ -1360,6 +1405,7 @@ export const singingTree: CardDefinition = {
 
 export const islandOfWakWak: CardDefinition = {
     id: "f09cbd18-79f1-49a0-a3bd-b380ff5ecf03",
+    rarity: "rare",
     name: "Island of Wak-Wak",
     oracleText:
         "{T}: Target creature with flying has base power 0 until end of turn.",
@@ -1390,6 +1436,7 @@ export const islandOfWakWak: CardDefinition = {
 
 export const sorceressQueen: CardDefinition = {
     id: "94742003-f0f1-4483-b1a0-e7163995db1b",
+    rarity: "uncommon",
     name: "Sorceress Queen",
     oracleText:
         "{T}: Target creature other than Sorceress Queen has base power and toughness 0/2 until end of turn.",
@@ -1452,6 +1499,7 @@ function uniqueMostLife(
 // changes controller.
 export const aladdin: CardDefinition = {
     id: "db52bad2-a3ec-4f6f-9418-12e8c40703f6",
+    rarity: "rare",
     name: "Aladdin",
     oracleText:
         "{1}{R}{R}, {T}: Gain control of target artifact for as long as you control Aladdin.",
@@ -1487,6 +1535,7 @@ export const aladdin: CardDefinition = {
 // next upkeep. Tracked as a follow-up.
 export const oldManOfTheSea: CardDefinition = {
     id: "d10f8a05-78b0-42a7-adcd-83f6bafe5417",
+    rarity: "rare",
     name: "Old Man of the Sea",
     oracleText:
         "You may choose not to untap this creature during your untap step.\n{T}: Gain control of target creature with power less than or equal to this creature's power for as long as this creature remains tapped and that creature's power remains less than or equal to this creature's power.",
@@ -1530,6 +1579,7 @@ export const oldManOfTheSea: CardDefinition = {
 // unique maximum (CR 603.4).
 export const ghazbanOgre: CardDefinition = {
     id: "f9d613d5-36a2-4633-b5af-64511bb29cc2",
+    rarity: "common",
     name: "Ghazbán Ogre",
     oracleText:
         "At the beginning of your upkeep, if a player has more life than each other player, the player with the most life gains control of Ghazbán Ogre.",
@@ -1577,6 +1627,7 @@ export const ghazbanOgre: CardDefinition = {
 // Desert Nomads' "prevent damage Deserts would deal" replacements catch it.
 export const desert: CardDefinition = {
     id: "201155ea-f474-4e13-acda-cb071a6ca977",
+    rarity: "common",
     name: "Desert",
     oracleText:
         "{T}: Add {C}.\n{T}: Desert deals 1 damage to target attacking creature. Activate only during the end of combat step.",
@@ -1616,6 +1667,7 @@ export const desert: CardDefinition = {
 // this creature" replacement (CR 614).
 export const desertNomads: CardDefinition = {
     id: "e46d0c10-ec09-48ba-9e93-1392dca8111a",
+    rarity: "common",
     name: "Desert Nomads",
     oracleText:
         "Desertwalk\nPrevent all damage that would be dealt to this creature by Deserts.",
@@ -1647,6 +1699,7 @@ export const desertNomads: CardDefinition = {
 // solo); the prevention only applies while Camel is itself an attacker.
 export const camel: CardDefinition = {
     id: "e0078aa8-bfb8-43b0-a6b7-1991596c21e1",
+    rarity: "common",
     name: "Camel",
     oracleText:
         "Banding\nAs long as this creature is attacking, prevent all damage Deserts would deal to this creature and to creatures banded with this creature.",
@@ -1693,6 +1746,7 @@ const NAFS_ASP_ID = "965f722c-2b18-4c22-8c30-12552def5940";
 // the draw step itself.
 export const nafsAsp: CardDefinition = {
     id: NAFS_ASP_ID,
+    rarity: "common",
     name: "Nafs Asp",
     oracleText:
         "Whenever this creature deals damage to a player, that player loses 1 life at the beginning of their next draw step unless they pay {1} before that draw step.",
@@ -1748,6 +1802,7 @@ export const nafsAsp: CardDefinition = {
 // re-run after the may-pay suspension doesn't double-apply them.
 export const cyclone: CardDefinition = {
     id: "f11684d6-5b74-47a7-a2d0-256c9e437aa6",
+    rarity: "uncommon",
     name: "Cyclone",
     oracleText:
         "At the beginning of your upkeep, put a wind counter on this enchantment, then sacrifice this enchantment unless you pay {G} for each wind counter on it. If you pay, this enchantment deals damage equal to the number of wind counters on it to each creature and each player.",
@@ -1794,6 +1849,7 @@ export const cyclone: CardDefinition = {
 // when the battlefield has no creatures.
 export const dropOfHoney: CardDefinition = {
     id: "26e090d4-e7fe-403c-9aca-05c1b45ed238",
+    rarity: "rare",
     name: "Drop of Honey",
     oracleText:
         "At the beginning of your upkeep, destroy the creature with the least power. It can't be regenerated. If two or more creatures are tied for least power, you choose one of them.\nWhen there are no creatures on the battlefield, sacrifice this enchantment.",
@@ -1883,6 +1939,7 @@ const METAMORPHOSIS_COLORS: {
 
 export const metamorphosis: CardDefinition = {
     id: "fbc6cfc3-b232-40bf-bc0c-4618f6f5c9a5",
+    rarity: "common",
     name: "Metamorphosis",
     oracleText:
         "As an additional cost to cast this spell, sacrifice a creature.\nAdd X mana of any one color, where X is 1 plus the sacrificed creature's mana value. Spend this mana only to cast creature spells.",
@@ -1926,6 +1983,7 @@ export const metamorphosis: CardDefinition = {
 // current pool; no new TargetRequirement.type introduced).
 export const oubliette: CardDefinition = {
     id: "30d1450f-2909-410e-9920-731278fa74de",
+    rarity: "common",
     name: "Oubliette",
     oracleText:
         "When this enchantment enters, target creature phases out until this enchantment leaves the battlefield. Tap that creature as it phases in this way. (Auras and Equipment phase out with it. While permanents are phased out, they're treated as though they don't exist.)",
@@ -1978,6 +2036,7 @@ export const oubliette: CardDefinition = {
 // to {4} × chosen (CR 118), and on payment untaps the chosen creatures.
 export const magneticMountain: CardDefinition = {
     id: "95fde48b-e40a-4183-b324-1ec276dde015",
+    rarity: "uncommon",
     name: "Magnetic Mountain",
     oracleText:
         "Blue creatures don't untap during their controllers' untap steps.\nAt the beginning of each player's upkeep, that player may choose any number of tapped blue creatures they control and pay {4} for each creature chosen this way. If the player does, untap those creatures.",
@@ -2050,6 +2109,7 @@ export const magneticMountain: CardDefinition = {
 // identical, so the simplification is safe.
 export const cuombajjWitches: CardDefinition = {
     id: "7995c3f9-a147-43c9-9f82-470924818a4c",
+    rarity: "common",
     name: "Cuombajj Witches",
     oracleText:
         "{T}: This creature deals 1 damage to any target and 1 damage to any target of an opponent's choice.",
@@ -2143,6 +2203,7 @@ export const cuombajjWitches: CardDefinition = {
 // under its controller's control.
 export const ifhBiffEfreet: CardDefinition = {
     id: "c0b10fb7-8667-42bf-aeb6-35767a82917b",
+    rarity: "rare",
     name: "Ifh-Bíff Efreet",
     oracleText:
         "Flying\n{G}: This creature deals 1 damage to each creature with flying and each player. Any player may activate this ability.",
@@ -2198,6 +2259,7 @@ export const ifhBiffEfreet: CardDefinition = {
 // processed. Strict CR 616 simultaneous-replacement ordering is out of scope.
 export const guardianBeast: CardDefinition = {
     id: "9941f83b-2903-4eab-ac6d-5313e3978fa3",
+    rarity: "rare",
     name: "Guardian Beast",
     oracleText:
         "As long as Guardian Beast is untapped, noncreature artifacts you control can't be enchanted, can't be the targets of spells or abilities, have indestructible, and their control can't be changed. This ability doesn't remove Auras already attached.",
@@ -2232,6 +2294,7 @@ export const guardianBeast: CardDefinition = {
 // (CR 701.15c — the printed "they can't be regenerated").
 export const abuJafar: CardDefinition = {
     id: "0e9ad288-d164-44a6-96ec-4185a1587f1a",
+    rarity: "uncommon",
     name: "Abu Ja'far",
     oracleText:
         "When this creature dies, destroy all creatures blocking or blocked by it. They can't be regenerated.",
@@ -2270,6 +2333,7 @@ export const abuJafar: CardDefinition = {
 
 export const bottleOfSuleiman: CardDefinition = {
     id: "c474cd6b-5610-49eb-ac98-918d900efe8b",
+    rarity: "rare",
     name: "Bottle of Suleiman",
     oracleText:
         "{1}, Sacrifice this artifact: Flip a coin. If you win the flip, create a 5/5 colorless Djinn artifact creature token with flying. If you lose the flip, this artifact deals 5 damage to you.",
@@ -2323,6 +2387,7 @@ export const bottleOfSuleiman: CardDefinition = {
 
 export const mijaeDjinn: CardDefinition = {
     id: "d3ddbe51-cd1a-4b2c-849a-7c82d622122a",
+    rarity: "rare",
     name: "Mijae Djinn",
     oracleText:
         "Whenever this creature attacks, flip a coin. If you lose the flip, remove this creature from combat and tap it.",
@@ -2372,6 +2437,7 @@ export const mijaeDjinn: CardDefinition = {
 
 export const ydwenEfreet: CardDefinition = {
     id: "efdba2a9-d171-45ed-8dd4-9d0046128f68",
+    rarity: "rare",
     name: "Ydwen Efreet",
     oracleText:
         "Whenever this creature blocks, flip a coin. If you lose the flip, remove this creature from combat and it can't block this turn. Creatures it was blocking that had become blocked by only this creature this combat become unblocked.",
@@ -2515,6 +2581,7 @@ const JIHAD_COLORS: Color[] = ["W", "U", "B", "R", "G"];
 
 export const jihad: CardDefinition = {
     id: "b6c7705a-2987-4ef1-92b1-2c55d989ec6f",
+    rarity: "rare",
     name: "Jihad",
     oracleText:
         "As Jihad enters, choose a color and an opponent.\nWhite creatures get +2/+1 as long as the chosen player controls a nontoken permanent of the chosen color.\nWhen the chosen player controls no nontoken permanents of the chosen color, sacrifice Jihad.",
@@ -2584,6 +2651,7 @@ export const jihad: CardDefinition = {
 
 export const aladdinsLamp: CardDefinition = {
     id: "8fecc5d2-5298-4d47-b085-f160603f220e",
+    rarity: "rare",
     name: "Aladdin's Lamp",
     oracleText:
         "{X}, {T}: The next time you would draw a card this turn, instead look at the top X cards of your library, put all but one of them on the bottom of your library in a random order, then draw a card. X can't be 0.",
