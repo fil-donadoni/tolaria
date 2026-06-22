@@ -133,13 +133,16 @@ export interface CardInstance {
     }[];
     /** Triggered abilities granted to this permanent by an anthem-style static
      *  effect (CR 113.1, e.g. Energy Flux granting an upkeep sacrifice trigger
-     *  to every artifact). The template lives on the granting card's
-     *  `triggeredGrantTemplates` — UI resolves the oracle text via
-     *  `getCardById(grant.sourceCardId)`. */
+     *  to every artifact) or by a one-shot until-end-of-turn grant (CR 611.1b,
+     *  Rapid Fire's "gains rampage 2 until end of turn"). The template lives on
+     *  the granting card's `triggeredGrantTemplates` — UI resolves the oracle
+     *  text via `getCardById(grant.sourceCardId)`. Exactly one of `auraId`
+     *  (continuous, aura-keyed) / `duration` (until-end-of-turn) is set. */
     grantedTriggeredAbilities?: {
         sourceCardId: string;
         abilityId: string;
-        auraId: string;
+        auraId?: string;
+        duration?: unknown;
     }[];
     /** Counters on this permanent (CR 122). Map of counter type → count.
      *  Layer 7d folds P/T-modifying types into effective stats; non-PT types

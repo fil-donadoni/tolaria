@@ -1706,6 +1706,26 @@ function tickAllDurations(state: GameState): void {
         }
     }
 
+    // Granted triggered abilities with a duration (CR 611.1b — Rapid Fire's
+    // "gains rampage 2 until end of turn"). Aura-sourced grants carry an
+    // `auraId` and no `duration`; they're managed by the aura's lifetime
+    // (unapplySourceStaticEffects) and pass through this purge unchanged.
+    for (const p of state.players) {
+        for (const card of p.battlefield) {
+            if (!card.grantedTriggeredAbilities?.length) continue;
+            const kept: typeof card.grantedTriggeredAbilities = [];
+            for (const grant of card.grantedTriggeredAbilities) {
+                if (!grant.duration) {
+                    kept.push(grant);
+                    continue;
+                }
+                const next = tickDuration(grant.duration, view);
+                if (next !== null) kept.push({ ...grant, duration: next });
+            }
+            card.grantedTriggeredAbilities = kept.length > 0 ? kept : undefined;
+        }
+    }
+
     // Temporarily removed keywords (CR 611.1b layer 6 — Shelkin Brownie /
     // Tolaria "loses banding / 'bands with other' until end of turn"). On
     // expiry, push one occurrence of the keyword back into `staticAbilities`

@@ -4512,6 +4512,67 @@ export const pendelhaven: CardDefinition = {
 // here, so it is partially complete until C7 attaches the upkeep trigger.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Rapid Fire — {3}{W} Instant. "Cast this spell only before blockers are
+// declared. Target creature gains first strike until end of turn. If it doesn't
+// have rampage, that creature gains rampage 2 until end of turn."
+//
+// Composition (no new card-shaped primitive):
+//   • Cast timing (CR 117.1b) — castable only up to and including the
+//     declare-attackers step, so the allow-list is every pre-blocker phase
+//     where an instant can be cast. Reuses the parametric `castPhaseRestriction`
+//     plumbing (shared by Teleport / Berserk); enforced in rules.ts and game.ts.
+//   • First strike until end of turn (CR 702.7, 611.1b layer 6) —
+//     `grantStaticAbility(target, "first strike", end-of-turn)`.
+//   • Conditional rampage 2 until end of turn (CR 702.23) — only if the target
+//     has no rampage at resolution. "Has rampage" is read from the effective
+//     keywords (`getStaticAbilities`, prefix "rampage"), so a creature already
+//     carrying rampage 1/2/3 (or one granted earlier this turn) gets nothing
+//     extra. When granted: push the board-visible `"rampage 2"` keyword AND the
+//     matching `rampageTrigger(2)` (carried on `triggeredGrantTemplates`) for
+//     end of turn, mirroring how the printed rampage creatures pair the keyword
+//     with the trigger (ADR 0002).
+export const rapidFire: CardDefinition = {
+    id: "8f6c2b7a-1d4e-4c3a-9b8e-2f5a6d0c1e93",
+    rarity: "common",
+    name: "Rapid Fire",
+    oracleText:
+        "Cast this spell only before blockers are declared.\nTarget creature gains first strike until end of turn. If it doesn't have rampage, that creature gains rampage 2 until end of turn. (Whenever the creature becomes blocked, it gets +2/+2 until end of turn for each creature blocking it beyond the first.)",
+    manaCost: { X: 3, W: 1 },
+    types: ["Instant"],
+    castPhaseRestriction: [
+        "UPKEEP",
+        "DRAW",
+        "PRECOMBAT_MAIN",
+        "BEGINNING_OF_COMBAT",
+        "DECLARE_ATTACKERS",
+    ],
+    targetRequirement: { type: "Creature", count: 1 },
+    // The granted rampage trigger lives here (off `triggeredAbilities`) so the
+    // instant itself never fires it — only the creature it's granted to does.
+    triggeredGrantTemplates: [rampageTrigger(2)],
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "permanent") return;
+        // First strike until end of turn (CR 702.7, 611.1b).
+        ctx.grantStaticAbility(target, "first strike", {
+            phase: "end-of-turn",
+        });
+        // CR 702.23 — grant rampage 2 only if it has no rampage already.
+        const hasRampage = ctx
+            .getStaticAbilities(target)
+            .some((a) => a.startsWith("rampage"));
+        if (!hasRampage) {
+            ctx.grantStaticAbility(target, "rampage 2", {
+                phase: "end-of-turn",
+            });
+            ctx.grantTriggeredAbility(target, RAPID_FIRE_ID, "rampage-2", {
+                phase: "end-of-turn",
+            });
+        }
+    },
+};
+const RAPID_FIRE_ID = "8f6c2b7a-1d4e-4c3a-9b8e-2f5a6d0c1e93";
+
 // Aerathi Berserker — {2}{R}{R}{R} 2/4, Rampage 3.
 export const aerathiBerserker: CardDefinition = {
     id: "06673800-22a7-4ee3-92fa-7c7cd4865d30",

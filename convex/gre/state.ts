@@ -244,14 +244,21 @@ export type CardInstanceState = {
      *  template (`triggeredGrantTemplates`) on another card def — the template
      *  is unioned into the permanent's effective triggers by
      *  `effectiveTriggeredAbilities`, so the trigger collector scans and
-     *  resolves it as if it were printed on this permanent. Keyed by `auraId`
-     *  (the granting source's instance id) so it can be spliced out when the
-     *  source leaves play. Used by Energy Flux ("All artifacts have 'At the
-     *  beginning of your upkeep, sacrifice this artifact unless you pay {2}.'"). */
+     *  resolves it as if it were printed on this permanent.
+     *
+     *  Two flavours, exactly one keyed field set per entry:
+     *  - `auraId` (the granting source's instance id) for continuous
+     *    static-effect grants, spliced out when the source leaves play (Energy
+     *    Flux: "All artifacts have 'At the beginning of your upkeep, sacrifice
+     *    this artifact unless you pay {2}.'").
+     *  - `duration` for one-shot until-end-of-turn grants (CR 611.1b), spliced
+     *    out by the phase-boundary purge when the duration expires (Rapid Fire:
+     *    "that creature gains rampage 2 until end of turn"). */
     grantedTriggeredAbilities?: {
         sourceCardId: string;
         abilityId: string;
-        auraId: string;
+        auraId?: string;
+        duration?: Duration;
     }[];
     /** Keywords suppressed by a keyword-remove static effect (CR 613.1a
      *  layer 6). Each entry records the removed keyword and the source that
@@ -5349,6 +5356,31 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 { ability },
             ];
         },
+        // CR 113.1 / 611.1b: grants a triggered ability for a limited duration.
+        // The template lives on the granting card's `triggeredGrantTemplates[]`
+        // (looked up by `effectiveTriggeredAbilities`), so the trigger collector
+        // scans and resolves it as if printed on the target. The duration-scoped
+        // sibling of the continuous `triggered-grant` static effect; the
+        // phase-boundary purge splices it back out when `duration` expires.
+        // Used by Rapid Fire's "gains rampage 2 until end of turn".
+        grantTriggeredAbility(
+            target: TargetSelection,
+            sourceCardId: string,
+            abilityId: string,
+            duration: DurationSpec
+        ): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.grantedTriggeredAbilities = [
+                ...(found.card.grantedTriggeredAbilities ?? []),
+                {
+                    sourceCardId,
+                    abilityId,
+                    duration: resolveDuration(duration, item.castById, state),
+                },
+            ];
+        },
         // CR 611.1b layer 6: removes every keyword matching `predicate` from
         // `staticAbilities` for the duration, recording each on
         // `temporaryRemovedKeywords` so the phase-boundary purge restores it on
@@ -5464,6 +5496,12 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (target.type !== "permanent") return false;
             const found = findOnBattlefield(state, target.id);
             return found?.card.staticAbilities.includes(ability) === true;
+        },
+
+        getStaticAbilities(target: TargetSelection): string[] {
+            if (target.type !== "permanent") return [];
+            const found = findOnBattlefield(state, target.id);
+            return found ? [...found.card.staticAbilities] : [];
         },
 
         preventAllCombatDamage(): void {

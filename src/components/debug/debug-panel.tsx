@@ -173,6 +173,38 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Rapid Fire — {3}{W} instant (#494, CR 117.1b / 702.7 / 702.23).
+        // "Cast this spell only before blockers are declared. Target creature
+        // gains first strike until end of turn. If it doesn't have rampage,
+        // that creature gains rampage 2 until end of turn."
+        //
+        // Board: you hold Rapid Fire and four Plains. You control a Grizzly
+        // Bears (2/2, no rampage) to pump and a Frost Giant (printed rampage 2,
+        // the no-stacking edge). The opponent fields two Grizzly Bears to gang-
+        // block. Started in BEGINNING_OF_COMBAT — a pre-blockers window where
+        // Rapid Fire is castable.
+        // Golden path:
+        //   1. (Still before declare-blockers) cast Rapid Fire on your Grizzly
+        //      Bears → it gains first strike + rampage 2 until end of turn.
+        //   2. Move to declare-attackers, attack with the bear; let the
+        //      opponent gang-block with both bears. Rampage fires once:
+        //      +2/+2 × (2 − 1) → the bear is 4/4 and strikes first.
+        //   3. Confirm Rapid Fire is no longer castable once the declare-
+        //      blockers step has begun (the Cast action disappears).
+        // Edge: cast Rapid Fire on the Frost Giant instead → it gains first
+        //   strike but NO extra rampage (it already has rampage 2).
+        label: "LEG: Rapid Fire — first strike + conditional rampage 2 (before blockers)",
+        cards: [
+            { name: "Rapid Fire", owner: "me" as const, zone: "hand" as const },
+            { name: "Grizzly Bears", owner: "me" as const },
+            { name: "Frost Giant", owner: "me" as const },
+            { name: "Plains", owner: "me" as const, count: 4 },
+            { name: "Grizzly Bears", owner: "opp" as const, count: 2 },
+        ],
+        phase: "BEGINNING_OF_COMBAT",
+        landCount: 0,
+    },
+    {
         // The Abyss — {3}{B} World enchantment (CR 205.4a / 704.5m). "At the
         // beginning of each player's upkeep, destroy target nonartifact
         // creature that player controls of their choice. It can't be
