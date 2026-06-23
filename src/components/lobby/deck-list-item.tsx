@@ -33,8 +33,14 @@ export default function DeckListItem({
             tabIndex={0}
             onClick={() => onFocus(deck.presetId)}
             onKeyDown={handleCardKeyDown}
+            // Micro-motion (#598): `data-deck-row` + `data-selected` drive the
+            // selected-Deck pulse, `deck-row-liftable` the hover-lift. Both are
+            // gated behind prefers-reduced-motion: no-preference in index.css,
+            // so neither runs when reduced motion is requested.
+            data-deck-row
+            data-selected={isSelected}
             className={cn(
-                "flex flex-col cursor-pointer gap-3 rounded-sm border px-4 py-3 text-left transition",
+                "deck-row-liftable flex flex-col cursor-pointer gap-3 rounded-sm border px-4 py-3 text-left transition",
                 isSelected
                     ? "border-accent/40 bg-accent-soft/20"
                     : "border-border-subtle/40 bg-surface-elevated/20 hover:bg-surface-elevated/40"

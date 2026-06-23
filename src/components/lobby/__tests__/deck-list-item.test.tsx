@@ -37,6 +37,28 @@ describe("DeckListItem legality (issue #512)", () => {
         expect(onSelect).toHaveBeenCalledWith("p1");
     });
 
+    it("carries the reduced-motion-gated micro-motion hooks (issue #598)", () => {
+        // `data-deck-row` + `data-selected` drive the selected-Deck pulse and
+        // `deck-row-liftable` the hover-lift. The CSS that consumes them is
+        // gated behind prefers-reduced-motion: no-preference (asserted in
+        // src/__tests__/motion-gating.test.ts), so carrying the hooks is the
+        // component's whole responsibility here.
+        const { container, rerender } = render(
+            <DeckListItem deck={deck()} isSelected={false} onFocus={vi.fn()} />
+        );
+        const row = container.querySelector("[data-deck-row]")!;
+        expect(row).not.toBeNull();
+        expect(row.className).toContain("deck-row-liftable");
+        expect(row.getAttribute("data-selected")).toBe("false");
+
+        rerender(<DeckListItem deck={deck()} isSelected onFocus={vi.fn()} />);
+        expect(
+            container
+                .querySelector("[data-deck-row]")!
+                .getAttribute("data-selected")
+        ).toBe("true");
+    });
+
     it("flags an illegal deck and disables its Select button", () => {
         const onSelect = vi.fn();
         const { getByText } = render(
