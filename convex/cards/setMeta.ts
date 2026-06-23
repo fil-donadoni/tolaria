@@ -12,6 +12,7 @@ const SET_NAMES: Record<string, string> = {
     atq: "Antiquities",
     leg: "Legends",
     drk: "The Dark",
+    fem: "Fallen Empires",
 };
 
 /** Full set name for a code, falling back to the upper-cased code when the set
