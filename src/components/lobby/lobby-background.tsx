@@ -1,29 +1,14 @@
-import { useState } from "react";
+import AmbientPageGround from "~/components/ui/ambient-page-ground";
 
-const LOBBY_IMAGES = [
-    "/img/lobby-bg/01.webp",
-    "/img/lobby-bg/02.webp",
-    "/img/lobby-bg/03.webp",
-    "/img/lobby-bg/04.webp",
-    "/img/lobby-bg/05.webp",
-    "/img/lobby-bg/06.webp",
-    "/img/lobby-bg/07.webp",
-    "/img/lobby-bg/08.webp",
-];
-
-function pickRandom() {
-    return LOBBY_IMAGES[Math.floor(Math.random() * LOBBY_IMAGES.length)];
-}
-
+/** Lobby ambient page ground (PRD #589, issue #596).
+ *
+ *  Previously a single heavily-diluted art `<img>`; now consumes the shared
+ *  {@link AmbientPageGround} so the Lobby (and the auth screens that reuse this
+ *  component) get the full Battlefield ambient recipe — depth gradient +
+ *  warm/cool glows tinted from the live accent tokens + faint fantasy art +
+ *  grain + vignette + arcane ring. Opaque signal panels sit on top
+ *  (ambient-vs-signal split). Static here; motion ships in a later slice.
+ *  Inert to pointer events so foreground controls stay fully interactive. */
 export default function LobbyBackground() {
-    const [src] = useState(pickRandom);
-
-    return (
-        <img
-            src={src}
-            alt=""
-            aria-hidden
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-[0.1] mix-blend-luminosity select-none"
-        />
-    );
+    return <AmbientPageGround ring />;
 }
