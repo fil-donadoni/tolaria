@@ -429,6 +429,44 @@
         box-shadow: 0 0 8px
             color-mix(in srgb, var(--color-accent) 50%, transparent);
     }
+
+    /* ── Title Treatment (issue #597) ──
+       Epic start/end-of-Game headline: glowy Beleren over the scene, flanked by
+       clasp flourishes, with a slow-rotating runic ring behind it. */
+    .title-treatment-glow {
+        color: var(--color-parchment);
+        text-shadow:
+            0 0 22px color-mix(in srgb, var(--color-accent) 55%, transparent),
+            0 0 6px
+                color-mix(in srgb, var(--color-accent-strong) 60%, transparent),
+            0 3px 8px rgba(0, 0, 0, 0.85);
+    }
+
+    /* Dashed runic ring; #598 animates the slow rotation (gated below). */
+    .runic-ring {
+        border: 1px dashed
+            color-mix(in srgb, var(--color-accent) 70%, transparent);
+        box-shadow:
+            0 0 30px color-mix(in srgb, var(--color-accent) 30%, transparent),
+            inset 0 0 24px
+                color-mix(in srgb, var(--color-accent) 18%, transparent);
+        mask-image: radial-gradient(circle, #000 60%, transparent 72%);
+        -webkit-mask-image: radial-gradient(circle, #000 60%, transparent 72%);
+    }
+}
+
+/* Title-ring rotation — gated behind prefers-reduced-motion so it never fights
+   accessibility (#597 ships the markup; #598 owns the broader motion pass). */
+@keyframes runicSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .runic-ring {
+        animation: runicSpin 64s linear infinite;
+    }
 }
 
 @layer base {

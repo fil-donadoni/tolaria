@@ -17,6 +17,13 @@ type GameDialogProps = {
     title: string;
     subtitle?: string;
     icon?: React.ReactNode;
+    /** Optional Zelda-TotK stat-chip row under the title rule (e.g. life or
+     *  count before/after). Render `StatChip` atoms here; omit for none. */
+    stats?: React.ReactNode;
+    /** Optional footer action row, kept clear of the corner filigree with
+     *  generous bottom padding. When omitted, render actions inside `children`
+     *  (existing call-sites do this and keep working). */
+    footer?: React.ReactNode;
     size?: GameDialogSize;
     dismissable?: boolean;
     showCloseButton?: boolean;
@@ -34,12 +41,23 @@ const sizeClasses: Record<GameDialogSize, string> = {
     wide: "max-w-[90vw] w-[calc(100vw-2rem)]",
 };
 
+/**
+ * Gameplay dialog in the Zelda-TotK item-panel shape (issue #597): sunburst icon
+ * well, bold Beleren title + full-width gold underline rule, optional stat-chip
+ * row, body, footer actions, and the Panel's subtle SVG corner filigree.
+ *
+ * Padding keeps the ornament clear of content — the Panel adds `p-6` all round
+ * and the footer carries extra bottom spacing (`pb-1`) so no decoration overlaps
+ * the actions, especially at the bottom corners.
+ */
 export default function GameDialog({
     open,
     onOpenChange,
     title,
     subtitle,
     icon,
+    stats,
+    footer,
     size = "default",
     dismissable = true,
     showCloseButton = false,
@@ -57,7 +75,7 @@ export default function GameDialog({
             <DialogContent
                 showCloseButton={false}
                 className={cn(
-                    "border-none bg-transparent shadow-none ring-0 p-0 overflow-hidden flex justify-center items-center",
+                    "flex items-center justify-center overflow-hidden border-none bg-transparent p-0 shadow-none ring-0",
                     sizeClasses[size],
                     className
                 )}
@@ -67,34 +85,52 @@ export default function GameDialog({
                         className={cn(
                             "flex gap-4 sm:gap-6",
                             icon
-                                ? "flex-col sm:flex-row items-center"
+                                ? "flex-col items-center sm:flex-row sm:items-start"
                                 : "flex-col"
                         )}
                     >
                         {icon && <SunburstIcon>{icon}</SunburstIcon>}
 
-                        <div className="flex-1 flex flex-col w-full min-w-0 max-h-[80vh]">
-                            <DialogTitle className="heading-panel shrink-0">
+                        <div className="flex max-h-[80vh] w-full min-w-0 flex-1 flex-col">
+                            <DialogTitle
+                                className={cn(
+                                    "heading-panel shrink-0",
+                                    icon && "sm:text-left"
+                                )}
+                            >
                                 {title}
                             </DialogTitle>
 
+                            {/* full-width gold underline rule */}
+                            <span className="panel-rule mt-2 block h-px w-full shrink-0" />
+
                             {subtitle && (
-                                <p className="text-text-muted text-sm text-center mt-1 shrink-0">
+                                <p className="mt-2 shrink-0 text-center text-sm text-text-muted">
                                     {subtitle}
                                 </p>
                             )}
 
-                            <div className="divider-gradient my-2 shrink-0" />
+                            {stats && (
+                                <div className="mt-3 flex shrink-0 flex-wrap items-center gap-3">
+                                    {stats}
+                                </div>
+                            )}
 
                             <DialogDescription className="sr-only">
                                 {subtitle ?? title}
                             </DialogDescription>
 
-                            <div className="overflow-auto min-h-0">
+                            <div className="mt-3 min-h-0 overflow-auto">
                                 {children}
                             </div>
                         </div>
                     </div>
+
+                    {footer && (
+                        <div className="mt-5 flex flex-wrap items-center justify-end gap-2 pb-1">
+                            {footer}
+                        </div>
+                    )}
 
                     {onMinimize && (
                         <button
@@ -103,7 +139,7 @@ export default function GameDialog({
                             aria-label="Minimize choice dialog"
                             title="Minimize"
                             className={cn(
-                                "absolute top-3 flex items-center justify-center w-6 h-6 text-text-disabled hover:text-text-muted transition-colors cursor-pointer",
+                                "absolute top-3 flex h-6 w-6 cursor-pointer items-center justify-center text-text-disabled transition-colors hover:text-text-muted",
                                 showCloseButton ? "right-10" : "right-3"
                             )}
                         >
@@ -115,7 +151,7 @@ export default function GameDialog({
                         <button
                             type="button"
                             onClick={() => onOpenChange?.(false)}
-                            className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center text-text-disabled hover:text-text-muted transition-colors cursor-pointer"
+                            className="absolute top-3 right-3 flex h-6 w-6 cursor-pointer items-center justify-center text-text-disabled transition-colors hover:text-text-muted"
                         >
                             ✕
                         </button>
